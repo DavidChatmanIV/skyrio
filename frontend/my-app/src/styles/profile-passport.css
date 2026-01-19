@@ -5,6 +5,11 @@
   /* text */
   --pp-text: rgba(244, 246, 251, 0.95);
   --pp-muted: rgba(244, 246, 251, 0.72);
+  --pp-faint: rgba(244, 246, 251, 0.55);
+
+  /* brand accents */
+  --pp-violet: rgba(120, 90, 255, 0.55);
+  --pp-violet-2: rgba(194, 97, 255, 0.55);
 
   /* orange system */
   --pp-orange: #ff8a2a;
@@ -14,320 +19,239 @@
 
   /* surfaces */
   --pp-stroke: rgba(255, 255, 255, 0.12);
-  --pp-surface-a: rgba(255, 255, 255, 0.08);
-  --pp-surface-b: rgba(255, 255, 255, 0.03);
+  --pp-stroke-2: rgba(255, 255, 255, 0.08);
+  --pp-surface-a: rgba(255, 255, 255, 0.09);
+  --pp-surface-b: rgba(255, 255, 255, 0.04);
 
   /* layout */
   --pp-radius-lg: 22px;
   --pp-radius-md: 18px;
   --pp-radius-sm: 14px;
 
-  /* shadow */
-  --pp-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  /* shadows */
+  --pp-shadow-lg: 0 22px 55px rgba(0, 0, 0, 0.45);
+  --pp-shadow-md: 0 14px 34px rgba(0, 0, 0, 0.35);
+
+  /* blur */
+  --pp-blur: blur(16px);
+
+  /* spacing */
+  --pp-gap: 16px;
+
+  /* max width */
+  --pp-max: 1160px;
 }
 
 /* =============================
-   🌌 SKYRIO PASSPORT — GALAXY BG
-   (Vite-safe via CSS variable)
+   2) PAGE BACKGROUND
    ============================= */
 .sk-passportPage {
-  --passport-bg: none;
-
   min-height: 100vh;
+  position: relative;
+  color: var(--pp-text);
+  background: #080816;
+  overflow-x: hidden;
+}
 
-  background-image: radial-gradient(
-      1200px 800px at 70% 15%,
-      rgba(255, 140, 90, 0.18),
-      transparent 55%
-    ),
-    radial-gradient(
-      1000px 700px at 25% 30%,
-      rgba(120, 90, 255, 0.22),
-      transparent 60%
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(6, 6, 18, 0.62),
-      rgba(6, 6, 18, 0.88)
-    ),
-    var(--passport-bg);
-
+/* Background image passed by inline style: --passport-bg */
+.sk-passportPage::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image: var(--passport-bg);
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
+  background-repeat: no-repeat;
 
-  color: var(--pp-text);
+  /* clear but soft */
+  filter: blur(2px) saturate(1.08) contrast(1.05);
+  transform: scale(1.02);
 }
 
-@media (max-width: 768px) {
-  .sk-passportPage {
-    background-attachment: scroll;
-  }
-}
-
-/* =============================
-   2) ROUTE SCOPE (DO NOT TOUCH)
-   ============================= */
-.passport-scope {
-  color: var(--pp-text);
-}
-
-/* Only lock typography basics (not everything) */
-.passport-scope .ant-typography,
-.passport-scope .ant-typography * {
-  color: var(--pp-text) !important;
-}
-
-.passport-scope .ant-typography-secondary,
-.passport-scope .ant-text-secondary {
-  color: var(--pp-muted) !important;
-}
-
-/* =============================
-   3) LAYOUT (legacy + new shell)
-   ============================= */
-.passport-wrap {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 16px 16px 28px;
-}
-
-/* ✅ new mock layout wrapper used by merged JSX */
-.pp-page {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 10px 16px 30px;
-}
-
-.pp-shell--mock {
-  border-radius: var(--pp-radius-lg);
-  padding: 18px;
-  position: relative;
-  overflow: hidden;
-
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(10, 10, 18, 0.28);
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.45);
-}
-
-/* Warm glow edges like the mock */
-.pp-shell--mock::before {
+/* Overlay for legibility */
+.sk-passportPage::after {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(900px 500px at 15% 30%, rgba(255, 170, 70, 0.16), transparent 60%),
-    radial-gradient(900px 520px at 85% 20%, rgba(180, 120, 255, 0.16), transparent 60%),
-    linear-gradient(180deg, rgba(255, 165, 80, 0.10), rgba(0, 0, 0, 0) 30%, rgba(255, 165, 80, 0.10));
-  opacity: 0.95;
+  z-index: 0;
+  background: radial-gradient(
+      1200px 700px at 20% 0%,
+      rgba(120, 90, 255, 0.22),
+      rgba(0, 0, 0, 0) 60%
+    ),
+    radial-gradient(
+      900px 600px at 80% 30%,
+      rgba(255, 138, 42, 0.18),
+      rgba(0, 0, 0, 0) 55%
+    ),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.62));
 }
 
-.pp-shell--mock > * {
+/* Scope wrapper */
+.passport-scope {
   position: relative;
   z-index: 1;
 }
 
 /* =============================
-   4) SURFACES (CARDS)
+   3) SHELL / LAYOUT
    ============================= */
-.passport-scope .osq-surface {
-  background: linear-gradient(180deg, var(--pp-surface-a), var(--pp-surface-b));
-  border: 1px solid var(--pp-stroke);
-  border-radius: var(--pp-radius-md);
-  box-shadow: var(--pp-shadow);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+.pp-page {
+  padding: 18px 14px 40px;
 }
 
-.passport-scope .passport-hero {
-  border-radius: var(--pp-radius-lg);
-  background: linear-gradient(
-    135deg,
-    rgba(120, 90, 255, 0.18),
-    rgba(255, 138, 42, 0.10)
-  );
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: var(--pp-shadow);
-}
-
-/* 🔥 extra glass depth for galaxy */
-.passport-scope .osq-surface,
-.passport-scope .passport-hero {
-  backdrop-filter: blur(16px) saturate(120%);
-  -webkit-backdrop-filter: blur(16px) saturate(120%);
-}
-
-/* ✅ new mock card surfaces used by merged JSX (doesn't touch .osq-surface) */
-.pp-card {
-  border-radius: var(--pp-radius-md) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  background: rgba(18, 16, 30, 0.42) !important;
-
-  backdrop-filter: blur(16px) saturate(120%);
-  -webkit-backdrop-filter: blur(16px) saturate(120%);
-
-  box-shadow: 0 16px 55px rgba(0, 0, 0, 0.35);
-  color: var(--pp-text);
-}
-
-.pp-card--hero {
-  min-height: 150px;
-}
-
-.pp-card--center {
-  text-align: center;
-}
-
-.pp-card--tabs {
-  margin-top: 14px;
-  padding: 6px !important;
-}
-
-.pp-card--panel {
-  min-height: 220px;
+.pp-shell {
+  width: min(var(--pp-max), 100%);
+  margin: 0 auto;
 }
 
 /* =============================
-   5) PILLS (legacy)
-   ============================= */
-.pp-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-weight: 900;
-  background: var(--pp-orange-soft);
-  border: 1px solid var(--pp-orange-border);
-  color: var(--pp-text) !important;
-}
-
-.pp-pill--solid {
-  background: linear-gradient(180deg, var(--pp-orange-2), var(--pp-orange));
-  border: 1px solid rgba(255, 138, 42, 0.45);
-  color: #fff !important;
-  box-shadow: 0 2px 8px rgba(255, 138, 42, 0.28);
-}
-
-.count-pill,
-.status-pill,
-.orange-pill,
-.view-only-pill,
-.top-eight__chip {
-  background: var(--pp-orange-soft) !important;
-  border: 1px solid var(--pp-orange-border) !important;
-  border-radius: 999px !important;
-  padding: 4px 10px !important;
-  font-weight: 900 !important;
-  color: #fff !important;
-}
-
-/* =============================
-   6) HERO LAYOUT (legacy grid)
-   (keep for any older hero variants)
-   ============================= */
-.pp-heroGrid {
-  display: grid;
-  grid-template-columns: 1.15fr 0.9fr 1fr;
-  gap: 20px;
-  align-items: center;
-}
-
-.pp-heroLeft {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.passport-socialBtn {
-  background: var(--pp-orange-soft);
-  border: 1px solid var(--pp-orange-border);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-weight: 900;
-  cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease;
-  color: var(--pp-text) !important;
-}
-
-.passport-socialBtn:hover {
-  background: rgba(255, 138, 42, 0.22);
-  transform: translateY(-1px);
-}
-
-.pp-heroCenter {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.pp-xpRing .ant-progress-text {
-  display: none !important;
-}
-
-.pp-mutedLine {
-  font-size: 13px;
-  color: var(--pp-muted) !important;
-}
-
-.pp-heroRight {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-}
-
-/* =============================
-   6B) HERO HELPERS (new mock)
+   4) SHARED TYPOGRAPHY
    ============================= */
 .pp-title {
   color: var(--pp-text) !important;
+  letter-spacing: 0.2px;
 }
 
 .pp-muted {
   color: var(--pp-muted) !important;
 }
 
-/* avatar glow wrapper used in both layouts */
-.pp-avatarGlow {
-  border-radius: 999px;
-  box-shadow:
-    0 0 0 3px rgba(160, 120, 255, 0.35),
-    0 0 24px rgba(255, 160, 80, 0.22);
-  display: inline-flex;
+.pp-faint {
+  color: var(--pp-faint) !important;
 }
 
-/* tag pill used in mock */
-.pp-tag {
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: rgba(244, 246, 251, 0.90) !important;
-  border-radius: 999px !important;
-  padding: 4px 10px !important;
-  margin-right: 8px;
-  margin-top: 6px;
+/* =============================
+   5) CARD SYSTEM (GLASS)
+   ============================= */
+.pp-card {
+  border-radius: var(--pp-radius-lg) !important;
+  background: linear-gradient(
+    180deg,
+    var(--pp-surface-a),
+    var(--pp-surface-b)
+  ) !important;
+  border: 1px solid var(--pp-stroke) !important;
+  box-shadow: var(--pp-shadow-md);
+  backdrop-filter: var(--pp-blur);
 }
 
-/* key/value row used in mock */
-.pp-kv {
+.pp-card .ant-card-body {
+  padding: 18px !important;
+}
+
+.pp-card--panel .ant-card-body {
+  padding: 18px !important;
+}
+
+/* =============================
+   6) HERO PANEL (PASSPORT TOP)
+   ============================= */
+.pp-heroPanel .ant-card-body {
+  padding: 18px !important;
+}
+
+.pp-heroInner {
+  display: grid;
+  grid-template-columns: 1.15fr 1px 0.85fr 1px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.pp-heroDivider {
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0)
+  );
+  opacity: 0.7;
+}
+
+.pp-heroCol {
+  min-width: 0;
+}
+
+.pp-heroTop {
   display: flex;
-  gap: 8px;
+  gap: 14px;
+  align-items: center;
+}
+
+.pp-avatarGlow {
+  position: relative;
+  border-radius: 999px;
+  padding: 6px;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 138, 42, 0.35),
+    rgba(120, 90, 255, 0.18),
+    rgba(255, 255, 255, 0.04)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.pp-avatarGlow .ant-avatar {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* Issued / Expires pills */
+.pp-heroMeta {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.pp-kv {
+  display: inline-flex;
+  gap: 6px;
   align-items: baseline;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--pp-stroke-2);
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .pp-kvLabel {
-  color: rgba(244, 246, 251, 0.62) !important;
+  color: var(--pp-muted) !important;
   font-size: 12px;
 }
 
 .pp-kvValue {
-  color: rgba(244, 246, 251, 0.88) !important;
+  color: var(--pp-text) !important;
   font-size: 12px;
 }
 
-/* follow buttons used in mock */
+/* Orange pill */
+.pp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--pp-stroke);
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--pp-text);
+}
+
+.pp-pill--active {
+  border: 1px solid var(--pp-orange-border);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 138, 42, 0.22),
+    rgba(0, 0, 0, 0.16)
+  );
+  box-shadow: 0 10px 22px rgba(255, 138, 42, 0.14);
+}
+
+/* Followers row pills */
 .pp-followRow {
   display: flex;
   gap: 10px;
@@ -336,286 +260,802 @@
 }
 
 .ppFollowBtn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(244, 246, 251, 0.92);
+  border: 1px solid var(--pp-stroke);
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--pp-text);
   cursor: pointer;
-  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+  transition: transform 160ms ease, border-color 160ms ease,
+    background 160ms ease;
+}
+
+.ppFollowBtn strong {
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.ppFollowBtn span {
+  color: var(--pp-muted);
+  font-size: 12px;
 }
 
 .ppFollowBtn:hover {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.10);
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 138, 42, 0.35);
+  background: rgba(0, 0, 0, 0.22);
 }
 
-.ppFollowBtn strong {
-  font-weight: 900;
+.ppFollowBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
-.ppFollowBtn span {
-  opacity: 0.82;
-  font-size: 12px;
-}
-
-/* membership block used in mock */
-.pp-membershipTop {
+/* Stamp placeholders */
+.pp-stampPlaceholders {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.pp-membershipCard {
+  gap: 10px;
   margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
 }
 
-.pp-membershipBadge {
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  background: radial-gradient(
-    circle at 30% 30%,
-    rgba(255, 170, 70, 0.95),
-    rgba(160, 120, 255, 0.65)
-  );
-  box-shadow: 0 0 22px rgba(255, 170, 70, 0.20);
+.pp-stampSlot {
+  height: 34px;
+  width: 80px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.14);
 }
 
-/* level ring wrapper (dashboard progress) */
-.pp-levelWrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 150px;
+/* XP ring */
+.pp-levelWrap--hero {
+  display: grid;
+  place-items: center;
+  padding: 8px 0;
+}
+
+.pp-levelRing .ant-progress-inner {
+  background: rgba(0, 0, 0, 0.2) !important;
 }
 
 .pp-levelText {
+  display: grid;
+  gap: 2px;
   text-align: center;
-  line-height: 1.1;
 }
 
 .pp-levelRole {
+  color: var(--pp-muted);
   font-size: 12px;
-  color: rgba(244, 246, 251, 0.70);
+  letter-spacing: 0.25px;
 }
 
 .pp-levelNum {
-  font-size: 28px;
-  font-weight: 800;
-  color: rgba(244, 246, 251, 0.92);
+  color: var(--pp-text);
+  font-weight: 900;
+  font-size: 18px;
 }
 
 .pp-levelXp {
+  color: var(--pp-muted);
   font-size: 12px;
-  color: rgba(244, 246, 251, 0.70);
 }
 
-/* =============================
-   7) TABS (legacy rail)
-   ============================= */
-.ppTabRail {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: rgba(10, 10, 18, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+.pp-accentText {
+  color: var(--pp-orange-2);
+  font-weight: 800;
 }
 
-.ppTabItem {
-  padding: 10px 14px;
-  border-radius: 14px;
-  cursor: pointer;
+/* Right column actions */
+.pp-heroActions {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
 }
 
-.ppTabItem.isActive {
+.pp-ghost-btn {
+  border-radius: 999px !important;
+  border: 1px solid var(--pp-stroke) !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  color: var(--pp-text) !important;
+  height: 38px;
+  transition: transform 160ms ease, border-color 160ms ease,
+    background 160ms ease;
+}
+
+.pp-ghost-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 138, 42, 0.35) !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+}
+
+.pp-ghost-btn--music {
+  border-color: rgba(255, 138, 42, 0.35) !important;
   background: linear-gradient(
     180deg,
     rgba(255, 138, 42, 0.18),
-    rgba(120, 90, 255, 0.08)
-  );
-  box-shadow: 0 0 22px rgba(255, 138, 42, 0.22);
+    rgba(0, 0, 0, 0.16)
+  ) !important;
 }
 
-/* ✅ Segmented tabs (new mock) */
-.pp-tabs .ant-segmented-item {
-  border-radius: 14px !important;
+.pp-credentialHint {
+  display: block;
+  margin-top: 10px;
+  color: var(--pp-muted);
+  font-size: 12px;
+  line-height: 1.3;
 }
+
+/* =============================
+   7) TABS BAR (SEGMENTED)
+   ============================= */
+.pp-tabPanel .ant-card-body {
+  padding: 12px !important;
+}
+
+.pp-tabs {
+  width: 100%;
+}
+
+.pp-tabs .ant-segmented {
+  border-radius: 999px !important;
+  padding: 6px !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  border: 1px solid var(--pp-stroke) !important;
+}
+
+.pp-tabs .ant-segmented-item {
+  border-radius: 999px !important;
+  color: var(--pp-muted) !important;
+}
+
+.pp-tabs .ant-segmented-item-selected {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 138, 42, 0.22),
+    rgba(0, 0, 0, 0.16)
+  ) !important;
+  border: 1px solid rgba(255, 138, 42, 0.35) !important;
+  color: var(--pp-text) !important;
+}
+
 .ppSegLabel {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  padding: 2px 6px;
 }
+
 .ppSegIcon {
-  display: inline-flex;
   opacity: 0.9;
 }
+
 .ppSegText {
-  font-weight: 800;
-  color: rgba(244, 246, 251, 0.82);
+  font-size: 12px;
+  letter-spacing: 0.15px;
+}
+
+.pp-tabPanel--sticky {
+  position: sticky;
+  top: 10px;
+  z-index: 10;
 }
 
 /* =============================
-   7B) BUTTONS (new mock helpers)
-   ============================= */
-.pp-ghost-btn {
-  border-radius: 12px !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.pp-ghost-btn:hover {
-  background: rgba(255, 255, 255, 0.10) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
-}
-
-.pp-cta-btn {
-  border-radius: 12px !important;
-  border: none !important;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 170, 70, 0.95),
-    rgba(255, 120, 200, 0.85)
-  ) !important;
-  color: rgba(10, 10, 18, 0.92) !important;
-  font-weight: 900 !important;
-}
-
-/* =============================
-   7C) PANEL HEADERS (new mock)
+   8) SUMMARY PANELS
    ============================= */
 .pp-panelHeader {
+  display: grid;
+  gap: 4px;
   margin-bottom: 10px;
 }
 
 .pp-panelHeaderRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 12px;
+}
+
+.pp-xpChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--pp-stroke);
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--pp-text);
+  font-weight: 800;
+  font-size: 12px;
 }
 
 /* =============================
-   8) ACCESSIBILITY
+   9) INNER CIRCLE
    ============================= */
-.passport-scope button:focus-visible {
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.25);
+.pp-innerCircleCard .ant-card-body {
+  padding: 18px !important;
 }
 
-/* =========================================================
-   9) TRIPS UI (TripCard / TripMeta / SaveTripButton)
-   Add-on styles — scoped so they won't disturb Passport
-   ========================================================= */
-
-/* If TripCard renders inside Passport, keep it aligned with passport text */
-.passport-scope .sk-tripMeta .sk-tripMetaLine {
-  color: var(--pp-text);
+.pp-innerGrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-/* Trip card (matches glass surfaces but can stand alone anywhere) */
-.sk-tripCard {
-  border-radius: 18px;
-  overflow: hidden;
-}
-
-/* If TripCard is used on the Passport route, give it glass surface feel */
-.passport-scope .sk-tripCard.osq-surface {
-  border-radius: 18px;
-}
-
-/* Cover */
-.sk-tripCoverWrap {
+.pp-innerTile {
   position: relative;
-  height: 170px;
-  border-radius: 16px;
+  height: 96px;
+  border-radius: var(--pp-radius-md);
   overflow: hidden;
+  border: 1px solid var(--pp-stroke);
+  background: rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+  transition: transform 160ms ease, border-color 160ms ease;
 }
 
-.sk-tripCover {
+.pp-innerTile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 138, 42, 0.35);
+}
+
+.pp-innerCover {
   position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center;
+  filter: saturate(1.05) contrast(1.05);
   transform: scale(1.02);
 }
 
-.sk-tripCoverOverlay {
+.pp-innerOverlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0.1) 0%,
-    rgba(0, 0, 0, 0.55) 100%
+    rgba(0, 0, 0, 0.1),
+    rgba(0, 0, 0, 0.55)
   );
 }
 
-/* top row pills (featured, etc.) */
-.sk-tripTopRow {
+.pp-innerMeta {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
+  left: 12px;
+  bottom: 10px;
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+}
+
+.pp-innerName {
+  color: var(--pp-text);
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  font-size: 14px;
+}
+
+.pp-innerSub {
+  color: var(--pp-muted);
+  font-size: 12px;
+}
+
+.pp-innerTile--add {
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.pp-innerAddPlus {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 138, 42, 0.35);
+  background: rgba(255, 138, 42, 0.12);
+  color: var(--pp-orange-2);
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.pp-innerAddText {
+  margin-top: 6px;
+  color: var(--pp-muted);
+  font-size: 12px;
+}
+
+.pp-innerDots {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.pp-innerDots .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.pp-innerDots .dot.isOn {
+  background: rgba(255, 138, 42, 0.75);
+  box-shadow: 0 0 18px rgba(255, 138, 42, 0.35);
+}
+
+/* =============================
+   10) DARK INPUTS / TAGS
+   ============================= */
+.ant-input,
+.ant-input-affix-wrapper {
+  border-radius: 999px !important;
+  border: 1px solid var(--pp-stroke) !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+  color: var(--pp-text) !important;
+}
+
+.ant-input::placeholder {
+  color: rgba(244, 246, 251, 0.55);
+}
+
+.ant-tag {
+  border-radius: 999px !important;
+  border: 1px solid var(--pp-stroke) !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  color: var(--pp-text) !important;
+}
+
+/* =========================================================
+   SKYRIO EXCHANGE PREVIEW CARD (SkyrioExchangePreviewCard.jsx)
+   Classes: .skx-card, .skx-top, .skx-divider, .skx-body, etc.
+   ========================================================= */
+.skx-card {
+  border-radius: 22px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.09),
+    rgba(255, 255, 255, 0.04)
+  ) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.skx-card.osq-surface {
+  border-radius: 22px !important;
+}
+
+.skx-top {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
-  z-index: 2;
+  gap: 14px;
+  padding: 18px 18px 14px;
 }
 
-.sk-tripPill {
+.skx-left {
+  min-width: 0;
+}
+
+.skx-titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skx-badgeDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 138, 42, 0.9);
+  box-shadow: 0 0 18px rgba(255, 138, 42, 0.35);
+  flex: 0 0 auto;
+}
+
+.skx-title {
+  margin: 0 !important;
+  color: rgba(244, 246, 251, 0.95) !important;
+  letter-spacing: 0.25px;
+}
+
+.skx-sub {
+  display: block;
+  margin-top: 6px;
+  color: rgba(244, 246, 251, 0.72) !important;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.skx-subMuted {
+  color: rgba(244, 246, 251, 0.55);
+}
+
+.skx-tags {
+  margin-top: 10px;
+}
+
+.skx-pill {
   border-radius: 999px !important;
   padding: 4px 10px !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  background: rgba(0, 0, 0, 0.25) !important;
-  color: rgba(255, 255, 255, 0.92) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 138, 42, 0.35) !important;
+  background: rgba(255, 138, 42, 0.12) !important;
+  color: rgba(244, 246, 251, 0.92) !important;
+  font-weight: 700;
+  font-size: 12px;
 }
 
-/* Meta lines */
-.sk-tripMeta .sk-tripMetaLine {
-  color: rgba(244, 246, 251, 0.92);
-}
-
-/* Tags */
-.sk-tripTag {
-  border-radius: 999px !important;
+.skx-pillGhost {
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: rgba(244, 246, 251, 0.88) !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  color: rgba(244, 246, 251, 0.82) !important;
 }
 
-/* actions row */
-.sk-tripActions {
-  margin-top: 12px;
+.skx-right {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-/* Save button */
-.sk-saveTripBtn {
-  border-radius: 999px;
+.skx-xp {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
   padding: 8px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(244, 246, 251, 0.92);
-  cursor: pointer;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.16);
 }
 
-.sk-saveTripBtn:hover {
-  background: rgba(255, 255, 255, 0.10);
+.skx-xpLabel {
+  font-size: 11px;
+  color: rgba(244, 246, 251, 0.62);
+  letter-spacing: 0.2px;
+}
+
+.skx-xpValue {
+  font-size: 18px;
+  font-weight: 900;
+  color: rgba(244, 246, 251, 0.95);
+  line-height: 1;
+}
+
+.skx-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.skx-iconBtn {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.16);
+  color: rgba(244, 246, 251, 0.92);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease,
+    background 160ms ease;
+}
+
+.skx-iconBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 138, 42, 0.35);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.skx-iconBtn:active {
+  transform: translateY(0px);
+}
+
+.skx-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 138, 42, 0.35),
+    rgba(120, 90, 255, 0.28),
+    rgba(255, 255, 255, 0)
+  );
+  opacity: 0.85;
+}
+
+.skx-body {
+  padding: 16px 18px 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.skx-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.skx-rowLeft {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.skx-ico {
+  font-size: 18px;
+  color: rgba(255, 176, 102, 0.92);
+  filter: drop-shadow(0 0 16px rgba(255, 138, 42, 0.18));
+}
+
+.skx-label {
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.62);
+  letter-spacing: 0.2px;
+}
+
+.skx-value {
+  font-size: 16px;
+  font-weight: 900;
+  color: rgba(244, 246, 251, 0.95);
+  margin-top: 1px;
+}
+
+/* .skx-mini used for Text + container; keep safe */
+.skx-mini,
+.skx-mini .ant-typography {
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.68);
+}
+
+.skx-progress {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.14);
+  padding: 12px 12px 10px;
+}
+
+.skx-progressTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.skx-progress .ant-progress-outer {
+  padding-right: 0 !important;
+}
+
+.skx-progress .ant-progress-bg {
+  border-radius: 999px !important;
+}
+
+.skx-progress .ant-progress-inner {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 999px !important;
+}
+
+/* container only */
+.skx-body > .skx-mini {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.18),
+    rgba(0, 0, 0, 0.12)
+  );
+  color: rgba(244, 246, 251, 0.92);
+}
+
+.skx-body > .skx-mini .ant-typography {
+  color: rgba(244, 246, 251, 0.92) !important;
+}
+
+.skx-miniLeft {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.skx-miniIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 138, 42, 0.3);
+  background: rgba(255, 138, 42, 0.1);
+  color: rgba(255, 176, 102, 0.95);
+  flex: 0 0 auto;
+  box-shadow: 0 10px 22px rgba(255, 138, 42, 0.12);
+}
+
+.skx-miniTitle {
+  display: block;
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.72);
+  font-weight: 700;
+}
+
+.skx-miniSub {
+  margin-top: 2px;
+  font-size: 14px;
+  color: rgba(244, 246, 251, 0.94);
+  font-weight: 900;
+  letter-spacing: 0.15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.skx-miniSub2 {
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.55);
+}
+
+.skx-cta.ant-btn {
+  border-radius: 999px !important;
+  height: 38px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.2px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.skx-cta.ant-btn-primary {
+  border: none !important;
+  background: linear-gradient(
+    90deg,
+    rgba(120, 90, 255, 1),
+    rgba(194, 97, 255, 1),
+    rgba(255, 138, 42, 1)
+  ) !important;
+}
+
+.skx-cta.ant-btn[disabled] {
+  opacity: 0.62 !important;
+}
+
+/* =============================
+   11) RESPONSIVE
+   ============================= */
+@media (max-width: 1024px) {
+  .pp-heroInner {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .pp-heroDivider {
+    display: none;
+  }
+
+  .pp-tabPanel--sticky {
+    top: 8px;
+  }
+}
+
+/* =============================
+   MOBILE (keep it clean)
+   ============================= */
+@media (max-width: 640px) {
+  .pp-page {
+    padding: 14px 10px 28px;
+  }
+
+  .pp-card .ant-card-body {
+    padding: 14px !important;
+  }
+
+  .pp-innerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .ppFollowBtn {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pp-heroActions {
+    gap: 8px;
+  }
+
+  .pp-ghost-btn {
+    width: 100%;
+  }
+
+  .skx-top {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .skx-right {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .skx-body > .skx-mini {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .skx-miniSub {
+    max-width: 100%;
+  }
+
+  .skx-cta.ant-btn {
+    width: 100%;
+  }
+}
+
+/* =============================
+   12) REDUCE MOTION
+   ============================= */
+@media (prefers-reduced-motion: reduce) {
+  .ppFollowBtn,
+  .pp-innerTile,
+  .pp-ghost-btn,
+  .skx-iconBtn,
+  .skx-cta.ant-btn {
+    transition: none !important;
+  }
+
+  .ppFollowBtn:hover,
+  .pp-innerTile:hover,
+  .pp-ghost-btn:hover,
+  .skx-iconBtn:hover {
+    transform: none !important;
+  }
+}
+
+/* =========================================
+   FIX: White pill input on Passport/Exchange
+   MUST be at the bottom of this file
+   ========================================= */
+/* 1) Any real input inside the Exchange panel */
+.sk-passportPage .skyrio-exchange input,
+.sk-passportPage .skyrio-exchange textarea,
+.sk-passportPage .skyrio-exchange select {
+  background: rgba(0, 0, 0, 0.22) !important;
+  color: rgba(244, 246, 251, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 999px !important;
+  outline: none !important;
+}
+
+/* 2) If the "pill" is a DIV wrapper (common in custom search bars) */
+.sk-passportPage .skyrio-exchange .search,
+.sk-passportPage .skyrio-exchange .searchBar,
+.sk-passportPage .skyrio-exchange .search-pill,
+.sk-passportPage .skyrio-exchange .searchPill,
+.sk-passportPage .skyrio-exchange .exchange-search,
+.sk-passportPage .skyrio-exchange .exchangeSearch {
+  background: rgba(0, 0, 0, 0.22) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 999px !important;
+}
+
+/* 3) Placeholder text */
+.sk-passportPage .skyrio-exchange input::placeholder {
+  color: rgba(244, 246, 251, 0.55) !important;
+}
+
+/* 4) Focus glow */
+.sk-passportPage .skyrio-exchange input:focus,
+.sk-passportPage .skyrio-exchange .search:focus-within,
+.sk-passportPage .skyrio-exchange .searchBar:focus-within,
+.sk-passportPage .skyrio-exchange .search-pill:focus-within,
+.sk-passportPage .skyrio-exchange .exchange-search:focus-within {
+  border-color: rgba(255, 138, 42, 0.45) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.12) !important;
 }

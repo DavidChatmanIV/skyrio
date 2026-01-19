@@ -1,79 +1,184 @@
-import React from "react";
-import {
-  Row,
-  Col,
-  Card,
-  Typography,
-  Input,
-  Button,
-  Space,
-  Tag,
-  Progress,
-} from "antd";
+import React, { useMemo, useState } from "react";
+import { Row, Col, Card, Typography, Input, Button, Space } from "antd";
 import {
   SearchOutlined,
   PictureOutlined,
   VideoCameraOutlined,
   EnvironmentOutlined,
   TagsOutlined,
-  ReloadOutlined,
   StarOutlined,
 } from "@ant-design/icons";
 
 import "../styles/skyhub.css";
 
-const { Title, Text } = Typography;
+import LeftRail from "./skyhub/LeftRail";
+import MomentsHeader from "./skyhub/MomentsHeader";
+import MomentsFilters from "./skyhub/MomentsFilters";
+import MomentsFeed from "./skyhub/MomentsFeed";
+import RightRail from "./skyhub/RightRail";
 
-const trendTags = ["#Japan", "#Kyoto", "#HiddenGem", "#Weekend", "#deals"];
+import skyhubBeach from "../assets/Skyhub/beach.png";
+// Optional: add more images when ready
+// import galaxyBg from "../assets/DigitalPassport/galaxy-sunset.png";
 
-const hotspots = [
-  { label: "Kyoto", pct: 42 },
-  { label: "Santorini", pct: 31 },
-  { label: "Puerto Rico", pct: 28 },
-  { label: "Seoul", pct: 18 },
+const { Text } = Typography;
+
+const SKYHUB_BG_KEY = "skyrio_skyhub_bg_choice";
+const SKYHUB_BG_OVERRIDE_KEY = "skyrio_skyhub_bg_override";
+
+/* Phase-1: keep it small. Add more later safely. */
+const SKYHUB_BACKGROUNDS = [
+  { id: "beach", label: "Beach Sunset", url: skyhubBeach },
+  // { id: "galaxy", label: "Galaxy Night", url: galaxyBg },
 ];
 
+function passportLevelToTheme(level = "Explorer") {
+  const v = String(level).toLowerCase();
+  if (v.includes("elite") || v.includes("premium")) return "premium";
+  if (v.includes("wanderer")) return "wanderer";
+  if (v.includes("globe") || v.includes("trotter")) return "globetrotter";
+  return "explorer";
+}
+
+function themeToGradientVars(theme) {
+  switch (theme) {
+    case "premium":
+      return {
+        "--sh-g1": "rgba(18, 10, 30, 0.76)",
+        "--sh-g2": "rgba(70, 34, 120, 0.62)",
+        "--sh-g3": "rgba(255, 138, 42, 0.22)",
+      };
+    case "globetrotter":
+      return {
+        "--sh-g1": "rgba(10, 20, 45, 0.72)",
+        "--sh-g2": "rgba(72, 72, 160, 0.58)",
+        "--sh-g3": "rgba(255, 138, 42, 0.20)",
+      };
+    case "wanderer":
+      return {
+        "--sh-g1": "rgba(18, 10, 30, 0.70)",
+        "--sh-g2": "rgba(90, 48, 130, 0.58)",
+        "--sh-g3": "rgba(255, 138, 42, 0.18)",
+      };
+    default: // explorer
+      return {
+        "--sh-g1": "rgba(40, 18, 70, 0.78)",
+        "--sh-g2": "rgba(90, 48, 130, 0.62)",
+        "--sh-g3": "rgba(255, 138, 42, 0.28)",
+      };
+  }
+}
+
 export default function SkyHubPage() {
+  // Phase-1 tabs (Friends / Trips / Community)
+  const [tab, setTab] = useState("Friends");
+
+  // ✅ Example: replace with real passport level later (/api/profile)
+  const passportLevel = "Explorer";
+  const theme = passportLevelToTheme(passportLevel);
+  const gradientVars = themeToGradientVars(theme);
+
+  // Background choice persistence
+  const savedBg = localStorage.getItem(SKYHUB_BG_KEY) || "";
+  const savedOverride = localStorage.getItem(SKYHUB_BG_OVERRIDE_KEY) === "1";
+
+  const defaultBgId = "beach";
+  const [bgId, setBgId] = useState(savedBg || defaultBgId);
+  const [userOverride, setUserOverride] = useState(savedOverride);
+  const [parallaxOn, setParallaxOn] = useState(true);
+
+  const bg = useMemo(() => {
+    return (
+      SKYHUB_BACKGROUNDS.find((b) => b.id === bgId) || SKYHUB_BACKGROUNDS[0]
+    );
+  }, [bgId]);
+
   return (
-    <div className="ss-page">
+    <div
+      className={`ss-page ${parallaxOn ? "is-parallax" : ""}`}
+      data-theme={theme}
+      style={{
+        ...gradientVars,
+        "--sh-bg-url": `url(${bg.url})`,
+      }}
+    >
       <div className="ss-overlay" />
 
       <div className="ss-container">
+        {/* ✅ Header (Renamed SkyFeeds → Moments) */}
         <div className="ss-hero">
-          <Title className="ss-title" level={1}>
-            SkyHub
-          </Title>
-          <Text className="ss-subtitle">Where travel stories live</Text>
+          <MomentsHeader />
         </div>
 
         <Row gutter={[18, 18]} align="start">
           {/* LEFT */}
           <Col xs={24} lg={6}>
-            <Card bordered={false} className="ss-card ss-side">
-              <div className="ss-sideItem active">🏠 Home</div>
-              <div className="ss-sideItem">
-                🔥 Explore <span className="ss-badge">5</span>
-              </div>
-              <div className="ss-sideItem">🔔 Alerts</div>
-              <div className="ss-sideItem">💬 DMs</div>
-
-              <div className="ss-divider" />
-
-              <div className="ss-sideItem">🧭 Feeds</div>
-              <div className="ss-sideItem">👥 Circles</div>
-              <div className="ss-sideItem">💾 Saved</div>
-              <div className="ss-sideItem">🛂 Passport</div>
-
-              <div className="ss-divider" />
-
-              <div className="ss-sideGroupTitle">Feeds</div>
-              <div className="ss-pill active">For You (Passport)</div>
-              <div className="ss-pill">Near Me</div>
-            </Card>
+            <LeftRail />
           </Col>
 
           {/* CENTER */}
           <Col xs={24} lg={12}>
+            {/* ✅ Background controls (Phase-1) */}
+            <Card bordered={false} className="ss-card" style={{ padding: 12 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Space wrap size={8}>
+                  <Text
+                    style={{ fontWeight: 800, color: "rgba(244,246,251,.86)" }}
+                  >
+                    Background:
+                  </Text>
+
+                  {SKYHUB_BACKGROUNDS.map((b) => (
+                    <Button
+                      key={b.id}
+                      className="ss-chip"
+                      onClick={() => {
+                        setBgId(b.id);
+                        setUserOverride(true);
+                        localStorage.setItem(SKYHUB_BG_KEY, b.id);
+                        localStorage.setItem(SKYHUB_BG_OVERRIDE_KEY, "1");
+                      }}
+                      style={{
+                        borderColor:
+                          b.id === bgId ? "rgba(255,155,70,.55)" : undefined,
+                      }}
+                    >
+                      {b.label}
+                    </Button>
+                  ))}
+
+                  <Button
+                    className="ss-chip"
+                    onClick={() => {
+                      setUserOverride(false);
+                      localStorage.removeItem(SKYHUB_BG_KEY);
+                      localStorage.setItem(SKYHUB_BG_OVERRIDE_KEY, "0");
+                      setBgId(defaultBgId);
+                    }}
+                  >
+                    Reset to Passport Theme
+                  </Button>
+                </Space>
+
+                <Space size={8}>
+                  <Button
+                    className="ss-chip"
+                    onClick={() => setParallaxOn((v) => !v)}
+                  >
+                    {parallaxOn ? "Parallax: On" : "Parallax: Off"}
+                  </Button>
+                </Space>
+              </div>
+            </Card>
+
+            {/* Top search bar */}
             <Card bordered={false} className="ss-card ss-topbar">
               <div className="ss-topbarRow">
                 <Input
@@ -86,13 +191,14 @@ export default function SkyHubPage() {
               </div>
             </Card>
 
+            {/* Composer */}
             <Card bordered={false} className="ss-card ss-composer">
               <div className="ss-composeRow">
                 <Input
-                  placeholder="Share your latest SkyStory..."
+                  placeholder="Share your latest Moment..."
                   className="ss-input"
                 />
-                <Button className="ss-cta">Post SkyStory</Button>
+                <Button className="ss-cta">Post</Button>
               </div>
 
               <Space wrap size={10} style={{ marginTop: 10 }}>
@@ -112,91 +218,25 @@ export default function SkyHubPage() {
               </Space>
             </Card>
 
+            {/* Filters */}
             <div className="ss-feedTabs">
-              <Button className="ss-tab active">For You</Button>
-              <Button className="ss-tab">
-                Following <span className="ss-dot">0</span>
-              </Button>
-              <Button className="ss-tab">Deals</Button>
-              <Button className="ss-tab">News</Button>
-
-              <Button className="ss-reset" icon={<ReloadOutlined />}>
-                Reset Filters
-              </Button>
+              <MomentsFilters value={tab} onChange={setTab} />
             </div>
 
+            {/* Notice */}
             <Card bordered={false} className="ss-card ss-notice">
               <Text>
                 SkyHub is in demo mode (API not available). Showing sample
-                SkyStories.
+                Moments.
               </Text>
             </Card>
 
-            <Card bordered={false} className="ss-card ss-post">
-              <div className="ss-postHeader">
-                <div className="ss-avatar" />
-                <div style={{ flex: 1 }}>
-                  <div className="ss-nameRow">
-                    <Text className="ss-name">Peter Chen</Text>
-                    <Text className="ss-handle">@petertravels</Text>
-                    <Tag className="ss-verify">verified</Tag>
-                  </div>
-                  <Text className="ss-role">Skyrio Traveler</Text>
-                </div>
-                <Button className="ss-iconBtn">⋯</Button>
-              </div>
-
-              <Text className="ss-postText">
-                SkyStory: Hidden gem! 🌸 Discover this secret trail in Kyoto away
-                from the crowd! Peaceful and beautiful.
-              </Text>
-
-              <div className="ss-tags">
-                <Tag className="ss-tag">#Kyoto</Tag>
-                <Tag className="ss-tag">#HiddenGem</Tag>
-              </div>
-
-              <div className="ss-photoMock" />
-            </Card>
+            <MomentsFeed filter={tab} />
           </Col>
 
           {/* RIGHT */}
           <Col xs={24} lg={6}>
-            <Card bordered={false} className="ss-card ss-right">
-              <Title level={5} className="ss-rightTitle">
-                Trending
-              </Title>
-
-              <div className="ss-tagCloud">
-                {trendTags.map((t) => (
-                  <span key={t} className="ss-trendTag">
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </Card>
-
-            <Card
-              bordered={false}
-              className="ss-card ss-right"
-              style={{ marginTop: 18 }}
-            >
-              <Title level={5} className="ss-rightTitle">
-                Today's hotspots
-              </Title>
-
-              {hotspots.map((h) => (
-                <div key={h.label} className="ss-hotspotPill">
-                  <div className="ss-hotspotTop">
-                    <span>
-                      {h.label}
-                      {h.pct}%
-                    </span>
-                  </div>
-                  <Progress percent={h.pct} showInfo={false} />
-                </div>
-              ))}
-            </Card>
+            <RightRail />
           </Col>
         </Row>
       </div>

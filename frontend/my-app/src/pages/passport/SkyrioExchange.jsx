@@ -1,422 +1,153 @@
-import React, { useMemo, useState } from "react";
+import React, { useState, useMemo } from "react";
+import { Card, Typography, Button, Tag } from "antd";
 import {
-  Row,
-  Col,
-  Card,
-  Button,
-  Tag,
-  Typography,
-  Segmented,
-  Progress,
-  Modal,
-  message,
-  Tooltip,
-  Badge,
-  Space,
-  Input,
-} from "antd";
-import {
-  GiftOutlined,
   ThunderboltOutlined,
   TrophyOutlined,
-  LockOutlined,
-  StarOutlined,
-  SearchOutlined,
-  HomeOutlined,
+  GiftOutlined,
+  FireOutlined,
 } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
 
 import "../../styles/SkyrioExchange.css";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
-function SegmentLabel({ icon, text, count }) {
-  return (
-    <div className="sv-tab">
-      <span className="sv-tab-ic">{icon}</span>
-      <span className="sv-tab-t">{text}</span>
-      <span className="sv-tab-count">{count}</span>
-    </div>
-  );
-}
+const TABS = [
+  { key: "boosts", label: "Boosts", icon: <ThunderboltOutlined /> },
+  { key: "badges", label: "Badges", icon: <TrophyOutlined /> },
+  { key: "perks", label: "Perks", icon: <GiftOutlined /> },
+  { key: "limited", label: "Limited", icon: <FireOutlined /> },
+];
 
-const ALL_ITEMS = [
+const USER = {
+  xp: 0,
+  level: "Level 1 · Novice",
+};
+
+const ITEMS = [
   {
-    id: "boost-1",
-    kind: "Boost",
-    name: "Weekend XP Boost (+2x)",
-    desc: "Earn double XP on bookings made Fri–Sun.",
+    id: "weekend_xp",
+    type: "BOOST",
+    title: "Weekend XP Multiplier",
+    desc: "+2x XP on all bookings Fri–Sun",
     cost: 250,
-    levelReq: 1,
-    icon: <ThunderboltOutlined />,
-    tag: "Popular",
+    level: 1,
+    featured: true,
   },
   {
-    id: "boost-2",
-    kind: "Boost",
-    name: "Review Streak (+1.5x)",
+    id: "review_streak",
+    type: "BADGE",
+    title: "Review Streak (+1.5x)",
     desc: "Leave 3 verified reviews this month for extra XP.",
     cost: 180,
-    levelReq: 1,
-    icon: <ThunderboltOutlined />,
+    level: 1,
   },
   {
-    id: "badge-1",
-    kind: "Badge",
-    name: "Globetrotter",
+    id: "globetrotter",
+    type: "BADGE",
+    title: "Globetrotter",
     desc: "Unlocked at XP Level 5 or buy to fast-track.",
     cost: 400,
-    levelReq: 3,
-    icon: <TrophyOutlined />,
-    tag: "New",
-  },
-  {
-    id: "badge-2",
-    kind: "Badge",
-    name: "Hidden Gem Hunter",
-    desc: "Discover 3 non-touristy stays.",
-    cost: 320,
-    levelReq: 2,
-    icon: <TrophyOutlined />,
-  },
-  {
-    id: "perk-1",
-    kind: "Perk",
-    name: "Priority Support (30 days)",
-    desc: "Skip the line for account & booking help.",
-    cost: 500,
-    levelReq: 2,
-    icon: <GiftOutlined />,
-    tag: "Limited",
-  },
-  {
-    id: "perk-2",
-    kind: "Perk",
-    name: "Late Checkout Voucher",
-    desc: "Eligible stays only • Subject to availability.",
-    cost: 220,
-    levelReq: 1,
-    icon: <GiftOutlined />,
+    level: 3,
+    isNew: true,
   },
 ];
 
-export default function SkyrioExchange({
-  showSearch = true,
-  level = 0, // ✅ soft launch default
-  balanceXp = 0, // ✅ soft launch default
-  nextLevelPct = 0, // ✅ soft launch default
-}) {
-  const [xp, setXp] = useState(balanceXp);
-  const [segment, setSegment] = useState("All");
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(null);
+export default function SkyExchange() {
+  const [tab, setTab] = useState("boosts");
 
-  const navigate = useNavigate();
-
-  const filtered = useMemo(() => {
-    const byKind =
-      segment === "All"
-        ? ALL_ITEMS
-        : ALL_ITEMS.filter((i) => i.kind === segment);
-
-    const q = query.trim().toLowerCase();
-    if (!q) return byKind;
-
-    return byKind.filter((i) => {
-      const blob = `${i.name} ${i.desc} ${i.kind}`.toLowerCase();
-      return blob.includes(q);
-    });
-  }, [segment, query]);
-
-  const counts = useMemo(
-    () => ({
-      All: ALL_ITEMS.length,
-      Boost: ALL_ITEMS.filter((i) => i.kind === "Boost").length,
-      Badge: ALL_ITEMS.filter((i) => i.kind === "Badge").length,
-      Perk: ALL_ITEMS.filter((i) => i.kind === "Perk").length,
-    }),
-    []
-  );
-
-  const tabOptions = useMemo(
-    () => [
-      {
-        value: "All",
-        label: (
-          <SegmentLabel icon={<StarOutlined />} text="All" count={counts.All} />
-        ),
-      },
-      {
-        value: "Boost",
-        label: (
-          <SegmentLabel
-            icon={<ThunderboltOutlined />}
-            text="Boost"
-            count={counts.Boost}
-          />
-        ),
-      },
-      {
-        value: "Badge",
-        label: (
-          <SegmentLabel
-            icon={<TrophyOutlined />}
-            text="Badge"
-            count={counts.Badge}
-          />
-        ),
-      },
-      {
-        value: "Perk",
-        label: (
-          <SegmentLabel
-            icon={<GiftOutlined />}
-            text="Perk"
-            count={counts.Perk}
-          />
-        ),
-      },
-    ],
-    [counts]
-  );
-
-  const onRedeem = (item) => {
-    if (level < item.levelReq) {
-      return message.warning(
-        `Requires Level ${item.levelReq}. You’re Level ${level}.`
-      );
-    }
-    if (xp < item.cost) {
-      return message.error("Not enough XP yet. Keep exploring ✈️");
-    }
-
-    Modal.confirm({
-      title: `Redeem ${item.name}?`,
-      centered: true,
-      content: (
-        <div className="sv-confirm">
-          <Paragraph className="sv-confirm-text">
-            This will spend <b>{item.cost} XP</b>. You’ll receive{" "}
-            <b>{item.kind}</b>: <i>{item.name}</i>.
-          </Paragraph>
-        </div>
-      ),
-      okText: "Redeem",
-      okButtonProps: { className: "sv-cta" },
-      cancelButtonProps: { className: "sv-btn" },
-      onOk: () => {
-        setXp((x) => x - item.cost);
-        message.success(`Redeemed: ${item.name}`);
-      },
-    });
-  };
+  const featured = useMemo(() => ITEMS.find((i) => i.featured), []);
 
   return (
-    <div className="skyrio-exchange">
-      <div className="sv-wrap">
-        <div className="sv-header glass">
-          <Row gutter={[16, 16]} align="middle" wrap={false}>
-            <Col flex="none">
-              <Button
-                className="sv-home-btn"
-                icon={<HomeOutlined />}
-                onClick={() => navigate("/")}
-              >
-                Home
-              </Button>
-            </Col>
+    <div className="sx-page">
+      <div className="sx-overlay" />
 
-            <Col flex="none">
-              <div className="sv-level">
-                <Badge count={`Lv ${level}`} color="#ffa94d">
-                  <div className="sv-ring">
-                    <Progress
-                      type="circle"
-                      percent={nextLevelPct}
-                      format={() => ""}
-                      size={56}
-                    />
-                  </div>
-                </Badge>
-              </div>
-            </Col>
+      <div className="sx-shell">
+        {/* Header */}
+        <div className="sx-header">
+          <div className="sx-titleBlock">
+            <Title level={2} className="sx-title">
+              SkyExchange
+            </Title>
+            <Text className="sx-subtitle">XP Vault · Members Lounge</Text>
+            <Text className="sx-lead">
+              Trade XP for access, prestige, and power-ups.
+            </Text>
+          </div>
 
-            <Col flex="auto">
-              <Title level={3} className="sv-title">
-                Skyrio Exchange
-              </Title>
-              <Text className="sv-sub">
-                Trade XP for boosts, badges, and perks.
-              </Text>
-            </Col>
-
-            <Col flex="none">
-              <div className="sv-balance">
-                <Text className="muted">Balance</Text>
-                <div className="sv-xp" aria-live="polite">
-                  <StarOutlined />
-                  <b>{xp.toLocaleString()} XP</b>
-                </div>
-              </div>
-            </Col>
-          </Row>
-
-          <Row gutter={[12, 12]} className="sv-controls">
-            <Col xs={24} md="auto">
-              <div className={`sv-segment seg--${segment.toLowerCase()}`}>
-                <Segmented
-                  options={tabOptions}
-                  value={segment}
-                  onChange={(v) => setSegment(v)}
-                  block
-                />
-              </div>
-
-              <div className="sv-active-label" aria-live="polite">
-                Showing <b>{segment}</b> • {filtered.length} item
-                {filtered.length !== 1 ? "s" : ""}
-              </div>
-            </Col>
-
-            {showSearch && (
-              <Col xs={24} md={12}>
-                <Input
-                  allowClear
-                  prefix={<SearchOutlined />}
-                  placeholder="Search boosts, badges, perks…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className="sv-search"
-                />
-              </Col>
-            )}
-
-            <Col xs={24} md="auto">
-              <Tooltip title="Coming soon: filter by level, price, owned">
-                <Button className="sv-btn" disabled>
-                  More filters
-                </Button>
-              </Tooltip>
-            </Col>
-          </Row>
-        </div>
-
-        <div className="sv-grid">
-          <Row gutter={[16, 16]}>
-            {filtered.map((item) => {
-              const locked = level < item.levelReq;
-              const afford = xp >= item.cost;
-
-              return (
-                <Col key={item.id} xs={24} sm={12} lg={8}>
-                  <Card
-                    className="sv-card glass"
-                    hoverable
-                    onClick={() => setSelected(item)}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <Space size={12} align="start">
-                      <div className={`sv-icon ${item.kind.toLowerCase()}`}>
-                        {item.icon}
-                      </div>
-
-                      <div className="sv-body">
-                        <Space size={8} align="center" wrap>
-                          <Tag className={`sv-kind ${item.kind.toLowerCase()}`}>
-                            {item.kind}
-                          </Tag>
-
-                          {/* IMPORTANT: remove Tag color="gold" (it forces off-brand yellow).
-                              We keep your same text, but let CSS style it via .sv-tag-gold */}
-                          {item.tag && (
-                            <Tag className="sv-tag-gold">{item.tag}</Tag>
-                          )}
-
-                          <Tag className="sv-req">Lvl {item.levelReq}+</Tag>
-                        </Space>
-
-                        <Title level={5} className="sv-name">
-                          {item.name}
-                        </Title>
-
-                        <Paragraph className="sv-desc">{item.desc}</Paragraph>
-
-                        <div className="sv-footer">
-                          <div className="sv-cost">
-                            <StarOutlined /> {item.cost} XP
-                          </div>
-
-                          <div className="sv-cta-row">
-                            <Button
-                              className="sv-cta"
-                              type="primary"
-                              disabled={locked || !afford}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onRedeem(item);
-                              }}
-                            >
-                              {locked ? (
-                                <>
-                                  <LockOutlined /> Locked
-                                </>
-                              ) : afford ? (
-                                "Redeem"
-                              ) : (
-                                "Not enough XP"
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </Space>
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-        </div>
-
-        <Modal
-          open={!!selected}
-          onCancel={() => setSelected(null)}
-          onOk={() => {
-            if (selected) onRedeem(selected);
-            setSelected(null);
-          }}
-          okButtonProps={{
-            className: "sv-cta",
-            disabled: selected
-              ? level < selected.levelReq || xp < selected.cost
-              : true,
-          }}
-          cancelButtonProps={{ className: "sv-btn" }}
-          centered
-          title={selected?.name || "Details"}
-        >
-          {selected && (
-            <div className="sv-modal">
-              <Space size={8} align="center" wrap>
-                <Tag className={`sv-kind ${selected.kind.toLowerCase()}`}>
-                  {selected.kind}
-                </Tag>
-                <Tag className="sv-req">Lvl {selected.levelReq}+</Tag>
-              </Space>
-
-              <Paragraph style={{ marginTop: 8 }}>{selected.desc}</Paragraph>
-
-              <div className="sv-modal-cost">
-                <StarOutlined /> <b>{selected.cost} XP</b>
-              </div>
-
-              <Text className="sv-tip">
-                Tip: XP refills by booking, reviewing trips, and inviting
-                friends.
-              </Text>
+          <div className="sx-balanceCard">
+            <div className="sx-xpRow">
+              <span className="sx-xp">{USER.xp} XP</span>
+              <span className="sx-level">{USER.level}</span>
             </div>
-          )}
-        </Modal>
+
+            <div className="sx-actions">
+              <Button className="sx-btnPrimary">Earn More XP</Button>
+              <Button className="sx-btnGhost">View Passport</Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="sx-tabs">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              className={`sx-tab ${tab === t.key ? "active" : ""}`}
+              onClick={() => setTab(t.key)}
+            >
+              {t.icon}
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Featured */}
+        <Card bordered={false} className="sx-featured">
+          <div className="sx-featuredHeader">
+            <FireOutlined /> FEATURED THIS WEEK
+          </div>
+
+          <div className="sx-featuredBody">
+            <div>
+              <div className="sx-featuredTitle">{featured.title}</div>
+              <div className="sx-featuredDesc">{featured.desc}</div>
+            </div>
+
+            <div className="sx-featuredRight">
+              <Button className="sx-btnRedeem" disabled>
+                Redeem {featured.cost} XP
+              </Button>
+              <div className="sx-meta">
+                Cost: {featured.cost} XP · Lv {featured.level}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Vault */}
+        <div className="sx-section">AVAILABLE IN VAULT</div>
+
+        <div className="sx-grid">
+          {ITEMS.map((item) => (
+            <Card key={item.id} bordered={false} className="sx-card">
+              <div className="sx-cardTop">
+                <Tag className="sx-tag">{item.type}</Tag>
+                {item.isNew && <Tag className="sx-new">NEW</Tag>}
+              </div>
+
+              <div className="sx-cardTitle">{item.title}</div>
+              <div className="sx-cardDesc">{item.desc}</div>
+
+              <div className="sx-meta">Cost: {item.cost} XP</div>
+
+              <Button className="sx-btnLocked" disabled>
+                Access Locked
+              </Button>
+
+              <div className="sx-foot">Level Required: Lv {item.level}</div>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );

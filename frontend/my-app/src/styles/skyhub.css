@@ -1,287 +1,308 @@
-/* Root page wrapper */
-.ss-page {
-  min-height: 100vh;
-  position: relative;
-  z-index: 0;
+/* Global height safety */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
 }
 
-/* 🌌 Background image layer (FULL viewport) */
+/* ===============================
+   SKYHUB: BACKGROUND ENGINE
+=============================== */
+
+/* Page wrapper (layout only) */
+.ss-page {
+  /* Default background image (can be overridden via inline style vars from SkyHubPage.jsx) */
+  --sh-bg-url: url("../assets/Skyhub/beach.png");
+
+  /* Default gradient overlay vars (can be overridden via inline style vars) */
+  --sh-g1: rgba(40, 18, 70, 0.78);
+  --sh-g2: rgba(90, 48, 130, 0.62);
+  --sh-g3: rgba(255, 138, 42, 0.28);
+
+  /* Parallax controls */
+  --sh-bg-x: 50%;
+  --sh-bg-y: 50%;
+  --sh-bg-scale: 1.05;
+
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow-x: hidden;
+
+  /* ✅ keep content below navbar */
+  padding-top: var(--nav-h, 86px);
+}
+
+/* Full-viewport background layer (behind navbar too) */
 .ss-page::before {
   content: "";
   position: fixed;
   inset: 0;
-  background-image: url("../assets/Skystream/galaxy.png");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   z-index: -2;
+
+  background-image:
+    linear-gradient(180deg, var(--sh-g1) 0%, var(--sh-g2) 45%, var(--sh-g3) 100%),
+    var(--sh-bg-url);
+
+  background-size: cover;
+  background-position: var(--sh-bg-x) var(--sh-bg-y);
+  background-repeat: no-repeat;
+  background-color: rgba(18, 10, 30, 1);
+
+  transform: scale(var(--sh-bg-scale));
+  transform-origin: center;
+  will-change: background-position, transform;
 }
 
-/* 🎨 Gradient overlay layer */
-.ss-page::after {
-  content: "";
+/* Subtle animated glow overlay */
+.ss-overlay {
   position: fixed;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(22, 14, 40, 0.55) 0%,
-    rgba(58, 24, 78, 0.52) 40%,
-    rgba(255, 140, 72, 0.18) 100%
-  );
   z-index: -1;
+  pointer-events: none;
+
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.07), transparent 55%),
+    radial-gradient(circle at 80% 20%, rgba(255, 138, 42, 0.06), transparent 55%),
+    radial-gradient(circle at 55% 85%, rgba(140, 92, 255, 0.06), transparent 60%),
+    linear-gradient(180deg, rgba(18, 10, 30, 0.18), rgba(18, 10, 30, 0.55));
+
+  animation: shGlowDrift 18s ease-in-out infinite alternate;
+  will-change: transform, filter;
 }
 
-/* =========================================================
-   CONTENT CONTAINER
-========================================================= */
+@keyframes shGlowDrift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: saturate(1.02);
+  }
+  100% {
+    transform: translate3d(0, -10px, 0) scale(1.03);
+    filter: saturate(1.08);
+  }
+}
 
+/* Slow parallax (desktop only) */
+@keyframes shParallax {
+  0% {
+    background-position: 50% 48%;
+  }
+  100% {
+    background-position: 50% 58%;
+  }
+}
+
+@media (min-width: 769px) {
+  .ss-page.is-parallax::before {
+    animation: shParallax 22s ease-in-out infinite alternate;
+  }
+}
+
+/* Mobile safety: avoid fixed background jank */
+@media (max-width: 768px) {
+  .ss-page::before {
+    position: absolute;
+    transform: none;
+  }
+  .ss-overlay {
+    position: absolute;
+  }
+}
+
+/* Content layer */
 .ss-container {
   position: relative;
   z-index: 1;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 28px 18px 40px;
+  width: 100%;
+  min-height: calc(100vh - var(--nav-h, 86px));
 }
 
-.ss-hero {
-  margin: 6px 0 16px;
+/* =================================================
+   Layout wrappers from new SkyHub components
+================================================= */
+
+.sh-layout {
+  width: 100%;
 }
 
-.ss-title {
-  margin: 0 !important;
-  color: rgba(244, 246, 251, 0.95) !important;
-  font-weight: 800 !important;
-  letter-spacing: -0.02em;
+.sh-center {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.ss-subtitle {
-  color: rgba(244, 246, 251, 0.75);
-}
-
-/* =========================================================
-   GLASS CARD BASE
-========================================================= */
-
-.ss-card {
-  border-radius: 18px !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+/* -------------------------
+   LeftRail (sh-*)
+------------------------- */
+.sh-leftRail {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(14px);
-}
-
-/* =========================================================
-   LEFT SIDEBAR
-========================================================= */
-
-.ss-side .ant-card-body {
   padding: 16px;
 }
 
-.ss-sideItem {
+.sh-leftTitle {
+  color: rgba(244, 246, 251, 0.62);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  margin: 2px 0 12px;
+}
+
+.sh-leftNav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sh-leftItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 12px;
   border-radius: 14px;
   color: rgba(244, 246, 251, 0.86);
   background: rgba(0, 0, 0, 0.14);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sh-leftItem:hover {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.sh-leftItem.is-active {
+  border-color: rgba(255, 155, 70, 0.55);
+  box-shadow: 0 0 0 2px rgba(255, 155, 70, 0.12) inset;
+}
+
+.sh-leftIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: rgba(244, 246, 251, 0.9);
+}
+
+.sh-leftLabel {
+  font-weight: 800;
+}
+
+/* -------------------------
+   MomentsHeader (sh-*)
+------------------------- */
+.sh-momentsHeader {
+  margin: 0;
+}
+
+.sh-momentsTitleRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sh-momentsTitle {
+  margin: 0;
+  color: rgba(244, 246, 251, 0.95);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-size: 44px;
+  line-height: 1.05;
+}
+
+.sh-momentsSubtitle {
+  color: rgba(244, 246, 251, 0.75);
   font-weight: 600;
 }
 
-.ss-sideItem.active {
-  border-color: rgba(255, 155, 70, 0.55);
-  box-shadow: 0 0 0 2px rgba(255, 155, 70, 0.12) inset;
-}
-
-.ss-badge {
-  margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  background: rgba(255, 155, 70, 0.22);
-  border: 1px solid rgba(255, 155, 70, 0.35);
-}
-
-.ss-divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 14px 0;
-}
-
-.ss-sideGroupTitle {
-  color: rgba(244, 246, 251, 0.62);
-  font-weight: 700;
-  font-size: 12px;
-  margin-bottom: 10px;
-}
-
-.ss-pill {
+/* -------------------------
+   MomentsFilters (sh-*)
+------------------------- */
+.sh-momentsFilters {
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 14px;
+}
+
+.sh-filterTabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sh-filterTab {
+  border-radius: 999px;
   background: rgba(0, 0, 0, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(244, 246, 251, 0.86);
-  font-weight: 700;
-  margin-bottom: 10px;
-}
-
-.ss-pill.active {
-  border-color: rgba(255, 155, 70, 0.55);
-}
-
-/* =========================================================
-   TOP SEARCH BAR
-========================================================= */
-
-.ss-topbar .ant-card-body {
-  padding: 14px;
-}
-
-.ss-topbarRow {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.ss-input {
-  background: rgba(0, 0, 0, 0.22) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 14px !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.ss-input input {
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.ss-input input::placeholder {
-  color: rgba(244, 246, 251, 0.6) !important;
-}
-
-.ss-pillBtn {
-  border-radius: 999px !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  background: rgba(0, 0, 0, 0.18) !important;
-  color: rgba(244, 246, 251, 0.9) !important;
-  font-weight: 700;
-}
-
-.ss-iconBtn {
-  border-radius: 14px !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  background: rgba(0, 0, 0, 0.18) !important;
-  color: rgba(244, 246, 251, 0.9) !important;
-}
-
-/* =========================================================
-   COMPOSER
-========================================================= */
-
-.ss-composer .ant-card-body {
-  padding: 16px;
-}
-
-.ss-composeRow {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.ss-cta {
-  border-radius: 14px !important;
-  background: rgba(255, 155, 70, 0.92) !important;
-  border: none !important;
-  color: rgba(30, 14, 36, 0.95) !important;
+  color: rgba(244, 246, 251, 0.88);
   font-weight: 800;
-  height: 40px;
-  padding: 0 16px;
+  padding: 6px 14px;
+  height: 36px;
+  cursor: pointer;
 }
 
-.ss-chip {
-  border-radius: 999px !important;
-  background: rgba(0, 0, 0, 0.18) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  color: rgba(244, 246, 251, 0.9) !important;
-  font-weight: 700;
+.sh-filterTab:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.18);
 }
 
-/* =========================================================
-   FEED TABS
-========================================================= */
-
-.ss-feedTabs {
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ss-tab {
-  border-radius: 999px !important;
-  background: rgba(0, 0, 0, 0.16) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: rgba(244, 246, 251, 0.88) !important;
-  font-weight: 700;
-}
-
-.ss-tab.active {
-  border-color: rgba(255, 155, 70, 0.55) !important;
+.sh-filterTab.is-active {
+  border-color: rgba(255, 155, 70, 0.55);
   box-shadow: 0 0 0 2px rgba(255, 155, 70, 0.12) inset;
 }
 
-.ss-dot {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: rgba(255, 155, 70, 0.22);
-  border: 1px solid rgba(255, 155, 70, 0.35);
+/* -------------------------
+   MomentsFeed (sh-*)
+------------------------- */
+.sh-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.ss-reset {
-  margin-left: auto;
-  border-radius: 999px !important;
-  background: rgba(0, 0, 0, 0.16) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: rgba(244, 246, 251, 0.88) !important;
-  font-weight: 800;
-}
-
-/* =========================================================
-   NOTICE
-========================================================= */
-
-.ss-notice {
-  margin-top: 12px;
-  background: rgba(255, 155, 70, 0.1) !important;
-  border-color: rgba(255, 155, 70, 0.25) !important;
-}
-
-.ss-notice .ant-card-body {
+.sh-feedNotice {
+  border-radius: 18px;
+  background: rgba(255, 155, 70, 0.1);
+  border: 1px solid rgba(255, 155, 70, 0.25);
   padding: 14px;
+  color: rgba(244, 246, 251, 0.9);
+  font-weight: 700;
 }
 
-.ss-notice * {
-  color: rgba(244, 246, 251, 0.9) !important;
+.sh-feedList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-/* =========================================================
-   POST
-========================================================= */
-
-.ss-post .ant-card-body {
+.sh-post {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(14px);
   padding: 16px;
 }
 
-.ss-postHeader {
+.sh-postHeader {
   display: flex;
-  gap: 12px;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 10px;
 }
 
-.ss-avatar {
+.sh-postUser {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sh-avatar {
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -289,109 +310,194 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.ss-nameRow {
+.sh-nameRow {
   display: flex;
   gap: 10px;
   align-items: center;
 }
 
-.ss-name {
-  color: rgba(244, 246, 251, 0.92) !important;
+.sh-name {
+  color: rgba(244, 246, 251, 0.92);
+  font-weight: 900;
+}
+
+.sh-handle {
+  color: rgba(244, 246, 251, 0.62);
+  font-weight: 600;
+}
+
+.sh-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(244, 246, 251, 0.85);
   font-weight: 800;
+  text-transform: lowercase;
 }
 
-.ss-handle {
-  color: rgba(244, 246, 251, 0.62) !important;
+.sh-moreBtn {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(244, 246, 251, 0.9);
+  padding: 6px 10px;
+  cursor: pointer;
 }
 
-.ss-role {
-  display: block;
-  color: rgba(244, 246, 251, 0.62) !important;
-  margin-top: 2px;
+.sh-text {
+  color: rgba(244, 246, 251, 0.88);
+  margin: 10px 0 8px;
+  font-weight: 600;
 }
 
-.ss-verify {
-  border-radius: 999px !important;
-  background: rgba(0, 0, 0, 0.18) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  color: rgba(244, 246, 251, 0.85) !important;
-}
-
-.ss-postText {
-  color: rgba(244, 246, 251, 0.88) !important;
-}
-
-.ss-tags {
-  margin-top: 10px;
+.sh-tags {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
-.ss-tag {
-  border-radius: 999px !important;
-  background: rgba(255, 155, 70, 0.16) !important;
-  border: 1px solid rgba(255, 155, 70, 0.26) !important;
-  color: rgba(244, 246, 251, 0.9) !important;
-  font-weight: 700;
+.sh-tag {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 155, 70, 0.16);
+  border: 1px solid rgba(255, 155, 70, 0.26);
+  color: rgba(244, 246, 251, 0.9);
+  font-weight: 800;
 }
 
-.ss-photoMock {
-  margin-top: 12px;
+.sh-media img {
+  width: 100%;
   height: 190px;
+  object-fit: cover;
   border-radius: 16px;
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-/* =========================================================
-   RIGHT SIDEBAR
-========================================================= */
+.sh-postFooter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
 
-.ss-right .ant-card-body {
+.sh-action {
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(244, 246, 251, 0.9);
+  font-weight: 800;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.sh-action:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.sh-spacer {
+  flex: 1;
+}
+
+/* -------------------------
+   RightRail (sh-*)
+------------------------- */
+.sh-rightRail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sh-card {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(14px);
   padding: 16px;
 }
 
-.ss-rightTitle {
-  margin: 0 0 12px !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.ss-tagCloud {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.ss-trendTag {
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(255, 155, 70, 0.92);
-  color: rgba(30, 14, 36, 0.95);
+.sh-cardTitle {
+  margin: 0 0 12px;
+  color: rgba(244, 246, 251, 0.92);
   font-weight: 900;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
 }
 
-.ss-hotspotPill {
+.sh-hotList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sh-hotItem {
   padding: 10px 12px;
   border-radius: 16px;
   background: rgba(255, 155, 70, 0.18);
   border: 1px solid rgba(255, 155, 70, 0.28);
-  color: rgba(244, 246, 251, 0.92);
-  font-weight: 900;
-  margin-bottom: 10px;
 }
 
-/* =========================================================
-   MOBILE POLISH
-========================================================= */
+.sh-hotRow {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(244, 246, 251, 0.92);
+  font-weight: 900;
+  margin-bottom: 8px;
+}
 
+.sh-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.sh-barFill {
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255, 155, 70, 0.92);
+}
+
+.sh-deals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sh-dealCard {
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.sh-dealPlace {
+  color: rgba(244, 246, 251, 0.92);
+  font-weight: 900;
+}
+
+.sh-dealRow {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: rgba(244, 246, 251, 0.72);
+  font-weight: 700;
+}
+
+.sh-dealNote {
+  margin-top: 10px;
+  color: rgba(244, 246, 251, 0.62);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* Mobile: reduce Moments title size */
 @media (max-width: 992px) {
-  .ss-container {
-    padding: 18px 14px 30px;
-  }
-
-  .ss-title {
-    font-size: 44px !important;
+  .sh-momentsTitle {
+    font-size: 40px;
   }
 }

@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Row,
   Col,
@@ -19,6 +19,7 @@ import {
   Tag,
   Segmented,
   message as antdMessage,
+  Skeleton,
 } from "antd";
 import {
   UserOutlined,
@@ -26,11 +27,11 @@ import {
   ShareAltOutlined,
   PlayCircleOutlined,
   SoundOutlined,
-  CrownOutlined,
   IdcardOutlined,
   CompassOutlined,
   GlobalOutlined,
   GiftOutlined,
+  RightOutlined,
 } from "@ant-design/icons";
 import { io } from "socket.io-client";
 
@@ -46,13 +47,11 @@ import ProfileMusicModal, {
 
 import PassportFooter from "./PassportFooter";
 import PassportHighlights from "./PassportHighlights";
-import PassportIdentity from "./PassportIdentity";
 import StampStrip from "./StampStrip";
 import TravelHistory from "./TravelHistory";
 import TripList from "./TripList";
 import VisaList from "./VisaList";
 import SkyrioExchange from "./SkyrioExchange";
-import Membership from "./Membership";
 
 /* Followers/Following Modal */
 import FollowersModal from "./FollowersModal";
@@ -60,9 +59,6 @@ import FollowersModal from "./FollowersModal";
 /* Top 8 (Places only here) */
 import TopEight from "./TopEight";
 import TopEightItemPlace from "./TopEightItemPlace";
-
-/* ✅ Inner Circle (MySpace Top 8) */
-import InnerCircleFriends from "./InnerCircleFriends";
 
 /* ✅ Privileges */
 import PassportPrivilegesCard from "./PassportPrivilegesCard";
@@ -97,7 +93,7 @@ function makeReferralCode(user) {
     .replace(/[^A-Z0-9]/g, "")}-001`;
 }
 
-/* ✅ Tabs (keep your keys so logic doesn’t break) */
+/* ✅ Tabs */
 const PASSPORT_TABS = [
   { key: "summary", label: "Passport Summary", icon: <IdcardOutlined /> },
   { key: "journeys", label: "Your Journeys", icon: <CompassOutlined /> },
@@ -107,15 +103,21 @@ const PASSPORT_TABS = [
 
 export default function DigitalPassportPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const auth = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
 
   const isAdmin = auth?.user?.role === "admin";
+  const isAuthed = !!auth?.user;
 
   const [musicOpen, setMusicOpen] = useState(false);
   const [profileMusic, setProfileMusic] = useState(null);
 
   const [segment, setSegment] = useState("summary");
+
+  // Loading states (better UX for 18–40: no “blank” UI)
+  const [xpLoading, setXpLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const [xp, setXp] = useState(0);
   const [xpToNextBadge, setXpToNextBadge] = useState(0);
@@ -125,6 +127,7 @@ export default function DigitalPassportPage() {
     followers: 0,
     following: 0,
   });
+
   const [followOpen, setFollowOpen] = useState(false);
   const [followMode, setFollowMode] = useState("following");
 
@@ -152,13 +155,8 @@ export default function DigitalPassportPage() {
     [auth?.user]
   );
 
-  const membershipLabel = useMemo(() => {
-    return auth?.user?.membership?.tier
-      ? String(auth.user.membership.tier)
-      : "Free Explorer";
-  }, [auth?.user]);
-
   const passportExpiresLabel = useMemo(() => "Dec 31, 2026", []);
+  const passportIssuedLabel = useMemo(() => "Jan 1, 2026", []);
 
   const referralCode = useMemo(
     () => makeReferralCode(auth?.user),
@@ -172,16 +170,12 @@ export default function DigitalPassportPage() {
 
   const canEditTop8 = !!auth?.user;
 
-  // ✅ Inner Circle preview (you can wire real data later)
+  // ✅ Inner Circle preview (wire real data later)
   const innerCircleFriends = useMemo(
     () => [
-      { id: "ic1", name: "Savid", coverUrl: "/images/circle/friend1.jpg" },
-      {
-        id: "ic2",
-        name: "Skyrio Explorer",
-        coverUrl: "/images/circle/friend2.jpg",
-      },
-      { id: "ic3", name: "LoneApp", coverUrl: "/images/circle/friend3.jpg" },
+      { id: "ic1", name: "Tokyo", coverUrl: "/images/circle/friend1.jpg" },
+      { id: "ic2", name: "Paris", coverUrl: "/images/circle/friend2.jpg" },
+      { id: "ic3", name: "Dubai", coverUrl: "/images/circle/friend3.jpg" },
     ],
     []
   );
@@ -227,57 +221,73 @@ export default function DigitalPassportPage() {
 
   /* ---------- profile data ---------- */
   useEffect(() => {
-    let ignore = false;
+    const controller = new AbortController();
+    let mounted = true;
 
     (async () => {
+      setXpLoading(true);
       try {
-        const res = await fetch("/api/profile/me", { credentials: "include" });
+        const res = await fetch("/api/profile/me", {
+          credentials: "include",
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error("profile fetch failed");
         const data = await res.json();
-        if (ignore) return;
 
+        if (!mounted) return;
         setXp(Number(data?.xp ?? 0));
         setXpToNextBadge(Number(data?.xpToNextBadge ?? 0));
         setNextBadgeName(String(data?.nextBadgeName ?? "Wanderer"));
       } catch {
-        if (!ignore) {
-          setXp(0);
-          setXpToNextBadge(0);
-          setNextBadgeName("Wanderer");
-        }
+        if (!mounted) return;
+        setXp(0);
+        setXpToNextBadge(0);
+        setNextBadgeName("Wanderer");
+      } finally {
+        if (mounted) setXpLoading(false);
       }
     })();
 
     return () => {
-      ignore = true;
+      mounted = false;
+      controller.abort();
     };
   }, []);
 
   /* load passport stats (followers/following) */
   useEffect(() => {
-    let ignore = false;
+    const controller = new AbortController();
+    let mounted = true;
 
     (async () => {
+      setStatsLoading(true);
       try {
         const res = await fetch("/api/passport/stats", {
           credentials: "include",
+          signal: controller.signal,
         });
         const data = await res.json();
 
-        if (ignore) return;
+        if (!mounted) return;
         if (data?.ok) {
           setPassportStats({
             followers: Number(data?.stats?.followers ?? 0),
             following: Number(data?.stats?.following ?? 0),
           });
+        } else {
+          setPassportStats({ followers: 0, following: 0 });
         }
       } catch {
-        if (!ignore) setPassportStats({ followers: 0, following: 0 });
+        if (!mounted) return;
+        setPassportStats({ followers: 0, following: 0 });
+      } finally {
+        if (mounted) setStatsLoading(false);
       }
     })();
 
     return () => {
-      ignore = true;
+      mounted = false;
+      controller.abort();
     };
   }, []);
 
@@ -341,6 +351,12 @@ export default function DigitalPassportPage() {
     }
   }, []);
 
+  const goMembership = useCallback(() => {
+    // ✅ Membership should NOT live inside Passport.
+    // Put your plans at /membership (recommended).
+    navigate("/membership");
+  }, [navigate]);
+
   /* ✅ Segmented options built from your existing tab list */
   const segmentedOptions = useMemo(
     () =>
@@ -364,192 +380,215 @@ export default function DigitalPassportPage() {
         onConfirm={rewardsOptIn.confirm}
       />
 
-      {/* ✅ NEW: mock layout shell wrapper */}
       <div className="pp-page">
         <div className="pp-shell pp-shell--mock">
           {/* =========================
-             HERO ROW (3 cards)
+              HERO PANEL (ONE unified passport block)
           ========================= */}
-          <Row gutter={[16, 16]} className="pp-heroRow">
-            {/* Left: identity */}
-            <Col xs={24} lg={9}>
-              <Card bordered={false} className="pp-card pp-card--hero">
-                <Space align="start" size={14} style={{ width: "100%" }}>
+          <Card bordered={false} className="pp-card pp-heroPanel">
+            <div className="pp-heroInner">
+              {/* LEFT */}
+              <div className="pp-heroCol pp-heroCol--left">
+                <div className="pp-heroTop">
                   <div className="pp-avatarGlow">
-                    <Avatar size={74} icon={<UserOutlined />} />
+                    <Avatar size={86} icon={<UserOutlined />} />
                   </div>
 
-                  <div style={{ flex: 1 }}>
-                    <Title level={3} className="pp-title" style={{ margin: 0 }}>
+                  <div className="pp-heroName">
+                    <Title level={2} className="pp-title" style={{ margin: 0 }}>
                       {displayName}
                     </Title>
+
                     <Text className="pp-muted">
-                      {handle} · Explorer · Level {levelNumber}
+                      {handle} · Level {levelNumber}
                     </Text>
 
                     <div style={{ marginTop: 10 }}>
-                      <Tag className="pp-tag">Passport Holder</Tag>
-                      {profileMusic && (
-                        <Tag className="pp-tag" icon={<SoundOutlined />}>
-                          Music On
-                        </Tag>
-                      )}
-                      {isAdmin && (
-                        <Tag className="pp-tag" icon={<CrownOutlined />}>
-                          Admin
-                        </Tag>
-                      )}
-                    </div>
-
-                    <div className="pp-kv" style={{ marginTop: 10 }}>
-                      <Text className="pp-kvLabel">Issued—Expires:</Text>
-                      <Text className="pp-kvValue">{passportExpiresLabel}</Text>
-                    </div>
-
-                    {/* Keep your identity block (inline) */}
-                    <div style={{ marginTop: 10 }}>
-                      <PassportIdentity user={auth?.user} variant="inline" />
-                    </div>
-
-                    {/* Follow counts row (keeps your modal logic) */}
-                    <div className="pp-followRow">
-                      <button
-                        className="ppFollowBtn"
-                        onClick={() => {
-                          setFollowMode("following");
-                          setFollowOpen(true);
-                        }}
-                        type="button"
-                      >
-                        <strong>{passportStats.following}</strong>
-                        <span>Following</span>
-                      </button>
-
-                      <button
-                        className="ppFollowBtn"
-                        onClick={() => {
-                          setFollowMode("followers");
-                          setFollowOpen(true);
-                        }}
-                        type="button"
-                      >
-                        <strong>{passportStats.followers}</strong>
-                        <span>Followers</span>
-                      </button>
+                      <span className="pp-pill pp-pill--active">
+                        🟠 Passport Active
+                      </span>
                     </div>
                   </div>
-                </Space>
-              </Card>
-            </Col>
+                </div>
 
-            {/* Center: XP ring */}
-            <Col xs={24} lg={6}>
-              <Card
-                bordered={false}
-                className="pp-card pp-card--hero pp-card--center"
-              >
-                <div className="pp-levelWrap">
-                  <Progress
-                    type="dashboard"
-                    percent={xpPercent}
-                    strokeWidth={10}
-                    className="pp-levelRing"
-                    format={() => (
-                      <div className="pp-levelText">
-                        <div className="pp-levelRole">{nextBadgeName}</div>
-                        <div className="pp-levelNum">Level {levelNumber}</div>
-                        <div className="pp-levelXp">
-                          {xp} / {xpGoal} XP
+                <div className="pp-heroMeta">
+                  <div className="pp-kv">
+                    <Text className="pp-kvLabel">Issued ·</Text>
+                    <Text className="pp-kvValue">{passportIssuedLabel}</Text>
+                  </div>
+
+                  <div className="pp-kv">
+                    <Text className="pp-kvLabel">Expires ·</Text>
+                    <Text className="pp-kvValue">{passportExpiresLabel}</Text>
+                  </div>
+                </div>
+
+                {/* Follow pills (match mock row) */}
+                <div className="pp-followRow">
+                  <button
+                    className="ppFollowBtn"
+                    onClick={() => {
+                      setFollowMode("followers");
+                      setFollowOpen(true);
+                    }}
+                    type="button"
+                    disabled={!isAuthed}
+                    title={!isAuthed ? "Log in to view followers" : ""}
+                  >
+                    <strong>
+                      {statsLoading ? (
+                        <span style={{ opacity: 0.75 }}>—</span>
+                      ) : (
+                        passportStats.followers
+                      )}
+                    </strong>
+                    <span>Followers</span>
+                  </button>
+
+                  <button
+                    className="ppFollowBtn"
+                    onClick={() => {
+                      setFollowMode("following");
+                      setFollowOpen(true);
+                    }}
+                    type="button"
+                    disabled={!isAuthed}
+                    title={!isAuthed ? "Log in to view following" : ""}
+                  >
+                    <strong>
+                      {statsLoading ? (
+                        <span style={{ opacity: 0.75 }}>—</span>
+                      ) : (
+                        passportStats.following
+                      )}
+                    </strong>
+                    <span>Following</span>
+                  </button>
+                </div>
+
+                {/* Optional stamp placeholders like mock */}
+                <div className="pp-stampPlaceholders" aria-hidden="true">
+                  <div className="pp-stampSlot" />
+                  <div className="pp-stampSlot" />
+                  <div className="pp-stampSlot" />
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="pp-heroDivider" />
+
+              {/* CENTER */}
+              <div className="pp-heroCol pp-heroCol--center">
+                <div className="pp-levelWrap pp-levelWrap--hero">
+                  {xpLoading ? (
+                    <div style={{ width: 220, margin: "0 auto" }}>
+                      <Skeleton active paragraph={{ rows: 2 }} />
+                    </div>
+                  ) : (
+                    <Progress
+                      type="dashboard"
+                      percent={xpPercent}
+                      strokeWidth={10}
+                      className="pp-levelRing"
+                      format={() => (
+                        <div className="pp-levelText">
+                          <div className="pp-levelRole">{nextBadgeName}</div>
+                          <div className="pp-levelNum">Level {levelNumber}</div>
+                          <div className="pp-levelXp">
+                            {xp} / {xpGoal} XP
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  />
-                </div>
-
-                <div style={{ marginTop: 10, textAlign: "center" }}>
-                  <Text className="pp-muted" style={{ fontSize: 12 }}>
-                    {xpToNextBadge} XP to next badge — {nextBadgeName}
-                  </Text>
-                </div>
-              </Card>
-            </Col>
-
-            {/* Right: membership + actions */}
-            <Col xs={24} lg={9}>
-              <Card bordered={false} className="pp-card pp-card--hero">
-                <div className="pp-membershipTop">
-                  <Space align="center">
-                    <CrownOutlined />
-                    <Text className="pp-muted">{membershipLabel}</Text>
-                  </Space>
-
-                  <Space>
-                    <Button className="pp-ghost-btn" size="small">
-                      ⋯
-                    </Button>
-                    <Button className="pp-cta-btn" size="small">
-                      ＋
-                    </Button>
-                  </Space>
+                      )}
+                    />
+                  )}
                 </div>
 
                 <Text className="pp-muted" style={{ fontSize: 12 }}>
-                  Issued—Expires: {passportExpiresLabel}
+                  Next Badge →{" "}
+                  <span className="pp-accentText">Globetrotter</span>
+                </Text>
+              </div>
+
+              {/* Divider */}
+              <div className="pp-heroDivider" />
+
+              {/* RIGHT */}
+              <div className="pp-heroCol pp-heroCol--right">
+                <Title
+                  level={3}
+                  className="pp-title"
+                  style={{ marginBottom: 8 }}
+                >
+                  Digital Passport
+                </Title>
+
+                <span className="pp-pill pp-pill--active">
+                  🟠 Passport Active
+                </span>
+
+                <Text
+                  className="pp-muted"
+                  style={{ fontSize: 12, display: "block", marginTop: 10 }}
+                >
+                  Valid through {passportExpiresLabel}
                 </Text>
 
-                <div className="pp-membershipCard">
-                  <div className="pp-membershipBadge" />
-                  <div style={{ flex: 1 }}>
-                    <Title level={5} style={{ margin: 0 }} className="pp-title">
-                      Passport Holder
-                    </Title>
-                    <Text className="pp-muted" style={{ fontSize: 12 }}>
-                      Passport Expires: {passportExpiresLabel}
-                    </Text>
-                  </div>
+                {/* ✅ Only ONE music control */}
+                <div className="pp-heroActions">
+                  <Button
+                    className="pp-ghost-btn pp-ghost-btn--music"
+                    icon={
+                      profileMusic ? <SoundOutlined /> : <PlayCircleOutlined />
+                    }
+                    onClick={() => setMusicOpen(true)}
+                  >
+                    {profileMusic ? "Profile Music" : "Add Profile Music"}
+                  </Button>
 
-                  <Button className="pp-ghost-btn" size="small">
-                    ⋯
+                  <Button
+                    className="pp-ghost-btn"
+                    icon={<CopyOutlined />}
+                    onClick={copyPassportLink}
+                  >
+                    Copy Link
+                  </Button>
+
+                  <Button
+                    className="pp-ghost-btn"
+                    icon={<ShareAltOutlined />}
+                    onClick={() =>
+                      antdMessage.info("Sharing enabled post-launch")
+                    }
+                  >
+                    Share
                   </Button>
                 </div>
 
-                <div style={{ marginTop: 12 }}>
-                  <Space wrap>
-                    <Button
-                      className="pp-ghost-btn"
-                      icon={<PlayCircleOutlined />}
-                      onClick={() => setMusicOpen(true)}
-                    >
-                      Profile Music
-                    </Button>
+                <Text className="pp-credentialHint">
+                  This passport unlocks stamps, borders, and rewards.
+                </Text>
 
-                    <Button
-                      className="pp-ghost-btn"
-                      icon={<CopyOutlined />}
-                      onClick={copyPassportLink}
-                    >
-                      Copy Link
-                    </Button>
-
-                    <Button
-                      className="pp-cta-btn"
-                      icon={<ShareAltOutlined />}
-                      onClick={() =>
-                        antdMessage.info("Sharing enabled post-launch")
-                      }
-                    >
-                      Share
-                    </Button>
-                  </Space>
+                {/* ✅ Gentle, non-salesy upgrade entry (no plan cards here) */}
+                <div style={{ marginTop: 10 }}>
+                  <Button
+                    className="pp-ghost-btn"
+                    onClick={goMembership}
+                    icon={<RightOutlined />}
+                  >
+                    Upgrade your Passport
+                  </Button>
                 </div>
-              </Card>
-            </Col>
-          </Row>
+              </div>
+            </div>
+          </Card>
 
           {/* =========================
-             TAB BAR (Segmented)
+              TABS BAR (mock-style rail)
           ========================= */}
-          <Card bordered={false} className="pp-card pp-card--tabs">
+          <Card
+            bordered={false}
+            className="pp-card pp-tabPanel pp-tabPanel--sticky"
+          >
             <Segmented
               value={segment}
               onChange={setSegment}
@@ -560,16 +599,19 @@ export default function DigitalPassportPage() {
           </Card>
 
           {/* =========================
-             CONTENT (by segment)
+              CONTENT (by segment)
           ========================= */}
           {segment === "summary" && (
             <>
-              {/* Main grid: Highlights + Inner Circle */}
               <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                 <Col xs={24} lg={14}>
                   <Card bordered={false} className="pp-card pp-card--panel">
                     <div className="pp-panelHeader">
-                      <Title level={4} className="pp-title" style={{ margin: 0 }}>
+                      <Title
+                        level={4}
+                        className="pp-title"
+                        style={{ margin: 0 }}
+                      >
                         Highlights
                       </Title>
                       <Text className="pp-muted">
@@ -586,39 +628,97 @@ export default function DigitalPassportPage() {
                 </Col>
 
                 <Col xs={24} lg={10}>
-                  <Card bordered={false} className="pp-card pp-card--panel">
-                    <div className="pp-panelHeaderRow">
-                      <Title level={4} className="pp-title" style={{ margin: 0 }}>
-                        Your Inner Circle
-                      </Title>
-                      <Text className="pp-muted">0 XP</Text>
+                  {/* ✅ Inner Circle redesigned to match mock */}
+                  <Card
+                    bordered={false}
+                    className="pp-card pp-card--panel pp-innerCircleCard"
+                  >
+                    <div className="pp-panelHeaderRow pp-innerHeader">
+                      <div>
+                        <Title
+                          level={4}
+                          className="pp-title"
+                          style={{ margin: 0 }}
+                        >
+                          Your Inner Circle
+                        </Title>
+                        <Text
+                          className="pp-muted"
+                          style={{ display: "block", marginTop: 2 }}
+                        >
+                          Your top places & people — quick flex, always visible.
+                        </Text>
+                      </div>
+
+                      <span className="pp-xpChip">0 XP</span>
                     </div>
 
-                    <InnerCircleFriends
-                      items={innerCircleFriends}
-                      title=""
-                      subtitle=""
-                    />
+                    <div className="pp-innerGrid">
+                      {innerCircleFriends.slice(0, 3).map((it) => (
+                        <button
+                          key={it.id}
+                          type="button"
+                          className="pp-innerTile"
+                          onClick={() =>
+                            antdMessage.info("Inner Circle details post-launch")
+                          }
+                        >
+                          <div
+                            className="pp-innerCover"
+                            style={{
+                              backgroundImage: it.coverUrl
+                                ? `url(${it.coverUrl})`
+                                : "linear-gradient(135deg, rgba(120,90,255,.35), rgba(255,138,42,.25))",
+                            }}
+                          />
+                          <div className="pp-innerOverlay" />
+                          <div className="pp-innerMeta">
+                            <div className="pp-innerName">{it.name}</div>
+                            <div className="pp-innerSub">Passport Pick</div>
+                          </div>
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        className="pp-innerTile pp-innerTile--add"
+                        onClick={() =>
+                          antdMessage.info("Add to Inner Circle (post-launch)")
+                        }
+                      >
+                        <div className="pp-innerAddPlus">+</div>
+                        <div className="pp-innerAddText">Add</div>
+                      </button>
+                    </div>
+
+                    <div className="pp-innerDots" aria-hidden="true">
+                      <span className="dot isOn" />
+                      <span className="dot" />
+                      <span className="dot" />
+                    </div>
                   </Card>
                 </Col>
               </Row>
 
-              {/* Keep stamps strip exactly where it was */}
               <div style={{ marginTop: 16 }}>
                 <StampStrip />
               </div>
 
-              {/* Bottom grid: TopEight + Exchange Preview */}
               <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                 <Col xs={24} lg={14}>
                   <TopEight
                     title="Places That Define You"
                     subtitle="Top 8 Locations"
                     canEdit={canEditTop8}
-                    storageKey={`skyrio_top8_places_${auth?.user?.id || "member"}`}
+                    storageKey={`skyrio_top8_places_${
+                      auth?.user?.id || "member"
+                    }`}
                     defaultItems={top8Places}
                     renderItem={(item, ctx) => (
-                      <TopEightItemPlace {...item} isDragging={ctx.isDragging} />
+                      <TopEightItemPlace
+                        {...item}
+                        isDragging={ctx.isDragging}
+                      />
                     )}
                   />
                 </Col>
@@ -649,7 +749,33 @@ export default function DigitalPassportPage() {
 
           {segment === "vault" && (
             <>
-              <Membership />
+              {/* ✅ Membership REMOVED from Passport. Keep this vault about rewards + exchange. */}
+              <Card
+                bordered={false}
+                className="osq-surface"
+                style={{ marginTop: 16 }}
+              >
+                <Title level={5} style={{ marginBottom: 6 }}>
+                  Rewards Vault
+                </Title>
+                <Text type="secondary">
+                  Earn XP from bookings + quests. Redeem it for boosts, badges,
+                  and perks.
+                </Text>
+
+                <div style={{ marginTop: 12 }}>
+                  <Button type="primary" onClick={goMembership}>
+                    View Membership Options
+                  </Button>
+                  <Button
+                    style={{ marginLeft: 8 }}
+                    onClick={() => setSegment("summary")}
+                  >
+                    Back to Passport Summary
+                  </Button>
+                </div>
+              </Card>
+
               <SkyrioExchange showSearch={false} />
 
               {rewardsEnabled ? (
@@ -663,8 +789,8 @@ export default function DigitalPassportPage() {
                   </Title>
 
                   <Text type="secondary">
-                    Limited-time XP missions and rewards. You control when seasons
-                    go live.
+                    Limited-time XP missions and rewards. You control when
+                    seasons go live.
                   </Text>
 
                   <div style={{ marginTop: 12 }}>
@@ -721,11 +847,17 @@ export default function DigitalPassportPage() {
               >
                 <Title level={5}>Invite & Earn</Title>
                 <Space wrap>
-                  <Input value={referralCode} readOnly style={{ minWidth: 280 }} />
+                  <Input
+                    value={referralCode}
+                    readOnly
+                    style={{ minWidth: 280 }}
+                  />
                   <Button icon={<CopyOutlined />} onClick={copyReferral} />
                   <Button
                     icon={<ShareAltOutlined />}
-                    onClick={() => antdMessage.info("Sharing enabled post-launch")}
+                    onClick={() =>
+                      antdMessage.info("Sharing enabled post-launch")
+                    }
                   />
                 </Space>
               </Card>
@@ -746,13 +878,16 @@ export default function DigitalPassportPage() {
         open={musicOpen}
         onClose={() => setMusicOpen(false)}
         onSave={setProfileMusic}
+        value={profileMusic}
       />
     </>
   );
 
-  /* ✅ keep your existing background wrapper */
   return (
-    <div className="sk-passportPage" style={{ "--passport-bg": `url(${galaxyBg})` }}>
+    <div
+      className="sk-passportPage"
+      style={{ "--passport-bg": `url(${galaxyBg})` }}
+    >
       <div className="passport-scope">{PassportContent}</div>
     </div>
   );
