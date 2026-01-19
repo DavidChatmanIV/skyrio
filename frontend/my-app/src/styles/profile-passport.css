@@ -147,6 +147,68 @@
 .pp-shell {
   width: min(var(--pp-max), 100%);
   margin: 0 auto;
+
+  /* ✅ IMPORTANT: allows .pp-homeBtnWrap (absolute) to anchor to the shell safely */
+  position: relative;
+}
+
+/* =========================
+   HOME BUTTON (passport pill)
+========================= */
+.pp-homeBtnWrap {
+  position: absolute;
+  top: -10px !important;  
+  left: 12px !important;
+  z-index: 30 !important;
+}
+
+
+.pp-homeBtn.ant-btn {
+  height: 34px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+
+  border: 1px solid var(--pp-stroke) !important;
+  background: rgba(0, 0, 0, 0.18) !important;
+  backdrop-filter: var(--pp-blur);
+
+  color: var(--pp-muted) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.15px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  transition: transform 160ms ease, border-color 160ms ease,
+    background 160ms ease;
+}
+
+.pp-homeBtn.ant-btn:hover {
+  color: var(--pp-text) !important;
+  background: rgba(0, 0, 0, 0.24) !important;
+  border-color: rgba(255, 138, 42, 0.35) !important;
+  transform: translateY(-1px);
+}
+
+.pp-homeBtn.ant-btn:active {
+  transform: translateY(0px);
+}
+
+.pp-homeBtn .anticon {
+  opacity: 0.9;
+}
+
+@media (max-width: 560px) {
+  .pp-homeBtnWrap {
+    top: 12px;
+    left: 12px;
+  }
+
+  .pp-homeBtn.ant-btn {
+    height: 32px !important;
+    padding: 0 10px !important;
+  }
 }
 
 /* =============================
@@ -170,11 +232,7 @@
    ============================= */
 .pp-card {
   border-radius: var(--pp-radius-lg) !important;
-  background: linear-gradient(
-    180deg,
-    var(--pp-surface-a),
-    var(--pp-surface-b)
-  ) !important;
+  background: linear-gradient(180deg, var(--pp-surface-a), var(--pp-surface-b)) !important;
   border: 1px solid var(--pp-stroke) !important;
   box-shadow: var(--pp-shadow-md);
   backdrop-filter: var(--pp-blur);
@@ -312,8 +370,7 @@
   background: rgba(0, 0, 0, 0.16);
   color: var(--pp-text);
   cursor: pointer;
-  transition: transform 160ms ease, border-color 160ms ease,
-    background 160ms ease;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
 .ppFollowBtn strong {
@@ -337,7 +394,7 @@
   cursor: not-allowed;
 }
 
-/* Stamp placeholders */
+/* Stamp placeholders (old) */
 .pp-stampPlaceholders {
   display: flex;
   gap: 10px;
@@ -350,6 +407,79 @@
   border-radius: 10px;
   border: 1px dashed rgba(255, 255, 255, 0.18);
   background: rgba(0, 0, 0, 0.14);
+}
+
+/* =========================
+   ✅ HOME BUTTON (top-left)
+========================= */
+.pp-homeBtnWrap {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 6;
+}
+
+.pp-homeBtn {
+  color: var(--pp-muted) !important;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 6px 10px;
+}
+
+.pp-homeBtn:hover {
+  color: var(--pp-text) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* =========================
+   ✅ IDENTITY STAMPS (replaces empty dashed boxes)
+========================= */
+.pp-idStamps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.pp-idStamp {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(0, 0, 0, 0.10)
+  );
+  border-radius: 14px;
+  padding: 10px 10px 9px;
+  min-height: 58px;
+}
+
+.pp-idStampTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pp-idIcon {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.95;
+}
+
+.pp-idLabel {
+  font-size: 12px;
+  color: var(--pp-muted);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.pp-idValue {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--pp-text);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* XP ring */
@@ -404,8 +534,7 @@
   background: rgba(0, 0, 0, 0.16) !important;
   color: var(--pp-text) !important;
   height: 38px;
-  transition: transform 160ms ease, border-color 160ms ease,
-    background 160ms ease;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
 .pp-ghost-btn:hover {
@@ -560,11 +689,7 @@
 .pp-innerOverlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.1),
-    rgba(0, 0, 0, 0.55)
-  );
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.55));
 }
 
 .pp-innerMeta {
@@ -782,8 +907,7 @@
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: transform 160ms ease, border-color 160ms ease,
-    background 160ms ease;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
 .skx-iconBtn:hover {
@@ -888,11 +1012,7 @@
   padding: 12px 12px;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.18),
-    rgba(0, 0, 0, 0.12)
-  );
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.12));
   color: rgba(244, 246, 251, 0.92);
 }
 
@@ -982,6 +1102,18 @@
 
   .pp-tabPanel--sticky {
     top: 8px;
+  }
+}
+
+/* ✅ Mobile: stack stamps so it never squishes */
+@media (max-width: 560px) {
+  .pp-idStamps {
+    grid-template-columns: 1fr;
+  }
+
+  .pp-homeBtnWrap {
+    top: 12px;
+    left: 12px;
   }
 }
 

@@ -32,6 +32,7 @@ import {
   GlobalOutlined,
   GiftOutlined,
   RightOutlined,
+  LeftOutlined,
 } from "@ant-design/icons";
 import { io } from "socket.io-client";
 
@@ -352,8 +353,6 @@ export default function DigitalPassportPage() {
   }, []);
 
   const goMembership = useCallback(() => {
-    // ✅ Membership should NOT live inside Passport.
-    // Put your plans at /membership (recommended).
     navigate("/membership");
   }, [navigate]);
 
@@ -372,6 +371,28 @@ export default function DigitalPassportPage() {
     []
   );
 
+  // ✅ Identity stamps (replace the 3 empty boxes)
+  // Home Base: safe fallback until your IP->county API is wired.
+  const homeBaseLabel = useMemo(() => {
+    // If you later add auth.user.homeBase, it will display automatically.
+    const hb = auth?.user?.homeBase;
+    if (hb && typeof hb === "string") return hb;
+    // Soft-launch safe default:
+    return "Based on your region";
+  }, [auth?.user?.homeBase]);
+
+  const travelerTypeLabel = useMemo(() => {
+    // Your current UI uses “Explorer” as default identity.
+    // You can later map this to tiers.
+    return "Explorer";
+  }, []);
+
+  const memberSinceLabel = useMemo(() => {
+    // Later: derive from auth.user.createdAt
+    // For now: match your current passport year
+    return "2026";
+  }, []);
+
   const PassportContent = (
     <>
       <RewardsOptInPrompt
@@ -382,6 +403,18 @@ export default function DigitalPassportPage() {
 
       <div className="pp-page">
         <div className="pp-shell pp-shell--mock">
+          {/* ✅ HOME BUTTON (Back to Discover) */}
+          <div className="pp-homeBtnWrap">
+            <Button
+              type="text"
+              icon={<LeftOutlined />}
+              className="pp-homeBtn"
+              onClick={() => navigate("/")}
+            >
+              Home
+            </Button>
+          </div>
+
           {/* =========================
               HERO PANEL (ONE unified passport block)
           ========================= */}
@@ -466,11 +499,35 @@ export default function DigitalPassportPage() {
                   </button>
                 </div>
 
-                {/* Optional stamp placeholders like mock */}
-                <div className="pp-stampPlaceholders" aria-hidden="true">
-                  <div className="pp-stampSlot" />
-                  <div className="pp-stampSlot" />
-                  <div className="pp-stampSlot" />
+                {/* ✅ REPLACED: the 3 empty boxes → Identity Stamps */}
+                <div
+                  className="pp-idStamps"
+                  role="group"
+                  aria-label="Passport identity stamps"
+                >
+                  <div className="pp-idStamp">
+                    <div className="pp-idStampTop">
+                      <span className="pp-idIcon">🌍</span>
+                      <span className="pp-idLabel">Home Base</span>
+                    </div>
+                    <div className="pp-idValue">{homeBaseLabel}</div>
+                  </div>
+
+                  <div className="pp-idStamp">
+                    <div className="pp-idStampTop">
+                      <span className="pp-idIcon">🛂</span>
+                      <span className="pp-idLabel">Traveler Type</span>
+                    </div>
+                    <div className="pp-idValue">{travelerTypeLabel}</div>
+                  </div>
+
+                  <div className="pp-idStamp">
+                    <div className="pp-idStampTop">
+                      <span className="pp-idIcon">🗓</span>
+                      <span className="pp-idLabel">Member Since</span>
+                    </div>
+                    <div className="pp-idValue">{memberSinceLabel}</div>
+                  </div>
                 </div>
               </div>
 
@@ -749,7 +806,6 @@ export default function DigitalPassportPage() {
 
           {segment === "vault" && (
             <>
-              {/* ✅ Membership REMOVED from Passport. Keep this vault about rewards + exchange. */}
               <Card
                 bordered={false}
                 className="osq-surface"
