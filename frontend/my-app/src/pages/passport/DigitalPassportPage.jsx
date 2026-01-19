@@ -38,8 +38,8 @@ import { io } from "socket.io-client";
 /* ✅ IMPORTANT: load Passport CSS on this route */
 import "../../styles/profile-passport.css";
 
-/* ✅ Galaxy BG (Vite-safe import) */
-import galaxyBg from "../../assets/DigitalPassport/galaxy-sunset.png";
+/* world map  */
+import passportBg from "../../assets/DigitalPassport/worldmap.png";
 
 import ProfileMusicModal, {
   SKYRIO_PROFILE_MUSIC_KEY,
@@ -884,11 +884,18 @@ export default function DigitalPassportPage() {
   );
 
   return (
-    <div
-      className="sk-passportPage"
-      style={{ "--passport-bg": `url(${galaxyBg})` }}
-    >
-      <div className="passport-scope">{PassportContent}</div>
+    <div className="passport-page">
+      {/* FULL-PAGE background */}
+      <div
+        className="passport-bg"
+        style={{ backgroundImage: `url(${passportBg})` }}
+        aria-hidden="true"
+      />
+
+      {/* All your existing UI goes here */}
+      <div className="passport-content">
+        <div className="passport-scope">{PassportContent}</div>
+      </div>
     </div>
   );
 }
