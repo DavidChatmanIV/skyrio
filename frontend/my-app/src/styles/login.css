@@ -1,7 +1,11 @@
+/* =============================
+   TOKENS
+   ============================= */
 :root {
   --sk-authText: rgba(255, 255, 255, 0.92);
   --sk-authMuted: rgba(255, 255, 255, 0.72);
   --sk-authFaint: rgba(255, 255, 255, 0.55);
+
   --sk-authStroke: rgba(255, 255, 255, 0.14);
   --sk-authGlass: rgba(255, 255, 255, 0.10);
   --sk-authInput: rgba(0, 0, 0, 0.28);
@@ -9,474 +13,653 @@
   --sk-ctaA: #6f68ff;
   --sk-ctaB: #c661ff;
   --sk-ctaC: #ff8fcf;
+  --sk-ctaOrange: #ff8a2a;
+
+  --sk-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
 }
 
-/* Gate bg */
+/* =============================
+   PAGE LAYOUT
+   ============================= */
+.auth-scene {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.sk-loginPage {
+  min-height: 100vh;
+  display: grid;
+  place-items: start center;
+  padding: 32px 18px 44px;
+  position: relative;
+}
+
 .sk-loginBg {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 
-  /* slightly clearer */
-  filter: blur(6px) brightness(0.88) contrast(1.05) saturate(0.95);
-  transform: scale(1.03);
+  /* Keep the gate readable but cinematic */
+  filter: blur(6px) saturate(1.05) contrast(1.05) brightness(0.95);
+  transform: scale(1.06);
 }
-.sk-loginBg::after {
+
+.sk-loginPage::before {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: 0;
-  background:
-    radial-gradient(1200px 700px at 50% 28%, rgba(255,255,255,0.06), transparent 65%),
-    linear-gradient(180deg, rgba(5, 7, 16, 0.55) 0%, rgba(5, 7, 16, 0.78) 60%, rgba(5, 7, 16, 0.88) 100%);
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+      900px 420px at 50% 18%,
+      rgba(180, 120, 255, 0.18),
+      rgba(0, 0, 0, 0) 60%
+    ),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.46), rgba(0, 0, 0, 0.62));
 }
 
 .sk-loginWrap {
   position: relative;
-  z-index: 2;
-  min-height: 100vh;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  padding-top: calc(var(--nav-h, 88px) + env(safe-area-inset-top));
-  padding-inline: 16px;
-  padding-bottom: calc(18px + env(safe-area-inset-bottom));
-  gap: 14px;
+  z-index: 1;
+  width: min(1100px, 100%);
 }
 
-/* Pass base */
+.sk-loginInner {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.sk-authHero {
+  text-align: center;
+  max-width: 920px;
+  padding: 18px 10px 10px;
+}
+
+.sk-authTitle {
+  color: var(--sk-authText) !important;
+  margin: 0 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+}
+
+.sk-authSubtitle {
+  color: var(--sk-authMuted) !important;
+  display: inline-block;
+  margin-top: 6px;
+}
+
+/* =============================
+   BOARDING PASS CARD (MOCKUP MATCH)
+   Plane visible on right + galaxy texture inside card
+   Uses CSS vars:
+   --sk-gateImg: gate/plane photo
+   --sk-pass-bg: galaxy texture
+   ============================= */
 .sk-passCard {
   position: relative;
   overflow: hidden;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(18px);
-  animation: fadeUp 0.6s ease-out;
+  background: rgba(10, 8, 18, 0.35);
+  box-shadow: var(--sk-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  outline: none;
 }
 
-/* ✅ Wide (mock) size */
+/* Wide card spacing */
 .sk-passWide {
-  width: min(92vw, 980px);
-  padding: 18px;
+  width: min(1040px, 100%);
+  margin: 0 auto;
 }
 
-/* galaxy bg inside pass */
+/* 1) Gate/Plane image layer */
 .sk-passCard::before {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 0;
-  background-image: var(--sk-pass-bg);
-  background-size: cover;
-  background-position: center;
+  background-image: var(--sk-gateImg);
   background-repeat: no-repeat;
-  opacity: 0.88;
-  transform: scale(1.02);
+  background-size: cover;
+  background-position: right center;
+  filter: saturate(1.06) contrast(1.06) brightness(1.03);
+  opacity: 0.92;
+  z-index: 0;
 }
 
-.sk-passCard > * { position: relative; z-index: 1; }
+/* 2) Readability overlay (dark left → clear right) */
+.sk-passCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(8, 6, 16, 0.92) 0%,
+    rgba(8, 6, 16, 0.82) 45%,
+    rgba(8, 6, 16, 0.55) 65%,
+    rgba(8, 6, 16, 0.22) 82%,
+    rgba(8, 6, 16, 0.10) 100%
+  );
+  z-index: 1;
+}
 
+/* 3) Galaxy texture overlay (brand vibe) */
 .sk-passGlow {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    radial-gradient(900px 520px at 18% 18%, rgba(195, 92, 255, 0.18), transparent 62%),
-    radial-gradient(1000px 640px at 82% 70%, rgba(43, 188, 255, 0.14), transparent 64%),
-    linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.52) 100%);
-}
-
-/* Scan line */
-.sk-passScan {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  top: -40%;
-  height: 120px;
-  border-radius: 18px;
-  opacity: 0;
+  background-image: var(--sk-pass-bg);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.55;
+  filter: saturate(1.05) contrast(1.05);
   z-index: 2;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.16) 50%, transparent 100%);
-}
-.sk-passCard.isScanning .sk-passScan { opacity: 1; animation: sk-scan 1.25s ease-in-out infinite; }
-@keyframes sk-scan { 0% { transform: translateY(0); } 100% { transform: translateY(220%); } }
-
-/* ✅ GRID: main + stub */
-.sk-passGrid {
-  display: grid;
-  grid-template-columns: 1fr 220px;
-  gap: 0;
-  border-radius: 22px;
-  overflow: hidden;
 }
 
-/* MAIN */
-.sk-passMain {
-  padding: 10px 14px 12px;
+/* Scan sheen */
+.sk-passScan {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.10) 20%,
+    rgba(255, 255, 255, 0.22) 35%,
+    rgba(255, 255, 255, 0.10) 52%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  transform: translateX(-60%) skewX(-14deg);
 }
 
-/* STUB */
+/* Activate scan when focusing/typing/loading */
+.sk-passCard.isScanning .sk-passScan {
+  opacity: 0.9;
+  animation: skScan 1.25s ease-in-out infinite;
+}
+
+@keyframes skScan {
+  0% { transform: translateX(-70%) skewX(-14deg); opacity: 0.0; }
+  18% { opacity: 0.65; }
+  50% { opacity: 0.95; }
+  100% { transform: translateX(120%) skewX(-14deg); opacity: 0.0; }
+}
+
+/* Ensure content above layers */
+.sk-passGrid,
+.sk-passMain,
 .sk-passStub {
   position: relative;
-  padding: 12px 12px 14px;
-  background: rgba(255, 255, 255, 0.08);
-  border-left: 1px solid rgba(255,255,255,0.16);
+  z-index: 4;
 }
 
-/* ✅ Perforation (vertical dashed + circle cuts) */
-.sk-passStub::before {
-  content: "";
-  position: absolute;
-  left: -1px;
-  top: 14px;
-  bottom: 14px;
-  width: 2px;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255,255,255,0.35) 0 6px,
-    transparent 6px 12px
-  );
-  opacity: 0.65;
+/* =============================
+   PASS GRID (Main + Stub)
+   ============================= */
+.sk-passGrid {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 0;
+  min-height: 360px;
 }
-.sk-passStub::after {
-  content: "";
-  position: absolute;
-  left: -12px;
-  top: 46%;
-  width: 24px;
-  height: 24px;
+
+/* Divider “ticket tear” feel */
+.sk-passMain {
+  padding: 18px 18px 14px;
+  border-right: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+/* Stub */
+.sk-passStub {
+  padding: 18px 16px 14px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+/* =============================
+   HEADER / CHIPS
+   ============================= */
+.sk-passHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sk-brandRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sk-dot {
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
-  background: rgba(5, 7, 16, 0.55);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.10);
+  background: linear-gradient(135deg, var(--sk-ctaA), var(--sk-ctaC));
+  box-shadow: 0 0 18px rgba(198, 97, 255, 0.35);
 }
 
-/* stub top label */
-.sk-stubGate {
-  font-weight: 900;
-  letter-spacing: 0.12em;
+.sk-brand {
+  color: var(--sk-authText);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+
+.sk-chipRow {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.sk-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--sk-authText);
   font-size: 12px;
-  text-align: center;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* =============================
+   TITLE / INFO GRID
+   ============================= */
+.sk-passTitle {
+  margin-top: 12px;
+}
+
+.sk-kicker {
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.sk-idGrid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+
+.sk-idBlock {
+  min-width: 0;
+}
+
+.sk-idBlock.sk-right {
+  text-align: right;
+}
+
+.sk-label {
+  color: rgba(255, 255, 255, 0.60);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.sk-value {
+  color: var(--sk-authText);
+  font-weight: 800;
+  font-size: 16px;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sk-smallValue {
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 700;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sk-statusPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  margin-top: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.55);
+  background: rgba(255, 138, 42, 0.14);
+  color: rgba(255, 245, 235, 0.92);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+/* =============================
+   FLIGHT LINE
+   ============================= */
+.sk-flightLine {
+  margin: 14px 0 12px;
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr auto;
+  align-items: center;
+  gap: 10px;
   opacity: 0.9;
 }
 
-/* QR placeholder (no external image needed) */
-.sk-qrBox {
-  margin-top: 14px;
-  display: grid;
-  gap: 8px;
-  justify-items: center;
+.sk-lineDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
 }
-.sk-qr {
-  width: 120px;
-  height: 120px;
-  border-radius: 12px;
-  background:
-    linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06)),
-    repeating-linear-gradient(0deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 6px),
-    repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 6px);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+
+.sk-line {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.35), rgba(255,255,255,0.12));
 }
-.sk-qrHint {
+
+.sk-plane {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+}
+
+/* =============================
+   FORM
+   ============================= */
+.sk-form {
+  margin-top: 4px;
+}
+
+.sk-field {
+  margin-top: 10px;
+}
+
+.sk-fieldLabel {
+  color: rgba(255, 255, 255, 0.62);
   font-size: 11px;
-  letter-spacing: 0.12em;
-  opacity: 0.75;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
 }
 
-/* stub barcode */
-.sk-stubBarcode {
-  margin-top: 14px;
-  display: flex;
-  gap: 3px;
-  justify-content: center;
-  opacity: 0.75;
-}
-.sk-stubBarcode .sk-bar {
-  width: 3px;
-  height: 44px;
-  background: rgba(255,255,255,0.7);
-  border-radius: 2px;
+/* Ant input styling */
+.sk-input.ant-input-affix-wrapper,
+.sk-input.ant-input {
+  background: rgba(0, 0, 0, 0.28) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
 }
 
-/* Inputs */
-.sk-loginPage .ant-input,
-.sk-loginPage .ant-input-affix-wrapper {
-  background: var(--sk-authInput) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: 14px !important;
-  color: rgba(255,255,255,0.92) !important;
+.sk-input.ant-input-affix-wrapper:hover,
+.sk-input.ant-input:hover {
+  border-color: rgba(255, 255, 255, 0.22) !important;
 }
-.sk-loginPage .ant-input::placeholder { color: var(--sk-authFaint) !important; }
-.sk-loginPage .ant-input:focus,
-.sk-loginPage .ant-input-affix-wrapper-focused {
-  border-color: rgba(198, 97, 255, 0.65) !important;
-  box-shadow: 0 0 0 3px rgba(198, 97, 255, 0.18) !important;
+
+.sk-input.ant-input-affix-wrapper:focus,
+.sk-input.ant-input-affix-wrapper-focused {
+  border-color: rgba(198, 97, 255, 0.55) !important;
+  box-shadow: 0 0 0 4px rgba(198, 97, 255, 0.12) !important;
+}
+
+.sk-input .ant-input,
+.sk-input input {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.sk-input .anticon {
+  color: rgba(255, 255, 255, 0.62) !important;
+}
+
+.sk-input ::placeholder {
+  color: rgba(255, 255, 255, 0.46) !important;
 }
 
 /* CTA */
-.sk-ctaBtn {
+.sk-ctaBtn.ant-btn {
+  margin-top: 12px;
   height: 46px;
-  border-radius: 999px !important;
-  border: none !important;
-  font-weight: 900;
-  background: linear-gradient(90deg, var(--sk-ctaA), var(--sk-ctaB), var(--sk-ctaC)) !important;
-  box-shadow: 0 10px 30px rgba(198, 97, 255, 0.25);
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ✅ Responsive: stack stub under main on mobile */
-@media (max-width: 720px) {
-  .sk-passGrid {
-    grid-template-columns: 1fr;
-  }
-  .sk-passStub {
-    border-left: none;
-    border-top: 1px solid rgba(255,255,255,0.16);
-  }
-  .sk-passStub::before {
-    left: 14px;
-    right: 14px;
-    top: -1px;
-    bottom: auto;
-    height: 2px;
-    width: auto;
-    background: repeating-linear-gradient(
-      to right,
-      rgba(255,255,255,0.35) 0 6px,
-      transparent 6px 12px
-    );
-  }
-  .sk-passStub::after {
-    left: 46%;
-    top: -12px;
-  }
-  /* =========================================================
-   ✅ FINAL TUNING — closer to mock + mobile ready
-   (paste at bottom of login.css)
-========================================================= */
-
-/* Keeps content from stretching too wide on ultra-wide screens */
-.sk-loginInner {
-  width: min(96vw, 1120px);
-  display: grid;
-  gap: 14px;
-  justify-items: center;
-}
-
-/* Hero spacing + scale (desktop) */
-.sk-authHero {
-  margin-top: 6px;
-  max-width: 920px;
-}
-
-.sk-authTitle {
-  font-size: clamp(28px, 4vw, 56px) !important;
-  line-height: 1.05 !important;
-}
-
-.sk-authSubtitle {
-  font-size: clamp(12px, 1.25vw, 16px) !important;
-}
-
-/* ===== PASS: closer to mock proportions ===== */
-.sk-passWide {
-  width: min(96vw, 1040px);
-  padding: 14px;              /* slightly tighter like mock */
-  border-radius: 28px;        /* more “ticket” feel */
-}
-
-/* grid proportions: stub a bit slimmer like mock */
-.sk-passGrid {
-  grid-template-columns: 1fr 200px; /* was 220px */
-}
-
-/* main content padding tighter */
-.sk-passMain {
-  padding: 12px 16px 14px;
-}
-
-/* stub background slightly brighter so it looks like a real ticket stub */
-.sk-passStub {
-  background: rgba(255, 255, 255, 0.10);
-}
-
-/* more realistic perforation line */
-.sk-passStub::before {
-  opacity: 0.8;
-}
-
-/* notch circles: make them look “cut out” */
-.sk-passStub::after {
-  background: rgba(0, 0, 0, 0.48);
-}
-
-/* optional: add top cutout too (more ticket-like) */
-.sk-passStub .sk-stubTop {
-  position: relative;
-}
-.sk-passStub .sk-stubTop::after {
-  content: "";
-  position: absolute;
-  left: -12px;
-  top: -10px;
-  width: 22px;
-  height: 22px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.48);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.10);
+  border: none;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  background: linear-gradient(90deg, var(--sk-ctaOrange), #ff9f4d);
+  box-shadow: 0 16px 50px rgba(255, 138, 42, 0.25);
 }
 
-/* QR box size closer to mock */
-.sk-qr {
-  width: 108px;
-  height: 108px;
-  border-radius: 14px;
+.sk-ctaBtn.ant-btn:hover {
+  filter: brightness(1.02);
 }
 
-/* barcode height a bit taller for realism */
-.sk-stubBarcode .sk-bar {
-  height: 52px;
+/* Secondary area */
+.sk-secondary {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
 }
 
-/* keep CTA aligned with mock: centered, not too tall */
-.sk-ctaBtn {
+.sk-muted {
+  color: var(--sk-authMuted) !important;
+}
+
+.sk-micro {
+  font-size: 12px;
+  color: var(--sk-authFaint) !important;
+}
+
+.sk-inlineBtnLink {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.sk-ghostBtn.ant-btn {
   height: 44px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 800;
 }
 
-/* =========================================================
-   ✅ MOBILE READY (no overflow, stacks clean)
-========================================================= */
-
-/* 1) Prevent accidental horizontal scroll */
-html, body {
-  overflow-x: hidden;
+.sk-ghostBtn.ant-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
-/* 2) Mobile + tablet breakpoint: stack stub under main */
-@media (max-width: 820px) {
-  .sk-loginInner {
-    width: min(96vw, 720px);
-    gap: 12px;
-  }
+/* Links row */
+.sk-linksRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
 
-  .sk-passWide {
-    width: min(96vw, 720px);
-    padding: 12px;
-    border-radius: 22px;
-  }
+.sk-linkSmall {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  text-decoration: none;
+}
 
+.sk-linkSmall:hover {
+  text-decoration: underline;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.sk-linkSmall.sk-strong {
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 800;
+}
+
+.sk-sep {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+/* Footer */
+.sk-cardFooter {
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+/* =============================
+   STUB UI
+   ============================= */
+.sk-stubTop {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sk-stubGate {
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.sk-qrBox {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.sk-qr {
+  width: 92px;
+  height: 92px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.sk-qrHint {
+  color: rgba(255, 255, 255, 0.70);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.sk-stubBarcode {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: flex-end;
+  padding-top: 8px;
+}
+
+.sk-bar {
+  width: 3px;
+  height: 22px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.40);
+  opacity: 0.85;
+}
+
+.sk-bar:nth-child(3n) { height: 28px; opacity: 0.65; }
+.sk-bar:nth-child(4n) { height: 18px; opacity: 0.55; }
+.sk-bar:nth-child(5n) { height: 32px; opacity: 0.75; }
+
+/* =============================
+   MOBILE SAFE
+   ============================= */
+@media (max-width: 860px) {
   .sk-passGrid {
     grid-template-columns: 1fr;
   }
 
   .sk-passMain {
-    padding: 12px 12px 14px;
+    border-right: none;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.18);
   }
 
-  /* Stub becomes the “tear-off” section below */
   .sk-passStub {
-    border-left: none;
-    border-top: 1px solid rgba(255,255,255,0.16);
-    padding: 12px 12px 14px;
+    grid-template-rows: auto auto auto;
   }
 
-  /* Perforation line switches horizontal */
-  .sk-passStub::before {
-    left: 14px;
-    right: 14px;
-    top: -1px;
-    bottom: auto;
-    height: 2px;
-    width: auto;
-    background: repeating-linear-gradient(
-      to right,
-      rgba(255,255,255,0.35) 0 6px,
-      transparent 6px 12px
-    );
-  }
-
-  /* cutout moves to top center */
-  .sk-passStub::after {
-    left: 46%;
-    top: -12px;
-  }
-
-  /* remove the extra top cutout on stacked layout */
-  .sk-passStub .sk-stubTop::after {
-    display: none;
+  .sk-stubTop {
+    justify-content: center;
   }
 }
 
-/* 3) Small phones: tighten hero + pass + inputs */
-@media (max-width: 520px) {
-  .sk-loginWrap {
-    padding-inline: 12px;
+@media (max-width: 640px) {
+  .sk-loginPage {
+    padding: 26px 14px 40px;
   }
 
   .sk-authTitle {
-    font-size: 30px !important;
+    font-size: 28px !important;
   }
 
-  .sk-authSubtitle {
-    font-size: 13px !important;
-  }
-
-  .sk-passWide {
-    width: 100%;
-    padding: 10px;
+  .sk-passCard {
     border-radius: 18px;
   }
 
-  /* Inputs + buttons feel “app-like” on mobile */
-  .sk-loginPage .ant-input,
-  .sk-loginPage .ant-input-affix-wrapper {
-    border-radius: 12px !important;
+  /* keep plane visible on small screens */
+  .sk-passCard::before {
+    background-position: 72% center;
+    opacity: 0.95;
   }
 
-  .sk-ctaBtn {
-    height: 44px;
+  .sk-passCard::after {
+    background: linear-gradient(
+      to right,
+      rgba(8, 6, 16, 0.94) 0%,
+      rgba(8, 6, 16, 0.86) 55%,
+      rgba(8, 6, 16, 0.55) 75%,
+      rgba(8, 6, 16, 0.20) 92%,
+      rgba(8, 6, 16, 0.10) 100%
+    );
   }
 
-  .sk-qr {
-    width: 96px;
-    height: 96px;
+  .sk-passGlow {
+    opacity: 0.50;
+  }
+
+  .sk-idGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .sk-idBlock.sk-right {
+    text-align: left;
   }
 }
 
-/* =====================================================
-   FORCE CENTER BOARDING PASS
-===================================================== */
-
-.sk-loginWrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center; /* ⬅️ centers everything */
+/* =============================
+   FUTURE: LOGOUT MIRROR SCENE
+   Add className="auth-scene logout" on Logout page wrapper.
+   ============================= */
+.auth-scene.logout .sk-passCard::after {
+  background: linear-gradient(
+    to left,
+    rgba(8, 6, 16, 0.92) 0%,
+    rgba(8, 6, 16, 0.82) 45%,
+    rgba(8, 6, 16, 0.55) 65%,
+    rgba(8, 6, 16, 0.22) 82%,
+    rgba(8, 6, 16, 0.10) 100%
+  );
 }
 
-/* Hero stays centered */
-.sk-authHero {
-  text-align: center;
-  width: 100%;
-}
-
-/* Boarding pass HARD CENTER */
-.sk-passWide {
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Prevent hero width from nudging the card */
-.sk-loginInner {
-  align-items: center;
-}
+.auth-scene.logout .sk-passCard::before {
+  background-position: left center;
 }

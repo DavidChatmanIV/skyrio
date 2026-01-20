@@ -152,6 +152,21 @@
   color: var(--sk-white) !important;
 }
 
+/* Brand text only (Option A) */
+.sk-heroBrand{
+  font-weight: 950;
+  font-size: clamp(44px, 5vw, 72px);
+  line-height: 1.02;
+  margin-bottom: 10px;
+
+  background: linear-gradient(90deg, #ffd08a, #ff9f43, #ff7a18);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+
+  text-shadow: 0 12px 34px rgba(0,0,0,0.35);
+}
+
 .sk-heroH1{
   margin: 0 0 6px;
   font-weight: 950;
@@ -216,8 +231,25 @@
   background: rgba(255,255,255,0.14) !important;
 }
 
+/* Slightly lighter third button so it doesn’t dominate */
+.sk-ctaGhost--subtle{
+  opacity: 0.92;
+}
+
+/* ===== Trust Bullets under Hero (compact) ===== */
+.sk-heroBullets{
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  color: var(--sk-muted);
+  font-size: 13px;
+}
+
+.sk-bulletLine b{ color: var(--sk-white); }
+
 /* =========================================================
-   TRUST ROW
+   TRUST ROW (still used if you keep it)
 ========================================================= */
 .sk-heroTrust{
   margin-top: 12px;
@@ -253,6 +285,48 @@
   background: rgba(255,255,255,0.10) !important;
   border: 1px solid rgba(255,255,255,0.14) !important;
   color: rgba(255,255,255,0.90) !important;
+}
+
+/* =========================================================
+   HERO COMPACT MODE (LESS SCROLL)
+========================================================= */
+.sk-heroCard--compact{
+  padding: 28px 22px !important;
+}
+
+.sk-heroBrand--compact{
+  font-size: clamp(34px, 4.2vw, 56px);
+  margin-bottom: 6px;
+}
+
+.sk-heroH1--compact{
+  font-size: clamp(36px, 4.6vw, 60px);
+  margin: 0 0 4px;
+}
+
+.sk-heroH2--compact{
+  font-size: clamp(18px, 2.2vw, 30px);
+  margin-top: 4px;
+}
+
+.sk-heroP--compact{
+  margin-top: 8px;
+  font-size: 13px;
+  max-width: 620px;
+}
+
+.sk-heroCtas--compact{
+  margin-top: 10px;
+}
+
+.sk-heroBullets--compact{
+  margin-top: 10px;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.sk-destinationRow--compact{
+  margin-top: 8px;
 }
 
 /* =========================================================
@@ -327,6 +401,176 @@
 }
 
 /* =========================================================
+   RECOMMENDED DESTINATIONS + WEATHER (MERGED)
+========================================================= */
+.sk-recSection{
+  width: min(980px, 92vw);
+  margin: 26px auto 32px;
+  text-align: center;
+}
+
+.sk-recTitle{
+  font-weight: 950;
+  color: var(--sk-white);
+  font-size: clamp(18px, 2.4vw, 26px);
+  letter-spacing: 0.2px;
+  margin: 0 0 14px;
+  text-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+.sk-recGrid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 820px){
+  .sk-recGrid{ grid-template-columns: 1fr; }
+}
+
+/* Destination Card */
+.sk-destCard{
+  border: 1px solid var(--sk-border);
+  background: rgba(255,255,255,0.06);
+  border-radius: 18px;
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  min-height: 132px;
+  text-align: left;
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.32);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.sk-destCard:hover{
+  transform: translateY(-2px);
+  border-color: rgba(255, 190, 120, 0.55);
+  box-shadow: 0 22px 70px rgba(0,0,0,0.42);
+}
+
+.sk-destImg{
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.12) contrast(1.05);
+}
+
+.sk-destOverlay{
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(800px 260px at 12% 18%, rgba(255, 170, 95, 0.18), transparent 60%),
+    radial-gradient(900px 360px at 70% 18%, rgba(150, 120, 255, 0.18), transparent 62%),
+    linear-gradient(180deg, rgba(15, 10, 35, 0.25), rgba(15, 10, 35, 0.72));
+}
+
+.sk-destTop{
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 12px;
+}
+
+.sk-destTitleRow{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sk-destPlane{
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,.35));
+}
+
+.sk-destTitle{
+  color: var(--sk-white);
+  font-weight: 900;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+  text-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+/* Weather Chip */
+.sk-weatherChip{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.18);
+  color: var(--sk-white);
+  font-size: 12px;
+  white-space: nowrap;
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.32);
+}
+
+.sk-weatherChip.is-compact{ padding: 7px 9px; }
+.sk-weatherEmoji{ font-size: 14px; }
+.sk-weatherTemp{ font-weight: 900; }
+.sk-weatherLabel{ opacity: 0.92; }
+.sk-weatherHiLo{ opacity: 0.72; font-size: 11px; }
+
+.sk-weatherSkeleton{
+  width: 110px;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.10),
+    rgba(255,255,255,0.22),
+    rgba(255,255,255,0.10)
+  );
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.1s infinite linear;
+}
+
+@keyframes sk-shimmer{
+  0%{ background-position: 0% 0; }
+  100%{ background-position: 200% 0; }
+}
+
+/* CTA */
+.sk-recCtaRow{
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.sk-primaryCta{
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  padding: 12px 18px;
+  cursor: pointer;
+  color: rgba(244, 246, 251, 0.94);
+  font-weight: 900;
+
+  background: linear-gradient(
+    90deg,
+    rgba(111, 104, 255, 0.75),
+    rgba(198, 97, 255, 0.72),
+    rgba(255, 143, 207, 0.70)
+  );
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.sk-primaryCta:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+/* =========================================================
    TESTIMONIALS
 ========================================================= */
 .sk-testimonials{
@@ -348,6 +592,97 @@
   font-size: 13px;
 }
 
+/* Testimonials grid */
+.sk-testGrid{
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sk-testCard{
+  border-radius: 18px;
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.045));
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.22);
+  backdrop-filter: blur(14px);
+}
+
+.sk-testHeading{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 950;
+  color: var(--sk-white);
+}
+
+.sk-testIcon{ opacity: 0.95; }
+.sk-testTitle{ font-size: 14px; }
+
+.sk-testQuote{
+  margin-top: 8px;
+  color: var(--sk-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sk-testBottom{
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sk-testUser{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sk-testName{
+  color: var(--sk-white);
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.sk-testRole{
+  color: var(--sk-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.sk-testStars{
+  color: rgba(255, 208, 138, 0.95);
+  letter-spacing: 2px;
+}
+
+/* Helpful row */
+.sk-helpfulRow{
+  margin-top: 14px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: var(--sk-muted);
+  font-size: 13px;
+}
+
+.sk-helpfulBtn{
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.10);
+  color: var(--sk-white);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.sk-helpfulBtn:hover{
+  background: rgba(255,255,255,0.14);
+}
+
+/* (kept for any empty states you still use elsewhere) */
 .sk-emptyNote{
   margin-top: 10px;
   padding: 12px 14px;
@@ -362,8 +697,12 @@
 ========================================================= */
 @media (max-width: 900px){
   .sk-featureGrid{ grid-template-columns: 1fr; }
+  .sk-testGrid{ grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px){
   .sk-heroCard{ padding: 36px 16px !important; }
+  .sk-heroCard--compact{ padding: 22px 14px !important; }
+  .sk-destTop{ padding: 12px 12px 10px; }
+  .sk-weatherChip{ font-size: 11px; }
 }

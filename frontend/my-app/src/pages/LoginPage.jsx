@@ -148,199 +148,207 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
-      <div className="sk-loginPage">
-        <div
-          className="sk-loginBg"
-          style={{ backgroundImage: `url(${gateBg})` }}
-          aria-hidden="true"
-        />
-
-        <div className="sk-loginWrap">
-          <div className="sk-loginInner">
-            <div className="sk-authHero">
-              <Title level={2} className="sk-authTitle">
-                Welcome back, {passenger}
-              </Title>
-              <Text className="sk-authSubtitle">
-                Check in fast. Earn XP. Keep it moving.
-              </Text>
-            </div>
-          </div>
-
-          {/* ✅ WIDE BOARDING PASS (mock-style) */}
+      {/* ✅ auth-scene login is future-proof for mirrored logout */}
+      <div className="auth-scene login">
+        <div className="sk-loginPage">
           <div
-            className={`sk-passCard sk-passWide ${
-              isScanning ? "isScanning" : ""
-            }`}
-            style={{ "--sk-pass-bg": `url(${galaxyLogin})` }}
-            onKeyDown={onKeyDown}
-            role="form"
-            aria-busy={loading ? "true" : "false"}
-          >
-            <div className="sk-passGlow" />
-            <div className="sk-passScan" aria-hidden="true" />
+            className="sk-loginBg"
+            style={{ backgroundImage: `url(${gateBg})` }}
+            aria-hidden="true"
+          />
 
-            {/* ✅ Main + Stub */}
-            <div className="sk-passGrid">
-              {/* MAIN */}
-              <div className="sk-passMain">
-                <div className="sk-passHeader">
-                  <div className="sk-brandRow">
-                    <span className="sk-dot" />
-                    <span className="sk-brand">Skyrio</span>
-                  </div>
+          <div className="sk-loginWrap">
+            <div className="sk-loginInner">
+              <div className="sk-authHero">
+                <Title level={2} className="sk-authTitle">
+                  Welcome back, {passenger}
+                </Title>
+                <Text className="sk-authSubtitle">
+                  Check in fast. Earn XP. Keep it moving.
+                </Text>
+              </div>
+            </div>
 
-                  <div className="sk-chipRow">
-                    <span className="sk-chip">SKY</span>
-                    <span className="sk-chip">Gate A3</span>
-                  </div>
-                </div>
+            {/* ✅ WIDE BOARDING PASS (mock-style) */}
+            <div
+              className={`sk-passCard sk-passWide ${
+                isScanning ? "isScanning" : ""
+              }`}
+              style={{
+                "--sk-pass-bg": `url(${galaxyLogin})`,
+                "--sk-gateImg": `url(${gateBg})`,
+              }}
+              onKeyDown={onKeyDown}
+              role="form"
+              aria-busy={loading ? "true" : "false"}
+            >
+              <div className="sk-passGlow" />
+              <div className="sk-passScan" aria-hidden="true" />
 
-                <div className="sk-passTitle">
-                  <div className="sk-kicker">BOARDING PASS</div>
-                </div>
+              {/* ✅ Main + Stub */}
+              <div className="sk-passGrid">
+                {/* MAIN */}
+                <div className="sk-passMain">
+                  <div className="sk-passHeader">
+                    <div className="sk-brandRow">
+                      <span className="sk-dot" />
+                      <span className="sk-brand">Skyrio</span>
+                    </div>
 
-                <div className="sk-idGrid">
-                  <div className="sk-idBlock">
-                    <div className="sk-label">PASSENGER</div>
-                    <div className="sk-value">{passenger}</div>
-                  </div>
-
-                  <div className="sk-idBlock sk-right">
-                    <div className="sk-label">STATUS</div>
-                    <div className="sk-statusPill">
-                      {loading ? "Checking in…" : "Ready"}
+                    <div className="sk-chipRow">
+                      <span className="sk-chip">SKY</span>
+                      <span className="sk-chip">Gate A3</span>
                     </div>
                   </div>
 
-                  <div className="sk-idBlock">
-                    <div className="sk-label">FROM</div>
-                    <div className="sk-smallValue">Login</div>
+                  <div className="sk-passTitle">
+                    <div className="sk-kicker">BOARDING PASS</div>
                   </div>
 
-                  <div className="sk-idBlock sk-right">
-                    <div className="sk-label">TO</div>
-                    <div className="sk-smallValue">{routeLabel}</div>
-                  </div>
-                </div>
+                  <div className="sk-idGrid">
+                    <div className="sk-idBlock">
+                      <div className="sk-label">PASSENGER</div>
+                      <div className="sk-value">{passenger}</div>
+                    </div>
 
-                <div className="sk-flightLine" aria-hidden="true">
-                  <div className="sk-lineDot" />
-                  <div className="sk-line" />
-                  <div className="sk-plane">✈︎</div>
-                  <div className="sk-line" />
-                  <div className="sk-lineDot" />
-                </div>
+                    <div className="sk-idBlock sk-right">
+                      <div className="sk-label">STATUS</div>
+                      <div className="sk-statusPill">
+                        {loading ? "Checking in…" : "Ready"}
+                      </div>
+                    </div>
 
-                <div className="sk-form">
-                  <div className="sk-field">
-                    <div className="sk-fieldLabel">EMAIL OR USERNAME</div>
-                    <Input
-                      value={formData.emailOrUsername}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          emailOrUsername: e.target.value,
-                        })
-                      }
-                      placeholder="Email or username"
-                      prefix={<UserOutlined />}
-                      className="sk-input"
-                      autoComplete="username"
-                      size="large"
-                      onFocus={() => setIsScanning(true)}
-                      onBlur={() => !loading && setIsScanning(false)}
-                    />
+                    <div className="sk-idBlock">
+                      <div className="sk-label">FROM</div>
+                      <div className="sk-smallValue">Login</div>
+                    </div>
+
+                    <div className="sk-idBlock sk-right">
+                      <div className="sk-label">TO</div>
+                      <div className="sk-smallValue">{routeLabel}</div>
+                    </div>
                   </div>
 
-                  <div className="sk-field">
-                    <div className="sk-fieldLabel">PASSWORD</div>
-                    <Input.Password
-                      value={formData.password}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
-                      placeholder="Password"
-                      prefix={<LockOutlined />}
-                      className="sk-input"
-                      autoComplete="current-password"
-                      size="large"
-                      onFocus={() => setIsScanning(true)}
-                      onBlur={() => !loading && setIsScanning(false)}
-                      iconRender={(visible) =>
-                        visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
-                      }
-                    />
+                  <div className="sk-flightLine" aria-hidden="true">
+                    <div className="sk-lineDot" />
+                    <div className="sk-line" />
+                    <div className="sk-plane">✈︎</div>
+                    <div className="sk-line" />
+                    <div className="sk-lineDot" />
                   </div>
 
-                  <Button
-                    className="sk-ctaBtn"
-                    type="primary"
-                    block
-                    size="large"
-                    loading={loading}
-                    onClick={handleLogin}
-                  >
-                    Confirm Boarding
-                  </Button>
+                  <div className="sk-form">
+                    <div className="sk-field">
+                      <div className="sk-fieldLabel">EMAIL OR USERNAME</div>
+                      <Input
+                        value={formData.emailOrUsername}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            emailOrUsername: e.target.value,
+                          })
+                        }
+                        placeholder="Email or username"
+                        prefix={<UserOutlined />}
+                        className="sk-input"
+                        autoComplete="username"
+                        size="large"
+                        onFocus={() => setIsScanning(true)}
+                        onBlur={() => !loading && setIsScanning(false)}
+                      />
+                    </div>
 
-                  <div className="sk-secondary">
-                    <Text className="sk-muted">
-                      New to Skyrio?{" "}
-                      <button
-                        type="button"
-                        onClick={() => authModal?.setAuthModalMode?.("signup")}
-                        className="sk-inlineBtnLink"
-                      >
-                        Create your boarding pass
-                      </button>
-                    </Text>
+                    <div className="sk-field">
+                      <div className="sk-fieldLabel">PASSWORD</div>
+                      <Input.Password
+                        value={formData.password}
+                        onChange={(e) =>
+                          setFormData({ ...formData, password: e.target.value })
+                        }
+                        placeholder="Password"
+                        prefix={<LockOutlined />}
+                        className="sk-input"
+                        autoComplete="current-password"
+                        size="large"
+                        onFocus={() => setIsScanning(true)}
+                        onBlur={() => !loading && setIsScanning(false)}
+                        iconRender={(visible) =>
+                          visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+                        }
+                      />
+                    </div>
 
                     <Button
-                      className="sk-ghostBtn"
+                      className="sk-ctaBtn"
+                      type="primary"
                       block
-                      onClick={onGuest}
-                      disabled={loading}
+                      size="large"
+                      loading={loading}
+                      onClick={handleLogin}
                     >
-                      Preview as Guest
+                      Confirm Boarding
                     </Button>
 
-                    <Text className="sk-muted sk-micro">
-                      Some features require an account.
-                    </Text>
+                    <div className="sk-secondary">
+                      <Text className="sk-muted">
+                        New to Skyrio?{" "}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            authModal?.setAuthModalMode?.("signup")
+                          }
+                          className="sk-inlineBtnLink"
+                        >
+                          Create your boarding pass
+                        </button>
+                      </Text>
 
-                    <div className="sk-linksRow">
-                      <Link className="sk-linkSmall" to="/reset">
-                        Forgot password?
-                      </Link>
-                      <span className="sk-sep">•</span>
-                      <Link className="sk-linkSmall sk-strong" to="/register">
-                        Create a boarding pass
-                      </Link>
+                      <Button
+                        className="sk-ghostBtn"
+                        block
+                        onClick={onGuest}
+                        disabled={loading}
+                      >
+                        Preview as Guest
+                      </Button>
+
+                      <Text className="sk-muted sk-micro">
+                        Some features require an account.
+                      </Text>
+
+                      <div className="sk-linksRow">
+                        <Link className="sk-linkSmall" to="/reset">
+                          Forgot password?
+                        </Link>
+                        <span className="sk-sep">•</span>
+                        <Link className="sk-linkSmall sk-strong" to="/register">
+                          Create a boarding pass
+                        </Link>
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="sk-cardFooter">
+                    © {new Date().getFullYear()} Skyrio
                   </div>
                 </div>
 
-                <div className="sk-cardFooter">
-                  © {new Date().getFullYear()} Skyrio
-                </div>
-              </div>
+                {/* STUB */}
+                <div className="sk-passStub" aria-hidden="true">
+                  <div className="sk-stubTop">
+                    <div className="sk-stubGate">SKYGATE A3</div>
+                  </div>
 
-              {/* STUB */}
-              <div className="sk-passStub" aria-hidden="true">
-                <div className="sk-stubTop">
-                  <div className="sk-stubGate">SKYGATE A3</div>
-                </div>
+                  <div className="sk-qrBox">
+                    <div className="sk-qr" />
+                    <div className="sk-qrHint">SCAN TO BOARD</div>
+                  </div>
 
-                <div className="sk-qrBox">
-                  <div className="sk-qr" />
-                  <div className="sk-qrHint">SCAN TO BOARD</div>
-                </div>
-
-                <div className="sk-stubBarcode">
-                  {Array.from({ length: 18 }).map((_, i) => (
-                    <span key={i} className="sk-bar" />
-                  ))}
+                  <div className="sk-stubBarcode">
+                    {Array.from({ length: 18 }).map((_, i) => (
+                      <span key={i} className="sk-bar" />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
