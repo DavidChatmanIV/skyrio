@@ -40,7 +40,7 @@ header.main-layout-header,
 }
 
 /* =================================================
-   NAVBAR ROOT (FIXED & PINNED)
+   NAVBAR ROOT
 ================================================= */
 .sk-nav {
   position: fixed;
@@ -56,13 +56,11 @@ header.main-layout-header,
   box-shadow: none;
 
   isolation: isolate;
-  transform: translateZ(0);
-
   transition: height 220ms ease;
 }
 
 /* =================================================
-   GLASS LAYER (DEFAULT)
+   GLASS LAYER
 ================================================= */
 .sk-nav::before {
   content: "";
@@ -78,12 +76,10 @@ header.main-layout-header,
 
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  pointer-events: none;
 
   transition: background 220ms ease, backdrop-filter 220ms ease;
 }
 
-/* Compact (on scroll) */
 .sk-nav.is-compact::before {
   background: linear-gradient(
     180deg,
@@ -91,68 +87,6 @@ header.main-layout-header,
     rgba(35, 18, 60, 0.45)
   );
   backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-}
-
-/* =================================================
-   SUBTLE DIVIDER GLOW
-================================================= */
-.sk-nav::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 170, 80, 0.55),
-    transparent
-  );
-
-  pointer-events: none;
-  opacity: 0.9;
-}
-
-/* =================================================
-   BOOKING PAGE (GLASS ON, LIGHTER)
-================================================= */
-.sk-nav.theme-book::before {
-  background: linear-gradient(
-    180deg,
-    rgba(35, 18, 60, 0.42),
-    rgba(35, 18, 60, 0.22)
-  );
-}
-
-.sk-nav.theme-book.is-compact::before {
-  background: linear-gradient(
-    180deg,
-    rgba(35, 18, 60, 0.65),
-    rgba(35, 18, 60, 0.40)
-  );
-}
-
-/* =================================================
-   SKYHUB PAGE (SOCIAL HOME)
-   ✅ Added safely (no impact on other routes)
-================================================= */
-.sk-nav.theme-skyhub::before {
-  background: linear-gradient(
-    180deg,
-    rgba(35, 18, 60, 0.50),
-    rgba(35, 18, 60, 0.28)
-  );
-}
-
-.sk-nav.theme-skyhub.is-compact::before {
-  background: linear-gradient(
-    180deg,
-    rgba(35, 18, 60, 0.70),
-    rgba(35, 18, 60, 0.45)
-  );
 }
 
 /* =================================================
@@ -190,13 +124,14 @@ header.main-layout-header,
 }
 
 /* =================================================
-   LOGO
+   LOGO (🔥 FINAL SIZE FIX)
 ================================================= */
 .sk-logoWrap {
   width: var(--logo-tile);
   height: var(--logo-tile);
   display: grid;
   place-items: center;
+  overflow: visible;
 
   transition: width 220ms ease, height 220ms ease;
 }
@@ -206,10 +141,13 @@ header.main-layout-header,
   height: var(--logo-img);
   object-fit: contain;
 
-  transition: width 220ms ease, height 220ms ease;
+  transform: scale(1.75);
+  transform-origin: center;
+
+  filter: drop-shadow(0 2px 10px rgba(0,0,0,0.25));
 }
 
-/* Compact logo */
+/* Compact scroll state */
 .sk-nav.is-compact .sk-logoWrap {
   width: var(--logo-tile-compact);
   height: var(--logo-tile-compact);
@@ -218,6 +156,8 @@ header.main-layout-header,
 .sk-nav.is-compact .sk-logoImg {
   width: var(--logo-img-compact);
   height: var(--logo-img-compact);
+
+  transform: scale(1.55);
 }
 
 /* =================================================
@@ -240,18 +180,15 @@ header.main-layout-header,
   color: var(--sk-text);
   font-weight: 800;
   text-decoration: none;
-
-  transition: padding 220ms ease;
 }
 
 .sk-link.is-active {
   padding: 18px 26px;
   background: linear-gradient(135deg, #ff8a2a, #ffcc8a);
   color: #0b1220;
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
 }
 
-/* Prevent jump on compact */
 .sk-nav.is-compact .sk-link.is-active {
   padding: 12px 18px;
 }
@@ -278,143 +215,37 @@ header.main-layout-header,
 .sk-btnGhost {
   height: 42px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255,255,255,0.08);
   color: var(--sk-text);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255,255,255,0.16);
 }
 
 /* =================================================
-   AVATAR BUTTON (so dropdown click area is stable)
+   AVATAR BUTTON
 ================================================= */
 .sk-avatarBtn {
   background: transparent;
   border: none;
   padding: 0;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 /* =================================================
-   HAMBURGER (kept for safety)
-   ✅ On mobile we will hide this and use Drawer button instead.
+   MOBILE + DRAWER
 ================================================= */
-.hamburger {
-  display: none;
-  width: 46px;
-  height: 46px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.10);
-  position: relative;
-  cursor: pointer;
-}
-
-.hamburger span {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  background: white;
-}
-
-.hamburger span:nth-child(1) {
-  top: 14px;
-}
-.hamburger span:nth-child(2) {
-  top: 22px;
-}
-.hamburger span:nth-child(3) {
-  top: 30px;
-}
-
-/* =================================================
-   ✅ DRAWER + MOBILE BUTTON (MERGED ADDITIONS)
-================================================= */
-
-/* Ensure drawer menu button is hidden by default */
 .sk-mobileMenuBtn {
   display: none !important;
-  border-radius: 16px !important; /* match your pill-ish style */
   height: 46px !important;
   width: 46px !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  background: rgba(255, 255, 255, 0.10) !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-/* Drawer theming */
-.sk-mobileDrawer .ant-drawer-content {
-  background: rgba(18, 12, 26, 0.94) !important;
-  color: rgba(244, 246, 251, 0.92);
-}
-
-/* Make close icon visible on dark drawer */
-.sk-mobileDrawer .ant-drawer-close {
-  color: rgba(244, 246, 251, 0.88) !important;
-}
-
-/* Drawer header spacing */
-.sk-mobileDrawer .ant-drawer-body {
-  padding: 18px !important;
-}
-
-.sk-drawerTop {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
-  margin-bottom: 16px;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  background: rgba(255,255,255,0.10) !important;
+  color: rgba(244,246,251,0.92) !important;
 }
 
 .sk-drawerLogo {
-  height: 44px;
+  height: 46px;
   width: auto;
-}
-
-.sk-drawerHello {
-  font-weight: 900;
-  color: rgba(244, 246, 251, 0.92);
-  opacity: 0.95;
-}
-
-.sk-drawerLinks {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sk-drawerLink {
-  width: 100%;
-  text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(244, 246, 251, 0.92);
-  border-radius: 14px;
-  padding: 14px 14px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.sk-drawerLink.is-active {
-  border-color: rgba(255, 170, 64, 0.35);
-  background: rgba(255, 170, 64, 0.14);
-}
-
-.sk-drawerActions {
-  margin-top: 16px;
-  display: grid;
-  gap: 10px;
-}
-
-.sk-guestNote {
-  margin-top: 6px;
-  color: rgba(255, 255, 255, 0.74);
-  font-size: 13px;
-  line-height: 1.35;
 }
 
 /* =================================================
@@ -433,24 +264,16 @@ header.main-layout-header,
     display: none;
   }
 
-  /* ✅ Use Drawer button, not hamburger panel */
   .sk-mobileMenuBtn {
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
   }
 
-  /* ✅ Hide hamburger so you don't have 2 menus */
-  .hamburger {
-    display: none !important;
-  }
-
-  /* Optional: tighten right-side spacing */
   .sk-right {
     gap: 8px;
   }
 
-  /* Optional: reduce button height slightly on mobile */
   .sk-btnPrimary,
   .sk-btnGhost {
     height: 40px;

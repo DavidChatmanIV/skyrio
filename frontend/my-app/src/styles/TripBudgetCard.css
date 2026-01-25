@@ -1,0 +1,310 @@
+/* =============================
+   Trip Budget Card
+============================= */
+
+.tb-card {
+  border-radius: 22px;
+  padding: 18px;
+  backdrop-filter: blur(18px);
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.12),
+    rgba(255,255,255,0.05)
+  );
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(244,246,251,0.95);
+  box-shadow: 0 0 60px rgba(255,138,42,0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Header */
+.tb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.tb-title { margin: 0 0 2px; }
+.tb-subtitle { font-size: 13px; opacity: 0.7; }
+
+/* Reset */
+.tb-reset {
+  background: rgba(255,255,255,0.08);
+  border: none;
+}
+
+/* Booking total */
+.tb-bookingTotal { margin-top: 10px; }
+.tb-muted {
+  display: block;
+  font-size: 13px;
+  opacity: 0.72;
+}
+.tb-accent { color: #ffb066; }
+
+/* =========================================================
+   Progress Ring
+========================================================= */
+
+.tb-progressWrap{
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Animate percentage variable */
+@property --pct {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+.tb-ring{
+  width: 92px;
+  height: 92px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+
+  --pct: 0%;
+  --stroke: rgba(255,176,102,0.98);
+  --rest: rgba(255,255,255,0.14);
+
+  background: conic-gradient(
+    var(--stroke) var(--pct),
+    var(--rest) 0
+  );
+
+  border: 1px solid rgba(255,255,255,0.12);
+  backdrop-filter: blur(12px);
+  position: relative;
+
+  transition: --pct 520ms cubic-bezier(.4,0,.2,1);
+}
+
+.tb-ring::before{
+  content:"";
+  position:absolute;
+  inset: 8px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(10px);
+}
+
+.tb-ringInner{
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  line-height: 1.05;
+}
+
+.tb-ringPct{
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+
+.tb-ringLabel{
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+.tb-progressMeta{
+  flex: 1;
+  min-width: 0;
+}
+
+/* Overview */
+.tb-overview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.tb-remaining {
+  color: #ffb066;
+  margin: 0;
+}
+.tb-remaining.is-over {
+  color: rgba(255,120,120,0.95);
+}
+
+/* Mini line */
+.tb-miniLine{
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.tb-miniKey{
+  font-size: 12px;
+  opacity: 0.75;
+}
+.tb-miniVal{
+  font-size: 12px;
+  font-weight: 700;
+}
+.tb-miniDot{
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.35);
+}
+
+/* =========================================================
+   Inputs
+========================================================= */
+
+.tb-plannedRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.tb-add { margin-top: 16px; }
+.tb-add-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.tb-input { flex: 1; }
+.tb-addBtn { border-radius: 14px; }
+
+/* AntD InputNumber (affix wrapper is visible box) */
+.tb-card .tb-force.ant-input-number-affix-wrapper,
+.tb-card .tb-force .ant-input-number-affix-wrapper {
+  width: 100% !important;
+  background: rgba(10,12,18,0.78) !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  border-radius: 14px !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.35) !important;
+  padding-inline: 10px !important;
+}
+
+/* Inner input */
+.tb-card .tb-force .ant-input-number {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  width: 100% !important;
+}
+
+/* Typed text */
+.tb-card .tb-force input,
+.tb-card .tb-force .ant-input-number-input {
+  background: transparent !important;
+  color: rgba(244,246,251,0.96) !important;
+  caret-color: rgba(255,176,102,0.95) !important;
+}
+
+/* Placeholder */
+.tb-card .tb-force input::placeholder,
+.tb-card .tb-force .ant-input-number-input::placeholder {
+  color: rgba(244,246,251,0.55) !important;
+}
+
+/* $ prefix chip */
+.tb-card .tb-force .ant-input-number-prefix {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,138,42,0.14);
+  border: 1px solid rgba(255,138,42,0.30);
+  color: rgba(255,176,102,0.98) !important;
+  font-weight: 700;
+}
+
+/* Focus glow */
+.tb-card .tb-force.ant-input-number-affix-wrapper:focus-within,
+.tb-card .tb-force .ant-input-number-affix-wrapper:focus-within {
+  border-color: rgba(255,138,42,0.62) !important;
+  box-shadow:
+    0 0 0 2px rgba(255,138,42,0.18),
+    0 14px 34px rgba(255,138,42,0.18) !important;
+  background: rgba(10,12,18,0.86) !important;
+}
+
+/* =========================================================
+   Tags
+========================================================= */
+
+.tb-tags { margin-top: 14px; }
+.tb-tags .ant-tag {
+  background: rgba(255,138,42,0.14);
+  border: 1px solid rgba(255,138,42,0.45);
+  color: #ffb066;
+  border-radius: 999px;
+}
+
+/* =========================================================
+   AI Box
+========================================================= */
+
+.tb-ai {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.18);
+}
+
+.tb-aiBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,138,42,0.12);
+  border: 1px solid rgba(255,138,42,0.35);
+  color: #ffb066;
+  font-size: 12px;
+}
+
+.tb-aiText {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  opacity: 0.88;
+  line-height: 1.35;
+}
+
+/* AI tone hints */
+.tb-ai.tone-danger { border-color: rgba(255,92,92,0.22); }
+.tb-ai.tone-warn   { border-color: rgba(255,200,92,0.18); }
+.tb-ai.tone-ok     { border-color: rgba(255,138,42,0.18); }
+.tb-ai.tone-great  { border-color: rgba(120,90,255,0.18); }
+
+/* =========================================================
+   🚨 Over-Budget Subtle Pulse
+========================================================= */
+
+.tb-card.is-overBudget {
+  border-color: rgba(255,92,92,0.30);
+  animation: tbDangerPulse 2.2s ease-in-out infinite;
+}
+
+@keyframes tbDangerPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(255,92,92,0.12),
+      0 0 70px rgba(255,92,92,0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255,92,92,0.18),
+      0 0 95px rgba(255,92,92,0.14);
+  }
+}

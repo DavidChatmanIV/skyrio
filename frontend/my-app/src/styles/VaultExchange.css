@@ -1,0 +1,382 @@
+:root {
+  --vx-text: rgba(244, 246, 251, 0.95);
+  --vx-muted: rgba(244, 246, 251, 0.72);
+  --vx-faint: rgba(244, 246, 251, 0.55);
+
+  --vx-stroke: rgba(255, 255, 255, 0.12);
+  --vx-stroke-2: rgba(255, 255, 255, 0.08);
+
+  --vx-glassA: rgba(255, 255, 255, 0.09);
+  --vx-glassB: rgba(255, 255, 255, 0.04);
+
+  --vx-orange: #ff8a2a;
+  --vx-orange-2: #ffb066;
+
+  --vx-radius-lg: 22px;
+  --vx-radius-md: 18px;
+  --vx-radius-sm: 14px;
+
+  --vx-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+  --vx-blur: blur(16px);
+  --vx-max: 1160px;
+}
+
+/* page wrapper */
+.vx-page {
+  color: var(--vx-text);
+  position: relative;
+  padding: 18px 14px 42px;
+}
+
+.vx-page.is-embedded {
+  padding: 0;
+}
+
+/* optional overlay bg when standalone */
+.vx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(1200px 700px at 20% 0%, rgba(120, 90, 255, 0.22), transparent 60%),
+    radial-gradient(900px 600px at 80% 30%, rgba(255, 138, 42, 0.18), transparent 55%),
+    linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.62));
+  pointer-events: none;
+}
+
+.vx-shell {
+  width: min(var(--vx-max), 100%);
+  margin: 0 auto;
+}
+
+/* =========================
+   HEADER
+========================= */
+.vx-header {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.vx-titleBlock {
+  border-radius: var(--vx-radius-lg);
+  border: 1px solid var(--vx-stroke);
+  background: linear-gradient(180deg, var(--vx-glassA), var(--vx-glassB));
+  box-shadow: var(--vx-shadow);
+  backdrop-filter: var(--vx-blur);
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.vx-titleBlock::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(650px 360px at 20% 15%, rgba(120, 90, 255, 0.22), transparent 62%),
+    radial-gradient(520px 360px at 80% 15%, rgba(255, 138, 42, 0.16), transparent 62%);
+  pointer-events: none;
+}
+
+.vx-title {
+  color: var(--vx-text) !important;
+  margin: 0 !important;
+  position: relative;
+  letter-spacing: 0.2px;
+}
+
+.vx-subtitle {
+  display: block;
+  margin-top: 8px;
+  color: var(--vx-muted) !important;
+  font-weight: 800;
+  position: relative;
+}
+
+.vx-lead {
+  display: block;
+  margin-top: 8px;
+  color: var(--vx-muted) !important;
+  position: relative;
+  max-width: 60ch;
+}
+
+/* balance card */
+.vx-balanceCard {
+  border-radius: var(--vx-radius-lg);
+  border: 1px solid var(--vx-stroke);
+  background: linear-gradient(180deg, var(--vx-glassA), var(--vx-glassB));
+  box-shadow: var(--vx-shadow);
+  backdrop-filter: var(--vx-blur);
+  padding: 18px;
+}
+
+.vx-xpRow {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.vx-xp {
+  font-weight: 950;
+  letter-spacing: 0.2px;
+  font-size: 18px;
+}
+
+.vx-level {
+  color: var(--vx-muted);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.vx-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* =========================
+   BUTTONS (match passport)
+========================= */
+.vx-btnPrimary.ant-btn,
+.vx-btnGhost.ant-btn,
+.vx-btnRedeem.ant-btn,
+.vx-btnLocked.ant-btn {
+  height: 38px;
+  border-radius: 999px;
+  font-weight: 900;
+  border: 1px solid var(--vx-stroke);
+}
+
+.vx-btnPrimary.ant-btn {
+  background: linear-gradient(135deg, var(--vx-orange), var(--vx-orange-2));
+  border-color: rgba(255, 138, 42, 0.55);
+  color: rgba(20, 12, 8, 0.92);
+}
+
+.vx-btnGhost.ant-btn {
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--vx-text);
+}
+
+.vx-btnGhost.ant-btn:hover {
+  border-color: rgba(255, 138, 42, 0.30);
+}
+
+.vx-btnRedeem.ant-btn {
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--vx-text);
+  border-color: rgba(255, 138, 42, 0.45);
+}
+
+.vx-btnLocked.ant-btn {
+  background: rgba(0, 0, 0, 0.16);
+  color: rgba(244, 246, 251, 0.85);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* =========================
+   TABS
+========================= */
+.vx-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--vx-stroke);
+  background: rgba(0, 0, 0, 0.16);
+  backdrop-filter: var(--vx-blur);
+  margin: 12px 0 14px;
+}
+
+.vx-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--vx-muted);
+  font-weight: 900;
+  border-radius: 999px;
+  padding: 8px 12px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.vx-tab:hover {
+  transform: translateY(-1px);
+  color: var(--vx-text);
+}
+
+.vx-tab.active {
+  color: var(--vx-text);
+  border-color: rgba(255, 138, 42, 0.35);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 138, 42, 0.18),
+    rgba(0, 0, 0, 0.16)
+  );
+}
+
+/* =========================
+   FEATURED
+========================= */
+.vx-featured.ant-card {
+  border-radius: var(--vx-radius-lg);
+  border: 1px solid var(--vx-stroke);
+  background: linear-gradient(180deg, var(--vx-glassA), var(--vx-glassB));
+  box-shadow: var(--vx-shadow);
+  backdrop-filter: var(--vx-blur);
+}
+
+.vx-featured .ant-card-body {
+  padding: 16px;
+}
+
+.vx-featuredHeader {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 950;
+  letter-spacing: 0.6px;
+  font-size: 12px;
+  color: rgba(255, 176, 102, 0.95);
+  margin-bottom: 10px;
+}
+
+.vx-featuredBody {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.vx-featuredTitle {
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.vx-featuredDesc {
+  margin-top: 4px;
+  color: var(--vx-muted);
+  font-weight: 700;
+}
+
+.vx-featuredRight {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.vx-meta {
+  color: var(--vx-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* =========================
+   SECTION LABEL
+========================= */
+.vx-section {
+  margin: 14px 0 10px;
+  color: rgba(244, 246, 251, 0.72);
+  font-weight: 950;
+  letter-spacing: 0.8px;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+/* =========================
+   GRID + CARDS
+========================= */
+.vx-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.vx-card.ant-card {
+  border-radius: var(--vx-radius-lg);
+  border: 1px solid var(--vx-stroke);
+  background: linear-gradient(180deg, var(--vx-glassA), var(--vx-glassB));
+  box-shadow: var(--vx-shadow);
+  backdrop-filter: var(--vx-blur);
+  overflow: hidden;
+}
+
+.vx-card .ant-card-body {
+  padding: 16px;
+}
+
+.vx-cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* ✅ Pill tags — NO WHITE */
+.vx-tag.ant-tag,
+.vx-new.ant-tag {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 950;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(244, 246, 251, 0.90);
+}
+
+.vx-new.ant-tag {
+  border-color: rgba(255, 138, 42, 0.45);
+  background: rgba(255, 138, 42, 0.14);
+  color: rgba(255, 176, 102, 0.95);
+}
+
+.vx-cardTitle {
+  font-weight: 950;
+  font-size: 15px;
+}
+
+.vx-cardDesc {
+  margin-top: 6px;
+  color: var(--vx-muted);
+  font-weight: 700;
+  min-height: 36px;
+}
+
+.vx-foot {
+  margin-top: 10px;
+  color: var(--vx-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 1024px) {
+  .vx-header {
+    grid-template-columns: 1fr;
+  }
+  .vx-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .vx-actions {
+    grid-template-columns: 1fr;
+  }
+  .vx-featuredBody {
+    grid-template-columns: 1fr;
+  }
+  .vx-featuredRight {
+    justify-items: start;
+  }
+  .vx-grid {
+    grid-template-columns: 1fr;
+  }
+}

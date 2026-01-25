@@ -2,107 +2,54 @@
    1) TOKENS (SAFE TO TWEAK)
    ============================= */
 :root {
-  /* text */
   --pp-text: rgba(244, 246, 251, 0.95);
   --pp-muted: rgba(244, 246, 251, 0.72);
   --pp-faint: rgba(244, 246, 251, 0.55);
 
-  /* brand accents */
   --pp-violet: rgba(120, 90, 255, 0.55);
   --pp-violet-2: rgba(194, 97, 255, 0.55);
 
-  /* orange system */
   --pp-orange: #ff8a2a;
   --pp-orange-2: #ffb066;
   --pp-orange-soft: rgba(255, 138, 42, 0.14);
   --pp-orange-border: rgba(255, 138, 42, 0.55);
 
-  /* surfaces */
   --pp-stroke: rgba(255, 255, 255, 0.12);
   --pp-stroke-2: rgba(255, 255, 255, 0.08);
   --pp-surface-a: rgba(255, 255, 255, 0.09);
   --pp-surface-b: rgba(255, 255, 255, 0.04);
 
-  /* layout */
   --pp-radius-lg: 22px;
   --pp-radius-md: 18px;
   --pp-radius-sm: 14px;
 
-  /* shadows */
   --pp-shadow-lg: 0 22px 55px rgba(0, 0, 0, 0.45);
   --pp-shadow-md: 0 14px 34px rgba(0, 0, 0, 0.35);
 
-  /* blur */
   --pp-blur: blur(16px);
-
-  /* spacing */
   --pp-gap: 16px;
-
-  /* max width */
   --pp-max: 1160px;
+
+  --pp-focus: 0 0 0 3px rgba(255, 138, 42, 0.14);
 }
 
 /* =============================
-   2) PAGE BACKGROUND (FULL PAGE)
+   2) PAGE BACKGROUND
    ============================= */
-.sk-passportPage {
-  min-height: 100vh;
-  position: relative;
-  color: var(--pp-text);
-  background: #080816;
-  overflow-x: hidden;
-}
-
-/* ✅ Full-page background image from inline var: --passport-bg */
-.sk-passportPage::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background-image: var(--passport-bg);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-
-  filter: blur(2px) saturate(1.08) contrast(1.05);
-  transform: scale(1.04);
-}
-
-/* ✅ Overlay for legibility */
-.sk-passportPage::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background: radial-gradient(
-      1200px 700px at 20% 0%,
-      rgba(120, 90, 255, 0.22),
-      rgba(0, 0, 0, 0) 60%
-    ),
-    radial-gradient(
-      900px 600px at 80% 30%,
-      rgba(255, 138, 42, 0.18),
-      rgba(0, 0, 0, 0) 55%
-    ),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.62));
-}
-
-/* ✅ If you still use the new wrapper classes in JSX, support them safely */
 .passport-page {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
   color: var(--pp-text);
+  background: #080816;
 }
 
-/* Optional background-div system (only if you are using <div className="passport-bg" />) */
 .passport-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
   filter: blur(2px) saturate(1.08) contrast(1.05);
   transform: scale(1.04);
 }
@@ -114,31 +61,24 @@
   background: radial-gradient(
       1200px 700px at 20% 0%,
       rgba(120, 90, 255, 0.22),
-      rgba(0, 0, 0, 0) 60%
+      transparent 60%
     ),
     radial-gradient(
       900px 600px at 80% 30%,
       rgba(255, 138, 42, 0.18),
-      rgba(0, 0, 0, 0) 55%
+      transparent 55%
     ),
     linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.62));
 }
 
-/* Scope wrapper */
-.passport-scope,
-.passport-content {
+.passport-content,
+.passport-scope {
   position: relative;
   z-index: 1;
 }
 
-.passport-scope {
-  background: transparent !important;
-  border: none !important;
-  outline: none !important;
-}
-
 /* =============================
-   3) SHELL / LAYOUT
+   3) SHELL
    ============================= */
 .pp-page {
   padding: 18px 14px 40px;
@@ -147,117 +87,117 @@
 .pp-shell {
   width: min(var(--pp-max), 100%);
   margin: 0 auto;
-
-  /* ✅ IMPORTANT: allows .pp-homeBtnWrap (absolute) to anchor to the shell safely */
   position: relative;
 }
 
-/* =========================
-   HOME BUTTON (passport pill)
-========================= */
+/* =============================
+   HOME BUTTON
+   ============================= */
 .pp-homeBtnWrap {
   position: absolute;
-  top: -10px !important;  
-  left: 12px !important;
-  z-index: 30 !important;
+  top: -10px;
+  left: 12px;
+  z-index: 30;
 }
 
-
 .pp-homeBtn.ant-btn {
-  height: 34px !important;
-  padding: 0 12px !important;
-  border-radius: 999px !important;
-
-  border: 1px solid var(--pp-stroke) !important;
-  background: rgba(0, 0, 0, 0.18) !important;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--pp-stroke);
+  background: rgba(0, 0, 0, 0.18);
   backdrop-filter: var(--pp-blur);
-
-  color: var(--pp-muted) !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.15px;
-
+  color: var(--pp-muted);
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-
-  transition: transform 160ms ease, border-color 160ms ease,
-    background 160ms ease;
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
 }
 
 .pp-homeBtn.ant-btn:hover {
-  color: var(--pp-text) !important;
-  background: rgba(0, 0, 0, 0.24) !important;
-  border-color: rgba(255, 138, 42, 0.35) !important;
+  color: var(--pp-text);
+  background: rgba(0, 0, 0, 0.24);
+  border-color: rgba(255, 138, 42, 0.35);
   transform: translateY(-1px);
 }
 
-.pp-homeBtn.ant-btn:active {
-  transform: translateY(0px);
-}
-
-.pp-homeBtn .anticon {
-  opacity: 0.9;
-}
-
-@media (max-width: 560px) {
-  .pp-homeBtnWrap {
-    top: 12px;
-    left: 12px;
-  }
-
-  .pp-homeBtn.ant-btn {
-    height: 32px !important;
-    padding: 0 10px !important;
-  }
-}
-
 /* =============================
-   4) SHARED TYPOGRAPHY
+   TYPOGRAPHY
    ============================= */
 .pp-title {
   color: var(--pp-text) !important;
-  letter-spacing: 0.2px;
 }
-
 .pp-muted {
   color: var(--pp-muted) !important;
 }
-
 .pp-faint {
   color: var(--pp-faint) !important;
 }
 
+.pp-accentText {
+  color: rgba(255, 176, 102, 0.92);
+}
+
 /* =============================
-   5) CARD SYSTEM (GLASS)
+   CARD SYSTEM
    ============================= */
 .pp-card {
-  border-radius: var(--pp-radius-lg) !important;
-  background: linear-gradient(180deg, var(--pp-surface-a), var(--pp-surface-b)) !important;
-  border: 1px solid var(--pp-stroke) !important;
+  border-radius: var(--pp-radius-lg);
+  background: linear-gradient(180deg, var(--pp-surface-a), var(--pp-surface-b));
+  border: 1px solid var(--pp-stroke);
   box-shadow: var(--pp-shadow-md);
   backdrop-filter: var(--pp-blur);
 }
 
 .pp-card .ant-card-body {
-  padding: 18px !important;
+  padding: 18px;
+}
+
+/* add a slightly tighter body for thin panels (tabs) */
+.pp-tabPanel .ant-card-body {
+  padding: 12px 14px;
 }
 
 .pp-card--panel .ant-card-body {
-  padding: 18px !important;
+  padding: 18px;
 }
 
 /* =============================
-   6) HERO PANEL (PASSPORT TOP)
+   HERO PANEL (Image 1 layout)
    ============================= */
-.pp-heroPanel .ant-card-body {
-  padding: 18px !important;
+.pp-heroPanel {
+  position: relative;
+  overflow: hidden;
+}
+
+.pp-heroPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      700px 420px at 18% 12%,
+      rgba(120, 90, 255, 0.22),
+      transparent 62%
+    ),
+    radial-gradient(
+      650px 420px at 78% 22%,
+      rgba(255, 138, 42, 0.16),
+      transparent 62%
+    );
+  pointer-events: none;
 }
 
 .pp-heroInner {
+  position: relative;
   display: grid;
   grid-template-columns: 1.15fr 1px 0.85fr 1px 1fr;
   gap: 16px;
-  align-items: center;
+  align-items: start;
+}
+
+.pp-heroCol {
+  min-width: 0;
 }
 
 .pp-heroDivider {
@@ -265,27 +205,23 @@
   height: 100%;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0),
+    transparent,
     rgba(255, 255, 255, 0.18),
-    rgba(255, 255, 255, 0)
+    transparent
   );
-  opacity: 0.7;
-}
-
-.pp-heroCol {
-  min-width: 0;
 }
 
 .pp-heroTop {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
   gap: 14px;
   align-items: center;
+  margin-bottom: 14px;
 }
 
 .pp-avatarGlow {
-  position: relative;
-  border-radius: 999px;
   padding: 6px;
+  border-radius: 999px;
   background: radial-gradient(
     circle at 30% 30%,
     rgba(255, 138, 42, 0.35),
@@ -293,294 +229,231 @@
     rgba(255, 255, 255, 0.04)
   );
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
 }
 
-.pp-avatarGlow .ant-avatar {
-  background: rgba(0, 0, 0, 0.3) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+.pp-heroName .ant-typography {
+  line-height: 1.08;
 }
 
-/* Issued / Expires pills */
-.pp-heroMeta {
-  display: flex;
-  gap: 14px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
-.pp-kv {
-  display: inline-flex;
-  gap: 6px;
-  align-items: baseline;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--pp-stroke-2);
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.pp-kvLabel {
-  color: var(--pp-muted) !important;
-  font-size: 12px;
-}
-
-.pp-kvValue {
-  color: var(--pp-text) !important;
-  font-size: 12px;
-}
-
-/* Orange pill */
 .pp-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 7px 12px;
   border-radius: 999px;
-  font-size: 12px;
   border: 1px solid var(--pp-stroke);
   background: rgba(0, 0, 0, 0.16);
-  color: var(--pp-text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
 .pp-pill--active {
-  border: 1px solid var(--pp-orange-border);
+  border-color: var(--pp-orange-border);
   background: linear-gradient(
     180deg,
     rgba(255, 138, 42, 0.22),
     rgba(0, 0, 0, 0.16)
   );
-  box-shadow: 0 10px 22px rgba(255, 138, 42, 0.14);
 }
 
-/* Followers row pills */
+/* Followers / Following row */
 .pp-followRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-top: 12px;
-  flex-wrap: wrap;
+  margin: 8px 0 14px;
 }
 
 .ppFollowBtn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  width: 100%;
   border-radius: 999px;
   border: 1px solid var(--pp-stroke);
-  background: rgba(0, 0, 0, 0.16);
+  background: rgba(0, 0, 0, 0.14);
   color: var(--pp-text);
+  padding: 10px 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
   cursor: pointer;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  transition: transform 0.14s ease, border-color 0.14s ease,
+    background 0.14s ease;
 }
 
 .ppFollowBtn strong {
-  font-weight: 800;
-  letter-spacing: 0.2px;
+  font-size: 14px;
 }
 
 .ppFollowBtn span {
-  color: var(--pp-muted);
   font-size: 12px;
+  color: var(--pp-muted);
 }
 
-.ppFollowBtn:hover {
+.ppFollowBtn:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: rgba(255, 138, 42, 0.35);
-  background: rgba(0, 0, 0, 0.22);
+  border-color: rgba(255, 138, 42, 0.28);
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .ppFollowBtn:disabled {
-  opacity: 0.55;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* Stamp placeholders (old) */
-.pp-stampPlaceholders {
-  display: flex;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.pp-stampSlot {
-  height: 34px;
-  width: 80px;
-  border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.18);
-  background: rgba(0, 0, 0, 0.14);
-}
-
-/* =========================
-   ✅ HOME BUTTON (top-left)
-========================= */
-.pp-homeBtnWrap {
-  position: absolute;
-  top: 18px;
-  left: 18px;
-  z-index: 6;
-}
-
-.pp-homeBtn {
-  color: var(--pp-muted) !important;
-  font-weight: 600;
-  border-radius: 12px;
-  padding: 6px 10px;
-}
-
-.pp-homeBtn:hover {
-  color: var(--pp-text) !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-}
-
-/* =========================
-   ✅ IDENTITY STAMPS (replaces empty dashed boxes)
-========================= */
+/* Identity stamps row */
 .pp-idStamps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 14px;
 }
 
 .pp-idStamp {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.06),
-    rgba(0, 0, 0, 0.10)
-  );
   border-radius: 14px;
-  padding: 10px 10px 9px;
-  min-height: 58px;
+  border: 1px solid var(--pp-stroke-2);
+  background: rgba(0, 0, 0, 0.14);
+  padding: 12px 12px 10px;
+  min-height: 74px;
 }
 
 .pp-idStampTop {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 6px;
 }
 
 .pp-idIcon {
-  font-size: 14px;
-  line-height: 1;
-  opacity: 0.95;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  font-size: 12px;
 }
 
 .pp-idLabel {
   font-size: 12px;
   color: var(--pp-muted);
-  font-weight: 600;
-  letter-spacing: 0.2px;
+  font-weight: 700;
 }
 
 .pp-idValue {
-  margin-top: 6px;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--pp-text);
-  font-weight: 700;
+  font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* XP ring */
+/* Center ring block */
 .pp-levelWrap--hero {
   display: grid;
   place-items: center;
-  padding: 8px 0;
+  padding: 10px 0 6px;
+}
+
+.pp-levelRing {
+  width: 220px;
+  max-width: 100%;
 }
 
 .pp-levelRing .ant-progress-inner {
-  background: rgba(0, 0, 0, 0.2) !important;
+  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.35));
 }
 
 .pp-levelText {
   display: grid;
+  place-items: center;
   gap: 2px;
-  text-align: center;
 }
 
 .pp-levelRole {
-  color: var(--pp-muted);
   font-size: 12px;
-  letter-spacing: 0.25px;
+  color: var(--pp-muted);
+  font-weight: 800;
+  letter-spacing: 0.3px;
 }
 
 .pp-levelNum {
+  font-size: 20px;
   color: var(--pp-text);
   font-weight: 900;
-  font-size: 18px;
+  line-height: 1.05;
 }
 
 .pp-levelXp {
-  color: var(--pp-muted);
   font-size: 12px;
-}
-
-.pp-accentText {
-  color: var(--pp-orange-2);
+  color: var(--pp-muted);
   font-weight: 800;
 }
 
-/* Right column actions */
+/* Right actions */
 .pp-heroActions {
+  margin-top: 10px;
   display: grid;
   gap: 10px;
-  margin-top: 12px;
 }
 
-.pp-ghost-btn {
-  border-radius: 999px !important;
-  border: 1px solid var(--pp-stroke) !important;
-  background: rgba(0, 0, 0, 0.16) !important;
-  color: var(--pp-text) !important;
+.pp-ghost-btn.ant-btn {
   height: 38px;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  border-radius: 999px;
+  border: 1px solid var(--pp-stroke);
+  background: rgba(0, 0, 0, 0.14);
+  color: var(--pp-text);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 0.14s ease, border-color 0.14s ease,
+    background 0.14s ease, box-shadow 0.14s ease;
 }
 
-.pp-ghost-btn:hover {
+.pp-ghost-btn.ant-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 138, 42, 0.35) !important;
-  background: rgba(0, 0, 0, 0.22) !important;
+  border-color: rgba(255, 138, 42, 0.30);
+  background: rgba(0, 0, 0, 0.18);
 }
 
-.pp-ghost-btn--music {
-  border-color: rgba(255, 138, 42, 0.35) !important;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 138, 42, 0.18),
-    rgba(0, 0, 0, 0.16)
-  ) !important;
+.pp-ghost-btn.ant-btn:focus-visible {
+  box-shadow: var(--pp-focus);
+}
+
+.pp-ghost-btn--music.ant-btn {
+  border-color: rgba(120, 90, 255, 0.26);
 }
 
 .pp-credentialHint {
   display: block;
   margin-top: 10px;
+  font-size: 13px;
   color: var(--pp-muted);
-  font-size: 12px;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 /* =============================
-   7) TABS BAR (SEGMENTED)
+   TABS PANEL + SEGMENTED
    ============================= */
-.pp-tabPanel .ant-card-body {
-  padding: 12px !important;
-}
-
-.pp-tabs {
-  width: 100%;
+.pp-tabPanel--sticky {
+  position: sticky;
+  top: 10px;
+  z-index: 20;
 }
 
 .pp-tabs .ant-segmented {
-  border-radius: 999px !important;
-  padding: 6px !important;
-  background: rgba(0, 0, 0, 0.16) !important;
-  border: 1px solid var(--pp-stroke) !important;
+  border-radius: 999px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--pp-stroke);
 }
 
 .pp-tabs .ant-segmented-item {
-  border-radius: 999px !important;
-  color: var(--pp-muted) !important;
+  border-radius: 999px;
 }
 
 .pp-tabs .ant-segmented-item-selected {
@@ -588,93 +461,88 @@
     180deg,
     rgba(255, 138, 42, 0.22),
     rgba(0, 0, 0, 0.16)
-  ) !important;
-  border: 1px solid rgba(255, 138, 42, 0.35) !important;
-  color: var(--pp-text) !important;
+  );
+  border: 1px solid rgba(255, 138, 42, 0.35);
+  color: var(--pp-text);
 }
 
 .ppSegLabel {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 6px;
+  font-weight: 800;
 }
 
 .ppSegIcon {
-  opacity: 0.9;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  opacity: 0.92;
 }
 
 .ppSegText {
   font-size: 12px;
-  letter-spacing: 0.15px;
-}
-
-.pp-tabPanel--sticky {
-  position: sticky;
-  top: 10px;
-  z-index: 10;
 }
 
 /* =============================
-   8) SUMMARY PANELS
+   PANELS (below fold)
    ============================= */
 .pp-panelHeader {
   display: grid;
   gap: 4px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .pp-panelHeaderRow {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .pp-xpChip {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
   border: 1px solid var(--pp-stroke);
-  background: rgba(0, 0, 0, 0.16);
-  color: var(--pp-text);
-  font-weight: 800;
+  background: rgba(0, 0, 0, 0.14);
+  color: var(--pp-muted);
+  font-weight: 900;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 /* =============================
-   9) INNER CIRCLE
+   INNER CIRCLE
    ============================= */
-.pp-innerCircleCard .ant-card-body {
-  padding: 18px !important;
-}
-
 .pp-innerGrid {
-  margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
 
 .pp-innerTile {
-  position: relative;
-  height: 96px;
-  border-radius: var(--pp-radius-md);
-  overflow: hidden;
   border: 1px solid var(--pp-stroke);
-  background: rgba(0, 0, 0, 0.18);
-  cursor: pointer;
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 16px;
   padding: 0;
-  outline: none;
-  transition: transform 160ms ease, border-color 160ms ease;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  text-align: left;
+  min-height: 108px;
+  transition: transform 0.14s ease, border-color 0.14s ease,
+    background 0.14s ease;
 }
 
 .pp-innerTile:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 138, 42, 0.35);
+  border-color: rgba(255, 138, 42, 0.28);
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .pp-innerCover {
@@ -689,26 +557,31 @@
 .pp-innerOverlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.55));
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.18),
+    rgba(0, 0, 0, 0.55)
+  );
 }
 
 .pp-innerMeta {
   position: absolute;
   left: 12px;
   bottom: 10px;
-  z-index: 2;
+  right: 12px;
   display: grid;
   gap: 2px;
 }
 
 .pp-innerName {
-  color: var(--pp-text);
   font-weight: 900;
-  letter-spacing: 0.2px;
+  color: var(--pp-text);
   font-size: 14px;
+  letter-spacing: 0.2px;
 }
 
 .pp-innerSub {
+  font-weight: 800;
   color: var(--pp-muted);
   font-size: 12px;
 }
@@ -716,33 +589,34 @@
 .pp-innerTile--add {
   display: grid;
   place-items: center;
+  gap: 6px;
   background: rgba(0, 0, 0, 0.14);
 }
 
 .pp-innerAddPlus {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 138, 42, 0.35);
   background: rgba(255, 138, 42, 0.12);
-  color: var(--pp-orange-2);
+  color: var(--pp-text);
+  font-size: 20px;
   font-weight: 900;
-  font-size: 18px;
 }
 
 .pp-innerAddText {
-  margin-top: 6px;
-  color: var(--pp-muted);
   font-size: 12px;
+  color: var(--pp-muted);
+  font-weight: 800;
 }
 
 .pp-innerDots {
   display: flex;
+  justify-content: center;
   gap: 6px;
   margin-top: 12px;
-  justify-content: center;
 }
 
 .pp-innerDots .dot {
@@ -753,447 +627,225 @@
 }
 
 .pp-innerDots .dot.isOn {
-  background: rgba(255, 138, 42, 0.75);
-  box-shadow: 0 0 18px rgba(255, 138, 42, 0.35);
+  background: rgba(255, 138, 42, 0.70);
 }
 
 /* =============================
-   10) DARK INPUTS / TAGS
+   ORANGE PILLS (Passport scope)
    ============================= */
-.ant-input,
-.ant-input-affix-wrapper {
-  border-radius: 999px !important;
-  border: 1px solid var(--pp-stroke) !important;
-  background: rgba(0, 0, 0, 0.22) !important;
-  color: var(--pp-text) !important;
+.pp-shell .ant-tag {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 900;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.16);
+  color: rgba(244, 246, 251, 0.90);
 }
 
-.ant-input::placeholder {
-  color: rgba(244, 246, 251, 0.55);
+/* “highlight” pill */
+.pp-shell .ant-tag.pp-tagOrange,
+.pp-shell .ant-tag.ant-tag-orange {
+  border-color: rgba(255, 138, 42, 0.55);
+  background: rgba(255, 138, 42, 0.14);
+  color: rgba(255, 176, 102, 0.95);
 }
 
-.ant-tag {
-  border-radius: 999px !important;
-  border: 1px solid var(--pp-stroke) !important;
-  background: rgba(0, 0, 0, 0.16) !important;
-  color: var(--pp-text) !important;
-}
-
-/* =========================================================
-   SKYRIO EXCHANGE PREVIEW CARD (SkyrioExchangePreviewCard.jsx)
-   ========================================================= */
-.skx-card {
-  border-radius: 22px !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.09),
-    rgba(255, 255, 255, 0.04)
-  ) !important;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(16px);
+/* =============================
+   Vault Exchange Preview (Passport Summary)
+   ============================= */
+.pp-vxPreview {
+  position: relative;
   overflow: hidden;
 }
 
-.skx-card.osq-surface {
-  border-radius: 22px !important;
+.pp-vxPreview::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(520px 260px at 15% 10%, rgba(120, 90, 255, 0.18), transparent 60%),
+    radial-gradient(520px 260px at 85% 15%, rgba(255, 138, 42, 0.14), transparent 60%);
+  pointer-events: none;
 }
 
-.skx-top {
+.pp-vxTop,
+.pp-vxMid,
+.pp-vxDrop {
+  position: relative;
+}
+
+.pp-vxTitleRow {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
-  padding: 18px 18px 14px;
-}
-
-.skx-left {
-  min-width: 0;
-}
-
-.skx-titleRow {
-  display: flex;
-  align-items: center;
   gap: 10px;
 }
 
-.skx-badgeDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(255, 138, 42, 0.9);
-  box-shadow: 0 0 18px rgba(255, 138, 42, 0.35);
-  flex: 0 0 auto;
+.pp-vxTags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.skx-title {
-  margin: 0 !important;
-  color: rgba(244, 246, 251, 0.95) !important;
-  letter-spacing: 0.25px;
-}
-
-.skx-sub {
-  display: block;
-  margin-top: 6px;
-  color: rgba(244, 246, 251, 0.72) !important;
-  font-size: 12.5px;
-  line-height: 1.35;
-}
-
-.skx-subMuted {
-  color: rgba(244, 246, 251, 0.55);
-}
-
-.skx-tags {
-  margin-top: 10px;
-}
-
-.skx-pill {
+.pp-tag {
   border-radius: 999px !important;
   padding: 4px 10px !important;
-  border: 1px solid rgba(255, 138, 42, 0.35) !important;
-  background: rgba(255, 138, 42, 0.12) !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-  font-weight: 700;
-  font-size: 12px;
-}
-
-.skx-pillGhost {
+  font-weight: 900 !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  background: rgba(0, 0, 0, 0.16) !important;
-  color: rgba(244, 246, 251, 0.82) !important;
+  background: rgba(0, 0, 0, 0.18) !important;
+  color: rgba(244, 246, 251, 0.92) !important;
 }
 
-.skx-right {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+/* orange pill */
+.ppTagOrange {
+  border-color: rgba(255, 138, 42, 0.55) !important;
+  background: rgba(255, 138, 42, 0.14) !important;
+  color: rgba(255, 176, 102, 0.95) !important;
 }
 
-.skx-xp {
+/* dark neutral pill */
+.ppTagDark {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(0, 0, 0, 0.18) !important;
+  color: rgba(244, 246, 251, 0.88) !important;
+}
+
+.pp-vxMid {
   display: grid;
-  justify-items: end;
-  gap: 2px;
-  padding: 8px 12px;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.pp-vxStat {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.14);
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.16);
+  padding: 12px;
 }
 
-.skx-xpLabel {
-  font-size: 11px;
-  color: rgba(244, 246, 251, 0.62);
+.pp-vxBig {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 950;
   letter-spacing: 0.2px;
-}
-
-.skx-xpValue {
-  font-size: 18px;
-  font-weight: 900;
   color: rgba(244, 246, 251, 0.95);
-  line-height: 1;
 }
 
-.skx-actions {
+.pp-vxProgress {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.pp-vxProgressTop {
   display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.pp-vxDrop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.pp-vxDropName {
+  margin-top: 4px;
+  font-weight: 950;
+  color: rgba(244, 246, 251, 0.95);
+}
+
+.pp-vxDropRight {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.pp-vxCta.ant-btn {
+  height: 40px;
+  border-radius: 999px;
+  font-weight: 950;
+  border: 1px solid rgba(255, 138, 42, 0.55) !important;
+  background: linear-gradient(135deg, #ff8a2a, #ffb066) !important;
+  color: rgba(20, 12, 8, 0.92) !important;
+}
+
+.pp-vxCta.ant-btn:disabled {
+  opacity: 0.65;
+}
+
+.pp-vxLockNote {
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.65);
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
 }
 
-.skx-iconBtn {
-  width: 38px;
-  height: 38px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.16);
-  color: rgba(244, 246, 251, 0.92);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
-}
-
-.skx-iconBtn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 138, 42, 0.35);
-  background: rgba(0, 0, 0, 0.22);
-}
-
-.skx-iconBtn:active {
-  transform: translateY(0px);
-}
-
-.skx-divider {
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0),
-    rgba(255, 138, 42, 0.35),
-    rgba(120, 90, 255, 0.28),
-    rgba(255, 255, 255, 0)
-  );
-  opacity: 0.85;
-}
-
-.skx-body {
-  padding: 16px 18px 18px;
-  display: grid;
-  gap: 14px;
-}
-
-.skx-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-
-.skx-rowLeft {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.skx-ico {
-  font-size: 18px;
-  color: rgba(255, 176, 102, 0.92);
-  filter: drop-shadow(0 0 16px rgba(255, 138, 42, 0.18));
-}
-
-.skx-label {
-  font-size: 12px;
-  color: rgba(244, 246, 251, 0.62);
-  letter-spacing: 0.2px;
-}
-
-.skx-value {
-  font-size: 16px;
-  font-weight: 900;
-  color: rgba(244, 246, 251, 0.95);
-  margin-top: 1px;
-}
-
-.skx-mini,
-.skx-mini .ant-typography {
-  font-size: 12px;
-  color: rgba(244, 246, 251, 0.68);
-}
-
-.skx-progress {
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.14);
-  padding: 12px 12px 10px;
-}
-
-.skx-progressTop {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.skx-progress .ant-progress-outer {
-  padding-right: 0 !important;
-}
-
-.skx-progress .ant-progress-bg {
-  border-radius: 999px !important;
-}
-
-.skx-progress .ant-progress-inner {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-radius: 999px !important;
-}
-
-.skx-body > .skx-mini {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 12px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.12));
-  color: rgba(244, 246, 251, 0.92);
-}
-
-.skx-body > .skx-mini .ant-typography {
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.skx-miniLeft {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  min-width: 0;
-}
-
-.skx-miniIcon {
-  width: 40px;
-  height: 40px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 138, 42, 0.3);
-  background: rgba(255, 138, 42, 0.1);
-  color: rgba(255, 176, 102, 0.95);
-  flex: 0 0 auto;
-  box-shadow: 0 10px 22px rgba(255, 138, 42, 0.12);
-}
-
-.skx-miniTitle {
-  display: block;
-  font-size: 12px;
-  color: rgba(244, 246, 251, 0.72);
-  font-weight: 700;
-}
-
-.skx-miniSub {
-  margin-top: 2px;
-  font-size: 14px;
-  color: rgba(244, 246, 251, 0.94);
-  font-weight: 900;
-  letter-spacing: 0.15px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 260px;
-}
-
-.skx-miniSub2 {
-  margin-top: 2px;
-  font-size: 12px;
-  color: rgba(244, 246, 251, 0.55);
-}
-
-.skx-cta.ant-btn {
-  border-radius: 999px !important;
-  height: 38px !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.2px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
-}
-
-.skx-cta.ant-btn-primary {
-  border: none !important;
-  background: linear-gradient(
-    90deg,
-    rgba(120, 90, 255, 1),
-    rgba(194, 97, 255, 1),
-    rgba(255, 138, 42, 1)
-  ) !important;
-}
-
-.skx-cta.ant-btn[disabled] {
-  opacity: 0.62 !important;
-}
-
-/* =============================
-   11) RESPONSIVE
-   ============================= */
-@media (max-width: 1024px) {
-  .pp-heroInner {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .pp-heroDivider {
-    display: none;
-  }
-
-  .pp-tabPanel--sticky {
-    top: 8px;
-  }
-}
-
-/* ✅ Mobile: stack stamps so it never squishes */
+/* responsive */
 @media (max-width: 560px) {
-  .pp-idStamps {
+  .pp-vxMid {
     grid-template-columns: 1fr;
   }
-
-  .pp-homeBtnWrap {
-    top: 12px;
-    left: 12px;
-  }
-}
-
-@media (max-width: 640px) {
-  .pp-page {
-    padding: 14px 10px 28px;
-  }
-
-  .pp-card .ant-card-body {
-    padding: 14px !important;
-  }
-
-  .pp-innerGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .ppFollowBtn {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .pp-heroActions {
-    gap: 8px;
-  }
-
-  .pp-ghost-btn {
-    width: 100%;
-  }
-
-  .skx-top {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .skx-right {
-    justify-content: space-between;
-    width: 100%;
-  }
-
-  .skx-body > .skx-mini {
+  .pp-vxDrop {
     flex-direction: column;
     align-items: stretch;
   }
-
-  .skx-miniSub {
-    max-width: 100%;
-  }
-
-  .skx-cta.ant-btn {
-    width: 100%;
+  .pp-vxDropRight {
+    justify-items: stretch;
   }
 }
+
+/* SkyHub search pill inside passport */
+.pp-searchPill.ant-input-affix-wrapper {
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(244, 246, 251, 0.92) !important;
+}
+
+.pp-searchPill.ant-input-affix-wrapper input {
+  background: transparent !important;
+  color: rgba(244, 246, 251, 0.92) !important;
+}
+
+.pp-searchPill.ant-input-affix-wrapper input::placeholder {
+  color: rgba(244, 246, 251, 0.55) !important;
+}
+
+.pp-searchPill.ant-input-affix-wrapper {
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(244, 246, 251, 0.92) !important;
+}
+
+.pp-searchPill.ant-input-affix-wrapper input {
+  background: transparent !important;
+  color: rgba(244, 246, 251, 0.92) !important;
+}
+
+.pp-searchPill.ant-input-affix-wrapper input::placeholder {
+  color: rgba(244, 246, 251, 0.55) !important;
+}
+
 
 /* =============================
-   12) REDUCE MOTION
+   VAULT EXCHANGE INPUT FIX
    ============================= */
-@media (prefers-reduced-motion: reduce) {
-  .ppFollowBtn,
-  .pp-innerTile,
-  .pp-ghost-btn,
-  .skx-iconBtn,
-  .skx-cta.ant-btn {
-    transition: none !important;
-  }
-
-  .ppFollowBtn:hover,
-  .pp-innerTile:hover,
-  .pp-ghost-btn:hover,
-  .skx-iconBtn:hover {
-    transform: none !important;
-  }
-}
-
-/* =========================================
-   FIX: White pill input on Passport/Exchange
-   MUST be at the bottom of this file
-   ========================================= */
-.sk-passportPage .skyrio-exchange input,
-.sk-passportPage .skyrio-exchange textarea,
-.sk-passportPage .skyrio-exchange select {
+.passport-page .vault-exchange input,
+.passport-page .vault-exchange textarea,
+.passport-page .vault-exchange select {
   background: rgba(0, 0, 0, 0.22) !important;
   color: rgba(244, 246, 251, 0.95) !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
@@ -1201,26 +853,59 @@
   outline: none !important;
 }
 
-.sk-passportPage .skyrio-exchange .search,
-.sk-passportPage .skyrio-exchange .searchBar,
-.sk-passportPage .skyrio-exchange .search-pill,
-.sk-passportPage .skyrio-exchange .searchPill,
-.sk-passportPage .skyrio-exchange .exchange-search,
-.sk-passportPage .skyrio-exchange .exchangeSearch {
+.passport-page .vault-exchange input::placeholder,
+.passport-page .vault-exchange textarea::placeholder {
+  color: rgba(244, 246, 251, 0.55) !important;
+}
+
+.passport-page .vault-exchange .search,
+.passport-page .vault-exchange .searchBar,
+.passport-page .vault-exchange .search-pill,
+.passport-page .vault-exchange .searchPill,
+.passport-page .vault-exchange .exchange-search,
+.passport-page .vault-exchange .exchangeSearch {
   background: rgba(0, 0, 0, 0.22) !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
   border-radius: 999px !important;
 }
 
-.sk-passportPage .skyrio-exchange input::placeholder {
-  color: rgba(244, 246, 251, 0.55) !important;
-}
-
-.sk-passportPage .skyrio-exchange input:focus,
-.sk-passportPage .skyrio-exchange .search:focus-within,
-.sk-passportPage .skyrio-exchange .searchBar:focus-within,
-.sk-passportPage .skyrio-exchange .search-pill:focus-within,
-.sk-passportPage .skyrio-exchange .exchange-search:focus-within {
+.passport-page .vault-exchange input:focus,
+.passport-page .vault-exchange textarea:focus,
+.passport-page .vault-exchange .search:focus-within,
+.passport-page .vault-exchange .searchBar:focus-within,
+.passport-page .vault-exchange .search-pill:focus-within,
+.passport-page .vault-exchange .exchange-search:focus-within {
   border-color: rgba(255, 138, 42, 0.45) !important;
   box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.12) !important;
+}
+
+/* =============================
+   RESPONSIVE
+   ============================= */
+@media (max-width: 1024px) {
+  .pp-heroInner {
+    grid-template-columns: 1fr;
+  }
+  .pp-heroDivider {
+    display: none;
+  }
+  .pp-idStamps {
+    grid-template-columns: 1fr;
+  }
+  .pp-levelRing {
+    width: 200px;
+  }
+}
+
+@media (max-width: 560px) {
+  .pp-homeBtnWrap {
+    top: 12px;
+    left: 12px;
+  }
+  .pp-innerGrid {
+    grid-template-columns: 1fr;
+  }
+  .pp-followRow {
+    grid-template-columns: 1fr 1fr;
+  }
 }

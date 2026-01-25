@@ -6,7 +6,6 @@ import { UserOutlined, LogoutOutlined, MenuOutlined } from "@ant-design/icons";
 import "../styles/Navbar.css";
 import logo from "../assets/logo/skyrio-logo-mark-512.png";
 
-
 import { useAuth, useAuthModal } from "../auth/AuthModalController";
 
 const navItems = [

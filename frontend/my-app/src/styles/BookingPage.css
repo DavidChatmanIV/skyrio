@@ -1,13 +1,15 @@
 /* =================
    THEME TOKENS
-   ================= */
+================== */
 .sk-booking {
   --sk-orange: #ff8a2a;
   --sk-orange-2: #ffb347;
   --sk-orange-grad: linear-gradient(135deg, var(--sk-orange), var(--sk-orange-2));
+
   --sk-glass: rgba(15, 12, 35, 0.42);
   --sk-border: rgba(255, 255, 255, 0.12);
-  --sk-border-2: rgba(255, 255, 255, 0.16);
+  --sk-border-2: rgba(255, 255, 255, 0.14);
+
   --sk-text: rgba(255, 255, 255, 0.92);
   --sk-muted: rgba(255, 255, 255, 0.72);
 
@@ -15,8 +17,6 @@
   position: relative;
   color: var(--sk-text);
   overflow-x: hidden;
-
-  /* ✅ KEY FIX: keep page full BUT start content under navbar */
   padding-top: var(--nav-h);
 }
 
@@ -26,20 +26,15 @@
 .sk-booking::before {
   content: "";
   position: fixed;
-
-  /* ✅ KEY FIX: do NOT cover navbar area */
   top: var(--nav-h);
   left: 0;
   right: 0;
   bottom: 0;
-
   background-image: var(--sk-bg);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-
   z-index: 0;
-  transform: translateZ(0);
   pointer-events: none;
 }
 
@@ -49,23 +44,18 @@
 .sk-booking::after {
   content: "";
   position: fixed;
-
-  /* ✅ KEY FIX: do NOT cover navbar area */
   top: var(--nav-h);
   left: 0;
   right: 0;
   bottom: 0;
-
   background:
     radial-gradient(circle at 20% 0%, rgba(140, 90, 255, 0.35), transparent 55%),
     radial-gradient(circle at 90% 10%, rgba(255, 138, 42, 0.22), transparent 55%),
     linear-gradient(180deg, rgba(10, 8, 22, 0.55), rgba(10, 8, 22, 0.86));
-
   z-index: 0;
   pointer-events: none;
 }
 
-/* Keep page content above backgrounds */
 .sk-booking > * {
   position: relative;
   z-index: 1;
@@ -73,183 +63,190 @@
 
 /* ================= HERO ================= */
 .sk-booking-hero {
-  padding: 72px 80px;
-  margin: 26px 36px 0;
+  padding: 38px 42px;
+  margin: 18px 28px 0;
   border-radius: 18px;
   background: rgba(15, 12, 35, 0.38);
   border: 1px solid var(--sk-border);
   box-shadow: 0 26px 60px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   text-align: center;
 }
 
 .sk-hero-title {
   color: #fff !important;
-  font-size: 44px;
+  font-size: clamp(30px, 3.1vw, 42px);
   margin: 0 !important;
 }
 
 .sk-hero-sub {
   color: rgba(255, 255, 255, 0.78);
-  font-size: 15px;
+  font-size: 14px;
 }
 
-/* ================= PILLS ================= */
+/* =================
+   HERO PILLS
+================== */
 .sk-pill {
-  background: var(--sk-orange-grad);
-  padding: 6px 14px;
+  padding: 8px 12px;
   border-radius: 999px;
-  font-size: 13px;
   font-weight: 800;
-  color: #fff;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
-}
-
-/* ================= “ALL BUTTONS ORANGE” ================= */
-.sk-btn-orange {
-  background: var(--sk-orange-grad) !important;
-  border: none !important;
-  color: #fff !important;
-  font-weight: 900 !important;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
-}
-.sk-btn-orange:hover {
-  filter: brightness(1.04);
-}
-.sk-btn-orange:active {
-  transform: translateY(1px);
-}
-
-/* keep inputs glass */
-.sk-glass-input {
-  background: rgba(255, 255, 255, 0.10) !important;
-  border: 1px solid var(--sk-border-2) !important;
-  color: var(--sk-text) !important;
-}
-
-/* ================= TABS (Segmented) — SELECTED ORANGE ================= */
-.sk-orange-segmented {
-  margin-top: 22px;
-  background: rgba(255, 255, 255, 0.10) !important;
+  letter-spacing: 0.2px;
   border: 1px solid var(--sk-border-2);
-  border-radius: 14px;
-  padding: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--sk-text);
   backdrop-filter: blur(10px);
 }
 
-.sk-booking .ant-segmented-item-label {
-  color: rgba(255, 255, 255, 0.88) !important;
+.sk-pill-orange {
+  background: var(--sk-orange-grad);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #1b1024;
+  box-shadow: 0 14px 30px rgba(255, 138, 42, 0.16);
+}
+
+.sk-pill-glass {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* =========================
+   SEGMENTED (ORANGE SELECT)
+========================= */
+.sk-booking .sk-booking-tabs.ant-segmented {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid var(--sk-border) !important;
+  border-radius: 14px !important;
+  padding: 6px !important;
+}
+
+.sk-booking .sk-booking-tabs .ant-segmented-item {
+  color: rgba(255, 255, 255, 0.82) !important;
   font-weight: 700;
 }
 
-/* selected pill */
-.sk-booking .ant-segmented-item-selected {
+.sk-booking .sk-booking-tabs .ant-segmented-item-selected {
   background: var(--sk-orange-grad) !important;
-  border-radius: 10px;
-}
-.sk-booking .ant-segmented-item-selected .ant-segmented-item-label {
-  color: #fff !important;
+  border-radius: 12px !important;
+  color: #1b1024 !important;
 }
 
-/* ================= SEARCH BAR ================= */
-.sk-search-bar {
-  display: flex;
-  gap: 12px;
-  margin-top: 18px;
-  width: min(980px, 100%);
-  justify-content: center;
-  flex-wrap: wrap;
+.sk-booking .sk-booking-tabs .ant-segmented-item-selected * {
+  color: #1b1024 !important;
 }
 
-/* ================= DATE PICKER ORANGE (start/end) ================= */
-.sk-booking .ant-picker {
-  background: rgba(255, 255, 255, 0.10) !important;
+/* =================
+   BUTTONS
+================== */
+.sk-btn-orange {
+  background: rgba(255, 255, 255, 0.08) !important;
   border: 1px solid var(--sk-border-2) !important;
-  color: var(--sk-text) !important;
-}
-
-.sk-booking .ant-picker:hover,
-.sk-booking .ant-picker-focused {
-  border-color: rgba(255, 138, 42, 0.85) !important;
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.18) !important;
-}
-
-.sk-booking .ant-picker input {
-  color: var(--sk-text) !important;
-}
-
-.sk-booking .ant-picker-suffix,
-.sk-booking .ant-picker-clear,
-.sk-booking .ant-picker-separator {
-  color: rgba(255, 255, 255, 0.88) !important;
-}
-
-/* calendar selection (popup) */
-.sk-booking .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
-.sk-booking .ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
-.sk-booking .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
-  background: var(--sk-orange) !important;
-}
-
-/* range hover background */
-.sk-booking .ant-picker-cell-in-view.ant-picker-cell-in-range::before {
-  background: rgba(255, 138, 42, 0.22) !important;
-}
-
-/* ================= ACTION ROW ================= */
-.sk-action-row {
-  margin-top: 18px;
-}
-
-/* ================= QUICK FILTERS — ORANGE TOGGLES ================= */
-.sk-filters {
-  margin-top: 18px;
-}
-
-.sk-qf {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.10);
-  color: rgba(255, 255, 255, 0.90);
-  padding: 7px 12px;
-  border-radius: 999px;
-  font-weight: 800;
-  cursor: pointer;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border-radius: 12px !important;
   backdrop-filter: blur(10px);
 }
 
-.sk-qf:hover {
-  border-color: rgba(255, 138, 42, 0.65);
+.sk-btn-orange:hover {
+  border-color: rgba(255, 138, 42, 0.45) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.18) !important;
 }
 
-/* active = orange */
-.sk-qf.is-active {
-  background: var(--sk-orange-grad);
-  border-color: transparent;
-  color: #fff;
+.sk-btn-compact {
+  height: 36px !important;
+  padding: 0 14px !important;
+  font-weight: 800 !important;
 }
 
-/* clear button matches theme too */
-.sk-qf-clear {
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.90);
-  font-weight: 900;
-  padding: 7px 10px;
+.sk-btn-ghost {
+  background: rgba(255,255,255,0.06) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  color: rgba(255,255,255,0.88) !important;
+  border-radius: 12px !important;
+  height: 34px;
+  padding: 0 10px !important;
+}
+
+.sk-btn-ghost:hover {
+  border-color: rgba(255, 138, 42, 0.35) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.14) !important;
+}
+
+/* ================= WEATHER STRIP ================= */
+.sk-weatherStrip {
+  width: min(980px, calc(100% - 24px));
+  margin: 10px auto 6px;
+  border-radius: 18px;
+  border: 1px solid var(--sk-border-2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(120, 90, 255, 0.10) inset;
+}
+
+.sk-weatherInner {
+  padding: 14px 18px;
+  text-align: center;
+}
+
+.sk-weatherTop {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  color: rgba(244, 246, 251, 0.95);
+  font-size: 18px;
+  letter-spacing: 0.2px;
+}
+
+.sk-weatherIcon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(255, 138, 42, 0.10);
+  border: 1px solid rgba(255, 138, 42, 0.22);
+}
+
+.sk-weatherTitle {
+  text-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+}
+
+.sk-weatherSub {
+  margin-top: 6px;
+  font-size: 14px;
+  color: rgba(244, 246, 251, 0.72);
+}
+
+.sk-weatherTags {
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(244, 246, 251, 0.80);
+}
+
+.sk-weatherTag {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.35);
+  background: rgba(255, 138, 42, 0.12);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+}
+
+.sk-dot {
+  margin: 0 8px;
+  color: rgba(255, 138, 42, 0.55);
 }
 
 /* ================= RESULTS ================= */
 .sk-results-wrap {
-  padding: 46px 80px 90px;
-}
-
-.sk-section-title {
-  color: #fff !important;
+  padding: 34px 52px 84px;
 }
 
 .sk-result-card,
@@ -261,62 +258,209 @@
   backdrop-filter: blur(12px);
 }
 
-.sk-result-img {
-  height: 90px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
-  border: 1px solid rgba(255, 255, 255, 0.12);
+/* ===== Result card redesigned ===== */
+.sk-resultRow {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
 }
 
-.sk-card-title {
-  color: rgba(255, 255, 255, 0.94) !important;
-  margin: 0 !important;
+.sk-thumb {
+  width: 152px;
+  min-width: 152px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background:
+    radial-gradient(120px 80px at 30% 30%, rgba(255, 138, 42, 0.25), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
+  box-shadow:
+    0 18px 44px rgba(0,0,0,0.25),
+    0 0 0 1px rgba(120, 90, 255, 0.10) inset;
 }
 
-.sk-muted {
-  color: var(--sk-muted) !important;
+.sk-resultMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.sk-price {
-  font-size: 20px;
+.sk-resultTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.sk-resultTitle {
   font-weight: 900;
-  color: var(--sk-orange);
-  text-align: right;
+  font-size: 18px;
+  color: rgba(255,255,255,0.96);
+}
+
+.sk-resultMeta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255,255,255,0.72);
+  font-size: 13px;
+}
+
+.sk-metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sk-metaDot {
+  color: rgba(255,255,255,0.28);
+}
+
+.sk-arrow {
+  opacity: 0.8;
+}
+
+.sk-star {
+  color: rgba(255, 180, 90, 0.95);
+}
+
+.sk-reviews {
+  opacity: 0.85;
+}
+
+.sk-resultRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 140px;
+}
+
+.sk-priceLine {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sk-priceAmt {
+  font-weight: 900;
+  font-size: 18px;
+  color: rgba(255,255,255,0.96);
+}
+
+.sk-priceSub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.68);
+}
+
+/* tags */
+.sk-tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sk-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
+}
+
+.sk-tag-orange {
+  border-color: rgba(255,138,42,0.34);
+  background: rgba(255,138,42,0.12);
+}
+
+.sk-tag-good {
+  border-color: rgba(97,255,168,0.28);
+  background: rgba(97,255,168,0.10);
+}
+
+.sk-tag-soft {
+  border-color: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  opacity: 0.92;
+}
+
+/* Best for */
+.sk-bestFor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.sk-bestForLabel {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.72);
+}
+
+.sk-tag-bestfor {
+  border-color: rgba(120, 90, 255, 0.26);
+  background: rgba(120, 90, 255, 0.10);
 }
 
 /* ================= BUDGET CARD ================= */
+.sk-budget-card {
+  position: sticky;
+  top: calc(var(--nav-h) + 16px);
+}
+
+/* ✅ new header styles */
+.sk-budget-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sk-budget-title {
+  font-weight: 900;
+  font-size: 18px;
+  color: rgba(255,255,255,0.95);
+}
+
+.sk-budget-subtitle {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.70);
+}
+
 .sk-budget-top {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   margin-top: 6px;
 }
 
-.sk-number {
-  width: 170px;
+/* summary */
+.sk-budget-summary {
+  margin-top: 10px;
 }
 
-/* orange focus for InputNumber */
-.sk-booking .ant-input-number,
-.sk-booking .ant-input-number-input {
-  color: var(--sk-text) !important;
+.sk-budget-leftBig {
+  font-weight: 900;
+  font-size: 28px;
+  letter-spacing: 0.2px;
+  color: rgba(255,255,255,0.96);
+  text-shadow: 0 18px 40px rgba(0,0,0,0.28);
 }
 
-.sk-booking .ant-input-number {
-  background: rgba(255, 255, 255, 0.10) !important;
-  border: 1px solid var(--sk-border-2) !important;
-}
-
-.sk-booking .ant-input-number:focus,
-.sk-booking .ant-input-number-focused {
-  border-color: rgba(255, 138, 42, 0.85) !important;
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.18) !important;
-}
-
-.sk-budget-left {
-  color: #fff !important;
-  margin: 8px 0 6px !important;
+.sk-budget-meta {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.72);
 }
 
 .sk-divider {
@@ -331,7 +475,111 @@
   gap: 10px;
 }
 
+.sk-budget-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .sk-budget-hint {
   color: rgba(255, 255, 255, 0.62);
   font-size: 12px;
+}
+
+/* =========================================================
+   ✅ TRIP BUDGET CARD — COMPACT FIX (ANT CARD BODY)
+========================================================= */
+.sk-booking .sk-budget-card .ant-card-body {
+  padding: 14px 16px !important;
+}
+
+/* =========================================
+   ✅ ORANGE PILL INPUT (Trip Budget)
+========================================= */
+.sk-booking .sk-budget-card .ant-input-number {
+  background: var(--sk-orange-grad) !important;
+  background-image: var(--sk-orange-grad) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 22px rgba(255, 138, 42, 0.16) !important;
+}
+
+.sk-booking .sk-budget-card .ant-input-number .ant-input-number-input-wrap {
+  background: transparent !important;
+}
+
+.sk-booking .sk-budget-card .ant-input-number-input {
+  color: #1b1024 !important;
+  font-weight: 900 !important;
+  -webkit-text-fill-color: #1b1024 !important;
+}
+
+.sk-booking .sk-budget-card .ant-input-number-input::placeholder {
+  color: rgba(27, 16, 36, 0.55) !important;
+}
+
+.sk-booking .sk-budget-card .ant-input-number:focus,
+.sk-booking .sk-budget-card .ant-input-number-focused {
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.22) !important;
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 992px) {
+  .sk-booking-hero {
+    padding: 28px 18px;
+    margin: 14px 14px 0;
+  }
+
+  .sk-results-wrap {
+    padding: 22px 14px 70px;
+  }
+
+  .sk-budget-card {
+    position: static;
+  }
+
+  .sk-resultRow {
+    flex-direction: column;
+  }
+
+  .sk-thumb {
+    width: 100%;
+    min-width: 0;
+    height: 140px;
+  }
+
+  .sk-resultRight {
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .sk-resultTop {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .sk-weatherInner {
+    padding: 12px 14px;
+  }
+
+  .sk-weatherTop {
+    font-size: 16px;
+  }
+
+  .sk-weatherIcon {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+  }
+
+  .sk-weatherTag {
+    padding: 5px 9px;
+    font-size: 12px;
+  }
+
+  .sk-budget-leftBig {
+    font-size: 24px;
+  }
 }

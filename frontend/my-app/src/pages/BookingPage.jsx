@@ -8,34 +8,41 @@ import {
   Input,
   DatePicker,
   Card,
-  Tag,
-  Progress,
   Row,
   Col,
   InputNumber,
   Divider,
   message as antdMessage,
 } from "antd";
-import { SearchOutlined, TeamOutlined } from "@ant-design/icons";
+import {
+  SearchOutlined,
+  TeamOutlined,
+  ReloadOutlined,
+  StarFilled,
+  EnvironmentOutlined,
+} from "@ant-design/icons";
 
-import heroImg from "../assets/Booking/skyrio-hero.jpg"; 
+import heroImg from "../assets/Booking/skyrio-hero.jpg";
 import "../styles/BookingPage.css";
 
-/* ✅ NEW: Guest-gated Save Trip button */
+/* Guest-gated Save Trip button */
 import SaveTripButton from "../components/trips/SaveTripButton";
+
+/* Trip Budget component */
+import TripBudgetCard from "./booking/TripBudgetCard";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 export default function BookingPage() {
-  // ----------------------------
-  // Tabs
-  // ----------------------------
+  /* =============================
+     Tabs
+  ============================= */
   const [tab, setTab] = useState("Stays");
 
-  // ----------------------------
-  // Quick Filters (customizable toggles)
-  // ----------------------------
+  /* =============================
+     Quick Filters
+  ============================= */
   const quickFilters = useMemo(
     () => ["Under $500", "Luxury", "Unwind", "Adventure", "Romantic"],
     []
@@ -50,63 +57,91 @@ export default function BookingPage() {
 
   const clearFilters = () => setActiveFilters([]);
 
-  // ----------------------------
-  // Budget (customizable)
-  // ----------------------------
-  const [budgetTotal, setBudgetTotal] = useState(2500);
-  const [used, setUsed] = useState(920);
+  /* =============================
+     Selected Result (NEW)
+  ============================= */
+  const [selectedResult, setSelectedResult] = useState({
+    id: "stay-1",
+    title: "Skyrio Select Stay – Deluxe",
+    total: 168,
+  });
 
-  const [expenseAmount, setExpenseAmount] = useState(150);
-  const [expenseLabel, setExpenseLabel] = useState("Dinner & Drinks");
+  /* =============================
+     Budget State (source of truth)
+  ============================= */
+  const [budgetTotal, setBudgetTotal] = useState(null);
+  const [used, setUsed] = useState(0);
+  const [expenseAmount, setExpenseAmount] = useState(0);
 
-  const left = useMemo(
-    () => Math.max(0, (budgetTotal || 0) - (used || 0)),
-    [budgetTotal, used]
-  );
+  const totalNum = useMemo(() => {
+    const n =
+      typeof budgetTotal === "number" ? budgetTotal : Number(budgetTotal);
+    return Number.isFinite(n) ? n : 0;
+  }, [budgetTotal]);
+
+  const hasBudget = totalNum > 0;
 
   const percent = useMemo(() => {
-    const total = Number(budgetTotal || 0);
-    const u = Number(used || 0);
-    if (!total || total <= 0) return 0;
-    return Math.min(100, Math.max(0, Math.round((u / total) * 100)));
-  }, [budgetTotal, used]);
+    if (!hasBudget) return 0;
+    return Math.min(100, Math.round((used / totalNum) * 100));
+  }, [hasBudget, totalNum, used]);
 
   const addExpense = () => {
     const amt = Number(expenseAmount || 0);
     if (!amt || amt <= 0) return;
     setUsed((prev) => Number(prev || 0) + amt);
+    setExpenseAmount(null);
   };
 
-  // ----------------------------
-  // ✅ Demo save handler (swap with real API later)
-  // ----------------------------
+  const resetBudget = () => {
+    setBudgetTotal(null);
+    setUsed(0);
+    setExpenseAmount(150);
+    antdMessage.info("Budget reset");
+  };
+
+  /* =============================
+     Booking Total (AUTO-UPDATED)
+  ============================= */
+  const bookingTotal = useMemo(
+    () => Number(selectedResult?.total || 0),
+    [selectedResult]
+  );
+
+  /* =============================
+     Demo Save Handler
+  ============================= */
   const handleSaveTrip = (source = "page") => {
-    // only runs after auth (SaveTripButton gates)
     antdMessage.success(`Trip saved (${source})`);
   };
 
+  /* =============================
+     Demo Result Data
+  ============================= */
+  const rating = 4.7;
+  const reviews = 1243;
+
+  const bestFor = useMemo(
+    () => ["Beach access", "Couples", "Great breakfast"],
+    []
+  );
+
   return (
-    <Layout
-      className="sk-booking"
-      style={{
-        ["--sk-bg"]: `url(${heroImg})`,
-      }}
-    >
+    <Layout className="sk-booking" style={{ ["--sk-bg"]: `url(${heroImg})` }}>
       {/* ================= HERO ================= */}
       <div className="sk-booking-hero">
         <Title className="sk-hero-title">Book Your Next Adventure ✨</Title>
 
         <Space size="middle" className="sk-hero-pills">
-          <div className="sk-pill">⚡ XP 60</div>
-          <div className="sk-pill">💾 8 Saved</div>
-          <div className="sk-pill">👁 Price Watch Off</div>
+          <div className="sk-pill sk-pill-orange">⚡ XP 60</div>
+          <div className="sk-pill sk-pill-glass">💾 8 Saved</div>
+          <div className="sk-pill sk-pill-glass">👁 Price Watch Off</div>
         </Space>
 
         <Text className="sk-hero-sub">
-          Smart Plan AI will optimize this trip for budget & XP
+          Smart Plan AI will optimize this trip for budget &amp; XP
         </Text>
 
-        {/* ================= TABS ================= */}
         <Segmented
           className="sk-booking-tabs sk-orange-segmented"
           value={tab}
@@ -123,7 +158,20 @@ export default function BookingPage() {
           ]}
         />
 
-        {/* ================= SEARCH BAR ================= */}
+        {/* Weather */}
+        <div className="sk-weatherStrip">
+          <div className="sk-weatherInner">
+            <div className="sk-weatherTop">
+              <span className="sk-weatherIcon">🌤</span>
+              <span className="sk-weatherTitle">
+                Miami Weather • Avg 78° / 65°
+              </span>
+            </div>
+            <div className="sk-weatherSub">Mostly sunny • Low rain risk</div>
+          </div>
+        </div>
+
+        {/* Search */}
         <div className="sk-search-bar">
           <Input className="sk-glass-input" placeholder="New York (JFK)" />
           <RangePicker className="sk-orange-picker" />
@@ -134,34 +182,29 @@ export default function BookingPage() {
           </Button>
         </div>
 
-        {/* ================= ACTION ROW ================= */}
+        {/* Action Row */}
         <Space className="sk-action-row">
           <Button className="sk-btn-orange">Sort: Recommended</Button>
-
-          {/* ✅ REPLACED: old Save Trip button -> auth-gated SaveTripButton */}
           <SaveTripButton onSaveConfirmed={() => handleSaveTrip("hero")} />
-
           <Button className="sk-btn-orange" icon={<TeamOutlined />}>
             Teams Travel
           </Button>
         </Space>
 
-        {/* ================= QUICK FILTERS ================= */}
+        {/* Filters */}
         <Space className="sk-filters" wrap>
-          {quickFilters.map((f) => {
-            const active = activeFilters.includes(f);
-            return (
-              <button
-                key={f}
-                type="button"
-                className={`sk-qf ${active ? "is-active" : ""}`}
-                onClick={() => toggleFilter(f)}
-              >
-                {f}
-              </button>
-            );
-          })}
-
+          {quickFilters.map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={`sk-qf ${
+                activeFilters.includes(f) ? "is-active" : ""
+              }`}
+              onClick={() => toggleFilter(f)}
+            >
+              {f}
+            </button>
+          ))}
           <button
             type="button"
             className="sk-qf sk-qf-clear"
@@ -179,104 +222,93 @@ export default function BookingPage() {
             Results
           </Title>
 
-          <Card className="sk-result-card" bordered={false}>
-            <Row gutter={16} align="middle">
-              <Col span={6}>
-                <div className="sk-result-img" />
-              </Col>
+          <Card
+            variant="borderless"
+            className={`sk-result-card ${
+              selectedResult.id === "stay-1" ? "is-selected" : ""
+            }`}
+            onClick={() =>
+              setSelectedResult({
+                id: "stay-1",
+                title: "Skyrio Select Stay – Deluxe",
+                total: 168,
+              })
+            }
+            style={{ cursor: "pointer" }}
+          >
+            <div className="sk-resultRow">
+              <div className="sk-thumb" />
 
-              <Col span={12}>
-                <Title level={5} className="sk-card-title">
-                  Skyrio Select Stay – Deluxe
-                </Title>
-                <Text className="sk-muted">New York → Miami</Text>
-                <div style={{ marginTop: 10 }}>
-                  <Space>
-                    <Tag color="green">Best Value</Tag>
-                    <Tag>Free cancellation</Tag>
-                  </Space>
+              <div className="sk-resultMain">
+                <div className="sk-resultTop">
+                  <div>
+                    <div className="sk-resultTitle">
+                      Skyrio Select Stay – Deluxe
+                    </div>
+
+                    <div className="sk-resultMeta">
+                      <span className="sk-metaItem">
+                        <EnvironmentOutlined /> New York → Miami
+                      </span>
+                      <span className="sk-metaDot">•</span>
+                      <span className="sk-metaItem">
+                        <StarFilled className="sk-star" /> {rating}
+                        <span className="sk-reviews">
+                          {" "}
+                          ({reviews.toLocaleString()})
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="sk-resultRight">
+                    <div className="sk-priceLine">
+                      <span className="sk-priceAmt">$168</span>
+                      <span className="sk-priceSub">total</span>
+                    </div>
+
+                    <SaveTripButton
+                      size="small"
+                      variant="ghost"
+                      label="Save"
+                      onSaveConfirmed={() => handleSaveTrip("result")}
+                    />
+                  </div>
                 </div>
-              </Col>
 
-              <Col span={6} className="sk-price">
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                    gap: 8,
-                  }}
-                >
-                  <div>$168 total</div>
-
-                  {/* ✅ Add SaveTripButton on each result card too */}
-                  <SaveTripButton
-                    onSaveConfirmed={() => handleSaveTrip("result")}
-                  />
+                <div className="sk-tagRow">
+                  <span className="sk-tag sk-tag-good">Best Value</span>
+                  <span className="sk-tag sk-tag-orange">
+                    Free cancellation
+                  </span>
+                  <span className="sk-tag sk-tag-soft">No resort fee</span>
                 </div>
-              </Col>
-            </Row>
+
+                <div className="sk-bestFor">
+                  <span className="sk-bestForLabel">Best for:</span>
+                  {bestFor.map((t) => (
+                    <span key={t} className="sk-tag sk-tag-bestfor">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
           </Card>
         </Col>
 
-        {/* ================= BUDGET ================= */}
+        {/* ================= TRIP BUDGET ================= */}
         <Col span={8}>
-          <Card className="sk-budget-card" bordered={false}>
-            <Title level={4} className="sk-card-title">
-              Trip Budget
-            </Title>
-
-            <div className="sk-budget-top">
-              <Text className="sk-muted">Total Budget</Text>
-              <InputNumber
-                className="sk-number sk-orange-number"
-                prefix="$"
-                value={budgetTotal}
-                min={0}
-                step={50}
-                onChange={(v) => setBudgetTotal(Number(v || 0))}
-              />
-            </div>
-
-            <Title className="sk-budget-left">
-              ${left.toLocaleString()} Left
-            </Title>
-
-            <Progress percent={percent} showInfo={false} />
-            <Text className="sk-muted">
-              Used: ${Number(used || 0).toLocaleString()}
-            </Text>
-
-            <Divider className="sk-divider" />
-
-            <div className="sk-budget-input">
-              <Text className="sk-muted">Add Expense</Text>
-
-              <InputNumber
-                className="sk-number sk-orange-number"
-                prefix="$"
-                value={expenseAmount}
-                min={0}
-                step={10}
-                onChange={(v) => setExpenseAmount(Number(v || 0))}
-              />
-
-              <Input
-                className="sk-glass-input"
-                value={expenseLabel}
-                onChange={(e) => setExpenseLabel(e.target.value)}
-                placeholder="Category (e.g., Dinner & Drinks)"
-              />
-
-              <Button className="sk-btn-orange" onClick={addExpense}>
-                Add
-              </Button>
-
-              <Text className="sk-budget-hint">
-                Tip: Later we’ll save categories + history per trip.
-              </Text>
-            </div>
-          </Card>
+          <TripBudgetCard
+            bookingTotal={bookingTotal}
+            planned={budgetTotal}
+            used={used}
+            expenseAmount={expenseAmount}
+            onChangePlanned={setBudgetTotal}
+            onChangeExpenseAmount={setExpenseAmount}
+            onAddExpense={addExpense}
+            onReset={resetBudget}
+          />
         </Col>
       </Row>
     </Layout>
