@@ -21,6 +21,21 @@
      ============================= */
   --sk-text: rgba(244, 246, 251, 0.92);
   --sk-muted: rgba(244, 246, 251, 0.72);
+
+  /* =============================
+     Gate Exit Modal tokens (added)
+     ============================= */
+  --sk-faint: rgba(244, 246, 251, 0.55);
+
+  --sk-stroke: rgba(255, 255, 255, 0.14);
+  --sk-glassA: rgba(255, 255, 255, 0.10);
+  --sk-glassB: rgba(255, 255, 255, 0.06);
+
+  --sk-orange: #ff8a2a;
+  --sk-orange2: #ffb066;
+
+  --sk-ctaA: #6f68ff;
+  --sk-ctaB: #c661ff;
 }
 
 /* =================================================
@@ -60,7 +75,7 @@ header.main-layout-header,
 }
 
 /* =================================================
-   GLASS LAYER
+   GLASS LAYER (🚨 CLICK SAFE)
 ================================================= */
 .sk-nav::before {
   content: "";
@@ -78,6 +93,8 @@ header.main-layout-header,
   -webkit-backdrop-filter: blur(18px);
 
   transition: background 220ms ease, backdrop-filter 220ms ease;
+
+  pointer-events: none; /* ✅ critical fix */
 }
 
 .sk-nav.is-compact::before {
@@ -117,14 +134,123 @@ header.main-layout-header,
 .sk-brand {
   background: none;
   border: none;
-  padding: 0;
   cursor: pointer;
-  display: flex;
+
+  display: inline-flex;
   align-items: center;
+  gap: 14px;
+
+  padding: 10px 14px;
+  border-radius: 18px;
+
+  position: relative;
+  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.sk-brand:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.sk-brand:active {
+  transform: translateY(0px) scale(0.99);
+}
+
+/* ✅ Elite Brand: mark + glow */
+.sk-brandMark {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.sk-brandGlow {
+  position: absolute;
+  inset: -18px;
+  border-radius: 22px;
+
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 122, 24, 0.52),
+    rgba(155, 92, 255, 0.34),
+    rgba(0, 0, 0, 0) 70%
+  );
+
+  filter: blur(12px);
+  opacity: 0.85;
+  transition: opacity 180ms ease, transform 180ms ease;
+
+  animation: skGlowPulse 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.sk-brand:hover .sk-brandGlow {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+@keyframes skGlowPulse {
+  0% { transform: scale(1); opacity: 0.82; }
+  50% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.82; }
+}
+
+/* ✅ Elite Brand: text block */
+.sk-brandText {
+  position: relative;
+  display: grid;
+  line-height: 1.05;
+  padding-right: 10px;
+}
+
+.sk-brandName {
+  font-size: 20px;
+  font-weight: 950;
+  letter-spacing: 0.2px;
+
+  background: linear-gradient(90deg, #ff7a18, #ffb347, #9b5cff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  text-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.sk-brandTag {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.82;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* ✅ Shine sweep */
+.sk-brandShine {
+  pointer-events: none;
+  position: absolute;
+  inset: -8px -18px;
+  border-radius: 18px;
+  background: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0) 35%,
+    rgba(255, 255, 255, 0.16) 48%,
+    rgba(255, 255, 255, 0) 60%
+  );
+  transform: translateX(-70%);
+  opacity: 0;
+}
+
+.sk-brand:hover .sk-brandShine {
+  opacity: 1;
+  animation: skShine 850ms ease forwards;
+}
+
+@keyframes skShine {
+  from { transform: translateX(-70%); }
+  to   { transform: translateX(70%); }
 }
 
 /* =================================================
-   LOGO (🔥 FINAL SIZE FIX)
+   LOGO (your existing sizing system stays)
 ================================================= */
 .sk-logoWrap {
   width: var(--logo-tile);
@@ -147,7 +273,7 @@ header.main-layout-header,
   filter: drop-shadow(0 2px 10px rgba(0,0,0,0.25));
 }
 
-/* Compact scroll state */
+/* Compact */
 .sk-nav.is-compact .sk-logoWrap {
   width: var(--logo-tile-compact);
   height: var(--logo-tile-compact);
@@ -156,8 +282,12 @@ header.main-layout-header,
 .sk-nav.is-compact .sk-logoImg {
   width: var(--logo-img-compact);
   height: var(--logo-img-compact);
-
   transform: scale(1.55);
+}
+
+/* hide tagline in compact (premium + clean) */
+.sk-nav.is-compact .sk-brandTag {
+  display: none;
 }
 
 /* =================================================
@@ -203,6 +333,30 @@ header.main-layout-header,
   gap: 10px;
 }
 
+/* =================================================
+   USER
+================================================= */
+.sk-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sk-hello {
+  color: var(--sk-text);
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  opacity: 0.92;
+}
+
+.sk-nav.is-compact .sk-hello {
+  opacity: 0.88;
+}
+
+/* =================================================
+   BUTTONS
+================================================= */
 .sk-btnPrimary {
   height: 42px;
   border-radius: 14px;
@@ -218,6 +372,16 @@ header.main-layout-header,
   background: rgba(255,255,255,0.08);
   color: var(--sk-text);
   border: 1px solid rgba(255,255,255,0.16);
+}
+
+/* Optional (used by Navbar.jsx) */
+.sk-logoutBtn {
+  border-color: rgba(255, 138, 42, 0.38) !important;
+  background: rgba(255, 138, 42, 0.12) !important;
+}
+.sk-logoutBtn:hover {
+  border-color: rgba(255, 138, 42, 0.55) !important;
+  background: rgba(255, 138, 42, 0.16) !important;
 }
 
 /* =================================================
@@ -278,4 +442,290 @@ header.main-layout-header,
   .sk-btnGhost {
     height: 40px;
   }
+
+  .sk-hello {
+    display: none;
+  }
+
+  /* Keep brand clean on mobile */
+  .sk-brandTag {
+    display: none;
+  }
+
+  .sk-brandName {
+    font-size: 16px;
+  }
+}
+
+/* =================================================
+   🚨 GLOBAL OVERLAY SAFETY (KEY FIX)
+================================================= */
+.sk-overlay,
+.ss-overlay,
+.hero-overlay,
+.page-overlay,
+.bg-overlay,
+[class*="overlay"] {
+  pointer-events: none !important;
+}
+
+/* =================================================
+   FINAL SAFETY NET
+================================================= */
+.sk-nav,
+.sk-nav * {
+  pointer-events: auto;
+}
+
+/* =================================================
+   Gate Exit Modal — Skyrio Theme (MERGED)
+   Uses className="sk-exitModal" from Navbar.jsx
+================================================= */
+
+/* Modal shell */
+.sk-exitModal .ant-modal-content {
+  background: linear-gradient(
+    180deg,
+    rgba(18, 10, 28, 0.86),
+    rgba(10, 7, 18, 0.82)
+  );
+  border: 1px solid var(--sk-stroke);
+  border-radius: 22px;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: var(--sk-text);
+  overflow: hidden;
+}
+
+/* Mask feel (optional nicer blend) */
+.sk-exitModal .ant-modal-mask {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* Hide default close style a bit cleaner */
+.sk-exitModal .ant-modal-close {
+  color: rgba(255, 255, 255, 0.75);
+}
+.sk-exitModal .ant-modal-close:hover {
+  color: white;
+}
+
+/* Inner wrap */
+.sk-exitWrap {
+  position: relative;
+  padding: 18px 18px 16px;
+}
+
+/* Galaxy glow layers */
+.sk-exitWrap::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: radial-gradient(
+      900px 420px at 20% 0%,
+      rgba(111, 104, 255, 0.32),
+      transparent 55%
+    ),
+    radial-gradient(
+      800px 420px at 85% 20%,
+      rgba(255, 138, 42, 0.26),
+      transparent 55%
+    ),
+    radial-gradient(
+      700px 420px at 50% 110%,
+      rgba(198, 97, 255, 0.2),
+      transparent 60%
+    );
+  pointer-events: none;
+  filter: blur(0px);
+}
+
+/* Top section */
+.sk-exitTop {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, var(--sk-glassA), var(--sk-glassB));
+  border-radius: 18px;
+  padding: 16px 16px 14px;
+  overflow: hidden;
+}
+
+.sk-exitBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.35);
+  background: rgba(255, 138, 42, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.sk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--sk-orange);
+  box-shadow: 0 0 18px rgba(255, 138, 42, 0.55);
+}
+
+.sk-exitTitle {
+  margin: 10px 0 4px !important;
+  color: var(--sk-text) !important;
+}
+
+.sk-exitSub {
+  display: block;
+  color: var(--sk-muted) !important;
+  line-height: 1.35;
+}
+
+/* Runway / exit lane */
+.sk-exitLane {
+  position: relative;
+  margin-top: 14px;
+  height: 64px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0.02)
+    ),
+    radial-gradient(
+      120px 60px at 85% 50%,
+      rgba(255, 138, 42, 0.2),
+      transparent 70%
+    );
+  overflow: hidden;
+}
+
+.sk-lights {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 138, 42, 0) 0px,
+    rgba(255, 138, 42, 0) 16px,
+    rgba(255, 138, 42, 0.38) 16px,
+    rgba(255, 138, 42, 0.38) 18px
+  );
+  opacity: 0.35;
+  transform: translateX(-12px);
+  animation: sk_lane 2.8s linear infinite;
+}
+
+.sk-lights2 {
+  opacity: 0.22;
+  filter: blur(0.5px);
+  animation-duration: 4.2s;
+}
+
+@keyframes sk_lane {
+  0% {
+    transform: translateX(-18px);
+  }
+  100% {
+    transform: translateX(18px);
+  }
+}
+
+/* Tiny “plane” silhouette */
+.sk-exitPlane {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translateY(-50%) rotate(-12deg);
+  border-radius: 10px;
+  background: radial-gradient(
+      circle at 30% 30%,
+      rgba(255, 255, 255, 0.9),
+      rgba(255, 255, 255, 0) 55%
+    ),
+    radial-gradient(
+      circle at 70% 70%,
+      rgba(255, 138, 42, 0.55),
+      rgba(255, 138, 42, 0) 60%
+    );
+  opacity: 0.7;
+}
+
+/* Actions */
+.sk-exitActions {
+  position: relative;
+  padding: 14px 2px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk-exitHint {
+  color: rgba(244, 246, 251, 0.55);
+  font-size: 12px;
+}
+
+/* Buttons (only inside the modal to avoid breaking navbar buttons) */
+.sk-exitModal .sk-btn {
+  border-radius: 999px !important;
+  height: 38px !important;
+  padding: 0 14px !important;
+  font-weight: 800 !important;
+}
+
+.sk-exitModal .sk-btn-ghost {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(244, 246, 251, 0.92) !important;
+}
+.sk-exitModal .sk-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.sk-exitModal .sk-btn-cta {
+  border: none !important;
+  color: #1a0f22 !important;
+  background: linear-gradient(90deg, var(--sk-orange), var(--sk-orange2)) !important;
+  box-shadow: 0 10px 24px rgba(255, 138, 42, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+.sk-exitModal .sk-btn-cta:hover {
+  filter: brightness(1.04);
+}
+
+/* =================================================
+   Optional: body overlay animation hook you use
+   document.body.classList.add("sk-gate-exit")
+================================================= */
+body.sk-gate-exit::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: radial-gradient(
+      1200px 600px at 50% 20%,
+      rgba(255, 138, 42, 0.16),
+      transparent 60%
+    ),
+    radial-gradient(
+      1200px 700px at 50% 90%,
+      rgba(111, 104, 255, 0.16),
+      transparent 60%
+    ),
+    rgba(0, 0, 0, 0.20);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: sk_exitFade 900ms ease forwards;
+}
+
+@keyframes sk_exitFade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }

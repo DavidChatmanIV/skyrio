@@ -6,9 +6,7 @@ import { ConfigProvider } from "antd";
 /* ============================= */
 /* Providers */
 /* ============================= */
-import { AssistantProvider } from "@/context";
 import AuthProvider from "@/auth/AuthProvider.jsx";
-import AuthModalProvider from "@/auth/AuthModalController.jsx";
 
 /* ============================= */
 /* Routes */
@@ -26,10 +24,7 @@ import "./styles/Navbar.css";
 import "./styles/LandingPage.css";
 import "./styles/BookingPage.css";
 import "./styles/flights.css";
-
-// ✅ NEW: SkyHub styles (was skystream.css)
 import "./styles/skyhub.css";
-
 import "./styles/profile-passport.css";
 import "./styles/SmartPlan.css";
 import "./styles/surfaces.css";
@@ -45,19 +40,15 @@ createRoot(rootEl).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <AuthModalProvider>
-          <AssistantProvider>
-            <ConfigProvider
-              theme={{
-                components: {
-                  Card: { variant: "outlined" },
-                },
-              }}
-            >
-              <AppRoutes />
-            </ConfigProvider>
-          </AssistantProvider>
-        </AuthModalProvider>
+        <ConfigProvider
+          theme={{
+            components: {
+              Card: { variant: "outlined" },
+            },
+          }}
+        >
+          <AppRoutes />
+        </ConfigProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

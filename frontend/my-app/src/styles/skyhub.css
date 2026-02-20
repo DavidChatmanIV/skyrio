@@ -1,503 +1,181 @@
-/* Global height safety */
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
+:root{
+  --skyhub-text: rgba(244,246,251,.94);
+  --skyhub-muted: rgba(244,246,251,.72);
+
+  --skyhub-glassA: rgba(255,255,255,.12);
+  --skyhub-glassB: rgba(255,255,255,.08);
+  --skyhub-stroke: rgba(255,255,255,.18);
+
+  --skyhub-radius: 22px;
+  --skyhub-blur: 16px;
+
+  --skyhub-orange: #ff8a2a;
+  --skyhub-orange2: #ffb066;
+
+  --skyhub-shadow: 0 22px 70px rgba(0,0,0,.28);
+
+  /* set from JSX: style={{ "--skyhub-bg": `url(${beachBg})` }} */
+  --skyhub-bg: none;
 }
 
-/* ===============================
-   SKYHUB: BACKGROUND ENGINE
-=============================== */
-
-/* Page wrapper (layout only) */
-.ss-page {
-  /* Default background image (can be overridden via inline style vars from SkyHubPage.jsx) */
-  --sh-bg-url: url("../assets/Skyhub/beach.png");
-
-  /* Default gradient overlay vars (can be overridden via inline style vars) */
-  --sh-g1: rgba(40, 18, 70, 0.78);
-  --sh-g2: rgba(90, 48, 130, 0.62);
-  --sh-g3: rgba(255, 138, 42, 0.28);
-
-  /* Parallax controls */
-  --sh-bg-x: 50%;
-  --sh-bg-y: 50%;
-  --sh-bg-scale: 1.05;
-
-  min-height: 100vh;
+/* =========================================================
+   SKYHUB PAGE BACKGROUND (SAFE LAYERS)
+   ========================================================= */
+.skyhub-page{
+  min-height: calc(100vh - 64px);
   width: 100%;
+  color: var(--skyhub-text);
+
   position: relative;
-  overflow-x: hidden;
+  overflow-x: clip;
 
-  /* ✅ keep content below navbar */
-  padding-top: var(--nav-h, 86px);
+  /* ✅ This fixes weird stacking bugs with overlays */
+  isolation: isolate;
 }
 
-/* Full-viewport background layer (behind navbar too) */
-.ss-page::before {
-  content: "";
-  position: fixed;
+/* ✅ Background IMAGE (fixed behind content) */
+.skyhub-page::before{
+  content:"";
+  position: fixed;        /* ✅ fixed avoids scroll/stack issues */
   inset: 0;
-  z-index: -2;
+  z-index: 0;
 
-  background-image:
-    linear-gradient(180deg, var(--sh-g1) 0%, var(--sh-g2) 45%, var(--sh-g3) 100%),
-    var(--sh-bg-url);
-
+  background-image: var(--skyhub-bg);
   background-size: cover;
-  background-position: var(--sh-bg-x) var(--sh-bg-y);
+  background-position: center;
   background-repeat: no-repeat;
-  background-color: rgba(18, 10, 30, 1);
 
-  transform: scale(var(--sh-bg-scale));
-  transform-origin: center;
-  will-change: background-position, transform;
+  pointer-events: none !important; /* ✅ never block clicks */
+  transform: translateZ(0);
 }
 
-/* Subtle animated glow overlay */
-.ss-overlay {
+/* ✅ Cinematic tone overlay (also never blocks clicks) */
+.skyhub-page::after{
+  content:"";
   position: fixed;
   inset: 0;
-  z-index: -1;
-  pointer-events: none;
+  z-index: 1;
 
   background:
-    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.07), transparent 55%),
-    radial-gradient(circle at 80% 20%, rgba(255, 138, 42, 0.06), transparent 55%),
-    radial-gradient(circle at 55% 85%, rgba(140, 92, 255, 0.06), transparent 60%),
-    linear-gradient(180deg, rgba(18, 10, 30, 0.18), rgba(18, 10, 30, 0.55));
+    radial-gradient(1200px 700px at 60% 20%, rgba(255,170,120,.22), transparent 55%),
+    radial-gradient(900px 600px at 20% 15%, rgba(190,140,255,.22), transparent 55%),
+    linear-gradient(180deg, rgba(18,12,28,.46), rgba(18,12,28,.34));
 
-  animation: shGlowDrift 18s ease-in-out infinite alternate;
-  will-change: transform, filter;
+  pointer-events: none !important; /* ✅ never block clicks */
+  transform: translateZ(0);
 }
 
-@keyframes shGlowDrift {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: saturate(1.02);
-  }
-  100% {
-    transform: translate3d(0, -10px, 0) scale(1.03);
-    filter: saturate(1.08);
-  }
-}
-
-/* Slow parallax (desktop only) */
-@keyframes shParallax {
-  0% {
-    background-position: 50% 48%;
-  }
-  100% {
-    background-position: 50% 58%;
-  }
-}
-
-@media (min-width: 769px) {
-  .ss-page.is-parallax::before {
-    animation: shParallax 22s ease-in-out infinite alternate;
-  }
-}
-
-/* Mobile safety: avoid fixed background jank */
-@media (max-width: 768px) {
-  .ss-page::before {
-    position: absolute;
-    transform: none;
-  }
-  .ss-overlay {
-    position: absolute;
-  }
-}
-
-/* Content layer */
-.ss-container {
+/* =========================================================
+   SHELL + GLASS SURFACES
+   ========================================================= */
+.skyhub-shell{
   position: relative;
-  z-index: 1;
-  width: 100%;
-  min-height: calc(100vh - var(--nav-h, 86px));
+  z-index: 2;               /* ✅ above ::before + ::after */
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 18px;
+
+  display: grid;
+  grid-template-columns: 260px minmax(0, 720px) 1fr; /* left / center / right */
+  gap: 18px;
+  align-items: start;
+
+  pointer-events: auto;
 }
 
-/* =================================================
-   Layout wrappers from new SkyHub components
-================================================= */
-
-.sh-layout {
-  width: 100%;
+.skyhub-left,
+.skyhub-main,
+.skyhub-right{
+  position: relative;
+  pointer-events: auto;
 }
 
-.sh-center {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
+.skyhub-left{ z-index: 3; }
+.skyhub-main{ z-index: 3; min-width: 0; }
+.skyhub-right{ z-index: 2; min-width: 0; }
 
-/* -------------------------
-   LeftRail (sh-*)
-------------------------- */
-.sh-leftRail {
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(14px);
-  padding: 16px;
-}
-
-.sh-leftTitle {
-  color: rgba(244, 246, 251, 0.62);
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0.4px;
-  margin: 2px 0 12px;
-}
-
-.sh-leftNav {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sh-leftItem {
+/* =========================================================
+   TOP BAR + TABS (ORANGE PILL)
+   ========================================================= */
+.skyhub-topbar{
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 14px;
-  color: rgba(244, 246, 251, 0.86);
-  background: rgba(0, 0, 0, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  font-weight: 700;
-  text-decoration: none;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+  pointer-events: auto;
 }
 
-.sh-leftItem:hover {
-  background: rgba(0, 0, 0, 0.18);
-  border-color: rgba(255, 255, 255, 0.14);
-}
-
-.sh-leftItem.is-active {
-  border-color: rgba(255, 155, 70, 0.55);
-  box-shadow: 0 0 0 2px rgba(255, 155, 70, 0.12) inset;
-}
-
-.sh-leftIcon {
+.skyhub-topTitle{
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  color: rgba(244, 246, 251, 0.9);
-}
-
-.sh-leftLabel {
-  font-weight: 800;
-}
-
-/* -------------------------
-   MomentsHeader (sh-*)
-------------------------- */
-.sh-momentsHeader {
-  margin: 0;
-}
-
-.sh-momentsTitleRow {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sh-momentsTitle {
-  margin: 0;
-  color: rgba(244, 246, 251, 0.95);
-  font-weight: 900;
+  gap: 10px;
+  font-weight: 950;
+  font-size: 34px;
   letter-spacing: -0.02em;
-  font-size: 44px;
-  line-height: 1.05;
 }
 
-.sh-momentsSubtitle {
-  color: rgba(244, 246, 251, 0.75);
-  font-weight: 600;
-}
+.skyhub-cloud{ opacity: .9; }
+.skyhub-title{ color: var(--skyhub-text); }
 
-/* -------------------------
-   MomentsFilters (sh-*)
-------------------------- */
-.sh-momentsFilters {
-  width: 100%;
-}
-
-.sh-filterTabs {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.sh-filterTab {
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(244, 246, 251, 0.88);
-  font-weight: 800;
-  padding: 6px 14px;
-  height: 36px;
-  cursor: pointer;
-}
-
-.sh-filterTab:hover {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.sh-filterTab.is-active {
-  border-color: rgba(255, 155, 70, 0.55);
-  box-shadow: 0 0 0 2px rgba(255, 155, 70, 0.12) inset;
-}
-
-/* -------------------------
-   MomentsFeed (sh-*)
-------------------------- */
-.sh-feed {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.sh-feedNotice {
-  border-radius: 18px;
-  background: rgba(255, 155, 70, 0.1);
-  border: 1px solid rgba(255, 155, 70, 0.25);
-  padding: 14px;
-  color: rgba(244, 246, 251, 0.9);
-  font-weight: 700;
-}
-
-.sh-feedList {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.sh-post {
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(14px);
-  padding: 16px;
-}
-
-.sh-postHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.sh-postUser {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sh-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.sh-nameRow {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.sh-name {
-  color: rgba(244, 246, 251, 0.92);
-  font-weight: 900;
-}
-
-.sh-handle {
-  color: rgba(244, 246, 251, 0.62);
-  font-weight: 600;
-}
-
-.sh-badge {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(244, 246, 251, 0.85);
-  font-weight: 800;
-  text-transform: lowercase;
-}
-
-.sh-moreBtn {
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.18);
-  color: rgba(244, 246, 251, 0.9);
-  padding: 6px 10px;
-  cursor: pointer;
-}
-
-.sh-text {
-  color: rgba(244, 246, 251, 0.88);
-  margin: 10px 0 8px;
-  font-weight: 600;
-}
-
-.sh-tags {
-  display: flex;
+.skyhub-tabs{
+  margin-left: 8px;
+  display: inline-flex;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.sh-tag {
-  padding: 6px 12px;
+  padding: 8px;
   border-radius: 999px;
-  background: rgba(255, 155, 70, 0.16);
-  border: 1px solid rgba(255, 155, 70, 0.26);
-  color: rgba(244, 246, 251, 0.9);
-  font-weight: 800;
-}
 
-.sh-media img {
-  width: 100%;
-  height: 190px;
-  object-fit: cover;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.sh-postFooter {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.sh-action {
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(244, 246, 251, 0.9);
-  font-weight: 800;
-  padding: 6px 12px;
-  cursor: pointer;
-}
-
-.sh-action:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.sh-spacer {
-  flex: 1;
-}
-
-/* -------------------------
-   RightRail (sh-*)
-------------------------- */
-.sh-rightRail {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.sh-card {
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.18);
   backdrop-filter: blur(14px);
-  padding: 16px;
+  -webkit-backdrop-filter: blur(14px);
+
+  pointer-events: auto;
 }
 
-.sh-cardTitle {
-  margin: 0 0 12px;
-  color: rgba(244, 246, 251, 0.92);
+.skyhub-tab{
+  text-decoration: none;
   font-weight: 900;
-}
-
-.sh-hotList {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sh-hotItem {
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: rgba(255, 155, 70, 0.18);
-  border: 1px solid rgba(255, 155, 70, 0.28);
-}
-
-.sh-hotRow {
-  display: flex;
-  justify-content: space-between;
-  color: rgba(244, 246, 251, 0.92);
-  font-weight: 900;
-  margin-bottom: 8px;
-}
-
-.sh-bar {
-  height: 10px;
+  padding: 10px 16px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  overflow: hidden;
+  color: rgba(244,246,251,.86);
+  border: 1px solid transparent;
 }
 
-.sh-barFill {
-  height: 100%;
-  border-radius: 999px;
-  background: rgba(255, 155, 70, 0.92);
+.skyhub-tab.is-active{
+  background: linear-gradient(180deg, rgba(255, 176, 102, .98), rgba(255, 138, 42, .98));
+  color: rgba(22,12,32,.92);
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  border-color: rgba(255,255,255,.18);
 }
 
-.sh-deals {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* =========================================================
+   CONTENT WRAP
+   ========================================================= */
+.skyhub-content{
+  min-width: 0;
+  pointer-events: auto;
 }
 
-.sh-dealCard {
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+/* =========================================================
+   SAFETY: If any other overlays exist, they must not block
+   ========================================================= */
+.skyhub-overlay,
+.skyhub-tone,
+.overlayTone,
+.OverlayTone,
+.glassOverlay{
+  pointer-events: none !important;
 }
 
-.sh-dealPlace {
-  color: rgba(244, 246, 251, 0.92);
-  font-weight: 900;
-}
-
-.sh-dealRow {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-  color: rgba(244, 246, 251, 0.72);
-  font-weight: 700;
-}
-
-.sh-dealNote {
-  margin-top: 10px;
-  color: rgba(244, 246, 251, 0.62);
-  font-weight: 700;
-  font-size: 12px;
-}
-
-/* Mobile: reduce Moments title size */
-@media (max-width: 992px) {
-  .sh-momentsTitle {
-    font-size: 40px;
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 980px){
+  .skyhub-shell{
+    grid-template-columns: 1fr;
+  }
+  .skyhub-right{
+    display:none;
   }
 }

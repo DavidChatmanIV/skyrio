@@ -1,25 +1,14 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  Row,
-  Col,
   Card,
   Typography,
-  Space,
   Avatar,
   Button,
   Progress,
-  Input,
-  Tag,
-  Segmented,
   message as antdMessage,
   Skeleton,
+  Tag, // ✅ required (fixes Tag is not defined)
 } from "antd";
 import {
   UserOutlined,
@@ -27,11 +16,6 @@ import {
   ShareAltOutlined,
   PlayCircleOutlined,
   SoundOutlined,
-  IdcardOutlined,
-  CompassOutlined,
-  GlobalOutlined,
-  GiftOutlined,
-  RightOutlined,
   LeftOutlined,
 } from "@ant-design/icons";
 import { io } from "socket.io-client";
@@ -47,27 +31,8 @@ import ProfileMusicModal, {
   SKYRIO_PROFILE_MUSIC_KEY,
 } from "./music/ProfileMusicModal";
 
-/* Sections */
-import PassportFooter from "./PassportFooter";
-import PassportHighlights from "./PassportHighlights";
-import StampStrip from "./StampStrip";
-import TravelHistory from "./TravelHistory";
-import TripList from "./TripList";
-import VisaList from "./VisaList";
-
-/* ✅ RENAMED (your change) */
-import VaultExchange from "./VaultExchange";
-import VaultExchangePreviewCard from "./VaultExchangePreviewCard";
-
 /* Social */
 import FollowersModal from "./FollowersModal";
-
-/* Top 8 */
-import TopEight from "./TopEight";
-import TopEightItemPlace from "./TopEightItemPlace";
-
-/* Privileges */
-import PassportPrivilegesCard from "./PassportPrivilegesCard";
 
 /* Auth */
 import { useAuth } from "../../auth/useAuth";
@@ -75,9 +40,6 @@ import { useAuth } from "../../auth/useAuth";
 /* Rewards */
 import RewardsOptInPrompt from "../../components/rewards/RewardsOptInPrompt";
 import useRewardsOptInPrompt from "../../hooks/useRewardsOptInPrompt";
-
-/* Admin */
-import AdminQuickControls from "./AdminQuickControls";
 
 const { Title, Text } = Typography;
 
@@ -88,35 +50,19 @@ function safeEmailPrefix(email) {
   return idx > 0 ? email.slice(0, idx) : email;
 }
 
-function makeReferralCode(user) {
-  const base =
-    user?.username || user?.name || safeEmailPrefix(user?.email) || "EXPLORER";
-  return `SKYRIO-${String(base)
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")}-001`;
-}
-
-/* ---------------- tabs ---------------- */
-/* ✅ UPDATED: "Skyrio Vault" → "Vault Exchange" */
-const PASSPORT_TABS = [
-  { key: "summary", label: "Passport Summary", icon: <IdcardOutlined /> },
-  { key: "journeys", label: "Your Journeys", icon: <CompassOutlined /> },
-  { key: "borders", label: "Access & Borders", icon: <GlobalOutlined /> },
-  { key: "vault", label: "Vault Exchange", icon: <GiftOutlined /> },
-];
-
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
 
-  const isAdmin = auth?.user?.role === "admin";
   const isAuthed = !!auth?.user;
+  const myId = useMemo(() => {
+    const u = auth?.user;
+    return u?._id || u?.id || null;
+  }, [auth?.user]);
 
   /* UI */
-  const [segment, setSegment] = useState("summary");
   const [musicOpen, setMusicOpen] = useState(false);
   const [profileMusic, setProfileMusic] = useState(null);
 
@@ -126,7 +72,7 @@ export default function DigitalPassportPage() {
 
   const [xp, setXp] = useState(0);
   const [xpToNextBadge, setXpToNextBadge] = useState(0);
-  const [nextBadgeName, setNextBadgeName] = useState("Wanderer");
+  const [nextBadgeName, setNextBadgeName] = useState("Explorer");
 
   const [passportStats, setPassportStats] = useState({
     followers: 0,
@@ -137,8 +83,6 @@ export default function DigitalPassportPage() {
   const [followMode, setFollowMode] = useState("following");
 
   const socketRef = useRef(null);
-
-  const rewardsEnabled = !!auth?.user?.settings?.rewardsEnabled;
 
   /* ---------------- derived ---------------- */
   const displayName = useMemo(() => {
@@ -159,20 +103,16 @@ export default function DigitalPassportPage() {
     [auth?.user]
   );
 
-  const referralCode = useMemo(
-    () => makeReferralCode(auth?.user),
-    [auth?.user]
-  );
-
-  const myId = useMemo(() => {
-    const u = auth?.user;
-    return u?._id || u?.id || null;
-  }, [auth?.user]);
+  const homeBaseLabel = useMemo(() => {
+    const hb = auth?.user?.homeBase;
+    if (hb && typeof hb === "string") return hb;
+    return "New Jersey";
+  }, [auth?.user?.homeBase]);
 
   const xpGoal = useMemo(() => {
     const current = Number(xp || 0);
     const remaining = Number(xpToNextBadge || 0);
-    const goal = remaining > 0 ? current + remaining : 100;
+    const goal = remaining > 0 ? current + remaining : Math.max(100, current);
     return Math.max(1, goal);
   }, [xp, xpToNextBadge]);
 
@@ -181,29 +121,13 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
-  // (optional) preview behavior tier if your new PreviewCard uses it
-  const vaultTier = useMemo(() => {
-    const plan = String(auth?.user?.membershipTier || auth?.user?.plan || "")
-      .toLowerCase()
-      .trim();
-
-    if (isAdmin || plan.includes("premium") || plan.includes("pro"))
-      return "PREMIUM";
-    if (rewardsEnabled || xp >= 25) return "ACTIVE";
-    return "LOCKED";
-  }, [auth?.user, rewardsEnabled, xp, isAdmin]);
-
-  /* ---------------- effects ---------------- */
-
   /* ✅ transition toast after auth redirect */
   useEffect(() => {
     const fromAuth = !!location?.state?.fromAuth;
     if (!fromAuth) return;
 
     antdMessage.success({
-      content: `Welcome aboard${
-        auth?.user?.name ? `, ${auth.user.name}` : ""
-      } ✈️`,
+      content: `Welcome aboard${auth?.user?.name ? `, ${auth.user.name}` : ""} ✈️`,
       duration: 2,
     });
 
@@ -242,12 +166,12 @@ export default function DigitalPassportPage() {
         if (!mounted) return;
         setXp(Number(data?.xp ?? 0));
         setXpToNextBadge(Number(data?.xpToNextBadge ?? 0));
-        setNextBadgeName(String(data?.nextBadgeName ?? "Wanderer"));
+        setNextBadgeName(String(data?.nextBadgeName ?? "Explorer"));
       } catch {
         if (!mounted) return;
         setXp(0);
         setXpToNextBadge(0);
-        setNextBadgeName("Wanderer");
+        setNextBadgeName("Explorer");
       } finally {
         if (mounted) setXpLoading(false);
       }
@@ -327,15 +251,6 @@ export default function DigitalPassportPage() {
   }, [myId]);
 
   /* ---------------- actions ---------------- */
-  const copyReferral = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(referralCode);
-      antdMessage.success("Referral code copied");
-    } catch {
-      antdMessage.error("Copy failed");
-    }
-  }, [referralCode]);
-
   const copyPassportLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -345,67 +260,78 @@ export default function DigitalPassportPage() {
     }
   }, []);
 
-  const goMembership = useCallback(() => {
-    navigate("/membership");
-  }, [navigate]);
+  const onShare = useCallback(() => {
+    antdMessage.info("Sharing enabled post-launch");
+  }, []);
 
-  /* ✅ Segmented options with icons */
-  const segmentedOptions = useMemo(
-    () =>
-      PASSPORT_TABS.map((t) => ({
-        label: (
-          <span className="ppSegLabel">
-            <span className="ppSegIcon">{t.icon}</span>
-            <span className="ppSegText">{t.label}</span>
-          </span>
-        ),
-        value: t.key,
-      })),
-    []
-  );
-
-  // ✅ placeholders (keep your “identity stamps” behavior without breaking)
-  const homeBaseLabel = useMemo(() => {
-    const hb = auth?.user?.homeBase;
-    if (hb && typeof hb === "string") return hb;
-    return "Based on your region";
-  }, [auth?.user?.homeBase]);
-
-  const travelerTypeLabel = useMemo(() => "Explorer", []);
-  const memberSinceLabel = useMemo(() => "2026", []);
-
-  // ✅ Inner Circle + Top8 mock data (same as your original)
-  const innerCircleFriends = useMemo(
+  /* ---------------- mock data for visual match ---------------- */
+  const journeys = useMemo(
     () => [
-      { id: "ic1", name: "Tokyo", coverUrl: "/images/circle/friend1.jpg" },
-      { id: "ic2", name: "Paris", coverUrl: "/images/circle/friend2.jpg" },
-      { id: "ic3", name: "Dubai", coverUrl: "/images/circle/friend3.jpg" },
+      {
+        id: "tokyo",
+        name: "Tokyo",
+        last: "Sep 2021",
+        img: "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?auto=format&fit=crop&w=1200&q=70",
+      },
+      {
+        id: "paris",
+        name: "Paris",
+        last: "2021",
+        img: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=70",
+      },
+      {
+        id: "rome",
+        name: "Rome",
+        last: "Dec 2025",
+        img: "https://images.unsplash.com/photo-1526481280695-3c687fd5432c?auto=format&fit=crop&w=1200&q=70",
+      },
+      {
+        id: "miami",
+        name: "Miami",
+        last: "Aug 2025",
+        img: "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=1200&q=70",
+      },
     ],
     []
   );
 
-  const top8Places = useMemo(
+  const partners = useMemo(
     () => [
-      { id: "p1", name: "Tokyo", country: "Japan", badge: "Dream Trip" },
-      { id: "p2", name: "Paris", country: "France", badge: "Favorite" },
-      { id: "p3", name: "Dubai", country: "UAE", badge: "Luxury" },
-      { id: "p4", name: "Honolulu", country: "USA", badge: "Beach" },
+      {
+        id: "p1",
+        name: "Marcus",
+        trips: "2 Trips Together",
+        last: "Last Trip: Miami (Dec 2025)",
+      },
+      {
+        id: "p2",
+        name: "Sarah",
+        trips: "1 Trip Together",
+        last: "Last Trip: Cancun (Aug 2025)",
+      },
     ],
     []
   );
-
-  const canEditTop8 = !!auth?.user;
 
   return (
     <div className="passport-page">
-      {/* FULL-PAGE background */}
+      {/* ✅ Skyrio Gradient Defs (safe to keep) */}
+      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+        <defs>
+          <linearGradient id="skyrioGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#FF8C3C" />
+            <stop offset="100%" stopColor="#8B5CFF" />
+          </linearGradient>
+        </defs>
+      </svg>
+
+      {/* Background */}
       <div
         className="passport-bg"
         style={{ backgroundImage: `url(${passportBg})` }}
         aria-hidden="true"
       />
 
-      {/* Content */}
       <div className="passport-content">
         <RewardsOptInPrompt
           open={rewardsOptIn.open}
@@ -415,8 +341,8 @@ export default function DigitalPassportPage() {
 
         <div className="passport-scope">
           <div className="pp-page">
-            <div className="pp-shell pp-shell--mock">
-              {/* ✅ HOME BUTTON */}
+            <div className="pp-shell">
+              {/* HOME button (mock top-left) */}
               <div className="pp-homeBtnWrap">
                 <Button
                   type="text"
@@ -428,24 +354,19 @@ export default function DigitalPassportPage() {
                 </Button>
               </div>
 
-              {/* =========================
-                  HERO (unified hero — matches your Image 1 layout)
-              ========================= */}
-              <Card bordered={false} className="pp-card pp-heroPanel">
-                <div className="pp-heroInner">
-                  {/* LEFT */}
-                  <div className="pp-heroCol pp-heroCol--left">
-                    <div className="pp-heroTop">
-                      <div className="pp-avatarGlow">
-                        <Avatar size={86} icon={<UserOutlined />} />
+              {/* ✅ MOCK GRID: Left main + Right sidebar */}
+              <div className="pp-mockGrid">
+                {/* ============ LEFT MAIN ============ */}
+                <div className="pp-mockMain">
+                  {/* Top: Profile strip (matches mock left top) */}
+                  <Card bordered={false} className="pp-card pp-profileCard">
+                    <div className="pp-profileRow">
+                      <div className="pp-profileAvatar">
+                        <Avatar size={92} icon={<UserOutlined />} />
                       </div>
 
-                      <div className="pp-heroName">
-                        <Title
-                          level={2}
-                          className="pp-title"
-                          style={{ margin: 0 }}
-                        >
+                      <div className="pp-profileMeta">
+                        <Title level={2} className="pp-title" style={{ margin: 0 }}>
                           {displayName}
                         </Title>
 
@@ -454,173 +375,187 @@ export default function DigitalPassportPage() {
                         </Text>
 
                         <div style={{ marginTop: 10 }}>
-                          <span className="pp-pill pp-pill--active">
-                            🟠 Passport Active
-                          </span>
+                          <span className="pp-pill pp-pill--active">🟠 Passport Active</span>
                         </div>
+
+                        <div className="pp-followRow pp-followRow--mock">
+                          <button
+                            className="ppFollowBtn"
+                            onClick={() => {
+                              setFollowMode("followers");
+                              setFollowOpen(true);
+                            }}
+                            type="button"
+                            disabled={!isAuthed}
+                          >
+                            <strong>
+                              {statsLoading ? <span style={{ opacity: 0.75 }}>—</span> : passportStats.followers}
+                            </strong>
+                            <span>Followers</span>
+                          </button>
+
+                          <button
+                            className="ppFollowBtn"
+                            onClick={() => {
+                              setFollowMode("following");
+                              setFollowOpen(true);
+                            }}
+                            type="button"
+                            disabled={!isAuthed}
+                          >
+                            <strong>
+                              {statsLoading ? <span style={{ opacity: 0.75 }}>—</span> : passportStats.following}
+                            </strong>
+                            <span>Following</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Center ring (sits inside same top band like mock) */}
+                      <div className="pp-profileRing">
+                        {xpLoading ? (
+                          <div style={{ width: 190 }}>
+                            <Skeleton active paragraph={{ rows: 2 }} />
+                          </div>
+                        ) : (
+                          <Progress
+                            type="dashboard"
+                            percent={xpPercent}
+                            strokeWidth={10}
+                            className="pp-levelRing pp-levelRing--mock"
+                            format={() => (
+                              <div className="pp-levelText">
+                                <div className="pp-levelRole">{nextBadgeName}</div>
+                                <div className="pp-levelNum">Level {levelNumber}</div>
+                                <div className="pp-levelXp">{xp} XP</div>
+                              </div>
+                            )}
+                          />
+                        )}
                       </div>
                     </div>
+                  </Card>
 
-                    {/* Follow pills */}
-                    <div className="pp-followRow">
-                      <button
-                        className="ppFollowBtn"
-                        onClick={() => {
-                          setFollowMode("followers");
-                          setFollowOpen(true);
-                        }}
-                        type="button"
-                        disabled={!isAuthed}
-                        title={!isAuthed ? "Log in to view followers" : ""}
-                      >
-                        <strong>
-                          {statsLoading ? (
-                            <span style={{ opacity: 0.75 }}>—</span>
-                          ) : (
-                            passportStats.followers
-                          )}
-                        </strong>
-                        <span>Followers</span>
-                      </button>
-
-                      <button
-                        className="ppFollowBtn"
-                        onClick={() => {
-                          setFollowMode("following");
-                          setFollowOpen(true);
-                        }}
-                        type="button"
-                        disabled={!isAuthed}
-                        title={!isAuthed ? "Log in to view following" : ""}
-                      >
-                        <strong>
-                          {statsLoading ? (
-                            <span style={{ opacity: 0.75 }}>—</span>
-                          ) : (
-                            passportStats.following
-                          )}
-                        </strong>
-                        <span>Following</span>
-                      </button>
-                    </div>
-
-                    {/* Identity stamps */}
-                    <div
-                      className="pp-idStamps"
-                      role="group"
-                      aria-label="Passport identity stamps"
-                    >
-                      <div className="pp-idStamp">
-                        <div className="pp-idStampTop">
-                          <span className="pp-idIcon">🌍</span>
-                          <span className="pp-idLabel">Home Base</span>
-                        </div>
-                        <div className="pp-idValue">{homeBaseLabel}</div>
-                      </div>
-
-                      <div className="pp-idStamp">
-                        <div className="pp-idStampTop">
-                          <span className="pp-idIcon">🛂</span>
-                          <span className="pp-idLabel">Traveler Type</span>
-                        </div>
-                        <div className="pp-idValue">{travelerTypeLabel}</div>
-                      </div>
-
-                      <div className="pp-idStamp">
-                        <div className="pp-idStampTop">
-                          <span className="pp-idIcon">🗓</span>
-                          <span className="pp-idLabel">Member Since</span>
-                        </div>
-                        <div className="pp-idValue">{memberSinceLabel}</div>
-                      </div>
-                    </div>
+                  {/* Home base label row like mock */}
+                  <div className="pp-homeBaseRow">
+                    <span className="pp-homeBaseDot" />
+                    <span className="pp-homeBaseLabel">Home Base</span>
+                    <span className="pp-homeBaseSep">·</span>
+                    <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
-                  <div className="pp-heroDivider" />
+                  {/* Travel Soundtrack card (matches mock middle band) */}
+                  <Card bordered={false} className="pp-card pp-soundtrackCard">
+                    <div className="pp-soundtrackRow">
+                      <div
+                        className="pp-soundtrackCover"
+                        style={{
+                          backgroundImage: profileMusic?.artworkUrl
+                            ? `url(${profileMusic.artworkUrl})`
+                            : "url(https://images.unsplash.com/photo-1504805572947-34fad45aed93?auto=format&fit=crop&w=1200&q=70)",
+                        }}
+                      />
+                      <div className="pp-soundtrackMeta">
+                        <div className="pp-soundtrackTitle">Travel Soundtrack</div>
+                        <div className="pp-soundtrackSub">Lo-Fi Japan Playlist</div>
+                        <div className="pp-soundtrackTiny">Tokyo Trip · Sep 2021</div>
 
-                  {/* CENTER */}
-                  <div className="pp-heroCol pp-heroCol--center">
-                    <div className="pp-levelWrap pp-levelWrap--hero">
-                      {xpLoading ? (
-                        <div style={{ width: 220, margin: "0 auto" }}>
-                          <Skeleton active paragraph={{ rows: 2 }} />
+                        <div className="pp-audioBar">
+                          <div className="pp-audioProgress" style={{ width: "42%" }} />
                         </div>
-                      ) : (
-                        <Progress
-                          type="dashboard"
-                          percent={xpPercent}
-                          strokeWidth={10}
-                          className="pp-levelRing"
-                          format={() => (
-                            <div className="pp-levelText">
-                              <div className="pp-levelRole">
-                                {nextBadgeName}
-                              </div>
-                              <div className="pp-levelNum">
-                                Level {levelNumber}
-                              </div>
-                              <div className="pp-levelXp">
-                                {xp} / {xpGoal} XP
-                              </div>
-                            </div>
-                          )}
-                        />
-                      )}
+
+                        <div className="pp-audioControls">
+                          <button type="button" className="pp-audioBtn" aria-label="Previous">
+                            ⏮
+                          </button>
+                          <button
+                            type="button"
+                            className="pp-audioBtn pp-audioBtn--main"
+                            aria-label="Play"
+                            onClick={() => setMusicOpen(true)}
+                          >
+                            ⏯
+                          </button>
+                          <button type="button" className="pp-audioBtn" aria-label="Next">
+                            ⏭
+                          </button>
+
+                          <div className="pp-audioWave" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                            <span />
+                            <span />
+                            <span />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Travel Journeys carousel card */}
+                  <Card bordered={false} className="pp-card pp-journeysCard">
+                    <div className="pp-journeysHeader">
+                      <div className="pp-journeysTitle">Travel Journeys</div>
                     </div>
 
-                    <Text className="pp-muted" style={{ fontSize: 12 }}>
-                      Next Badge →{" "}
-                      <span className="pp-accentText">Globetrotter</span>
-                    </Text>
-                  </div>
+                    <div className="pp-journeysGrid">
+                      {journeys.map((j) => (
+                        <button
+                          key={j.id}
+                          type="button"
+                          className="pp-journeyTile"
+                          onClick={() => antdMessage.info("Journeys go live post-launch")}
+                        >
+                          <div
+                            className="pp-journeyImg"
+                            style={{ backgroundImage: `url(${j.img})` }}
+                          />
+                          <div className="pp-journeyOverlay" />
+                          <div className="pp-journeyText">
+                            <div className="pp-journeyName">{j.name}</div>
+                            <div className="pp-journeyLast">Last Trip: {j.last}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
 
-                  <div className="pp-heroDivider" />
-
-                  {/* RIGHT */}
-                  <div className="pp-heroCol pp-heroCol--right">
-                    <Title
-                      level={3}
-                      className="pp-title"
-                      style={{ marginBottom: 8 }}
+                    <button
+                      type="button"
+                      className="pp-viewAll"
+                      onClick={() => antdMessage.info("View all journeys (post-launch)")}
                     >
+                      View All Journeys <span className="pp-arrow">→</span>
+                    </button>
+                  </Card>
+                </div>
+
+                {/* ============ RIGHT SIDEBAR ============ */}
+                <div className="pp-mockSide">
+                  {/* Digital Passport actions (exact buttons from mock) */}
+                  <Card bordered={false} className="pp-card pp-actionsCard">
+                    <Title level={3} className="pp-title" style={{ marginBottom: 4 }}>
                       Digital Passport
                     </Title>
 
-                    <span className="pp-pill pp-pill--active">
-                      🟠 Passport Active
-                    </span>
-
-                    {/* Music + sharing */}
-                    <div className="pp-heroActions">
+                    <div className="pp-actionsStack">
                       <Button
-                        className="pp-ghost-btn pp-ghost-btn--music"
-                        icon={
-                          profileMusic ? (
-                            <SoundOutlined />
-                          ) : (
-                            <PlayCircleOutlined />
-                          )
-                        }
+                        className="pp-actionBtn"
+                        icon={profileMusic ? <SoundOutlined /> : <PlayCircleOutlined />}
                         onClick={() => setMusicOpen(true)}
                       >
                         {profileMusic ? "Profile Music" : "Add Profile Music"}
                       </Button>
 
                       <Button
-                        className="pp-ghost-btn"
+                        className="pp-actionBtn"
                         icon={<CopyOutlined />}
                         onClick={copyPassportLink}
                       >
                         Copy Link
                       </Button>
 
-                      <Button
-                        className="pp-ghost-btn"
-                        icon={<ShareAltOutlined />}
-                        onClick={() =>
-                          antdMessage.info("Sharing enabled post-launch")
-                        }
-                      >
+                      <Button className="pp-actionBtn" icon={<ShareAltOutlined />} onClick={onShare}>
                         Share
                       </Button>
                     </div>
@@ -629,312 +564,52 @@ export default function DigitalPassportPage() {
                       This passport unlocks stamps, borders, and rewards.
                     </Text>
 
-                    <div style={{ marginTop: 10 }}>
-                      <Button
-                        className="pp-ghost-btn"
-                        onClick={goMembership}
-                        icon={<RightOutlined />}
-                      >
-                        Upgrade your Passport
-                      </Button>
+                    <Button
+                      className="pp-upgradeBtn"
+                      onClick={() => navigate("/membership")}
+                    >
+                      Upgrade your Passport
+                    </Button>
+                  </Card>
+
+                  {/* Travel Partners card */}
+                  <Card bordered={false} className="pp-card pp-partnersCard">
+                    <div className="pp-partnersTitle">
+                      <span className="pp-partnersIcon">✈︎</span>
+                      Travel Journeys
                     </div>
+
+                    <div className="pp-partnerList">
+                      {partners.map((p) => (
+                        <div key={p.id} className="pp-partnerItem">
+                          <div className="pp-partnerAvatar">
+                            <Avatar size={34} icon={<UserOutlined />} />
+                          </div>
+                          <div className="pp-partnerMeta">
+                            <div className="pp-partnerName">
+                              {displayName} · {p.name}
+                            </div>
+                            <div className="pp-partnerSub">{p.trips}</div>
+                            <div className="pp-partnerTiny">{p.last}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      className="pp-inviteBtn"
+                      onClick={() => antdMessage.info("Invite travel partner (post-launch)")}
+                    >
+                      + Invite Travel Partner
+                    </Button>
+                  </Card>
+
+                  {/* Optional: little tag like mock-ish (safe) */}
+                  <div style={{ marginTop: 10, opacity: 0.95 }}>
+                    <Tag className="pp-tag ppTagDark">Soft Launch</Tag>
                   </div>
                 </div>
-              </Card>
-
-              {/* =========================
-                  TABS
-              ========================= */}
-              <Card
-                bordered={false}
-                className="pp-card pp-tabPanel pp-tabPanel--sticky"
-              >
-                <Segmented
-                  value={segment}
-                  onChange={setSegment}
-                  options={segmentedOptions}
-                  block
-                  className="pp-tabs"
-                />
-              </Card>
-
-              {/* =========================
-                  CONTENT
-              ========================= */}
-              {segment === "summary" && (
-                <>
-                  <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                    <Col xs={24} lg={14}>
-                      <Card bordered={false} className="pp-card pp-card--panel">
-                        <div className="pp-panelHeader">
-                          <Title
-                            level={4}
-                            className="pp-title"
-                            style={{ margin: 0 }}
-                          >
-                            Highlights
-                          </Title>
-                          <Text className="pp-muted">
-                            A quiet flex — clean and meaningful.
-                          </Text>
-                        </div>
-
-                        <PassportHighlights />
-
-                        <div style={{ marginTop: 16 }}>
-                          <PassportPrivilegesCard />
-                        </div>
-                      </Card>
-                    </Col>
-
-                    <Col xs={24} lg={10}>
-                      <Card
-                        bordered={false}
-                        className="pp-card pp-card--panel pp-innerCircleCard"
-                      >
-                        <div className="pp-panelHeaderRow pp-innerHeader">
-                          <div>
-                            <Title
-                              level={4}
-                              className="pp-title"
-                              style={{ margin: 0 }}
-                            >
-                              Your Inner Circle
-                            </Title>
-                            <Text
-                              className="pp-muted"
-                              style={{ display: "block", marginTop: 2 }}
-                            >
-                              Your top places & people — quick flex, always
-                              visible.
-                            </Text>
-                          </div>
-
-                          <span className="pp-xpChip">0 XP</span>
-                        </div>
-
-                        <div className="pp-innerGrid">
-                          {innerCircleFriends.slice(0, 3).map((it) => (
-                            <button
-                              key={it.id}
-                              type="button"
-                              className="pp-innerTile"
-                              onClick={() =>
-                                antdMessage.info(
-                                  "Inner Circle details post-launch"
-                                )
-                              }
-                            >
-                              <div
-                                className="pp-innerCover"
-                                style={{
-                                  backgroundImage: it.coverUrl
-                                    ? `url(${it.coverUrl})`
-                                    : "linear-gradient(135deg, rgba(120,90,255,.35), rgba(255,138,42,.25))",
-                                }}
-                              />
-                              <div className="pp-innerOverlay" />
-                              <div className="pp-innerMeta">
-                                <div className="pp-innerName">{it.name}</div>
-                                <div className="pp-innerSub">Passport Pick</div>
-                              </div>
-                            </button>
-                          ))}
-
-                          <button
-                            type="button"
-                            className="pp-innerTile pp-innerTile--add"
-                            onClick={() =>
-                              antdMessage.info(
-                                "Add to Inner Circle (post-launch)"
-                              )
-                            }
-                          >
-                            <div className="pp-innerAddPlus">+</div>
-                            <div className="pp-innerAddText">Add</div>
-                          </button>
-                        </div>
-
-                        <div className="pp-innerDots" aria-hidden="true">
-                          <span className="dot isOn" />
-                          <span className="dot" />
-                          <span className="dot" />
-                        </div>
-                      </Card>
-                    </Col>
-                  </Row>
-
-                  <div style={{ marginTop: 16 }}>
-                    <StampStrip />
-                  </div>
-
-                  <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                    <Col xs={24} lg={14}>
-                      <TopEight
-                        title="Places That Define You"
-                        subtitle="Top 8 Locations"
-                        canEdit={canEditTop8}
-                        storageKey={`skyrio_top8_places_${
-                          auth?.user?.id || "member"
-                        }`}
-                        defaultItems={top8Places}
-                        renderItem={(item, ctx) => (
-                          <TopEightItemPlace
-                            {...item}
-                            isDragging={ctx.isDragging}
-                          />
-                        )}
-                      />
-                    </Col>
-
-                    <Col xs={24} lg={10}>
-                      {/* ✅ UPDATED: CTA wording (optional, non-breaking) */}
-                      <VaultExchangePreviewCard
-                        level={levelNumber}
-                        balanceXp={xp}
-                        nextLevelGoal={250}
-                        featuredDrop="Priority Support Week"
-                        ctaLabel="Open Vault Exchange"
-                        tier={vaultTier} // harmless if component ignores it
-                      />
-                    </Col>
-                  </Row>
-
-                  <AdminQuickControls isAdmin={isAdmin} />
-                </>
-              )}
-
-              {segment === "journeys" && (
-                <>
-                  <TripList />
-                  <TravelHistory />
-                </>
-              )}
-
-              {segment === "borders" && <VisaList />}
-
-              {segment === "vault" && (
-                <>
-                  {/* ✅ UPDATED: Title/copy "Skyrio Vault" → "Vault Exchange" */}
-                  <Card
-                    bordered={false}
-                    className="osq-surface"
-                    style={{ marginTop: 16 }}
-                  >
-                    <Title level={5} style={{ marginBottom: 6 }}>
-                      Vault Exchange
-                    </Title>
-                    <Text type="secondary">
-                      Earn XP from bookings + quests. Redeem it for boosts,
-                      badges, and perks.
-                    </Text>
-
-                    <div style={{ marginTop: 12 }}>
-                      <Button type="primary" onClick={goMembership}>
-                        View Membership Options
-                      </Button>
-                      <Button
-                        style={{ marginLeft: 8 }}
-                        onClick={() => setSegment("summary")}
-                      >
-                        Back to Passport Summary
-                      </Button>
-                    </div>
-                  </Card>
-
-                  <VaultExchange showSearch={false} />
-
-                  {rewardsEnabled ? (
-                    <Card
-                      style={{ marginTop: 16 }}
-                      bordered={false}
-                      className="osq-surface"
-                    >
-                      <Title level={5} style={{ marginBottom: 6 }}>
-                        Seasonal Rewards
-                      </Title>
-
-                      <Text type="secondary">
-                        Limited-time XP missions and rewards. You control when
-                        seasons go live.
-                      </Text>
-
-                      <div style={{ marginTop: 12 }}>
-                        <Tag color="gold">Soft Launch</Tag>
-                        <Tag color="purple">Coming Soon</Tag>
-                      </div>
-
-                      <div style={{ marginTop: 12 }}>
-                        <Button
-                          type="primary"
-                          disabled
-                          style={{ marginRight: 8 }}
-                        >
-                          View Season Rewards
-                        </Button>
-
-                        <Button
-                          onClick={() =>
-                            antdMessage.info(
-                              "Seasonal rewards go live when you turn on a season."
-                            )
-                          }
-                        >
-                          How it works
-                        </Button>
-                      </div>
-                    </Card>
-                  ) : (
-                    <Card
-                      style={{ marginTop: 16 }}
-                      bordered={false}
-                      className="osq-surface"
-                    >
-                      <Title level={5} style={{ marginBottom: 6 }}>
-                        Rewards are off
-                      </Title>
-
-                      <Text type="secondary">
-                        Turn on Rewards to unlock XP missions, badges, and
-                        seasonal rewards.
-                      </Text>
-
-                      <div style={{ marginTop: 12 }}>
-                        <Button
-                          type="primary"
-                          onClick={() => rewardsOptIn.confirm(true)}
-                        >
-                          Turn on Rewards
-                        </Button>
-                      </div>
-                    </Card>
-                  )}
-
-                  <Card
-                    style={{ marginTop: 16 }}
-                    bordered={false}
-                    className="osq-surface"
-                  >
-                    <Title level={5}>Invite & Earn</Title>
-                    <Space wrap>
-                      <Input
-                        value={referralCode}
-                        readOnly
-                        style={{ minWidth: 280 }}
-                      />
-                      <Button icon={<CopyOutlined />} onClick={copyReferral} />
-                      <Button
-                        icon={<ShareAltOutlined />}
-                        onClick={() =>
-                          antdMessage.info("Sharing enabled post-launch")
-                        }
-                      />
-                    </Space>
-                  </Card>
-                </>
-              )}
-
-              <PassportFooter />
+              </div>
             </div>
           </div>
         </div>

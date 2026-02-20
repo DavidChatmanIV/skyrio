@@ -27,7 +27,7 @@ import { useAuth } from "../hooks/useAuth";
 import SavedExcursions from "../components/excursions/SavedExcursions";
 import UpcomingBookings from "../components/dashboard/UpcomingBookings";
 import TravelAlerts from "../components/dashboard/TravelAlerts";
-import XPBadgeCard from "../components/dashboard/XPBadgeCard";
+import XPBadgeCard from "./passport/XPBadgeCard";
 import FeedbackForm from "../components/FeedbackForm";
 
 const { Content } = Layout;

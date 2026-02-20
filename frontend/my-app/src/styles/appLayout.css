@@ -1,9 +1,22 @@
 /* ---------- Layout Shell ---------- */
 .osq-shell {
-  background: #f8f9fc; /* soft neutral so gradients pop */
+  background: #f8f9fc; /* default pages */
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* ✅ IMPORTANT: when using the global Skyrio shell, don't paint a separate bg */
+.osq-shell.sk-appShell {
+  background: transparent !important;
+}
+
+/* ✅ Make Ant Layout layers transparent so SkyHub bg can reach edges */
+.ant-layout,
+.ant-layout-header,
+.ant-layout-content,
+.ant-layout-footer {
+  background: transparent !important;
 }
 
 /* ---------- Main Content Area ---------- */
@@ -11,6 +24,16 @@
   padding: 24px;
   flex: 1;
   animation: fadeIn 0.4s ease;
+
+  /* ✅ critical: never paint a content bg that can look like a frame */
+  background: transparent !important;
+}
+
+/* ✅ SKYHUB: full-bleed content (removes the “border/frame”) */
+.osq-main--flush {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100%;
 }
 
 /* Reduce padding on smaller screens */
@@ -18,10 +41,12 @@
   .osq-main {
     padding: 16px;
   }
+  .osq-main--flush {
+    padding: 0 !important;
+  }
 }
 
 /* ---------- Header Enhancements ---------- */
-/* Gives the header a subtle glow under the gradient */
 .ant-layout-header {
   position: sticky;
   top: 0;
@@ -43,6 +68,11 @@
 .ant-layout-footer {
   font-size: 14px;
   padding: 20px 24px;
+}
+
+/* Optional: hide footer on SkyHub (keeps the “full screen” vibe) */
+.osq-footer--hidden {
+  display: none;
 }
 
 /* ---------- Fade In Animation ---------- */

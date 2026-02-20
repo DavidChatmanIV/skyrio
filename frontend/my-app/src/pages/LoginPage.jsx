@@ -10,8 +10,9 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 
 import BoardingPassToast from "../components/BoardingPassToast";
 import AuthLayout from "../layout/AuthLayout";
-import { useAuthModal } from "../auth/AuthModalController";
-import { useAuth } from "../auth/useAuth";
+
+// ✅ FIX: hooks come from useAuth file now
+import { useAuth, useAuthModal } from "../auth/useAuth";
 
 import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
 import gateBg from "../assets/LoginBoardingpass/gate.png";
@@ -71,7 +72,9 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
+          // keep both keys for backward compatibility
           identifier: emailOrUsername,
           emailOrUsername,
           password,
@@ -81,11 +84,13 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Login failed");
 
-      if (auth?.login) {
-        auth.login(data.token, data.user);
+      // ✅ FIX: your AuthProvider uses setSession({ token, user })
+      if (auth?.setSession) {
+        auth.setSession({ token: data?.token, user: data?.user });
       } else {
-        localStorage.setItem("token", data.token);
-        if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+        // fallback (won't break)
+        if (data?.token) localStorage.setItem("token", data.token);
+        if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
       }
 
       const displayName =
@@ -125,7 +130,10 @@ export default function LoginPage() {
   const onGuest = () => {
     if (loading) return;
 
-    auth?.guestLogin?.();
+    // ✅ FIX: new provider method name
+    if (auth?.continueAsGuest) auth.continueAsGuest();
+    // legacy fallback if you still have it somewhere
+    else if (auth?.guestLogin) auth.guestLogin();
 
     notification.open({
       message: null,

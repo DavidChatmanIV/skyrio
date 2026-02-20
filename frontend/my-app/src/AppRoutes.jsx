@@ -7,21 +7,24 @@ import AppLayout from "./layout/AppLayout";
 import LandingPage from "./pages/LandingPage";
 import BookingPage from "./pages/BookingPage";
 
-// ✅ NEW: SkyHub page file
-import SkyhubPage from "./pages/SkyhubPage";
+// ---------- SkyHub ----------
+import SkyHubLayout from "./pages/skyhub/SkyHubLayout";
+import SkyHubFeed from "./pages/skyhub/SkyHubFeed";
+import SkyHubInsights from "./pages/skyhub/SkyHubInsights";
+import DmPage from "./pages/skyhub/DmPage";
+import CirclesPage from "./pages/skyhub/CirclesPage";
+import SavedPage from "./pages/skyhub/SavedPage";
 
-// Passport pages moved into /pages/passport
+// ---------- Passport ----------
 import DigitalPassportPage from "./pages/passport/DigitalPassportPage";
+import MembershipPage from "./pages/passport/Membership";
 
-// Auth + misc
+// ---------- Auth + misc ----------
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import NotFound from "./pages/NotFound";
 
 // ---------- Optional / Legacy ----------
-import MembershipPage from "./pages/passport/Membership";
-
-// If TeamTravel is still in ./pages/TeamTravelPage keep this:
 import TeamTravelPage from "./pages/TeamTravelPage";
 
 // ---------- Protected ----------
@@ -31,40 +34,49 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* App shell */}
       <Route element={<AppLayout />}>
-        {/* ---------- Public ---------- */}
+        {/* Public */}
         <Route index element={<LandingPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
 
-        {/* ---------- Core ---------- */}
+        {/* Core */}
         <Route path="booking" element={<BookingPage />} />
 
-        {/* ✅ SkyHub (new canonical route) */}
-        <Route path="skyhub" element={<SkyhubPage />} />
+        {/* SkyHub */}
+        <Route path="skyhub" element={<SkyHubLayout />}>
+          <Route index element={<Navigate to="moments" replace />} />
+          <Route path="moments" element={<SkyHubFeed />} />
+          <Route path="insights" element={<SkyHubInsights />} />
 
-        {/* ✅ Legacy routes still work (no broken links) */}
+          {/* ✅ MATCH LeftRail: /skyhub/dms */}
+          <Route path="dms" element={<DmPage />} />
+
+          <Route path="circles" element={<CirclesPage />} />
+          <Route path="saved" element={<SavedPage />} />
+        </Route>
+
+        {/* Legacy */}
         <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
         <Route path="feed" element={<Navigate to="/skyhub" replace />} />
 
-        {/* ---------- Passport ---------- */}
+        {/* Passport */}
         <Route path="passport" element={<DigitalPassportPage />} />
         <Route
           path="digital-passport"
           element={<Navigate to="/passport" replace />}
         />
-
-        {/* ---------- Optional / Legacy ---------- */}
         <Route path="membership" element={<MembershipPage />} />
+
+        {/* Optional */}
         <Route path="team-travel" element={<TeamTravelPage />} />
 
-        {/* ---------- Protected ---------- */}
+        {/* Protected */}
         <Route element={<ProtectedRoute />}>
           <Route path="dashboard" element={<Dashboard />} />
         </Route>
 
-        {/* ---------- 404 ---------- */}
+        {/* 404 */}
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

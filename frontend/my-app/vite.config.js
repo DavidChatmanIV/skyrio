@@ -20,7 +20,7 @@ export default defineConfig({
   ----------------------------------------- */
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
+      "@": path.resolve(__dirname, "src"), // ✅ clean + correct
     },
   },
 
@@ -51,6 +51,6 @@ export default defineConfig({
     sourcemap: false,
 
     // ✅ Silence large bundle warning (intentional for Skyrio)
-    chunkSizeWarningLimit: 1200, // KB (1.2 MB)
+    chunkSizeWarningLimit: 1200,
   },
 });

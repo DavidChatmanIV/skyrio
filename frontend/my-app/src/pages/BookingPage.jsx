@@ -10,14 +10,11 @@ import {
   Card,
   Row,
   Col,
-  InputNumber,
-  Divider,
   message as antdMessage,
 } from "antd";
 import {
   SearchOutlined,
   TeamOutlined,
-  ReloadOutlined,
   StarFilled,
   EnvironmentOutlined,
 } from "@ant-design/icons";
@@ -58,7 +55,7 @@ export default function BookingPage() {
   const clearFilters = () => setActiveFilters([]);
 
   /* =============================
-     Selected Result (NEW)
+     Selected Result
   ============================= */
   const [selectedResult, setSelectedResult] = useState({
     id: "stay-1",
@@ -73,19 +70,6 @@ export default function BookingPage() {
   const [used, setUsed] = useState(0);
   const [expenseAmount, setExpenseAmount] = useState(0);
 
-  const totalNum = useMemo(() => {
-    const n =
-      typeof budgetTotal === "number" ? budgetTotal : Number(budgetTotal);
-    return Number.isFinite(n) ? n : 0;
-  }, [budgetTotal]);
-
-  const hasBudget = totalNum > 0;
-
-  const percent = useMemo(() => {
-    if (!hasBudget) return 0;
-    return Math.min(100, Math.round((used / totalNum) * 100));
-  }, [hasBudget, totalNum, used]);
-
   const addExpense = () => {
     const amt = Number(expenseAmount || 0);
     if (!amt || amt <= 0) return;
@@ -96,7 +80,7 @@ export default function BookingPage() {
   const resetBudget = () => {
     setBudgetTotal(null);
     setUsed(0);
-    setExpenseAmount(150);
+    setExpenseAmount(0);
     antdMessage.info("Budget reset");
   };
 
@@ -127,20 +111,36 @@ export default function BookingPage() {
   );
 
   return (
-    <Layout className="sk-booking" style={{ ["--sk-bg"]: `url(${heroImg})` }}>
+    <Layout
+      className="sk-booking"
+      style={{ ["--sk-bg-image"]: `url(${heroImg})` }}
+    >
       {/* ================= HERO ================= */}
       <div className="sk-booking-hero">
-        <Title className="sk-hero-title">Book Your Next Adventure ✨</Title>
+        <Title className="sk-hero-title">
+          Let’s lock in your next adventure ✈️
+        </Title>
 
-        <Space size="middle" className="sk-hero-pills">
-          <div className="sk-pill sk-pill-orange">⚡ XP 60</div>
-          <div className="sk-pill sk-pill-glass">💾 8 Saved</div>
-          <div className="sk-pill sk-pill-glass">👁 Price Watch Off</div>
-        </Space>
+        {/* Booking state header (matches mock vibe) */}
+        <div className="sk-tripState">
+          <div className="sk-tripRoute">New York → Miami</div>
+          <div className="sk-tripMeta">
+            3 nights • Sunny all week • Best value window
+          </div>
+          <div className="sk-tripAssist">
+            Smart Plan found 4 great options for you
+          </div>
 
-        <Text className="sk-hero-sub">
-          Smart Plan AI will optimize this trip for budget &amp; XP
-        </Text>
+          <Space size="middle" className="sk-hero-pills">
+            <div className="sk-pill sk-pill-orange">⚡ XP 60</div>
+            <div className="sk-pill sk-pill-glass">💾 8 Saved</div>
+            <div className="sk-pill sk-pill-glass">👁 Price Watch Off</div>
+          </Space>
+
+          <Text className="sk-hero-sub">
+            Smart Plan AI helps balance budget, comfort, and XP.
+          </Text>
+        </div>
 
         <Segmented
           className="sk-booking-tabs sk-orange-segmented"
@@ -183,11 +183,11 @@ export default function BookingPage() {
         </div>
 
         {/* Action Row */}
-        <Space className="sk-action-row">
+        <Space className="sk-action-row" wrap>
           <Button className="sk-btn-orange">Sort: Recommended</Button>
           <SaveTripButton onSaveConfirmed={() => handleSaveTrip("hero")} />
           <Button className="sk-btn-orange" icon={<TeamOutlined />}>
-            Teams Travel
+            Team Travel
           </Button>
         </Space>
 
@@ -216,11 +216,16 @@ export default function BookingPage() {
       </div>
 
       {/* ================= RESULTS ================= */}
-      <Row gutter={24} className="sk-results-wrap">
-        <Col span={16}>
-          <Title level={4} className="sk-section-title">
-            Results
-          </Title>
+      <Row gutter={[24, 24]} className="sk-results-wrap">
+        <Col xs={24} lg={16}>
+          <div className="sk-resultsHeader">
+            <Title level={4} className="sk-section-title">
+              Results
+            </Title>
+            <div className="sk-resultsSub">
+              Curated picks based on your budget + comfort preferences.
+            </div>
+          </div>
 
           <Card
             variant="borderless"
@@ -258,6 +263,11 @@ export default function BookingPage() {
                           ({reviews.toLocaleString()})
                         </span>
                       </span>
+                    </div>
+
+                    <div className="sk-pickedWhy">
+                      Why Skyrio picked this: high rating + best value this
+                      window
                     </div>
                   </div>
 
@@ -297,8 +307,8 @@ export default function BookingPage() {
           </Card>
         </Col>
 
-        {/* ================= TRIP BUDGET ================= */}
-        <Col span={8}>
+        {/* ================= RIGHT RAIL ================= */}
+        <Col xs={24} lg={8}>
           <TripBudgetCard
             bookingTotal={bookingTotal}
             planned={budgetTotal}
@@ -308,6 +318,7 @@ export default function BookingPage() {
             onChangeExpenseAmount={setExpenseAmount}
             onAddExpense={addExpense}
             onReset={resetBudget}
+            tripDays={3}
           />
         </Col>
       </Row>

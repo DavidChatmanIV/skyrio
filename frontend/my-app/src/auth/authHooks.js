@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { AuthContext } from "./authContext";
+import { AuthContext } from "./AuthModalController";
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
@@ -15,6 +15,5 @@ export function useAuthModal() {
     authModalOpen: ctx.authModalOpen,
     authModalMode: ctx.authModalMode,
     setAuthModalMode: ctx.setAuthModalMode,
-    setAuthModalOpen: ctx.setAuthModalOpen,
   };
 }

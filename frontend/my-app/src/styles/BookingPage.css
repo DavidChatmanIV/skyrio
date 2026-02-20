@@ -22,6 +22,7 @@
 
 /* ============================
    Background image (UNDER NAVBAR)
+   ✅ SIMPLE ELITE: image + readability fade
 ============================ */
 .sk-booking::before {
   content: "";
@@ -30,16 +31,27 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: var(--sk-bg);
+
+  background:
+    /* ✅ readability fade so UI stays crisp */
+    linear-gradient(to top, rgba(0,0,0,0.45), rgba(0,0,0,0.05)),
+    /* ✅ image from BookingPage.jsx */
+    var(--sk-bg-image);
+
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+
+  filter: saturate(110%) contrast(105%);
+  transform: translateZ(0);
+
   z-index: 0;
   pointer-events: none;
 }
 
 /* ============================
-   Overlay (UNDER NAVBAR)
+   CINEMATIC OVERLAY (UNDER NAVBAR)
+   ✅ SIMPLE ELITE: no heavy grain, no blend mode
 ============================ */
 .sk-booking::after {
   content: "";
@@ -48,10 +60,25 @@
   left: 0;
   right: 0;
   bottom: 0;
+
   background:
-    radial-gradient(circle at 20% 0%, rgba(140, 90, 255, 0.35), transparent 55%),
-    radial-gradient(circle at 90% 10%, rgba(255, 138, 42, 0.22), transparent 55%),
-    linear-gradient(180deg, rgba(10, 8, 22, 0.55), rgba(10, 8, 22, 0.86));
+    /* vignette */
+    radial-gradient(
+      ellipse at center,
+      rgba(0,0,0,0) 40%,
+      rgba(0,0,0,0.55) 100%
+    ),
+
+    /* subtle Skyrio glow */
+    radial-gradient(circle at 22% 8%, rgba(140, 90, 255, 0.22), transparent 55%),
+    radial-gradient(circle at 90% 12%, rgba(255, 138, 42, 0.16), transparent 55%),
+
+    /* base tone */
+    linear-gradient(180deg, rgba(10, 8, 22, 0.30), rgba(10, 8, 22, 0.65));
+
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+
   z-index: 0;
   pointer-events: none;
 }
@@ -65,7 +92,7 @@
 .sk-booking-hero {
   padding: 38px 42px;
   margin: 18px 28px 0;
-  border-radius: 18px;
+  border-radius: 22px;
   background: rgba(15, 12, 35, 0.38);
   border: 1px solid var(--sk-border);
   box-shadow: 0 26px 60px rgba(0, 0, 0, 0.28);
@@ -75,22 +102,73 @@
   align-items: center;
   gap: 12px;
   text-align: center;
+  position: relative;
+}
+
+/* subtle readability scrim behind hero */
+.sk-booking-hero::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 26px;
+  background: rgba(10, 8, 22, 0.18);
+  z-index: -1;
 }
 
 .sk-hero-title {
   color: #fff !important;
   font-size: clamp(30px, 3.1vw, 42px);
   margin: 0 !important;
+  text-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
 }
 
 .sk-hero-sub {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.80);
   font-size: 14px;
+}
+
+/* =========================
+   TRIP STATE (mock-style)
+========================= */
+.sk-tripState {
+  width: min(980px, calc(100% - 24px));
+  margin: 4px auto 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.22);
+}
+
+.sk-tripRoute {
+  font-weight: 900;
+  font-size: 18px;
+  color: rgba(255,255,255,0.95);
+  text-shadow: 0 10px 22px rgba(0,0,0,0.30);
+}
+
+.sk-tripMeta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: rgba(244, 246, 251, 0.80);
+}
+
+.sk-tripAssist {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(255, 180, 90, 0.92);
 }
 
 /* =================
    HERO PILLS
 ================== */
+.sk-hero-pills {
+  margin-top: 10px;
+  justify-content: center;
+}
+
 .sk-pill {
   padding: 8px 12px;
   border-radius: 999px;
@@ -154,24 +232,67 @@
   box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.18) !important;
 }
 
-.sk-btn-compact {
-  height: 36px !important;
-  padding: 0 14px !important;
-  font-weight: 800 !important;
+/* Search bar */
+.sk-search-bar {
+  width: min(980px, calc(100% - 24px));
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr auto auto auto;
+  gap: 10px;
+  align-items: center;
 }
 
-.sk-btn-ghost {
-  background: rgba(255,255,255,0.06) !important;
+.sk-glass-input {
+  background: rgba(255,255,255,0.08) !important;
   border: 1px solid rgba(255,255,255,0.14) !important;
-  color: rgba(255,255,255,0.88) !important;
-  border-radius: 12px !important;
-  height: 34px;
-  padding: 0 10px !important;
+  border-radius: 14px !important;
+  color: rgba(255,255,255,0.92) !important;
+  backdrop-filter: blur(12px);
 }
 
-.sk-btn-ghost:hover {
-  border-color: rgba(255, 138, 42, 0.35) !important;
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.14) !important;
+.sk-orange-picker {
+  background: rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  border-radius: 14px !important;
+  backdrop-filter: blur(12px);
+}
+
+/* Action row */
+.sk-action-row {
+  margin-top: 10px;
+  justify-content: center;
+}
+
+/* Filters */
+.sk-filters {
+  margin-top: 10px;
+  justify-content: center;
+}
+
+.sk-qf {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.88);
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.sk-qf:hover {
+  border-color: rgba(255, 138, 42, 0.30);
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.12);
+}
+
+.sk-qf.is-active {
+  background: var(--sk-orange-grad);
+  color: #1b1024;
+  border-color: rgba(255,255,255,0.16);
+}
+
+.sk-qf-clear {
+  opacity: 0.85;
 }
 
 /* ================= WEATHER STRIP ================= */
@@ -179,7 +300,7 @@
   width: min(980px, calc(100% - 24px));
   margin: 10px auto 6px;
   border-radius: 18px;
-  border: 1px solid var(--sk-border-2);
+  border: 1px solid rgba(255,255,255,0.14);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.06));
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -221,44 +342,61 @@
 .sk-weatherSub {
   margin-top: 6px;
   font-size: 14px;
-  color: rgba(244, 246, 251, 0.72);
-}
-
-.sk-weatherTags {
-  margin-top: 8px;
-  font-size: 13px;
-  color: rgba(244, 246, 251, 0.80);
-}
-
-.sk-weatherTag {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 138, 42, 0.35);
-  background: rgba(255, 138, 42, 0.12);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
-}
-
-.sk-dot {
-  margin: 0 8px;
-  color: rgba(255, 138, 42, 0.55);
+  color: rgba(244, 246, 251, 0.78);
 }
 
 /* ================= RESULTS ================= */
 .sk-results-wrap {
   padding: 34px 52px 84px;
+  position: relative;
 }
 
-.sk-result-card,
-.sk-budget-card {
+/* subtle readability scrim behind results area */
+.sk-results-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 12px 24px;
+  border-radius: 26px;
+  background: rgba(10, 8, 22, 0.14);
+  z-index: -1;
+}
+
+.sk-resultsHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.sk-resultsSub {
+  font-size: 13px;
+  color: rgba(244, 246, 251, 0.78);
+}
+
+/* Result card */
+.sk-result-card {
   background: rgba(15, 12, 35, 0.42) !important;
   border-radius: 18px;
-  border: 1px solid var(--sk-border) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(12px);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
-/* ===== Result card redesigned ===== */
+.sk-result-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 138, 42, 0.22) !important;
+}
+
+.sk-result-card.is-selected {
+  border-color: rgba(255, 138, 42, 0.40) !important;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.38),
+    0 0 0 3px rgba(255, 138, 42, 0.14);
+}
+
 .sk-resultRow {
   display: flex;
   gap: 14px;
@@ -303,8 +441,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255,255,255,0.78);
   font-size: 13px;
+}
+
+.sk-pickedWhy {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: rgba(255, 180, 90, 0.92);
+  font-weight: 800;
 }
 
 .sk-metaItem {
@@ -317,16 +462,12 @@
   color: rgba(255,255,255,0.28);
 }
 
-.sk-arrow {
-  opacity: 0.8;
-}
-
 .sk-star {
   color: rgba(255, 180, 90, 0.95);
 }
 
 .sk-reviews {
-  opacity: 0.85;
+  opacity: 0.90;
 }
 
 .sk-resultRight {
@@ -351,7 +492,7 @@
 
 .sk-priceSub {
   font-size: 12px;
-  color: rgba(255,255,255,0.68);
+  color: rgba(255,255,255,0.72);
 }
 
 /* tags */
@@ -401,127 +542,12 @@
 .sk-bestForLabel {
   font-size: 12px;
   font-weight: 800;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255,255,255,0.78);
 }
 
 .sk-tag-bestfor {
   border-color: rgba(120, 90, 255, 0.26);
   background: rgba(120, 90, 255, 0.10);
-}
-
-/* ================= BUDGET CARD ================= */
-.sk-budget-card {
-  position: sticky;
-  top: calc(var(--nav-h) + 16px);
-}
-
-/* ✅ new header styles */
-.sk-budget-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.sk-budget-title {
-  font-weight: 900;
-  font-size: 18px;
-  color: rgba(255,255,255,0.95);
-}
-
-.sk-budget-subtitle {
-  margin-top: 2px;
-  font-size: 12.5px;
-  color: rgba(255,255,255,0.70);
-}
-
-.sk-budget-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-top: 6px;
-}
-
-/* summary */
-.sk-budget-summary {
-  margin-top: 10px;
-}
-
-.sk-budget-leftBig {
-  font-weight: 900;
-  font-size: 28px;
-  letter-spacing: 0.2px;
-  color: rgba(255,255,255,0.96);
-  text-shadow: 0 18px 40px rgba(0,0,0,0.28);
-}
-
-.sk-budget-meta {
-  margin-top: 4px;
-  font-size: 12.5px;
-  color: rgba(255,255,255,0.72);
-}
-
-.sk-divider {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  margin: 14px 0 !important;
-}
-
-.sk-budget-input {
-  margin-top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sk-budget-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.sk-budget-hint {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 12px;
-}
-
-/* =========================================================
-   ✅ TRIP BUDGET CARD — COMPACT FIX (ANT CARD BODY)
-========================================================= */
-.sk-booking .sk-budget-card .ant-card-body {
-  padding: 14px 16px !important;
-}
-
-/* =========================================
-   ✅ ORANGE PILL INPUT (Trip Budget)
-========================================= */
-.sk-booking .sk-budget-card .ant-input-number {
-  background: var(--sk-orange-grad) !important;
-  background-image: var(--sk-orange-grad) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 12px 22px rgba(255, 138, 42, 0.16) !important;
-}
-
-.sk-booking .sk-budget-card .ant-input-number .ant-input-number-input-wrap {
-  background: transparent !important;
-}
-
-.sk-booking .sk-budget-card .ant-input-number-input {
-  color: #1b1024 !important;
-  font-weight: 900 !important;
-  -webkit-text-fill-color: #1b1024 !important;
-}
-
-.sk-booking .sk-budget-card .ant-input-number-input::placeholder {
-  color: rgba(27, 16, 36, 0.55) !important;
-}
-
-.sk-booking .sk-budget-card .ant-input-number:focus,
-.sk-booking .sk-budget-card .ant-input-number-focused {
-  border-color: rgba(255, 255, 255, 0.35) !important;
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.22) !important;
 }
 
 /* ================= RESPONSIVE ================= */
@@ -535,8 +561,9 @@
     padding: 22px 14px 70px;
   }
 
-  .sk-budget-card {
-    position: static;
+  .sk-resultsHeader {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .sk-resultRow {
@@ -557,6 +584,10 @@
   .sk-resultTop {
     flex-direction: column;
   }
+
+  .sk-search-bar {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -572,14 +603,5 @@
     width: 30px;
     height: 30px;
     border-radius: 10px;
-  }
-
-  .sk-weatherTag {
-    padding: 5px 9px;
-    font-size: 12px;
-  }
-
-  .sk-budget-leftBig {
-    font-size: 24px;
   }
 }

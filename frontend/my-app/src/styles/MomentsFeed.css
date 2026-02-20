@@ -1,0 +1,466 @@
+/* =========================
+   PAGE SHELL
+========================= */
+
+.moments-page{
+  display: grid;
+  gap: 18px;
+  padding-bottom: 40px;
+}
+
+
+/* =========================
+   HEADER
+========================= */
+
+.moments-header{
+  display:flex;
+  align-items:center;
+  gap: 16px;
+}
+
+.moments-title{
+  font-size: 32px;
+  font-weight: 800;
+  color: rgba(244,246,251,0.95);
+}
+
+.moments-tabs{
+  display:flex;
+  gap: 8px;
+}
+
+
+/* ORANGE PILL */
+
+.moments-pill{
+  padding: 8px 18px;
+
+  border-radius: 999px;
+
+  background: linear-gradient(
+    135deg,
+    #ff8a2a,
+    #ff6a00
+  );
+
+  color: white;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  border: none;
+
+  box-shadow:
+  0 6px 18px rgba(255,138,42,0.35);
+}
+
+
+.moments-pill.inactive{
+
+  background: rgba(255,255,255,0.10);
+
+  color: rgba(244,246,251,0.70);
+
+  box-shadow: none;
+
+}
+
+
+
+/* =========================
+   SHARE MOMENT BOX
+========================= */
+
+
+.moments-shareBox{
+
+  display:flex;
+
+  align-items:center;
+
+  gap: 14px;
+
+
+  padding: 16px;
+
+
+  border-radius: 20px;
+
+
+  background:
+
+  rgba(255,255,255,0.08);
+
+
+  backdrop-filter:
+
+  blur(18px);
+
+
+  border:
+
+  1px solid rgba(255,255,255,0.16);
+
+
+
+  cursor: pointer;
+
+
+  transition: 0.2s;
+
+
+  /* VERY IMPORTANT — allows clicks */
+
+  pointer-events: auto;
+
+  position: relative;
+
+  z-index: 2;
+
+}
+
+
+.moments-shareBox:hover{
+
+  background: rgba(255,255,255,0.14);
+
+}
+
+
+.moments-shareIcon{
+
+  width: 40px;
+
+  height: 40px;
+
+  border-radius: 14px;
+
+
+  display:grid;
+
+  place-items:center;
+
+
+  background: rgba(255,255,255,0.12);
+
+
+  border:
+
+  1px solid rgba(255,255,255,0.16);
+
+}
+
+
+.moments-shareText{
+
+  font-weight: 600;
+
+  color:
+
+  rgba(244,246,251,0.75);
+
+}
+
+
+
+
+/* =========================
+   FEED LIST
+========================= */
+
+
+.moments-feed{
+
+  display:grid;
+
+  gap: 18px;
+
+}
+
+
+
+
+/* =========================
+   POST CARD
+========================= */
+
+
+.moments-card{
+
+
+  border-radius: 22px;
+
+
+  background:
+
+  rgba(255,255,255,0.08)
+
+
+  !important;
+
+
+  backdrop-filter:
+
+  blur(20px);
+
+
+  border:
+
+  1px solid rgba(255,255,255,0.16);
+
+
+  padding: 16px;
+
+
+}
+
+
+
+/* =========================
+   POST HEADER
+========================= */
+
+
+.moments-postHeader{
+
+  display:flex;
+
+  justify-content: space-between;
+
+  align-items:center;
+
+}
+
+
+.moments-userRow{
+
+  display:flex;
+
+  gap: 10px;
+
+  align-items:center;
+
+}
+
+
+.moments-avatar{
+
+  width: 42px;
+
+  height: 42px;
+
+  border-radius: 50%;
+
+}
+
+
+.moments-name{
+
+  font-weight: 700;
+
+  color:
+
+  rgba(244,246,251,0.92);
+
+}
+
+
+.moments-sub{
+
+  font-size: 13px;
+
+  color:
+
+  rgba(244,246,251,0.65);
+
+}
+
+
+
+/* =========================
+   POST IMAGE GRID
+========================= */
+
+
+.moments-imageGrid{
+
+
+  display:grid;
+
+
+  grid-template-columns:
+
+
+  1fr 1fr;
+
+
+  gap: 10px;
+
+
+  margin-top: 14px;
+
+}
+
+
+.moments-image{
+
+
+  width:100%;
+
+
+  height:240px;
+
+
+  object-fit:cover;
+
+
+  border-radius: 14px;
+
+
+  border:
+
+
+  1px solid rgba(255,255,255,0.14);
+
+}
+
+
+
+
+/* =========================
+   POST TEXT
+========================= */
+
+
+.moments-text{
+
+
+  margin-top: 12px;
+
+
+  font-weight: 600;
+
+
+  color:
+
+
+  rgba(244,246,251,0.90);
+
+}
+
+
+
+
+/* =========================
+   ACTION BUTTONS
+========================= */
+
+
+.moments-actions{
+
+
+  display:flex;
+
+
+  gap: 10px;
+
+
+  margin-top: 14px;
+
+}
+
+
+
+.moments-actionBtn{
+
+
+  border-radius: 999px;
+
+
+  background:
+
+
+  rgba(255,255,255,0.10);
+
+
+  border:
+
+
+  1px solid rgba(255,255,255,0.16);
+
+
+  color:
+
+
+  rgba(244,246,251,0.85);
+
+
+  padding:
+
+
+  6px 14px;
+
+
+  cursor: pointer;
+
+
+  font-weight: 600;
+
+
+  transition: 0.15s;
+
+
+}
+
+
+.moments-actionBtn:hover{
+
+
+  background:
+
+
+  rgba(255,255,255,0.18);
+
+
+}
+
+
+
+
+/* =========================
+   SAVE BUTTON
+========================= */
+
+
+.moments-saveBtn{
+
+
+  margin-left: auto;
+
+}
+
+
+
+
+/* =========================
+   MODAL FIX — IMPORTANT
+========================= */
+
+
+/* prevents modal hidden behind UI */
+
+
+.ant-modal-wrap{
+
+  z-index: 10000;
+
+}
+
+
+.ant-modal-mask{
+
+  z-index: 9999;
+
+}

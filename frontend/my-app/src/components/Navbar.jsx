@@ -1,12 +1,29 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink, useLocation } from "react-router-dom";
-import { Avatar, Dropdown, Button, Drawer, message } from "antd";
-import { UserOutlined, LogoutOutlined, MenuOutlined } from "@ant-design/icons";
+import {
+  Avatar,
+  Dropdown,
+  Button,
+  Drawer,
+  message,
+  Modal,
+  Typography,
+  Space,
+} from "antd";
+import {
+  UserOutlined,
+  LogoutOutlined,
+  MenuOutlined,
+  ArrowRightOutlined,
+} from "@ant-design/icons";
 
 import "../styles/Navbar.css";
 import logo from "../assets/logo/skyrio-logo-mark-512.png";
 
-import { useAuth, useAuthModal } from "../auth/AuthModalController";
+import { useAuth } from "../auth/useAuth";
+import { useAuthModal } from "../auth/useAuthModal";
+
+const { Title, Text } = Typography;
 
 const navItems = [
   { label: "Discover", to: "/" },
@@ -22,22 +39,16 @@ export default function Navbar() {
   const auth = useAuth();
   const authModal = useAuthModal();
 
-  const isAuthed = !!auth?.isAuthed;
-  const isGuest = !!auth?.isGuest;
-
-  const user =
-    auth?.user ||
-    (() => {
-      try {
-        const raw = localStorage.getItem("user");
-        return raw ? JSON.parse(raw) : null;
-      } catch {
-        return null;
-      }
-    })();
+  const isAuthed = auth?.isAuthed;
+  const isGuest = auth?.isGuest;
+  const user = auth?.user;
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  // ✅ Gate Exit modal state (safe)
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [logoutAnimating, setLogoutAnimating] = useState(false);
 
   useEffect(() => setDrawerOpen(false), [pathname]);
 
@@ -57,19 +68,11 @@ export default function Navbar() {
     );
   }, [user, isGuest]);
 
-  // ✅ Themes per route
   const navTheme = useMemo(() => {
     if (pathname.startsWith("/passport")) return "theme-passport";
     if (pathname.startsWith("/booking")) return "theme-book";
-    if (pathname.startsWith("/skyhub")) return "theme-skyhub"; // ✅ renamed
+    if (pathname.startsWith("/skyhub")) return "theme-skyhub";
     return "theme-discover";
-  }, [pathname]);
-
-  const activeKey = useMemo(() => {
-    const match = navItems.find((i) =>
-      i.to === "/" ? pathname === "/" : pathname.startsWith(i.to)
-    );
-    return match?.to || "/";
   }, [pathname]);
 
   const go = (to) => {
@@ -77,262 +80,304 @@ export default function Navbar() {
     navigate(to);
   };
 
+  // ✅ original logout logic kept (do not break)
   const handleLogout = () => {
     setDrawerOpen(false);
-
-    if (auth?.logout) auth.logout();
-    else {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-    }
-
+    auth?.logout?.();
     message.success("See you next trip ✈️");
     navigate("/");
   };
 
-  const avatarMenu = {
-    items: [
-      {
-        key: "dashboard",
-        label: "Dashboard",
-        onClick: () => navigate("/dashboard"),
-      },
-      {
-        key: "logout",
-        icon: <LogoutOutlined />,
-        label: "Log out",
-        onClick: handleLogout,
-      },
-    ],
-  };
-
-  /* =========================================================
-     ✅ Auth pages
-  ========================================================= */
-
-  const goLogin = () => {
+  // ✅ Gate Exit (wraps handleLogout safely)
+  const openLogoutGate = () => {
     setDrawerOpen(false);
-    authModal?.closeAuthModal?.();
-    navigate("/login", { state: { from: pathname } });
+    setLogoutOpen(true);
   };
 
-  const goSignup = () => {
-    setDrawerOpen(false);
-    authModal?.closeAuthModal?.();
-    navigate("/register", { state: { from: pathname } });
-  };
+  const confirmGateExit = () => {
+    if (logoutAnimating) return;
 
-  /* ✅ Guard Passport: if blocked, route to auth PAGE (not modal) */
-  const guardPassport = (eOrTo) => {
-    const to =
-      typeof eOrTo === "string"
-        ? eOrTo
-        : eOrTo?.currentTarget?.getAttribute("href");
+    setLogoutAnimating(true);
 
-    const isPassport = to === "/passport";
-    if (!isPassport) return false;
-
-    if (!isAuthed || isGuest) {
-      if (eOrTo?.preventDefault) eOrTo.preventDefault();
-      setDrawerOpen(false);
-
-      if (isGuest) goSignup();
-      else goLogin();
-
-      return true;
+    // add overlay class (CSS handles animation)
+    if (typeof document !== "undefined" && document?.body?.classList) {
+      document.body.classList.add("sk-gate-exit");
     }
 
-    return false;
+    // quick cinematic exit, then do the real logout
+    window.setTimeout(() => {
+      document?.body?.classList?.remove("sk-gate-exit");
+
+      setLogoutOpen(false);
+      setLogoutAnimating(false);
+
+      handleLogout();
+    }, 900);
   };
 
+  const cancelGateExit = () => {
+    if (logoutAnimating) return;
+    setLogoutOpen(false);
+  };
+
+  // ✅ safe open helpers (won’t break even if provider/modal isn’t mounted yet)
+  const openAuth = (mode) => {
+    setDrawerOpen(false);
+
+    const fn =
+      authModal?.openAuthModal ||
+      authModal?.open ||
+      authModal?.show ||
+      authModal?.setOpen;
+
+    if (typeof fn === "function") {
+      try {
+        fn({ mode });
+        return;
+      } catch {
+        // fallthrough
+      }
+    }
+
+    if (mode === "signup") navigate("/signup");
+    else navigate("/login");
+  };
+
+  const goLogin = () => openAuth("login");
+  const goSignup = () => openAuth("signup");
+
   return (
-    <header className={`sk-nav ${navTheme} ${scrolled ? "is-compact" : ""}`}>
-      <div className="sk-nav-inner">
-        {/* LEFT */}
-        <div className="sk-left">
-          <button
-            className="sk-brand"
-            onClick={() => go("/")}
-            type="button"
-            aria-label="Go to homepage"
-          >
-            <span className="sk-logoWrap" aria-hidden="true">
-              <img
-                src={logo}
-                alt="Skyrio"
-                className="sk-logoImg"
-                draggable="false"
-              />
-            </span>
-          </button>
-        </div>
-
-        {/* CENTER (desktop nav) */}
-        <nav className="sk-centerNav" aria-label="Primary">
-          <div className="sk-navPills">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === "/"}
-                onClick={(e) => {
-                  if (item.to === "/passport") guardPassport(e);
-                }}
-                className={({ isActive }) =>
-                  `sk-link ${isActive ? "is-active" : ""}`
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </div>
-        </nav>
-
-        {/* RIGHT */}
-        <div className="sk-right">
-          {!isAuthed ? (
-            <>
-              <Button className="sk-btnGhost" onClick={goLogin}>
-                Log in
-              </Button>
-              <Button
-                type="primary"
-                className="sk-btnPrimary"
-                onClick={goSignup}
-              >
-                Sign up
-              </Button>
-            </>
-          ) : (
-            <div className="sk-user">
-              <span className="sk-hello">
-                Hey, {displayName}
-                {isGuest ? " ✨" : ""}
+    <>
+      <header className={`sk-nav ${navTheme} ${scrolled ? "is-compact" : ""}`}>
+        <div className="sk-nav-inner">
+          {/* ✅ LEFT / BRAND (Elite: logo + name + glow + shine) */}
+          <div className="sk-left">
+            <button
+              className="sk-brand"
+              onClick={() => go("/")}
+              aria-label="Skyrio Home"
+            >
+              <span className="sk-brandMark">
+                <span className="sk-logoWrap">
+                  <img src={logo} alt="Skyrio" className="sk-logoImg" />
+                </span>
+                <span className="sk-brandGlow" aria-hidden="true" />
               </span>
 
-              {isGuest ? (
+              <span className="sk-brandText">
+                <span className="sk-brandName">Skyrio</span>
+                <span className="sk-brandTag">Plan smarter</span>
+                <span className="sk-brandShine" aria-hidden="true" />
+              </span>
+            </button>
+          </div>
+
+          {/* ✅ CENTER NAV */}
+          <nav className="sk-centerNav" aria-label="Primary navigation">
+            <div className="sk-navPills">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    `sk-link ${isActive ? "is-active" : ""}`
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </nav>
+
+          {/* ✅ RIGHT */}
+          <div className="sk-right">
+            {!isAuthed ? (
+              <>
+                <Button
+                  className="sk-btnGhost"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    goLogin();
+                  }}
+                >
+                  Log in
+                </Button>
+
                 <Button
                   type="primary"
                   className="sk-btnPrimary"
-                  onClick={goSignup}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    goSignup();
+                  }}
                 >
-                  Upgrade
+                  Sign up
                 </Button>
-              ) : (
-                <Dropdown
-                  menu={avatarMenu}
-                  placement="bottomRight"
-                  trigger={["click"]}
-                  overlayClassName="sk-dropdown"
-                  getPopupContainer={(node) => node.parentElement}
+              </>
+            ) : (
+              <>
+                <Button
+                  className="sk-btnGhost sk-logoutBtn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openLogoutGate();
+                  }}
                 >
-                  <button
-                    className="sk-avatarBtn"
-                    type="button"
-                    aria-label="Account menu"
+                  Log out
+                </Button>
+
+                <div className="sk-user">
+                  <span className="sk-hello">
+                    Hey, {displayName}
+                    {isGuest ? " ✨" : ""}
+                  </span>
+
+                  <Dropdown
+                    menu={{
+                      items: [
+                        {
+                          key: "logout",
+                          icon: <LogoutOutlined />,
+                          label: "Log out",
+                          onClick: openLogoutGate,
+                        },
+                      ],
+                    }}
+                    placement="bottomRight"
+                    trigger={["click"]}
                   >
-                    <Avatar
-                      size={36}
-                      src={user?.avatarUrl}
-                      icon={!user?.avatarUrl ? <UserOutlined /> : null}
-                    />
-                  </button>
-                </Dropdown>
-              )}
-            </div>
-          )}
+                    <button
+                      type="button"
+                      className="sk-avatarBtn"
+                      aria-label="Account menu"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
+                      <Avatar
+                        size={36}
+                        icon={<UserOutlined />}
+                        src={user?.avatarUrl}
+                      />
+                    </button>
+                  </Dropdown>
+                </div>
+              </>
+            )}
 
-          {/* MOBILE MENU BUTTON */}
-          <Button
-            className="sk-mobileMenuBtn"
-            icon={<MenuOutlined />}
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open menu"
-          />
-        </div>
-      </div>
-
-      {/* MOBILE DRAWER */}
-      <Drawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        placement="right"
-        className="sk-mobileDrawer"
-        title={null}
-      >
-        <div className="sk-drawerTop">
-          <img className="sk-drawerLogo" src={logo} alt="Skyrio" />
-          <div className="sk-drawerHello">
-            {isAuthed
-              ? `Hey, ${displayName}${isGuest ? " ✨" : ""}`
-              : "Welcome"}
+            <Button
+              className="sk-mobileMenuBtn"
+              icon={<MenuOutlined />}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDrawerOpen(true);
+              }}
+            />
           </div>
         </div>
 
-        <div className="sk-drawerLinks">
+        {/* ✅ Drawer */}
+        <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
           {navItems.map((item) => (
-            <button
-              key={item.to}
-              className={`sk-drawerLink ${
-                activeKey === item.to ? "is-active" : ""
-              }`}
-              onClick={() => {
-                if (item.to === "/passport") {
-                  const blocked = guardPassport(item.to);
-                  if (!blocked) go(item.to);
-                } else {
-                  go(item.to);
-                }
-              }}
-              type="button"
-            >
+            <Button key={item.to} block onClick={() => go(item.to)}>
               {item.label}
-            </button>
+            </Button>
           ))}
-        </div>
 
-        <div className="sk-drawerActions">
           {!isAuthed ? (
-            <>
-              <Button block className="sk-btnGhost" onClick={goLogin}>
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              <Button className="sk-btnGhost" onClick={goLogin} block>
                 Log in
               </Button>
               <Button
-                block
                 type="primary"
                 className="sk-btnPrimary"
                 onClick={goSignup}
+                block
               >
                 Sign up
               </Button>
-            </>
-          ) : isGuest ? (
-            <>
-              <Button
-                block
-                type="primary"
-                className="sk-btnPrimary"
-                onClick={goSignup}
-              >
-                Upgrade
-              </Button>
-              <div className="sk-guestNote">
-                You’re browsing as Guest. Create an account to save trips and
-                earn XP.
-              </div>
-            </>
+            </div>
           ) : (
-            <Button
-              danger
-              block
-              onClick={handleLogout}
-              icon={<LogoutOutlined />}
-            >
-              Log out
-            </Button>
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              <Button
+                className="sk-btnGhost sk-logoutBtn"
+                icon={<LogoutOutlined />}
+                onClick={openLogoutGate}
+                block
+              >
+                Log out
+              </Button>
+            </div>
           )}
+        </Drawer>
+      </header>
+
+      {/* ✅ Gate Exit Modal (Upgraded UI, same logic) */}
+      <Modal
+        open={logoutOpen}
+        onCancel={cancelGateExit}
+        footer={null}
+        centered
+        width={520}
+        closable={!logoutAnimating}
+        maskClosable={!logoutAnimating}
+        className="sk-exitModal"
+      >
+        <div className="sk-exitWrap">
+          <div className="sk-exitTop">
+            <div className="sk-exitBadge">
+              <span className="sk-dot" />
+              Gate Exit
+            </div>
+
+            <Title level={3} className="sk-exitTitle">
+              Leaving Skyrio?
+            </Title>
+
+            <Text className="sk-exitSub">
+              You’ll be signed out and returned to guest mode. Your saved trips
+              and XP will be waiting when you come back.
+            </Text>
+
+            <div className="sk-exitLane" aria-hidden="true">
+              <div className="sk-lights" />
+              <div className="sk-lights sk-lights2" />
+              <div className="sk-exitPlane" />
+            </div>
+          </div>
+
+          <div className="sk-exitActions">
+            <Space>
+              <Button
+                className="sk-btn sk-btn-ghost"
+                onClick={cancelGateExit}
+                disabled={logoutAnimating}
+              >
+                Stay
+              </Button>
+
+              <Button
+                className="sk-btn sk-btn-cta"
+                onClick={confirmGateExit}
+                loading={logoutAnimating}
+                icon={<LogoutOutlined />}
+              >
+                Exit & Log out <ArrowRightOutlined />
+              </Button>
+            </Space>
+
+            <div className="sk-exitHint">
+              Tip: you can log back in anytime from the top right.
+            </div>
+          </div>
         </div>
-      </Drawer>
-    </header>
+      </Modal>
+    </>
   );
 }

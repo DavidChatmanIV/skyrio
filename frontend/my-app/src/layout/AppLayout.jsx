@@ -4,21 +4,21 @@ import { Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
 import Navbar from "../components/Navbar";
-import "../styles/Navbar.css";
 import "../styles/appLayout.css";
-
-/* ✅ IMPORTANT: load Skyrio theme system */
 import "../styles/skyrio-theme.css";
 
 const { Header, Content, Footer } = Layout;
 
 /* -------------------------------------------
-   Route → Theme Mapper
+  Route → Theme Mapper
 -------------------------------------------- */
 function themeForPath(pathname) {
   if (pathname.startsWith("/booking")) return "sk-theme-book";
   if (pathname.startsWith("/passport")) return "sk-theme-passport";
-  if (pathname.startsWith("/skystream")) return "sk-theme-social";
+
+  // ✅ SkyHub uses social theme
+  if (pathname.startsWith("/skyhub")) return "sk-theme-social";
+
   return "sk-theme-discover";
 }
 
@@ -27,8 +27,8 @@ export default function AppLayout() {
   const { pathname } = useLocation();
   const [scrolled, setScrolled] = useState(false);
 
-  /* ✅ Landing stays untouched */
   const isLanding = pathname === "/";
+  const isSkyHub = pathname.startsWith("/skyhub");
 
   /* -------------------------------------------
      Scroll Detection (Navbar polish)
@@ -60,27 +60,29 @@ export default function AppLayout() {
   );
 
   /* -------------------------------------------
-     Shell Classes (theme-driven)
+     Shell Class
   -------------------------------------------- */
   const shellClass = isLanding
     ? "osq-shell"
-    : `osq-shell sk-appShell ${themeForPath(pathname)}`;
-
-  const shellStyle = {
-    minHeight: "100vh",
-  };
+    : `osq-shell sk-appShell ${themeForPath(pathname)} ${
+        isSkyHub ? "osq-shell--skyhub" : ""
+      }`;
 
   return (
-    <Layout className={shellClass} style={shellStyle}>
+    <Layout className={shellClass} style={{ minHeight: "100vh" }}>
+      {/* ---------- Navbar ---------- */}
       <Header className={`osq-navbar ${scrolled ? "is-scrolled" : ""}`}>
         <Navbar {...authMeta} />
       </Header>
 
-      <Content className="osq-main">
+      {/* ---------- Main Content ---------- */}
+      <Content className={`osq-main ${isSkyHub ? "osq-main--flush" : ""}`}>
         <Outlet />
       </Content>
 
+      {/* ---------- Footer ---------- */}
       <Footer
+        className={`osq-footer ${isSkyHub ? "osq-footer--hidden" : ""}`}
         style={{
           textAlign: "center",
           background: "transparent",

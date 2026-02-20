@@ -1,0 +1,203 @@
+.skyhub-feed{
+  display:flex;
+  flex-direction:column;
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+/* ✅ list spacing */
+.skyhub-feedList{
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+/* ============================
+COMPOSER (PREMIUM)
+============================ */
+
+.skyhub-composer{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+
+  padding: 12px;
+  border-radius: 18px;
+
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.18);
+
+  backdrop-filter: blur(12px);
+
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+
+.skyhub-composerPlus{
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+
+  display:grid;
+  place-items:center;
+
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(255,255,255,.10);
+
+  color: rgba(244,246,251,.92);
+}
+
+.skyhub-composerText{
+  font-weight: 750;
+  color: rgba(244,246,251,.86);
+}
+
+/* click behavior */
+.skyhub-composerClickable{
+  cursor: pointer;
+  user-select: none;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+}
+
+.skyhub-composerClickable:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.16);
+  border-color: rgba(255,255,255,.24);
+}
+
+.skyhub-composerClickable:active{
+  transform: translateY(0px);
+}
+
+/* ============================
+POST CARD (PREMIUM PAPER)
+============================ */
+
+.skyhub-post{
+  background: rgba(255,255,255,.86);
+  border-radius: 22px;
+
+  border: 1px solid rgba(0,0,0,.06);
+
+  box-shadow: 0 18px 40px rgba(0,0,0,.18);
+
+  padding: 14px;
+}
+
+.skyhub-postHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+/* tiny alignment helpers (if missing elsewhere) */
+.skyhub-user{ display:flex; gap:12px; align-items:center; }
+.skyhub-avatar{
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.18);
+  border: 1px solid rgba(255,255,255,.20);
+}
+.skyhub-userMeta{ display:flex; flex-direction:column; gap:2px; }
+.skyhub-nameRow{ display:flex; gap:8px; align-items:center; }
+
+.skyhub-name{
+  font-weight: 800;
+  color: rgba(16,18,24,.92);
+}
+
+.skyhub-subRow{
+  color: rgba(16,18,24,.60);
+  font-size: 13px;
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+
+.skyhub-dot{ opacity: .75; }
+
+.skyhub-pill{
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(255,157,47,.18);
+  border: 1px solid rgba(255,157,47,.28);
+  color: rgba(16,18,24,.82);
+}
+
+.skyhub-moreBtn{
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.06);
+  background: rgba(255,255,255,.55);
+  cursor: pointer;
+}
+
+/* caption */
+.skyhub-text{
+  margin-top: 10px;
+  font-size: 15px;
+  color: rgba(16,18,24,.82);
+}
+
+/* IMAGES */
+.skyhub-grid{
+  margin-top: 12px;
+  display:grid;
+  gap: 12px;
+}
+
+.skyhub-grid img{
+  width:100%;
+  height:260px;
+  object-fit:cover;
+  border-radius:18px;
+
+  box-shadow: 0 14px 24px rgba(0,0,0,.14);
+}
+
+/* FOOTER */
+.skyhub-postFooter{
+  margin-top: 12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.skyhub-actions{
+  display:flex;
+  gap: 12px;
+}
+
+.skyhub-action{
+  border:none;
+  background: rgba(255,255,255,.70);
+  padding: 6px 12px;
+  border-radius: 999px;
+
+  cursor:pointer;
+
+  font-weight:700;
+  color: rgba(16,18,24,.74);
+}
+
+.skyhub-saveBtn{
+  border:none;
+
+  background: rgba(255,255,255,.70);
+
+  padding: 6px 12px;
+
+  border-radius:999px;
+
+  cursor:pointer;
+}
+
+/* responsive */
+@media (max-width: 620px){
+  .skyhub-grid img{ height: 220px; }
+}

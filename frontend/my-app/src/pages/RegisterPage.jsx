@@ -4,9 +4,10 @@ import { UserOutlined, MailOutlined, LockOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import AuthLayout from "../layout/AuthLayout";
 import BoardingPassToast from "../components/BoardingPassToast";
-import { useAuthModal } from "../auth/AuthModalController";
 
-import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png"; // ✅ same bg as login
+import { useAuthModal } from "../auth/useAuth";
+
+import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
 import "../styles/LoginBoardingPass.css";
 
 const { Title, Text } = Typography;
@@ -33,6 +34,21 @@ export default function RegisterPage() {
     if (typeof from === "string" && from.trim().startsWith("/")) return from;
     return "/dashboard";
   }, [location.state]);
+
+  // ✅ Option A: routeLabel is now used in the UI (prettified)
+  const routeLabel = useMemo(() => {
+    if (redirectTo === "/dashboard") return "Dashboard";
+    const raw = String(redirectTo || "");
+    const cleaned = raw.replace(/^\//, "").replace(/-/g, " ");
+    if (!cleaned) return "your account";
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }, [redirectTo]);
+
+  // ✅ Fix: actually use setFormData (controlled inputs)
+  const updateField = (key) => (e) => {
+    const value = e?.target?.value ?? e;
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
 
   const passenger = useMemo(() => {
     const raw =
@@ -79,6 +95,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           name: name || undefined,
           username: username || undefined,
@@ -104,7 +121,7 @@ export default function RegisterPage() {
           <BoardingPassToast
             name={displayName}
             routeFrom="Register"
-            routeTo={redirectTo === "/dashboard" ? "Dashboard" : redirectTo}
+            routeTo={routeLabel}
           />
         ),
         placement: "topRight",
@@ -129,8 +146,6 @@ export default function RegisterPage() {
     if (e.key === "Enter") handleRegister();
   };
 
-  const routeLabel = redirectTo === "/dashboard" ? "Dashboard" : redirectTo;
-
   return (
     <AuthLayout>
       <div className="sk-authWrap">
@@ -138,187 +153,114 @@ export default function RegisterPage() {
           <Title level={1} className="sk-authTitle">
             Create your passport
           </Title>
+
           <Text className="sk-authSubtitle">
             Start earning XP and unlock your first stamp.
           </Text>
+
+          {/* ✅ Option A: show where we’ll send them after signup */}
+          <div className="sk-authHintRow">
+            <Text className="sk-authHintText">
+              After signup, we’ll take you to{" "}
+              <span className="sk-authPill">{routeLabel}</span>.
+            </Text>
+          </div>
         </div>
 
         <div
           className={`sk-pass ${isScanning ? "isScanning" : ""}`}
-          style={{ "--sk-pass-bg": `url(${galaxyLogin})` }} // ✅ add same bg
+          style={{ "--sk-pass-bg": `url(${galaxyLogin})` }}
           onKeyDown={onKeyDown}
           role="form"
           aria-busy={loading ? "true" : "false"}
         >
-          <div className="sk-passScan" aria-hidden="true" />
-
-          <div className="sk-passHeader">
-            <div className="sk-passBrand">
-              <div className="sk-dot" aria-hidden />
-              <Text className="sk-passBrandText">Skyrio</Text>
-            </div>
-
-            <Tag className="sk-passChip">
-              NEW <span className="sk-chipSep">•</span> Gate A1
-            </Tag>
-          </div>
-
-          <div className="sk-passBig">
-            <Text className="sk-passLabel">SIGN-UP PASS</Text>
-          </div>
-
-          <div className="sk-passRow">
-            <div className="sk-passCol">
-              <Text className="sk-passMiniLabel">Passenger</Text>
-              <Text className="sk-passPassenger">{passenger}</Text>
-            </div>
-            <div className="sk-passCol sk-passColRight">
-              <Text className="sk-passMiniLabel">Status</Text>
-              <Text className="sk-passValue">
-                {loading ? "Issuing…" : "Ready"}
-              </Text>
-            </div>
-          </div>
-
-          <div className="sk-passRoute">
-            <div className="sk-routeCol">
-              <Text className="sk-passMiniLabel">From</Text>
-              <Text className="sk-passValue">Register</Text>
-            </div>
-
-            <div className="sk-routeLine" aria-hidden="true">
-              <span className="sk-plane">✈</span>
-              <span className="sk-routeDash" />
-            </div>
-
-            <div className="sk-routeCol sk-routeColRight">
-              <Text className="sk-passMiniLabel">To</Text>
-              <Text className="sk-passValue">{routeLabel}</Text>
-            </div>
-          </div>
-
-          <div className="sk-passPerforation" aria-hidden="true">
-            <span className="sk-notch left" />
-            <span className="sk-notch right" />
-            <span className="sk-perfLine" />
-          </div>
-
-          <div className="sk-passForm">
-            <div className="sk-field">
-              <Text className="sk-formLabel">Name (optional)</Text>
+          {/* =======================
+              REGISTER FORM FIELDS
+              ======================= */}
+          <div className="sk-passBody">
+            <div className="sk-passRow">
+              <Text className="sk-passLabel">Full Name</Text>
               <Input
                 prefix={<UserOutlined />}
-                placeholder="Name (optional)"
+                placeholder="Your name"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                autoComplete="name"
-                onFocus={() => setIsScanning(true)}
-                onBlur={() => !loading && setIsScanning(false)}
+                onChange={updateField("name")}
+                disabled={loading}
               />
             </div>
 
-            <div className="sk-field">
-              <Text className="sk-formLabel">Username (recommended)</Text>
+            <div className="sk-passRow">
+              <Text className="sk-passLabel">Username</Text>
               <Input
                 prefix={<UserOutlined />}
-                placeholder="Username"
+                placeholder="Choose a username"
                 value={formData.username}
-                onChange={(e) =>
-                  setFormData({ ...formData, username: e.target.value })
-                }
-                autoComplete="username"
-                onFocus={() => setIsScanning(true)}
-                onBlur={() => !loading && setIsScanning(false)}
+                onChange={updateField("username")}
+                disabled={loading}
               />
             </div>
 
-            <div className="sk-field">
-              <Text className="sk-formLabel">Email</Text>
+            <div className="sk-passRow">
+              <Text className="sk-passLabel">Email</Text>
               <Input
                 prefix={<MailOutlined />}
-                placeholder="Email"
+                placeholder="you@example.com"
                 value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                autoComplete="email"
-                onFocus={() => setIsScanning(true)}
-                onBlur={() => !loading && setIsScanning(false)}
+                onChange={updateField("email")}
+                disabled={loading}
               />
             </div>
 
-            <div className="sk-field">
-              <Text className="sk-formLabel">Password</Text>
+            <div className="sk-passRow">
+              <Text className="sk-passLabel">Password</Text>
               <Input.Password
                 prefix={<LockOutlined />}
-                placeholder="Password"
+                placeholder="Minimum 8 characters"
                 value={formData.password}
-                onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
-                }
-                autoComplete="new-password"
-                onFocus={() => setIsScanning(true)}
-                onBlur={() => !loading && setIsScanning(false)}
+                onChange={updateField("password")}
+                disabled={loading}
               />
             </div>
 
-            <div className="sk-field">
-              <Text className="sk-formLabel">Confirm password</Text>
+            <div className="sk-passRow">
+              <Text className="sk-passLabel">Confirm Password</Text>
               <Input.Password
                 prefix={<LockOutlined />}
-                placeholder="Confirm password"
+                placeholder="Re-enter password"
                 value={formData.confirmPassword}
-                onChange={(e) =>
-                  setFormData({ ...formData, confirmPassword: e.target.value })
-                }
-                autoComplete="new-password"
-                onFocus={() => setIsScanning(true)}
-                onBlur={() => !loading && setIsScanning(false)}
+                onChange={updateField("confirmPassword")}
+                disabled={loading}
               />
             </div>
 
-            <Button
-              type="primary"
-              block
-              loading={loading}
-              onClick={handleRegister}
-              className="sk-passCTA"
-            >
-              🎟️ Issue Boarding Pass
-            </Button>
-
-            <div className="sk-authFooter">
-              <Text className="sk-footerText">
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => authModal?.setAuthModalMode?.("login")}
-                  className="sk-footerLink"
-                >
-                  Log in
-                </button>
-              </Text>
+            {/* Optional helper tags (keeps your Tag import useful) */}
+            <div className="sk-passTags">
+              <Tag color="orange">Secure account</Tag>
+              <Tag color="purple">Passport unlock</Tag>
+              <Tag color="cyan">Earn XP</Tag>
             </div>
-          </div>
 
-          <div className="sk-passBarcode" aria-hidden="true">
-            {Array.from({ length: 24 }).map((_, i) => (
-              <span key={i} />
-            ))}
-          </div>
+            <div className="sk-passActions">
+              <Button
+                type="primary"
+                className="sk-passBtn"
+                loading={loading}
+                onClick={handleRegister}
+              >
+                Create Account
+              </Button>
 
-          <div aria-live="polite" className="sr-only">
-            {loading ? "Creating account…" : ""}
+              <Button
+                type="default"
+                className="sk-passBtnGhost"
+                disabled={loading}
+                onClick={() => nav("/login", { state: { from: redirectTo } })}
+              >
+                I already have an account
+              </Button>
+            </div>
           </div>
         </div>
-
-        <footer className="sk-authCopyright">
-          <Text className="sk-fineText">
-            © {new Date().getFullYear()} Skyrio
-          </Text>
-        </footer>
       </div>
     </AuthLayout>
   );

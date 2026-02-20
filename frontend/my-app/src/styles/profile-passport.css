@@ -1,13 +1,10 @@
 /* =============================
-   1) TOKENS (SAFE TO TWEAK)
+   TOKENS
    ============================= */
 :root {
   --pp-text: rgba(244, 246, 251, 0.95);
   --pp-muted: rgba(244, 246, 251, 0.72);
   --pp-faint: rgba(244, 246, 251, 0.55);
-
-  --pp-violet: rgba(120, 90, 255, 0.55);
-  --pp-violet-2: rgba(194, 97, 255, 0.55);
 
   --pp-orange: #ff8a2a;
   --pp-orange-2: #ffb066;
@@ -21,20 +18,17 @@
 
   --pp-radius-lg: 22px;
   --pp-radius-md: 18px;
-  --pp-radius-sm: 14px;
 
-  --pp-shadow-lg: 0 22px 55px rgba(0, 0, 0, 0.45);
   --pp-shadow-md: 0 14px 34px rgba(0, 0, 0, 0.35);
 
   --pp-blur: blur(16px);
-  --pp-gap: 16px;
   --pp-max: 1160px;
 
   --pp-focus: 0 0 0 3px rgba(255, 138, 42, 0.14);
 }
 
 /* =============================
-   2) PAGE BACKGROUND
+   PAGE BACKGROUND
    ============================= */
 .passport-page {
   min-height: 100vh;
@@ -58,27 +52,19 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-      1200px 700px at 20% 0%,
-      rgba(120, 90, 255, 0.22),
-      transparent 60%
-    ),
-    radial-gradient(
-      900px 600px at 80% 30%,
-      rgba(255, 138, 42, 0.18),
-      transparent 55%
-    ),
+  background:
+    radial-gradient(1200px 700px at 20% 0%, rgba(120, 90, 255, 0.22), transparent 60%),
+    radial-gradient(900px 600px at 80% 30%, rgba(255, 138, 42, 0.18), transparent 55%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.62));
 }
 
-.passport-content,
-.passport-scope {
+.passport-content {
   position: relative;
   z-index: 1;
 }
 
 /* =============================
-   3) SHELL
+   SHELL
    ============================= */
 .pp-page {
   padding: 18px 14px 40px;
@@ -135,10 +121,6 @@
   color: var(--pp-faint) !important;
 }
 
-.pp-accentText {
-  color: rgba(255, 176, 102, 0.92);
-}
-
 /* =============================
    CARD SYSTEM
    ============================= */
@@ -154,86 +136,41 @@
   padding: 18px;
 }
 
-/* add a slightly tighter body for thin panels (tabs) */
-.pp-tabPanel .ant-card-body {
-  padding: 12px 14px;
+/* =============================
+   MOCK GRID (this is the big change)
+   ============================= */
+.pp-mockGrid {
+  display: grid;
+  grid-template-columns: 1.55fr 0.85fr;
+  gap: 18px;
+  margin-top: 14px;
 }
 
-.pp-card--panel .ant-card-body {
-  padding: 18px;
+.pp-mockMain,
+.pp-mockSide {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
 }
 
 /* =============================
-   HERO PANEL (Image 1 layout)
+   PROFILE TOP STRIP
    ============================= */
-.pp-heroPanel {
-  position: relative;
+.pp-profileCard {
   overflow: hidden;
 }
 
-.pp-heroPanel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-      700px 420px at 18% 12%,
-      rgba(120, 90, 255, 0.22),
-      transparent 62%
-    ),
-    radial-gradient(
-      650px 420px at 78% 22%,
-      rgba(255, 138, 42, 0.16),
-      transparent 62%
-    );
-  pointer-events: none;
-}
-
-.pp-heroInner {
-  position: relative;
+.pp-profileRow {
   display: grid;
-  grid-template-columns: 1.15fr 1px 0.85fr 1px 1fr;
+  grid-template-columns: auto 1fr auto;
   gap: 16px;
-  align-items: start;
-}
-
-.pp-heroCol {
-  min-width: 0;
-}
-
-.pp-heroDivider {
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    rgba(255, 255, 255, 0.18),
-    transparent
-  );
-}
-
-.pp-heroTop {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 14px;
   align-items: center;
-  margin-bottom: 14px;
 }
 
-.pp-avatarGlow {
-  padding: 6px;
-  border-radius: 999px;
-  background: radial-gradient(
-    circle at 30% 30%,
-    rgba(255, 138, 42, 0.35),
-    rgba(120, 90, 255, 0.18),
-    rgba(255, 255, 255, 0.04)
-  );
+.pp-profileAvatar .ant-avatar {
+  background: rgba(0, 0, 0, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
-}
-
-.pp-heroName .ant-typography {
-  line-height: 1.08;
 }
 
 .pp-pill {
@@ -251,19 +188,19 @@
 
 .pp-pill--active {
   border-color: var(--pp-orange-border);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 138, 42, 0.22),
-    rgba(0, 0, 0, 0.16)
-  );
+  background: linear-gradient(180deg, rgba(255, 138, 42, 0.22), rgba(0, 0, 0, 0.16));
 }
 
-/* Followers / Following row */
+/* Followers / Following row (keep accurate counts) */
 .pp-followRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin: 8px 0 14px;
+  margin: 12px 0 0;
+}
+
+.pp-followRow--mock {
+  max-width: 420px;
 }
 
 .ppFollowBtn {
@@ -278,8 +215,7 @@
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition: transform 0.14s ease, border-color 0.14s ease,
-    background 0.14s ease;
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
 }
 
 .ppFollowBtn strong {
@@ -302,67 +238,18 @@
   cursor: not-allowed;
 }
 
-/* Identity stamps row */
-.pp-idStamps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.pp-idStamp {
-  border-radius: 14px;
-  border: 1px solid var(--pp-stroke-2);
-  background: rgba(0, 0, 0, 0.14);
-  padding: 12px 12px 10px;
-  min-height: 74px;
-}
-
-.pp-idStampTop {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.pp-idIcon {
-  width: 22px;
-  height: 22px;
+/* Center ring inside top strip */
+.pp-profileRing {
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  font-size: 12px;
 }
 
-.pp-idLabel {
-  font-size: 12px;
-  color: var(--pp-muted);
-  font-weight: 700;
-}
-
-.pp-idValue {
-  font-size: 13px;
-  color: var(--pp-text);
-  font-weight: 800;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Center ring block */
-.pp-levelWrap--hero {
-  display: grid;
-  place-items: center;
-  padding: 10px 0 6px;
-}
-
-.pp-levelRing {
-  width: 220px;
+.pp-levelRing--mock {
+  width: 210px;
   max-width: 100%;
 }
 
-.pp-levelRing .ant-progress-inner {
+.pp-levelRing--mock .ant-progress-inner {
   filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.35));
 }
 
@@ -392,302 +279,369 @@
   font-weight: 800;
 }
 
-/* Right actions */
-.pp-heroActions {
-  margin-top: 10px;
-  display: grid;
-  gap: 10px;
-}
-
-.pp-ghost-btn.ant-btn {
-  height: 38px;
-  border-radius: 999px;
-  border: 1px solid var(--pp-stroke);
-  background: rgba(0, 0, 0, 0.14);
-  color: var(--pp-text);
-  font-weight: 800;
-  display: inline-flex;
+/* =============================
+   HOME BASE ROW (mock line)
+   ============================= */
+.pp-homeBaseRow {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition: transform 0.14s ease, border-color 0.14s ease,
-    background 0.14s ease, box-shadow 0.14s ease;
+  gap: 8px;
+  padding-left: 10px;
+  margin-top: -6px;
+  color: var(--pp-muted);
+  font-weight: 800;
 }
 
-.pp-ghost-btn.ant-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 138, 42, 0.30);
+.pp-homeBaseDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
   background: rgba(0, 0, 0, 0.18);
 }
 
-.pp-ghost-btn.ant-btn:focus-visible {
-  box-shadow: var(--pp-focus);
-}
-
-.pp-ghost-btn--music.ant-btn {
-  border-color: rgba(120, 90, 255, 0.26);
-}
-
-.pp-credentialHint {
-  display: block;
-  margin-top: 10px;
-  font-size: 13px;
-  color: var(--pp-muted);
-  line-height: 1.35;
-}
-
-/* =============================
-   TABS PANEL + SEGMENTED
-   ============================= */
-.pp-tabPanel--sticky {
-  position: sticky;
-  top: 10px;
-  z-index: 20;
-}
-
-.pp-tabs .ant-segmented {
-  border-radius: 999px;
-  padding: 6px;
-  background: rgba(0, 0, 0, 0.16);
-  border: 1px solid var(--pp-stroke);
-}
-
-.pp-tabs .ant-segmented-item {
-  border-radius: 999px;
-}
-
-.pp-tabs .ant-segmented-item-selected {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 138, 42, 0.22),
-    rgba(0, 0, 0, 0.16)
-  );
-  border: 1px solid rgba(255, 138, 42, 0.35);
-  color: var(--pp-text);
-}
-
-.ppSegLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 800;
-}
-
-.ppSegIcon {
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
+.pp-homeBaseLabel {
   opacity: 0.92;
 }
 
-.ppSegText {
-  font-size: 12px;
+.pp-homeBaseSep {
+  opacity: 0.55;
+}
+
+.pp-homeBaseValue {
+  color: rgba(244, 246, 251, 0.82);
 }
 
 /* =============================
-   PANELS (below fold)
+   RIGHT SIDEBAR ACTIONS (Add music / Copy / Share)
    ============================= */
-.pp-panelHeader {
+.pp-actionsCard .ant-card-body {
   display: grid;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-
-.pp-panelHeaderRow {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
 }
 
-.pp-xpChip {
-  height: 28px;
-  padding: 0 10px;
+.pp-actionsStack {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.pp-actionBtn.ant-btn {
+  height: 40px;
   border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--pp-stroke);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(0, 0, 0, 0.14);
+  color: rgba(244, 246, 251, 0.92);
+  font-weight: 850;
+  justify-content: flex-start;
+  padding: 0 14px;
+}
+
+.pp-actionBtn.ant-btn:hover {
+  border-color: rgba(255, 138, 42, 0.30);
+  background: rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
+}
+
+.pp-actionBtn.ant-btn:focus-visible {
+  box-shadow: var(--pp-focus);
+}
+
+.pp-credentialHint {
+  font-size: 13px;
   color: var(--pp-muted);
-  font-weight: 900;
-  font-size: 12px;
-  white-space: nowrap;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.pp-upgradeBtn.ant-btn {
+  height: 44px;
+  border-radius: 999px;
+  font-weight: 950;
+  border: 1px solid rgba(255, 138, 42, 0.55) !important;
+  background: linear-gradient(135deg, #ff8a2a, #ffb066) !important;
+  color: rgba(20, 12, 8, 0.92) !important;
+  margin-top: 2px;
 }
 
 /* =============================
-   INNER CIRCLE
+   SOUNDTRACK CARD
    ============================= */
-.pp-innerGrid {
+.pp-soundtrackCard {
+  overflow: hidden;
+}
+
+.pp-soundtrackRow {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.pp-soundtrackCover {
+  width: 140px;
+  height: 108px;
+  border-radius: 16px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.35);
+}
+
+.pp-soundtrackTitle {
+  font-size: 20px;
+  font-weight: 950;
+  color: rgba(244, 246, 251, 0.95);
+}
+
+.pp-soundtrackSub {
+  font-size: 14px;
+  font-weight: 850;
+  color: rgba(244, 246, 251, 0.82);
+  margin-top: 3px;
+}
+
+.pp-soundtrackTiny {
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.62);
+  margin-top: 3px;
+}
+
+.pp-audioBar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.pp-audioProgress {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff8a2a, #8b5cff);
+}
+
+.pp-audioControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.pp-audioBtn {
+  height: 34px;
+  min-width: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.14);
+  color: rgba(244, 246, 251, 0.92);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pp-audioBtn--main {
+  min-width: 42px;
+  height: 42px;
+  border-color: rgba(255, 138, 42, 0.35);
+  background: rgba(255, 138, 42, 0.12);
+}
+
+.pp-audioWave {
+  margin-left: auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  opacity: 0.55;
+}
+
+.pp-audioWave span {
+  width: 4px;
+  border-radius: 6px;
+  background: rgba(244, 246, 251, 0.75);
+}
+
+.pp-audioWave span:nth-child(1) { height: 10px; }
+.pp-audioWave span:nth-child(2) { height: 16px; }
+.pp-audioWave span:nth-child(3) { height: 12px; }
+.pp-audioWave span:nth-child(4) { height: 18px; }
+.pp-audioWave span:nth-child(5) { height: 13px; }
+.pp-audioWave span:nth-child(6) { height: 16px; }
+
+/* =============================
+   JOURNEYS CARD (carousel tiles)
+   ============================= */
+.pp-journeysHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pp-journeysTitle {
+  font-size: 20px;
+  font-weight: 950;
+  color: rgba(244, 246, 251, 0.95);
+}
+
+.pp-journeysGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
-.pp-innerTile {
-  border: 1px solid var(--pp-stroke);
+.pp-journeyTile {
+  border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(0, 0, 0, 0.14);
-  border-radius: 16px;
-  padding: 0;
+  border-radius: 18px;
   overflow: hidden;
-  cursor: pointer;
+  padding: 0;
   position: relative;
+  cursor: pointer;
+  min-height: 170px;
   text-align: left;
-  min-height: 108px;
-  transition: transform 0.14s ease, border-color 0.14s ease,
-    background 0.14s ease;
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
 }
 
-.pp-innerTile:hover {
+.pp-journeyTile:hover {
   transform: translateY(-2px);
   border-color: rgba(255, 138, 42, 0.28);
   background: rgba(0, 0, 0, 0.18);
 }
 
-.pp-innerCover {
+.pp-journeyImg {
   position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center;
-  filter: saturate(1.05) contrast(1.05);
   transform: scale(1.02);
+  filter: saturate(1.05) contrast(1.05);
 }
 
-.pp-innerOverlay {
+.pp-journeyOverlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.18),
-    rgba(0, 0, 0, 0.55)
-  );
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.10), rgba(0, 0, 0, 0.62));
 }
 
-.pp-innerMeta {
+.pp-journeyText {
   position: absolute;
   left: 12px;
-  bottom: 10px;
   right: 12px;
+  bottom: 12px;
   display: grid;
   gap: 2px;
 }
 
-.pp-innerName {
-  font-weight: 900;
-  color: var(--pp-text);
-  font-size: 14px;
-  letter-spacing: 0.2px;
+.pp-journeyName {
+  font-weight: 950;
+  font-size: 18px;
+  color: rgba(244, 246, 251, 0.95);
 }
 
-.pp-innerSub {
-  font-weight: 800;
-  color: var(--pp-muted);
+.pp-journeyLast {
+  font-weight: 850;
   font-size: 12px;
+  color: rgba(244, 246, 251, 0.72);
 }
 
-.pp-innerTile--add {
-  display: grid;
-  place-items: center;
-  gap: 6px;
+.pp-viewAll {
+  margin-top: 12px;
+  width: 100%;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(0, 0, 0, 0.14);
-}
-
-.pp-innerAddPlus {
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 138, 42, 0.35);
-  background: rgba(255, 138, 42, 0.12);
-  color: var(--pp-text);
-  font-size: 20px;
+  color: rgba(244, 246, 251, 0.88);
   font-weight: 900;
-}
-
-.pp-innerAddText {
-  font-size: 12px;
-  color: var(--pp-muted);
-  font-weight: 800;
-}
-
-.pp-innerDots {
+  cursor: pointer;
   display: flex;
   justify-content: center;
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.pp-innerDots .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.pp-innerDots .dot.isOn {
-  background: rgba(255, 138, 42, 0.70);
-}
-
-/* =============================
-   ORANGE PILLS (Passport scope)
-   ============================= */
-.pp-shell .ant-tag {
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-weight: 900;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.16);
-  color: rgba(244, 246, 251, 0.90);
-}
-
-/* “highlight” pill */
-.pp-shell .ant-tag.pp-tagOrange,
-.pp-shell .ant-tag.ant-tag-orange {
-  border-color: rgba(255, 138, 42, 0.55);
-  background: rgba(255, 138, 42, 0.14);
-  color: rgba(255, 176, 102, 0.95);
-}
-
-/* =============================
-   Vault Exchange Preview (Passport Summary)
-   ============================= */
-.pp-vxPreview {
-  position: relative;
-  overflow: hidden;
-}
-
-.pp-vxPreview::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(520px 260px at 15% 10%, rgba(120, 90, 255, 0.18), transparent 60%),
-    radial-gradient(520px 260px at 85% 15%, rgba(255, 138, 42, 0.14), transparent 60%);
-  pointer-events: none;
-}
-
-.pp-vxTop,
-.pp-vxMid,
-.pp-vxDrop {
-  position: relative;
-}
-
-.pp-vxTitleRow {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.pp-vxTags {
-  display: flex;
   gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  align-items: center;
 }
 
+.pp-viewAll:hover {
+  border-color: rgba(255, 138, 42, 0.28);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.pp-arrow {
+  font-weight: 950;
+}
+
+/* =============================
+   PARTNERS CARD (right sidebar)
+   ============================= */
+.pp-partnersTitle {
+  font-size: 16px;
+  font-weight: 950;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: rgba(244, 246, 251, 0.92);
+}
+
+.pp-partnersIcon {
+  opacity: 0.75;
+}
+
+.pp-partnerList {
+  display: grid;
+  gap: 12px;
+}
+
+.pp-partnerItem {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.pp-partnerName {
+  font-weight: 950;
+  color: rgba(244, 246, 251, 0.92);
+  font-size: 13px;
+}
+
+.pp-partnerSub {
+  font-weight: 850;
+  color: rgba(244, 246, 251, 0.72);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.pp-partnerTiny {
+  font-weight: 800;
+  color: rgba(244, 246, 251, 0.58);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.pp-inviteBtn.ant-btn {
+  margin-top: 12px;
+  width: 100%;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.14);
+  color: rgba(244, 246, 251, 0.88);
+  font-weight: 900;
+}
+
+.pp-inviteBtn.ant-btn:hover {
+  border-color: rgba(255, 138, 42, 0.28);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* =============================
+   TAGS
+   ============================= */
 .pp-tag {
   border-radius: 999px !important;
   padding: 4px 10px !important;
@@ -697,215 +651,41 @@
   color: rgba(244, 246, 251, 0.92) !important;
 }
 
-/* orange pill */
-.ppTagOrange {
-  border-color: rgba(255, 138, 42, 0.55) !important;
-  background: rgba(255, 138, 42, 0.14) !important;
-  color: rgba(255, 176, 102, 0.95) !important;
-}
-
-/* dark neutral pill */
 .ppTagDark {
   border-color: rgba(255, 255, 255, 0.14) !important;
   background: rgba(0, 0, 0, 0.18) !important;
   color: rgba(244, 246, 251, 0.88) !important;
 }
 
-.pp-vxMid {
-  display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
-  gap: 14px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
-}
-
-.pp-vxStat {
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(0, 0, 0, 0.14);
-  border-radius: 16px;
-  padding: 12px;
-}
-
-.pp-vxBig {
-  margin-top: 6px;
-  font-size: 20px;
-  font-weight: 950;
-  letter-spacing: 0.2px;
-  color: rgba(244, 246, 251, 0.95);
-}
-
-.pp-vxProgress {
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(0, 0, 0, 0.14);
-  border-radius: 16px;
-  padding: 12px;
-}
-
-.pp-vxProgressTop {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.pp-vxDrop {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 14px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
-}
-
-.pp-vxDropName {
-  margin-top: 4px;
-  font-weight: 950;
-  color: rgba(244, 246, 251, 0.95);
-}
-
-.pp-vxDropRight {
-  display: grid;
-  gap: 8px;
-  justify-items: end;
-}
-
-.pp-vxCta.ant-btn {
-  height: 40px;
-  border-radius: 999px;
-  font-weight: 950;
-  border: 1px solid rgba(255, 138, 42, 0.55) !important;
-  background: linear-gradient(135deg, #ff8a2a, #ffb066) !important;
-  color: rgba(20, 12, 8, 0.92) !important;
-}
-
-.pp-vxCta.ant-btn:disabled {
-  opacity: 0.65;
-}
-
-.pp-vxLockNote {
-  font-size: 12px;
-  color: rgba(244, 246, 251, 0.65);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* responsive */
-@media (max-width: 560px) {
-  .pp-vxMid {
-    grid-template-columns: 1fr;
-  }
-  .pp-vxDrop {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .pp-vxDropRight {
-    justify-items: stretch;
-  }
-}
-
-/* SkyHub search pill inside passport */
-.pp-searchPill.ant-input-affix-wrapper {
-  border-radius: 999px !important;
-  background: rgba(0, 0, 0, 0.16) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.pp-searchPill.ant-input-affix-wrapper input {
-  background: transparent !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.pp-searchPill.ant-input-affix-wrapper input::placeholder {
-  color: rgba(244, 246, 251, 0.55) !important;
-}
-
-.pp-searchPill.ant-input-affix-wrapper {
-  border-radius: 999px !important;
-  background: rgba(0, 0, 0, 0.16) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.pp-searchPill.ant-input-affix-wrapper input {
-  background: transparent !important;
-  color: rgba(244, 246, 251, 0.92) !important;
-}
-
-.pp-searchPill.ant-input-affix-wrapper input::placeholder {
-  color: rgba(244, 246, 251, 0.55) !important;
-}
-
-
-/* =============================
-   VAULT EXCHANGE INPUT FIX
-   ============================= */
-.passport-page .vault-exchange input,
-.passport-page .vault-exchange textarea,
-.passport-page .vault-exchange select {
-  background: rgba(0, 0, 0, 0.22) !important;
-  color: rgba(244, 246, 251, 0.95) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  border-radius: 999px !important;
-  outline: none !important;
-}
-
-.passport-page .vault-exchange input::placeholder,
-.passport-page .vault-exchange textarea::placeholder {
-  color: rgba(244, 246, 251, 0.55) !important;
-}
-
-.passport-page .vault-exchange .search,
-.passport-page .vault-exchange .searchBar,
-.passport-page .vault-exchange .search-pill,
-.passport-page .vault-exchange .searchPill,
-.passport-page .vault-exchange .exchange-search,
-.passport-page .vault-exchange .exchangeSearch {
-  background: rgba(0, 0, 0, 0.22) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  border-radius: 999px !important;
-}
-
-.passport-page .vault-exchange input:focus,
-.passport-page .vault-exchange textarea:focus,
-.passport-page .vault-exchange .search:focus-within,
-.passport-page .vault-exchange .searchBar:focus-within,
-.passport-page .vault-exchange .search-pill:focus-within,
-.passport-page .vault-exchange .exchange-search:focus-within {
-  border-color: rgba(255, 138, 42, 0.45) !important;
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.12) !important;
-}
-
 /* =============================
    RESPONSIVE
    ============================= */
-@media (max-width: 1024px) {
-  .pp-heroInner {
+@media (max-width: 1100px) {
+  .pp-mockGrid {
     grid-template-columns: 1fr;
   }
-  .pp-heroDivider {
-    display: none;
-  }
-  .pp-idStamps {
-    grid-template-columns: 1fr;
-  }
-  .pp-levelRing {
-    width: 200px;
+  .pp-journeysGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 560px) {
-  .pp-homeBtnWrap {
-    top: 12px;
-    left: 12px;
+  .pp-profileRow {
+    grid-template-columns: 1fr;
+    justify-items: start;
   }
-  .pp-innerGrid {
+  .pp-profileRing {
+    justify-self: center;
+    width: 100%;
+  }
+  .pp-soundtrackRow {
     grid-template-columns: 1fr;
   }
-  .pp-followRow {
-    grid-template-columns: 1fr 1fr;
+  .pp-soundtrackCover {
+    width: 100%;
+    height: 140px;
+  }
+  .pp-journeysGrid {
+    grid-template-columns: 1fr;
   }
 }

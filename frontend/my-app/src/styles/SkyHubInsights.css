@@ -1,0 +1,360 @@
+.shins-page {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 60px;
+}
+
+
+/* =========================================
+   MAIN GLASS FRAME
+========================================= */
+
+.shins-frame {
+  width: 100%;
+  max-width: 860px;
+
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.18),
+    rgba(255,255,255,0.08)
+  );
+
+  backdrop-filter: blur(18px);
+
+  border-radius: 26px;
+
+  border: 1px solid rgba(255,255,255,0.28);
+
+  padding: 26px;
+
+  box-shadow:
+    0 40px 80px rgba(0,0,0,0.35);
+}
+
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+.shins-head {
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  margin-bottom: 24px;
+}
+
+
+
+.shins-titleRow {
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+
+.shins-title {
+
+  font-size: 22px;
+  font-weight: 700;
+
+  color: white;
+}
+
+
+.shins-badge {
+
+  font-size: 12px;
+
+  padding: 4px 10px;
+
+  border-radius: 999px;
+
+  background: rgba(255,255,255,0.22);
+
+  color: white;
+}
+
+
+
+.shins-sub {
+
+  font-size: 14px;
+
+  opacity: 0.85;
+
+  color: white;
+
+  margin-top: 4px;
+}
+
+
+
+.shins-actions {
+
+  display: flex;
+  gap: 10px;
+}
+
+
+
+/* =========================================
+   GRID
+========================================= */
+
+.shins-grid {
+
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 20px;
+}
+
+
+
+/* =========================================
+   CARD
+========================================= */
+
+.shins-card {
+
+  background:
+
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.12),
+      rgba(255,255,255,0.04)
+    );
+
+  padding: 18px;
+
+  border-radius: 18px;
+
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+
+
+.shins-cardTitle {
+
+  font-weight: 600;
+
+  color: white;
+
+  margin-bottom: 8px;
+}
+
+
+
+.shins-muted {
+
+  font-size: 13px;
+
+  opacity: 0.7;
+
+  color: white;
+
+  margin-bottom: 16px;
+}
+
+
+
+/* =========================================
+   KPIs
+========================================= */
+
+.shins-kpis {
+
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 12px;
+}
+
+
+.shins-kpi {
+
+  background:
+
+    rgba(255,255,255,0.10);
+
+  padding: 14px;
+
+  border-radius: 12px;
+
+  text-align: center;
+}
+
+
+.shins-kpiValue {
+
+  font-size: 22px;
+
+  font-weight: 700;
+
+  color: white;
+}
+
+
+.shins-kpiLabel {
+
+  font-size: 12px;
+
+  opacity: 0.7;
+
+  color: white;
+}
+
+
+
+/* =========================================
+   PLACES
+========================================= */
+
+.shins-placeRow {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  margin-bottom: 10px;
+}
+
+
+.shins-placeName {
+
+  color: white;
+
+  font-size: 14px;
+}
+
+
+
+.shins-placeRight {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  width: 55%;
+}
+
+
+
+.shins-bar {
+
+  flex: 1;
+
+  height: 6px;
+
+  border-radius: 999px;
+
+  background: rgba(255,255,255,0.18);
+
+  overflow: hidden;
+}
+
+
+.shins-fill {
+
+  height: 100%;
+
+  background:
+
+    linear-gradient(
+      90deg,
+      #ff8a2a,
+      #ffb066
+    );
+}
+
+
+.shins-pct {
+
+  font-size: 12px;
+
+  color: white;
+}
+
+
+
+/* =========================================
+   TAGS
+========================================= */
+
+.shins-tagRow {
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 8px;
+}
+
+
+.shins-tag {
+
+  font-size: 12px;
+
+  padding: 6px 10px;
+
+  border-radius: 999px;
+
+  background: rgba(255,255,255,0.18);
+
+  color: white;
+}
+
+
+
+/* =========================================
+   TIP
+========================================= */
+
+.shins-tip {
+
+  margin-top: 20px;
+}
+
+
+.shins-tipTitle {
+
+  font-weight: 600;
+
+  color: white;
+
+  margin-bottom: 6px;
+}
+
+
+.shins-tipText {
+
+  font-size: 14px;
+
+  color: white;
+
+  opacity: 0.85;
+}
+
+
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 768px) {
+
+  .shins-grid {
+
+    grid-template-columns: 1fr;
+  }
+
+}

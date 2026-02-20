@@ -1,53 +1,69 @@
 import React from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import {
-  HomeOutlined,
-  MessageOutlined,
-  TeamOutlined,
-  IdcardOutlined,
-  BookOutlined,
-} from "@ant-design/icons";
-
-const items = [
-  { key: "home", label: "Home", to: "/", icon: <HomeOutlined /> },
-  { key: "dms", label: "DMs", to: "/dm", icon: <MessageOutlined /> },
-  { key: "circles", label: "Circles", to: "/circles", icon: <TeamOutlined /> },
-  {
-    key: "passport",
-    label: "Passport",
-    to: "/passport",
-    icon: <IdcardOutlined />,
-  },
-  { key: "saved", label: "Saved", to: "/saved", icon: <BookOutlined /> },
-];
+import { NavLink } from "react-router-dom";
 
 export default function LeftRail() {
-  const { pathname } = useLocation();
-
   return (
-    <aside className="sh-leftRail">
-      <div className="sh-leftTitle">Your Space</div>
+    <>
+      <div className="skyhub-brand">
+        <div className="skyhub-brandLogo">☁️</div>
+        <div>
+          <div className="skyhub-brandName">SkyHub</div>
+          <div className="skyhub-brandSub">Where travel stories live</div>
+        </div>
+      </div>
 
-      <nav className="sh-leftNav" aria-label="Primary navigation">
-        {items.map((item) => {
-          const isHome = item.to === "/";
-          const active = isHome
-            ? pathname === "/"
-            : pathname === item.to || pathname.startsWith(item.to + "/");
+      <nav className="skyhub-nav">
+        <NavLink
+          to="/skyhub/moments"
+          className={({ isActive }) =>
+            `skyhub-navItem ${isActive ? "is-active" : ""}`
+          }
+        >
+          <span className="skyhub-navIcon">🏠</span>
+          <span className="skyhub-navLabel">Home</span>
+        </NavLink>
 
-          return (
-            <NavLink
-              key={item.key}
-              to={item.to}
-              className={`sh-leftItem ${active ? "is-active" : ""}`}
-              aria-current={active ? "page" : undefined}
-            >
-              <span className="sh-leftIcon">{item.icon}</span>
-              <span className="sh-leftLabel">{item.label}</span>
-            </NavLink>
-          );
-        })}
+        <NavLink
+          to="/skyhub/dm"
+          className={({ isActive }) =>
+            `skyhub-navItem ${isActive ? "is-active" : ""}`
+          }
+        >
+          <span className="skyhub-navIcon">💬</span>
+          <span className="skyhub-navLabel">DMs</span>
+        </NavLink>
+
+        <NavLink
+          to="/skyhub/circles"
+          className={({ isActive }) =>
+            `skyhub-navItem ${isActive ? "is-active" : ""}`
+          }
+        >
+          <span className="skyhub-navIcon">🧑‍🤝‍🧑</span>
+          <span className="skyhub-navLabel">Circles</span>
+        </NavLink>
+
+        <NavLink
+          to="/passport"
+          className={({ isActive }) =>
+            `skyhub-navItem ${isActive ? "is-active" : ""}`
+          }
+        >
+          <span className="skyhub-navIcon">🪪</span>
+          <span className="skyhub-navLabel">Passport</span>
+          <span className="skyhub-navCaret">›</span>
+        </NavLink>
+
+        <NavLink
+          to="/skyhub/saved"
+          className={({ isActive }) =>
+            `skyhub-navItem ${isActive ? "is-active" : ""}`
+          }
+        >
+          <span className="skyhub-navIcon">💾</span>
+          <span className="skyhub-navLabel">Saved</span>
+        </NavLink>
       </nav>
-    </aside>
+    </>
   );
 }
