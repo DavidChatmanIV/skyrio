@@ -1,110 +1,84 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
+import { Modal } from "antd";
+import "@/styles/PostCard.css";
 
-export default function PostCard({
-  post,
-  onLike = () => {},
-  onComment = () => {},
-  onShare = () => {},
-  onSave = () => {},
-  liked = false,
-  saved = false,
-}) {
-  if (!post) return null;
+export default function PostCard({ post }) {
+  const [open, setOpen] = useState(false);
 
-  const {
-    name = "Traveler",
-    handle = "@traveler",
-    time = "now",
-    place = "",
-    text = "",
-    verified = false,
-    images = [],
-  } = post;
-
-  const imgs = Array.isArray(images) ? images.filter(Boolean) : [];
-  const hasGrid = imgs.length >= 2;
+  const initials = useMemo(() => {
+    const n = (post?.name || "User").trim();
+    const parts = n.split(" ").filter(Boolean);
+    const a = parts[0]?.[0] || "U";
+    const b = parts[1]?.[0] || "";
+    return (a + b).toUpperCase();
+  }, [post?.name]);
 
   return (
-    <article className="skyhub-post">
-      <header className="skyhub-postHeader">
-        <div className="skyhub-user">
-          <div className="skyhub-avatarBubble" aria-hidden="true" />
+    <>
+      <div className="post-card">
+        {/* Header */}
+        <div className="post-header">
+          {post?.avatar ? (
+            <img className="post-avatar" src={post.avatar} alt="avatar" />
+          ) : (
+            <div className="post-avatarFallback">{initials}</div>
+          )}
 
-          <div className="skyhub-userMeta">
-            <div className="skyhub-nameRow">
-              <div className="skyhub-name" title={name}>
-                {name}
+          <div className="post-meta">
+            <div className="post-nameRow">
+              <div className="post-name">
+                {post?.name || "User"}
+                <span className="post-time"> • {post?.time || "now"}</span>
               </div>
-              {verified ? <span className="skyhub-verifiedDot" /> : null}
-              <span className="skyhub-dot">•</span>
-              <span className="skyhub-time">{time}</span>
             </div>
 
-            <div className="skyhub-subRow">
-              <span className="skyhub-handle">{handle}</span>
-              {place ? (
-                <>
-                  <span className="skyhub-dot">•</span>
-                  <span className="skyhub-place" title={place}>
-                    {place}
-                  </span>
-                </>
-              ) : null}
+            <div className="post-sub">
+              <span className="post-handle">@{post?.username || "user"}</span>
+              <span className="post-dot">•</span>
+              <span className="post-loc">{post?.location || "Somewhere"}</span>
             </div>
           </div>
         </div>
 
-        <button className="skyhub-moreBtn skyhub-actionBtn" type="button" aria-label="More">
-          •••
-        </button>
-      </header>
+        {/* Text */}
+        {post?.text && <div className="post-text">{post.text}</div>}
 
-      {imgs.length > 0 ? (
-        <div className="skyhub-mediaEdge">
-          {hasGrid ? (
-            <div className="skyhub-imgGrid">
-              <img className="skyhub-img" src={imgs[0]} alt="" />
-              <img className="skyhub-img" src={imgs[1]} alt="" />
-            </div>
-          ) : (
-            <img className="skyhub-img" src={imgs[0]} alt="" />
-          )}
+        {/* ✅ Image */}
+        {post?.image && (
+          <button className="post-imageBtn" onClick={() => setOpen(true)}>
+            <img className="post-image" src={post.image} alt="moment" />
+          </button>
+        )}
+
+        {/* Actions */}
+        <div className="post-actions">
+          <button className="post-actionBtn">❤️ Like</button>
+          <button className="post-actionBtn">💬 Comment</button>
+          <button className="post-actionBtn">🔁 Share</button>
+          <button className="post-actionBtn">🔖 Save</button>
         </div>
-      ) : null}
-
-      {(handle || text) && (
-        <div className="skyhub-caption">
-          {text ? <div className="skyhub-text">{text}</div> : null}
-        </div>
-      )}
-
-      <div className="skyhub-actionsRow">
-        <button
-          className={`skyhub-actionBtn ${liked ? "is-on" : ""}`}
-          type="button"
-          onClick={onLike}
-        >
-          ❤️ Like
-        </button>
-
-        <button className="skyhub-actionBtn" type="button" onClick={onComment}>
-          💬 Comment
-        </button>
-
-        <button className="skyhub-actionBtn" type="button" onClick={onShare}>
-          ↗️ Share
-        </button>
-
-        <div className="skyhub-actionsSpacer" />
-
-        <button
-          className={`skyhub-savePill ${saved ? "is-on" : ""}`}
-          type="button"
-          onClick={onSave}
-        >
-          💾 Save
-        </button>
       </div>
-    </article>
+
+      {/* ✅ Image Modal */}
+      <Modal
+        open={open}
+        onCancel={() => setOpen(false)}
+        footer={null}
+        centered
+        width={860}
+        className="post-imageModal"
+      >
+        <div className="post-modalWrap">
+          <img className="post-modalImg" src={post?.image} alt="moment large" />
+          <div className="post-modalCaption">
+            <div className="post-modalTitle">
+              {post?.name}{" "}
+              <span className="post-modalTime">• {post?.time}</span>
+            </div>
+            <div className="post-modalText">{post?.text}</div>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }

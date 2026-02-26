@@ -1,466 +1,227 @@
-/* =========================
-   PAGE SHELL
-========================= */
-
-.moments-page{
-  display: grid;
-  gap: 18px;
-  padding-bottom: 40px;
+.momentsWrap{
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
 }
 
+/* ✅ BIG CENTER GLASS PANEL (the missing piece) */
+.momentsPanel{
+  width: 100%;
+  border-radius: 26px;
+  padding: 16px 16px 18px;
 
-/* =========================
-   HEADER
-========================= */
-
-.moments-header{
-  display:flex;
-  align-items:center;
-  gap: 16px;
-}
-
-.moments-title{
-  font-size: 32px;
-  font-weight: 800;
-  color: rgba(244,246,251,0.95);
-}
-
-.moments-tabs{
-  display:flex;
-  gap: 8px;
-}
-
-
-/* ORANGE PILL */
-
-.moments-pill{
-  padding: 8px 18px;
-
-  border-radius: 999px;
-
-  background: linear-gradient(
-    135deg,
-    #ff8a2a,
-    #ff6a00
-  );
-
-  color: white;
-
-  font-weight: 700;
-
-  cursor: pointer;
-
-  border: none;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 
   box-shadow:
-  0 6px 18px rgba(255,138,42,0.35);
+    0 30px 90px rgba(0,0,0,.28),
+    0 0 0 1px rgba(255,255,255,.06) inset;
 }
-
-
-.moments-pill.inactive{
-
-  background: rgba(255,255,255,0.10);
-
-  color: rgba(244,246,251,0.70);
-
-  box-shadow: none;
-
-}
-
-
 
 /* =========================
-   SHARE MOMENT BOX
+   Composer (top of panel)
 ========================= */
+.shareMomentCard{
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 
+  padding: 14px 16px;
+  border-radius: 18px;
 
-.moments-shareBox{
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 
-  display:flex;
+  outline: 2px solid rgba(255,138,42,.45);
+  cursor: pointer;
 
-  align-items:center;
+  transition: transform .12s ease, background .12s ease, outline-color .12s ease;
+}
 
+.shareMomentCard:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.12);
+  outline-color: rgba(255,138,42,.62);
+}
+
+.sharePlus{
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(255,255,255,.10);
+  color: rgba(244,246,251,.92);
+}
+
+.sharePlaceholder{
+  font-weight: 850;
+  color: rgba(244,246,251,.82);
+}
+
+/* =========================
+   Feed list
+========================= */
+.momentsList{
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
-
-
-  padding: 16px;
-
-
-  border-radius: 20px;
-
-
-  background:
-
-  rgba(255,255,255,0.08);
-
-
-  backdrop-filter:
-
-  blur(18px);
-
-
-  border:
-
-  1px solid rgba(255,255,255,0.16);
-
-
-
-  cursor: pointer;
-
-
-  transition: 0.2s;
-
-
-  /* VERY IMPORTANT — allows clicks */
-
-  pointer-events: auto;
-
-  position: relative;
-
-  z-index: 2;
-
 }
-
-
-.moments-shareBox:hover{
-
-  background: rgba(255,255,255,0.14);
-
-}
-
-
-.moments-shareIcon{
-
-  width: 40px;
-
-  height: 40px;
-
-  border-radius: 14px;
-
-
-  display:grid;
-
-  place-items:center;
-
-
-  background: rgba(255,255,255,0.12);
-
-
-  border:
-
-  1px solid rgba(255,255,255,0.16);
-
-}
-
-
-.moments-shareText{
-
-  font-weight: 600;
-
-  color:
-
-  rgba(244,246,251,0.75);
-
-}
-
-
-
 
 /* =========================
-   FEED LIST
+   Post card
 ========================= */
-
-
-.moments-feed{
-
-  display:grid;
-
-  gap: 18px;
-
-}
-
-
-
-
-/* =========================
-   POST CARD
-========================= */
-
-
-.moments-card{
-
-
+.momentCard{
   border-radius: 22px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 
+  box-shadow:
+    0 22px 70px rgba(0,0,0,.22),
+    0 0 0 1px rgba(255,255,255,.05) inset;
 
-  background:
-
-  rgba(255,255,255,0.08)
-
-
-  !important;
-
-
-  backdrop-filter:
-
-  blur(20px);
-
-
-  border:
-
-  1px solid rgba(255,255,255,0.16);
-
-
-  padding: 16px;
-
-
+  overflow: hidden;
 }
 
-
-
-/* =========================
-   POST HEADER
-========================= */
-
-
-.moments-postHeader{
-
-  display:flex;
-
+/* header */
+.momentHead{
+  padding: 14px 16px 12px;
+  display: flex;
   justify-content: space-between;
-
-  align-items:center;
-
+  align-items: flex-start;
+  gap: 12px;
 }
 
-
-.moments-userRow{
-
-  display:flex;
-
-  gap: 10px;
-
-  align-items:center;
-
+.momentUser{
+  display: flex;
+  gap: 12px;
+  min-width: 0;
 }
 
-
-.moments-avatar{
-
-  width: 42px;
-
-  height: 42px;
-
-  border-radius: 50%;
-
-}
-
-
-.moments-name{
-
-  font-weight: 700;
-
-  color:
-
-  rgba(244,246,251,0.92);
-
-}
-
-
-.moments-sub{
-
-  font-size: 13px;
-
-  color:
-
-  rgba(244,246,251,0.65);
-
-}
-
-
-
-/* =========================
-   POST IMAGE GRID
-========================= */
-
-
-.moments-imageGrid{
-
-
-  display:grid;
-
-
-  grid-template-columns:
-
-
-  1fr 1fr;
-
-
-  gap: 10px;
-
-
-  margin-top: 14px;
-
-}
-
-
-.moments-image{
-
-
-  width:100%;
-
-
-  height:240px;
-
-
-  object-fit:cover;
-
-
-  border-radius: 14px;
-
-
-  border:
-
-
-  1px solid rgba(255,255,255,0.14);
-
-}
-
-
-
-
-/* =========================
-   POST TEXT
-========================= */
-
-
-.moments-text{
-
-
-  margin-top: 12px;
-
-
-  font-weight: 600;
-
-
-  color:
-
-
-  rgba(244,246,251,0.90);
-
-}
-
-
-
-
-/* =========================
-   ACTION BUTTONS
-========================= */
-
-
-.moments-actions{
-
-
-  display:flex;
-
-
-  gap: 10px;
-
-
-  margin-top: 14px;
-
-}
-
-
-
-.moments-actionBtn{
-
-
+.momentAvatar{
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,.22);
+  box-shadow: 0 10px 20px rgba(0,0,0,.18);
+}
 
+.momentUserMeta{ min-width: 0; }
 
-  background:
+.momentNameRow{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.1;
+}
 
+.momentName{
+  font-weight: 950;
+  color: rgba(244,246,251,.95);
+}
 
-  rgba(255,255,255,0.10);
+.momentTime{
+  color: rgba(244,246,251,.78);
+  font-weight: 850;
+  font-size: 13px;
+}
 
+.momentDot{ opacity: .7; }
 
-  border:
+.momentLocRow{
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(244,246,251,.72);
+  font-weight: 800;
+  font-size: 13px;
+}
 
-
-  1px solid rgba(255,255,255,0.16);
-
-
-  color:
-
-
-  rgba(244,246,251,0.85);
-
-
-  padding:
-
-
-  6px 14px;
-
-
+.momentMore{
+  border: 0;
+  background: rgba(0,0,0,.20);
+  color: rgba(244,246,251,.9);
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
   cursor: pointer;
-
-
-  font-weight: 600;
-
-
-  transition: 0.15s;
-
-
+  display: grid;
+  place-items: center;
 }
 
-
-.moments-actionBtn:hover{
-
-
-  background:
-
-
-  rgba(255,255,255,0.18);
-
-
+/* media */
+.momentMedia{
+  width: 100%;
+  background: rgba(0,0,0,.10);
 }
 
-
-
-
-/* =========================
-   SAVE BUTTON
-========================= */
-
-
-.moments-saveBtn{
-
-
-  margin-left: auto;
-
+.momentMedia.isGrid2{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
 
-
-
-
-/* =========================
-   MODAL FIX — IMPORTANT
-========================= */
-
-
-/* prevents modal hidden behind UI */
-
-
-.ant-modal-wrap{
-
-  z-index: 10000;
-
+.momentImg{
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+  display: block;
 }
 
+.momentMedia.isGrid2 .momentImg{
+  height: 260px;
+}
 
-.ant-modal-mask{
+/* counts row like mock */
+.momentCounts{
+  padding: 10px 16px 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 
-  z-index: 9999;
+  color: rgba(244,246,251,.76);
+  font-weight: 900;
+}
 
+.countDivider{ opacity: .55; }
+
+.countSave{
+  border: 0;
+  background: transparent;
+  color: rgba(244,246,251,.84);
+  font-weight: 950;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* caption */
+.momentCaption{
+  padding: 6px 16px 16px;
+  color: rgba(244,246,251,.92);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+/* upload tile */
+.uploadTile{
+  display: grid;
+  place-items: center;
+  gap: 6px;
+}
+
+/* responsive */
+@media (max-width: 720px){
+  .momentMedia.isGrid2{ grid-template-columns: 1fr; }
+  .momentImg{ height: 240px; }
 }

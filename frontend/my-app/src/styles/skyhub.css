@@ -14,8 +14,13 @@
 
   --skyhub-shadow: 0 22px 70px rgba(0,0,0,.28);
 
-  /* set from JSX: style={{ "--skyhub-bg": `url(${beachBg})` }} */
+  /* set from JSX:
+     style={{ "--skyhub-bg": `url(${beachBg})` }}
+  */
   --skyhub-bg: none;
+
+  /* optional shared spacing */
+  --skyhub-gap: 18px;
 }
 
 /* =========================================================
@@ -29,14 +34,14 @@
   position: relative;
   overflow-x: clip;
 
-  /* ✅ This fixes weird stacking bugs with overlays */
+  /* ✅ prevents weird overlay stacking */
   isolation: isolate;
 }
 
-/* ✅ Background IMAGE (fixed behind content) */
+/* ✅ Background image behind everything (never blocks clicks) */
 .skyhub-page::before{
   content:"";
-  position: fixed;        /* ✅ fixed avoids scroll/stack issues */
+  position: fixed;
   inset: 0;
   z-index: 0;
 
@@ -45,11 +50,11 @@
   background-position: center;
   background-repeat: no-repeat;
 
-  pointer-events: none !important; /* ✅ never block clicks */
+  pointer-events: none !important;
   transform: translateZ(0);
 }
 
-/* ✅ Cinematic tone overlay (also never blocks clicks) */
+/* ✅ Cinematic tone overlay (never blocks clicks) */
 .skyhub-page::after{
   content:"";
   position: fixed;
@@ -61,23 +66,24 @@
     radial-gradient(900px 600px at 20% 15%, rgba(190,140,255,.22), transparent 55%),
     linear-gradient(180deg, rgba(18,12,28,.46), rgba(18,12,28,.34));
 
-  pointer-events: none !important; /* ✅ never block clicks */
+  pointer-events: none !important;
   transform: translateZ(0);
 }
 
 /* =========================================================
-   SHELL + GLASS SURFACES
+   SHELL + COLUMNS
    ========================================================= */
 .skyhub-shell{
   position: relative;
-  z-index: 2;               /* ✅ above ::before + ::after */
+  z-index: 2; /* ✅ above ::before + ::after */
+
   max-width: 1180px;
   margin: 0 auto;
   padding: 28px 18px;
 
   display: grid;
   grid-template-columns: 260px minmax(0, 720px) 1fr; /* left / center / right */
-  gap: 18px;
+  gap: var(--skyhub-gap);
   align-items: start;
 
   pointer-events: auto;
@@ -95,7 +101,7 @@
 .skyhub-right{ z-index: 2; min-width: 0; }
 
 /* =========================================================
-   TOP BAR + TABS (ORANGE PILL)
+   TOP BAR + ORANGE PILL TABS
    ========================================================= */
 .skyhub-topbar{
   display: flex;
@@ -106,7 +112,8 @@
   pointer-events: auto;
 }
 
-.skyhub-topTitle{
+.skyhub-topTitle,
+.skyhub-brand{
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -140,10 +147,21 @@
   border-radius: 999px;
   color: rgba(244,246,251,.86);
   border: 1px solid transparent;
+
+  transition: transform .12s ease, filter .12s ease, opacity .12s ease;
+}
+
+.skyhub-tab:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.03);
 }
 
 .skyhub-tab.is-active{
-  background: linear-gradient(180deg, rgba(255, 176, 102, .98), rgba(255, 138, 42, .98));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 176, 102, .98),
+    rgba(255, 138, 42, .98)
+  );
   color: rgba(22,12,32,.92);
   box-shadow: 0 10px 30px rgba(0,0,0,.25);
   border-color: rgba(255,255,255,.18);
@@ -158,7 +176,7 @@
 }
 
 /* =========================================================
-   SAFETY: If any other overlays exist, they must not block
+   SAFETY: any overlay classes must not block
    ========================================================= */
 .skyhub-overlay,
 .skyhub-tone,
@@ -166,6 +184,15 @@
 .OverlayTone,
 .glassOverlay{
   pointer-events: none !important;
+}
+
+/* =========================================================
+   OPTIONAL: Keep modals always on top (prevents z-index wars)
+   ========================================================= */
+.ant-modal-root,
+.ant-modal-wrap,
+.ant-modal-mask{
+  z-index: 30000 !important;
 }
 
 /* =========================================================

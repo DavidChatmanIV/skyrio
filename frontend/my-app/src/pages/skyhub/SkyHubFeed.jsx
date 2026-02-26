@@ -2,20 +2,29 @@ import React, { useMemo, useState } from "react";
 import { Card, Button, Modal, Input, Upload, Space, message } from "antd";
 import { PlusOutlined, PictureOutlined } from "@ant-design/icons";
 
-import "@/styles/SkyHubFeed.css"; // keep your existing styles
-// If your pill styles live elsewhere, keep that import too
+import "@/styles/SkyHubFeed.css";
+import "@/styles/PostCard.css";
 
 const { TextArea } = Input;
 
 export default function SkyHubFeed() {
-  // ✅ modal state
+  // ✅ share modal
   const [shareOpen, setShareOpen] = useState(false);
+
+  // ✅ image preview modal
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState("");
+  const [previewMeta, setPreviewMeta] = useState({
+    name: "",
+    handle: "",
+    loc: "",
+  });
 
   // ✅ composer state
   const [caption, setCaption] = useState("");
   const [files, setFiles] = useState([]);
 
-  // ✅ feed state (simple mock)
+  // ✅ feed state (seed includes image so it feels alive)
   const [posts, setPosts] = useState(() => [
     {
       id: "seed-1",
@@ -24,7 +33,10 @@ export default function SkyHubFeed() {
       location: "Kyoto, Japan",
       time: "20m",
       text: "Just hiked the hidden bamboo trail in Kyoto. Absolutely magical! ✨ #Kyoto",
-      images: [],
+      images: [
+        // ✅ Production-ready: use hosted URLs (later replace with your API)
+        "https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=1600&auto=format&fit=crop",
+      ],
     },
   ]);
 
@@ -32,12 +44,24 @@ export default function SkyHubFeed() {
     return caption.trim().length > 0 || files.length > 0;
   }, [caption, files]);
 
-  const openShare = () => {
-    console.log("✅ Share moment clicked");
-    setShareOpen(true);
+  const openShare = () => setShareOpen(true);
+  const closeShare = () => setShareOpen(false);
+
+  const openPreview = (src, post) => {
+    setPreviewSrc(src);
+    setPreviewMeta({
+      name: post?.name || "",
+      handle: post?.handle || "",
+      loc: post?.location || "",
+    });
+    setPreviewOpen(true);
   };
 
-  const closeShare = () => setShareOpen(false);
+  const closePreview = () => {
+    setPreviewOpen(false);
+    setPreviewSrc("");
+    setPreviewMeta({ name: "", handle: "", loc: "" });
+  };
 
   const handlePost = () => {
     if (!canPost) {
@@ -68,7 +92,7 @@ export default function SkyHubFeed() {
 
   return (
     <div className="skyhub-feed">
-      {/* ✅ SHARE PILL (MAKE IT A REAL BUTTON) */}
+      {/* ✅ SHARE PILL */}
       <button type="button" className="shareMomentCard" onClick={openShare}>
         <span className="sharePlus">
           <PlusOutlined />
@@ -78,10 +102,10 @@ export default function SkyHubFeed() {
         </span>
       </button>
 
-      {/* ✅ MODAL */}
+      {/* ✅ SHARE MODAL */}
       <Modal
         title="Share a moment"
-        open={shareOpen} // ✅ AntD v5 uses OPEN
+        open={shareOpen}
         onCancel={closeShare}
         onOk={handlePost}
         okText="Post"
@@ -101,7 +125,7 @@ export default function SkyHubFeed() {
             listType="picture-card"
             fileList={files}
             onChange={({ fileList }) => setFiles(fileList)}
-            beforeUpload={() => false} // ✅ local preview only
+            beforeUpload={() => false}
             accept="image/*"
           >
             {files.length >= 4 ? null : (
@@ -112,6 +136,28 @@ export default function SkyHubFeed() {
             )}
           </Upload>
         </Space>
+      </Modal>
+
+      {/* ✅ IMAGE PREVIEW MODAL */}
+      <Modal
+        open={previewOpen}
+        onCancel={closePreview}
+        footer={null}
+        centered
+        width={920}
+        className="postImagePreviewModal"
+        destroyOnClose
+      >
+        <div className="postPreviewWrap">
+          <img className="postPreviewImg" src={previewSrc} alt="" />
+          <div className="postPreviewMeta">
+            <div className="postPreviewTitle">
+              <span className="postPreviewName">{previewMeta.name}</span>
+              <span className="postPreviewHandle">{previewMeta.handle}</span>
+            </div>
+            <div className="postPreviewLoc">{previewMeta.loc}</div>
+          </div>
+        </div>
       </Modal>
 
       {/* ✅ FEED */}
@@ -133,10 +179,19 @@ export default function SkyHubFeed() {
               </div>
             </div>
 
+            {/* ✅ IMAGES */}
             {p.images?.length > 0 && (
               <div className="postImages">
                 {p.images.slice(0, 2).map((src, idx) => (
-                  <img key={idx} src={src} alt="" className="postImg" />
+                  <button
+                    key={idx}
+                    type="button"
+                    className="postImgBtn"
+                    onClick={() => openPreview(src, p)}
+                    aria-label="Open image preview"
+                  >
+                    <img src={src} alt="" className="postImg" />
+                  </button>
                 ))}
               </div>
             )}

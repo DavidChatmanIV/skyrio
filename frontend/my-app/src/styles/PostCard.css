@@ -1,151 +1,307 @@
-.skyhub-post{
-  border-radius: 20px;
-  background: rgba(255,255,255,.12);
-  border: 1px solid rgba(255,255,255,.18);
+/* =========================================================
+   CARD SHELL (supports both .post-card and .postCard)
+========================================================= */
+.post-card,
+.postCard{
+  width: 100%;
+  max-width: 640px;
 
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 22px;
 
-  box-shadow: 0 22px 70px rgba(0,0,0,.28),
-    0 0 0 1px rgba(255,255,255,.06) inset;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 
-  overflow:hidden;
+  padding: 16px 16px 12px;
+
+  box-shadow: 0 18px 60px rgba(0,0,0,0.22);
 }
 
-.skyhub-postHeader{
-  padding: 14px 16px 12px;
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
+/* =========================================================
+   HEADER (supports both)
+========================================================= */
+.post-header,
+.postHeader{
+  display: flex;
   gap: 12px;
+  align-items: center;
 }
 
-.skyhub-user{
-  display:flex;
-  align-items:flex-start;
-  gap: 12px;
-  min-width: 0;
-}
-
-.skyhub-userMeta{ min-width:0; }
-
-.skyhub-nameRow{
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  min-width:0;
-  line-height:1.1;
-}
-
-.skyhub-name{
-  font-weight: 950;
-  color: rgba(244,246,251,.95);
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width: 320px;
-}
-
-.skyhub-verifiedDot{
-  width:10px;height:10px;border-radius:999px;
-  background: radial-gradient(circle at 30% 30%, #ffd39d, #ff8a2a);
-  box-shadow: 0 0 0 2px rgba(0,0,0,.16);
-  display:inline-block;
-}
-
-.skyhub-timeDot, .skyhub-dot{ opacity:.7; }
-
-.skyhub-time{
-  color: rgba(244,246,251,.78);
-  font-weight: 800;
-  font-size: 13px;
-}
-
-.skyhub-subRow{
-  margin-top: 6px;
-  display:flex;
-  gap: 8px;
-  flex-wrap:wrap;
-  color: rgba(244,246,251,.72);
-  font-weight: 750;
-  font-size: 13px;
-}
-
-.skyhub-place{
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width: 380px;
-}
-
-.skyhub-moreBtn{
-  border:0;
-  background: transparent;
-  color: rgba(244,246,251,.85);
-  font-weight: 950;
-  cursor:pointer;
-}
-
-/* media like mock */
-.skyhub-mediaEdge{ width:100%; background: rgba(0,0,0,.10); }
-
-.skyhub-img{
-  width:100%;
-  height: 300px;
-  object-fit:cover;
-  display:block;
-}
-
-.skyhub-imgGrid{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-.skyhub-imgGrid .skyhub-img{ height: 260px; }
-
-.skyhub-caption{ padding: 12px 16px 10px; }
-
-.skyhub-handle{
-  font-weight: 900;
-  color: rgba(244,246,251,.86);
-  font-size: 13px;
-}
-
-.skyhub-text{
-  margin-top: 6px;
-  color: rgba(244,246,251,.92);
-  font-weight: 650;
-  line-height: 1.45;
-}
-
-/* simplified action row (launch version) */
-.skyhub-actionsRow{
-  padding: 10px 16px 14px;
-  display:flex;
-  align-items:center;
-  gap: 10px;
-}
-
-.skyhub-actionBtn, .skyhub-savePill{
-  display:inline-flex;
-  align-items:center;
-  gap: 8px;
+.post-avatar,
+.postAvatar{
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
-  padding: 8px 12px;
-
-  background: rgba(0,0,0,.22);
-  border: 1px solid rgba(255,255,255,.16);
-
-  color: rgba(244,246,251,.92);
-  font-weight: 900;
-  cursor:pointer;
-
-  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.22);
 }
 
-.skyhub-actionBtn:hover, .skyhub-savePill:hover{
+.post-avatarFallback,
+.postAvatarFallback{
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+
+  display: grid;
+  place-items: center;
+
+  color: rgba(244,246,251,0.92);
+  font-weight: 700;
+
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.22);
+}
+
+.post-meta,
+.postMeta{
+  min-width: 0;
+  flex: 1;
+}
+
+.post-nameRow,
+.postNameRow,
+.postTitleRow{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.postTitleRow{
+  justify-content: flex-start;
+}
+
+.post-name,
+.postName{
+  color: rgba(244,246,251,0.92);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-time,
+.postTime{
+  color: rgba(244,246,251,0.65);
+  font-weight: 500;
+}
+
+.post-sub,
+.postSub,
+.postMetaRow{
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  color: rgba(244,246,251,0.70);
+  font-size: 13px;
+  margin-top: 2px;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-dot,
+.postDot{
+  opacity: 0.75;
+}
+
+.post-handle,
+.postHandle{
+  color: rgba(244,246,251,0.70);
+}
+
+.post-loc,
+.postLoc{
+  color: rgba(244,246,251,0.70);
+}
+
+/* =========================================================
+   TEXT (supports both)
+========================================================= */
+.post-text,
+.postText{
+  margin-top: 10px;
+  color: rgba(244,246,251,0.90);
+  line-height: 1.35;
+  font-size: 14.5px;
+}
+
+/* =========================================================
+   IMAGES (for SkyHubFeed.jsx)
+========================================================= */
+.postImages{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+@media (max-width: 520px){
+  .postImages{
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Clickable image wrapper */
+.postImgBtn{
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  display: block;
+}
+
+/* Actual image thumbnail */
+.postImg{
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+
+  transition: transform 200ms ease, filter 200ms ease;
+}
+
+.postImgBtn:hover .postImg{
+  transform: scale(1.01);
+  filter: brightness(1.03);
+}
+
+/* =========================================================
+   SINGLE IMAGE (if you ever use .post-imageBtn/.post-image)
+========================================================= */
+.post-imageBtn{
+  width: 100%;
+  border: none;
+  padding: 0;
+  background: transparent;
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.post-image{
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+
+  transition: transform 200ms ease, filter 200ms ease;
+}
+
+.post-imageBtn:hover .post-image{
+  transform: scale(1.01);
+  filter: brightness(1.03);
+}
+
+/* =========================================================
+   ACTIONS (supports both)
+========================================================= */
+.post-actions,
+.postActions{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.post-actionBtn{
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.07);
+  color: rgba(244,246,251,0.88);
+  border-radius: 999px;
+
+  padding: 7px 10px;
+  font-size: 13px;
+
+  cursor: pointer;
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.post-actionBtn:hover{
   transform: translateY(-1px);
-  background: rgba(0,0,0,.26);
+  background: rgba(255,255,255,0.10);
 }
 
-.skyhub-actionsSpacer{ flex: 1; }
+/* =========================================================
+   MODAL POLISH (supports both modal class names)
+========================================================= */
+.post-imageModal .ant-modal-content,
+.postImagePreviewModal .ant-modal-content{
+  background: rgba(15, 18, 28, 0.72);
+  border: 1px solid rgba(255,255,255,0.14);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.post-modalWrap,
+.postPreviewWrap{
+  display: grid;
+  gap: 10px;
+}
+
+.post-modalImg,
+.postPreviewImg{
+  width: 100%;
+  max-height: 560px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.post-modalCaption{
+  padding: 6px 2px 2px;
+}
+
+.post-modalTitle{
+  color: rgba(244,246,251,0.92);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.post-modalTime{
+  color: rgba(244,246,251,0.65);
+  font-weight: 500;
+}
+
+.post-modalText{
+  color: rgba(244,246,251,0.86);
+  line-height: 1.35;
+}
+
+/* Preview caption block (from SkyHubFeed.jsx) */
+.postPreviewMeta{
+  padding: 6px 2px 2px;
+}
+
+.postPreviewTitle{
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.postPreviewName{
+  color: rgba(244,246,251,0.92);
+  font-weight: 800;
+}
+
+.postPreviewHandle{
+  color: rgba(244,246,251,0.70);
+  font-weight: 600;
+}
+
+.postPreviewLoc{
+  margin-top: 4px;
+  color: rgba(244,246,251,0.72);
+  font-size: 13px;
+}

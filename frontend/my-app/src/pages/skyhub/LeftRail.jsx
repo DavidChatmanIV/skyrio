@@ -3,67 +3,56 @@ import { NavLink } from "react-router-dom";
 
 export default function LeftRail() {
   return (
-    <>
-      <div className="skyhub-brand">
-        <div className="skyhub-brandLogo">☁️</div>
-        <div>
-          <div className="skyhub-brandName">SkyHub</div>
-          <div className="skyhub-brandSub">Where travel stories live</div>
-        </div>
-      </div>
+    <div className="leftRail glassCard">
+      <img src="/avatar.jpg" alt="Profile" />
 
-      <nav className="skyhub-nav">
+      <h3 className="leftRail-name">user</h3>
+      <p className="leftRail-meta">XP Level 1</p>
+
+      <nav className="leftRail-nav">
+        {/* ✅ NEW: Home / Discover */}
         <NavLink
-          to="/skyhub/moments"
-          className={({ isActive }) =>
-            `skyhub-navItem ${isActive ? "is-active" : ""}`
-          }
+          to="/"
+          className={({ isActive }) => (isActive ? "active" : "")}
         >
-          <span className="skyhub-navIcon">🏠</span>
-          <span className="skyhub-navLabel">Home</span>
+          <button type="button">Home</button>
         </NavLink>
 
         <NavLink
-          to="/skyhub/dm"
-          className={({ isActive }) =>
-            `skyhub-navItem ${isActive ? "is-active" : ""}`
-          }
+          to="/skyhub/moments"
+          className={({ isActive }) => (isActive ? "active" : "")}
         >
-          <span className="skyhub-navIcon">💬</span>
-          <span className="skyhub-navLabel">DMs</span>
+          <button type="button">Moments</button>
         </NavLink>
 
         <NavLink
           to="/skyhub/circles"
-          className={({ isActive }) =>
-            `skyhub-navItem ${isActive ? "is-active" : ""}`
-          }
+          className={({ isActive }) => (isActive ? "active" : "")}
         >
-          <span className="skyhub-navIcon">🧑‍🤝‍🧑</span>
-          <span className="skyhub-navLabel">Circles</span>
+          <button type="button">Circles</button>
         </NavLink>
 
         <NavLink
-          to="/passport"
-          className={({ isActive }) =>
-            `skyhub-navItem ${isActive ? "is-active" : ""}`
-          }
+          to="/skyhub/dms"
+          className={({ isActive }) => (isActive ? "active" : "")}
         >
-          <span className="skyhub-navIcon">🪪</span>
-          <span className="skyhub-navLabel">Passport</span>
-          <span className="skyhub-navCaret">›</span>
+          <button type="button">DMs</button>
+        </NavLink>
+
+        <NavLink
+          to="/skyhub/insights"
+          className={({ isActive }) => (isActive ? "active" : "")}
+        >
+          <button type="button">Insights</button>
         </NavLink>
 
         <NavLink
           to="/skyhub/saved"
-          className={({ isActive }) =>
-            `skyhub-navItem ${isActive ? "is-active" : ""}`
-          }
+          className={({ isActive }) => (isActive ? "active" : "")}
         >
-          <span className="skyhub-navIcon">💾</span>
-          <span className="skyhub-navLabel">Saved</span>
+          <button type="button">Saved</button>
         </NavLink>
       </nav>
-    </>
+    </div>
   );
 }

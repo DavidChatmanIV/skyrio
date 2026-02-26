@@ -40,13 +40,12 @@ export default function Navbar() {
   const authModal = useAuthModal();
 
   const isAuthed = auth?.isAuthed;
-  const isGuest = auth?.isGuest;
   const user = auth?.user;
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  // ✅ Gate Exit modal state (safe)
+  // Gate Exit modal
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [logoutAnimating, setLogoutAnimating] = useState(false);
 
@@ -58,15 +57,6 @@ export default function Navbar() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  const displayName = useMemo(() => {
-    return (
-      user?.name ||
-      user?.username ||
-      (user?.email ? user.email.split("@")[0] : "") ||
-      (isGuest ? "Guest" : "")
-    );
-  }, [user, isGuest]);
 
   const navTheme = useMemo(() => {
     if (pathname.startsWith("/passport")) return "theme-passport";
@@ -80,7 +70,6 @@ export default function Navbar() {
     navigate(to);
   };
 
-  // ✅ original logout logic kept (do not break)
   const handleLogout = () => {
     setDrawerOpen(false);
     auth?.logout?.();
@@ -88,7 +77,6 @@ export default function Navbar() {
     navigate("/");
   };
 
-  // ✅ Gate Exit (wraps handleLogout safely)
   const openLogoutGate = () => {
     setDrawerOpen(false);
     setLogoutOpen(true);
@@ -99,12 +87,10 @@ export default function Navbar() {
 
     setLogoutAnimating(true);
 
-    // add overlay class (CSS handles animation)
-    if (typeof document !== "undefined" && document?.body?.classList) {
+    if (typeof document !== "undefined") {
       document.body.classList.add("sk-gate-exit");
     }
 
-    // quick cinematic exit, then do the real logout
     window.setTimeout(() => {
       document?.body?.classList?.remove("sk-gate-exit");
 
@@ -120,7 +106,6 @@ export default function Navbar() {
     setLogoutOpen(false);
   };
 
-  // ✅ safe open helpers (won’t break even if provider/modal isn’t mounted yet)
   const openAuth = (mode) => {
     setDrawerOpen(false);
 
@@ -139,42 +124,37 @@ export default function Navbar() {
       }
     }
 
-    if (mode === "signup") navigate("/signup");
-    else navigate("/login");
+    navigate(mode === "signup" ? "/signup" : "/login");
   };
-
-  const goLogin = () => openAuth("login");
-  const goSignup = () => openAuth("signup");
 
   return (
     <>
       <header className={`sk-nav ${navTheme} ${scrolled ? "is-compact" : ""}`}>
         <div className="sk-nav-inner">
-          {/* ✅ LEFT / BRAND (Elite: logo + name + glow + shine) */}
+          {/* LEFT */}
           <div className="sk-left">
             <button
               className="sk-brand"
               onClick={() => go("/")}
               aria-label="Skyrio Home"
+              type="button"
             >
-              <span className="sk-brandMark">
+              <span className="sk-brandMark" aria-hidden="true">
                 <span className="sk-logoWrap">
                   <img src={logo} alt="Skyrio" className="sk-logoImg" />
                 </span>
-                <span className="sk-brandGlow" aria-hidden="true" />
               </span>
 
               <span className="sk-brandText">
                 <span className="sk-brandName">Skyrio</span>
                 <span className="sk-brandTag">Plan smarter</span>
-                <span className="sk-brandShine" aria-hidden="true" />
               </span>
             </button>
           </div>
 
-          {/* ✅ CENTER NAV */}
+          {/* CENTER */}
           <nav className="sk-centerNav" aria-label="Primary navigation">
-            <div className="sk-navPills">
+            <div className="sk-navPills" role="list">
               {navItems.map((item) => (
                 <NavLink
                   key={item.to}
@@ -182,6 +162,7 @@ export default function Navbar() {
                   className={({ isActive }) =>
                     `sk-link ${isActive ? "is-active" : ""}`
                   }
+                  role="listitem"
                 >
                   {item.label}
                 </NavLink>
@@ -189,7 +170,7 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* ✅ RIGHT */}
+          {/* RIGHT */}
           <div className="sk-right">
             {!isAuthed ? (
               <>
@@ -198,7 +179,7 @@ export default function Navbar() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    goLogin();
+                    openAuth("login");
                   }}
                 >
                   Log in
@@ -210,63 +191,43 @@ export default function Navbar() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    goSignup();
+                    openAuth("signup");
                   }}
                 >
                   Sign up
                 </Button>
               </>
             ) : (
-              <>
-                <Button
-                  className="sk-btnGhost sk-logoutBtn"
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      key: "logout",
+                      icon: <LogoutOutlined />,
+                      label: "Log out",
+                      onClick: openLogoutGate,
+                    },
+                  ],
+                }}
+                placement="bottomRight"
+                trigger={["click"]}
+              >
+                <button
+                  type="button"
+                  className="sk-avatarBtn"
+                  aria-label="Account menu"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    openLogoutGate();
                   }}
                 >
-                  Log out
-                </Button>
-
-                <div className="sk-user">
-                  <span className="sk-hello">
-                    Hey, {displayName}
-                    {isGuest ? " ✨" : ""}
-                  </span>
-
-                  <Dropdown
-                    menu={{
-                      items: [
-                        {
-                          key: "logout",
-                          icon: <LogoutOutlined />,
-                          label: "Log out",
-                          onClick: openLogoutGate,
-                        },
-                      ],
-                    }}
-                    placement="bottomRight"
-                    trigger={["click"]}
-                  >
-                    <button
-                      type="button"
-                      className="sk-avatarBtn"
-                      aria-label="Account menu"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                    >
-                      <Avatar
-                        size={36}
-                        icon={<UserOutlined />}
-                        src={user?.avatarUrl}
-                      />
-                    </button>
-                  </Dropdown>
-                </div>
-              </>
+                  <Avatar
+                    size={36}
+                    icon={<UserOutlined />}
+                    src={user?.avatarUrl}
+                  />
+                </button>
+              </Dropdown>
             )}
 
             <Button
@@ -277,48 +238,58 @@ export default function Navbar() {
                 e.stopPropagation();
                 setDrawerOpen(true);
               }}
+              aria-label="Open menu"
             />
           </div>
         </div>
 
-        {/* ✅ Drawer */}
-        <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-          {navItems.map((item) => (
-            <Button key={item.to} block onClick={() => go(item.to)}>
-              {item.label}
-            </Button>
-          ))}
+        {/* Drawer */}
+        <Drawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          title="Menu"
+          placement="right"
+        >
+          <div style={{ display: "grid", gap: 10 }}>
+            {navItems.map((item) => (
+              <Button key={item.to} block onClick={() => go(item.to)}>
+                {item.label}
+              </Button>
+            ))}
 
-          {!isAuthed ? (
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <Button className="sk-btnGhost" onClick={goLogin} block>
-                Log in
-              </Button>
+            {!isAuthed ? (
+              <>
+                <Button
+                  className="sk-btnGhost"
+                  onClick={() => openAuth("login")}
+                  block
+                >
+                  Log in
+                </Button>
+                <Button
+                  type="primary"
+                  className="sk-btnPrimary"
+                  onClick={() => openAuth("signup")}
+                  block
+                >
+                  Sign up
+                </Button>
+              </>
+            ) : (
               <Button
-                type="primary"
-                className="sk-btnPrimary"
-                onClick={goSignup}
-                block
-              >
-                Sign up
-              </Button>
-            </div>
-          ) : (
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <Button
-                className="sk-btnGhost sk-logoutBtn"
+                className="sk-btnGhost"
                 icon={<LogoutOutlined />}
                 onClick={openLogoutGate}
                 block
               >
                 Log out
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </Drawer>
       </header>
 
-      {/* ✅ Gate Exit Modal (Upgraded UI, same logic) */}
+      {/* Gate Exit Modal */}
       <Modal
         open={logoutOpen}
         onCancel={cancelGateExit}
@@ -341,15 +312,8 @@ export default function Navbar() {
             </Title>
 
             <Text className="sk-exitSub">
-              You’ll be signed out and returned to guest mode. Your saved trips
-              and XP will be waiting when you come back.
+              You’ll be signed out and returned to guest mode.
             </Text>
-
-            <div className="sk-exitLane" aria-hidden="true">
-              <div className="sk-lights" />
-              <div className="sk-lights sk-lights2" />
-              <div className="sk-exitPlane" />
-            </div>
           </div>
 
           <div className="sk-exitActions">
@@ -368,7 +332,7 @@ export default function Navbar() {
                 loading={logoutAnimating}
                 icon={<LogoutOutlined />}
               >
-                Exit & Log out <ArrowRightOutlined />
+                Exit &amp; Log out <ArrowRightOutlined />
               </Button>
             </Space>
 

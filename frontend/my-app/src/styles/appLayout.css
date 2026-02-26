@@ -1,88 +1,18 @@
-/* ---------- Layout Shell ---------- */
-.osq-shell {
-  background: #f8f9fc; /* default pages */
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
+.osq-navbar.ant-layout-header{
 
-/* ✅ IMPORTANT: when using the global Skyrio shell, don't paint a separate bg */
-.osq-shell.sk-appShell {
-  background: transparent !important;
-}
-
-/* ✅ Make Ant Layout layers transparent so SkyHub bg can reach edges */
-.ant-layout,
-.ant-layout-header,
-.ant-layout-content,
-.ant-layout-footer {
-  background: transparent !important;
-}
-
-/* ---------- Main Content Area ---------- */
-.osq-main {
-  padding: 24px;
-  flex: 1;
-  animation: fadeIn 0.4s ease;
-
-  /* ✅ critical: never paint a content bg that can look like a frame */
-  background: transparent !important;
-}
-
-/* ✅ SKYHUB: full-bleed content (removes the “border/frame”) */
-.osq-main--flush {
-  padding: 0 !important;
-  margin: 0 !important;
-  width: 100%;
-}
-
-/* Reduce padding on smaller screens */
-@media (max-width: 640px) {
-  .osq-main {
-    padding: 16px;
-  }
-  .osq-main--flush {
-    padding: 0 !important;
-  }
-}
-
-/* ---------- Header Enhancements ---------- */
-.ant-layout-header {
   position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15);
-  transition: background 0.3s ease;
-}
+  top:0;
 
-/* Hover effects for the nav links */
-.ant-layout-header a {
-  transition: color 0.2s ease, opacity 0.2s ease;
-}
+  z-index:9999;
 
-.ant-layout-header a:hover {
-  opacity: 0.8;
-}
+  height: var(--nav-h) !important;
+  padding:0 !important;
 
-/* ---------- Footer ---------- */
-.ant-layout-footer {
-  font-size: 14px;
-  padding: 20px 24px;
-}
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
 
-/* Optional: hide footer on SkyHub (keeps the “full screen” vibe) */
-.osq-footer--hidden {
-  display: none;
-}
+  display:flex;
+  align-items:stretch;
 
-/* ---------- Fade In Animation ---------- */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
