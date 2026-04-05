@@ -1,104 +1,73 @@
 import { Router } from "express";
-import Profile from "../../models/profile.js"; // note: ../../ because we're in routes/api/
-import User from "../../models/user.js";
-import authRequired from "../../middleware/authRequired.js";
+import Profile from "../../models/profile.js";
+import { requireAuth } from "../../middleware/requireAuth.js";
 
 const router = Router();
 
-/**
- * GET /api/profile/me
- * Return the currently logged-in user (from JWT)
- */
-router.get("/me", authRequired, async (req, res) => {
+// GET /api/profile/me
+router.get("/me", requireAuth, async (req, res) => {
   try {
-    // req.user.id is set by authRequired
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Use toSafeJSON if available from your merged User model
-    const safeUser =
-      typeof user.toSafeJSON === "function"
-        ? user.toSafeJSON()
-        : {
-            id: user._id,
-            username: user.username,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            avatar: user.avatar,
-            bio: user.bio,
-            xp: user.xp,
-            createdAt: user.createdAt,
-          };
-
-    return res.json({ user: safeUser });
-  } catch (err) {
-    console.error("[profile] GET /me error:", err);
-    return res.status(500).json({ message: "Failed to load current user" });
-  }
-});
-
-/**
- * GET /api/profile/:id
- * Fetch a profile by MongoDB ObjectId
- */
-router.get("/:id", async (req, res) => {
-  try {
-    const profile = await Profile.findById(req.params.id);
+    let profile = await Profile.findOne({ user: req.user._id });
 
     if (!profile) {
-      return res.status(404).json({ message: "Profile not found" });
+      profile = await Profile.create({
+        user: req.user._id,
+        username: req.user.username,
+      });
     }
 
-    res.json(profile);
+    return res.json({
+      ok: true,
+      profile,
+    });
   } catch (err) {
-    console.error("[profile] GET /:id error:", err);
-    res.status(500).json({ message: "Server error loading profile" });
+    console.error("Profile me error:", err);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to fetch profile",
+    });
   }
 });
 
-/**
- * POST /api/profile
- * Create a new profile
- */
-router.post("/", async (req, res) => {
+// PATCH /api/profile/update
+router.patch("/update", requireAuth, async (req, res) => {
   try {
-    const newProfile = new Profile(req.body);
-    await newProfile.save();
+    const allowedFields = [
+      "fullName",
+      "bio",
+      "avatar",
+      "city",
+      "country",
+      "homeAirport",
+      "vibe",
+      "badges",
+      "username",
+    ];
 
-    res.status(201).json(newProfile);
-  } catch (err) {
-    console.error("[profile] POST / error:", err);
-    res
-      .status(400)
-      .json({ message: "Error creating profile", details: err.message });
-  }
-});
+    const updates = {};
+    for (const key of allowedFields) {
+      if (key in req.body) {
+        updates[key] = req.body[key];
+      }
+    }
 
-/**
- * PATCH /api/profile/:id
- * Update an existing profile
- */
-router.patch("/:id", async (req, res) => {
-  try {
-    const updated = await Profile.findByIdAndUpdate(
-      req.params.id,
-      { $set: req.body },
-      { new: true, runValidators: true }
+    const profile = await Profile.findOneAndUpdate(
+      { user: req.user._id },
+      { $set: updates },
+      { new: true, upsert: true }
     );
 
-    if (!updated) {
-      return res.status(404).json({ message: "Profile not found" });
-    }
-
-    res.json(updated);
+    return res.json({
+      ok: true,
+      message: "Profile updated successfully",
+      profile,
+    });
   } catch (err) {
-    console.error("[profile] PATCH /:id error:", err);
-    res
-      .status(400)
-      .json({ message: "Error updating profile", details: err.message });
+    console.error("Profile update error:", err);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to update profile",
+    });
   }
 });
 

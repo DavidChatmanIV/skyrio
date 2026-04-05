@@ -1,19 +1,33 @@
-// ✅ Use this anywhere you need guest gating with a premium modal
-export function requireAuthOrOpenModal({
-  auth,
-  openAuth,
-  intent = "save", // "dm" | "post" | "save" | "book"
-  redirectTo = "/passport",
-}) {
-  if (auth?.isAuthed) return true;
+import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
-  // Guests + logged-out users both get the same calm premium gating
-  openAuth?.({
-    intent,
-    redirectTo,
-    title: "Create your boarding pass to continue",
-    body: "You’re in Preview Mode. Sign in or create an account to unlock this feature.",
-  });
+export async function requireAuth(req, res, next) {
+  try {
+    const token = req.cookies?.token;
 
-  return false;
+    if (!token) {
+      return res.status(401).json({
+        ok: false,
+        message: "Not authenticated",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded.userId).select("-password");
+    if (!user) {
+      return res.status(401).json({
+        ok: false,
+        message: "User not found",
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      ok: false,
+      message: "Invalid or expired session",
+    });
+  }
 }

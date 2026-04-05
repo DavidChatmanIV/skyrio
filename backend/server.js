@@ -17,15 +17,15 @@ import healthRouter from "./routes/health.routes.js";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
 
-// ---------- Path helpers ----------
+// ─── Path helpers ───────────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---------- App ----------
+// ─── App ────────────────────────────────────────────────────────
 const app = express();
 app.set("trust proxy", 1);
 
-// ---------- CORS ----------
+// ─── CORS ───────────────────────────────────────────────────────
 const FRONTEND_ORIGIN =
   process.env.FRONTEND_ORIGIN ||
   process.env.CLIENT_ORIGIN ||
@@ -35,55 +35,42 @@ const allowedOrigins = FRONTEND_ORIGIN.split(",")
   .map((o) => o.trim())
   .filter(Boolean);
 
-// Helper: checks if origin is allowed
 function isAllowedOrigin(origin) {
-  if (!origin) return true; // Render health checks / Postman
+  if (!origin) return true; // Postman / server-to-server
   return allowedOrigins.includes(origin);
 }
 
-// ---------- Core middleware ----------
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-  })
-);
+// ─── Core middleware ─────────────────────────────────────────────
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
-
-// ✅ Required for cookie-based admin auth (skyrio_admin)
 app.use(cookieParser());
-
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-// ✅ IMPORTANT: CORS must come BEFORE routes and must allow credentials for cookies
 app.use(
   cors({
-    origin: (origin, cb) => {
-      return isAllowedOrigin(origin)
-        ? cb(null, true)
-        : cb(new Error("CORS blocked"));
-    },
+    origin: (origin, cb) =>
+      isAllowedOrigin(origin) ? cb(null, true) : cb(new Error("CORS blocked")),
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     optionsSuccessStatus: 204,
   })
 );
-
-// ✅ Helps preflight + some proxies
 app.options("*", cors());
 
-// ---------- AUTH RATE LIMIT ----------
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use("/api/auth", authLimiter);
+// ─── Rate limits ─────────────────────────────────────────────────
+app.use(
+  "/api/auth",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
 
-// ---------- Global API rate limit ----------
 app.use(
   "/api",
   rateLimit({
@@ -94,106 +81,113 @@ app.use(
   })
 );
 
-// ---------- ENV sanity check ----------
-app.get("/__envcheck", (_req, res) => {
-  const uri = process.env.MONGODB_URI || process.env.MONGO_URI || "";
-  res.json({
-    present: !!uri,
-    sample: uri ? uri.slice(0, 16) + "..." + uri.slice(-6) : "not set",
-    allowedOrigins,
-    nodeEnv: process.env.NODE_ENV || "not set",
+// ─── Env sanity check (dev only) ────────────────────────────────
+if (process.env.NODE_ENV !== "production") {
+  app.get("/__envcheck", (_req, res) => {
+    const uri = process.env.MONGODB_URI || process.env.MONGO_URI || "";
+    res.json({
+      dbPresent: !!uri,
+      dbSample: uri ? uri.slice(0, 16) + "..." + uri.slice(-6) : "not set",
+      allowedOrigins,
+      nodeEnv: process.env.NODE_ENV || "not set",
+    });
   });
-});
+}
 
-// ---------- Mongo ----------
-const USE_MOCKS = process.env.USE_MOCKS === "true";
+// ─── MongoDB ─────────────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 const MONGO_DB = process.env.MONGODB_DB || process.env.MONGO_DB;
 
 async function connectMongo() {
-  if (USE_MOCKS) {
-    console.log("ℹ️ USE_MOCKS=true — skipping MongoDB.");
-    return;
-  }
-
   if (!MONGODB_URI) {
-    console.error("❌ Missing MONGODB_URI (or MONGO_URI).");
+    console.error("❌ Missing MONGODB_URI — check your .env file.");
     process.exit(1);
   }
+
+  // Register listeners BEFORE connect so we catch handshake-level errors
+  const c = mongoose.connection;
+
+  c.on("error", (err) => {
+    console.error("❌ MongoDB error:", err.message);
+  });
+
+  c.on("disconnected", () => {
+    console.warn(
+      "⚠️  MongoDB disconnected. Check Atlas IP whitelist or network."
+    );
+  });
+
+  c.on("reconnected", () => {
+    console.log("✅ MongoDB reconnected.");
+  });
+
+  // Log masked URI so you can verify the right cluster without exposing credentials
+  const safeUri = MONGODB_URI.replace(/:([^@]+)@/, ":***@");
+  console.log(`🔌 Connecting to: ${safeUri.substring(0, 70)}...`);
 
   try {
     await mongoose.connect(MONGODB_URI, {
       dbName: MONGO_DB || undefined,
       maxPoolSize: 20,
-      serverSelectionTimeoutMS: 7000,
-      socketTimeoutMS: 60000,
+      serverSelectionTimeoutMS: 7_000,
+      socketTimeoutMS: 60_000,
     });
-
-    const c = mongoose.connection;
+    
     console.log(`✅ MongoDB connected (db: ${c.name})`);
-
-    c.on("error", (e) =>
-      console.error("❌ MongoDB connection error:", e.message)
-    );
-    c.on("disconnected", () => console.warn("⚠️ MongoDB disconnected"));
   } catch (err) {
     console.error("❌ MongoDB connection failed:", err.message);
+    if (process.env.NODE_ENV !== "production") console.error(err);
     process.exit(1);
   }
 }
 
-// ---------- Health ----------
+// ─── DB health endpoint ──────────────────────────────────────────
 app.get("/health/db", async (_req, res) => {
+  const state = mongoose.connection.readyState;
+
+  if (state !== 1 || !mongoose.connection.db) {
+    return res.status(503).json({ ok: false, state, error: "DB not ready" });
+  }
+
   try {
-    if (USE_MOCKS) return res.json({ ok: true, mocked: true });
-
-    if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
-      return res.status(503).json({
-        ok: false,
-        state: mongoose.connection.readyState,
-        error: "DB not ready",
-      });
-    }
-
     await mongoose.connection.db.admin().ping();
-    return res.json({ ok: true, state: mongoose.connection.readyState });
+    return res.json({ ok: true, state });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-// ---------- Routes ----------
+// ─── Routes ──────────────────────────────────────────────────────
 app.get("/", (_req, res) => res.send("🚀 Skyrio backend is running!"));
 
 app.use("/health", healthRouter);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api", apiRouter);
 
-// ---------- Contact ----------
+// ─── Contact form ────────────────────────────────────────────────
 app.post("/contact", async (req, res) => {
   try {
     const { name, email, message } = req.body || {};
-    if (!name || !email || !message) {
-      return res.status(400).json({ error: "Missing name, email, or message" });
-    }
 
-    if (USE_MOCKS) {
-      return res.json({ ok: true, message: "Received (mock)." });
+    if (!name || !email || !message) {
+      return res
+        .status(400)
+        .json({ error: "Missing name, email, or message." });
     }
 
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "DB not ready" });
+      return res.status(503).json({ error: "DB not ready." });
     }
 
     await new Contact({ name, email, message }).save();
-    return res.json({ ok: true, message: "Thank you for contacting us!" });
+    return res.json({ ok: true, message: "Thank you for reaching out!" });
   } catch (err) {
     console.error("❌ Contact error:", err);
     return res.status(500).json({ error: "Contact form failed." });
   }
 });
 
-// ---------- 404 + Error ----------
+// ─── 404 + error handler ─────────────────────────────────────────
 app.use((req, _res, next) => {
   if (req.path.startsWith("/api")) {
     const err = new Error("Not found");
@@ -204,43 +198,36 @@ app.use((req, _res, next) => {
 });
 
 app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(err.status || 500).json({
-    error: err.message || "Server error",
-  });
+  const status = err.status || 500;
+  if (status >= 500) console.error(err);
+  res.status(status).json({ error: err.message || "Server error" });
 });
 
-// ---------- HTTP + Socket.io ----------
+// ─── HTTP + Socket.io ────────────────────────────────────────────
 const httpServer = createServer(app);
 
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: (origin, cb) => {
-      return isAllowedOrigin(origin)
-        ? cb(null, true)
-        : cb(new Error("CORS blocked"));
-    },
+    origin: (origin, cb) =>
+      isAllowedOrigin(origin) ? cb(null, true) : cb(new Error("CORS blocked")),
     credentials: true,
     methods: ["GET", "POST"],
   },
 });
 
-// ✅ make io accessible inside routes via req.app.get("io")
 app.set("io", io);
 
-// ---------- Socket logic (ONE connection handler only) ----------
+// ─── Socket logic ─────────────────────────────────────────────────
 io.on("connection", (socket) => {
-  console.log("🔥 Socket connected", socket.id);
+  console.log(`🔥 Socket connected   ${socket.id}`);
 
-  // 🔔 Notifications room join
   socket.on("notifications:join", ({ userId }) => {
     if (userId) {
       socket.join(String(userId));
-      console.log("🔔 Notifications room joined:", userId);
+      console.log(`🔔 Notifications room joined: ${userId}`);
     }
   });
 
-  // DM rooms
   socket.on("dm:join", ({ conversationId }) => {
     if (conversationId) socket.join(String(conversationId));
   });
@@ -260,16 +247,19 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ Socket disconnected", socket.id);
+    console.log(`❌ Socket disconnected ${socket.id}`);
   });
 });
 
-// ---------- Graceful shutdown ----------
+// ─── Graceful shutdown ───────────────────────────────────────────
 async function shutdown(signal) {
-  console.log(`🛑 ${signal} received, shutting down...`);
+  console.log(`\n🛑 ${signal} received — shutting down gracefully...`);
   try {
-    await mongoose.connection.close().catch(() => {});
-    httpServer.close(() => process.exit(0));
+    await mongoose.connection.close();
+    httpServer.close(() => {
+      console.log("👋 Server closed.");
+      process.exit(0);
+    });
   } catch {
     process.exit(0);
   }
@@ -278,18 +268,26 @@ async function shutdown(signal) {
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-// ---------- Start ----------
-await connectMongo();
+// ─── Unhandled rejections (safety net) ──────────────────────────
+process.on("unhandledRejection", (reason) => {
+  console.error("🚨 Unhandled rejection:", reason);
+});
 
-// ✅ best spot: after DB is up, before the server starts accepting traffic
+process.on("uncaughtException", (err) => {
+  console.error("🚨 Uncaught exception:", err);
+  process.exit(1);
+});
+
+// ─── Start ───────────────────────────────────────────────────────
+await connectMongo();
 startJobs();
 
-// Render provides PORT. Locally default to 4000 (your current default)
 const PORT = Number(process.env.PORT) || 4000;
 
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 API running on :${PORT} (mocks: ${USE_MOCKS})`);
+  console.log(`\n🚀 Skyrio API on :${PORT}`);
   console.log(`🌐 Allowed origins: ${allowedOrigins.join(", ")}`);
+  console.log(`📦 Node env: ${process.env.NODE_ENV || "development"}\n`);
 });
 
 export { app, io, httpServer };

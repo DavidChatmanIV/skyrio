@@ -15,18 +15,12 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
   plugins: [react()],
 
-  /* ----------------------------------------
-     Aliases (IMPORTANT for Vercel)
-  ----------------------------------------- */
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"), // ✅ clean + correct
+      "@": path.resolve(__dirname, "src"),
     },
   },
 
-  /* ----------------------------------------
-     Dev Server (LOCAL ONLY)
-  ----------------------------------------- */
   server: {
     host: "localhost",
     port: 5273,
@@ -35,22 +29,26 @@ export default defineConfig({
 
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        target: "http://localhost:4000",
         changeOrigin: true,
         secure: false,
       },
     },
   },
 
-  /* ----------------------------------------
-     Production Build (Vercel)
-  ----------------------------------------- */
   build: {
     outDir: "dist",
     emptyOutDir: true,
     sourcemap: false,
-
-    // ✅ Silence large bundle warning (intentional for Skyrio)
     chunkSizeWarningLimit: 1200,
+
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          antd: ["antd"],
+        },
+      },
+    },
   },
 });

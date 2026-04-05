@@ -1,0 +1,195 @@
+.dmPage {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dmHero h2 {
+  margin: 0 0 8px;
+  color: rgba(255,255,255,0.96);
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.dmHero p {
+  margin: 0;
+  color: rgba(255,255,255,0.76);
+}
+
+.dmGrid {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 20px;
+}
+
+.dmInboxPanel,
+.dmChatPanel {
+  padding: 20px;
+  border-radius: 28px;
+}
+
+.dmInboxPanel h3,
+.dmChatPanel h3 {
+  margin: 0 0 14px;
+  color: rgba(255,255,255,0.96);
+  font-weight: 800;
+}
+
+.dmSearch {
+  width: 100%;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.08);
+  color: white;
+  padding: 0 14px;
+  margin-bottom: 16px;
+}
+
+.dmList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dmRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.dmRow.active {
+  background: rgba(255,138,42,0.12);
+  border-color: rgba(255,138,42,0.35);
+}
+
+.dmAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: white;
+  background: linear-gradient(135deg, #ff8a2a, #ffb15c);
+  flex-shrink: 0;
+}
+
+.dmMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.dmTopRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: white;
+}
+
+.dmHandle,
+.dmPreview {
+  color: rgba(255,255,255,0.72);
+  font-size: 0.9rem;
+}
+
+.dmUnread {
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #ff8a2a;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.dmChatHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.dmChatHeader p {
+  margin: 6px 0 0;
+  color: rgba(255,255,255,0.7);
+}
+
+.dmGhostBtn {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.08);
+  color: white;
+  cursor: pointer;
+}
+
+.dmMessages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dmBubble {
+  max-width: 70%;
+  padding: 14px;
+  border-radius: 18px;
+  color: white;
+  line-height: 1.45;
+}
+
+.dmBubble span {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.65);
+}
+
+.dmBubble.incoming {
+  background: rgba(255,255,255,0.10);
+}
+
+.dmBubble.outgoing {
+  margin-left: auto;
+  background: linear-gradient(135deg, #ff8a2a, #ffb15c);
+}
+
+.dmComposer {
+  display: flex;
+  gap: 10px;
+}
+
+.dmComposer input {
+  flex: 1;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.08);
+  color: white;
+  padding: 0 14px;
+}
+
+.dmComposer button {
+  height: 48px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ff8a2a, #ffb15c);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (max-width: 1100px) {
+  .dmGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -19,9 +19,6 @@ import "../../styles/TripBudgetCard.css";
 
 const { Title, Text } = Typography;
 
-/* ---------------------------
-   AI logic (kept, but copy upgraded)
----------------------------- */
 function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
   const p = Number(planned || 0);
   const u = Number(used || 0);
@@ -30,80 +27,70 @@ function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
   const spent = u + b;
   const left = p - spent;
 
-  // No budget set: more human + confident
   if (!p) {
-    // Simple range. Later: make dynamic by destination.
     const low = 780;
     const high = 1200;
 
     return {
       title: "Set a budget and Atlas will pace the trip for you.",
-      detail: `Most travelers land around $${low}–$${high}. Pick a number and I’ll keep your spending smooth.`,
+      detail: `Most travelers land around $${low}–$${high}. Pick a number and Atlas will help keep your spending smooth.`,
       hint: `Quick start: try $${Math.max(
         210,
         Math.ceil(b * 1.25) || 210
       ).toLocaleString()}.`,
       tone: "neutral",
-      actions: ["optimize", "deal", "surprise"],
     };
   }
 
   const days = Math.max(1, Number(tripDays || 1));
   const perDay = left / days;
 
-  if (left < 0) {
-    const recoverPerDay = Math.ceil(Math.abs(left) / days);
-    return {
-      title: `You’re $${Math.abs(left).toLocaleString()} over budget.`,
-      detail: `Atlas can fix this fast. Either increase your budget or cut about $${recoverPerDay.toLocaleString()} / day for extras.`,
-      hint: "Tap Optimize and I’ll rebalance your split.",
-      tone: "danger",
-      actions: ["optimize", "deal"],
-    };
-  }
-
   const dining = Math.round(p * 0.25);
   const transport = Math.round(p * 0.15);
   const activities = Math.round(p * 0.2);
 
+  if (left < 0) {
+    const recoverPerDay = Math.ceil(Math.abs(left) / days);
+    return {
+      title: `You’re $${Math.abs(left).toLocaleString()} over budget.`,
+      detail: `Atlas can help fix this fast. Cut about $${recoverPerDay.toLocaleString()} per day from extras or raise the total budget.`,
+      hint: "Try rebalancing the trip to protect the strongest parts.",
+      tone: "danger",
+    };
+  }
+
   if (perDay < 35) {
     return {
-      title: "Tight pacing — but doable.",
-      detail: `You’ve got ~$${Math.floor(
+      title: "Tight pacing — but still doable.",
+      detail: `You’ve got about $${Math.floor(
         perDay
-      ).toLocaleString()} / day for extras. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
-      hint: "Atlas can help you stretch this without ruining the fun.",
+      ).toLocaleString()} per day for extras. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
+      hint: "Lower spending a little and the trip stays comfortable.",
       tone: "warn",
-      actions: ["optimize", "deal"],
     };
   }
 
   if (perDay < 80) {
     return {
       title: "You’re on track.",
-      detail: `You can spend ~$${Math.floor(
+      detail: `You can spend about $${Math.floor(
         perDay
-      ).toLocaleString()} / day and stay smooth. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
-      hint: "Want a better deal window? Tap Find better deal.",
+      ).toLocaleString()} per day and stay smooth. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
+      hint: "You’ve got room to stay balanced without stress.",
       tone: "ok",
-      actions: ["deal", "surprise"],
     };
   }
 
   return {
     title: "Comfortable pacing.",
-    detail: `You’ve got ~$${Math.floor(
+    detail: `You’ve got about $${Math.floor(
       perDay
-    ).toLocaleString()} / day for extras. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
-    hint: "Atlas can upgrade the experience without breaking budget.",
+    ).toLocaleString()} per day for extras. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
+    hint: "Atlas can help you upgrade the experience without breaking budget.",
     tone: "great",
-    actions: ["surprise", "deal"],
   };
 }
 
-/* ---------------------------
-   Premium: typed reveal helper
----------------------------- */
 function useTypewriter(text, { speed = 18, enabled = true } = {}) {
   const [out, setOut] = useState("");
   const idxRef = useRef(0);
@@ -115,15 +102,16 @@ function useTypewriter(text, { speed = 18, enabled = true } = {}) {
       return;
     }
 
-    // reset
     setOut("");
     idxRef.current = 0;
+
     if (timerRef.current) clearInterval(timerRef.current);
 
     const t = String(text || "");
     timerRef.current = setInterval(() => {
       idxRef.current += 1;
       setOut(t.slice(0, idxRef.current));
+
       if (idxRef.current >= t.length) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -144,17 +132,12 @@ export default function TripBudgetCard({
   planned = null,
   used = 0,
   bookingTotal = 0,
-
   onChangePlanned,
   onAddExpense,
   onReset,
-
   expenseAmount = 0,
   onChangeExpenseAmount,
-
   tripDays = 3,
-
-  /* optional (future): destination to tailor Atlas */
   destination = "Tokyo",
 }) {
   const totalNum = useMemo(() => {
@@ -174,7 +157,7 @@ export default function TripBudgetCard({
   }, [hasBudget, totalNum, spent]);
 
   const percent = useMemo(() => {
-    if (!hasBudget) return 0;
+    if (!hasBudget || totalNum <= 0) return 0;
     return Math.min(100, Math.max(0, Math.round((spent / totalNum) * 100)));
   }, [hasBudget, totalNum, spent]);
 
@@ -182,273 +165,302 @@ export default function TripBudgetCard({
     return hasBudget && spent > totalNum;
   }, [hasBudget, spent, totalNum]);
 
-  const ai = useMemo(
-    () =>
-      buildAiSuggestion({ planned: totalNum, used, bookingTotal, tripDays }),
-    [totalNum, used, bookingTotal, tripDays]
-  );
+  const ai = useMemo(() => {
+    return buildAiSuggestion({
+      planned: totalNum,
+      used,
+      bookingTotal,
+      tripDays,
+    });
+  }, [totalNum, used, bookingTotal, tripDays]);
 
   const ringStyle = useMemo(() => {
     const p = Math.max(0, Math.min(100, percent));
     const stroke = isOverBudget
       ? "rgba(255, 92, 92, 0.98)"
       : "rgba(255, 176, 102, 0.98)";
-    return { "--pct": `${p}%`, "--stroke": stroke };
+
+    return {
+      "--pct": `${p}%`,
+      "--stroke": stroke,
+    };
   }, [percent, isOverBudget]);
 
   const moodLabel = useMemo(() => {
     if (!hasBudget) return "Set your trip budget";
-    if (isOverBudget) return "Over budget — Atlas can fix it";
+    if (isOverBudget) return "Over budget — Atlas can help fix it";
     if (percent < 55) return "You’re on track ✨";
     if (percent < 85) return "Still smooth — keep it steady";
     return "Last stretch — watch extras";
   }, [hasBudget, isOverBudget, percent]);
 
-  /* ---------------------------
-     Atlas “alive” system
-  ---------------------------- */
+  const days = Math.max(1, Number(tripDays || 1));
+
+  const dailyPace = useMemo(() => {
+    return Math.round(spent / days);
+  }, [spent, days]);
+
+  const healthStatus = useMemo(() => {
+    if (!hasBudget) return "Set budget";
+    if (spent >= totalNum) return "Over budget";
+    if (spent >= totalNum * 0.85) return "Close to limit";
+    return "On track";
+  }, [hasBudget, spent, totalNum]);
+
+  const healthTip = useMemo(() => {
+    if (!hasBudget) {
+      return `Set a number and Atlas will pace your ${destination} trip in a smoother way.`;
+    }
+
+    if (healthStatus === "On track") {
+      const safeToday = Math.max(0, Math.round((totalNum - spent) / days));
+      return `You can spend about $${safeToday.toLocaleString()} more per day and still stay smooth.`;
+    }
+
+    if (healthStatus === "Close to limit") {
+      return "Slow down on extras a little so the rest of the trip stays comfortable.";
+    }
+
+    return "You’ve passed your target. Rebalance dining, transport, or lodging to recover.";
+  }, [hasBudget, destination, healthStatus, totalNum, spent, days]);
+
   const [atlasThinking, setAtlasThinking] = useState(false);
   const [atlasReveal, setAtlasReveal] = useState(false);
   const [atlasLine, setAtlasLine] = useState("");
   const [atlasVariant, setAtlasVariant] = useState(0);
 
   const atlasSuggestions = useMemo(() => {
-    // Keep it simple + premium. Later: drive these from AI.
     return [
-      `Atlas thinks you should visit Kyoto instead — less rush, better value, and the nights hit different.`,
-      `Atlas pick: Lisbon. Beautiful views, great food, and surprisingly budget-friendly right now.`,
-      `Atlas move: fly into Osaka to save money, then train to Kyoto for the vibes.`,
-      `Atlas tip: lock your “extras” budget first — it’s what keeps trips stress-free.`,
+      `Atlas says: lock your extras budget first so your ${destination} trip stays stress-free.`,
+      `Atlas move: shift spending away from weak extras and protect the strongest part of the trip.`,
+      `Atlas tip: pace the trip by day, not by mood. That’s how you avoid budget regret later.`,
+      `Atlas recommendation: keep your best experiences, trim the weak spending, and protect the overall vibe.`,
     ];
-  }, []);
+  }, [destination]);
 
   const currentAtlasText = useMemo(() => {
-    // When no budget, tie it to the destination
     if (!hasBudget) {
       return `You’re planning ${destination}. ${ai.detail}`;
     }
-    // With budget, Atlas comment rotates
     return atlasSuggestions[atlasVariant % atlasSuggestions.length];
   }, [hasBudget, destination, ai.detail, atlasSuggestions, atlasVariant]);
 
   const startAtlas = useCallback(
-    (mode = "surprise") => {
-      // thinking → reveal → typing
+    (mode = "suggestion") => {
       setAtlasReveal(false);
       setAtlasThinking(true);
 
-      // choose a new line depending on action
       const nextIndex =
-        mode === "surprise"
+        mode === "suggestion"
           ? (atlasVariant + 1) % atlasSuggestions.length
-          : mode === "deal"
-          ? (atlasVariant + 2) % atlasSuggestions.length
-          : (atlasVariant + 3) % atlasSuggestions.length;
+          : (atlasVariant + 2) % atlasSuggestions.length;
 
       setAtlasVariant(nextIndex);
 
-      // Simulated thinking time
-      window.setTimeout(() => {
+      const nextText =
+        mode === "rebalance"
+          ? isOverBudget
+            ? `You’re over budget right now. Atlas would cut back about $${Math.ceil(
+                Math.abs(left) / days
+              ).toLocaleString()} per day and protect the strongest parts of your trip.`
+            : `Atlas would rebalance this by tightening extras first and protecting your main trip moments.`
+          : atlasSuggestions[nextIndex];
+
+      window.clearTimeout(startAtlas._t1);
+
+      startAtlas._t1 = window.setTimeout(() => {
+        setAtlasLine(nextText);
         setAtlasThinking(false);
         setAtlasReveal(true);
-
-        // lock the line after we choose variant
-        const line = hasBudget
-          ? atlasSuggestions[nextIndex]
-          : `You’re planning ${destination}. ${ai.detail}`;
-        setAtlasLine(line);
-      }, 650);
+      }, 1100);
     },
-    [atlasVariant, atlasSuggestions, hasBudget, destination, ai.detail]
+    [atlasVariant, atlasSuggestions, isOverBudget, left, days]
   );
 
-  // initial “alive” behavior: show a suggestion shortly after mount
   useEffect(() => {
-    // don’t spam on every render
-    const t = window.setTimeout(() => {
-      setAtlasLine(currentAtlasText);
-      setAtlasReveal(true);
-    }, 350);
+    setAtlasLine(currentAtlasText);
+    setAtlasReveal(true);
+    setAtlasThinking(false);
+  }, [currentAtlasText]);
 
-    return () => window.clearTimeout(t);
-    // only once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(startAtlas._t1);
+    };
+  }, [startAtlas]);
 
-  // Typewriter only when revealed
+  const cardSpeaking = atlasThinking || atlasReveal;
+
   const { out: typedText, done: typingDone } = useTypewriter(atlasLine, {
-    speed: 14,
-    enabled: atlasReveal,
+    speed: 16,
+    enabled: atlasReveal && !atlasThinking,
   });
 
-  const cardSpeaking = atlasThinking || (atlasReveal && !typingDone);
+  const handleAddExpense = () => {
+    if (typeof onAddExpense === "function") {
+      onAddExpense();
+    }
+  };
 
   return (
     <Card
+      className={`tb-card ${cardSpeaking ? "is-speaking" : ""}`}
       variant="borderless"
-      className={`tb-card ${isOverBudget ? "is-overBudget" : ""} ${
-        cardSpeaking ? "is-speaking" : ""
-      }`}
     >
-      {/* Everything scrolls inside */}
       <div className="tb-bodyScroll">
-        {/* Top bar */}
         <div className="tb-topBar">
           <div className="tb-topBarTitle">Trip Budget</div>
+
           <Button
-            icon={<ReloadOutlined />}
             className="tb-reset"
+            icon={<ReloadOutlined />}
             onClick={onReset}
-            aria-label="Reset budget"
           >
             Reset
           </Button>
         </div>
 
-        {/* Header */}
         <div className="tb-header">
-          <div className="tb-headText">
-            <Title level={4} className="tb-title">
-              {moodLabel}
-            </Title>
-            <Text className="tb-subtitle">
-              Track spending + let Atlas keep your plan smooth.
-            </Text>
-          </div>
+          <Title level={3} className="tb-title">
+            {moodLabel}
+          </Title>
+          <Text className="tb-subtitle">
+            Track spending and let Atlas keep your plan smooth.
+          </Text>
         </div>
 
-        {/* Summary */}
         <div className="tb-summaryStrip">
           <div className="tb-summaryItem">
-            <div className="tb-summaryKey">Trip cost</div>
-            <div className="tb-summaryVal">
-              ${Number(bookingTotal).toLocaleString()}
-            </div>
+            <span className="tb-summaryKey">Trip Cost</span>
+            <strong className="tb-summaryVal">
+              ${bookingTotal.toLocaleString()}
+            </strong>
           </div>
 
           <div className="tb-summaryDivider" />
 
           <div className="tb-summaryItem">
-            <div className="tb-summaryKey">Spent</div>
-            <div className="tb-summaryVal">
-              ${Number(spent).toLocaleString()}
-            </div>
+            <span className="tb-summaryKey">Spent</span>
+            <strong className="tb-summaryVal">${spent.toLocaleString()}</strong>
           </div>
 
           <div className="tb-summaryDivider" />
 
           <div className="tb-summaryItem">
-            <div className="tb-summaryKey">Days</div>
-            <div className="tb-summaryVal">{Number(tripDays || 3)}</div>
+            <span className="tb-summaryKey">Days</span>
+            <strong className="tb-summaryVal">{days}</strong>
           </div>
         </div>
 
-        {/* Ring + meta */}
         <div className="tb-progressWrap">
           <div className="tb-ring" style={ringStyle}>
             <div className="tb-ringInner">
               <div className="tb-ringAmt">
-                {hasBudget ? (
-                  <>
-                    {left < 0 ? "-" : ""}${Math.abs(left).toLocaleString()}
-                  </>
-                ) : (
-                  <>$0</>
-                )}
+                {hasBudget ? `$${Math.max(0, left).toLocaleString()}` : "$0"}
               </div>
-              <div className="tb-ringLabel">Remaining</div>
+
+              <div className="tb-ringLabel">
+                {hasBudget
+                  ? isOverBudget
+                    ? "Over"
+                    : "Remaining"
+                  : "Remaining"}
+              </div>
+
               <div className="tb-ringPct">
-                {hasBudget ? `${percent}%` : "—"}
+                {hasBudget ? `${percent}% used` : "0% used"}
               </div>
             </div>
           </div>
 
-          <div className="tb-progressMeta">
+          <div>
             <div className="tb-miniRow">
-              <span className="tb-miniPill">
-                Budget: ${totalNum.toLocaleString()}
-              </span>
-              <span className="tb-miniPill">
-                Spent: ${Number(spent).toLocaleString()}
-              </span>
+              <div className="tb-miniPill">
+                Budget: ${hasBudget ? totalNum.toLocaleString() : "0"}
+              </div>
+              <div className="tb-miniPill">
+                Spent: ${spent.toLocaleString()}
+              </div>
             </div>
 
             <div className="tb-meter">
               <div
                 className={`tb-meterFill ${isOverBudget ? "is-over" : ""}`}
-                style={{ width: `${Math.min(100, percent)}%` }}
+                style={{ width: `${hasBudget ? percent : 0}%` }}
               />
             </div>
 
             <div className="tb-meterNote">
               {isOverBudget
-                ? "Over budget — Atlas will rebalance your plan."
-                : ""}
+                ? `You’re over by $${Math.abs(left).toLocaleString()}.`
+                : hasBudget
+                ? `$${Math.max(0, left).toLocaleString()} left to work with.`
+                : "Set your budget to unlock pacing insights."}
             </div>
           </div>
         </div>
 
-        {/* Inputs */}
         <div className="tb-grid">
-          <div className="tb-field">
-            <div className="tb-fieldLabel">Set budget</div>
+          <div>
+            <label className="tb-fieldLabel">Set budget</label>
             <InputNumber
-              prefix="$"
-              value={planned ?? null}
-              min={0}
-              step={50}
-              controls={false}
               className="tb-input tb-force"
-              onChange={(v) => onChangePlanned?.(v ?? null)}
-              placeholder="0"
+              controls={false}
+              min={0}
+              value={planned}
+              formatter={(value) => `$ ${value ?? 0}`}
+              parser={(value) => String(value || "").replace(/\$\s?|(,*)/g, "")}
+              onChange={onChangePlanned}
             />
           </div>
 
-          <div className="tb-field">
-            <div className="tb-fieldLabel">Track expense</div>
+          <div>
+            <label className="tb-fieldLabel">Track expense</label>
 
             <div className="tb-add-row">
               <InputNumber
-                prefix="$"
-                value={expenseAmount ?? null}
-                min={0}
-                step={10}
-                controls={false}
                 className="tb-input tb-force"
-                onChange={(v) => onChangeExpenseAmount?.(Number(v || 0))}
-                placeholder="0"
+                controls={false}
+                min={0}
+                value={expenseAmount}
+                formatter={(value) => `$ ${value ?? 0}`}
+                parser={(value) =>
+                  String(value || "").replace(/\$\s?|(,*)/g, "")
+                }
+                onChange={onChangeExpenseAmount}
               />
+
               <Button
+                className="tb-addBtn"
                 type="primary"
                 icon={<PlusOutlined />}
-                onClick={onAddExpense}
-                className="tb-addBtn"
+                onClick={handleAddExpense}
               >
                 Add
               </Button>
             </div>
-            <div className="tb-hint">
+
+            <Text className="tb-hint">
               Tip: extras = food, rides, activities.
-            </div>
+            </Text>
           </div>
         </div>
 
-        {/* Category chips */}
         <Space wrap className="tb-chips">
           <button type="button" className="tb-chip">
             <CoffeeOutlined /> Dining
           </button>
+
           <button type="button" className="tb-chip">
             <CarOutlined /> Transport
           </button>
+
           <button type="button" className="tb-chip">
             <HomeOutlined /> Lodging
           </button>
         </Space>
 
-        {/* Modules */}
         <div className="tb-stack">
-          {/* Smart Plan */}
           <div className={`tb-ai tone-${ai.tone || "neutral"}`}>
             <div className="tb-aiTop">
               <div className="tb-aiBadge">
@@ -468,34 +480,24 @@ export default function TripBudgetCard({
               {ai.hint ? <div className="tb-aiHint">{ai.hint}</div> : null}
             </div>
 
-            {/* Actions */}
             <div className="tb-aiActions">
               <Button
                 className="tb-pillBtn"
-                onClick={() => startAtlas("optimize")}
+                onClick={() => startAtlas("rebalance")}
                 disabled={atlasThinking}
               >
-                Optimize budget
-              </Button>
-
-              <Button
-                className="tb-pillBtn"
-                onClick={() => startAtlas("deal")}
-                disabled={atlasThinking}
-              >
-                Find better deal
+                Rebalance trip
               </Button>
 
               <Button
                 className="tb-pillBtnPrimary"
-                onClick={() => startAtlas("surprise")}
+                onClick={() => startAtlas("suggestion")}
                 disabled={atlasThinking}
               >
-                {atlasThinking ? "Atlas is thinking…" : "Surprise me"}
+                {atlasThinking ? "Atlas is thinking…" : "Use suggestion"}
               </Button>
             </div>
 
-            {/* Thinking + reveal */}
             <div
               className={`tb-novaBubble ${
                 atlasThinking ? "is-thinking" : atlasReveal ? "is-reveal" : ""
@@ -504,7 +506,6 @@ export default function TripBudgetCard({
               <div className="tb-novaAvatar">A</div>
 
               <div className="tb-novaTextWrap">
-                {/* Thinking shimmer */}
                 {atlasThinking ? (
                   <>
                     <div className="tb-typingRow">
@@ -530,28 +531,35 @@ export default function TripBudgetCard({
             </div>
           </div>
 
-          {/* Deals (kept simple) */}
-          <div className="tb-deals">
-            <div className="tb-dealsHead">Travel Deals</div>
-
-            <div className="tb-dealRow">
-              <div className="tb-dealLeft">
-                <div className="tb-dealTitle">Tokyo, Japan</div>
-                <div className="tb-dealSub">$640 RT</div>
+          <div className="tb-health">
+            <div className="tb-healthHead">
+              <div className="tb-healthTitle">Trip Health</div>
+              <div className="tb-healthSub">
+                A quick view of how your trip is pacing.
               </div>
-              <div className="tb-dealRight">Expedia</div>
             </div>
 
-            <div className="tb-dealRow">
-              <div className="tb-dealLeft">
-                <div className="tb-dealTitle">Santorini, GR</div>
-                <div className="tb-dealSub">From $410</div>
-              </div>
-              <div className="tb-dealRight">Booking.com</div>
+            <div className="tb-healthRow">
+              <span className="tb-healthKey">Daily pace</span>
+              <strong className="tb-healthVal">
+                ${dailyPace.toLocaleString()}/day
+              </strong>
             </div>
 
-            <div className="tb-dealsFoot">
-              Deals are non-intrusive and respect settings.
+            <div className="tb-healthRow">
+              <span className="tb-healthKey">Status</span>
+              <strong
+                className={`tb-healthStatus ${healthStatus
+                  .toLowerCase()
+                  .replace(/\s+/g, "-")}`}
+              >
+                {healthStatus}
+              </strong>
+            </div>
+
+            <div className="tb-healthTip">
+              <span className="tb-healthTipLabel">Atlas says</span>
+              <p className="tb-healthTipText">{healthTip}</p>
             </div>
           </div>
         </div>

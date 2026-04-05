@@ -1,211 +1,340 @@
 import React, { useMemo, useState } from "react";
-import { Card, Button, Modal, Input, Upload, Space, message } from "antd";
-import { PlusOutlined, PictureOutlined } from "@ant-design/icons";
+import {
+  Button,
+  Card,
+  Avatar,
+  Segmented,
+  Input,
+  Progress,
+  Tag,
+  List,
+} from "antd";
+import {
+  UserOutlined,
+  HomeOutlined,
+  CameraOutlined,
+  TeamOutlined,
+  MessageOutlined,
+  BarChartOutlined,
+  BookOutlined,
+  EnvironmentOutlined,
+  FireOutlined,
+  ThunderboltOutlined,
+  GlobalOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 
 import "@/styles/SkyHubFeed.css";
-import "@/styles/PostCard.css";
 
 const { TextArea } = Input;
 
-export default function SkyHubFeed() {
-  // ✅ share modal
-  const [shareOpen, setShareOpen] = useState(false);
-
-  // ✅ image preview modal
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewSrc, setPreviewSrc] = useState("");
-  const [previewMeta, setPreviewMeta] = useState({
-    name: "",
-    handle: "",
-    loc: "",
-  });
-
-  // ✅ composer state
-  const [caption, setCaption] = useState("");
-  const [files, setFiles] = useState([]);
-
-  // ✅ feed state (seed includes image so it feels alive)
-  const [posts, setPosts] = useState(() => [
+const mockPosts = {
+  forYou: [
     {
-      id: "seed-1",
-      name: "Yuki Hayashi",
-      handle: "@yuki1987",
+      id: 1,
+      user: "Maya",
       location: "Kyoto, Japan",
-      time: "20m",
-      text: "Just hiked the hidden bamboo trail in Kyoto. Absolutely magical! ✨ #Kyoto",
-      images: [
-        // ✅ Production-ready: use hosted URLs (later replace with your API)
-        "https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=1600&auto=format&fit=crop",
-      ],
+      content:
+        "Just found the most peaceful hidden tea spot in Kyoto. Definitely one of my favorite travel moments so far.",
+      vibe: "Trending",
     },
-  ]);
+    {
+      id: 2,
+      user: "Jordan",
+      location: "Santorini, Greece",
+      content:
+        "Sunset here really looks unreal in person. SkyHub needs a save-memory button for moments like this.",
+      vibe: "Hot",
+    },
+  ],
+  friends: [
+    {
+      id: 3,
+      user: "Chris",
+      location: "Bali, Indonesia",
+      content:
+        "Finally checked Bali off my list. Good food, good energy, and the views are crazy.",
+      vibe: "Friend Trip",
+    },
+  ],
+  trending: [
+    {
+      id: 4,
+      user: "Ava",
+      location: "Paris, France",
+      content:
+        "Everybody is posting Paris right now and honestly I get it. The city still hits every time.",
+      vibe: "Trending",
+    },
+    {
+      id: 5,
+      user: "Leo",
+      location: "Tokyo, Japan",
+      content:
+        "Tokyo might be one of the best places for food, nightlife, and clean city energy all in one.",
+      vibe: "Rising",
+    },
+  ],
+};
 
-  const canPost = useMemo(() => {
-    return caption.trim().length > 0 || files.length > 0;
-  }, [caption, files]);
+const trendingDestinations = [
+  { id: 1, name: "Kyoto, Japan", posts: "2.4k posts" },
+  { id: 2, name: "Santorini, Greece", posts: "1.8k posts" },
+  { id: 3, name: "Bali, Indonesia", posts: "3.1k posts" },
+];
 
-  const openShare = () => setShareOpen(true);
-  const closeShare = () => setShareOpen(false);
+export default function SkyHubFeed() {
+  const [activeFeed, setActiveFeed] = useState("For You");
+  const [momentText, setMomentText] = useState("");
 
-  const openPreview = (src, post) => {
-    setPreviewSrc(src);
-    setPreviewMeta({
-      name: post?.name || "",
-      handle: post?.handle || "",
-      loc: post?.location || "",
-    });
-    setPreviewOpen(true);
-  };
-
-  const closePreview = () => {
-    setPreviewOpen(false);
-    setPreviewSrc("");
-    setPreviewMeta({ name: "", handle: "", loc: "" });
-  };
-
-  const handlePost = () => {
-    if (!canPost) {
-      message.info("Add a caption or at least one photo.");
-      return;
-    }
-
-    const images = files.map((f) => f.thumbUrl || f.url).filter(Boolean);
-
-    const newPost = {
-      id: String(Date.now()),
-      name: "You",
-      handle: "@you",
-      location: "—",
-      time: "now",
-      text: caption.trim(),
-      images,
-    };
-
-    setPosts((prev) => [newPost, ...prev]);
-
-    // reset
-    setCaption("");
-    setFiles([]);
-    setShareOpen(false);
-    message.success("Moment posted ✅");
-  };
+  const feedItems = useMemo(() => {
+    if (activeFeed === "Friends") return mockPosts.friends;
+    if (activeFeed === "Trending") return mockPosts.trending;
+    return mockPosts.forYou;
+  }, [activeFeed]);
 
   return (
-    <div className="skyhub-feed">
-      {/* ✅ SHARE PILL */}
-      <button type="button" className="shareMomentCard" onClick={openShare}>
-        <span className="sharePlus">
-          <PlusOutlined />
-        </span>
-        <span className="sharePlaceholder">
-          Share a moment from your trip...
-        </span>
-      </button>
-
-      {/* ✅ SHARE MODAL */}
-      <Modal
-        title="Share a moment"
-        open={shareOpen}
-        onCancel={closeShare}
-        onOk={handlePost}
-        okText="Post"
-        okButtonProps={{ disabled: !canPost }}
-        destroyOnClose
-        centered
-      >
-        <Space direction="vertical" style={{ width: "100%" }} size={12}>
-          <TextArea
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            placeholder="What happened? Add a caption..."
-            autoSize={{ minRows: 3, maxRows: 7 }}
-          />
-
-          <Upload
-            listType="picture-card"
-            fileList={files}
-            onChange={({ fileList }) => setFiles(fileList)}
-            beforeUpload={() => false}
-            accept="image/*"
-          >
-            {files.length >= 4 ? null : (
-              <div style={{ display: "grid", gap: 6, placeItems: "center" }}>
-                <PictureOutlined />
-                <div style={{ fontSize: 12 }}>Add photo</div>
-              </div>
-            )}
-          </Upload>
-        </Space>
-      </Modal>
-
-      {/* ✅ IMAGE PREVIEW MODAL */}
-      <Modal
-        open={previewOpen}
-        onCancel={closePreview}
-        footer={null}
-        centered
-        width={920}
-        className="postImagePreviewModal"
-        destroyOnClose
-      >
-        <div className="postPreviewWrap">
-          <img className="postPreviewImg" src={previewSrc} alt="" />
-          <div className="postPreviewMeta">
-            <div className="postPreviewTitle">
-              <span className="postPreviewName">{previewMeta.name}</span>
-              <span className="postPreviewHandle">{previewMeta.handle}</span>
-            </div>
-            <div className="postPreviewLoc">{previewMeta.loc}</div>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ✅ FEED */}
-      <div className="skyhub-feedList">
-        {posts.map((p) => (
-          <Card key={p.id} className="postCard" bordered={false}>
-            <div className="postHeader">
-              <div>
-                <div className="postTitleRow">
-                  <span className="postName">{p.name}</span>
-                  <span className="postDot">•</span>
-                  <span className="postTime">{p.time}</span>
-                </div>
-                <div className="postMetaRow">
-                  <span className="postHandle">{p.handle}</span>
-                  <span className="postDot">•</span>
-                  <span className="postLoc">{p.location}</span>
-                </div>
+    <div className="skyhub-page">
+      <div className="skyhub-shell skyhub-shell--social">
+        {/* LEFT RAIL */}
+        <aside className="skyhub-leftRail">
+          <Card className="skyhub-profileCard">
+            <div className="skyhub-profileTop">
+              <Avatar
+                size={68}
+                icon={<UserOutlined />}
+                className="skyhub-avatar"
+              />
+              <div className="skyhub-profileMeta">
+                <h3>user</h3>
+                <p>XP Level 1</p>
               </div>
             </div>
 
-            {/* ✅ IMAGES */}
-            {p.images?.length > 0 && (
-              <div className="postImages">
-                {p.images.slice(0, 2).map((src, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className="postImgBtn"
-                    onClick={() => openPreview(src, p)}
-                    aria-label="Open image preview"
-                  >
-                    <img src={src} alt="" className="postImg" />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="postText">{p.text}</div>
-
-            <Space style={{ marginTop: 10 }} wrap>
-              <Button size="small">❤️ Like</Button>
-              <Button size="small">💬 Comment</Button>
-              <Button size="small">↗️ Share</Button>
-              <Button size="small">💾 Save</Button>
-            </Space>
+            <div className="skyhub-nav">
+              <Button block className="skyhub-navBtn" icon={<HomeOutlined />}>
+                Home
+              </Button>
+              <Button
+                block
+                className="skyhub-navBtn active"
+                icon={<CameraOutlined />}
+              >
+                Moments
+              </Button>
+              <Button block className="skyhub-navBtn" icon={<TeamOutlined />}>
+                Circles
+              </Button>
+              <Button
+                block
+                className="skyhub-navBtn"
+                icon={<MessageOutlined />}
+              >
+                DMs
+              </Button>
+              <Button
+                block
+                className="skyhub-navBtn"
+                icon={<BarChartOutlined />}
+              >
+                Insights
+              </Button>
+              <Button block className="skyhub-navBtn" icon={<BookOutlined />}>
+                Saved
+              </Button>
+            </div>
           </Card>
-        ))}
+        </aside>
+
+        {/* CENTER FEED */}
+        <main className="skyhub-centerFeed">
+          <Card className="skyhub-glassCard skyhub-shareCard skyhub-shareCard--top">
+            <div className="skyhub-shareTop">
+              <Avatar icon={<UserOutlined />} className="skyhub-shareAvatar" />
+              <div className="skyhub-shareMain">
+                <TextArea
+                  rows={3}
+                  value={momentText}
+                  onChange={(e) => setMomentText(e.target.value)}
+                  placeholder="Share a travel moment, destination, or quick update..."
+                  className="skyhub-textarea"
+                />
+
+                <div className="skyhub-shareActions">
+                  <div className="skyhub-shareHints">
+                    <Tag icon={<EnvironmentOutlined />}>Add location</Tag>
+                    <Tag icon={<ThunderboltOutlined />}>Boost with XP</Tag>
+                    <Tag icon={<GlobalOutlined />}>Travel vibe</Tag>
+                  </div>
+
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    className="skyhub-shareBtn"
+                  >
+                    Share
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="skyhub-glassCard skyhub-feedCard">
+            <div className="skyhub-feedHeader">
+              <div>
+                <h2>SkyHub Feed</h2>
+                <p>See what travelers are sharing right now</p>
+              </div>
+
+              <Segmented
+                options={["For You", "Friends", "Trending"]}
+                value={activeFeed}
+                onChange={setActiveFeed}
+                className="skyhub-segmented"
+              />
+            </div>
+
+            <div className="skyhub-postList">
+              {feedItems.map((post) => (
+                <div key={post.id} className="skyhub-postCard">
+                  <div className="skyhub-postTop">
+                    <div className="skyhub-postUser">
+                      <Avatar icon={<UserOutlined />} />
+                      <div>
+                        <strong>{post.user}</strong>
+                        <p>{post.location}</p>
+                      </div>
+                    </div>
+
+                    <Tag className="skyhub-postTag">{post.vibe}</Tag>
+                  </div>
+
+                  <p className="skyhub-postContent">{post.content}</p>
+
+                  <div className="skyhub-postActions">
+                    <Button type="text" className="skyhub-postActionBtn">
+                      Like
+                    </Button>
+                    <Button type="text" className="skyhub-postActionBtn">
+                      Comment
+                    </Button>
+                    <Button type="text" className="skyhub-postActionBtn">
+                      Save
+                    </Button>
+                    <Button type="text" className="skyhub-postActionBtn">
+                      Share
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </main>
+
+        {/* RIGHT SUPPORT RAIL */}
+        <aside className="skyhub-rightRail">
+          <Card className="skyhub-glassCard skyhub-mapCard">
+            <div className="skyhub-cardHeader">
+              <div>
+                <h2>Travel Map</h2>
+                <p>Track your journey across the world</p>
+              </div>
+            </div>
+
+            <div className="skyhub-mapPreview">
+              <div className="skyhub-mapOverlay">
+                <EnvironmentOutlined />
+                <span>Map preview</span>
+              </div>
+            </div>
+
+            <Button type="primary" className="skyhub-mapBtn">
+              View your map
+            </Button>
+
+            <div className="skyhub-recentPlaces">
+              <h4>Recent Places</h4>
+              <div className="skyhub-placeList">
+                <span>Tokyo</span>
+                <span>Paris</span>
+                <span>Bali</span>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="skyhub-glassCard skyhub-snapshotCard skyhub-snapshotCard--side">
+            <div className="skyhub-cardHeader">
+              <div className="skyhub-cardTitleWrap">
+                <div className="skyhub-miniBadge">Y</div>
+                <div>
+                  <h2>Journey Snapshot</h2>
+                  <p>Your travel activity at a glance</p>
+                </div>
+              </div>
+              <Tag className="skyhub-orangeTag">Explorer</Tag>
+            </div>
+
+            <div className="skyhub-xpRow">
+              <div>
+                <h3>340 XP</h3>
+                <p>500 XP to next level</p>
+              </div>
+            </div>
+
+            <Progress
+              percent={68}
+              showInfo={false}
+              strokeColor="#ff9b3d"
+              trailColor="rgba(255,255,255,0.12)"
+              className="skyhub-progress"
+            />
+
+            <div className="skyhub-statGrid skyhub-statGrid--compact">
+              <div className="skyhub-statBox">
+                <strong>7</strong>
+                <span>Countries</span>
+              </div>
+              <div className="skyhub-statBox">
+                <strong>23</strong>
+                <span>Trips</span>
+              </div>
+              <div className="skyhub-statBox">
+                <strong>12</strong>
+                <span>Posts</span>
+              </div>
+              <div className="skyhub-statBox">
+                <strong>4</strong>
+                <span>Saved</span>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="skyhub-glassCard skyhub-trendingCard">
+            <div className="skyhub-cardHeader">
+              <div>
+                <h2>Trending Destinations</h2>
+                <p>Popular places travelers are talking about</p>
+              </div>
+            </div>
+
+            <List
+              dataSource={trendingDestinations}
+              renderItem={(item) => (
+                <List.Item className="skyhub-trendingItem">
+                  <div className="skyhub-trendingLeft">
+                    <div className="skyhub-trendingIcon">
+                      <FireOutlined />
+                    </div>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p>{item.posts}</p>
+                    </div>
+                  </div>
+                </List.Item>
+              )}
+            />
+          </Card>
+        </aside>
       </div>
     </div>
   );

@@ -4,14 +4,16 @@ import { useNavigate } from "react-router-dom";
 
 const LoginForm = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
 
-  // If already logged in, redirect
   useEffect(() => {
     if (localStorage.getItem("token")) {
       navigate("/dashboard");
     }
-  }, []);
+  }, [navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -22,18 +24,25 @@ const LoginForm = () => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(formData),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Login failed");
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Login failed");
+      }
 
       localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
       message.success("Login successful!");
       navigate("/dashboard");
     } catch (err) {
-      message.error(err.message);
+      message.error(err.message || "Login failed");
     }
   };
 
@@ -42,7 +51,7 @@ const LoginForm = () => {
       <Card title="Log In" style={{ width: 400 }}>
         <Input
           name="email"
-          placeholder="Email"
+          placeholder="Email or username"
           value={formData.email}
           onChange={handleChange}
           style={{ marginBottom: 12 }}

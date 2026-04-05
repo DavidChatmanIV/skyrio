@@ -1,607 +1,251 @@
-/* =================
-   THEME TOKENS
-================== */
-.sk-booking {
-  --sk-orange: #ff8a2a;
-  --sk-orange-2: #ffb347;
-  --sk-orange-grad: linear-gradient(135deg, var(--sk-orange), var(--sk-orange-2));
-
-  --sk-glass: rgba(15, 12, 35, 0.42);
-  --sk-border: rgba(255, 255, 255, 0.12);
-  --sk-border-2: rgba(255, 255, 255, 0.14);
-
-  --sk-text: rgba(255, 255, 255, 0.92);
-  --sk-muted: rgba(255, 255, 255, 0.72);
-
-  min-height: 100vh;
-  position: relative;
-  color: var(--sk-text);
-  overflow-x: hidden;
-  padding-top: var(--nav-h);
-}
-
-/* ============================
-   Background image (UNDER NAVBAR)
-   ✅ SIMPLE ELITE: image + readability fade
-============================ */
-.sk-booking::before {
-  content: "";
-  position: fixed;
-  top: var(--nav-h);
-  left: 0;
-  right: 0;
-  bottom: 0;
-
-  background:
-    /* ✅ readability fade so UI stays crisp */
-    linear-gradient(to top, rgba(0,0,0,0.45), rgba(0,0,0,0.05)),
-    /* ✅ image from BookingPage.jsx */
-    var(--sk-bg-image);
-
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-
-  filter: saturate(110%) contrast(105%);
-  transform: translateZ(0);
-
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* ============================
-   CINEMATIC OVERLAY (UNDER NAVBAR)
-   ✅ SIMPLE ELITE: no heavy grain, no blend mode
-============================ */
-.sk-booking::after {
-  content: "";
-  position: fixed;
-  top: var(--nav-h);
-  left: 0;
-  right: 0;
-  bottom: 0;
-
-  background:
-    /* vignette */
-    radial-gradient(
-      ellipse at center,
-      rgba(0,0,0,0) 40%,
-      rgba(0,0,0,0.55) 100%
-    ),
-
-    /* subtle Skyrio glow */
-    radial-gradient(circle at 22% 8%, rgba(140, 90, 255, 0.22), transparent 55%),
-    radial-gradient(circle at 90% 12%, rgba(255, 138, 42, 0.16), transparent 55%),
-
-    /* base tone */
-    linear-gradient(180deg, rgba(10, 8, 22, 0.30), rgba(10, 8, 22, 0.65));
-
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-
-  z-index: 0;
-  pointer-events: none;
-}
-
-.sk-booking > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* ================= HERO ================= */
-.sk-booking-hero {
-  padding: 38px 42px;
-  margin: 18px 28px 0;
-  border-radius: 22px;
-  background: rgba(15, 12, 35, 0.38);
-  border: 1px solid var(--sk-border);
-  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(12px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-  position: relative;
-}
-
-/* subtle readability scrim behind hero */
-.sk-booking-hero::before {
-  content: "";
-  position: absolute;
-  inset: -10px;
-  border-radius: 26px;
-  background: rgba(10, 8, 22, 0.18);
-  z-index: -1;
-}
-
-.sk-hero-title {
-  color: #fff !important;
-  font-size: clamp(30px, 3.1vw, 42px);
-  margin: 0 !important;
-  text-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
-}
-
-.sk-hero-sub {
-  color: rgba(255, 255, 255, 0.80);
-  font-size: 14px;
-}
-
-/* =========================
-   TRIP STATE (mock-style)
-========================= */
-.sk-tripState {
-  width: min(980px, calc(100% - 24px));
-  margin: 4px auto 0;
-  padding: 14px 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 18px 48px rgba(0,0,0,0.22);
-}
-
-.sk-tripRoute {
-  font-weight: 900;
-  font-size: 18px;
-  color: rgba(255,255,255,0.95);
-  text-shadow: 0 10px 22px rgba(0,0,0,0.30);
-}
-
-.sk-tripMeta {
-  margin-top: 4px;
-  font-size: 13px;
-  color: rgba(244, 246, 251, 0.80);
-}
-
-.sk-tripAssist {
-  margin-top: 6px;
-  font-size: 13px;
+/* ─────────────────────────────────────
+   HERO TITLE
+───────────────────────────────────── */
+.bk-hero-title {
+  font-size: clamp(1.9rem, 4vw, 3.2rem);
+  line-height: 1.08;
   font-weight: 800;
-  color: rgba(255, 180, 90, 0.92);
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin: 0 0 20px;
+  max-width: 12ch;
+  text-wrap: balance;
 }
 
-/* =================
-   HERO PILLS
-================== */
-.sk-hero-pills {
-  margin-top: 10px;
-  justify-content: center;
-}
-
-.sk-pill {
-  padding: 8px 12px;
-  border-radius: 999px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-  border: 1px solid var(--sk-border-2);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--sk-text);
-  backdrop-filter: blur(10px);
-}
-
-.sk-pill-orange {
-  background: var(--sk-orange-grad);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #1b1024;
-  box-shadow: 0 14px 30px rgba(255, 138, 42, 0.16);
-}
-
-.sk-pill-glass {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-/* =========================
-   SEGMENTED (ORANGE SELECT)
-========================= */
-.sk-booking .sk-booking-tabs.ant-segmented {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid var(--sk-border) !important;
-  border-radius: 14px !important;
-  padding: 6px !important;
-}
-
-.sk-booking .sk-booking-tabs .ant-segmented-item {
-  color: rgba(255, 255, 255, 0.82) !important;
-  font-weight: 700;
-}
-
-.sk-booking .sk-booking-tabs .ant-segmented-item-selected {
-  background: var(--sk-orange-grad) !important;
-  border-radius: 12px !important;
-  color: #1b1024 !important;
-}
-
-.sk-booking .sk-booking-tabs .ant-segmented-item-selected * {
-  color: #1b1024 !important;
-}
-
-/* =================
-   BUTTONS
-================== */
-.sk-btn-orange {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid var(--sk-border-2) !important;
-  color: rgba(255, 255, 255, 0.92) !important;
-  border-radius: 12px !important;
-  backdrop-filter: blur(10px);
-}
-
-.sk-btn-orange:hover {
-  border-color: rgba(255, 138, 42, 0.45) !important;
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.18) !important;
-}
-
-/* Search bar */
-.sk-search-bar {
-  width: min(980px, calc(100% - 24px));
-  margin-top: 10px;
+/* ─────────────────────────────────────
+   SEARCH GRID
+───────────────────────────────────── */
+.bk-search-grid {
   display: grid;
-  grid-template-columns: 1.1fr 1fr auto auto auto;
+  grid-template-columns:
+    minmax(180px, 1fr)
+    auto
+    minmax(180px, 1fr)
+    minmax(220px, 1.1fr)
+    minmax(140px, 160px)
+    minmax(110px, 130px);
+  align-items: end;
   gap: 10px;
-  align-items: center;
+  width: 100%;
 }
 
-.sk-glass-input {
-  background: rgba(255,255,255,0.08) !important;
-  border: 1px solid rgba(255,255,255,0.14) !important;
-  border-radius: 14px !important;
-  color: rgba(255,255,255,0.92) !important;
-  backdrop-filter: blur(12px);
-}
-
-.sk-orange-picker {
-  background: rgba(255,255,255,0.08) !important;
-  border: 1px solid rgba(255,255,255,0.14) !important;
-  border-radius: 14px !important;
-  backdrop-filter: blur(12px);
-}
-
-/* Action row */
-.sk-action-row {
-  margin-top: 10px;
-  justify-content: center;
-}
-
-/* Filters */
-.sk-filters {
-  margin-top: 10px;
-  justify-content: center;
-}
-
-.sk-qf {
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.88);
-  font-weight: 800;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-}
-
-.sk-qf:hover {
-  border-color: rgba(255, 138, 42, 0.30);
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.12);
-}
-
-.sk-qf.is-active {
-  background: var(--sk-orange-grad);
-  color: #1b1024;
-  border-color: rgba(255,255,255,0.16);
-}
-
-.sk-qf-clear {
-  opacity: 0.85;
-}
-
-/* ================= WEATHER STRIP ================= */
-.sk-weatherStrip {
-  width: min(980px, calc(100% - 24px));
-  margin: 10px auto 6px;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.06));
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow:
-    0 18px 50px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(120, 90, 255, 0.10) inset;
-}
-
-.sk-weatherInner {
-  padding: 14px 18px;
-  text-align: center;
-}
-
-.sk-weatherTop {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 800;
-  color: rgba(244, 246, 251, 0.95);
-  font-size: 18px;
-  letter-spacing: 0.2px;
-}
-
-.sk-weatherIcon {
-  display: inline-flex;
-  width: 34px;
-  height: 34px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: rgba(255, 138, 42, 0.10);
-  border: 1px solid rgba(255, 138, 42, 0.22);
-}
-
-.sk-weatherTitle {
-  text-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
-}
-
-.sk-weatherSub {
-  margin-top: 6px;
-  font-size: 14px;
-  color: rgba(244, 246, 251, 0.78);
-}
-
-/* ================= RESULTS ================= */
-.sk-results-wrap {
-  padding: 34px 52px 84px;
-  position: relative;
-}
-
-/* subtle readability scrim behind results area */
-.sk-results-wrap::before {
-  content: "";
-  position: absolute;
-  inset: 12px 24px;
-  border-radius: 26px;
-  background: rgba(10, 8, 22, 0.14);
-  z-index: -1;
-}
-
-.sk-resultsHeader {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 10px;
-}
-
-.sk-resultsSub {
-  font-size: 13px;
-  color: rgba(244, 246, 251, 0.78);
-}
-
-/* Result card */
-.sk-result-card {
-  background: rgba(15, 12, 35, 0.42) !important;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(12px);
-  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
-}
-
-.sk-result-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.35);
-  border-color: rgba(255, 138, 42, 0.22) !important;
-}
-
-.sk-result-card.is-selected {
-  border-color: rgba(255, 138, 42, 0.40) !important;
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.38),
-    0 0 0 3px rgba(255, 138, 42, 0.14);
-}
-
-.sk-resultRow {
-  display: flex;
-  gap: 14px;
-  align-items: stretch;
-}
-
-.sk-thumb {
-  width: 152px;
-  min-width: 152px;
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background:
-    radial-gradient(120px 80px at 30% 30%, rgba(255, 138, 42, 0.25), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
-  box-shadow:
-    0 18px 44px rgba(0,0,0,0.25),
-    0 0 0 1px rgba(120, 90, 255, 0.10) inset;
-}
-
-.sk-resultMain {
-  flex: 1;
+/* ─────────────────────────────────────
+   FIELD WRAPPERS
+───────────────────────────────────── */
+.bk-field {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-
-.sk-resultTop {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.sk-resultTitle {
-  font-weight: 900;
-  font-size: 18px;
-  color: rgba(255,255,255,0.96);
-}
-
-.sk-resultMeta {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(255,255,255,0.78);
-  font-size: 13px;
-}
-
-.sk-pickedWhy {
-  margin-top: 8px;
-  font-size: 12.5px;
-  color: rgba(255, 180, 90, 0.92);
-  font-weight: 800;
-}
-
-.sk-metaItem {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
-.sk-metaDot {
-  color: rgba(255,255,255,0.28);
+.bk-field__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  padding-left: 2px;
 }
 
-.sk-star {
-  color: rgba(255, 180, 90, 0.95);
-}
-
-.sk-reviews {
-  opacity: 0.90;
-}
-
-.sk-resultRight {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
+.bk-field--sm {
   min-width: 140px;
 }
 
-.sk-priceLine {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
+.bk-field--action {
+  min-width: 110px;
 }
 
-.sk-priceAmt {
-  font-weight: 900;
-  font-size: 18px;
-  color: rgba(255,255,255,0.96);
+/* ─────────────────────────────────────
+   NORMALIZE INPUT HEIGHTS
+───────────────────────────────────── */
+.bk-search-grid .ant-input,
+.bk-search-grid .ant-input-affix-wrapper,
+.bk-search-grid .ant-picker,
+.bk-search-grid .ant-btn {
+  height: 40px;
+  border-radius: 10px;
 }
 
-.sk-priceSub {
-  font-size: 12px;
-  color: rgba(255,255,255,0.72);
+.bk-search-grid .ant-input-affix-wrapper,
+.bk-search-grid .ant-picker {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
 }
 
-/* tags */
-.sk-tagRow {
+.bk-search-grid .ant-input,
+.bk-search-grid .ant-input::placeholder,
+.bk-search-grid .ant-picker-input input,
+.bk-search-grid .ant-picker-input input::placeholder {
+  color: #fff;
+}
+
+.bk-search-grid .ant-input-prefix,
+.bk-search-grid .ant-picker-suffix,
+.bk-search-grid .ant-input-affix-wrapper .anticon {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.bk-search-grid .ant-input-affix-wrapper:hover,
+.bk-search-grid .ant-picker:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.bk-search-grid .ant-input-affix-wrapper:focus,
+.bk-search-grid .ant-input-affix-wrapper-focused,
+.bk-search-grid .ant-picker-focused {
+  border-color: rgba(255, 138, 42, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.12);
+}
+
+/* ─────────────────────────────────────
+   SWAP BUTTON
+───────────────────────────────────── */
+.bk-swap-wrap {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
 }
 
-.sk-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 7px 12px;
+.bk-swap-btn {
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.92);
-  backdrop-filter: blur(10px);
-}
-
-.sk-tag-orange {
-  border-color: rgba(255,138,42,0.34);
-  background: rgba(255,138,42,0.12);
-}
-
-.sk-tag-good {
-  border-color: rgba(97,255,168,0.28);
-  background: rgba(97,255,168,0.10);
-}
-
-.sk-tag-soft {
-  border-color: rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.05);
-  opacity: 0.92;
-}
-
-/* Best for */
-.sk-bestFor {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
-.sk-bestForLabel {
-  font-size: 12px;
-  font-weight: 800;
-  color: rgba(255,255,255,0.78);
+.bk-swap-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 138, 42, 0.4);
+  background: rgba(255, 138, 42, 0.1);
+  color: #ff8a2a;
 }
 
-.sk-tag-bestfor {
-  border-color: rgba(120, 90, 255, 0.26);
-  background: rgba(120, 90, 255, 0.10);
+/* ─────────────────────────────────────
+   TRAVELER STEPPER
+───────────────────────────────────── */
+.bk-traveler-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  height: 40px;
+  padding: 0 10px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-/* ================= RESPONSIVE ================= */
-@media (max-width: 992px) {
-  .sk-booking-hero {
-    padding: 28px 18px;
-    margin: 14px 14px 0;
+.bk-traveler-stepper:focus-within {
+  border-color: rgba(255, 138, 42, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.12);
+}
+
+.bk-traveler-icon {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 13px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.bk-traveler-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.bk-traveler-btn:hover:not(:disabled) {
+  color: #ff8a2a;
+  background: rgba(255, 138, 42, 0.1);
+}
+
+.bk-traveler-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.bk-traveler-count {
+  flex: 1;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+/* ─────────────────────────────────────
+   SEARCH BUTTON
+───────────────────────────────────── */
+.bk-search-btn {
+  height: 40px;
+  border-radius: 10px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  border: none;
+  box-shadow: 0 10px 22px rgba(255, 138, 42, 0.22);
+}
+
+.bk-search-btn:hover,
+.bk-search-btn:focus {
+  background: linear-gradient(135deg, #ff943e, #ffb95c);
+  box-shadow: 0 12px 24px rgba(255, 138, 42, 0.28);
+}
+
+/* ─────────────────────────────────────
+   RESPONSIVE
+───────────────────────────────────── */
+@media (max-width: 1024px) {
+  .bk-search-grid {
+    grid-template-columns: 1fr auto 1fr;
   }
 
-  .sk-results-wrap {
-    padding: 22px 14px 70px;
+  .bk-field--dates {
+    grid-column: 1 / -1;
   }
 
-  .sk-resultsHeader {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .sk-resultRow {
-    flex-direction: column;
-  }
-
-  .sk-thumb {
-    width: 100%;
-    min-width: 0;
-    height: 140px;
-  }
-
-  .sk-resultRight {
-    align-items: flex-start;
-    min-width: 0;
-  }
-
-  .sk-resultTop {
-    flex-direction: column;
-  }
-
-  .sk-search-bar {
-    grid-template-columns: 1fr;
+  .bk-field--sm,
+  .bk-field--action {
+    grid-column: span 1;
   }
 }
 
 @media (max-width: 640px) {
-  .sk-weatherInner {
-    padding: 12px 14px;
+  .bk-search-grid {
+    grid-template-columns: 1fr;
   }
 
-  .sk-weatherTop {
-    font-size: 16px;
+  .bk-swap-wrap {
+    justify-self: center;
+    align-items: center;
   }
 
-  .sk-weatherIcon {
-    width: 30px;
-    height: 30px;
-    border-radius: 10px;
+  .bk-field--dates,
+  .bk-field--sm,
+  .bk-field--action {
+    grid-column: auto;
+  }
+
+  .bk-hero-title {
+    font-size: clamp(1.6rem, 7vw, 2.2rem);
+    max-width: 100%;
   }
 }

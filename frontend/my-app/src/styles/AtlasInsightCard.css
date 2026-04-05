@@ -1,0 +1,443 @@
+/* =========================================
+   ATLAS INSIGHT CARD
+   Rebuilt to match TripBudgetCard premium UI
+========================================= */
+
+:root {
+  --ai-text: rgba(255, 255, 255, 0.96);
+  --ai-muted: rgba(255, 255, 255, 0.72);
+  --ai-faint: rgba(255, 255, 255, 0.52);
+
+  --ai-orange: #ff8a2a;
+  --ai-orange-2: #ffb066;
+  --ai-orange-soft: rgba(255, 138, 42, 0.14);
+  --ai-orange-mid: rgba(255, 138, 42, 0.28);
+  --ai-orange-border: rgba(255, 176, 102, 0.28);
+
+  --ai-glass: rgba(255, 255, 255, 0.055);
+  --ai-glass-2: rgba(255, 255, 255, 0.035);
+  --ai-stroke: rgba(255, 255, 255, 0.11);
+  --ai-stroke-soft: rgba(255, 255, 255, 0.08);
+
+  --ai-success: rgba(126, 231, 168, 0.95);
+  --ai-warn: rgba(255, 210, 122, 0.96);
+  --ai-danger: rgba(255, 128, 128, 0.96);
+
+  --ai-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+
+  --ai-radius-xl: 24px;
+  --ai-radius-lg: 18px;
+  --ai-radius-pill: 999px;
+}
+
+/* wrapper */
+.atlasInsightCard {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--ai-radius-xl);
+  padding: 18px;
+  color: var(--ai-text);
+  background:
+    radial-gradient(circle at top right, rgba(255, 138, 42, 0.14), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--ai-stroke);
+  box-shadow: var(--ai-shadow);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.atlasInsightCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(255, 176, 102, 0.06), transparent 28%, transparent 70%, rgba(255, 138, 42, 0.05));
+  opacity: 0.9;
+}
+
+.atlasInsightCard > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* tone variants */
+.atlasInsightCard.is-smart,
+.atlasInsightCard.is-default {
+  border-color: rgba(255, 176, 102, 0.18);
+}
+
+.atlasInsightCard.is-trend {
+  border-color: rgba(140, 196, 255, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(140, 196, 255, 0.14), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
+}
+
+.atlasInsightCard.is-warn {
+  border-color: rgba(255, 210, 122, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(255, 210, 122, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
+}
+
+.atlasInsightCard.is-deep {
+  border-color: rgba(190, 154, 255, 0.2);
+  background:
+    radial-gradient(circle at top right, rgba(190, 154, 255, 0.14), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
+}
+
+/* top row */
+.atlasInsightTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.atlasInsightBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: var(--ai-radius-pill);
+  background: linear-gradient(180deg, rgba(255, 138, 42, 0.18), rgba(255, 138, 42, 0.08));
+  border: 1px solid rgba(255, 176, 102, 0.28);
+  color: #ffd7ab;
+  font-weight: 800;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 8px 22px rgba(255, 138, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.atlasInsightBadge .anticon,
+.atlasInsightBadge svg {
+  font-size: 0.95rem;
+}
+
+.atlasInsightSignal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: var(--ai-radius-pill);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--ai-stroke-soft);
+  color: var(--ai-muted);
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+
+.atlasInsightSignalDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ai-orange);
+  box-shadow: 0 0 14px rgba(255, 138, 42, 0.6);
+}
+
+.atlasInsightCard.is-trend .atlasInsightSignalDot {
+  background: #8cc4ff;
+  box-shadow: 0 0 14px rgba(140, 196, 255, 0.65);
+}
+
+.atlasInsightCard.is-warn .atlasInsightSignalDot {
+  background: #ffd27a;
+  box-shadow: 0 0 14px rgba(255, 210, 122, 0.65);
+}
+
+.atlasInsightCard.is-deep .atlasInsightSignalDot {
+  background: #be9aff;
+  box-shadow: 0 0 14px rgba(190, 154, 255, 0.65);
+}
+
+/* copy */
+.atlasInsightBody {
+  display: grid;
+  gap: 10px;
+}
+
+.atlasInsightEyebrow {
+  color: #ffd2a0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.atlasInsightTitle {
+  margin: 0;
+  color: var(--ai-text);
+  font-size: clamp(1.08rem, 1rem + 0.7vw, 1.38rem);
+  line-height: 1.18;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.atlasInsightText {
+  margin: 0;
+  color: var(--ai-muted);
+  font-size: 0.98rem;
+  line-height: 1.58;
+  font-weight: 500;
+}
+
+.atlasInsightHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.atlasInsightHintIcon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 138, 42, 0.25), rgba(255, 176, 102, 0.12));
+  color: #ffd7ab;
+  border: 1px solid rgba(255, 176, 102, 0.2);
+}
+
+.atlasInsightHintText {
+  margin: 0;
+  color: rgba(255, 245, 235, 0.9);
+  font-size: 0.93rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+/* metrics strip */
+.atlasInsightMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.atlasInsightMetric {
+  min-height: 84px;
+  padding: 14px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ai-stroke-soft);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.atlasInsightMetricLabel {
+  color: var(--ai-faint);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.atlasInsightMetricValue {
+  color: var(--ai-text);
+  font-size: 1.02rem;
+  line-height: 1.1;
+  font-weight: 900;
+}
+
+.atlasInsightMetricSub {
+  color: var(--ai-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+/* CTA row */
+.atlasInsightActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.atlasInsightBtn,
+.atlasInsightBtnPrimary {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: var(--ai-radius-pill);
+  font-size: 0.95rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.atlasInsightBtn {
+  color: var(--ai-text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ai-stroke);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.atlasInsightBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 176, 102, 0.24);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.atlasInsightBtnPrimary {
+  color: #fff7ef;
+  background: linear-gradient(135deg, var(--ai-orange), var(--ai-orange-2));
+  border: 1px solid rgba(255, 176, 102, 0.42);
+  box-shadow:
+    0 12px 28px rgba(255, 138, 42, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.atlasInsightBtnPrimary:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 16px 32px rgba(255, 138, 42, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* state pills */
+.atlasInsightStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--ai-radius-pill);
+  font-size: 0.84rem;
+  font-weight: 800;
+  margin-top: 6px;
+}
+
+.atlasInsightStatus.is-good {
+  color: #dcffe7;
+  background: rgba(126, 231, 168, 0.11);
+  border: 1px solid rgba(126, 231, 168, 0.22);
+}
+
+.atlasInsightStatus.is-warn {
+  color: #ffe3aa;
+  background: rgba(255, 210, 122, 0.11);
+  border: 1px solid rgba(255, 210, 122, 0.24);
+}
+
+.atlasInsightStatus.is-danger {
+  color: #ffc1c1;
+  background: rgba(255, 128, 128, 0.11);
+  border: 1px solid rgba(255, 128, 128, 0.22);
+}
+
+/* subtle animated glow */
+.atlasInsightCard.is-live::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -55% -20%;
+  height: 170px;
+  background: radial-gradient(circle, rgba(255, 138, 42, 0.14), transparent 68%);
+  filter: blur(18px);
+  pointer-events: none;
+  animation: atlasPulse 3.2s ease-in-out infinite;
+}
+
+@keyframes atlasPulse {
+  0%, 100% {
+    opacity: 0.38;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.03);
+  }
+}
+
+/* responsive */
+@media (max-width: 768px) {
+  .atlasInsightCard {
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .atlasInsightTop {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .atlasInsightSignal {
+    width: fit-content;
+  }
+
+  .atlasInsightMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .atlasInsightMetric {
+    min-height: unset;
+  }
+
+  .atlasInsightActions {
+    flex-direction: column;
+  }
+
+  .atlasInsightBtn,
+  .atlasInsightBtnPrimary {
+    width: 100%;
+  }
+
+  .atlasInsightTitle {
+    font-size: 1.1rem;
+  }
+
+  .atlasInsightText,
+  .atlasInsightHintText {
+    font-size: 0.94rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .atlasInsightCard {
+    padding: 14px;
+  }
+
+  .atlasInsightBadge,
+  .atlasInsightSignal {
+    min-height: 36px;
+    font-size: 0.86rem;
+    padding: 0 12px;
+  }
+
+  .atlasInsightMetrics {
+    gap: 8px;
+  }
+
+  .atlasInsightMetric {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .atlasInsightMetricValue {
+    font-size: 0.98rem;
+  }
+}
