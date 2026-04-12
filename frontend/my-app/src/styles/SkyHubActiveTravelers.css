@@ -1,0 +1,158 @@
+/* ── LIST ────────────────────────────────────────────────── */
+.skyhub-activeTravelerList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* ── ITEM ────────────────────────────────────────────────── */
+.skyhub-activeTravelerItem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  text-align: left;
+  transition: background 0.18s ease,
+              border-color 0.18s ease,
+              box-shadow 0.18s ease;
+
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.skyhub-activeTravelerItem:hover {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 138, 42, 0.30);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* ── AVATAR ──────────────────────────────────────────────── */
+.skyhub-activeTravelerAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  overflow: visible;
+}
+
+/* Avatar color variants — unchanged, they work on dark */
+.skyhub-avatar-orange { background: linear-gradient(135deg, #ff8a2a, #ffb066); }
+.skyhub-avatar-blue   { background: linear-gradient(135deg, #4b8fff, #75a9ff); }
+.skyhub-avatar-green  { background: linear-gradient(135deg, #22c55e, #4ade80); }
+.skyhub-avatar-purple { background: linear-gradient(135deg, #7a67ff, #a394ff); }
+.skyhub-avatar-pink   { background: linear-gradient(135deg, #ec4899, #f472b6); }
+
+/* Online dot — border matches dark card now */
+.skyhub-onlineDot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2.5px solid rgba(20, 12, 40, 0.90);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* ── META ────────────────────────────────────────────────── */
+.skyhub-activeTravelerMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.skyhub-activeTravelerTopRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.skyhub-activeTravelerName {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.90);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skyhub-activeTravelerBadge {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #ff8a2a;
+  background: rgba(255, 138, 42, 0.14);
+  border: 1px solid rgba(255, 138, 42, 0.25);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+.skyhub-activeTravelerSub {
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.38);
+  margin-top: 2px;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.skyhub-activeTravelerInfoRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.38);
+  flex-wrap: wrap;
+}
+
+.skyhub-activeTravelerStatus {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: #4ade80;
+  font-weight: 600;
+  font-size: 0.70rem;
+  white-space: nowrap;
+}
+
+/* ── ARROW ───────────────────────────────────────────────── */
+.skyhub-activeTravelerArrow {
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 0.92rem;
+  flex-shrink: 0;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.skyhub-activeTravelerItem:hover .skyhub-activeTravelerArrow {
+  color: #ff8a2a;
+  transform: translateX(2px);
+}
+
+/* ── EMPTY ───────────────────────────────────────────────── */
+.skyhub-miniEmptyState {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.35);
+  text-align: center;
+  padding: 22px 0;
+}

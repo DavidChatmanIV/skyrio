@@ -1,0 +1,133 @@
+/* ── CARD SHELL ──────────────────────────────────────────── */
+.skyhub-sideCard {
+  background: rgba(20, 12, 40, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 22px;
+  padding: 20px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22),
+              inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Top edge sheen */
+.skyhub-sideCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.20) 35%,
+    rgba(255, 255, 255, 0.20) 65%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.skyhub-sideCard > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── PASSPORT VARIANT ────────────────────────────────────── */
+.skyhub-passportCard {
+  background: linear-gradient(
+    140deg,
+    rgba(255, 138, 42, 0.18) 0%,
+    rgba(20, 12, 40, 0.55) 100%
+  ) !important;
+  border-color: rgba(255, 138, 42, 0.22) !important;
+}
+
+/* Warm glow in top-right corner */
+.skyhub-passportCard::after {
+  content: "";
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 138, 42, 0.22) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── TYPOGRAPHY ──────────────────────────────────────────── */
+.skyhub-sideTitle {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 0 0 2px;
+  line-height: 1.2;
+}
+
+.skyhub-passportXP {
+  font-family: 'Syne', sans-serif;
+  font-size: 2.90rem;
+  line-height: 1;
+  letter-spacing: -0.055em;
+  font-weight: 900;
+  color: #fff;
+  margin: 12px 0 10px;
+}
+
+.skyhub-passportMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 13px;
+  border-radius: 999px;
+  background: rgba(124, 92, 252, 0.18);
+  border: 1px solid rgba(124, 92, 252, 0.28);
+  color: #b49dff;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+}
+
+.skyhub-sideSubtext {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.50);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* ── HEADER ROW ──────────────────────────────────────────── */
+.skyhub-sideHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.skyhub-sideLink {
+  background: none;
+  border: none;
+  color: #ff8a2a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: opacity 0.18s ease;
+}
+
+.skyhub-sideLink:hover { opacity: 0.70; }

@@ -18,7 +18,8 @@ const FollowSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Prevent duplicates
 FollowSchema.index({ followerId: 1, followingId: 1 }, { unique: true });
 
-export default mongoose.model("Follow", FollowSchema);
+const Follow = mongoose.models.Follow || mongoose.model("Follow", FollowSchema);
+
+export default Follow;

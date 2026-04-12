@@ -1,0 +1,316 @@
+/* ── CARD SHELL ──────────────────────────────────────────── */
+.skyhub-composerCard {
+  background: rgba(20, 12, 40, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 26px;
+  padding: 26px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22),
+              inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle top-left warm glow */
+.skyhub-composerCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 65%;
+  height: 55%;
+  background: radial-gradient(
+    ellipse at top left,
+    rgba(255, 138, 42, 0.08) 0%,
+    transparent 65%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Top edge glass sheen */
+.skyhub-composerCard::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.20) 35%,
+    rgba(255, 255, 255, 0.20) 65%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.skyhub-composerCard > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── TOP ─────────────────────────────────────────────────── */
+.skyhub-composerTop {
+  margin-bottom: 20px;
+}
+
+/* Override section title/subtext colors for dark surface */
+.skyhub-composerCard .skyhub-sectionTitle {
+  color: #fff !important;
+}
+
+.skyhub-composerCard .skyhub-sectionSubtext {
+  color: rgba(255, 255, 255, 0.60) !important;
+}
+
+/* ── POST TYPE SEGMENTED ─────────────────────────────────── */
+.skyhub-composerTypeRow {
+  margin-bottom: 18px;
+}
+
+.skyhub-composerTypeRow .skyhub-toolbarLabel {
+  font-size: 0.71rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 9px;
+}
+
+/* Ant Design Segmented — on dark surface */
+.skyhub-composerTypeRow .ant-segmented {
+  width: 100% !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 14px !important;
+  padding: 3px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  box-shadow: none !important;
+}
+
+.skyhub-composerTypeRow .ant-segmented-item-label {
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  padding: 0 10px !important;
+}
+
+.skyhub-composerTypeRow .ant-segmented-item-selected {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+}
+
+.skyhub-composerTypeRow .ant-segmented-item-selected .ant-segmented-item-label {
+  color: #ff8a2a !important;
+  font-weight: 700 !important;
+}
+
+.skyhub-composerTypeRow .ant-segmented-thumb {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-radius: 11px !important;
+}
+
+/* ── INPUT FIELDS ────────────────────────────────────────── */
+.skyhub-composerInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.skyhub-composerField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skyhub-composerFieldLabel {
+  font-size: 0.71rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Ant Input — destination */
+.skyhub-input.ant-input-affix-wrapper {
+  background: rgba(255, 255, 255, 0.10) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 14px !important;
+  height: 48px !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', sans-serif !important;
+  color: #fff !important;
+  padding: 0 14px !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.skyhub-input.ant-input-affix-wrapper:hover {
+  border-color: rgba(255, 138, 42, 0.50) !important;
+}
+
+.skyhub-input.ant-input-affix-wrapper:focus-within,
+.skyhub-input.ant-input-affix-wrapper-focused {
+  border-color: #ff8a2a !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.15) !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.skyhub-input .ant-input {
+  background: transparent !important;
+  color: #fff !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 0.93rem !important;
+}
+
+.skyhub-input .ant-input::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.skyhub-input .anticon {
+  color: rgba(255, 255, 255, 0.40) !important;
+}
+
+/* Ant TextArea */
+.skyhub-textarea.ant-input {
+  background: rgba(255, 255, 255, 0.10) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 14px !important;
+  color: #fff !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 0.94rem !important;
+  line-height: 1.72 !important;
+  padding: 13px 15px !important;
+  box-shadow: none !important;
+  resize: none !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.skyhub-textarea.ant-input:hover {
+  border-color: rgba(255, 138, 42, 0.45) !important;
+}
+
+.skyhub-textarea.ant-input:focus {
+  border-color: #ff8a2a !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.15) !important;
+  background: rgba(255, 255, 255, 0.13) !important;
+}
+
+.skyhub-textarea.ant-input::placeholder {
+  color: rgba(255, 255, 255, 0.30) !important;
+}
+
+/* ── META ROW ────────────────────────────────────────────── */
+.skyhub-composerMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.skyhub-composerHints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+/* Ant Tag — dark surface version */
+.skyhub-softTag.ant-tag {
+  background: rgba(255, 255, 255, 0.10) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 999px !important;
+  color: rgba(255, 255, 255, 0.70) !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 0.81rem !important;
+  padding: 4px 12px !important;
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.skyhub-softTag.ant-tag .anticon {
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-size: 0.80rem !important;
+}
+
+/* Char count */
+.skyhub-charCount {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.50);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 4px 13px;
+  min-width: 64px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.skyhub-charCount.is-over {
+  color: #ff5c7a;
+  border-color: rgba(255, 92, 122, 0.35);
+  background: rgba(255, 92, 122, 0.10);
+}
+
+/* ── FOOTER ──────────────────────────────────────────────── */
+.skyhub-composerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.skyhub-composerHelperText {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.40);
+  line-height: 1.55;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Primary button */
+.skyhub-primaryBtn.ant-btn,
+.skyhub-primaryBtn.ant-btn-primary {
+  height: 48px !important;
+  padding: 0 24px !important;
+  border-radius: 14px !important;
+  border: none !important;
+  background: #ff8a2a !important;
+  color: #fff !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 0.92rem !important;
+  box-shadow: 0 6px 22px rgba(255, 138, 42, 0.35) !important;
+  transition: opacity 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+.skyhub-primaryBtn.ant-btn:not(:disabled):hover,
+.skyhub-primaryBtn.ant-btn-primary:not(:disabled):hover {
+  opacity: 0.88 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 12px 30px rgba(255, 138, 42, 0.40) !important;
+  background: #ff8a2a !important;
+  color: #fff !important;
+}
+
+/* ── RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .skyhub-composerCard   { padding: 18px; border-radius: 20px; }
+  .skyhub-composerFooter { flex-direction: column; align-items: stretch; }
+  .skyhub-primaryBtn.ant-btn,
+  .skyhub-primaryBtn.ant-btn-primary { width: 100% !important; justify-content: center !important; }
+}

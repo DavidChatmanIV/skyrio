@@ -24,7 +24,7 @@ import "./styles/Navbar.css";
 import "./styles/LandingPage.css";
 import "./styles/BookingPage.css";
 import "./styles/flights.css";
-import "./styles/skyhub.css";
+import "./styles/SkyHubPage.css";
 import "./styles/profile-passport.css";
 import "./styles/SmartPlan.css";
 import "./styles/surfaces.css";
@@ -43,7 +43,9 @@ createRoot(rootEl).render(
         <ConfigProvider
           theme={{
             components: {
-              Card: { variant: "outlined" },
+              Card: {
+                variant: "outlined",
+              },
             },
           }}
         >

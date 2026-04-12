@@ -1,18 +1,25 @@
-.osq-navbar.ant-layout-header{
+.osq-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
 
-  position: sticky;
-  top:0;
+/* Push content below the fixed navbar */
+.osq-main {
+  flex: 1;
+  padding-top: var(--sk-nav-h, 86px);
+}
 
-  z-index:9999;
+/* SkyHub manages its own layout */
+.osq-main--flush {
+  padding-top: 0 !important;
+}
 
-  height: var(--nav-h) !important;
-  padding:0 !important;
-
-  background:transparent !important;
-  border:none !important;
-  box-shadow:none !important;
-
-  display:flex;
-  align-items:stretch;
-
+.osq-footer {
+  padding: 24px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.82rem;
+  background: transparent;
 }

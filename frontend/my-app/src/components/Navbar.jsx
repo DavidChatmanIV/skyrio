@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Drawer, Grid, Space } from "antd";
-import { MenuOutlined, RocketOutlined, UserOutlined } from "@ant-design/icons";
+import { MenuOutlined, UserOutlined } from "@ant-design/icons";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import skyrioLogo from "@/assets/logo/skyrio-logo-transparent.png";
 import "@/styles/Navbar.css";
 
 const { useBreakpoint } = Grid;
@@ -50,53 +51,47 @@ export default function Navbar() {
     <>
       <header className={`sk-navbar-wrap ${scrolled ? "is-scrolled" : ""}`}>
         <div className="sk-navbar-shell">
-          <div className="sk-navbar">
-            <div className="sk-navbar-left">
-              <Link to="/" className="sk-brand" aria-label="Skyrio home">
-                <div className="sk-brand-mark">
-                  <RocketOutlined />
-                </div>
+          <nav className="sk-navbar">
+            {/* ── COL 1: BRAND ── */}
+            <Link to="/" className="sk-brand" aria-label="Skyrio home">
+              <img src={skyrioLogo} alt="Skyrio" className="sk-brand-img" />
+              <span className="sk-brand-wordmark">Skyrio</span>
+            </Link>
 
-                <div className="sk-brand-copy">
-                  <span className="sk-brand-name">Skyrio</span>
-                  <span className="sk-brand-tag">Plan smarter</span>
-                </div>
-              </Link>
-            </div>
-
+            {/* ── COL 2: NAV LINKS (centered) ── */}
             {screens.md && (
-              <nav className="sk-navbar-center" aria-label="Primary">
-                {NAV_ITEMS.map((item) => {
-                  const isActive = activeKey === item.key;
-
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      className={`sk-nav-pill ${isActive ? "active" : ""}`}
-                      onClick={() => handleNavigate(item.path)}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </nav>
+              <div
+                className="sk-nav-links"
+                role="navigation"
+                aria-label="Primary"
+              >
+                {NAV_ITEMS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`sk-nav-link ${
+                      activeKey === item.key ? "active" : ""
+                    }`}
+                    onClick={() => handleNavigate(item.path)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             )}
 
-            <div className="sk-navbar-right">
+            {/* ── COL 3: ACTIONS ── */}
+            <div className="sk-nav-actions">
               {screens.md ? (
-                <Space size={12}>
+                <Space size={8}>
                   <Button
                     className="sk-btn sk-btn-ghost"
-                    shape="round"
                     onClick={() => navigate("/login")}
                   >
                     Log in
                   </Button>
-
                   <Button
                     className="sk-btn sk-btn-primary"
-                    shape="round"
                     onClick={() => navigate("/signup")}
                   >
                     Sign up
@@ -112,17 +107,16 @@ export default function Navbar() {
                 />
               )}
             </div>
-          </div>
+          </nav>
         </div>
       </header>
 
+      {/* ── MOBILE DRAWER ── */}
       <Drawer
         title={
-          <div className="sk-mobile-drawer-title">
-            <div className="sk-brand-mark small">
-              <RocketOutlined />
-            </div>
-            <span>Skyrio</span>
+          <div className="sk-drawer-header">
+            <img src={skyrioLogo} alt="Skyrio" className="sk-drawer-logo" />
+            <span className="sk-drawer-name">Skyrio</span>
           </div>
         }
         placement="right"
@@ -130,38 +124,34 @@ export default function Navbar() {
         onClose={() => setMobileOpen(false)}
         open={mobileOpen}
         className="sk-mobile-drawer"
+        width={280}
       >
         <div className="sk-mobile-nav">
-          {NAV_ITEMS.map((item) => {
-            const isActive = activeKey === item.key;
-
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={`sk-mobile-link ${isActive ? "active" : ""}`}
-                onClick={() => handleNavigate(item.path)}
-              >
-                {item.label}
-              </button>
-            );
-          })}
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`sk-mobile-link ${
+                activeKey === item.key ? "active" : ""
+              }`}
+              onClick={() => handleNavigate(item.path)}
+            >
+              {item.label}
+            </button>
+          ))}
 
           <div className="sk-mobile-actions">
             <Button
               block
               className="sk-btn sk-btn-ghost"
-              shape="round"
               icon={<UserOutlined />}
               onClick={() => handleNavigate("/login")}
             >
               Log in
             </Button>
-
             <Button
               block
               className="sk-btn sk-btn-primary"
-              shape="round"
               onClick={() => handleNavigate("/signup")}
             >
               Sign up

@@ -8,12 +8,7 @@ import LandingPage from "./pages/LandingPage";
 import BookingPage from "./pages/BookingPage";
 
 // ---------- SkyHub ----------
-import SkyHubLayout from "./pages/skyhub/SkyHubLayout";
-import SkyHubFeed from "./pages/skyhub/SkyHubFeed";
-import SkyHubInsights from "./pages/skyhub/SkyHubInsights";
-import DmPage from "./pages/skyhub/DmPage";
-import CirclesPage from "./pages/skyhub/CirclesPage";
-import SavedPage from "./pages/skyhub/SavedPage";
+import SkyHubPage from "./pages/skyhub/SkyHubPage";
 
 // ---------- Passport ----------
 import DigitalPassportPage from "./pages/passport/DigitalPassportPage";
@@ -24,8 +19,8 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import NotFound from "./pages/NotFound";
 
-// ---------- Optional / Legacy ----------
-import TeamTravelPage from "./pages/TeamTravelPage";
+// ---------- Sync Together (replaces Team Travel) ----------
+import SyncTogether from "./pages/SyncTogether";
 
 // ---------- Protected ----------
 import Dashboard from "./pages/Dashboard";
@@ -44,19 +39,9 @@ export default function AppRoutes() {
         <Route path="booking" element={<BookingPage />} />
 
         {/* SkyHub */}
-        <Route path="skyhub" element={<SkyHubLayout />}>
-          <Route index element={<Navigate to="moments" replace />} />
-          <Route path="moments" element={<SkyHubFeed />} />
-          <Route path="insights" element={<SkyHubInsights />} />
+        <Route path="skyhub" element={<SkyHubPage />} />
 
-          {/* ✅ MATCH LeftRail: /skyhub/dms */}
-          <Route path="dms" element={<DmPage />} />
-
-          <Route path="circles" element={<CirclesPage />} />
-          <Route path="saved" element={<SavedPage />} />
-        </Route>
-
-        {/* Legacy */}
+        {/* Legacy redirects */}
         <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
         <Route path="feed" element={<Navigate to="/skyhub" replace />} />
 
@@ -68,8 +53,12 @@ export default function AppRoutes() {
         />
         <Route path="membership" element={<MembershipPage />} />
 
-        {/* Optional */}
-        <Route path="team-travel" element={<TeamTravelPage />} />
+        {/* Sync Together — old team-travel URL redirects here too */}
+        <Route path="sync-together" element={<SyncTogether />} />
+        <Route
+          path="team-travel"
+          element={<Navigate to="/sync-together" replace />}
+        />
 
         {/* Protected */}
         <Route element={<ProtectedRoute />}>

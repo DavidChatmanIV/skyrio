@@ -1,0 +1,223 @@
+.sk-sync-section {
+  width: min(860px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 48px 0 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  text-align: center;
+}
+
+/* ── Header ── */
+.sk-sync-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Badge — orange pill */
+.sk-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1b1024;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: 0 4px 18px rgba(255, 138, 42, 0.4);
+}
+
+.sk-sync-title {
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.96);
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* Gradient highlight — orange only */
+.sk-sync-highlight {
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sk-sync-sub {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.65);
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ── Feature grid ── */
+.sk-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.sk-sync-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 22px 18px;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.2s, transform 0.2s;
+  text-align: left;
+}
+.sk-sync-card:hover {
+  border-color: rgba(255, 138, 42, 0.4);
+  transform: translateY(-2px);
+}
+
+.sk-sync-card-icon  { font-size: 26px; margin-bottom: 10px; }
+.sk-sync-card-title { font-size: 14px; font-weight: 800; color: rgba(255,255,255,0.92); margin-bottom: 6px; }
+.sk-sync-card-body  { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.5; }
+
+/* ── Group builder ── */
+.sk-sync-group-builder {
+  width: 100%;
+  max-width: 560px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sk-sync-group-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.88);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sk-sync-group-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.sk-sync-input.ant-input {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 10px !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  height: 40px !important;
+  flex: 1;
+}
+.sk-sync-input.ant-input::placeholder {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+.sk-sync-input.ant-input:focus {
+  border-color: rgba(255, 138, 42, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.15) !important;
+}
+
+/* Add button — orange */
+.sk-sync-add-btn.ant-btn {
+  background: rgba(255, 138, 42, 0.2) !important;
+  border: 1px solid rgba(255, 138, 42, 0.4) !important;
+  color: #ffb347 !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  height: 40px !important;
+  transition: background 0.2s !important;
+}
+.sk-sync-add-btn.ant-btn:hover {
+  background: rgba(255, 138, 42, 0.35) !important;
+}
+
+/* Traveler pills — orange tint */
+.sk-sync-travelers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sk-sync-traveler-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+  background: rgba(255, 138, 42, 0.12);
+  border: 1px solid rgba(255, 138, 42, 0.3);
+  border-radius: 999px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Avatar inside pill — orange */
+.sk-sync-traveler-pill .ant-avatar {
+  background: #ff8a2a !important;
+}
+
+.sk-sync-remove {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.15s;
+}
+.sk-sync-remove:hover { color: #ff4e6a; }
+
+.sk-sync-copy {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+  font-style: italic;
+}
+
+/* ── CTA ── */
+.sk-sync-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Start Syncing button — orange pill */
+.sk-sync-cta-btn.ant-btn {
+  background: linear-gradient(135deg, #ff8a2a, #ffb347) !important;
+  border: none !important;
+  color: #1b1024 !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  height: 48px !important;
+  padding: 0 36px !important;
+  box-shadow: 0 6px 24px rgba(255, 138, 42, 0.45) !important;
+  transition: box-shadow 0.2s, transform 0.15s !important;
+}
+.sk-sync-cta-btn.ant-btn:hover {
+  box-shadow: 0 8px 32px rgba(255, 138, 42, 0.65) !important;
+  transform: translateY(-2px);
+}
+
+.sk-sync-cta-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .sk-sync-grid          { grid-template-columns: 1fr 1fr; }
+  .sk-sync-group-builder { padding: 20px 16px; }
+  .sk-sync-title         { font-size: 26px; }
+}
