@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Navbar from "../components/Navbar";
-import "../styles/appLayout.css";
+import "../styles/AppLayout.css";
 import "../styles/skyrio-theme.css";
 
 function themeForPath(pathname) {
