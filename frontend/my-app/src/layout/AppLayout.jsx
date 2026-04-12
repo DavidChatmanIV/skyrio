@@ -5,6 +5,7 @@ import Navbar from "../components/Navbar";
 import "../styles/AppLayout.css";
 import "../styles/skyrio-theme.css";
 
+
 function themeForPath(pathname) {
   if (pathname.startsWith("/booking")) return "sk-theme-book";
   if (pathname.startsWith("/passport")) return "sk-theme-passport";
