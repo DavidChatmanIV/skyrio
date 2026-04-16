@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Card,
@@ -8,7 +14,7 @@ import {
   Progress,
   message as antdMessage,
   Skeleton,
-  Tag, // ✅ required (fixes Tag is not defined)
+  Tag,
 } from "antd";
 import {
   UserOutlined,
@@ -20,47 +26,168 @@ import {
 } from "@ant-design/icons";
 import { io } from "socket.io-client";
 
-/* ✅ IMPORTANT: Passport styling */
 import "../../styles/profile-passport.css";
-
-/* 🌍 Background */
+import "../../styles/passport-locked.css";
 import passportBg from "../../assets/DigitalPassport/worldmap.png";
 
-/* 🎵 Profile music */
 import ProfileMusicModal, {
   SKYRIO_PROFILE_MUSIC_KEY,
 } from "./music/ProfileMusicModal";
 
-/* Social */
 import FollowersModal from "./FollowersModal";
 
-/* Auth */
+// ✅ pulls from src/auth/useAuth.js which now resolves correctly
 import { useAuth } from "../../auth/useAuth";
 
-/* Rewards */
 import RewardsOptInPrompt from "../../components/rewards/RewardsOptInPrompt";
 import useRewardsOptInPrompt from "../../hooks/useRewardsOptInPrompt";
 
 const { Title, Text } = Typography;
 
-/* ---------------- helpers ---------------- */
+/* ── helpers ── */
 function safeEmailPrefix(email) {
   if (!email) return "";
   const idx = email.indexOf("@");
   return idx > 0 ? email.slice(0, idx) : email;
 }
 
+/* ─────────────────────────────────────────────
+   PASSPORT LOCKED — inline guest wall
+   Shown instead of the full page when the user
+   is not authenticated. No separate route needed.
+───────────────────────────────────────────── */
+const LOCK_PERKS = [
+  { icon: "⭐", text: "Earn XP on every flight, hotel, and activity" },
+  { icon: "🏅", text: "Unlock badges and level up your traveller rank" },
+  { icon: "🏷️", text: "Redeem XP for real discounts on future bookings" },
+  { icon: "📍", text: "Save trips and build your personal travel map" },
+  { icon: "✈️", text: "Get personalised AI trip recommendations" },
+];
+
+const PREVIEW_STATS = [
+  { val: "2,840", label: "XP Earned" },
+  { val: "12", label: "Trips Saved" },
+  { val: "15%", label: "Discount" },
+];
+
+const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
+
+function PassportLocked() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="passport-page">
+      <div
+        className="passport-bg"
+        style={{
+          backgroundImage: `url(${passportBg})`,
+          filter: "blur(4px) brightness(0.6)",
+        }}
+        aria-hidden="true"
+      />
+
+      <div className="passport-content">
+        <div className="passport-scope">
+          <div className="plk-page">
+            <div className="plk-inner">
+              <div className="plk-hero">
+                <h1 className="plk-title">Digital Passport</h1>
+                <p className="plk-sub">
+                  Your travel identity — XP, badges, and exclusive rewards.
+                </p>
+              </div>
+
+              <div className="plk-preview">
+                {/* Blurred stats preview — creates FOMO */}
+                <div className="plk-blur" aria-hidden="true">
+                  <div className="plk-blur-topbar">
+                    <span className="plk-blur-name">Explorer's Passport</span>
+                    <span className="plk-blur-level">Level 7 ✦</span>
+                  </div>
+                  <div className="plk-blur-stats">
+                    {PREVIEW_STATS.map((s) => (
+                      <div key={s.label} className="plk-blur-stat">
+                        <div className="plk-blur-val">{s.val}</div>
+                        <div className="plk-blur-label">{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="plk-blur-badges">
+                    {PREVIEW_BADGES.map((b, i) => (
+                      <div key={i} className="plk-blur-badge">
+                        {b}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hard lock overlay */}
+                <div className="plk-overlay">
+                  <div className="plk-lock-icon">🔒</div>
+                  <h2 className="plk-lock-title">Your passport awaits</h2>
+                  <p className="plk-lock-sub">
+                    Create a free account to unlock your Digital Passport, earn
+                    XP on every booking, and access exclusive travel discounts.
+                  </p>
+
+                  <div className="plk-perks">
+                    {LOCK_PERKS.map((p) => (
+                      <div key={p.text} className="plk-perk">
+                        <span className="plk-perk-icon">{p.icon}</span>
+                        <span className="plk-perk-text">{p.text}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    className="plk-cta"
+                    onClick={() =>
+                      navigate("/register", {
+                        state: { redirectTo: "/passport" },
+                      })
+                    }
+                  >
+                    Create your boarding pass — it's free
+                  </button>
+
+                  <p className="plk-signin">
+                    Already a member?{" "}
+                    <button
+                      className="plk-signin-link"
+                      onClick={() =>
+                        navigate("/login", {
+                          state: { redirectTo: "/passport" },
+                        })
+                      }
+                    >
+                      Sign in
+                    </button>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   MAIN PAGE
+───────────────────────────────────────────── */
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const auth = useAuth();
+
+  // ✅ pull isAuthed + loading from the new AuthContext
+  const { user, isAuthed, loading } = useAuth();
+
   const rewardsOptIn = useRewardsOptInPrompt();
 
-  const isAuthed = !!auth?.user;
   const myId = useMemo(() => {
-    const u = auth?.user;
-    return u?._id || u?.id || null;
-  }, [auth?.user]);
+    return user?._id || user?.id || null;
+  }, [user]);
 
   /* UI */
   const [musicOpen, setMusicOpen] = useState(false);
@@ -84,30 +211,27 @@ export default function DigitalPassportPage() {
 
   const socketRef = useRef(null);
 
-  /* ---------------- derived ---------------- */
+  /* ── derived ── */
   const displayName = useMemo(() => {
-    const u = auth?.user;
-    if (!u) return "Explorer";
-    return u.username || u.name || safeEmailPrefix(u.email) || "Explorer";
-  }, [auth?.user]);
+    if (!user) return "Explorer";
+    return (
+      user.username || user.name || safeEmailPrefix(user.email) || "Explorer"
+    );
+  }, [user]);
 
   const handle = useMemo(() => {
-    const u = auth?.user;
-    if (!u) return "@explorer";
-    const base = u.username || safeEmailPrefix(u.email) || "explorer";
+    if (!user) return "@explorer";
+    const base = user.username || safeEmailPrefix(user.email) || "explorer";
     return `@${String(base).toLowerCase()}`;
-  }, [auth?.user]);
+  }, [user]);
 
-  const levelNumber = useMemo(
-    () => Number(auth?.user?.level ?? 1),
-    [auth?.user]
-  );
+  const levelNumber = useMemo(() => Number(user?.level ?? 1), [user]);
 
   const homeBaseLabel = useMemo(() => {
-    const hb = auth?.user?.homeBase;
+    const hb = user?.homeBase;
     if (hb && typeof hb === "string") return hb;
     return "New Jersey";
-  }, [auth?.user?.homeBase]);
+  }, [user?.homeBase]);
 
   const xpGoal = useMemo(() => {
     const current = Number(xp || 0);
@@ -121,35 +245,34 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
-  /* ✅ transition toast after auth redirect */
+  /* ── transition toast after auth redirect ── */
   useEffect(() => {
     const fromAuth = !!location?.state?.fromAuth;
     if (!fromAuth) return;
-
     antdMessage.success({
-      content: `Welcome aboard${auth?.user?.name ? `, ${auth.user.name}` : ""} ✈️`,
+      content: `Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`,
       duration: 2,
     });
-
     try {
       window.history.replaceState({}, document.title);
     } catch {
-      // ignore
+      /* ignore */
     }
-  }, [location?.state?.fromAuth, auth?.user?.name]);
+  }, [location?.state?.fromAuth, user?.name]);
 
-  /* ---------- profile music ---------- */
+  /* ── profile music ── */
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
       if (raw) setProfileMusic(JSON.parse(raw));
     } catch {
-      // ignore
+      /* ignore */
     }
   }, []);
 
-  /* ---------- profile xp ---------- */
+  /* ── fetch XP (only when authed) ── */
   useEffect(() => {
+    if (!isAuthed) return;
     const controller = new AbortController();
     let mounted = true;
 
@@ -162,7 +285,6 @@ export default function DigitalPassportPage() {
         });
         if (!res.ok) throw new Error("profile fetch failed");
         const data = await res.json();
-
         if (!mounted) return;
         setXp(Number(data?.xp ?? 0));
         setXpToNextBadge(Number(data?.xpToNextBadge ?? 0));
@@ -181,10 +303,11 @@ export default function DigitalPassportPage() {
       mounted = false;
       controller.abort();
     };
-  }, []);
+  }, [isAuthed]);
 
-  /* ---------- passport stats ---------- */
+  /* ── fetch passport stats (only when authed) ── */
   useEffect(() => {
+    if (!isAuthed) return;
     const controller = new AbortController();
     let mounted = true;
 
@@ -196,7 +319,6 @@ export default function DigitalPassportPage() {
           signal: controller.signal,
         });
         const data = await res.json();
-
         if (!mounted) return;
         if (data?.ok) {
           setPassportStats({
@@ -218,11 +340,11 @@ export default function DigitalPassportPage() {
       mounted = false;
       controller.abort();
     };
-  }, []);
+  }, [isAuthed]);
 
-  /* socket live sync for counts */
+  /* ── socket live sync (only when authed) ── */
   useEffect(() => {
-    if (!myId) return;
+    if (!myId || !isAuthed) return;
 
     if (!socketRef.current) {
       socketRef.current = io("/", { transports: ["websocket"] });
@@ -248,9 +370,9 @@ export default function DigitalPassportPage() {
 
     s.on("social:counts:update", handler);
     return () => s.off("social:counts:update", handler);
-  }, [myId]);
+  }, [myId, isAuthed]);
 
-  /* ---------------- actions ---------------- */
+  /* ── actions ── */
   const copyPassportLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -264,7 +386,7 @@ export default function DigitalPassportPage() {
     antdMessage.info("Sharing enabled post-launch");
   }, []);
 
-  /* ---------------- mock data for visual match ---------------- */
+  /* ── mock data ── */
   const journeys = useMemo(
     () => [
       {
@@ -313,10 +435,27 @@ export default function DigitalPassportPage() {
     []
   );
 
+  /* ─────────────────────────────────────────
+     ✅ GUEST / UNAUTHENTICATED GATE
+     Wait for auth hydration to finish before
+     deciding — prevents flash of lock screen
+     for users who ARE logged in.
+  ───────────────────────────────────────── */
+  if (loading) return null; // hydrating — renders nothing briefly, no flash
+
+  if (!isAuthed) return <PassportLocked />;
+
+  /* ─────────────────────────────────────────
+     AUTHENTICATED RENDER
+  ───────────────────────────────────────── */
   return (
     <div className="passport-page">
-      {/* ✅ Skyrio Gradient Defs (safe to keep) */}
-      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+      <svg
+        width="0"
+        height="0"
+        style={{ position: "absolute" }}
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id="skyrioGrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#FF8C3C" />
@@ -325,7 +464,6 @@ export default function DigitalPassportPage() {
         </defs>
       </svg>
 
-      {/* Background */}
       <div
         className="passport-bg"
         style={{ backgroundImage: `url(${passportBg})` }}
@@ -342,7 +480,6 @@ export default function DigitalPassportPage() {
         <div className="passport-scope">
           <div className="pp-page">
             <div className="pp-shell">
-              {/* HOME button (mock top-left) */}
               <div className="pp-homeBtnWrap">
                 <Button
                   type="text"
@@ -354,11 +491,9 @@ export default function DigitalPassportPage() {
                 </Button>
               </div>
 
-              {/* ✅ MOCK GRID: Left main + Right sidebar */}
               <div className="pp-mockGrid">
-                {/* ============ LEFT MAIN ============ */}
+                {/* ── LEFT MAIN ── */}
                 <div className="pp-mockMain">
-                  {/* Top: Profile strip (matches mock left top) */}
                   <Card bordered={false} className="pp-card pp-profileCard">
                     <div className="pp-profileRow">
                       <div className="pp-profileAvatar">
@@ -366,7 +501,11 @@ export default function DigitalPassportPage() {
                       </div>
 
                       <div className="pp-profileMeta">
-                        <Title level={2} className="pp-title" style={{ margin: 0 }}>
+                        <Title
+                          level={2}
+                          className="pp-title"
+                          style={{ margin: 0 }}
+                        >
                           {displayName}
                         </Title>
 
@@ -375,7 +514,9 @@ export default function DigitalPassportPage() {
                         </Text>
 
                         <div style={{ marginTop: 10 }}>
-                          <span className="pp-pill pp-pill--active">🟠 Passport Active</span>
+                          <span className="pp-pill pp-pill--active">
+                            🟠 Passport Active
+                          </span>
                         </div>
 
                         <div className="pp-followRow pp-followRow--mock">
@@ -386,10 +527,13 @@ export default function DigitalPassportPage() {
                               setFollowOpen(true);
                             }}
                             type="button"
-                            disabled={!isAuthed}
                           >
                             <strong>
-                              {statsLoading ? <span style={{ opacity: 0.75 }}>—</span> : passportStats.followers}
+                              {statsLoading ? (
+                                <span style={{ opacity: 0.75 }}>—</span>
+                              ) : (
+                                passportStats.followers
+                              )}
                             </strong>
                             <span>Followers</span>
                           </button>
@@ -401,17 +545,19 @@ export default function DigitalPassportPage() {
                               setFollowOpen(true);
                             }}
                             type="button"
-                            disabled={!isAuthed}
                           >
                             <strong>
-                              {statsLoading ? <span style={{ opacity: 0.75 }}>—</span> : passportStats.following}
+                              {statsLoading ? (
+                                <span style={{ opacity: 0.75 }}>—</span>
+                              ) : (
+                                passportStats.following
+                              )}
                             </strong>
                             <span>Following</span>
                           </button>
                         </div>
                       </div>
 
-                      {/* Center ring (sits inside same top band like mock) */}
                       <div className="pp-profileRing">
                         {xpLoading ? (
                           <div style={{ width: 190 }}>
@@ -425,8 +571,12 @@ export default function DigitalPassportPage() {
                             className="pp-levelRing pp-levelRing--mock"
                             format={() => (
                               <div className="pp-levelText">
-                                <div className="pp-levelRole">{nextBadgeName}</div>
-                                <div className="pp-levelNum">Level {levelNumber}</div>
+                                <div className="pp-levelRole">
+                                  {nextBadgeName}
+                                </div>
+                                <div className="pp-levelNum">
+                                  Level {levelNumber}
+                                </div>
                                 <div className="pp-levelXp">{xp} XP</div>
                               </div>
                             )}
@@ -436,7 +586,6 @@ export default function DigitalPassportPage() {
                     </div>
                   </Card>
 
-                  {/* Home base label row like mock */}
                   <div className="pp-homeBaseRow">
                     <span className="pp-homeBaseDot" />
                     <span className="pp-homeBaseLabel">Home Base</span>
@@ -444,7 +593,6 @@ export default function DigitalPassportPage() {
                     <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
-                  {/* Travel Soundtrack card (matches mock middle band) */}
                   <Card bordered={false} className="pp-card pp-soundtrackCard">
                     <div className="pp-soundtrackRow">
                       <div
@@ -456,16 +604,27 @@ export default function DigitalPassportPage() {
                         }}
                       />
                       <div className="pp-soundtrackMeta">
-                        <div className="pp-soundtrackTitle">Travel Soundtrack</div>
-                        <div className="pp-soundtrackSub">Lo-Fi Japan Playlist</div>
-                        <div className="pp-soundtrackTiny">Tokyo Trip · Sep 2021</div>
-
-                        <div className="pp-audioBar">
-                          <div className="pp-audioProgress" style={{ width: "42%" }} />
+                        <div className="pp-soundtrackTitle">
+                          Travel Soundtrack
                         </div>
-
+                        <div className="pp-soundtrackSub">
+                          Lo-Fi Japan Playlist
+                        </div>
+                        <div className="pp-soundtrackTiny">
+                          Tokyo Trip · Sep 2021
+                        </div>
+                        <div className="pp-audioBar">
+                          <div
+                            className="pp-audioProgress"
+                            style={{ width: "42%" }}
+                          />
+                        </div>
                         <div className="pp-audioControls">
-                          <button type="button" className="pp-audioBtn" aria-label="Previous">
+                          <button
+                            type="button"
+                            className="pp-audioBtn"
+                            aria-label="Previous"
+                          >
                             ⏮
                           </button>
                           <button
@@ -476,10 +635,13 @@ export default function DigitalPassportPage() {
                           >
                             ⏯
                           </button>
-                          <button type="button" className="pp-audioBtn" aria-label="Next">
+                          <button
+                            type="button"
+                            className="pp-audioBtn"
+                            aria-label="Next"
+                          >
                             ⏭
                           </button>
-
                           <div className="pp-audioWave" aria-hidden="true">
                             <span />
                             <span />
@@ -493,19 +655,19 @@ export default function DigitalPassportPage() {
                     </div>
                   </Card>
 
-                  {/* Travel Journeys carousel card */}
                   <Card bordered={false} className="pp-card pp-journeysCard">
                     <div className="pp-journeysHeader">
                       <div className="pp-journeysTitle">Travel Journeys</div>
                     </div>
-
                     <div className="pp-journeysGrid">
                       {journeys.map((j) => (
                         <button
                           key={j.id}
                           type="button"
                           className="pp-journeyTile"
-                          onClick={() => antdMessage.info("Journeys go live post-launch")}
+                          onClick={() =>
+                            antdMessage.info("Journeys go live post-launch")
+                          }
                         >
                           <div
                             className="pp-journeyImg"
@@ -514,39 +676,49 @@ export default function DigitalPassportPage() {
                           <div className="pp-journeyOverlay" />
                           <div className="pp-journeyText">
                             <div className="pp-journeyName">{j.name}</div>
-                            <div className="pp-journeyLast">Last Trip: {j.last}</div>
+                            <div className="pp-journeyLast">
+                              Last Trip: {j.last}
+                            </div>
                           </div>
                         </button>
                       ))}
                     </div>
-
                     <button
                       type="button"
                       className="pp-viewAll"
-                      onClick={() => antdMessage.info("View all journeys (post-launch)")}
+                      onClick={() =>
+                        antdMessage.info("View all journeys (post-launch)")
+                      }
                     >
                       View All Journeys <span className="pp-arrow">→</span>
                     </button>
                   </Card>
                 </div>
 
-                {/* ============ RIGHT SIDEBAR ============ */}
+                {/* ── RIGHT SIDEBAR ── */}
                 <div className="pp-mockSide">
-                  {/* Digital Passport actions (exact buttons from mock) */}
                   <Card bordered={false} className="pp-card pp-actionsCard">
-                    <Title level={3} className="pp-title" style={{ marginBottom: 4 }}>
+                    <Title
+                      level={3}
+                      className="pp-title"
+                      style={{ marginBottom: 4 }}
+                    >
                       Digital Passport
                     </Title>
-
                     <div className="pp-actionsStack">
                       <Button
                         className="pp-actionBtn"
-                        icon={profileMusic ? <SoundOutlined /> : <PlayCircleOutlined />}
+                        icon={
+                          profileMusic ? (
+                            <SoundOutlined />
+                          ) : (
+                            <PlayCircleOutlined />
+                          )
+                        }
                         onClick={() => setMusicOpen(true)}
                       >
                         {profileMusic ? "Profile Music" : "Add Profile Music"}
                       </Button>
-
                       <Button
                         className="pp-actionBtn"
                         icon={<CopyOutlined />}
@@ -554,16 +726,17 @@ export default function DigitalPassportPage() {
                       >
                         Copy Link
                       </Button>
-
-                      <Button className="pp-actionBtn" icon={<ShareAltOutlined />} onClick={onShare}>
+                      <Button
+                        className="pp-actionBtn"
+                        icon={<ShareAltOutlined />}
+                        onClick={onShare}
+                      >
                         Share
                       </Button>
                     </div>
-
                     <Text className="pp-credentialHint">
                       This passport unlocks stamps, borders, and rewards.
                     </Text>
-
                     <Button
                       className="pp-upgradeBtn"
                       onClick={() => navigate("/membership")}
@@ -572,13 +745,11 @@ export default function DigitalPassportPage() {
                     </Button>
                   </Card>
 
-                  {/* Travel Partners card */}
                   <Card bordered={false} className="pp-card pp-partnersCard">
                     <div className="pp-partnersTitle">
                       <span className="pp-partnersIcon">✈︎</span>
                       Travel Journeys
                     </div>
-
                     <div className="pp-partnerList">
                       {partners.map((p) => (
                         <div key={p.id} className="pp-partnerItem">
@@ -595,16 +766,16 @@ export default function DigitalPassportPage() {
                         </div>
                       ))}
                     </div>
-
                     <Button
                       className="pp-inviteBtn"
-                      onClick={() => antdMessage.info("Invite travel partner (post-launch)")}
+                      onClick={() =>
+                        antdMessage.info("Invite travel partner (post-launch)")
+                      }
                     >
                       + Invite Travel Partner
                     </Button>
                   </Card>
 
-                  {/* Optional: little tag like mock-ish (safe) */}
                   <div style={{ marginTop: 10, opacity: 0.95 }}>
                     <Tag className="pp-tag ppTagDark">Soft Launch</Tag>
                   </div>

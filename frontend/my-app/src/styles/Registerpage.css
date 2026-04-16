@@ -1,0 +1,33 @@
+/* ── Hide stub on register — form takes full width ── */
+.sk-passRegister .sk-passStub {
+  display: none !important;
+}
+
+.sk-passRegister .sk-passGrid {
+  grid-template-columns: 1fr !important;
+}
+
+/* ── Two-column field rows ── */
+.sk-passRegister .sk-fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+}
+
+/* ── Stack on smaller screens ── */
+@media (max-width: 860px) {
+  .sk-passRegister .sk-fieldRow {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .sk-passRegister .sk-passMain {
+    padding: 18px 14px 16px;
+  }
+  .sk-passRegister .sk-fieldRow {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

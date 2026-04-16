@@ -1,4 +1,10 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { Input, Button, message } from "antd";
 import {
@@ -11,13 +17,76 @@ import "@/styles/LandingPage.css";
 import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
 import { trackPassportEvent } from "@/utils/passportEvents";
 
+// ─────────────────────────────────────────────
+// Time-aware background system
+// ─────────────────────────────────────────────
+const TIME_PERIODS = {
+  dawn: {
+    hours: [5, 6, 7],
+    label: "Dawn",
+    tip: "Early birds get the best deals — prices are freshest between 6–8 AM.",
+  },
+  morning: {
+    hours: [8, 9, 10, 11],
+    label: "Morning",
+    tip: "Booking 6–8 weeks ahead hits the sweet spot for domestic flights.",
+  },
+  afternoon: {
+    hours: [12, 13, 14, 15, 16],
+    label: "Afternoon",
+    tip: "Mid-week departures (Tues/Wed) save up to $80 per ticket.",
+  },
+  dusk: {
+    hours: [17, 18, 19],
+    label: "Sunset",
+    tip: "Last-minute deals often drop after 5 PM for next-week travel.",
+  },
+  night: {
+    hours: [20, 21, 22, 23, 0, 1, 2, 3, 4],
+    label: "Night",
+    tip: "Best time to book is Tuesday nights — prices are 15–20% lower than weekends.",
+  },
+};
+
+function getTimePeriod(hour) {
+  for (const [key, val] of Object.entries(TIME_PERIODS)) {
+    if (val.hours.includes(hour)) return key;
+  }
+  return "night";
+}
+
 function normalizePrompt(value) {
   return String(value || "").trim();
 }
 
 export default function LandingPage() {
   const nav = useNavigate();
+  const landingRef = useRef(null);
 
+  // ── Time-aware background ──
+  const [timePeriod, setTimePeriod] = useState(() =>
+    getTimePeriod(new Date().getHours())
+  );
+
+  useEffect(() => {
+    // Set data-time on the landing element
+    if (landingRef.current) {
+      landingRef.current.setAttribute("data-time", timePeriod);
+    }
+    // Refresh every minute
+    const interval = setInterval(() => {
+      const next = getTimePeriod(new Date().getHours());
+      setTimePeriod(next);
+      if (landingRef.current) {
+        landingRef.current.setAttribute("data-time", next);
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [timePeriod]);
+
+  const timeMeta = TIME_PERIODS[timePeriod];
+
+  // ── Trip state ──
   const [q, setQ] = useState(
     "10-day Japan trip under $2,500 with cherry blossoms"
   );
@@ -81,23 +150,19 @@ export default function LandingPage() {
 
   const goPlan = useCallback(async () => {
     const prompt = normalizePrompt(q);
-
     if (!prompt) {
       message.info("Add a destination or budget to start planning.");
       return;
     }
-
     try {
       setIsRouting(true);
-
       await trackPassportEvent("AI_PROMPT_SUBMITTED", {
         source: "landing_hero",
         prompt,
         promptLength: prompt.length,
         suggestionVisible: prompt.length >= 8,
       });
-
-      nav(`/book?prompt=${encodeURIComponent(prompt)}`);
+      nav(`/booking?prompt=${encodeURIComponent(prompt)}`);
     } finally {
       setIsRouting(false);
     }
@@ -105,10 +170,8 @@ export default function LandingPage() {
 
   const viewPlan = useCallback(async () => {
     const prompt = normalizePrompt(q);
-
     try {
       setIsRouting(true);
-
       await trackPassportEvent("AI_PLAN_VIEWED", {
         source: "landing_suggestion",
         prompt,
@@ -119,9 +182,8 @@ export default function LandingPage() {
         total: suggestion.total,
         vibe: suggestion.vibe,
       });
-
       nav(
-        `/book?plan=${encodeURIComponent(
+        `/booking?plan=${encodeURIComponent(
           suggestion.planKey
         )}&prompt=${encodeURIComponent(prompt)}`
       );
@@ -134,7 +196,6 @@ export default function LandingPage() {
     async (card) => {
       try {
         setIsRouting(true);
-
         await trackPassportEvent("EXAMPLE_TRIP_OPENED", {
           source: "landing_examples",
           exampleKey: card.key,
@@ -143,8 +204,7 @@ export default function LandingPage() {
           destination: card.destination,
           vibe: card.vibe,
         });
-
-        nav(`/book?example=${encodeURIComponent(card.key)}`);
+        nav(`/booking?example=${encodeURIComponent(card.key)}`);
       } finally {
         setIsRouting(false);
       }
@@ -153,8 +213,19 @@ export default function LandingPage() {
   );
 
   return (
-    <div className="sk-landing" style={{ "--sk-hero-bg": `url(${heroBg})` }}>
+    <div
+      className="sk-landing"
+      ref={landingRef}
+      data-time={timePeriod}
+      style={{ "--sk-hero-bg": `url(${heroBg})` }}
+    >
       <div className="sk-landing__bg" />
+
+      {/* Time badge */}
+      <div className="sk-time-badge">
+        <span className="sk-time-dot" />
+        {timeMeta.label} mode
+      </div>
 
       <div className="sk-landing__content">
         <header className="sk-hero">
@@ -181,7 +252,6 @@ export default function LandingPage() {
               className="sk-searchInput"
               disabled={isRouting}
             />
-
             <Button
               size="large"
               type="primary"
@@ -204,7 +274,6 @@ export default function LandingPage() {
             >
               Tokyo in April
             </button>
-
             <button
               type="button"
               className="sk-quickChip"
@@ -213,7 +282,6 @@ export default function LandingPage() {
             >
               Miami under $600
             </button>
-
             <button
               type="button"
               className="sk-quickChip"
@@ -233,7 +301,6 @@ export default function LandingPage() {
               </span>
               <span className="sk-suggestion__label">{suggestion.title}</span>
             </div>
-
             <div className="sk-suggestion__body">
               <div className="sk-suggestion__left">
                 <div className="sk-suggestion__trip">
@@ -245,18 +312,15 @@ export default function LandingPage() {
                     — {suggestion.dates}
                   </span>
                 </div>
-
                 <div className="sk-suggestion__fit">{suggestion.fit}</div>
                 <div className="sk-suggestion__summary">
                   {suggestion.summary}
                 </div>
               </div>
-
               <div className="sk-suggestion__right">
                 <div className="sk-suggestion__total">
                   ${suggestion.total.toLocaleString()} <span>total</span>
                 </div>
-
                 <Button
                   className="sk-viewBtn"
                   onClick={viewPlan}
@@ -291,15 +355,12 @@ export default function LandingPage() {
                   style={{ backgroundImage: `url(${card.img})` }}
                 />
                 <div className="sk-card__overlay" />
-
                 <div className="sk-card__content">
                   <div className="sk-card__title">{card.title}</div>
                   <div className="sk-card__subtitle">{card.subtitle}</div>
-
-                  {card.meta ? (
+                  {card.meta && (
                     <div className="sk-card__meta">{card.meta}</div>
-                  ) : null}
-
+                  )}
                   <div className="sk-card__footer">
                     <span>View Plan</span>
                     <ArrowRightOutlined />

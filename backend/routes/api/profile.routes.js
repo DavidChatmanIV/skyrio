@@ -16,16 +16,30 @@ router.get("/me", requireAuth, async (req, res) => {
       });
     }
 
-    return res.json({
-      ok: true,
-      profile,
-    });
+    return res.json({ ok: true, profile });
   } catch (err) {
     console.error("Profile me error:", err);
-    return res.status(500).json({
-      ok: false,
-      message: "Failed to fetch profile",
-    });
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch profile" });
+  }
+});
+
+// GET /api/profile/:username  ← NEW — fetch any public profile by username
+router.get("/:username", async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ username: req.params.username });
+
+    if (!profile) {
+      return res.status(404).json({ ok: false, message: "Profile not found" });
+    }
+
+    return res.json({ ok: true, profile });
+  } catch (err) {
+    console.error("Profile fetch error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch profile" });
   }
 });
 
@@ -64,10 +78,9 @@ router.patch("/update", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("Profile update error:", err);
-    return res.status(500).json({
-      ok: false,
-      message: "Failed to update profile",
-    });
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to update profile" });
   }
 });
 

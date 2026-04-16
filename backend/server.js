@@ -35,30 +35,49 @@ const allowedOrigins = FRONTEND_ORIGIN.split(",")
   .map((o) => o.trim())
   .filter(Boolean);
 
+// Always include both localhost and 127.0.0.1 variants in dev
+if (process.env.NODE_ENV !== "production") {
+  const devExtras = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+  ];
+  devExtras.forEach((origin) => {
+    if (!allowedOrigins.includes(origin)) allowedOrigins.push(origin);
+  });
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) return true; // Postman / server-to-server
   return allowedOrigins.includes(origin);
 }
 
-// ─── Core middleware ─────────────────────────────────────────────
+const corsOptions = {
+  origin: (origin, cb) =>
+    isAllowedOrigin(origin) ? cb(null, true) : cb(new Error("CORS blocked")),
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+// ─── Core middleware (CORS must be first) ────────────────────────
+// FIX 1: cors() is now the very first middleware so it runs before
+//         helmet, morgan, and everything else — including preflight
+//         OPTIONS requests.
+app.use(cors(corsOptions));
+
+// FIX 2: Removed the bare `app.options("*", cors())` line that was
+//         overriding preflight responses with a permissive no-config
+//         cors() instance, causing the CORS blocked errors.
+
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
-
-app.use(
-  cors({
-    origin: (origin, cb) =>
-      isAllowedOrigin(origin) ? cb(null, true) : cb(new Error("CORS blocked")),
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    optionsSuccessStatus: 204,
-  })
-);
-app.options("*", cors());
 
 // ─── Rate limits ─────────────────────────────────────────────────
 app.use(
@@ -104,7 +123,6 @@ async function connectMongo() {
     process.exit(1);
   }
 
-  // Register listeners BEFORE connect so we catch handshake-level errors
   const c = mongoose.connection;
 
   c.on("error", (err) => {
@@ -121,7 +139,6 @@ async function connectMongo() {
     console.log("✅ MongoDB reconnected.");
   });
 
-  // Log masked URI so you can verify the right cluster without exposing credentials
   const safeUri = MONGODB_URI.replace(/:([^@]+)@/, ":***@");
   console.log(`🔌 Connecting to: ${safeUri.substring(0, 70)}...`);
 
@@ -132,7 +149,7 @@ async function connectMongo() {
       serverSelectionTimeoutMS: 7_000,
       socketTimeoutMS: 60_000,
     });
-    
+
     console.log(`✅ MongoDB connected (db: ${c.name})`);
   } catch (err) {
     console.error("❌ MongoDB connection failed:", err.message);
@@ -207,12 +224,7 @@ app.use((err, _req, res, _next) => {
 const httpServer = createServer(app);
 
 const io = new SocketIOServer(httpServer, {
-  cors: {
-    origin: (origin, cb) =>
-      isAllowedOrigin(origin) ? cb(null, true) : cb(new Error("CORS blocked")),
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
+  cors: corsOptions, // FIX 3: reuse the same corsOptions object — stays in sync automatically
 });
 
 app.set("io", io);

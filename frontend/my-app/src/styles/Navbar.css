@@ -11,9 +11,7 @@
 /* ── WRAPPER ── */
 .sk-navbar-wrap {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   z-index: 99999;
   padding: 12px 20px 0;
   pointer-events: none;
@@ -35,7 +33,6 @@
   border-radius: 16px;
   position: relative;
   overflow: hidden;
-
   background: rgba(38, 18, 52, 0.72);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
@@ -45,13 +42,10 @@
     0 8px 32px rgba(0, 0, 0, 0.35);
 }
 
-/* Purple → amber shimmer on top edge */
 .sk-navbar::before {
   content: "";
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 1px;
   background: linear-gradient(
     90deg,
@@ -85,13 +79,10 @@
   flex-shrink: 0;
   transition: background 0.2s;
 }
-.sk-brand:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
+.sk-brand:hover { background: rgba(255, 255, 255, 0.06); }
 
 .sk-brand-img {
-  width: 46px;
-  height: 46px;
+  width: 46px; height: 46px;
   object-fit: contain;
   display: block;
   flex-shrink: 0;
@@ -108,7 +99,7 @@
   line-height: 1;
 }
 
-/* ── NAV LINKS — centered ── */
+/* ── NAV LINKS ── */
 .sk-nav-links {
   display: flex;
   align-items: center;
@@ -117,8 +108,7 @@
 }
 
 .sk-nav-link {
-  border: none;
-  outline: none;
+  border: none; outline: none;
   background: transparent;
   cursor: pointer;
   padding: 8px 16px;
@@ -156,13 +146,19 @@
   border-radius: 100px !important;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s !important;
+  transition: filter 0.2s, transform 0.15s !important;
   box-shadow: none !important;
 }
 
-/* Log In — solid orange pill */
+/* ════════════════════════════════════════════
+   LOG IN BUTTON — every possible Ant state
+   locked to orange, no white outline ever
+════════════════════════════════════════════ */
 .sk-btn-ghost,
 .sk-btn-ghost.ant-btn,
+.sk-btn-ghost.ant-btn-default,
+.sk-btn-ghost.ant-btn:not(:disabled),
+.sk-btn-ghost.ant-btn-default:not(:disabled),
 .sk-btn-ghost span {
   background: linear-gradient(135deg, var(--sk-orange) 0%, var(--sk-orange-2) 100%) !important;
   border: none !important;
@@ -171,19 +167,39 @@
   font-weight: 700 !important;
   box-shadow: none !important;
 }
+
 .sk-btn-ghost:hover,
-.sk-btn-ghost.ant-btn:hover {
-  filter: brightness(1.08) !important;
+.sk-btn-ghost:focus,
+.sk-btn-ghost:active,
+.sk-btn-ghost:focus-visible,
+.sk-btn-ghost.ant-btn:hover,
+.sk-btn-ghost.ant-btn:focus,
+.sk-btn-ghost.ant-btn:active,
+.sk-btn-ghost.ant-btn:focus-visible,
+.sk-btn-ghost.ant-btn-default:hover,
+.sk-btn-ghost.ant-btn-default:focus,
+.sk-btn-ghost.ant-btn-default:active,
+.sk-btn-ghost.ant-btn-default:focus-visible,
+.sk-btn-ghost.ant-btn:not(:disabled):hover,
+.sk-btn-ghost.ant-btn:not(:disabled):focus,
+.sk-btn-ghost.ant-btn:not(:disabled):active {
+  background: linear-gradient(135deg, var(--sk-orange) 0%, var(--sk-orange-2) 100%) !important;
+  border: none !important;
+  outline: none !important;
   box-shadow: none !important;
+  color: #1a0d04 !important;
+  filter: brightness(1.08) !important;
   transform: translateY(-1px);
 }
 
-/* Sign Up — solid orange pill */
+/* ════════════════════════════════════════════
+   SIGN UP BUTTON — every possible Ant state
+════════════════════════════════════════════ */
 .sk-btn-primary,
 .sk-btn-primary.ant-btn,
 .sk-btn-primary.ant-btn-default,
-.sk-btn-primary.ant-btn-default:hover,
-.sk-btn-primary.ant-btn-default:focus,
+.sk-btn-primary.ant-btn:not(:disabled),
+.sk-btn-primary.ant-btn-default:not(:disabled),
 .sk-btn-primary span {
   background: linear-gradient(135deg, var(--sk-orange) 0%, var(--sk-orange-2) 100%) !important;
   border: none !important;
@@ -192,10 +208,28 @@
   font-weight: 700 !important;
   box-shadow: none !important;
 }
+
 .sk-btn-primary:hover,
-.sk-btn-primary.ant-btn:hover {
-  filter: brightness(1.08) !important;
+.sk-btn-primary:focus,
+.sk-btn-primary:active,
+.sk-btn-primary:focus-visible,
+.sk-btn-primary.ant-btn:hover,
+.sk-btn-primary.ant-btn:focus,
+.sk-btn-primary.ant-btn:active,
+.sk-btn-primary.ant-btn:focus-visible,
+.sk-btn-primary.ant-btn-default:hover,
+.sk-btn-primary.ant-btn-default:focus,
+.sk-btn-primary.ant-btn-default:active,
+.sk-btn-primary.ant-btn-default:focus-visible,
+.sk-btn-primary.ant-btn:not(:disabled):hover,
+.sk-btn-primary.ant-btn:not(:disabled):focus,
+.sk-btn-primary.ant-btn:not(:disabled):active {
+  background: linear-gradient(135deg, var(--sk-orange) 0%, var(--sk-orange-2) 100%) !important;
+  border: none !important;
+  outline: none !important;
   box-shadow: none !important;
+  color: #1a0d04 !important;
+  filter: brightness(1.08) !important;
   transform: translateY(-1px);
 }
 
@@ -223,60 +257,37 @@
   color: #fff !important;
 }
 
-.sk-drawer-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+.sk-drawer-header { display: flex; align-items: center; gap: 10px; }
 .sk-drawer-logo {
-  width: 34px;
-  height: 34px;
+  width: 34px; height: 34px;
   object-fit: contain;
   filter: drop-shadow(0 0 6px rgba(124, 92, 252, 0.5));
 }
 .sk-drawer-name {
   font-family: "Syne", sans-serif;
-  font-weight: 800;
-  font-size: 1.1rem;
-  letter-spacing: -0.03em;
-  color: #fff;
+  font-weight: 800; font-size: 1.1rem;
+  letter-spacing: -0.03em; color: #fff;
 }
 
-.sk-mobile-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 8px;
-}
+.sk-mobile-nav { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; }
 .sk-mobile-link {
-  width: 100%;
-  text-align: left;
-  border: none;
-  cursor: pointer;
-  padding: 13px 16px;
-  border-radius: 10px;
+  width: 100%; text-align: left;
+  border: none; cursor: pointer;
+  padding: 13px 16px; border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
   color: rgba(255, 255, 255, 0.7);
   font-family: "DM Sans", sans-serif;
-  font-size: 0.98rem;
-  font-weight: 600;
+  font-size: 0.98rem; font-weight: 600;
   transition: background 0.15s, color 0.15s;
 }
-.sk-mobile-link:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
+.sk-mobile-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .sk-mobile-link.active {
   background: linear-gradient(135deg, var(--sk-orange), var(--sk-orange-2));
-  color: #1c1207;
-  font-weight: 700;
+  color: #1c1207; font-weight: 700;
 }
 .sk-mobile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 20px;
-  padding-top: 20px;
+  display: flex; flex-direction: column;
+  gap: 10px; margin-top: 20px; padding-top: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 

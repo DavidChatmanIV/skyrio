@@ -1,11 +1,8 @@
 import { useAuth0 } from "@auth0/auth0-react";
 
-// If you're using Vite proxy in dev, leave BASE as "".
-// In production, set VITE_BACKEND_URL to your deployed API.
 const BASE = import.meta.env.VITE_BACKEND_URL || "";
 
 function buildUrl(path) {
-  // allow absolute urls too
   if (/^https?:\/\//i.test(path)) return path;
   return `${BASE}${path}`;
 }
@@ -32,7 +29,6 @@ async function coreRequest(
   const finalHeaders = { "Content-Type": "application/json", ...headers };
   if (token) finalHeaders.Authorization = `Bearer ${token}`;
 
-  // stringify body only if it's a plain object/array; allow FormData/raw bodies
   const isJsonBody =
     body &&
     !(body instanceof FormData) &&
@@ -44,7 +40,6 @@ async function coreRequest(
     headers: finalHeaders,
     body: body ? (isJsonBody ? JSON.stringify(body) : body) : undefined,
     signal: controller.signal,
-    // credentials: "include", // enable if you use cookies
   }).finally(() => clearTimeout(t));
 
   const text = await res.text();
@@ -61,7 +56,6 @@ async function coreRequest(
   return data;
 }
 
-// Hooked client: automatically fetches Auth0 token when token=true
 export function useApi() {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
@@ -79,7 +73,7 @@ export function useApi() {
           },
         });
       } catch {
-        // If your API route is public, it's fine to proceed without a token
+        // public route — proceed without token
       }
     }
     return coreRequest(path, {
@@ -99,7 +93,6 @@ export function useApi() {
   };
 }
 
-// Optional: non-hook client for scripts/tests; pass a getToken fn if needed
 export async function apiRaw(path, opts = {}) {
   const getToken = opts.getToken || (async () => "");
   const token = opts.token ?? (await getToken());

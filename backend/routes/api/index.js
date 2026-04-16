@@ -37,7 +37,7 @@ await mount("/uploads", "./uploads.routes.js");
 await mount("/social", "./social.routes.js");
 await mount("/follow", "./follow.routes.js");
 await mount("/passport", "./passport.routes.js");
-await mount("/flights", "./flights.routes.js");
+await mount("/flights", "./flights/flights.routes.js");
 await mount("/airports", "./airports.routes.js");
 await mount("/skyhub", "./skyhub.routes.js");
 await mount("/weather", "./weather.routes.js");

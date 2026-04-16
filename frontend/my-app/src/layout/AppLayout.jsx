@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Navbar from "../components/Navbar";
+import AtlasChat from "../components/Atlas/AtlasChat";
+import { useAtlasContext } from "../components/Atlas/AtlasContext";
 import "../styles/AppLayout.css";
 import "../styles/skyrio-theme.css";
-
 
 function themeForPath(pathname) {
   if (pathname.startsWith("/booking")) return "sk-theme-book";
@@ -16,6 +17,7 @@ function themeForPath(pathname) {
 export default function AppLayout() {
   const { user } = useAuth();
   const { pathname } = useLocation();
+  const { atlasDestination } = useAtlasContext();
   const [scrolled, setScrolled] = useState(false);
 
   const isLanding = pathname === "/";
@@ -54,10 +56,8 @@ export default function AppLayout() {
 
   return (
     <div className={shellClass}>
-      {/* Navbar: position fixed via Navbar.css, z-index 99999 */}
       <Navbar scrolled={scrolled} {...authMeta} />
 
-      {/* Main: padding-top = navbar height so content is never hidden */}
       <main className={`osq-main ${isSkyHub ? "osq-main--flush" : ""}`}>
         <Outlet />
       </main>
@@ -67,6 +67,9 @@ export default function AppLayout() {
           © {new Date().getFullYear()} Skyrio
         </footer>
       )}
+
+      {/* Atlas AI — global, floats on every page, destination-aware */}
+      <AtlasChat destination={atlasDestination} />
     </div>
   );
 }

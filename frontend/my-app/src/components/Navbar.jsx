@@ -52,13 +52,13 @@ export default function Navbar() {
       <header className={`sk-navbar-wrap ${scrolled ? "is-scrolled" : ""}`}>
         <div className="sk-navbar-shell">
           <nav className="sk-navbar">
-            {/* ── COL 1: BRAND ── */}
+            {/* ── BRAND ── */}
             <Link to="/" className="sk-brand" aria-label="Skyrio home">
               <img src={skyrioLogo} alt="Skyrio" className="sk-brand-img" />
               <span className="sk-brand-wordmark">Skyrio</span>
             </Link>
 
-            {/* ── COL 2: NAV LINKS (centered) ── */}
+            {/* ── NAV LINKS ── */}
             {screens.md && (
               <div
                 className="sk-nav-links"
@@ -80,7 +80,7 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* ── COL 3: ACTIONS ── */}
+            {/* ── ACTIONS ── */}
             <div className="sk-nav-actions">
               {screens.md ? (
                 <Space size={8}>
@@ -90,9 +90,10 @@ export default function Navbar() {
                   >
                     Log in
                   </Button>
+                  {/* ✅ Fixed: was /signup, now /register */}
                   <Button
                     className="sk-btn sk-btn-primary"
-                    onClick={() => navigate("/signup")}
+                    onClick={() => navigate("/register")}
                   >
                     Sign up
                   </Button>
@@ -149,10 +150,11 @@ export default function Navbar() {
             >
               Log in
             </Button>
+            {/* ✅ Fixed: was /signup, now /register */}
             <Button
               block
               className="sk-btn sk-btn-primary"
-              onClick={() => handleNavigate("/signup")}
+              onClick={() => handleNavigate("/register")}
             >
               Sign up
             </Button>

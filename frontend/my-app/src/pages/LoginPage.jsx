@@ -9,10 +9,10 @@ import {
 import { useNavigate, useLocation, Link } from "react-router-dom";
 
 import BoardingPassToast from "../components/BoardingPassToast";
+import PassStub from "../components/PassStub";
 import AuthLayout from "../layout/AuthLayout";
-
-// ✅ FIX: hooks come from useAuth file now
-import { useAuth, useAuthModal } from "../auth/useAuth";
+import { useAuth } from "../auth/useAuth";
+import { useAuthModal } from "../auth/useAuthModal";
 
 import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
 import gateBg from "../assets/LoginBoardingpass/gate.png";
@@ -23,7 +23,6 @@ const { Title, Text } = Typography;
 export default function LoginPage() {
   const auth = useAuth();
   const authModal = useAuthModal();
-
   const nav = useNavigate();
   const location = useLocation();
 
@@ -31,7 +30,6 @@ export default function LoginPage() {
     emailOrUsername: "",
     password: "",
   });
-
   const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const successHandledRef = useRef(false);
@@ -54,12 +52,9 @@ export default function LoginPage() {
   }, [loading]);
 
   const handleLogin = async () => {
-    if (loading) return;
-    if (successHandledRef.current) return;
-
+    if (loading || successHandledRef.current) return;
     const emailOrUsername = (formData.emailOrUsername || "").trim();
     const password = formData.password || "";
-
     if (!emailOrUsername || !password) {
       message.warning("Enter your email/username and password.");
       return;
@@ -74,21 +69,17 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          // keep both keys for backward compatibility
           identifier: emailOrUsername,
           emailOrUsername,
           password,
         }),
       });
-
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Login failed");
 
-      // ✅ FIX: your AuthProvider uses setSession({ token, user })
-      if (auth?.setSession) {
+      if (auth?.setSession)
         auth.setSession({ token: data?.token, user: data?.user });
-      } else {
-        // fallback (won't break)
+      else {
         if (data?.token) localStorage.setItem("token", data.token);
         if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
       }
@@ -115,7 +106,6 @@ export default function LoginPage() {
       });
 
       message.success(`Welcome aboard, ${displayName} ✈️`);
-
       authModal?.closeAuthModal?.();
       nav(redirectTo, { replace: true, state: { fromAuth: true } });
     } catch (err) {
@@ -129,34 +119,28 @@ export default function LoginPage() {
 
   const onGuest = () => {
     if (loading) return;
-
-    // ✅ FIX: new provider method name
     if (auth?.continueAsGuest) auth.continueAsGuest();
-    // legacy fallback if you still have it somewhere
     else if (auth?.guestLogin) auth.guestLogin();
-
     notification.open({
       message: null,
       description: (
-        <BoardingPassToast name="Guest" routeFrom="Login" routeTo="/passport" />
+        <BoardingPassToast name="Guest" routeFrom="Login" routeTo="/booking" />
       ),
       placement: "topRight",
       duration: 2.5,
       style: { background: "transparent", boxShadow: "none", padding: 0 },
     });
-
-    nav("/passport", { state: { fromAuth: true } });
+    nav("/booking", { state: { fromAuth: true } });
   };
 
+  const goToSignup = () => nav("/register");
   const onKeyDown = (e) => {
     if (e.key === "Enter") handleLogin();
   };
-
   const routeLabel = redirectTo === "/dashboard" ? "Dashboard" : redirectTo;
 
   return (
     <AuthLayout>
-      {/* ✅ auth-scene login is future-proof for mirrored logout */}
       <div className="auth-scene login">
         <div className="sk-loginPage">
           <div
@@ -177,7 +161,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* ✅ WIDE BOARDING PASS (mock-style) */}
             <div
               className={`sk-passCard sk-passWide ${
                 isScanning ? "isScanning" : ""
@@ -193,16 +176,14 @@ export default function LoginPage() {
               <div className="sk-passGlow" />
               <div className="sk-passScan" aria-hidden="true" />
 
-              {/* ✅ Main + Stub */}
               <div className="sk-passGrid">
-                {/* MAIN */}
+                {/* ── MAIN ── */}
                 <div className="sk-passMain">
                   <div className="sk-passHeader">
                     <div className="sk-brandRow">
                       <span className="sk-dot" />
                       <span className="sk-brand">Skyrio</span>
                     </div>
-
                     <div className="sk-chipRow">
                       <span className="sk-chip">SKY</span>
                       <span className="sk-chip">Gate A3</span>
@@ -218,19 +199,16 @@ export default function LoginPage() {
                       <div className="sk-label">PASSENGER</div>
                       <div className="sk-value">{passenger}</div>
                     </div>
-
                     <div className="sk-idBlock sk-right">
                       <div className="sk-label">STATUS</div>
                       <div className="sk-statusPill">
                         {loading ? "Checking in…" : "Ready"}
                       </div>
                     </div>
-
                     <div className="sk-idBlock">
                       <div className="sk-label">FROM</div>
                       <div className="sk-smallValue">Login</div>
                     </div>
-
                     <div className="sk-idBlock sk-right">
                       <div className="sk-label">TO</div>
                       <div className="sk-smallValue">{routeLabel}</div>
@@ -302,15 +280,12 @@ export default function LoginPage() {
                         New to Skyrio?{" "}
                         <button
                           type="button"
-                          onClick={() =>
-                            authModal?.setAuthModalMode?.("signup")
-                          }
+                          onClick={goToSignup}
                           className="sk-inlineBtnLink"
                         >
                           Create your boarding pass
                         </button>
                       </Text>
-
                       <Button
                         className="sk-ghostBtn"
                         block
@@ -319,11 +294,9 @@ export default function LoginPage() {
                       >
                         Preview as Guest
                       </Button>
-
                       <Text className="sk-muted sk-micro">
                         Some features require an account.
                       </Text>
-
                       <div className="sk-linksRow">
                         <Link className="sk-linkSmall" to="/reset">
                           Forgot password?
@@ -341,23 +314,8 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* STUB */}
-                <div className="sk-passStub" aria-hidden="true">
-                  <div className="sk-stubTop">
-                    <div className="sk-stubGate">SKYGATE A3</div>
-                  </div>
-
-                  <div className="sk-qrBox">
-                    <div className="sk-qr" />
-                    <div className="sk-qrHint">SCAN TO BOARD</div>
-                  </div>
-
-                  <div className="sk-stubBarcode">
-                    {Array.from({ length: 18 }).map((_, i) => (
-                      <span key={i} className="sk-bar" />
-                    ))}
-                  </div>
-                </div>
+                {/* ✅ Real QR stub */}
+                <PassStub />
               </div>
             </div>
           </div>

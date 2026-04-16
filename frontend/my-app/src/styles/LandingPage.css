@@ -28,7 +28,15 @@
   overflow-x: hidden;
 }
 
-/* ── Background ── */
+/* ══════════════════════════════════════════════
+   TIME-AWARE BACKGROUND SYSTEM
+   JS sets data-time="night|dawn|morning|afternoon|dusk"
+   on <body> or we use a CSS class on .sk-landing
+   We use a data attribute on .sk-landing itself
+   injected by a small inline script in LandingPage.jsx
+══════════════════════════════════════════════ */
+
+/* ── Background base layer (hero image) ── */
 .sk-landing__bg {
   position: fixed;
   inset: 0;
@@ -36,24 +44,125 @@
   background-size: cover;
   background-position: center 30%;
   z-index: 0;
+  transition: opacity 1.4s ease;
 }
 
+/* ── Overlay — changes per time period ── */
 .sk-landing__bg::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    160deg,
-    rgba(18, 8, 38, 0.78) 0%,
-    rgba(30, 14, 55, 0.72) 35%,
-    rgba(55, 22, 40, 0.68) 65%,
-    rgba(90, 28, 16, 0.75) 100%
-  );
+  transition: background 1.4s ease;
+}
+
+/* NIGHT (default) — deep purple starfield */
+.sk-landing[data-time="night"] .sk-landing__bg::after,
+.sk-landing .sk-landing__bg::after {
+  background:
+    radial-gradient(ellipse 80% 55% at 60% 25%, rgba(90,40,160,0.55) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 20% 70%, rgba(50,20,100,0.4) 0%, transparent 65%),
+    linear-gradient(175deg, rgba(9,7,26,0.92) 0%, rgba(19,13,46,0.88) 40%, rgba(14,8,24,0.92) 100%);
+}
+
+/* DAWN — warm amber/rose horizon */
+.sk-landing[data-time="dawn"] .sk-landing__bg::after {
+  background:
+    radial-gradient(ellipse 100% 50% at 50% 100%, rgba(255,140,60,0.65) 0%, rgba(255,80,80,0.28) 40%, transparent 70%),
+    radial-gradient(ellipse 70% 55% at 25% 80%, rgba(180,60,120,0.35) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(26,14,46,0.88) 0%, rgba(45,16,64,0.82) 30%, rgba(92,30,58,0.78) 65%, rgba(194,84,42,0.72) 100%);
+}
+
+/* MORNING — bright sky with golden light */
+.sk-landing[data-time="morning"] .sk-landing__bg::after {
+  background:
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(255,200,80,0.45) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 75% at 80% 20%, rgba(100,180,255,0.35) 0%, transparent 65%),
+    linear-gradient(175deg, rgba(13,27,62,0.85) 0%, rgba(26,58,107,0.80) 35%, rgba(40,96,168,0.75) 70%, rgba(74,143,212,0.65) 100%);
+}
+
+/* AFTERNOON — golden haze */
+.sk-landing[data-time="afternoon"] .sk-landing__bg::after {
+  background:
+    radial-gradient(ellipse 100% 40% at 70% 0%, rgba(255,180,50,0.55) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 55% at 20% 35%, rgba(50,120,200,0.28) 0%, transparent 60%),
+    linear-gradient(160deg, rgba(10,22,40,0.88) 0%, rgba(30,61,110,0.82) 30%, rgba(45,90,144,0.78) 60%, rgba(201,122,32,0.65) 100%);
+}
+
+/* DUSK — orange/magenta sunset */
+.sk-landing[data-time="dusk"] .sk-landing__bg::after {
+  background:
+    radial-gradient(ellipse 100% 55% at 50% 100%, rgba(255,90,20,0.70) 0%, rgba(200,40,120,0.42) 50%, transparent 75%),
+    radial-gradient(ellipse 60% 50% at 80% 60%, rgba(255,60,100,0.30) 0%, transparent 55%),
+    linear-gradient(175deg, rgba(13,10,30,0.90) 0%, rgba(30,14,46,0.85) 25%, rgba(74,16,64,0.80) 55%, rgba(156,42,16,0.72) 100%);
+}
+
+/* Stars overlay — only at night */
+.sk-landing[data-time="night"] .sk-landing__bg::before,
+.sk-landing:not([data-time]) .sk-landing__bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 15% 20%, rgba(255,255,255,0.85) 0%, transparent 100%),
+    radial-gradient(1px 1px at 42%  8%, rgba(255,255,255,0.70) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 70% 15%, rgba(255,255,255,0.75) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 35%, rgba(255,255,255,0.60) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 45%, rgba(255,255,255,0.50) 0%, transparent 100%),
+    radial-gradient(1px 1px at 30% 55%, rgba(255,255,255,0.65) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 10% 80%, rgba(255,255,255,0.55) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.50) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 90%, rgba(255,255,255,0.40) 0%, transparent 100%),
+    radial-gradient(2px 2px at 78% 55%, rgba(200,180,255,0.55) 0%, transparent 100%),
+    radial-gradient(1px 1px at 22% 38%, rgba(255,255,255,0.45) 0%, transparent 100%),
+    radial-gradient(1px 1px at 48% 72%, rgba(255,255,255,0.42) 0%, transparent 100%);
+}
+
+/* No stars during other time periods */
+.sk-landing[data-time="dawn"] .sk-landing__bg::before,
+.sk-landing[data-time="morning"] .sk-landing__bg::before,
+.sk-landing[data-time="afternoon"] .sk-landing__bg::before,
+.sk-landing[data-time="dusk"] .sk-landing__bg::before {
+  display: none;
 }
 
 .sk-landing__content {
   position: relative;
   z-index: 1;
+}
+
+/* ── Time badge (top-right) ── */
+.sk-time-badge {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--sk-radius-pill);
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.65);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.sk-time-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sk-orange);
+  animation: sk-pulse 2s infinite;
+}
+
+@keyframes sk-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -66,7 +175,6 @@
   text-align: center;
 }
 
-/* Eyebrow */
 .sk-hero__eyebrow {
   display: inline-flex;
   align-items: center;
@@ -87,7 +195,6 @@
   font-size: 10px;
 }
 
-/* Title */
 .sk-hero__title {
   font-family: 'Syne', sans-serif !important;
   font-size: clamp(44px, 7vw, 64px) !important;
@@ -98,7 +205,6 @@
   margin: 0 0 18px !important;
 }
 
-/* Sub */
 .sk-hero__sub {
   font-size: 16px;
   font-weight: 300;
@@ -130,7 +236,6 @@
   box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.10);
 }
 
-/* Override Ant Input inside hero search */
 .sk-hero__search .sk-searchInput,
 .sk-hero__search .sk-searchInput .ant-input {
   background: transparent !important;
@@ -158,7 +263,6 @@
   padding: 0 !important;
 }
 
-/* CTA button — Plan my trip */
 .sk-hero__search .sk-cta,
 .sk-hero__search .sk-cta.ant-btn {
   background: linear-gradient(135deg, var(--sk-orange) 0%, var(--sk-orange-2) 100%) !important;
@@ -201,18 +305,26 @@
   color: #1a0d04;
   cursor: pointer;
   transition: filter 0.18s, transform 0.18s;
-  box-shadow: none;
 }
 
-.sk-quickChip:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
-}
+.sk-quickChip:hover  { filter: brightness(1.08); transform: translateY(-1px); }
+.sk-quickChip:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-.sk-quickChip:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
+/* ── Mobile search ── */
+@media (max-width: 600px) {
+  .sk-hero__search {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    gap: 10px;
+  }
+  .sk-hero__search .sk-cta,
+  .sk-hero__search .sk-cta.ant-btn {
+    width: 100% !important;
+    justify-content: center;
+  }
+  .sk-hero { padding: 48px 16px 40px; }
+  .sk-hero__title { font-size: clamp(38px, 11vw, 56px) !important; }
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -238,7 +350,6 @@
   pointer-events: auto;
 }
 
-/* Header bar */
 .sk-suggestion__bar {
   display: flex;
   align-items: center;
@@ -266,7 +377,6 @@
   color: var(--sk-orange);
 }
 
-/* Body */
 .sk-suggestion__body {
   display: flex;
   align-items: flex-start;
@@ -274,10 +384,7 @@
   justify-content: space-between;
 }
 
-.sk-suggestion__left {
-  flex: 1;
-  min-width: 0;
-}
+.sk-suggestion__left  { flex: 1; min-width: 0; }
 
 .sk-suggestion__trip {
   display: flex;
@@ -301,7 +408,6 @@
   color: var(--sk-white-60);
 }
 
-/* Excellent budget match badge — orange pill */
 .sk-suggestion__fit {
   display: inline-flex;
   align-items: center;
@@ -309,7 +415,6 @@
   font-weight: 700;
   color: #1a0d04;
   background: linear-gradient(135deg, var(--sk-orange) 0%, var(--sk-orange-2) 100%);
-  border: none;
   border-radius: var(--sk-radius-pill);
   padding: 4px 12px;
   margin-bottom: 8px;
@@ -321,7 +426,6 @@
   line-height: 1.55;
 }
 
-/* Right */
 .sk-suggestion__right {
   flex-shrink: 0;
   text-align: right;
@@ -347,7 +451,6 @@
   margin-left: 4px;
 }
 
-/* View plan button — orange pill */
 .sk-viewBtn,
 .sk-viewBtn.ant-btn {
   display: inline-flex !important;
@@ -369,6 +472,13 @@
 .sk-viewBtn:hover {
   filter: brightness(1.08) !important;
   transform: translateY(-1px) !important;
+}
+
+/* Mobile suggestion */
+@media (max-width: 600px) {
+  .sk-suggestion__body { flex-direction: column; gap: 16px; }
+  .sk-suggestion__right { align-items: flex-start; text-align: left; }
+  .sk-suggestion { padding: 16px; }
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -400,20 +510,21 @@
   margin: 0;
 }
 
-/* Grid */
 .sk-examples__grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
-@media (max-width: 768px) {
-  .sk-examples__grid {
-    grid-template-columns: 1fr;
-  }
+@media (max-width: 900px) {
+  .sk-examples__grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* Card */
+@media (max-width: 560px) {
+  .sk-examples__grid { grid-template-columns: 1fr; }
+  .sk-examples { padding: 0 16px 48px; }
+}
+
 .sk-card {
   position: relative;
   display: flex;
@@ -434,11 +545,7 @@
   box-shadow: 0 20px 40px rgba(0,0,0,0.3);
 }
 
-.sk-card:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
+.sk-card:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .sk-card__media {
   width: 100%;
@@ -446,6 +553,10 @@
   background-size: cover;
   background-position: center;
   flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .sk-card__media { height: 200px; }
 }
 
 .sk-card__overlay {
@@ -483,7 +594,6 @@
   margin-bottom: 14px;
 }
 
-/* Card View Plan button — orange pill */
 .sk-card__footer {
   display: inline-flex;
   align-items: center;
@@ -492,11 +602,9 @@
   font-weight: 700;
   color: #1a0d04;
   background: linear-gradient(135deg, var(--sk-orange) 0%, var(--sk-orange-2) 100%);
-  border: none;
   border-radius: var(--sk-radius-pill);
   padding: 7px 16px;
   transition: filter 0.18s, transform 0.18s;
-  box-shadow: none;
 }
 
 .sk-card:hover .sk-card__footer {
@@ -504,7 +612,6 @@
   transform: translateY(-1px);
 }
 
-/* Footline */
 .sk-footline {
   text-align: center;
   font-size: 14px;

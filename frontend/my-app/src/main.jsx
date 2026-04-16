@@ -7,6 +7,7 @@ import { ConfigProvider } from "antd";
 /* Providers */
 /* ============================= */
 import AuthProvider from "@/auth/AuthProvider.jsx";
+import { AtlasProvider } from "@/components/Atlas/AtlasContext"; // ← NEW
 
 /* ============================= */
 /* Routes */
@@ -40,17 +41,22 @@ createRoot(rootEl).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <ConfigProvider
-          theme={{
-            components: {
-              Card: {
-                variant: "outlined",
+        <AtlasProvider>
+          {" "}
+          {/* ← NEW */}
+          <ConfigProvider
+            theme={{
+              components: {
+                Card: {
+                  variant: "outlined",
+                },
               },
-            },
-          }}
-        >
-          <AppRoutes />
-        </ConfigProvider>
+            }}
+          >
+            <AppRoutes />
+          </ConfigProvider>
+        </AtlasProvider>{" "}
+        {/* ← NEW */}
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

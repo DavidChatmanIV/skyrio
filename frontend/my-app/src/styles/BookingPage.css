@@ -46,6 +46,9 @@
   gap: 12px;
   text-align: center;
   box-sizing: border-box;
+  position: relative;
+  z-index: 10;
+  overflow: visible;
 }
 
 .sk-hero-title {
@@ -84,6 +87,17 @@
   color: #1b1024; box-shadow: 0 14px 30px rgba(255,138,42,0.16);
 }
 .sk-pill-glass { background: rgba(255,255,255,0.08); }
+
+.sk-pill-toggle {
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.sk-pill-toggle.is-active {
+  background: rgba(255, 138, 42, 0.2);
+  border-color: rgba(255, 138, 42, 0.6) !important;
+  color: #ff8a2a !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.15);
+}
 
 /* ================= SEGMENTED TABS ================= */
 .sk-booking .sk-booking-tabs.ant-segmented {
@@ -143,7 +157,7 @@
   color: #ff8a2a !important;
 }
 
-/* ================= SYNC TOGETHER BUTTON — orange pill ================= */
+/* ================= SYNC TOGETHER BUTTON ================= */
 .sk-btn-sync.ant-btn {
   background: var(--sk-orange-grad) !important;
   border: none !important;
@@ -162,7 +176,7 @@
   border: none !important;
 }
 
-/* ================= SEARCH BUTTON — orange pill ================= */
+/* ================= SEARCH BUTTON ================= */
 .sk-btn-search-pill.ant-btn {
   background: var(--sk-orange-grad) !important;
   border: none !important; color: #1b1024 !important;
@@ -185,6 +199,9 @@
   width: min(980px, calc(100% - 24px));
   margin-top: 10px; display: flex; flex-wrap: wrap;
   gap: 10px; align-items: center; box-sizing: border-box;
+  overflow: visible;
+  position: relative;
+  z-index: 20;
 }
 .sk-search-bar .sk-airport-wrap    { flex: 1 1 180px; min-width: 160px; }
 .sk-search-bar .sk-orange-picker   { flex: 0 0 auto; min-width: 200px; }
@@ -203,71 +220,42 @@
   height: 40px;
 }
 
-/* ================= DATE PICKER (CHECK-IN / CHECK-OUT) ================= */
+/* ================= DATE PICKER ================= */
 .sk-orange-picker {
   background: rgba(255,255,255,0.08) !important;
   border: 1px solid rgba(255,255,255,0.14) !important;
   border-radius: 14px !important;
   backdrop-filter: blur(12px);
-
   height: 40px;
   display: flex;
   align-items: center;
   padding: 0 10px;
-
   transition: all 0.2s ease;
 }
-
-/* 🔥 THIS IS THE FIX — actual text */
 .sk-orange-picker .ant-picker-input > input {
   color: #ffffff !important;
   font-weight: 600;
   font-size: 14px;
   background: transparent !important;
 }
-
-/* Placeholder text (Check-in / Check-out) */
 .sk-orange-picker .ant-picker-input > input::placeholder {
   color: rgba(255, 255, 255, 0.75) !important;
   font-weight: 500;
 }
-
-/* Dash between dates */
-.sk-orange-picker .ant-picker-separator {
-  color: rgba(255, 255, 255, 0.7) !important;
-  font-weight: 600;
-}
-
-/* Calendar icon */
-.sk-orange-picker .ant-picker-suffix {
-  color: rgba(255, 255, 255, 0.85) !important;
-  font-size: 16px;
-}
-
-/* Hover */
-.sk-orange-picker:hover {
-  border-color: rgba(255,138,42,0.5) !important;
-}
-
-/* Focus (premium glow) */
-.sk-orange-picker.ant-picker-focused {
-  border-color: #ff8a2a !important;
-  box-shadow: 0 0 0 3px rgba(255,138,42,0.2) !important;
-}
-
-/* Focus within (extra safety for Ant) */
-.sk-orange-picker:focus-within {
-  border-color: #ff8a2a !important;
-  box-shadow: 0 0 0 3px rgba(255,138,42,0.15) !important;
-}
-
-/* Disabled */
-.sk-orange-picker.ant-picker-disabled {
-  opacity: 0.6;
-}
+.sk-orange-picker .ant-picker-separator { color: rgba(255, 255, 255, 0.7) !important; font-weight: 600; }
+.sk-orange-picker .ant-picker-suffix    { color: rgba(255, 255, 255, 0.85) !important; font-size: 16px; }
+.sk-orange-picker:hover                 { border-color: rgba(255,138,42,0.5) !important; }
+.sk-orange-picker.ant-picker-focused    { border-color: #ff8a2a !important; box-shadow: 0 0 0 3px rgba(255,138,42,0.2) !important; }
+.sk-orange-picker:focus-within          { border-color: #ff8a2a !important; box-shadow: 0 0 0 3px rgba(255,138,42,0.15) !important; }
+.sk-orange-picker.ant-picker-disabled   { opacity: 0.6; }
 
 /* ================= AIRPORT PAIR ================= */
-.sk-airport-pair { display: flex; align-items: center; gap: 6px; flex: 2 1 320px; min-width: 0; }
+.sk-airport-pair {
+  display: flex; align-items: center; gap: 6px; flex: 2 1 320px; min-width: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 20;
+}
 .sk-airport-pair .sk-airport-wrap { flex: 1; min-width: 120px; }
 
 .sk-swap-btn {
@@ -338,7 +326,6 @@
 .sk-action-row { margin-top: 10px; justify-content: center; }
 .sk-filters    { margin-top: 10px; justify-content: center; }
 
-/* Quick filter pills — inactive state */
 .sk-qf {
   padding: 8px 16px; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.14);
@@ -350,16 +337,12 @@
   border-color: rgba(255,138,42,0.45);
   box-shadow: 0 0 0 3px rgba(255,138,42,0.12);
 }
-
-/* Active quick filter — orange pill */
 .sk-qf.is-active {
   background: var(--sk-orange-grad);
   color: #1b1024;
   border-color: transparent;
   box-shadow: 0 4px 14px rgba(255,138,42,0.35);
 }
-
-/* Clear filters — now matches orange pill style */
 .sk-qf-clear {
   background: var(--sk-orange-grad) !important;
   color: #1b1024 !important;
@@ -395,6 +378,8 @@
 .sk-results-wrap {
   width: min(1240px, calc(100% - 24px)); margin: 0 auto;
   padding: 24px 0 84px; box-sizing: border-box;
+  position: relative;
+  z-index: 1;
 }
 .sk-section-title { color: #fff !important; }
 .sk-resultsHeader { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
@@ -458,4 +443,484 @@
   .sk-weatherIcon  { width: 30px; height: 30px; border-radius: 10px; }
   .sk-airport-pair { flex-direction: column; }
   .sk-swap-btn     { display: none; }
+}
+
+/* =================================================
+   PRE-FILL BANNER
+   Matches .sk-tripState glass card language
+================================================= */
+
+.sk-prefill-banner {
+  position: relative;
+  width: min(980px, calc(100% - 24px));
+  margin: 16px auto 0;
+  padding: 12px 44px 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 138, 42, 0.07);
+  border: 1px solid rgba(255, 138, 42, 0.26);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+}
+
+.sk-prefill-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #ff8a2a;
+  margin-bottom: 8px;
+}
+.sk-prefill-bolt { font-size: 12px; }
+
+.sk-prefill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.sk-prefill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  white-space: nowrap;
+}
+
+.sk-prefill-chip--prompt {
+  font-style: italic;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.5);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-style: dashed;
+}
+
+.sk-prefill-editBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 138, 42, 0.12);
+  border: 1px solid rgba(255, 138, 42, 0.32);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ff8a2a;
+  cursor: pointer;
+  transition: background 0.18s, box-shadow 0.18s;
+  margin-left: 2px;
+}
+.sk-prefill-editBtn:hover {
+  background: rgba(255, 138, 42, 0.22);
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.14);
+}
+
+.sk-prefill-dismiss {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  transition: color 0.18s;
+}
+.sk-prefill-dismiss:hover { color: rgba(255, 255, 255, 0.75); }
+
+.sk-prefill-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk-prefill-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 5px;
+}
+
+.sk-prefill-edit-row { display: flex; flex-direction: column; }
+
+.sk-prefill-edit-row--split {
+  flex-direction: row;
+  gap: 12px;
+}
+
+.sk-prefill-field { flex: 1; }
+
+.sk-prefill-input.ant-input,
+.sk-prefill-input .ant-input {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 10px !important;
+  color: #fff !important;
+  height: 38px;
+}
+.sk-prefill-input.ant-input:focus,
+.sk-prefill-input .ant-input:focus {
+  border-color: rgba(255, 138, 42, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.14) !important;
+}
+
+.sk-prefill-numInput.ant-input-number {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 10px !important;
+  height: 38px !important;
+}
+.sk-prefill-numInput .ant-input-number-input {
+  background: transparent !important;
+  color: #fff !important;
+  height: 36px !important;
+}
+.sk-prefill-numInput .ant-input-number-input::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+.sk-prefill-numInput.ant-input-number-focused,
+.sk-prefill-numInput.ant-input-number:focus {
+  border-color: rgba(255, 138, 42, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.14) !important;
+}
+
+.sk-prefill-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.sk-prefill-saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b1024;
+  cursor: pointer;
+  transition: opacity 0.18s, box-shadow 0.18s;
+  box-shadow: 0 4px 14px rgba(255, 138, 42, 0.3);
+}
+.sk-prefill-saveBtn:hover {
+  opacity: 0.9;
+  box-shadow: 0 6px 20px rgba(255, 138, 42, 0.45);
+}
+
+.sk-prefill-cancelBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.sk-prefill-cancelBtn:hover { background: rgba(255, 255, 255, 0.12); }
+
+@media (max-width: 640px) {
+  .sk-prefill-chip--prompt    { display: none; }
+  .sk-prefill-edit-row--split { flex-direction: column; }
+  .sk-prefill-dismiss         { top: 12px; transform: none; }
+}
+
+/* =================================================
+   PREFILL STRIP — lives inside .sk-tripState
+   Replaces the old standalone .sk-prefill-banner
+================================================= */
+
+.sk-prefill-strip {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+}
+
+/* ── Collapsed one-liner ── */
+.sk-prefill-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sk-prefill-bolt {
+  font-size: 12px;
+}
+
+.sk-prefill-loaded {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #ff8a2a;
+}
+
+.sk-prefill-divider {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+}
+
+.sk-prefill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+}
+
+.sk-prefill-editBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 138, 42, 0.1);
+  border: 1px solid rgba(255, 138, 42, 0.28);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff8a2a;
+  cursor: pointer;
+  transition: background 0.18s;
+  margin-left: 2px;
+}
+.sk-prefill-editBtn:hover { background: rgba(255, 138, 42, 0.2); }
+
+.sk-prefill-dismissBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 5px;
+  transition: color 0.18s;
+
+}
+.sk-prefill-dismissBtn:hover { color: rgba(255, 255, 255, 0.65); }
+
+/* ── Expanded edit form ── */
+.sk-prefill-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk-prefill-expandedRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.sk-prefill-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 90px;
+}
+
+.sk-prefill-field--grow { flex: 1; }
+
+.sk-prefill-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+/* Input overrides */
+.sk-prefill-input.ant-input,
+.sk-prefill-input .ant-input {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 8px !important;
+  color: #fff !important;
+  height: 34px !important;
+  font-size: 13px !important;
+}
+.sk-prefill-input.ant-input:focus,
+.sk-prefill-input .ant-input:focus {
+  border-color: rgba(255, 138, 42, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(255, 138, 42, 0.14) !important;
+}
+
+.sk-prefill-numInput.ant-input-number {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 8px !important;
+  height: 34px !important;
+}
+.sk-prefill-numInput .ant-input-number-input {
+  background: transparent !important;
+  color: #fff !important;
+  height: 32px !important;
+  font-size: 13px !important;
+}
+.sk-prefill-numInput .ant-input-number-input::placeholder { color: rgba(255,255,255,0.3) !important; }
+.sk-prefill-numInput.ant-input-number-focused { border-color: rgba(255,138,42,0.5) !important; box-shadow: 0 0 0 2px rgba(255,138,42,0.14) !important; }
+
+/* Action buttons */
+.sk-prefill-expandedActions {
+  display: flex;
+  gap: 8px;
+}
+
+.sk-prefill-saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1b1024;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(255,138,42,0.3);
+  transition: opacity 0.18s;
+}
+.sk-prefill-saveBtn:hover { opacity: 0.88; }
+
+.sk-prefill-cancelBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.sk-prefill-cancelBtn:hover { background: rgba(255,255,255,0.1); }
+
+/* Mobile */
+@media (max-width: 640px) {
+  .sk-prefill-expandedRow { flex-direction: column; }
+  .sk-prefill-field--grow { width: 100%; }
+}
+
+/* =================================================
+   AUTO-SEARCH SKELETON + ERROR STATES
+================================================= */
+
+/* Shimmer animation */
+@keyframes sk-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.sk-shimmer {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.06) 25%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(255,255,255,0.06) 75%
+  );
+  background-size: 600px 100%;
+  animation: sk-shimmer 1.4s infinite linear;
+  border-radius: 8px;
+}
+
+/* Skeleton cards */
+.sk-flight-skeleton { display: flex; flex-direction: column; gap: 16px; }
+
+.sk-skeleton-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  background: rgba(15,12,35,0.52);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 18px;
+  padding: 20px;
+}
+
+.sk-skeleton-thumb {
+  width: 120px;
+  height: 80px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.sk-skeleton-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sk-skeleton-line {
+  height: 14px;
+  border-radius: 6px;
+}
+
+.sk-skeleton-price {
+  width: 80px;
+  height: 32px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* Error state */
+.sk-search-error {
+  background: rgba(255, 80, 80, 0.08);
+  border: 1px solid rgba(255, 80, 80, 0.22);
+  border-radius: 14px;
+  padding: 16px 20px;
+  font-size: 14px;
+  color: rgba(255, 160, 160, 0.9);
+}
+
+.sk-search-retry {
+  background: transparent;
+  border: none;
+  color: #ff8a2a;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-size: 14px;
 }

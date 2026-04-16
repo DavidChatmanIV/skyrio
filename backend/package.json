@@ -9,6 +9,7 @@
     "build": "echo \"no build step\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.89.0",
     "@duffel/api": "^4.21.6",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",

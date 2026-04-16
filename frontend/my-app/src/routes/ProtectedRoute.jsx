@@ -1,47 +1,33 @@
-import React from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { Spin } from "antd";
-import { useAuth } from "../hooks/useAuth";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../auth/useAuth";
 
-export default function ProtectedRoute() {
-  const { user, loading } = useAuth();
+/**
+ * ProtectedRoute
+ *
+ * Wraps any route that requires a full account.
+ * - Authed user  → renders children normally
+ * - Guest user   → redirects to /passport-locked (hard lock page)
+ * - Not authed   → redirects to /login with return path saved in state
+ *
+ * Usage in router:
+ *   <Route path="/passport" element={<ProtectedRoute><PassportPage /></ProtectedRoute>} />
+ */
+export default function ProtectedRoute({ children }) {
+  const { isAuthed, isGuest, loading } = useAuth();
   const location = useLocation();
 
-  // 1️⃣ While auth state is resolving
-  if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "60vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 12,
-        }}
-      >
-        <Spin size="large" />
-        <div style={{ opacity: 0.75 }}>Checking your boarding pass…</div>
-      </div>
-    );
-  }
+  // Wait for localStorage hydration before making a redirect decision
+  if (loading) return null;
 
-  // 2️⃣ Extra safety: token fallback (covers refresh edge cases)
-  const token = localStorage.getItem("token");
+  if (isAuthed) return children;
 
-  // 3️⃣ Not authenticated → redirect to login
-  if (!user && !token) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-        state={{
-          from: location.pathname + location.search,
-        }}
-      />
-    );
-  }
-
-  // 4️⃣ Authenticated → allow access
-  return <Outlet />;
+  // Guest or unauthenticated — send to passport locked page
+  // Save where they were trying to go so we can redirect after signup
+  return (
+    <Navigate
+      to="/passport-locked"
+      replace
+      state={{ redirectTo: location.pathname }}
+    />
+  );
 }

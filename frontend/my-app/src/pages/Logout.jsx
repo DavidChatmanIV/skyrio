@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { notification } from "antd";
 import { useAuth } from "../context/AuthContext";
@@ -7,25 +7,23 @@ import BoardingPassToast from "../components/BoardingPassToast";
 export default function Logout() {
   const { logout, user } = useAuth();
   const nav = useNavigate();
+  const [phase, setPhase] = useState("departing"); // "departing" | "gone"
 
-  // Snapshot the user's name BEFORE logout so we don't depend on `user` afterward
+  // Snapshot name BEFORE logout clears the user
   const nameRef = useRef(
     user?.name ||
       user?.username ||
       (user?.email ? user.email.split("@")[0] : "Explorer")
   );
 
-  // Guard against double execution in React 18 StrictMode (runs effects twice in dev)
   const ranRef = useRef(false);
 
   useEffect(() => {
     if (ranRef.current) return;
     ranRef.current = true;
 
-    // do logout first
     logout();
 
-    // glass boarding-pass style toast
     notification.open({
       message: null,
       description: (
@@ -33,8 +31,6 @@ export default function Logout() {
           name={nameRef.current}
           routeFrom="Skyrio"
           routeTo="Sign-in"
-          // If your BoardingPassToast supports props like subtitle, use it:
-          // subtitle="Journey paused — board again anytime ✈️"
         />
       ),
       placement: "topRight",
@@ -42,13 +38,58 @@ export default function Logout() {
       style: { background: "transparent", boxShadow: "none", padding: 0 },
     });
 
-    // give the toast a moment to show before redirect
-    const t = setTimeout(() => {
-      nav("/login", { replace: true });
-    }, 450);
+    // Phase transition for the departure screen
+    const fadeTimer = setTimeout(() => setPhase("gone"), 1800);
 
-    return () => clearTimeout(t);
+    const navTimer = setTimeout(() => {
+      nav("/login", { replace: true });
+    }, 2200);
+
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(navTimer);
+    };
   }, [logout, nav]);
 
-  return null;
+  return (
+    <div className="sk-departurePage" data-phase={phase}>
+      <div className="sk-departureGlow" />
+
+      <div className="sk-departureCard">
+        <div className="sk-depPlane">✈︎</div>
+
+        <div className="sk-depKicker">BOARDING PASS</div>
+        <div className="sk-depTitle">Safe travels, {nameRef.current}</div>
+        <div className="sk-depSub">Journey paused — board again anytime.</div>
+
+        <div className="sk-depFlightRow">
+          <div className="sk-depStop">
+            <div className="sk-depLabel">DEPARTING</div>
+            <div className="sk-depValue">Skyrio</div>
+          </div>
+          <div className="sk-depLine">
+            <span className="sk-depDot" />
+            <span className="sk-depDash" />
+            <span className="sk-depPlaneSmall">✈</span>
+            <span className="sk-depDash" />
+            <span className="sk-depDot" />
+          </div>
+          <div className="sk-depStop sk-depRight">
+            <div className="sk-depLabel">ARRIVING</div>
+            <div className="sk-depValue">Sign-in</div>
+          </div>
+        </div>
+
+        <div className="sk-depStatus">
+          {phase === "departing" ? "Departing…" : "Redirecting"}
+        </div>
+
+        <div className="sk-depBarcode">
+          {Array.from({ length: 22 }).map((_, i) => (
+            <span key={i} className="sk-bar" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

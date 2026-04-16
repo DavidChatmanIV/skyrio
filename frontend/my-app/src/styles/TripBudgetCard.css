@@ -55,6 +55,14 @@
     0 0 0 1px rgba(255, 255, 255, 0.07) inset;
 }
 
+/* ── Over budget card glow ── */
+.tb-card.is-overBudget {
+  border-color: rgba(255, 92, 92, 0.30) !important;
+  box-shadow:
+    0 26px 90px rgba(255, 92, 92, 0.15),
+    0 0 0 1px rgba(255, 92, 92, 0.12) inset !important;
+}
+
 .tb-card .ant-card-body {
   padding: 14px 16px !important;
 }
@@ -103,19 +111,28 @@
   text-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
 }
 
+/* Reset — orange pill */
 .tb-reset {
-  border-radius: 999px !important;
-  height: 34px !important;
-  padding: 0 12px !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  color: rgba(255, 255, 255, 0.88) !important;
-  font-weight: 900 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  height: 34px;
+  padding: 0 16px;
+  background: linear-gradient(135deg, #ff8a2a, #ffb066);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #1b1024;
+  font-weight: 950;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(255, 138, 42, 0.18);
+  transition: opacity 180ms ease, box-shadow 180ms ease;
+  white-space: nowrap;
 }
 
 .tb-reset:hover {
-  border-color: rgba(255, 138, 42, 0.30) !important;
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.14) !important;
+  opacity: 0.88;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.28);
 }
 
 /* =========================
@@ -153,7 +170,11 @@
   padding: 10px 12px;
 }
 
-.tb-summaryItem { display: flex; flex-direction: column; gap: 2px; }
+.tb-summaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
 .tb-summaryKey {
   font-size: 10.8px;
@@ -175,8 +196,50 @@
   background: rgba(255, 255, 255, 0.10);
 }
 
+/* Strip editable inputs — flush, borderless except underline */
+.tb-stripInput {
+  width: 100% !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  height: auto !important;
+}
+
+.tb-stripInput input {
+  color: rgba(255, 255, 255, 0.92) !important;
+  font-size: 13.2px !important;
+  font-weight: 950 !important;
+  padding: 2px 0 !important;
+  background: transparent !important;
+  caret-color: #ffb066;
+}
+
+.tb-stripInput .ant-input-number-prefix {
+  color: rgba(255, 255, 255, 0.50) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  margin-right: 2px !important;
+}
+
+.tb-stripInput.ant-input-number-focused,
+.tb-stripInput:focus-within {
+  border-bottom-color: rgba(255, 138, 42, 0.70) !important;
+  box-shadow: 0 2px 0 0 rgba(255, 138, 42, 0.22) !important;
+}
+
+/* Days column — no prefix so no extra indent */
+.tb-stripInputDays input {
+  padding-left: 0 !important;
+}
+
 /* =========================
    RING + META
+   ✅ fallback values on --stroke and --pct
+   prevent white box on first render before
+   React sets the CSS custom properties
 ========================= */
 .tb-progressWrap {
   margin-top: 12px;
@@ -193,7 +256,10 @@
   background:
     radial-gradient(circle at 30% 20%, rgba(140, 90, 255, 0.16), transparent 55%),
     radial-gradient(circle at 70% 70%, rgba(255, 138, 42, 0.14), transparent 60%),
-    conic-gradient(var(--stroke) var(--pct), rgba(255, 255, 255, 0.10) 0);
+    conic-gradient(
+      var(--stroke, rgba(255, 176, 102, 0.5)) var(--pct, 0%),
+      rgba(255, 255, 255, 0.10) 0
+    );
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
     0 22px 66px rgba(0, 0, 0, 0.34),
@@ -238,15 +304,17 @@
 
 .tb-miniRow { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* Budget/Spent mini pills — orange */
 .tb-miniPill {
   display: inline-flex;
-  padding: 7px 10px;
+  padding: 7px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(135deg, #ff8a2a, #ffb066);
   font-size: 12px;
-  font-weight: 900;
-  color: rgba(255, 255, 255, 0.86);
+  font-weight: 950;
+  color: #1b1024;
+  white-space: nowrap;
 }
 
 .tb-meter {
@@ -314,14 +382,24 @@
 }
 
 .tb-addBtn {
-  border-radius: 14px !important;
-  height: 40px !important;
-  font-weight: 950 !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  background: linear-gradient(135deg, var(--tb-orange), var(--tb-orange2)) !important;
-  color: #1b1024 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 14px;
+  height: 40px;
+  padding: 0 16px;
+  font-weight: 950;
+  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(135deg, #ff8a2a, #ffb066);
+  color: #1b1024;
+  cursor: pointer;
   box-shadow: 0 16px 40px rgba(255, 138, 42, 0.18);
+  transition: opacity 180ms ease;
+  white-space: nowrap;
 }
+
+.tb-addBtn:hover { opacity: 0.88; }
 
 .tb-hint {
   margin-top: 6px;
@@ -343,19 +421,34 @@
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  padding: 9px 12px;
+  padding: 9px 16px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(135deg, #ff8a2a, #ffb066);
+  color: #1b1024;
   font-weight: 950;
+  font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
+  transition: opacity 180ms ease, box-shadow 180ms ease;
 }
 
 .tb-chip:hover {
-  border-color: rgba(255, 138, 42, 0.28);
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.12);
+  opacity: 0.88;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.28);
+}
+
+/* ── Category chip amount badge ── */
+.tb-chipAmount {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 11px;
+  font-weight: 900;
+  color: rgba(27, 16, 36, 0.85);
+  margin-left: 4px;
 }
 
 /* =========================
@@ -466,7 +559,9 @@
   100% { box-shadow: 0 0 0 0 rgba(255, 138, 42, 0.0); transform: scale(1); }
 }
 
-/* Actions */
+/* =========================
+   ATLAS ACTIONS
+========================= */
 .tb-aiActions {
   margin-top: 12px;
   display: grid;
@@ -474,35 +569,42 @@
   gap: 8px;
 }
 
-.tb-pillBtn {
-  width: 100%;
+.tb-pillBtn,
+.tb-pillBtnPrimary {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  border-radius: 999px !important;
-  height: 32px !important;
-  padding: 0 12px !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  color: rgba(255, 255, 255, 0.88) !important;
-  font-weight: 950 !important;
+  border-radius: 999px;
+  min-height: 38px;
+  height: auto;
+  padding: 8px 16px;
+  font-weight: 950;
+  font-size: 13px;
+  line-height: 1.2;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(135deg, #ff8a2a, #ffb066);
+  color: #1b1024;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(255, 138, 42, 0.18);
+  transition: opacity 180ms ease, box-shadow 180ms ease;
 }
 
-.tb-pillBtn:hover {
-  border-color: rgba(255, 138, 42, 0.30) !important;
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.14) !important;
+.tb-pillBtn:hover,
+.tb-pillBtnPrimary:hover {
+  opacity: 0.88;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.28);
 }
 
+.tb-pillBtn:disabled,
+.tb-pillBtnPrimary:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* Surprise me spans full width */
 .tb-pillBtnPrimary {
   grid-column: 1 / -1;
-  width: 100%;
-  justify-content: center;
-  border-radius: 999px !important;
-  height: 32px !important;
-  padding: 0 12px !important;
-  font-weight: 950 !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  background: linear-gradient(135deg, var(--tb-orange), var(--tb-orange2)) !important;
-  color: #1b1024 !important;
-  box-shadow: 0 16px 40px rgba(255, 138, 42, 0.16);
 }
 
 /* =========================
@@ -540,7 +642,7 @@
   place-items: center;
   font-weight: 950;
   color: rgba(10, 8, 22, 0.90);
-  background: linear-gradient(135deg, var(--tb-orange), var(--tb-orange2));
+  background: linear-gradient(135deg, #ff8a2a, #ffb066);
   box-shadow: 0 12px 30px rgba(255, 138, 42, 0.20);
 }
 

@@ -5,7 +5,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { Card, Typography, InputNumber, Button, Space } from "antd";
+import { Card, Typography, InputNumber } from "antd";
 import {
   ReloadOutlined,
   PlusOutlined,
@@ -19,9 +19,9 @@ import "../../styles/TripBudgetCard.css";
 
 const { Title, Text } = Typography;
 
-/* ---------------------------
-   AI logic
----------------------------- */
+/* ─────────────────────────────────────────────
+   ATLAS AI SUGGESTION LOGIC
+───────────────────────────────────────────── */
 function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
   const p = Number(planned || 0);
   const u = Number(used || 0);
@@ -94,9 +94,9 @@ function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
   };
 }
 
-/* ---------------------------
-   Typewriter hook
----------------------------- */
+/* ─────────────────────────────────────────────
+   TYPEWRITER HOOK
+───────────────────────────────────────────── */
 function useTypewriter(text, { speed = 18, enabled = true } = {}) {
   const [out, setOut] = useState("");
   const idxRef = useRef(0);
@@ -107,11 +107,9 @@ function useTypewriter(text, { speed = 18, enabled = true } = {}) {
       setOut(text || "");
       return;
     }
-
     setOut("");
     idxRef.current = 0;
     if (timerRef.current) clearInterval(timerRef.current);
-
     const t = String(text || "");
     timerRef.current = setInterval(() => {
       idxRef.current += 1;
@@ -121,58 +119,107 @@ function useTypewriter(text, { speed = 18, enabled = true } = {}) {
         timerRef.current = null;
       }
     }, speed);
-
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
     };
   }, [text, speed, enabled]);
 
-  const done = out.length >= String(text || "").length;
-  return { out, done };
+  return { out, done: out.length >= String(text || "").length };
 }
 
-/* ---------------------------
-   Component
----------------------------- */
+/* ─────────────────────────────────────────────
+   CATEGORY QUICK-ADD
+   Clicking a chip adds a preset amount to expenses
+───────────────────────────────────────────── */
+const CATEGORY_PRESETS = [
+  { icon: <CoffeeOutlined />, label: "Dining", amount: 45 },
+  { icon: <CarOutlined />, label: "Transport", amount: 25 },
+  { icon: <HomeOutlined />, label: "Lodging", amount: 120 },
+];
+
+/* ─────────────────────────────────────────────
+   MAIN COMPONENT
+   Props (all optional — card works standalone):
+     initialBookingTotal  number   seed value for trip cost
+     initialTripDays      number   seed value for days
+     initialDestination   string   city name shown in Atlas copy
+     onStateChange        fn       optional callback → { planned, used, bookingTotal, tripDays }
+───────────────────────────────────────────── */
 export default function TripBudgetCard({
-  planned = null,
-  used = 0,
-  bookingTotal = 0,
-  onChangePlanned,
-  onAddExpense,
-  onReset,
-  expenseAmount = 0,
-  onChangeExpenseAmount,
-  tripDays = 3,
-  destination = "Tokyo",
+  initialBookingTotal = 0,
+  initialTripDays = 3,
+  initialDestination = "your destination",
+  onStateChange,
 }) {
+  /* ── All budget state lives here ── */
+  const [planned, setPlanned] = useState(null);
+  const [used, setUsed] = useState(0);
+  const [bookingTotal, setBookingTotal] = useState(
+    Number(initialBookingTotal) || 0
+  );
+  const [expenseAmount, setExpenseAmount] = useState(null);
+  const [tripDays, setTripDays] = useState(Number(initialTripDays) || 3);
+  const [destination, setDestination] = useState(initialDestination);
+
+  /* Sync if parent passes new initialBookingTotal after mount */
+  useEffect(() => {
+    if (initialBookingTotal) setBookingTotal(Number(initialBookingTotal));
+  }, [initialBookingTotal]);
+
+  useEffect(() => {
+    if (initialDestination) setDestination(initialDestination);
+  }, [initialDestination]);
+
+  /* ── Reset ── */
+  const handleReset = useCallback(() => {
+    setPlanned(null);
+    setUsed(0);
+    setBookingTotal(Number(initialBookingTotal) || 0);
+    setExpenseAmount(null);
+    setTripDays(Number(initialTripDays) || 3);
+  }, [initialBookingTotal, initialTripDays]);
+
+  /* ── Add expense ── */
+  const handleAddExpense = useCallback(() => {
+    const amt = Number(expenseAmount || 0);
+    if (!amt || amt <= 0) return;
+    setUsed((prev) => prev + amt);
+    setExpenseAmount(null);
+  }, [expenseAmount]);
+
+  /* ── Category quick-add ── */
+  const handleCategoryAdd = useCallback((amount) => {
+    setUsed((prev) => prev + amount);
+  }, []);
+
+  /* ── Notify parent ── */
+  useEffect(() => {
+    onStateChange?.({ planned, used, bookingTotal, tripDays });
+  }, [planned, used, bookingTotal, tripDays, onStateChange]);
+
+  /* ── Derived values ── */
   const totalNum = useMemo(() => {
-    const n = typeof planned === "number" ? planned : Number(planned);
-    return Number.isFinite(n) ? n : 0;
+    const n = Number(planned);
+    return Number.isFinite(n) && n > 0 ? n : 0;
   }, [planned]);
 
   const hasBudget = totalNum > 0;
-
   const spent = useMemo(
     () => Number(used || 0) + Number(bookingTotal || 0),
     [used, bookingTotal]
   );
-
-  const left = useMemo(() => {
-    if (!hasBudget) return 0;
-    return totalNum - spent;
-  }, [hasBudget, totalNum, spent]);
-
-  const percent = useMemo(() => {
-    if (!hasBudget) return 0;
-    return Math.min(100, Math.max(0, Math.round((spent / totalNum) * 100)));
-  }, [hasBudget, totalNum, spent]);
-
-  const isOverBudget = useMemo(
-    () => hasBudget && spent > totalNum,
-    [hasBudget, spent, totalNum]
+  const left = useMemo(
+    () => (hasBudget ? totalNum - spent : 0),
+    [hasBudget, totalNum, spent]
   );
+  const percent = useMemo(
+    () =>
+      hasBudget
+        ? Math.min(100, Math.max(0, Math.round((spent / totalNum) * 100)))
+        : 0,
+    [hasBudget, totalNum, spent]
+  );
+  const isOverBudget = hasBudget && spent > totalNum;
 
   const ai = useMemo(
     () =>
@@ -180,13 +227,16 @@ export default function TripBudgetCard({
     [totalNum, used, bookingTotal, tripDays]
   );
 
-  const ringStyle = useMemo(() => {
-    const p = Math.max(0, Math.min(100, percent));
-    const stroke = isOverBudget
-      ? "rgba(255, 92, 92, 0.98)"
-      : "rgba(255, 176, 102, 0.98)";
-    return { "--pct": `${p}%`, "--stroke": stroke };
-  }, [percent, isOverBudget]);
+  /* ── Ring style — fallbacks prevent white box on first render ── */
+  const ringStyle = useMemo(
+    () => ({
+      "--pct": `${Math.max(0, Math.min(100, percent))}%`,
+      "--stroke": isOverBudget
+        ? "rgba(255, 92, 92, 0.98)"
+        : "rgba(255, 176, 102, 0.98)",
+    }),
+    [percent, isOverBudget]
+  );
 
   const moodLabel = useMemo(() => {
     if (!hasBudget) return "Set your trip budget";
@@ -196,7 +246,7 @@ export default function TripBudgetCard({
     return "Last stretch — watch extras";
   }, [hasBudget, isOverBudget, percent]);
 
-  /* Atlas "alive" system */
+  /* ── Atlas AI system ── */
   const [atlasThinking, setAtlasThinking] = useState(false);
   const [atlasReveal, setAtlasReveal] = useState(false);
   const [atlasLine, setAtlasLine] = useState("");
@@ -221,29 +271,27 @@ export default function TripBudgetCard({
     (mode = "surprise") => {
       setAtlasReveal(false);
       setAtlasThinking(true);
-
-      const nextIndex =
+      const nextIdx =
         mode === "surprise"
           ? (atlasVariant + 1) % atlasSuggestions.length
           : mode === "deal"
           ? (atlasVariant + 2) % atlasSuggestions.length
-          : (atlasVariant + 1) % atlasSuggestions.length; // optimize cycles forward too
-
-      setAtlasVariant(nextIndex);
-
+          : (atlasVariant + 1) % atlasSuggestions.length;
+      setAtlasVariant(nextIdx);
       window.setTimeout(() => {
         setAtlasThinking(false);
         setAtlasReveal(true);
-        const line = hasBudget
-          ? atlasSuggestions[nextIndex]
-          : `You're planning ${destination}. ${ai.detail}`;
-        setAtlasLine(line);
+        setAtlasLine(
+          hasBudget
+            ? atlasSuggestions[nextIdx]
+            : `You're planning ${destination}. ${ai.detail}`
+        );
       }, 650);
     },
     [atlasVariant, atlasSuggestions, hasBudget, destination, ai.detail]
   );
 
-  // Initial reveal on mount
+  /* Initial Atlas reveal on mount */
   useEffect(() => {
     const t = window.setTimeout(() => {
       setAtlasLine(currentAtlasText);
@@ -260,6 +308,9 @@ export default function TripBudgetCard({
 
   const cardSpeaking = atlasThinking || (atlasReveal && !typingDone);
 
+  /* ─────────────────────────────────────────
+     RENDER
+  ───────────────────────────────────────── */
   return (
     <Card
       variant="borderless"
@@ -268,54 +319,74 @@ export default function TripBudgetCard({
       }`}
     >
       <div className="tb-bodyScroll">
-        {/* Top bar */}
+        {/* ── Top bar ── */}
         <div className="tb-topBar">
           <div className="tb-topBarTitle">Trip Budget</div>
-          <Button
-            icon={<ReloadOutlined />}
+          <button
+            type="button"
             className="tb-reset"
-            onClick={onReset}
+            onClick={handleReset}
             aria-label="Reset budget"
           >
-            Reset
-          </Button>
+            <ReloadOutlined /> Reset
+          </button>
         </div>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="tb-header">
-          <div className="tb-headText">
-            <Title level={4} className="tb-title">
-              {moodLabel}
-            </Title>
-            <Text className="tb-subtitle">
-              Track spending + let Atlas keep your plan smooth.
-            </Text>
-          </div>
+          <Title level={4} className="tb-title">
+            {moodLabel}
+          </Title>
+          <Text className="tb-subtitle">
+            Track spending + let Atlas keep your plan smooth.
+          </Text>
         </div>
 
-        {/* Summary strip */}
+        {/* ── Summary strip — all three cells fully editable ── */}
         <div className="tb-summaryStrip">
           <div className="tb-summaryItem">
-            <div className="tb-summaryKey">Trip cost</div>
-            <div className="tb-summaryVal">
-              ${Number(bookingTotal).toLocaleString()}
-            </div>
+            <div className="tb-summaryKey">Trip Cost</div>
+            <InputNumber
+              prefix="$"
+              value={bookingTotal || null}
+              min={0}
+              step={10}
+              controls={false}
+              className="tb-stripInput"
+              placeholder="0"
+              onChange={(v) => setBookingTotal(Number(v || 0))}
+            />
           </div>
           <div className="tb-summaryDivider" />
           <div className="tb-summaryItem">
             <div className="tb-summaryKey">Spent</div>
-            <div className="tb-summaryVal">
-              ${Number(spent).toLocaleString()}
-            </div>
+            <InputNumber
+              prefix="$"
+              value={used || null}
+              min={0}
+              step={10}
+              controls={false}
+              className="tb-stripInput"
+              placeholder="0"
+              onChange={(v) => setUsed(Number(v || 0))}
+            />
           </div>
           <div className="tb-summaryDivider" />
           <div className="tb-summaryItem">
             <div className="tb-summaryKey">Days</div>
-            <div className="tb-summaryVal">{Number(tripDays || 3)}</div>
+            <InputNumber
+              value={tripDays}
+              min={1}
+              max={90}
+              step={1}
+              controls={false}
+              className="tb-stripInput tb-stripInputDays"
+              onChange={(v) => setTripDays(Number(v || 1))}
+            />
           </div>
         </div>
 
-        {/* Ring + meta */}
+        {/* ── Ring + progress meta ── */}
         <div className="tb-progressWrap">
           <div className="tb-ring" style={ringStyle}>
             <div className="tb-ringInner">
@@ -325,7 +396,7 @@ export default function TripBudgetCard({
                     {left < 0 ? "-" : ""}${Math.abs(left).toLocaleString()}
                   </>
                 ) : (
-                  <>$0</>
+                  <span style={{ fontSize: 13, opacity: 0.6 }}>No budget</span>
                 )}
               </div>
               <div className="tb-ringLabel">Remaining</div>
@@ -350,18 +421,18 @@ export default function TripBudgetCard({
                 style={{ width: `${Math.min(100, percent)}%` }}
               />
             </div>
-            <div className="tb-meterNote">
-              {isOverBudget
-                ? "Over budget — Atlas will rebalance your plan."
-                : ""}
-            </div>
+            {isOverBudget && (
+              <div className="tb-meterNote">
+                Over budget — Atlas will rebalance your plan.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Inputs */}
+        {/* ── Main inputs ── */}
         <div className="tb-grid">
           <div className="tb-field">
-            <div className="tb-fieldLabel">Set budget</div>
+            <div className="tb-fieldLabel">Set total budget</div>
             <InputNumber
               prefix="$"
               value={planned ?? null}
@@ -369,13 +440,13 @@ export default function TripBudgetCard({
               step={50}
               controls={false}
               className="tb-input tb-force"
-              onChange={(v) => onChangePlanned?.(v ?? null)}
-              placeholder="0"
+              placeholder="Enter your budget"
+              onChange={(v) => setPlanned(v ?? null)}
             />
           </div>
 
           <div className="tb-field">
-            <div className="tb-fieldLabel">Track expense</div>
+            <div className="tb-fieldLabel">Track an expense</div>
             <div className="tb-add-row">
               <InputNumber
                 prefix="$"
@@ -384,38 +455,40 @@ export default function TripBudgetCard({
                 step={10}
                 controls={false}
                 className="tb-input tb-force"
-                onChange={(v) => onChangeExpenseAmount?.(Number(v || 0))}
-                placeholder="0"
+                placeholder="Amount"
+                onChange={(v) => setExpenseAmount(Number(v || 0))}
               />
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={onAddExpense}
+              <button
+                type="button"
                 className="tb-addBtn"
+                onClick={handleAddExpense}
               >
-                Add
-              </Button>
+                <PlusOutlined /> Add
+              </button>
             </div>
             <div className="tb-hint">
-              Tip: extras = food, rides, activities.
+              Food, rides, activities — tap a category below to quick-add.
             </div>
           </div>
         </div>
 
-        {/* Category chips */}
-        <Space wrap className="tb-chips">
-          <button type="button" className="tb-chip">
-            <CoffeeOutlined /> Dining
-          </button>
-          <button type="button" className="tb-chip">
-            <CarOutlined /> Transport
-          </button>
-          <button type="button" className="tb-chip">
-            <HomeOutlined /> Lodging
-          </button>
-        </Space>
+        {/* ── Category quick-add chips ── */}
+        <div className="tb-chips">
+          {CATEGORY_PRESETS.map((cat) => (
+            <button
+              key={cat.label}
+              type="button"
+              className="tb-chip"
+              onClick={() => handleCategoryAdd(cat.amount)}
+              title={`Quick add $${cat.amount} for ${cat.label}`}
+            >
+              {cat.icon} {cat.label}
+              <span className="tb-chipAmount">+${cat.amount}</span>
+            </button>
+          ))}
+        </div>
 
-        {/* Atlas Plan module */}
+        {/* ── Atlas Plan module ── */}
         <div className="tb-stack">
           <div className={`tb-ai tone-${ai.tone || "neutral"}`}>
             <div className="tb-aiTop">
@@ -432,34 +505,37 @@ export default function TripBudgetCard({
             <div className="tb-aiCopy">
               <div className="tb-aiTitle">{ai.title}</div>
               <div className="tb-aiDetail">{ai.detail}</div>
-              {ai.hint ? <div className="tb-aiHint">{ai.hint}</div> : null}
+              {ai.hint && <div className="tb-aiHint">{ai.hint}</div>}
             </div>
 
             <div className="tb-aiActions">
-              <Button
+              <button
+                type="button"
                 className="tb-pillBtn"
                 onClick={() => startAtlas("optimize")}
                 disabled={atlasThinking}
               >
                 Optimize budget
-              </Button>
-              <Button
+              </button>
+              <button
+                type="button"
                 className="tb-pillBtn"
                 onClick={() => startAtlas("deal")}
                 disabled={atlasThinking}
               >
                 Find better deal
-              </Button>
-              <Button
+              </button>
+              <button
+                type="button"
                 className="tb-pillBtnPrimary"
                 onClick={() => startAtlas("surprise")}
                 disabled={atlasThinking}
               >
-                {atlasThinking ? "Atlas is thinking…" : "Surprise me"}
-              </Button>
+                {atlasThinking ? "Atlas is thinking…" : "Surprise me ✨"}
+              </button>
             </div>
 
-            {/* Thinking + typewriter reveal */}
+            {/* Atlas thinking + typewriter bubble */}
             <div
               className={`tb-novaBubble ${
                 atlasThinking ? "is-thinking" : atlasReveal ? "is-reveal" : ""

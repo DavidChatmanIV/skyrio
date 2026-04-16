@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   Typography,
   Space,
@@ -10,6 +10,7 @@ import {
   Col,
   Select,
   InputNumber,
+  Input,
   message as antdMessage,
 } from "antd";
 import {
@@ -19,9 +20,12 @@ import {
   LoadingOutlined,
   SwapOutlined,
   SyncOutlined,
+  EditOutlined,
+  CheckOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import heroImg from "@/assets/Booking/skyrio-hero.jpg";
 import "@/styles/BookingPage.css";
@@ -29,14 +33,279 @@ import "@/styles/BookingPage.css";
 import SaveTripButton from "@/components/trips/SaveTripButton";
 import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
+import { useAtlasContext } from "@/components/Atlas/AtlasContext"; // ← NEW
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-// ─────────────────────────────────────────────
-// Shared orange pill Search button
-// ─────────────────────────────────────────────
+/* ─────────────────────────────────────────────
+   EXAMPLE PLAN SEEDS
+───────────────────────────────────────────── */
+const EXAMPLE_PLANS = {
+  japan: {
+    destination: "Tokyo",
+    iata: "NRT",
+    prompt: "10-day Japan trip under $2,500 with cherry blossoms",
+    budget: 2500,
+    tripDays: 10,
+    tab: "Flights",
+  },
+  miami: {
+    destination: "Miami",
+    iata: "MIA",
+    prompt: "Miami weekend for two under $600",
+    budget: 600,
+    tripDays: 3,
+    tab: "Flights",
+  },
+  paris: {
+    destination: "Paris",
+    iata: "CDG",
+    prompt: "Paris honeymoon with premium stay ideas",
+    budget: 4000,
+    tripDays: 7,
+    tab: "Flights",
+  },
+};
+
+const PLAN_SEEDS = {
+  "tokyo-kyoto": {
+    destination: "Tokyo",
+    iata: "NRT",
+    prompt: "Tokyo + Kyoto — April 5–15, cherry blossom season",
+    budget: 1462,
+    tripDays: 10,
+    tab: "Flights",
+  },
+};
+
+function extractBudgetFromPrompt(prompt) {
+  if (!prompt) return null;
+  const match = prompt.match(/\$[\s]?([\d,]+)/);
+  if (match) {
+    const val = parseInt(match[1].replace(/,/g, ""), 10);
+    return Number.isFinite(val) && val > 0 ? val : null;
+  }
+  return null;
+}
+
+const KNOWN_DESTINATIONS = [
+  "tokyo",
+  "japan",
+  "kyoto",
+  "osaka",
+  "miami",
+  "paris",
+  "bali",
+  "london",
+  "barcelona",
+  "rome",
+  "dubai",
+  "bangkok",
+  "singapore",
+  "new york",
+  "los angeles",
+  "cancun",
+  "hawaii",
+  "sydney",
+  "seoul",
+];
+
+function extractDestFromPrompt(prompt) {
+  if (!prompt) return null;
+  const lower = prompt.toLowerCase();
+  const found = KNOWN_DESTINATIONS.find((d) => lower.includes(d));
+  if (found) return found.charAt(0).toUpperCase() + found.slice(1);
+  const skip = new Set([
+    "a",
+    "in",
+    "to",
+    "for",
+    "the",
+    "with",
+    "under",
+    "trip",
+    "day",
+    "week",
+    "budget",
+    "plan",
+  ]);
+  const cap = prompt
+    .split(/\s+/)
+    .find((w) => /^[A-Z]/.test(w) && !skip.has(w.toLowerCase()));
+  return cap ?? null;
+}
+
+function getAutoSearchDates(tripDays = 10) {
+  const depart = dayjs().add(14, "day").format("YYYY-MM-DD");
+  const ret = dayjs()
+    .add(14 + tripDays, "day")
+    .format("YYYY-MM-DD");
+  return { departDate: depart, returnDate: ret };
+}
+
+/* ─────────────────────────────────────────────
+   WEATHER MAP
+───────────────────────────────────────────── */
+const CITY_WEATHER = {
+  "new york": {
+    label: "New York",
+    icon: "🌥",
+    temp: "Avg 62° / 48°",
+    sub: "Partly cloudy • Light wind",
+  },
+  miami: {
+    label: "Miami",
+    icon: "🌤",
+    temp: "Avg 78° / 65°",
+    sub: "Mostly sunny • Low rain risk",
+  },
+  paris: {
+    label: "Paris",
+    icon: "🌦",
+    temp: "Avg 59° / 46°",
+    sub: "Occasional showers • Mild temps",
+  },
+  london: {
+    label: "London",
+    icon: "🌧",
+    temp: "Avg 54° / 44°",
+    sub: "Overcast • Bring an umbrella",
+  },
+  barcelona: {
+    label: "Barcelona",
+    icon: "⛅",
+    temp: "Avg 70° / 58°",
+    sub: "Warm & breezy • Great for exploring",
+  },
+  rome: {
+    label: "Rome",
+    icon: "☀️",
+    temp: "Avg 72° / 56°",
+    sub: "Warm & sunny • Low humidity",
+  },
+  tokyo: {
+    label: "Tokyo",
+    icon: "🌸",
+    temp: "Avg 68° / 55°",
+    sub: "Mild & clear • Cherry blossom season",
+  },
+  japan: {
+    label: "Japan",
+    icon: "🌸",
+    temp: "Avg 68° / 55°",
+    sub: "Mild & clear • Cherry blossom season",
+  },
+  kyoto: {
+    label: "Kyoto",
+    icon: "🌸",
+    temp: "Avg 67° / 54°",
+    sub: "Cherry blossoms peak • Stunning season",
+  },
+  osaka: {
+    label: "Osaka",
+    icon: "🌸",
+    temp: "Avg 66° / 53°",
+    sub: "Mild & pleasant • Spring conditions",
+  },
+  seoul: {
+    label: "Seoul",
+    icon: "🌤",
+    temp: "Avg 60° / 46°",
+    sub: "Clear & cool • Low humidity",
+  },
+  dubai: {
+    label: "Dubai",
+    icon: "☀️",
+    temp: "Avg 95° / 78°",
+    sub: "Hot & dry • Low humidity at night",
+  },
+  bali: {
+    label: "Bali",
+    icon: "🌴",
+    temp: "Avg 84° / 72°",
+    sub: "Tropical • Some afternoon showers",
+  },
+  bangkok: {
+    label: "Bangkok",
+    icon: "🌤",
+    temp: "Avg 92° / 78°",
+    sub: "Very hot • Sunny with some clouds",
+  },
+  singapore: {
+    label: "Singapore",
+    icon: "🌦",
+    temp: "Avg 88° / 76°",
+    sub: "Hot & humid • Daily showers",
+  },
+  "los angeles": {
+    label: "Los Angeles",
+    icon: "☀️",
+    temp: "Avg 75° / 60°",
+    sub: "Sunny all week • Low rain risk",
+  },
+  chicago: {
+    label: "Chicago",
+    icon: "💨",
+    temp: "Avg 55° / 42°",
+    sub: "Windy with clear skies • Cool evenings",
+  },
+  "las vegas": {
+    label: "Las Vegas",
+    icon: "☀️",
+    temp: "Avg 85° / 64°",
+    sub: "Hot & dry • Clear skies",
+  },
+  cancun: {
+    label: "Cancún",
+    icon: "🌊",
+    temp: "Avg 88° / 74°",
+    sub: "Hot & humid • Perfect beach weather",
+  },
+  hawaii: {
+    label: "Hawaii",
+    icon: "🌺",
+    temp: "Avg 82° / 70°",
+    sub: "Sunny with trade winds • Ideal conditions",
+  },
+  sydney: {
+    label: "Sydney",
+    icon: "🌤",
+    temp: "Avg 72° / 60°",
+    sub: "Mostly sunny • Comfortable",
+  },
+};
+
+const DEFAULT_WEATHER = {
+  label: null,
+  icon: "🌍",
+  temp: "",
+  sub: "Select a destination to see weather",
+};
+
+function getWeatherForCity(cityStr) {
+  if (!cityStr) return DEFAULT_WEATHER;
+  const key = cityStr.toLowerCase().trim();
+  if (CITY_WEATHER[key]) return CITY_WEATHER[key];
+  const partial = Object.keys(CITY_WEATHER).find((k) => key.includes(k));
+  if (partial) return CITY_WEATHER[partial];
+  const reverse = Object.keys(CITY_WEATHER).find((k) => k.includes(key));
+  if (reverse) return CITY_WEATHER[reverse];
+  return {
+    label: cityStr
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" "),
+    icon: "🌍",
+    temp: "",
+    sub: "Weather data not available for this destination",
+  };
+}
+
+/* ─────────────────────────────────────────────
+   SEARCH BUTTON
+───────────────────────────────────────────── */
 function SearchBtn({ onClick, loading }) {
   return (
     <Button
@@ -50,10 +319,10 @@ function SearchBtn({ onClick, loading }) {
   );
 }
 
-// ─────────────────────────────────────────────
-// FLIGHTS
-// ─────────────────────────────────────────────
-function FlightsForm({ onSearch }) {
+/* ─────────────────────────────────────────────
+   SEARCH FORMS
+───────────────────────────────────────────── */
+function FlightsForm({ onSearch, onDestChange }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
   const [originDisplay, setOriginDisplay] = useState("");
@@ -69,7 +338,6 @@ function FlightsForm({ onSearch }) {
     if (!destAirport)
       return antdMessage.warning("Select a destination airport");
     if (!dates[0]) return antdMessage.warning("Select a departure date");
-
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -81,11 +349,9 @@ function FlightsForm({ onSearch }) {
       });
       if (dates[1])
         params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
-
       const res = await fetch(`/api/flights/search?${params}`);
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.message || "Search failed");
-
       onSearch(data.flights);
       antdMessage.success(`Found ${data.flights.length} flights`);
     } catch (err) {
@@ -96,10 +362,12 @@ function FlightsForm({ onSearch }) {
   };
 
   const handleSwap = () => {
+    const newDestCity = originAirport?.city ?? null;
     setOriginAirport(destAirport);
     setDestAirport(originAirport);
     setOriginDisplay(destDisplay);
     setDestDisplay(originDisplay);
+    if (newDestCity) onDestChange?.(newDestCity);
   };
 
   return (
@@ -113,12 +381,7 @@ function FlightsForm({ onSearch }) {
             setOriginDisplay(`${ap.city} (${ap.code})`);
           }}
         />
-        <button
-          type="button"
-          className="sk-swap-btn"
-          onClick={handleSwap}
-          title="Swap airports"
-        >
+        <button type="button" className="sk-swap-btn" onClick={handleSwap}>
           <SwapOutlined />
         </button>
         <AirportInput
@@ -127,19 +390,20 @@ function FlightsForm({ onSearch }) {
           onChange={(ap) => {
             setDestAirport(ap);
             setDestDisplay(`${ap.city} (${ap.code})`);
+            onDestChange?.(ap.city);
           }}
         />
       </div>
       <RangePicker
         className="sk-orange-picker"
-        onChange={(vals) => setDates(vals ?? [null, null])}
+        onChange={(v) => setDates(v ?? [null, null])}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
       <Select
         className="sk-select-cabin"
         value={cabin}
         onChange={setCabin}
-        popupClassName="sk-select-popup"
+        classNames={{ popup: { root: "sk-select-popup" } }}
       >
         <Option value="economy">Economy</Option>
         <Option value="premium_economy">Premium Economy</Option>
@@ -159,16 +423,13 @@ function FlightsForm({ onSearch }) {
   );
 }
 
-// ─────────────────────────────────────────────
-// STAYS
-// ─────────────────────────────────────────────
-function StaysForm() {
+function StaysForm({ onDestChange }) {
   return (
     <div className="sk-search-bar">
       <AirportInput
         value=""
         placeholder="Where to? City or hotel"
-        onChange={() => {}}
+        onChange={(ap) => onDestChange?.(ap.city)}
       />
       <RangePicker
         className="sk-orange-picker"
@@ -178,7 +439,7 @@ function StaysForm() {
       <Select
         className="sk-select-cabin"
         defaultValue="2t1r"
-        popupClassName="sk-select-popup"
+        classNames={{ popup: { root: "sk-select-popup" } }}
       >
         <Option value="1t1r">1 traveler, 1 room</Option>
         <Option value="2t1r">2 travelers, 1 room</Option>
@@ -190,16 +451,13 @@ function StaysForm() {
   );
 }
 
-// ─────────────────────────────────────────────
-// CARS
-// ─────────────────────────────────────────────
-function CarsForm() {
+function CarsForm({ onDestChange }) {
   return (
     <div className="sk-search-bar">
       <AirportInput
         value=""
         placeholder="Pick-up location"
-        onChange={() => {}}
+        onChange={(ap) => onDestChange?.(ap.city)}
       />
       <AirportInput
         value=""
@@ -216,10 +474,7 @@ function CarsForm() {
   );
 }
 
-// ─────────────────────────────────────────────
-// PACKAGES
-// ─────────────────────────────────────────────
-function PackagesForm() {
+function PackagesForm({ onDestChange }) {
   const [originDisplay, setOriginDisplay] = useState("");
   const [destDisplay, setDestDisplay] = useState("");
   const [pkgOptions, setPkgOptions] = useState({
@@ -228,31 +483,24 @@ function PackagesForm() {
     car: false,
   });
   const toggle = (key) => setPkgOptions((p) => ({ ...p, [key]: !p[key] }));
-
   return (
     <div className="sk-search-bar">
       <div className="sk-search-bar-pills">
-        <button
-          type="button"
-          className={`sk-pkg-pill ${pkgOptions.stay ? "is-active" : ""}`}
-          onClick={() => toggle("stay")}
-        >
-          🏨 Stay{pkgOptions.stay ? " added" : ""}
-        </button>
-        <button
-          type="button"
-          className={`sk-pkg-pill ${pkgOptions.flight ? "is-active" : ""}`}
-          onClick={() => toggle("flight")}
-        >
-          ✈ Flight{pkgOptions.flight ? " added" : ""}
-        </button>
-        <button
-          type="button"
-          className={`sk-pkg-pill ${pkgOptions.car ? "is-active" : ""}`}
-          onClick={() => toggle("car")}
-        >
-          🚗 Car{pkgOptions.car ? " added" : ""}
-        </button>
+        {[
+          ["stay", "🏨", "Stay"],
+          ["flight", "✈", "Flight"],
+          ["car", "🚗", "Car"],
+        ].map(([key, icon, label]) => (
+          <button
+            key={key}
+            type="button"
+            className={`sk-pkg-pill ${pkgOptions[key] ? "is-active" : ""}`}
+            onClick={() => toggle(key)}
+          >
+            {icon} {label}
+            {pkgOptions[key] ? " added" : ""}
+          </button>
+        ))}
       </div>
       <AirportInput
         value={originDisplay}
@@ -262,7 +510,10 @@ function PackagesForm() {
       <AirportInput
         value={destDisplay}
         placeholder="Going to"
-        onChange={(ap) => setDestDisplay(`${ap.city} (${ap.code})`)}
+        onChange={(ap) => {
+          setDestDisplay(`${ap.city} (${ap.code})`);
+          onDestChange?.(ap.city);
+        }}
       />
       <RangePicker
         className="sk-orange-picker"
@@ -271,7 +522,7 @@ function PackagesForm() {
       <Select
         className="sk-select-cabin"
         defaultValue="2t1r"
-        popupClassName="sk-select-popup"
+        classNames={{ popup: { root: "sk-select-popup" } }}
       >
         <Option value="1t1r">1 traveler, 1 room</Option>
         <Option value="2t1r">2 travelers, 1 room</Option>
@@ -282,16 +533,13 @@ function PackagesForm() {
   );
 }
 
-// ─────────────────────────────────────────────
-// EXCURSIONS
-// ─────────────────────────────────────────────
-function ExcursionsForm() {
+function ExcursionsForm({ onDestChange }) {
   return (
     <div className="sk-search-bar">
       <AirportInput
         value=""
         placeholder="Destination city"
-        onChange={() => {}}
+        onChange={(ap) => onDestChange?.(ap.city)}
       />
       <RangePicker
         className="sk-orange-picker"
@@ -301,7 +549,7 @@ function ExcursionsForm() {
       <Select
         className="sk-select-cabin"
         defaultValue="any"
-        popupClassName="sk-select-popup"
+        classNames={{ popup: { root: "sk-select-popup" } }}
       >
         <Option value="any">Any category</Option>
         <Option value="tours">Tours</Option>
@@ -315,9 +563,6 @@ function ExcursionsForm() {
   );
 }
 
-// ─────────────────────────────────────────────
-// LAST MINUTE
-// ─────────────────────────────────────────────
 function LastMinuteForm() {
   return (
     <div className="sk-search-bar">
@@ -325,7 +570,7 @@ function LastMinuteForm() {
       <Select
         className="sk-select-cabin"
         defaultValue="anywhere"
-        popupClassName="sk-select-popup"
+        classNames={{ popup: { root: "sk-select-popup" } }}
       >
         <Option value="anywhere">✨ Anywhere</Option>
         <Option value="beach">🏖 Beach</Option>
@@ -343,9 +588,6 @@ function LastMinuteForm() {
   );
 }
 
-// ─────────────────────────────────────────────
-// SAVED
-// ─────────────────────────────────────────────
 function SavedForm() {
   return (
     <div className="sk-search-bar" style={{ justifyContent: "center" }}>
@@ -356,22 +598,157 @@ function SavedForm() {
   );
 }
 
-const TAB_FORMS = {
-  Stays: StaysForm,
-  Flights: null,
-  Cars: CarsForm,
-  Saved: SavedForm,
-  Excursions: ExcursionsForm,
-  Packages: PackagesForm,
-  "Last-Minute": LastMinuteForm,
-};
+/* ─────────────────────────────────────────────
+   FLIGHT SKELETON
+───────────────────────────────────────────── */
+function FlightSkeleton() {
+  return (
+    <div className="sk-flight-skeleton">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="sk-skeleton-card">
+          <div className="sk-skeleton-thumb sk-shimmer" />
+          <div className="sk-skeleton-body">
+            <div
+              className="sk-skeleton-line sk-shimmer"
+              style={{ width: "55%" }}
+            />
+            <div
+              className="sk-skeleton-line sk-shimmer"
+              style={{ width: "40%", marginTop: 8 }}
+            />
+            <div
+              className="sk-skeleton-line sk-shimmer"
+              style={{ width: "30%", marginTop: 8 }}
+            />
+          </div>
+          <div className="sk-skeleton-price sk-shimmer" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-// ─────────────────────────────────────────────
-// MAIN PAGE
-// ─────────────────────────────────────────────
+/* ─────────────────────────────────────────────
+   MAIN PAGE
+───────────────────────────────────────────── */
 export default function BookingPage() {
-  const [tab, setTab] = useState("Stays");
+  const [searchParams] = useSearchParams();
+  const { setAtlasDestination } = useAtlasContext(); // ← NEW
+
+  const prefillData = useMemo(() => {
+    const promptParam = searchParams.get("prompt");
+    const planParam = searchParams.get("plan");
+    const exampleParam = searchParams.get("example");
+
+    if (exampleParam && EXAMPLE_PLANS[exampleParam]) {
+      return { ...EXAMPLE_PLANS[exampleParam], source: "example" };
+    }
+    if (planParam && PLAN_SEEDS[planParam]) {
+      const seed = PLAN_SEEDS[planParam];
+      const mergedPrompt = promptParam ?? seed.prompt;
+      const mergedBudget = extractBudgetFromPrompt(mergedPrompt) ?? seed.budget;
+      return {
+        ...seed,
+        prompt: mergedPrompt,
+        budget: mergedBudget,
+        source: "plan",
+      };
+    }
+    if (promptParam) {
+      return {
+        prompt: promptParam,
+        destination: extractDestFromPrompt(promptParam),
+        budget: extractBudgetFromPrompt(promptParam),
+        tripDays: null,
+        tab: null,
+        iata: null,
+        source: "prompt",
+      };
+    }
+    return null;
+  }, [searchParams]);
+
+  /* ── Core state ── */
+  const [tab, setTab] = useState(prefillData?.tab ?? "Stays");
   const [flightResults, setFlightResults] = useState([]);
+  const [autoSearchDone, setAutoSearchDone] = useState(false);
+  const [autoSearchLoading, setAutoSearchLoading] = useState(false);
+  const [autoSearchError, setAutoSearchError] = useState(null);
+  const [destCity, setDestCity] = useState(prefillData?.destination ?? "miami");
+
+  /* ── Keep Atlas in sync with current destination ── */
+  // NEW: whenever destCity changes, push it into AtlasContext so the
+  // floating chat widget shows destination-aware suggestion chips
+  useEffect(() => {
+    setAtlasDestination(destCity);
+  }, [destCity, setAtlasDestination]);
+
+  /* ── Prefill inline edit state ── */
+  const [prefillEditing, setPrefillEditing] = useState(false);
+  const [prefillDismissed, setPrefillDismissed] = useState(false);
+  const [editPrompt, setEditPrompt] = useState(prefillData?.prompt ?? "");
+  const [editBudget, setEditBudget] = useState(prefillData?.budget ?? null);
+  const [editDays, setEditDays] = useState(prefillData?.tripDays ?? 3);
+
+  const budgetSeed = prefillData?.budget ?? null;
+  const tripDaySeed = prefillData?.tripDays ?? 3;
+
+  /* ── Auto-search on mount when prefill has IATA ── */
+  useEffect(() => {
+    if (!prefillData?.iata || autoSearchDone) return;
+    const { iata, tripDays: days = 10 } = prefillData;
+    const { departDate, returnDate } = getAutoSearchDates(days);
+
+    setAutoSearchLoading(true);
+    setAutoSearchError(null);
+    setTab("Flights");
+
+    const params = new URLSearchParams({
+      from: "EWR",
+      to: iata,
+      departDate,
+      returnDate,
+      adults: "1",
+      cabin: "economy",
+    });
+
+    fetch(`/api/flights/search?${params}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.ok) throw new Error(data.message || "Search failed");
+        setFlightResults(data.flights ?? []);
+        setAutoSearchDone(true);
+        if (data.flights?.length) {
+          antdMessage.success(
+            `✈️ Found ${data.flights.length} flights to ${prefillData.destination}`
+          );
+        } else {
+          antdMessage.info(
+            "No flights found for this route — try adjusting dates."
+          );
+        }
+      })
+      .catch((err) => {
+        setAutoSearchError(err.message);
+        antdMessage.error(`Flight search failed: ${err.message}`);
+      })
+      .finally(() => setAutoSearchLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handlePrefillSave = useCallback(() => {
+    const newDest = extractDestFromPrompt(editPrompt) ?? destCity;
+    setDestCity(newDest);
+    setPrefillEditing(false);
+    antdMessage.success("Trip details updated!");
+  }, [editPrompt, editBudget, destCity]);
+
+  const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
+  const weatherTitle = weather.label
+    ? `${weather.label} Weather${weather.temp ? ` • ${weather.temp}` : ""}`
+    : "Select a destination";
+  const heroRoute = destCity ? `New York → ${destCity}` : "New York → Miami";
+  const heroNights = `${tripDaySeed} nights`;
 
   const quickFilters = useMemo(
     () => ["Under $500", "Luxury", "Unwind", "Adventure", "Romantic"],
@@ -389,27 +766,8 @@ export default function BookingPage() {
     title: "Skyrio Select Stay – Deluxe",
     total: 168,
   });
-  const [budgetTotal, setBudgetTotal] = useState(null);
-  const [used, setUsed] = useState(0);
-  const [expenseAmount, setExpenseAmount] = useState(0);
+  const [priceWatchOn, setPriceWatchOn] = useState(false);
 
-  const addExpense = () => {
-    const amt = Number(expenseAmount || 0);
-    if (!amt || amt <= 0) return;
-    setUsed((prev) => Number(prev || 0) + amt);
-    setExpenseAmount(null);
-  };
-  const resetBudget = () => {
-    setBudgetTotal(null);
-    setUsed(0);
-    setExpenseAmount(0);
-    antdMessage.info("Budget reset");
-  };
-
-  const bookingTotal = useMemo(
-    () => Number(selectedResult?.total || 0),
-    [selectedResult]
-  );
   const handleSaveTrip = (src = "page") =>
     antdMessage.success(`Trip saved! (${src})`);
 
@@ -420,34 +778,162 @@ export default function BookingPage() {
     []
   );
 
-  const ActiveForm = TAB_FORMS[tab];
-  const searchForm =
-    tab === "Flights" ? (
-      <FlightsForm onSearch={(flights) => setFlightResults(flights)} />
-    ) : ActiveForm ? (
-      <ActiveForm />
-    ) : null;
+  const searchForm = useMemo(() => {
+    const props = { onDestChange: setDestCity };
+    switch (tab) {
+      case "Flights":
+        return (
+          <FlightsForm
+            onSearch={(f) => setFlightResults(f)}
+            onDestChange={setDestCity}
+          />
+        );
+      case "Stays":
+        return <StaysForm {...props} />;
+      case "Cars":
+        return <CarsForm {...props} />;
+      case "Saved":
+        return <SavedForm />;
+      case "Excursions":
+        return <ExcursionsForm {...props} />;
+      case "Packages":
+        return <PackagesForm {...props} />;
+      case "Last-Minute":
+        return <LastMinuteForm />;
+      default:
+        return null;
+    }
+  }, [tab]);
 
   return (
     <div className="sk-booking" style={{ "--sk-bg-image": `url(${heroImg})` }}>
-      {/* ── HERO ── */}
       <div className="sk-booking-hero">
         <Title className="sk-hero-title">
           Let's lock in your next adventure ✈️
         </Title>
 
         <div className="sk-tripState">
-          <div className="sk-tripRoute">New York → Miami</div>
+          <div className="sk-tripRoute">{heroRoute}</div>
           <div className="sk-tripMeta">
-            3 nights • Sunny all week • Best value window
+            {heroNights} • {weather.sub} • Best value window
           </div>
           <div className="sk-tripAssist">
-            Smart Plan found 4 great options for you
+            {autoSearchLoading
+              ? "⏳ Searching live flights for you…"
+              : autoSearchDone && flightResults.length > 0
+              ? `✈️ Found ${flightResults.length} flights — scroll down to pick`
+              : "Smart Plan found 4 great options for you"}
           </div>
+
+          {prefillData && !prefillDismissed && (
+            <div className="sk-prefill-strip">
+              {!prefillEditing ? (
+                <div className="sk-prefill-collapsed">
+                  <span className="sk-prefill-bolt">⚡</span>
+                  <span className="sk-prefill-loaded">Loaded from AI</span>
+                  <span className="sk-prefill-divider">·</span>
+                  {destCity && (
+                    <span className="sk-prefill-chip">📍 {destCity}</span>
+                  )}
+                  {budgetSeed && (
+                    <span className="sk-prefill-chip">
+                      💰 ${budgetSeed.toLocaleString()}
+                    </span>
+                  )}
+                  {tripDaySeed && (
+                    <span className="sk-prefill-chip">🗓 {tripDaySeed}d</span>
+                  )}
+                  <button
+                    type="button"
+                    className="sk-prefill-editBtn"
+                    onClick={() => setPrefillEditing(true)}
+                  >
+                    <EditOutlined /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="sk-prefill-dismissBtn"
+                    onClick={() => setPrefillDismissed(true)}
+                    aria-label="Dismiss"
+                  >
+                    <CloseOutlined />
+                  </button>
+                </div>
+              ) : (
+                <div className="sk-prefill-expanded">
+                  <div className="sk-prefill-expandedRow">
+                    <div className="sk-prefill-field sk-prefill-field--grow">
+                      <label className="sk-prefill-label">Prompt</label>
+                      <Input
+                        className="sk-prefill-input"
+                        value={editPrompt}
+                        onChange={(e) => setEditPrompt(e.target.value)}
+                      />
+                    </div>
+                    <div className="sk-prefill-field">
+                      <label className="sk-prefill-label">Budget ($)</label>
+                      <InputNumber
+                        className="sk-prefill-numInput"
+                        prefix="$"
+                        value={editBudget}
+                        min={0}
+                        step={100}
+                        controls={false}
+                        onChange={(v) => setEditBudget(v ?? null)}
+                        placeholder="2500"
+                      />
+                    </div>
+                    <div className="sk-prefill-field">
+                      <label className="sk-prefill-label">Days</label>
+                      <InputNumber
+                        className="sk-prefill-numInput"
+                        value={editDays}
+                        min={1}
+                        max={60}
+                        controls={false}
+                        onChange={(v) => setEditDays(v ?? 3)}
+                      />
+                    </div>
+                  </div>
+                  <div className="sk-prefill-expandedActions">
+                    <button
+                      type="button"
+                      className="sk-prefill-saveBtn"
+                      onClick={handlePrefillSave}
+                    >
+                      <CheckOutlined /> Save
+                    </button>
+                    <button
+                      type="button"
+                      className="sk-prefill-cancelBtn"
+                      onClick={() => setPrefillEditing(false)}
+                    >
+                      <CloseOutlined /> Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <Space size="middle" className="sk-hero-pills">
             <div className="sk-pill sk-pill-orange">⚡ XP 60</div>
-            <div className="sk-pill sk-pill-glass">💾 8 Saved</div>
-            <div className="sk-pill sk-pill-glass">👁 Price Watch Off</div>
+            <button
+              type="button"
+              className={`sk-pill sk-pill-glass sk-pill-toggle ${
+                priceWatchOn ? "is-active" : ""
+              }`}
+              onClick={() => {
+                setPriceWatchOn((p) => !p);
+                antdMessage.info(
+                  priceWatchOn
+                    ? "Price Watch disabled"
+                    : "Price Watch enabled — we'll alert you on drops!"
+                );
+              }}
+            >
+              {priceWatchOn ? "🔔 Price Watch On" : "🔕 Price Watch Off"}
+            </button>
           </Space>
         </div>
 
@@ -476,12 +962,10 @@ export default function BookingPage() {
         <div className="sk-weatherStrip">
           <div className="sk-weatherInner">
             <div className="sk-weatherTop">
-              <span className="sk-weatherIcon">🌤</span>
-              <span className="sk-weatherTitle">
-                Miami Weather • Avg 78° / 65°
-              </span>
+              <span className="sk-weatherIcon">{weather.icon}</span>
+              <span className="sk-weatherTitle">{weatherTitle}</span>
             </div>
-            <div className="sk-weatherSub">Mostly sunny • Low rain risk</div>
+            <div className="sk-weatherSub">{weather.sub}</div>
           </div>
         </div>
 
@@ -489,11 +973,7 @@ export default function BookingPage() {
 
         <Space className="sk-action-row" wrap>
           <Button className="sk-btn-orange">Sort: Recommended</Button>
-
-          {/* ── Fixed SaveTripButton — now gets onSaveConfirmed prop ── */}
           <SaveTripButton onSaveConfirmed={() => handleSaveTrip("hero")} />
-
-          {/* ── Sync Together replaces Team Travel ── */}
           <Link to="/sync-together">
             <Button className="sk-btn-sync" icon={<SyncOutlined />}>
               ✈️ Sync Together
@@ -529,14 +1009,43 @@ export default function BookingPage() {
         <Col xs={24} lg={16}>
           <div className="sk-resultsHeader">
             <Title level={4} className="sk-section-title">
-              Results
+              {autoSearchLoading
+                ? "Searching flights…"
+                : flightResults.length > 0
+                ? `${flightResults.length} Flights Found`
+                : "Results"}
             </Title>
             <div className="sk-resultsSub">
-              Curated picks based on your budget + comfort preferences.
+              {autoSearchLoading
+                ? `Searching EWR → ${
+                    prefillData?.iata ?? destCity
+                  } • today +14 days`
+                : flightResults.length > 0
+                ? `Sorted by price • EWR → ${prefillData?.iata ?? destCity}`
+                : "Curated picks based on your budget + comfort preferences."}
             </div>
           </div>
 
-          {flightResults.length > 0 &&
+          {autoSearchLoading && <FlightSkeleton />}
+
+          {!autoSearchLoading && autoSearchError && (
+            <div className="sk-search-error">
+              ⚠️ {autoSearchError} —{" "}
+              <button
+                type="button"
+                className="sk-search-retry"
+                onClick={() => {
+                  setAutoSearchDone(false);
+                  setAutoSearchError(null);
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!autoSearchLoading &&
+            flightResults.length > 0 &&
             flightResults.map((flight) => (
               <Card
                 key={flight.id}
@@ -576,8 +1085,10 @@ export default function BookingPage() {
                             <>
                               <span className="sk-metaDot">•</span>
                               <span className="sk-metaItem">
-                                {dayjs(flight.departingAt).format("h:mm A")} →{" "}
-                                {dayjs(flight.arrivingAt).format("h:mm A")}
+                                {dayjs(flight.departingAt).format(
+                                  "MMM D • h:mm A"
+                                )}{" "}
+                                → {dayjs(flight.arrivingAt).format("h:mm A")}
                               </span>
                             </>
                           )}
@@ -612,98 +1123,100 @@ export default function BookingPage() {
                       <span className="sk-tag sk-tag-orange">
                         {flight.ownerCode}
                       </span>
+                      {budgetSeed &&
+                        parseFloat(flight.totalAmount) <= budgetSeed && (
+                          <span className="sk-tag sk-tag-good">
+                            Within budget
+                          </span>
+                        )}
                     </div>
                   </div>
                 </div>
               </Card>
             ))}
 
-          {flightResults.length === 0 && (
-            <Card
-              variant="borderless"
-              className={`sk-result-card ${
-                selectedResult.id === "stay-1" ? "is-selected" : ""
-              }`}
-              onClick={() =>
-                setSelectedResult({
-                  id: "stay-1",
-                  title: "Skyrio Select Stay – Deluxe",
-                  total: 168,
-                })
-              }
-              style={{ cursor: "pointer" }}
-            >
-              <div className="sk-resultRow">
-                <div className="sk-thumb" />
-                <div className="sk-resultMain">
-                  <div className="sk-resultTop">
-                    <div>
-                      <div className="sk-resultTitle">
-                        Skyrio Select Stay – Deluxe
-                      </div>
-                      <div className="sk-resultMeta">
-                        <span className="sk-metaItem">
-                          <EnvironmentOutlined /> New York → Miami
-                        </span>
-                        <span className="sk-metaDot">•</span>
-                        <span className="sk-metaItem">
-                          <StarFilled className="sk-star" /> {rating}
-                          <span className="sk-reviews">
-                            {" "}
-                            ({reviews.toLocaleString()})
+          {!autoSearchLoading &&
+            flightResults.length === 0 &&
+            !autoSearchError && (
+              <Card
+                variant="borderless"
+                className={`sk-result-card ${
+                  selectedResult.id === "stay-1" ? "is-selected" : ""
+                }`}
+                onClick={() =>
+                  setSelectedResult({
+                    id: "stay-1",
+                    title: "Skyrio Select Stay – Deluxe",
+                    total: 168,
+                  })
+                }
+                style={{ cursor: "pointer" }}
+              >
+                <div className="sk-resultRow">
+                  <div className="sk-thumb" />
+                  <div className="sk-resultMain">
+                    <div className="sk-resultTop">
+                      <div>
+                        <div className="sk-resultTitle">
+                          Skyrio Select Stay – Deluxe
+                        </div>
+                        <div className="sk-resultMeta">
+                          <span className="sk-metaItem">
+                            <EnvironmentOutlined /> {heroRoute}
                           </span>
-                        </span>
+                          <span className="sk-metaDot">•</span>
+                          <span className="sk-metaItem">
+                            <StarFilled className="sk-star" /> {rating}
+                            <span className="sk-reviews">
+                              {" "}
+                              ({reviews.toLocaleString()})
+                            </span>
+                          </span>
+                        </div>
+                        <div className="sk-pickedWhy">
+                          Why Skyrio picked this: high rating + best value this
+                          window
+                        </div>
                       </div>
-                      <div className="sk-pickedWhy">
-                        Why Skyrio picked this: high rating + best value this
-                        window
+                      <div className="sk-resultRight">
+                        <div className="sk-priceLine">
+                          <span className="sk-priceAmt">$168</span>
+                          <span className="sk-priceSub">total</span>
+                        </div>
+                        <SaveTripButton
+                          size="small"
+                          variant="ghost"
+                          label="Save"
+                          onSaveConfirmed={() => handleSaveTrip("result")}
+                        />
                       </div>
                     </div>
-                    <div className="sk-resultRight">
-                      <div className="sk-priceLine">
-                        <span className="sk-priceAmt">$168</span>
-                        <span className="sk-priceSub">total</span>
-                      </div>
-                      <SaveTripButton
-                        size="small"
-                        variant="ghost"
-                        label="Save"
-                        onSaveConfirmed={() => handleSaveTrip("result")}
-                      />
-                    </div>
-                  </div>
-                  <div className="sk-tagRow">
-                    <span className="sk-tag sk-tag-good">Best Value</span>
-                    <span className="sk-tag sk-tag-orange">
-                      Free cancellation
-                    </span>
-                    <span className="sk-tag sk-tag-soft">No resort fee</span>
-                  </div>
-                  <div className="sk-bestFor">
-                    <span className="sk-bestForLabel">Best for:</span>
-                    {bestFor.map((t) => (
-                      <span key={t} className="sk-tag sk-tag-bestfor">
-                        {t}
+                    <div className="sk-tagRow">
+                      <span className="sk-tag sk-tag-good">Best Value</span>
+                      <span className="sk-tag sk-tag-orange">
+                        Free cancellation
                       </span>
-                    ))}
+                      <span className="sk-tag sk-tag-soft">No resort fee</span>
+                    </div>
+                    <div className="sk-bestFor">
+                      <span className="sk-bestForLabel">Best for:</span>
+                      {bestFor.map((t) => (
+                        <span key={t} className="sk-tag sk-tag-bestfor">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Card>
-          )}
+              </Card>
+            )}
         </Col>
 
         <Col xs={24} lg={8}>
           <TripBudgetCard
-            bookingTotal={bookingTotal}
-            planned={budgetTotal}
-            used={used}
-            expenseAmount={expenseAmount}
-            onChangePlanned={setBudgetTotal}
-            onChangeExpenseAmount={setExpenseAmount}
-            onAddExpense={addExpense}
-            onReset={resetBudget}
-            tripDays={3}
+            initialBookingTotal={selectedResult?.total ?? 0}
+            initialTripDays={tripDaySeed}
+            initialDestination={destCity}
           />
         </Col>
       </Row>

@@ -1,18 +1,45 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
-import { Input, Button, Typography, message, notification, Tag } from "antd";
-import { UserOutlined, MailOutlined, LockOutlined } from "@ant-design/icons";
-import { useNavigate, useLocation } from "react-router-dom";
-import AuthLayout from "../layout/AuthLayout";
-import BoardingPassToast from "../components/BoardingPassToast";
+import React, {
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+  useEffect,
+} from "react";
+import { Input, Button, message, Typography, notification } from "antd";
+import {
+  UserOutlined,
+  MailOutlined,
+  LockOutlined,
+  EyeInvisibleOutlined,
+  EyeTwoTone,
+  CheckCircleFilled,
+  CloseCircleFilled,
+  LoadingOutlined,
+} from "@ant-design/icons";
+import { useNavigate, Link } from "react-router-dom";
 
-import { useAuthModal } from "../auth/useAuth";
+import BoardingPassToast from "../components/BoardingPassToast";
+import PassStub from "../components/PassStub";
+import AuthLayout from "../layout/AuthLayout";
+import { useAuth } from "../auth/useAuth";
 
 import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
-import "../styles/LoginBoardingPass.css";
+import gateBg from "../assets/LoginBoardingpass/gate.png";
+import "../styles/login.css";
+import "../styles/RegisterPage.css";
 
 const { Title, Text } = Typography;
 
+const UN_IDLE = "idle";
+const UN_CHECKING = "checking";
+const UN_TAKEN = "taken";
+const UN_AVAILABLE = "available";
+const UN_ERROR = "error";
+
 export default function RegisterPage() {
+  const auth = useAuth();
+  const nav = useNavigate();
+
   const [formData, setFormData] = useState({
     name: "",
     username: "",
@@ -22,69 +49,96 @@ export default function RegisterPage() {
   });
   const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-
-  const nav = useNavigate();
-  const location = useLocation();
-  const authModal = useAuthModal();
-
   const successHandledRef = useRef(false);
 
-  const redirectTo = useMemo(() => {
-    const from = location.state?.from;
-    if (typeof from === "string" && from.trim().startsWith("/")) return from;
-    return "/dashboard";
-  }, [location.state]);
+  /* ── Username availability ── */
+  const [unStatus, setUnStatus] = useState(UN_IDLE);
+  const [unMessage, setUnMessage] = useState("");
+  const debounceRef = useRef(null);
 
-  // ✅ Option A: routeLabel is now used in the UI (prettified)
-  const routeLabel = useMemo(() => {
-    if (redirectTo === "/dashboard") return "Dashboard";
-    const raw = String(redirectTo || "");
-    const cleaned = raw.replace(/^\//, "").replace(/-/g, " ");
-    if (!cleaned) return "your account";
-    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  }, [redirectTo]);
+  const checkUsername = useCallback(
+    async (raw) => {
+      const username = raw.trim();
+      if (!username) {
+        setUnStatus(UN_IDLE);
+        setUnMessage("");
+        return;
+      }
+      if (username.length < 3) {
+        setUnStatus(UN_ERROR);
+        setUnMessage("Min 3 characters");
+        return;
+      }
+      if (!/^[a-zA-Z0-9_.]+$/.test(username)) {
+        setUnStatus(UN_ERROR);
+        setUnMessage("Letters, numbers, _ and . only");
+        return;
+      }
 
-  // ✅ Fix: actually use setFormData (controlled inputs)
-  const updateField = (key) => (e) => {
-    const value = e?.target?.value ?? e;
-    setFormData((prev) => ({ ...prev, [key]: value }));
-  };
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      setUnStatus(UN_CHECKING);
+      setUnMessage("Checking…");
+
+      debounceRef.current = setTimeout(async () => {
+        try {
+          const result = await auth.available?.({ username });
+          if (!result || result.ok === false) {
+            setUnStatus(UN_ERROR);
+            setUnMessage(result?.error || "Could not check");
+            return;
+          }
+          const isAvailable = result?.username?.available ?? false;
+          if (isAvailable) {
+            setUnStatus(UN_AVAILABLE);
+            setUnMessage(`@${username} is available ✓`);
+          } else {
+            setUnStatus(UN_TAKEN);
+            setUnMessage(`@${username} is already taken`);
+          }
+        } catch {
+          setUnStatus(UN_ERROR);
+          setUnMessage("Could not check — try again");
+        }
+      }, 500);
+    },
+    [auth]
+  );
+
+  useEffect(
+    () => () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    },
+    []
+  );
 
   const passenger = useMemo(() => {
-    const raw =
-      (formData.username || "").trim() ||
-      (formData.name || "").trim() ||
-      (formData.email || "").trim();
-
-    if (!raw) return "Explorer";
-    const cleaned = raw.includes("@") ? raw.split("@")[0] : raw;
-    return cleaned.length > 18 ? cleaned.slice(0, 18) + "…" : cleaned;
-  }, [formData.username, formData.name, formData.email]);
-
-  useEffect(() => {
-    if (!loading) setIsScanning(false);
-  }, [loading]);
+    const raw = (formData.name || formData.username || "").trim();
+    if (!raw) return "New Traveller";
+    return raw.length > 18 ? raw.slice(0, 18) + "…" : raw;
+  }, [formData.name, formData.username]);
 
   const handleRegister = async () => {
-    if (loading) return;
-    if (successHandledRef.current) return;
+    if (loading || successHandledRef.current) return;
+    const { name, username, email, password, confirmPassword } = formData;
 
-    const name = (formData.name || "").trim();
-    const username = (formData.username || "").trim();
-    const email = (formData.email || "").trim();
-    const password = formData.password || "";
-    const confirmPassword = formData.confirmPassword || "";
-
-    if (!email || !password) {
-      message.warning("Email and password are required.");
+    if (!name.trim() || !email.trim() || !password) {
+      message.warning("Please fill in all required fields.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      message.error("Passwords don't match.");
       return;
     }
     if (password.length < 8) {
-      message.warning("Use at least 8 characters for your password.");
+      message.error("Password must be at least 8 characters.");
       return;
     }
-    if (confirmPassword && confirmPassword !== password) {
-      message.error("Passwords do not match.");
+    if (username && unStatus === UN_TAKEN) {
+      message.error("That username is already taken.");
+      return;
+    }
+    if (username && unStatus === UN_CHECKING) {
+      message.warning("Still checking username — please wait.");
       return;
     }
 
@@ -96,22 +150,22 @@ export default function RegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          name: name || undefined,
-          username: username || undefined,
-          email,
-          password,
-        }),
+        body: JSON.stringify({ name, username, email, password }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Registration failed");
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Registration failed");
-
-      if (data.token) localStorage.setItem("token", data.token);
-      if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+      if (auth?.setSession)
+        auth.setSession({ token: data?.token, user: data?.user });
+      else {
+        if (data?.token) localStorage.setItem("token", data.token);
+        if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
+      }
 
       const displayName =
-        data.user?.name || data.user?.username || passenger || "Explorer";
+        data.user?.name ||
+        data.user?.username ||
+        (data.user?.email ? data.user.email.split("@")[0] : passenger);
 
       successHandledRef.current = true;
 
@@ -121,7 +175,7 @@ export default function RegisterPage() {
           <BoardingPassToast
             name={displayName}
             routeFrom="Register"
-            routeTo={routeLabel}
+            routeTo="Passport"
           />
         ),
         placement: "topRight",
@@ -129,13 +183,11 @@ export default function RegisterPage() {
         style: { background: "transparent", boxShadow: "none", padding: 0 },
       });
 
-      message.success(`Account created. Welcome aboard, ${displayName} ✈️`);
-
-      authModal?.closeAuthModal?.();
-      nav(redirectTo, { replace: true });
+      message.success(`Boarding pass issued, ${displayName} ✈️`);
+      nav("/passport", { replace: true, state: { fromAuth: true } });
     } catch (err) {
       successHandledRef.current = false;
-      message.error(err.message || "Registration failed");
+      message.error(err?.message || "Registration failed");
       setIsScanning(false);
     } finally {
       setLoading(false);
@@ -145,119 +197,275 @@ export default function RegisterPage() {
   const onKeyDown = (e) => {
     if (e.key === "Enter") handleRegister();
   };
+  const updateField = (key) => (e) =>
+    setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+  const scanOn = () => setIsScanning(true);
+  const scanOff = () => !loading && setIsScanning(false);
+
+  const unIcon = useMemo(() => {
+    if (unStatus === UN_CHECKING)
+      return <LoadingOutlined style={{ color: "rgba(255,255,255,0.55)" }} />;
+    if (unStatus === UN_AVAILABLE)
+      return <CheckCircleFilled style={{ color: "#22c55e" }} />;
+    if (unStatus === UN_TAKEN)
+      return <CloseCircleFilled style={{ color: "#ff5c7a" }} />;
+    if (unStatus === UN_ERROR)
+      return <CloseCircleFilled style={{ color: "#ff8a2a" }} />;
+    return null;
+  }, [unStatus]);
+
+  const unColor = useMemo(() => {
+    if (unStatus === UN_AVAILABLE) return "#22c55e";
+    if (unStatus === UN_TAKEN) return "#ff5c7a";
+    if (unStatus === UN_ERROR) return "#ff8a2a";
+    return "rgba(255,255,255,0.55)";
+  }, [unStatus]);
 
   return (
     <AuthLayout>
-      <div className="sk-authWrap">
-        <div className="sk-authHero">
-          <Title level={1} className="sk-authTitle">
-            Create your passport
-          </Title>
+      <div className="auth-scene register">
+        <div className="sk-loginPage">
+          <div
+            className="sk-loginBg"
+            style={{ backgroundImage: `url(${gateBg})` }}
+            aria-hidden="true"
+          />
 
-          <Text className="sk-authSubtitle">
-            Start earning XP and unlock your first stamp.
-          </Text>
-
-          {/* ✅ Option A: show where we’ll send them after signup */}
-          <div className="sk-authHintRow">
-            <Text className="sk-authHintText">
-              After signup, we’ll take you to{" "}
-              <span className="sk-authPill">{routeLabel}</span>.
-            </Text>
-          </div>
-        </div>
-
-        <div
-          className={`sk-pass ${isScanning ? "isScanning" : ""}`}
-          style={{ "--sk-pass-bg": `url(${galaxyLogin})` }}
-          onKeyDown={onKeyDown}
-          role="form"
-          aria-busy={loading ? "true" : "false"}
-        >
-          {/* =======================
-              REGISTER FORM FIELDS
-              ======================= */}
-          <div className="sk-passBody">
-            <div className="sk-passRow">
-              <Text className="sk-passLabel">Full Name</Text>
-              <Input
-                prefix={<UserOutlined />}
-                placeholder="Your name"
-                value={formData.name}
-                onChange={updateField("name")}
-                disabled={loading}
-              />
+          <div className="sk-loginWrap">
+            <div className="sk-loginInner">
+              <div className="sk-authHero">
+                <Title level={2} className="sk-authTitle">
+                  Issue your boarding pass
+                </Title>
+                <Text className="sk-authSubtitle">
+                  Join Skyrio. Earn XP. See the world.
+                </Text>
+              </div>
             </div>
 
-            <div className="sk-passRow">
-              <Text className="sk-passLabel">Username</Text>
-              <Input
-                prefix={<UserOutlined />}
-                placeholder="Choose a username"
-                value={formData.username}
-                onChange={updateField("username")}
-                disabled={loading}
-              />
-            </div>
+            <div
+              className={`sk-passCard sk-passWide sk-passRegister ${
+                isScanning ? "isScanning" : ""
+              }`}
+              style={{
+                "--sk-pass-bg": `url(${galaxyLogin})`,
+                "--sk-gateImg": `url(${gateBg})`,
+              }}
+              onKeyDown={onKeyDown}
+              role="form"
+              aria-busy={loading ? "true" : "false"}
+            >
+              <div className="sk-passGlow" />
+              <div className="sk-passScan" aria-hidden="true" />
 
-            <div className="sk-passRow">
-              <Text className="sk-passLabel">Email</Text>
-              <Input
-                prefix={<MailOutlined />}
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={updateField("email")}
-                disabled={loading}
-              />
-            </div>
+              <div className="sk-passGrid">
+                {/* ── MAIN ── */}
+                <div className="sk-passMain">
+                  <div className="sk-passHeader">
+                    <div className="sk-brandRow">
+                      <span className="sk-dot" />
+                      <span className="sk-brand">Skyrio</span>
+                    </div>
+                    <div className="sk-chipRow">
+                      <span className="sk-chip">NEW</span>
+                      <span className="sk-chip">Gate A3</span>
+                    </div>
+                  </div>
 
-            <div className="sk-passRow">
-              <Text className="sk-passLabel">Password</Text>
-              <Input.Password
-                prefix={<LockOutlined />}
-                placeholder="Minimum 8 characters"
-                value={formData.password}
-                onChange={updateField("password")}
-                disabled={loading}
-              />
-            </div>
+                  <div className="sk-passTitle">
+                    <div className="sk-kicker">
+                      BOARDING PASS — REGISTRATION
+                    </div>
+                  </div>
 
-            <div className="sk-passRow">
-              <Text className="sk-passLabel">Confirm Password</Text>
-              <Input.Password
-                prefix={<LockOutlined />}
-                placeholder="Re-enter password"
-                value={formData.confirmPassword}
-                onChange={updateField("confirmPassword")}
-                disabled={loading}
-              />
-            </div>
+                  <div className="sk-idGrid">
+                    <div className="sk-idBlock">
+                      <div className="sk-label">PASSENGER</div>
+                      <div className="sk-value">{passenger}</div>
+                    </div>
+                    <div className="sk-idBlock sk-right">
+                      <div className="sk-label">STATUS</div>
+                      <div className="sk-statusPill">
+                        {loading ? "Issuing…" : "New"}
+                      </div>
+                    </div>
+                    <div className="sk-idBlock">
+                      <div className="sk-label">FROM</div>
+                      <div className="sk-smallValue">Register</div>
+                    </div>
+                    <div className="sk-idBlock sk-right">
+                      <div className="sk-label">TO</div>
+                      <div className="sk-smallValue">Passport</div>
+                    </div>
+                  </div>
 
-            {/* Optional helper tags (keeps your Tag import useful) */}
-            <div className="sk-passTags">
-              <Tag color="orange">Secure account</Tag>
-              <Tag color="purple">Passport unlock</Tag>
-              <Tag color="cyan">Earn XP</Tag>
-            </div>
+                  <div className="sk-flightLine" aria-hidden="true">
+                    <div className="sk-lineDot" />
+                    <div className="sk-line" />
+                    <div className="sk-plane">✈︎</div>
+                    <div className="sk-line" />
+                    <div className="sk-lineDot" />
+                  </div>
 
-            <div className="sk-passActions">
-              <Button
-                type="primary"
-                className="sk-passBtn"
-                loading={loading}
-                onClick={handleRegister}
-              >
-                Create Account
-              </Button>
+                  <div className="sk-form">
+                    {/* Row 1: Name + Username */}
+                    <div className="sk-fieldRow">
+                      <div className="sk-field">
+                        <div className="sk-fieldLabel">FULL NAME *</div>
+                        <Input
+                          value={formData.name}
+                          onChange={updateField("name")}
+                          placeholder="Your name"
+                          prefix={<UserOutlined />}
+                          className="sk-input sk-input-reg"
+                          autoComplete="name"
+                          onFocus={scanOn}
+                          onBlur={scanOff}
+                        />
+                      </div>
+                      <div className="sk-field">
+                        <div className="sk-fieldLabel">
+                          USERNAME
+                          {unStatus !== UN_IDLE && (
+                            <span
+                              className="sk-un-status"
+                              style={{ color: unColor }}
+                            >
+                              {unMessage}
+                            </span>
+                          )}
+                        </div>
+                        <Input
+                          value={formData.username}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              .toLowerCase()
+                              .replace(/[^a-z0-9_.]/g, "");
+                            updateField("username")({ target: { value: val } });
+                            checkUsername(val);
+                          }}
+                          placeholder="skyexplorer99"
+                          prefix={<span className="sk-atSign">@</span>}
+                          suffix={unIcon}
+                          className={`sk-input sk-input-reg ${
+                            unStatus === UN_TAKEN
+                              ? "sk-input-error"
+                              : unStatus === UN_AVAILABLE
+                              ? "sk-input-success"
+                              : ""
+                          }`}
+                          autoComplete="username"
+                          onFocus={scanOn}
+                          onBlur={scanOff}
+                          maxLength={30}
+                        />
+                      </div>
+                    </div>
 
-              <Button
-                type="default"
-                className="sk-passBtnGhost"
-                disabled={loading}
-                onClick={() => nav("/login", { state: { from: redirectTo } })}
-              >
-                I already have an account
-              </Button>
+                    {/* Row 2: Email */}
+                    <div className="sk-field">
+                      <div className="sk-fieldLabel">EMAIL *</div>
+                      <Input
+                        value={formData.email}
+                        onChange={updateField("email")}
+                        placeholder="you@example.com"
+                        prefix={<MailOutlined />}
+                        className="sk-input sk-input-reg"
+                        autoComplete="email"
+                        onFocus={scanOn}
+                        onBlur={scanOff}
+                      />
+                    </div>
+
+                    {/* Row 3: Password + Confirm */}
+                    <div className="sk-fieldRow">
+                      <div className="sk-field">
+                        <div className="sk-fieldLabel">PASSWORD *</div>
+                        <Input.Password
+                          value={formData.password}
+                          onChange={updateField("password")}
+                          placeholder="Min. 8 characters"
+                          prefix={<LockOutlined />}
+                          className="sk-input sk-input-reg"
+                          autoComplete="new-password"
+                          onFocus={scanOn}
+                          onBlur={scanOff}
+                          iconRender={(v) =>
+                            v ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+                          }
+                        />
+                      </div>
+                      <div className="sk-field">
+                        <div className="sk-fieldLabel">
+                          CONFIRM PASSWORD *
+                          {formData.confirmPassword && (
+                            <span
+                              style={{
+                                marginLeft: 6,
+                                fontSize: 10,
+                                fontWeight: 800,
+                                color:
+                                  formData.password === formData.confirmPassword
+                                    ? "#22c55e"
+                                    : "#ff5c7a",
+                              }}
+                            >
+                              {formData.password === formData.confirmPassword
+                                ? "✓ Match"
+                                : "✗ No match"}
+                            </span>
+                          )}
+                        </div>
+                        <Input.Password
+                          value={formData.confirmPassword}
+                          onChange={updateField("confirmPassword")}
+                          placeholder="Repeat password"
+                          prefix={<LockOutlined />}
+                          className="sk-input sk-input-reg"
+                          autoComplete="new-password"
+                          onFocus={scanOn}
+                          onBlur={scanOff}
+                          iconRender={(v) =>
+                            v ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      className="sk-ctaBtn sk-ctaBtn-reg"
+                      type="primary"
+                      block
+                      loading={loading}
+                      onClick={handleRegister}
+                      disabled={
+                        unStatus === UN_TAKEN || unStatus === UN_CHECKING
+                      }
+                    >
+                      Issue Boarding Pass
+                    </Button>
+
+                    <div className="sk-secondary">
+                      <Text className="sk-muted">
+                        Already have a pass?{" "}
+                        <Link className="sk-inlineBtnLink" to="/login">
+                          Sign in
+                        </Link>
+                      </Text>
+                      <Text className="sk-muted sk-micro">
+                        By registering you agree to Skyrio's Terms of Service.
+                      </Text>
+                    </div>
+                  </div>
+
+                  <div className="sk-cardFooter">
+                    © {new Date().getFullYear()} Skyrio
+                  </div>
+                </div>
+
+                {/* ✅ Real QR stub */}
+                <PassStub />
+              </div>
             </div>
           </div>
         </div>

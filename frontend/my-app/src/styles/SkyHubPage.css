@@ -395,9 +395,52 @@
   flex-direction: column;
   gap: 16px;
 }
+/* ══════════════════════════════════════════════════════════
+  STYLE TABS
+══════════════════════════════════════════════════════════ */
+
+/* ──TABS (Browse Feed) ── */
+.skyhub-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr); /* adjust if more tabs */
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+
+.skyhub-tab {
+  position: relative;
+  z-index: 2;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.6);
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 14px 10px;
+  cursor: pointer;
+  transition: color 0.25s ease;
+}
+
+.skyhub-tab:hover {
+  color: #fff;
+}
+
+.skyhub-tab.active {
+  color: #fff;
+}
+
+/* sliding indicator */
+.skyhub-tabs-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff8a2a, #ffb066);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
 /* ══════════════════════════════════════════════════════════
-   FEED SECTION  —  dark glass, unified with all cards
+  FEED SECTION  —  dark glass, unified with all cards
 ══════════════════════════════════════════════════════════ */
 .skyhub-feedSection {
   background: rgba(20, 12, 40, 0.45);
@@ -453,7 +496,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   GLASS CARD  —  legacy base class
+  GLASS CARD  —  legacy base class
 ══════════════════════════════════════════════════════════ */
 .skyhub-card {
   background: var(--sh-glass-card);
@@ -484,8 +527,8 @@
 .skyhub-card > * { position: relative; z-index: 1; }
 
 /* ══════════════════════════════════════════════════════════
-   FEED CARD  —  individual post rows
-   Warm light glass so posts contrast against dark section.
+  FEED CARD  —  individual post rows
+  Warm light glass so posts contrast against dark section.
 ══════════════════════════════════════════════════════════ */
 .skyhub-feedCard {
   background: rgba(255, 251, 246, 0.70) !important;
@@ -664,7 +707,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   ANIMATIONS
+  ANIMATIONS
 ══════════════════════════════════════════════════════════ */
 @keyframes shPulse {
   0%   { box-shadow: 0 0 0 0   rgba(255,255,255,0.75); }
@@ -695,7 +738,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   RESPONSIVE
+  RESPONSIVE
 ══════════════════════════════════════════════════════════ */
 @media (max-width: 1200px) {
   .skyhub-contentGrid { grid-template-columns: 1fr 290px; }

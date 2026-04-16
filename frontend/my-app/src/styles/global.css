@@ -42,7 +42,6 @@ html { scroll-behavior: smooth; }
   --cta-2: #ffa94d;
   --cta-glow: rgba(255,138,42,.45);
 
-  /* IMPORTANT: GLOBAL SHOULD NOT FORCE A BACKGROUND */
   --sk-bg-image: none;
 }
 
@@ -51,7 +50,7 @@ body{
   color: var(--text-1);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter;
   line-height:1.45;
-  background: #0b0b18; /* neutral fallback */
+  background: #0b0b18;
 }
 
 #root{
@@ -59,7 +58,7 @@ body{
 }
 
 /* =========================================================
-   ANT DESIGN SAFETY (don’t paint)
+   ANT DESIGN SAFETY (don't paint)
 ========================================================= */
 .ant-layout,
 .ant-layout-header,
@@ -106,24 +105,19 @@ body{
 }
 
 /* =========================================================
-   ✅ SKYRIO AUTH MODAL CLEANUP (MERGED)
-   (Works with className="sk-authModal" on Ant Modal)
+   SKYRIO AUTH MODAL CLEANUP
 ========================================================= */
-
-/* Smooth blurred mask */
 .sk-authModal .ant-modal-mask {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* Premium glass modal content */
 .sk-authModal .ant-modal-content {
   background: rgba(16, 10, 26, 0.92) !important;
   border: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55);
 }
 
-/* Close button visibility */
 .sk-authModal .ant-modal-close {
   color: rgba(244, 246, 251, 0.92) !important;
 }
@@ -136,7 +130,6 @@ body{
   font-size: 18px;
 }
 
-/* Outer shell clamps overall height */
 .sk-authShell {
   width: 100%;
   max-height: min(78vh, 760px);
@@ -144,7 +137,6 @@ body{
   border-radius: 18px;
 }
 
-/* Inner scroller keeps the modal tidy */
 .sk-authScroll {
   max-height: min(78vh, 760px);
   overflow: auto;
@@ -152,16 +144,12 @@ body{
   -webkit-overflow-scrolling: touch;
 }
 
-/* Make form elements match Skyrio radius */
 .sk-authModal .ant-input,
 .sk-authModal .ant-input-affix-wrapper,
 .sk-authModal .ant-btn {
   border-radius: 14px !important;
 }
 
-/* ================================
-   MOBILE: Bottom Sheet style
-================================= */
 @media (max-width: 520px) {
   .sk-authModal .ant-modal {
     width: 100vw !important;
@@ -183,4 +171,39 @@ body{
   .sk-authScroll {
     padding: 16px 14px 14px;
   }
+}
+
+/* =========================================================
+   ✅ BOARDING PASS TOAST — kills white notification background
+   Ant Design wraps notifications in a white card by default.
+   These rules strip it so the glass BoardingPassToast shows.
+========================================================= */
+.ant-notification-notice {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  width: auto !important;
+}
+
+.ant-notification-notice-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.ant-notification-notice-content {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* Close button on toast */
+.ant-notification-notice-close {
+  top: 10px !important;
+  right: 10px !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.ant-notification-notice-close:hover {
+  color: rgba(255, 255, 255, 0.88) !important;
 }

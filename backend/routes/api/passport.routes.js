@@ -17,7 +17,6 @@ function getXpForActivity(type) {
     profile_completed: 25,
     daily_login: 5,
   };
-
   return map[type] || 10;
 }
 
@@ -27,21 +26,38 @@ router.get("/", requireAuth, async (req, res) => {
     let passport = await Passport.findOne({ user: req.user._id });
 
     if (!passport) {
-      passport = await Passport.create({
-        user: req.user._id,
-      });
+      passport = await Passport.create({ user: req.user._id });
+    }
+
+    return res.json({ ok: true, passport });
+  } catch (err) {
+    console.error("Passport fetch error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch passport" });
+  }
+});
+
+// GET /api/passport/stats  ← FIXES THE 404
+router.get("/stats", requireAuth, async (req, res) => {
+  try {
+    let passport = await Passport.findOne({ user: req.user._id });
+
+    if (!passport) {
+      passport = await Passport.create({ user: req.user._id });
     }
 
     return res.json({
       ok: true,
-      passport,
+      stats: passport.stats,
+      xp: passport.xp,
+      level: passport.level,
     });
   } catch (err) {
-    console.error("Passport fetch error:", err);
-    return res.status(500).json({
-      ok: false,
-      message: "Failed to fetch passport",
-    });
+    console.error("Passport stats error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch passport stats" });
   }
 });
 
@@ -51,10 +67,9 @@ router.post("/activity", requireAuth, async (req, res) => {
     const { type, metadata = {} } = req.body;
 
     if (!type) {
-      return res.status(400).json({
-        ok: false,
-        message: "Activity type is required",
-      });
+      return res
+        .status(400)
+        .json({ ok: false, message: "Activity type is required" });
     }
 
     let passport = await Passport.findOne({ user: req.user._id });
@@ -99,10 +114,9 @@ router.post("/activity", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("Passport activity error:", err);
-    return res.status(500).json({
-      ok: false,
-      message: "Failed to track passport activity",
-    });
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to track passport activity" });
   }
 });
 
