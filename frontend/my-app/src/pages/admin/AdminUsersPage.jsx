@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Table, Tag, Card, Typography, message, Spin } from "antd";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../auth/useAuth";
 
 const { Title, Text } = Typography;
 

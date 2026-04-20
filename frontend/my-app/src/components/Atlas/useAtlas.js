@@ -1,24 +1,24 @@
 /**
  * ─────────────────────────────────────────────────────────────
  * Custom hook for all Atlas AI interactions.
- * Wraps /api/atlas/chat using Skyrio's useApi() hook.
- * Never import atlasService.js here — frontend talks to backend only.
+ * Sends real booking context (flights, budget, destination)
+ * alongside every message so Atlas gives specific advice.
  * ─────────────────────────────────────────────────────────────
  */
 
 import { useState, useCallback, useRef } from "react";
 import { useApi } from "@/lib/api";
+import { useAtlasContext } from "./AtlasContext";
 
 export function useAtlas() {
   const api = useApi();
+  const { atlasContext } = useAtlasContext();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // FIX: use a ref to guard against rapid sends instead of putting
-  // isLoading in the useCallback dependency array — that was causing
-  // sendMessage to recreate on every loading state change, leading
-  // to race conditions when users sent messages quickly.
+  // Ref guard — prevents rapid-fire double sends without
+  // putting isLoading in the useCallback dependency array
   const isLoadingRef = useRef(false);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
@@ -47,7 +47,13 @@ export function useAtlas() {
           content,
         }));
 
-        const data = await api.post("/api/atlas/chat", { messages: payload });
+        // Send real booking context alongside conversation history.
+        // The backend builds a dynamic system prompt from this data
+        // so Atlas can say "I found 3 flights under $800" etc.
+        const data = await api.post("/api/atlas/chat", {
+          messages: payload,
+          context: atlasContext,
+        });
 
         const atlasMsg = {
           id: `atlas-${Date.now()}`,
@@ -58,13 +64,14 @@ export function useAtlas() {
         setMessages((prev) => [...prev, atlasMsg]);
       } catch (err) {
         setError(err.message || "Atlas is unavailable. Please try again.");
+        // Roll back optimistic user message on failure
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       } finally {
         isLoadingRef.current = false;
         setIsLoading(false);
       }
     },
-    [api] // ← isLoading removed — ref handles the guard now
+    [api, atlasContext] // atlasContext in deps so latest data is always used
   );
 
   const clearChat = useCallback(() => {

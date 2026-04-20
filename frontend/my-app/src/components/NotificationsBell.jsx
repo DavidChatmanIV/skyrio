@@ -22,7 +22,7 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { socket } from "../lib/socket"; // adjust path if needed
-import { useAuth } from "../hooks/useAuth"; // you already have this
+import { useAuth } from "../auth/useAuth"; // you already have this
 
 const { Text } = Typography;
 

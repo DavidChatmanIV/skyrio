@@ -1,73 +1,76 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-
 import AppLayout from "./layout/AppLayout";
-
-// ---------- Public Pages ----------
-import LandingPage from "./pages/LandingPage";
-import BookingPage from "./pages/BookingPage";
-
-// ---------- SkyHub ----------
-import SkyHubPage from "./pages/skyhub/SkyHubPage";
-
-// ---------- Passport ----------
-import DigitalPassportPage from "./pages/passport/DigitalPassportPage";
-import MembershipPage from "./pages/passport/Membership";
-
-// ---------- Auth + misc ----------
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
-import NotFound from "./pages/NotFound";
-
-// ---------- Sync Together (replaces Team Travel) ----------
-import SyncTogether from "./pages/SyncTogether";
-
-// ---------- Protected ----------
-import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./routes/ProtectedRoute";
+
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const BookingPage = lazy(() => import("./pages/BookingPage"));
+const SkyHubPage = lazy(() => import("./pages/skyhub/SkyHubPage"));
+const DigitalPassportPage = lazy(() =>
+  import("./pages/passport/DigitalPassportPage")
+);
+const MembershipPage = lazy(() => import("./pages/passport/Membership"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const RegisterPage = lazy(() => import("./pages/RegisterPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const SyncTogether = lazy(() => import("./pages/SyncTogether"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+
+function PageLoader() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0a0617",
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          border: "3px solid rgba(255,138,42,0.2)",
+          borderTop: "3px solid #ff8a2a",
+          borderRadius: "50%",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
 export default function AppRoutes() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        {/* Public */}
-        <Route index element={<LandingPage />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="register" element={<RegisterPage />} />
-
-        {/* Core */}
-        <Route path="booking" element={<BookingPage />} />
-
-        {/* SkyHub */}
-        <Route path="skyhub" element={<SkyHubPage />} />
-
-        {/* Legacy redirects */}
-        <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
-        <Route path="feed" element={<Navigate to="/skyhub" replace />} />
-
-        {/* Passport */}
-        <Route path="passport" element={<DigitalPassportPage />} />
-        <Route
-          path="digital-passport"
-          element={<Navigate to="/passport" replace />}
-        />
-        <Route path="membership" element={<MembershipPage />} />
-
-        {/* Sync Together — old team-travel URL redirects here too */}
-        <Route path="sync-together" element={<SyncTogether />} />
-        <Route
-          path="team-travel"
-          element={<Navigate to="/sync-together" replace />}
-        />
-
-        {/* Protected */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="dashboard" element={<Dashboard />} />
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route index element={<LandingPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+          <Route path="booking" element={<BookingPage />} />
+          <Route path="skyhub" element={<SkyHubPage />} />
+          <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
+          <Route path="feed" element={<Navigate to="/skyhub" replace />} />
+          <Route path="passport" element={<DigitalPassportPage />} />
+          <Route
+            path="digital-passport"
+            element={<Navigate to="/passport" replace />}
+          />
+          <Route path="membership" element={<MembershipPage />} />
+          <Route path="sync-together" element={<SyncTogether />} />
+          <Route
+            path="team-travel"
+            element={<Navigate to="/sync-together" replace />}
+          />
+          <Route element={<ProtectedRoute />}>
+            <Route path="dashboard" element={<Dashboard />} />
+          </Route>
+          <Route path="*" element={<NotFound />} />
         </Route>
-
-        {/* 404 */}
-        <Route path="*" element={<NotFound />} />
-      </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

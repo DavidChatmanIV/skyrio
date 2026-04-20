@@ -33,15 +33,12 @@ import "@/styles/BookingPage.css";
 import SaveTripButton from "@/components/trips/SaveTripButton";
 import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
-import { useAtlasContext } from "@/components/Atlas/AtlasContext"; // ← NEW
+import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-/* ─────────────────────────────────────────────
-   EXAMPLE PLAN SEEDS
-───────────────────────────────────────────── */
 const EXAMPLE_PLANS = {
   japan: {
     destination: "Tokyo",
@@ -145,9 +142,6 @@ function getAutoSearchDates(tripDays = 10) {
   return { departDate: depart, returnDate: ret };
 }
 
-/* ─────────────────────────────────────────────
-   WEATHER MAP
-───────────────────────────────────────────── */
 const CITY_WEATHER = {
   "new york": {
     label: "New York",
@@ -303,9 +297,6 @@ function getWeatherForCity(cityStr) {
   };
 }
 
-/* ─────────────────────────────────────────────
-   SEARCH BUTTON
-───────────────────────────────────────────── */
 function SearchBtn({ onClick, loading }) {
   return (
     <Button
@@ -319,9 +310,6 @@ function SearchBtn({ onClick, loading }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   SEARCH FORMS
-───────────────────────────────────────────── */
 function FlightsForm({ onSearch, onDestChange }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
@@ -598,9 +586,6 @@ function SavedForm() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   FLIGHT SKELETON
-───────────────────────────────────────────── */
 function FlightSkeleton() {
   return (
     <div className="sk-flight-skeleton">
@@ -628,21 +613,16 @@ function FlightSkeleton() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────────── */
 export default function BookingPage() {
   const [searchParams] = useSearchParams();
-  const { setAtlasDestination } = useAtlasContext(); // ← NEW
+  const { updateAtlasContext } = useAtlasContext();
 
   const prefillData = useMemo(() => {
     const promptParam = searchParams.get("prompt");
     const planParam = searchParams.get("plan");
     const exampleParam = searchParams.get("example");
-
-    if (exampleParam && EXAMPLE_PLANS[exampleParam]) {
+    if (exampleParam && EXAMPLE_PLANS[exampleParam])
       return { ...EXAMPLE_PLANS[exampleParam], source: "example" };
-    }
     if (planParam && PLAN_SEEDS[planParam]) {
       const seed = PLAN_SEEDS[planParam];
       const mergedPrompt = promptParam ?? seed.prompt;
@@ -668,7 +648,6 @@ export default function BookingPage() {
     return null;
   }, [searchParams]);
 
-  /* ── Core state ── */
   const [tab, setTab] = useState(prefillData?.tab ?? "Stays");
   const [flightResults, setFlightResults] = useState([]);
   const [autoSearchDone, setAutoSearchDone] = useState(false);
@@ -676,14 +655,25 @@ export default function BookingPage() {
   const [autoSearchError, setAutoSearchError] = useState(null);
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "miami");
 
-  /* ── Keep Atlas in sync with current destination ── */
-  // NEW: whenever destCity changes, push it into AtlasContext so the
-  // floating chat widget shows destination-aware suggestion chips
-  useEffect(() => {
-    setAtlasDestination(destCity);
-  }, [destCity, setAtlasDestination]);
+  const [budgetState, setBudgetState] = useState({
+    planned: prefillData?.budget ?? null,
+    used: 0,
+    bookingTotal: 0,
+    tripDays: prefillData?.tripDays ?? 3,
+  });
 
-  /* ── Prefill inline edit state ── */
+  // ✅ Push all context into Atlas whenever anything changes
+  useEffect(() => {
+    updateAtlasContext({
+      destination: destCity,
+      budget: budgetState.planned,
+      tripDays: budgetState.tripDays,
+      bookingTotal: budgetState.bookingTotal,
+      spent: budgetState.used,
+      flights: flightResults,
+    });
+  }, [destCity, budgetState, flightResults, updateAtlasContext]);
+
   const [prefillEditing, setPrefillEditing] = useState(false);
   const [prefillDismissed, setPrefillDismissed] = useState(false);
   const [editPrompt, setEditPrompt] = useState(prefillData?.prompt ?? "");
@@ -693,16 +683,13 @@ export default function BookingPage() {
   const budgetSeed = prefillData?.budget ?? null;
   const tripDaySeed = prefillData?.tripDays ?? 3;
 
-  /* ── Auto-search on mount when prefill has IATA ── */
   useEffect(() => {
     if (!prefillData?.iata || autoSearchDone) return;
     const { iata, tripDays: days = 10 } = prefillData;
     const { departDate, returnDate } = getAutoSearchDates(days);
-
     setAutoSearchLoading(true);
     setAutoSearchError(null);
     setTab("Flights");
-
     const params = new URLSearchParams({
       from: "EWR",
       to: iata,
@@ -711,22 +698,20 @@ export default function BookingPage() {
       adults: "1",
       cabin: "economy",
     });
-
     fetch(`/api/flights/search?${params}`)
       .then((r) => r.json())
       .then((data) => {
         if (!data.ok) throw new Error(data.message || "Search failed");
         setFlightResults(data.flights ?? []);
         setAutoSearchDone(true);
-        if (data.flights?.length) {
+        if (data.flights?.length)
           antdMessage.success(
             `✈️ Found ${data.flights.length} flights to ${prefillData.destination}`
           );
-        } else {
+        else
           antdMessage.info(
             "No flights found for this route — try adjusting dates."
           );
-        }
       })
       .catch((err) => {
         setAutoSearchError(err.message);
@@ -738,7 +723,9 @@ export default function BookingPage() {
 
   const handlePrefillSave = useCallback(() => {
     const newDest = extractDestFromPrompt(editPrompt) ?? destCity;
+    const newBudget = editBudget ?? extractBudgetFromPrompt(editPrompt);
     setDestCity(newDest);
+    if (newBudget) setBudgetState((prev) => ({ ...prev, planned: newBudget }));
     setPrefillEditing(false);
     antdMessage.success("Trip details updated!");
   }, [editPrompt, editBudget, destCity]);
@@ -777,6 +764,17 @@ export default function BookingPage() {
     () => ["Beach access", "Couples", "Great breakfast"],
     []
   );
+
+  // ✅ Stable callback — prevents TripBudgetCard infinite re-render
+  const handleBudgetChange = useCallback((state) => {
+    setBudgetState(state);
+  }, []);
+
+  // ✅ Stable callback for result selection
+  const handleSelectResult = useCallback((result) => {
+    setSelectedResult(result);
+    setBudgetState((prev) => ({ ...prev, bookingTotal: result.total ?? 0 }));
+  }, []);
 
   const searchForm = useMemo(() => {
     const props = { onDestChange: setDestCity };
@@ -1004,7 +1002,6 @@ export default function BookingPage() {
         </Space>
       </div>
 
-      {/* ── RESULTS ── */}
       <Row gutter={[24, 24]} className="sk-results-wrap">
         <Col xs={24} lg={16}>
           <div className="sk-resultsHeader">
@@ -1054,7 +1051,7 @@ export default function BookingPage() {
                   selectedResult.id === flight.id ? "is-selected" : ""
                 }`}
                 onClick={() =>
-                  setSelectedResult({
+                  handleSelectResult({
                     id: flight.id,
                     title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
                     total: parseFloat(flight.totalAmount),
@@ -1144,7 +1141,7 @@ export default function BookingPage() {
                   selectedResult.id === "stay-1" ? "is-selected" : ""
                 }`}
                 onClick={() =>
-                  setSelectedResult({
+                  handleSelectResult({
                     id: "stay-1",
                     title: "Skyrio Select Stay – Deluxe",
                     total: 168,
@@ -1212,11 +1209,13 @@ export default function BookingPage() {
             )}
         </Col>
 
+        {/* ── RIGHT RAIL: TripBudgetCard ── */}
         <Col xs={24} lg={8}>
           <TripBudgetCard
             initialBookingTotal={selectedResult?.total ?? 0}
             initialTripDays={tripDaySeed}
             initialDestination={destCity}
+            onStateChange={handleBudgetChange}
           />
         </Col>
       </Row>

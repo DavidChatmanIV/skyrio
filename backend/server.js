@@ -17,61 +17,55 @@ import healthRouter from "./routes/health.routes.js";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
 
-// ─── Path helpers ───────────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ─── App ────────────────────────────────────────────────────────
 const app = express();
 app.set("trust proxy", 1);
 
-// ─── CORS ───────────────────────────────────────────────────────
 const FRONTEND_ORIGIN =
   process.env.FRONTEND_ORIGIN ||
   process.env.CLIENT_ORIGIN ||
-  "http://localhost:5173";
+  "http://localhost:5273";
 
 const allowedOrigins = FRONTEND_ORIGIN.split(",")
   .map((o) => o.trim())
   .filter(Boolean);
 
-// Always include both localhost and 127.0.0.1 variants in dev
 if (process.env.NODE_ENV !== "production") {
   const devExtras = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
+    "http://localhost:5273",
+    "http://127.0.0.1:5273",
   ];
+
   devExtras.forEach((origin) => {
-    if (!allowedOrigins.includes(origin)) allowedOrigins.push(origin);
+    if (!allowedOrigins.includes(origin)) {
+      allowedOrigins.push(origin);
+    }
   });
 }
 
 function isAllowedOrigin(origin) {
-  if (!origin) return true; // Postman / server-to-server
+  if (!origin) return true;
   return allowedOrigins.includes(origin);
 }
 
 const corsOptions = {
-  origin: (origin, cb) =>
-    isAllowedOrigin(origin) ? cb(null, true) : cb(new Error("CORS blocked")),
+  origin: (origin, cb) => {
+    if (isAllowedOrigin(origin)) return cb(null, true);
+    return cb(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   optionsSuccessStatus: 204,
 };
 
-// ─── Core middleware (CORS must be first) ────────────────────────
-// FIX 1: cors() is now the very first middleware so it runs before
-//         helmet, morgan, and everything else — including preflight
-//         OPTIONS requests.
 app.use(cors(corsOptions));
-
-// FIX 2: Removed the bare `app.options("*", cors())` line that was
-//         overriding preflight responses with a permissive no-config
-//         cors() instance, causing the CORS blocked errors.
-
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
 app.use(express.json({ limit: "2mb" }));
@@ -79,7 +73,6 @@ app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-// ─── Rate limits ─────────────────────────────────────────────────
 app.use(
   "/api/auth",
   rateLimit({
@@ -100,7 +93,6 @@ app.use(
   })
 );
 
-// ─── Env sanity check (dev only) ────────────────────────────────
 if (process.env.NODE_ENV !== "production") {
   app.get("/__envcheck", (_req, res) => {
     const uri = process.env.MONGODB_URI || process.env.MONGO_URI || "";
@@ -109,11 +101,11 @@ if (process.env.NODE_ENV !== "production") {
       dbSample: uri ? uri.slice(0, 16) + "..." + uri.slice(-6) : "not set",
       allowedOrigins,
       nodeEnv: process.env.NODE_ENV || "not set",
+      frontendOrigin: FRONTEND_ORIGIN,
     });
   });
 }
 
-// ─── MongoDB ─────────────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 const MONGO_DB = process.env.MONGODB_DB || process.env.MONGO_DB;
 
@@ -158,7 +150,6 @@ async function connectMongo() {
   }
 }
 
-// ─── DB health endpoint ──────────────────────────────────────────
 app.get("/health/db", async (_req, res) => {
   const state = mongoose.connection.readyState;
 
@@ -174,14 +165,12 @@ app.get("/health/db", async (_req, res) => {
   }
 });
 
-// ─── Routes ──────────────────────────────────────────────────────
 app.get("/", (_req, res) => res.send("🚀 Skyrio backend is running!"));
 
 app.use("/health", healthRouter);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api", apiRouter);
 
-// ─── Contact form ────────────────────────────────────────────────
 app.post("/contact", async (req, res) => {
   try {
     const { name, email, message } = req.body || {};
@@ -204,7 +193,6 @@ app.post("/contact", async (req, res) => {
   }
 });
 
-// ─── 404 + error handler ─────────────────────────────────────────
 app.use((req, _res, next) => {
   if (req.path.startsWith("/api")) {
     const err = new Error("Not found");
@@ -220,18 +208,16 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ error: err.message || "Server error" });
 });
 
-// ─── HTTP + Socket.io ────────────────────────────────────────────
 const httpServer = createServer(app);
 
 const io = new SocketIOServer(httpServer, {
-  cors: corsOptions, // FIX 3: reuse the same corsOptions object — stays in sync automatically
+  cors: corsOptions,
 });
 
 app.set("io", io);
 
-// ─── Socket logic ─────────────────────────────────────────────────
 io.on("connection", (socket) => {
-  console.log(`🔥 Socket connected   ${socket.id}`);
+  console.log(`🔥 Socket connected ${socket.id}`);
 
   socket.on("notifications:join", ({ userId }) => {
     if (userId) {
@@ -263,7 +249,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// ─── Graceful shutdown ───────────────────────────────────────────
 async function shutdown(signal) {
   console.log(`\n🛑 ${signal} received — shutting down gracefully...`);
   try {
@@ -280,7 +265,6 @@ async function shutdown(signal) {
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-// ─── Unhandled rejections (safety net) ──────────────────────────
 process.on("unhandledRejection", (reason) => {
   console.error("🚨 Unhandled rejection:", reason);
 });
@@ -290,7 +274,6 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-// ─── Start ───────────────────────────────────────────────────────
 await connectMongo();
 startJobs();
 

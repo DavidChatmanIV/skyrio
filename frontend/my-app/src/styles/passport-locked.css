@@ -24,14 +24,14 @@
 .plk-inner {
   position: relative;
   z-index: 1;
-  width: min(820px, 100%);
+  width: min(900px, 100%);
   margin: 0 auto;
 }
 
 /* ── Hero ── */
 .plk-hero {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
 .plk-title {
@@ -49,7 +49,17 @@
   font-size: 15px;
 }
 
-/* ── Preview container ── */
+/* =============================
+   TWO-COLUMN LAYOUT
+   ============================= */
+.plk-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── Preview container (left column) ── */
 .plk-preview {
   position: relative;
   border-radius: 22px;
@@ -162,7 +172,7 @@
 
 .plk-lock-title {
   font-family: 'Syne', sans-serif;
-  font-size: clamp(20px, 4vw, 26px);
+  font-size: clamp(18px, 3vw, 24px);
   font-weight: 800;
   color: rgba(255,255,255,0.92);
   margin: 0;
@@ -172,17 +182,29 @@
   color: rgba(255,255,255,0.62);
   font-size: 14px;
   line-height: 1.6;
-  max-width: 360px;
+  max-width: 260px;
   margin: 0;
+}
+
+/* =============================
+   CTA PANEL (right column)
+   ============================= */
+.plk-cta-panel {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.11);
+  border-radius: 22px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.55);
 }
 
 /* ── Perks ── */
 .plk-perks {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  max-width: 360px;
+  gap: 10px;
+  margin-bottom: 24px;
 }
 
 .plk-perk {
@@ -204,10 +226,9 @@
   line-height: 1.4;
 }
 
-/* ── CTA ── */
+/* ── CTA button ── */
 .plk-cta {
   width: 100%;
-  max-width: 360px;
   padding: 14px;
   border-radius: 999px;
   border: none;
@@ -220,7 +241,7 @@
   letter-spacing: 0.02em;
   box-shadow: 0 16px 48px rgba(255,138,42,0.3);
   transition: filter 0.2s, transform 0.15s;
-  margin-top: 4px;
+  margin-bottom: 14px;
 }
 
 .plk-cta:hover { filter: brightness(1.06); transform: translateY(-1px); }
@@ -231,6 +252,7 @@
   font-size: 13px;
   color: rgba(255,255,255,0.55);
   margin: 0;
+  text-align: center;
 }
 
 .plk-signin-link {
@@ -245,13 +267,24 @@
   font-size: inherit;
 }
 
-/* ── Mobile ── */
+/* =============================
+   RESPONSIVE
+   ============================= */
+@media (max-width: 680px) {
+  .plk-layout {
+    grid-template-columns: 1fr;
+  }
+  /* Hide the FOMO preview on mobile — show only the CTA panel */
+  .plk-preview {
+    display: none;
+  }
+}
+
 @media (max-width: 600px) {
   .plk-page { padding: 24px 12px 48px; }
-  .plk-blur { padding: 20px 16px; }
-  .plk-blur-stats { grid-template-columns: repeat(2, 1fr); }
+  .plk-cta-panel { padding: 20px 16px; }
   .plk-overlay { padding: 20px 14px; gap: 10px; }
   .plk-lock-icon { font-size: 36px; }
-  .plk-perks { max-width: 100%; }
-  .plk-cta { max-width: 100%; font-size: 13px; padding: 13px; }
+  .plk-perks { gap: 8px; margin-bottom: 20px; }
+  .plk-cta { font-size: 13px; padding: 13px; }
 }

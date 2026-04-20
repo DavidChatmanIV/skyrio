@@ -3,7 +3,7 @@ import { Typography, Button, Space, message } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import AuthModal from "@/auth/AuthModal";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/auth/useAuth";
 
 import "@/styles/login.css";
 

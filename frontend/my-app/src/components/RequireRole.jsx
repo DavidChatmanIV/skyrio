@@ -1,7 +1,7 @@
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Result, Button, Spin } from "antd";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../auth/useAuth";
 
 /**
  * RequireRole

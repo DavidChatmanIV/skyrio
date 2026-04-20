@@ -21,7 +21,7 @@ import {
   HomeOutlined,
 } from "@ant-design/icons";
 
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../auth/useAuth";
 
 // Components
 import SavedExcursions from "../components/excursions/SavedExcursions";

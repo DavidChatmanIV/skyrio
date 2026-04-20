@@ -5,25 +5,19 @@
   --pp-text: rgba(244, 246, 251, 0.95);
   --pp-muted: rgba(244, 246, 251, 0.72);
   --pp-faint: rgba(244, 246, 251, 0.55);
-
   --pp-orange: #ff8a2a;
   --pp-orange-2: #ffb066;
   --pp-orange-soft: rgba(255, 138, 42, 0.14);
   --pp-orange-border: rgba(255, 138, 42, 0.55);
-
   --pp-stroke: rgba(255, 255, 255, 0.12);
   --pp-stroke-2: rgba(255, 255, 255, 0.08);
   --pp-surface-a: rgba(255, 255, 255, 0.09);
   --pp-surface-b: rgba(255, 255, 255, 0.04);
-
   --pp-radius-lg: 22px;
   --pp-radius-md: 18px;
-
   --pp-shadow-md: 0 14px 34px rgba(0, 0, 0, 0.35);
-
   --pp-blur: blur(16px);
   --pp-max: 1160px;
-
   --pp-focus: 0 0 0 3px rgba(255, 138, 42, 0.14);
 }
 
@@ -77,7 +71,7 @@
 }
 
 /* =============================
-   HOME BUTTON
+   HOME BUTTON ✅ orange pill, no Ant Design
    ============================= */
 .pp-homeBtnWrap {
   position: absolute;
@@ -86,40 +80,35 @@
   z-index: 30;
 }
 
-.pp-homeBtn.ant-btn {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--pp-stroke);
-  background: rgba(0, 0, 0, 0.18);
-  backdrop-filter: var(--pp-blur);
-  color: var(--pp-muted);
-  font-weight: 700;
+.pp-homeBtn-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+  gap: 6px;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%);
+  color: #1a0d04;
+  transition: filter 0.2s, transform 0.15s;
+  white-space: nowrap;
 }
 
-.pp-homeBtn.ant-btn:hover {
-  color: var(--pp-text);
-  background: rgba(0, 0, 0, 0.24);
-  border-color: rgba(255, 138, 42, 0.35);
+.pp-homeBtn-pill:hover {
+  filter: brightness(1.08);
   transform: translateY(-1px);
 }
 
 /* =============================
    TYPOGRAPHY
    ============================= */
-.pp-title {
-  color: var(--pp-text) !important;
-}
-.pp-muted {
-  color: var(--pp-muted) !important;
-}
-.pp-faint {
-  color: var(--pp-faint) !important;
-}
+.pp-title  { color: var(--pp-text) !important; }
+.pp-muted  { color: var(--pp-muted) !important; }
+.pp-faint  { color: var(--pp-faint) !important; }
 
 /* =============================
    CARD SYSTEM
@@ -132,12 +121,10 @@
   backdrop-filter: var(--pp-blur);
 }
 
-.pp-card .ant-card-body {
-  padding: 18px;
-}
+.pp-card .ant-card-body { padding: 18px; }
 
 /* =============================
-   MOCK GRID (this is the big change)
+   MOCK GRID
    ============================= */
 .pp-mockGrid {
   display: grid;
@@ -156,9 +143,7 @@
 /* =============================
    PROFILE TOP STRIP
    ============================= */
-.pp-profileCard {
-  overflow: hidden;
-}
+.pp-profileCard { overflow: hidden; }
 
 .pp-profileRow {
   display: grid;
@@ -191,7 +176,6 @@
   background: linear-gradient(180deg, rgba(255, 138, 42, 0.22), rgba(0, 0, 0, 0.16));
 }
 
-/* Followers / Following row (keep accurate counts) */
 .pp-followRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -199,9 +183,7 @@
   margin: 12px 0 0;
 }
 
-.pp-followRow--mock {
-  max-width: 420px;
-}
+.pp-followRow--mock { max-width: 420px; }
 
 .ppFollowBtn {
   width: 100%;
@@ -218,14 +200,8 @@
   transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
 }
 
-.ppFollowBtn strong {
-  font-size: 14px;
-}
-
-.ppFollowBtn span {
-  font-size: 12px;
-  color: var(--pp-muted);
-}
+.ppFollowBtn strong { font-size: 14px; }
+.ppFollowBtn span   { font-size: 12px; color: var(--pp-muted); }
 
 .ppFollowBtn:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -233,16 +209,9 @@
   background: rgba(0, 0, 0, 0.18);
 }
 
-.ppFollowBtn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.ppFollowBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Center ring inside top strip */
-.pp-profileRing {
-  display: grid;
-  place-items: center;
-}
+.pp-profileRing { display: grid; place-items: center; }
 
 .pp-levelRing--mock {
   width: 210px;
@@ -253,34 +222,13 @@
   filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.35));
 }
 
-.pp-levelText {
-  display: grid;
-  place-items: center;
-  gap: 2px;
-}
-
-.pp-levelRole {
-  font-size: 12px;
-  color: var(--pp-muted);
-  font-weight: 800;
-  letter-spacing: 0.3px;
-}
-
-.pp-levelNum {
-  font-size: 20px;
-  color: var(--pp-text);
-  font-weight: 900;
-  line-height: 1.05;
-}
-
-.pp-levelXp {
-  font-size: 12px;
-  color: var(--pp-muted);
-  font-weight: 800;
-}
+.pp-levelText  { display: grid; place-items: center; gap: 2px; }
+.pp-levelRole  { font-size: 12px; color: var(--pp-muted); font-weight: 800; letter-spacing: 0.3px; }
+.pp-levelNum   { font-size: 20px; color: var(--pp-text); font-weight: 900; line-height: 1.05; }
+.pp-levelXp    { font-size: 12px; color: var(--pp-muted); font-weight: 800; }
 
 /* =============================
-   HOME BASE ROW (mock line)
+   HOME BASE ROW
    ============================= */
 .pp-homeBaseRow {
   display: flex;
@@ -293,38 +241,22 @@
 }
 
 .pp-homeBaseDot {
-  width: 10px;
-  height: 10px;
+  width: 10px; height: 10px;
   border-radius: 999px;
   border: 2px solid rgba(255, 255, 255, 0.22);
   background: rgba(0, 0, 0, 0.18);
 }
 
-.pp-homeBaseLabel {
-  opacity: 0.92;
-}
-
-.pp-homeBaseSep {
-  opacity: 0.55;
-}
-
-.pp-homeBaseValue {
-  color: rgba(244, 246, 251, 0.82);
-}
+.pp-homeBaseLabel { opacity: 0.92; }
+.pp-homeBaseSep   { opacity: 0.55; }
+.pp-homeBaseValue { color: rgba(244, 246, 251, 0.82); }
 
 /* =============================
-   RIGHT SIDEBAR ACTIONS (Add music / Copy / Share)
+   RIGHT SIDEBAR ACTIONS
    ============================= */
-.pp-actionsCard .ant-card-body {
-  display: grid;
-  gap: 10px;
-}
+.pp-actionsCard .ant-card-body { display: grid; gap: 10px; }
 
-.pp-actionsStack {
-  display: grid;
-  gap: 10px;
-  margin-top: 6px;
-}
+.pp-actionsStack { display: grid; gap: 10px; margin-top: 6px; }
 
 .pp-actionBtn.ant-btn {
   height: 40px;
@@ -338,14 +270,12 @@
 }
 
 .pp-actionBtn.ant-btn:hover {
-  border-color: rgba(255, 138, 42, 0.30);
+  border-color: rgba(255, 138, 42, 0.3);
   background: rgba(0, 0, 0, 0.18);
   transform: translateY(-1px);
 }
 
-.pp-actionBtn.ant-btn:focus-visible {
-  box-shadow: var(--pp-focus);
-}
+.pp-actionBtn.ant-btn:focus-visible { box-shadow: var(--pp-focus); }
 
 .pp-credentialHint {
   font-size: 13px;
@@ -367,9 +297,7 @@
 /* =============================
    SOUNDTRACK CARD
    ============================= */
-.pp-soundtrackCard {
-  overflow: hidden;
-}
+.pp-soundtrackCard { overflow: hidden; }
 
 .pp-soundtrackRow {
   display: grid;
@@ -379,8 +307,7 @@
 }
 
 .pp-soundtrackCover {
-  width: 140px;
-  height: 108px;
+  width: 140px; height: 108px;
   border-radius: 16px;
   background-size: cover;
   background-position: center;
@@ -388,24 +315,9 @@
   box-shadow: 0 18px 34px rgba(0, 0, 0, 0.35);
 }
 
-.pp-soundtrackTitle {
-  font-size: 20px;
-  font-weight: 950;
-  color: rgba(244, 246, 251, 0.95);
-}
-
-.pp-soundtrackSub {
-  font-size: 14px;
-  font-weight: 850;
-  color: rgba(244, 246, 251, 0.82);
-  margin-top: 3px;
-}
-
-.pp-soundtrackTiny {
-  font-size: 12px;
-  color: rgba(244, 246, 251, 0.62);
-  margin-top: 3px;
-}
+.pp-soundtrackTitle { font-size: 20px; font-weight: 950; color: rgba(244, 246, 251, 0.95); }
+.pp-soundtrackSub   { font-size: 14px; font-weight: 850; color: rgba(244, 246, 251, 0.82); margin-top: 3px; }
+.pp-soundtrackTiny  { font-size: 12px; color: rgba(244, 246, 251, 0.62); margin-top: 3px; }
 
 .pp-audioBar {
   height: 10px;
@@ -430,8 +342,7 @@
 }
 
 .pp-audioBtn {
-  height: 34px;
-  min-width: 34px;
+  height: 34px; min-width: 34px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(0, 0, 0, 0.14);
@@ -441,8 +352,7 @@
 }
 
 .pp-audioBtn--main {
-  min-width: 42px;
-  height: 42px;
+  min-width: 42px; height: 42px;
   border-color: rgba(255, 138, 42, 0.35);
   background: rgba(255, 138, 42, 0.12);
 }
@@ -455,12 +365,7 @@
   opacity: 0.55;
 }
 
-.pp-audioWave span {
-  width: 4px;
-  border-radius: 6px;
-  background: rgba(244, 246, 251, 0.75);
-}
-
+.pp-audioWave span { width: 4px; border-radius: 6px; background: rgba(244, 246, 251, 0.75); }
 .pp-audioWave span:nth-child(1) { height: 10px; }
 .pp-audioWave span:nth-child(2) { height: 16px; }
 .pp-audioWave span:nth-child(3) { height: 12px; }
@@ -469,7 +374,7 @@
 .pp-audioWave span:nth-child(6) { height: 16px; }
 
 /* =============================
-   JOURNEYS CARD (carousel tiles)
+   JOURNEYS CARD
    ============================= */
 .pp-journeysHeader {
   display: flex;
@@ -478,165 +383,12 @@
   margin-bottom: 12px;
 }
 
-.pp-journeysTitle {
-  font-size: 20px;
-  font-weight: 950;
-  color: rgba(244, 246, 251, 0.95);
-}
+.pp-journeysTitle { font-size: 20px; font-weight: 950; color: rgba(244, 246, 251, 0.95); }
 
-.pp-journeysGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.pp-journeyTile {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.14);
-  border-radius: 18px;
-  overflow: hidden;
-  padding: 0;
-  position: relative;
-  cursor: pointer;
-  min-height: 170px;
-  text-align: left;
-  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
-}
-
-.pp-journeyTile:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 138, 42, 0.28);
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.pp-journeyImg {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  transform: scale(1.02);
-  filter: saturate(1.05) contrast(1.05);
-}
-
-.pp-journeyOverlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.10), rgba(0, 0, 0, 0.62));
-}
-
-.pp-journeyText {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  display: grid;
-  gap: 2px;
-}
-
-.pp-journeyName {
-  font-weight: 950;
-  font-size: 18px;
-  color: rgba(244, 246, 251, 0.95);
-}
-
-.pp-journeyLast {
-  font-weight: 850;
-  font-size: 12px;
-  color: rgba(244, 246, 251, 0.72);
-}
-
-.pp-viewAll {
-  margin-top: 12px;
-  width: 100%;
-  height: 44px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.14);
-  color: rgba(244, 246, 251, 0.88);
-  font-weight: 900;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  align-items: center;
-}
-
-.pp-viewAll:hover {
-  border-color: rgba(255, 138, 42, 0.28);
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.pp-arrow {
-  font-weight: 950;
-}
-
-/* =============================
-   PARTNERS CARD (right sidebar)
-   ============================= */
-.pp-partnersTitle {
-  font-size: 16px;
-  font-weight: 950;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: rgba(244, 246, 251, 0.92);
-}
-
-.pp-partnersIcon {
-  opacity: 0.75;
-}
-
-.pp-partnerList {
-  display: grid;
-  gap: 12px;
-}
-
-.pp-partnerItem {
-  display: grid;
-  grid-template-columns: 40px 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 10px;
+.pp-journeysEmpty {
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(0, 0, 0, 0.12);
-}
-
-.pp-partnerName {
-  font-weight: 950;
-  color: rgba(244, 246, 251, 0.92);
-  font-size: 13px;
-}
-
-.pp-partnerSub {
-  font-weight: 850;
-  color: rgba(244, 246, 251, 0.72);
-  font-size: 12px;
-  margin-top: 2px;
-}
-
-.pp-partnerTiny {
-  font-weight: 800;
-  color: rgba(244, 246, 251, 0.58);
-  font-size: 12px;
-  margin-top: 2px;
-}
-
-.pp-inviteBtn.ant-btn {
-  margin-top: 12px;
-  width: 100%;
-  height: 42px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.14);
-  color: rgba(244, 246, 251, 0.88);
-  font-weight: 900;
-}
-
-.pp-inviteBtn.ant-btn:hover {
-  border-color: rgba(255, 138, 42, 0.28);
-  background: rgba(0, 0, 0, 0.18);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 /* =============================
@@ -661,12 +413,7 @@
    RESPONSIVE
    ============================= */
 @media (max-width: 1100px) {
-  .pp-mockGrid {
-    grid-template-columns: 1fr;
-  }
-  .pp-journeysGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  .pp-mockGrid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -678,14 +425,6 @@
     justify-self: center;
     width: 100%;
   }
-  .pp-soundtrackRow {
-    grid-template-columns: 1fr;
-  }
-  .pp-soundtrackCover {
-    width: 100%;
-    height: 140px;
-  }
-  .pp-journeysGrid {
-    grid-template-columns: 1fr;
-  }
+  .pp-soundtrackRow { grid-template-columns: 1fr; }
+  .pp-soundtrackCover { width: 100%; height: 140px; }
 }

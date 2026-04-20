@@ -1,6 +1,6 @@
 import React from "react";
 import { Alert, Button, Space } from "antd";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../auth/useAuth";
 
 export default function GuestBanner() {
   const auth = useAuth();

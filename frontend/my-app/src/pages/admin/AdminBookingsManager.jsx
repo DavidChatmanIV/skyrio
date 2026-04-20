@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Table, Button, Space, Tag, Popconfirm, message, Result } from "antd";
 import { DownloadOutlined, DeleteOutlined } from "@ant-design/icons";
-import { useAuth } from "../../hooks/useAuth"; // adjust path if needed
+import { useAuth } from "../../auth/useAuth"; // adjust path if needed
 
 export default function AdminBookingsManager() {
   const { user, loading: authLoading } = useAuth();

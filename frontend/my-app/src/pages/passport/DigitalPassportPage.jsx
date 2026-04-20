@@ -15,6 +15,8 @@ import {
   message as antdMessage,
   Skeleton,
   Tag,
+  Modal,
+  Input,
 } from "antd";
 import {
   UserOutlined,
@@ -23,6 +25,7 @@ import {
   PlayCircleOutlined,
   SoundOutlined,
   LeftOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import { io } from "socket.io-client";
 
@@ -35,27 +38,18 @@ import ProfileMusicModal, {
 } from "./music/ProfileMusicModal";
 
 import FollowersModal from "./FollowersModal";
-
-// ✅ pulls from src/auth/useAuth.js which now resolves correctly
 import { useAuth } from "../../auth/useAuth";
-
 import RewardsOptInPrompt from "../../components/rewards/RewardsOptInPrompt";
 import useRewardsOptInPrompt from "../../hooks/useRewardsOptInPrompt";
 
 const { Title, Text } = Typography;
 
-/* ── helpers ── */
 function safeEmailPrefix(email) {
   if (!email) return "";
   const idx = email.indexOf("@");
   return idx > 0 ? email.slice(0, idx) : email;
 }
 
-/* ─────────────────────────────────────────────
-   PASSPORT LOCKED — inline guest wall
-   Shown instead of the full page when the user
-   is not authenticated. No separate route needed.
-───────────────────────────────────────────── */
 const LOCK_PERKS = [
   { icon: "⭐", text: "Earn XP on every flight, hotel, and activity" },
   { icon: "🏅", text: "Unlock badges and level up your traveller rank" },
@@ -74,32 +68,28 @@ const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
 
 function PassportLocked() {
   const navigate = useNavigate();
-
   return (
     <div className="passport-page">
       <div
         className="passport-bg"
         style={{
           backgroundImage: `url(${passportBg})`,
-          filter: "blur(4px) brightness(0.6)",
+          filter: "blur(4px) brightness(0.5) saturate(0.8)",
         }}
         aria-hidden="true"
       />
-
       <div className="passport-content">
-        <div className="passport-scope">
-          <div className="plk-page">
-            <div className="plk-inner">
-              <div className="plk-hero">
-                <h1 className="plk-title">Digital Passport</h1>
-                <p className="plk-sub">
-                  Your travel identity — XP, badges, and exclusive rewards.
-                </p>
-              </div>
-
-              <div className="plk-preview">
-                {/* Blurred stats preview — creates FOMO */}
-                <div className="plk-blur" aria-hidden="true">
+        <div className="plk-page">
+          <div className="plk-inner">
+            <div className="plk-hero">
+              <h1 className="plk-title">Digital Passport</h1>
+              <p className="plk-sub">
+                Your travel identity — XP, badges, and exclusive rewards.
+              </p>
+            </div>
+            <div className="plk-layout">
+              <div className="plk-preview" aria-hidden="true">
+                <div className="plk-blur">
                   <div className="plk-blur-topbar">
                     <span className="plk-blur-name">Explorer's Passport</span>
                     <span className="plk-blur-level">Level 7 ✦</span>
@@ -120,50 +110,45 @@ function PassportLocked() {
                     ))}
                   </div>
                 </div>
-
-                {/* Hard lock overlay */}
                 <div className="plk-overlay">
                   <div className="plk-lock-icon">🔒</div>
                   <h2 className="plk-lock-title">Your passport awaits</h2>
                   <p className="plk-lock-sub">
-                    Create a free account to unlock your Digital Passport, earn
-                    XP on every booking, and access exclusive travel discounts.
-                  </p>
-
-                  <div className="plk-perks">
-                    {LOCK_PERKS.map((p) => (
-                      <div key={p.text} className="plk-perk">
-                        <span className="plk-perk-icon">{p.icon}</span>
-                        <span className="plk-perk-text">{p.text}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button
-                    className="plk-cta"
-                    onClick={() =>
-                      navigate("/register", {
-                        state: { redirectTo: "/passport" },
-                      })
-                    }
-                  >
-                    Create your boarding pass — it's free
-                  </button>
-
-                  <p className="plk-signin">
-                    Already a member?{" "}
-                    <button
-                      className="plk-signin-link"
-                      onClick={() =>
-                        navigate("/login", {
-                          state: { redirectTo: "/passport" },
-                        })
-                      }
-                    >
-                      Sign in
-                    </button>
+                    Create a free account to unlock your stats, badges, and
+                    travel history.
                   </p>
                 </div>
+              </div>
+              <div className="plk-cta-panel">
+                <div className="plk-perks">
+                  {LOCK_PERKS.map((p) => (
+                    <div key={p.text} className="plk-perk">
+                      <span className="plk-perk-icon">{p.icon}</span>
+                      <span className="plk-perk-text">{p.text}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="plk-cta"
+                  onClick={() =>
+                    navigate("/register", {
+                      state: { redirectTo: "/passport" },
+                    })
+                  }
+                >
+                  Create your boarding pass — it's free
+                </button>
+                <p className="plk-signin">
+                  Already a member?{" "}
+                  <button
+                    className="plk-signin-link"
+                    onClick={() =>
+                      navigate("/login", { state: { redirectTo: "/passport" } })
+                    }
+                  >
+                    Sign in
+                  </button>
+                </p>
               </div>
             </div>
           </div>
@@ -173,45 +158,39 @@ function PassportLocked() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────────── */
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  // ✅ pull isAuthed + loading from the new AuthContext
-  const { user, isAuthed, loading } = useAuth();
-
+  const { user, isAuthed, loading, setUser } = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
 
-  const myId = useMemo(() => {
-    return user?._id || user?.id || null;
-  }, [user]);
+  const myId = useMemo(() => user?._id || user?.id || null, [user]);
 
-  /* UI */
+  // ── UI state ──
   const [musicOpen, setMusicOpen] = useState(false);
   const [profileMusic, setProfileMusic] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editUsername, setEditUsername] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
-  /* Data */
+  // ── Data state ──
   const [xpLoading, setXpLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
-
   const [xp, setXp] = useState(0);
   const [xpToNextBadge, setXpToNextBadge] = useState(0);
   const [nextBadgeName, setNextBadgeName] = useState("Explorer");
-
   const [passportStats, setPassportStats] = useState({
     followers: 0,
     following: 0,
   });
-
   const [followOpen, setFollowOpen] = useState(false);
   const [followMode, setFollowMode] = useState("following");
 
   const socketRef = useRef(null);
 
-  /* ── derived ── */
+  // ── Derived ──
   const displayName = useMemo(() => {
     if (!user) return "Explorer";
     return (
@@ -228,10 +207,9 @@ export default function DigitalPassportPage() {
   const levelNumber = useMemo(() => Number(user?.level ?? 1), [user]);
 
   const homeBaseLabel = useMemo(() => {
-    const hb = user?.homeBase;
-    if (hb && typeof hb === "string") return hb;
-    return "New Jersey";
-  }, [user?.homeBase]);
+    const hb = user?.city || user?.homeBase;
+    return hb && typeof hb === "string" ? hb : "Not set";
+  }, [user?.city, user?.homeBase]);
 
   const xpGoal = useMemo(() => {
     const current = Number(xp || 0);
@@ -245,10 +223,9 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
-  /* ── transition toast after auth redirect ── */
+  // ── Transition toast ──
   useEffect(() => {
-    const fromAuth = !!location?.state?.fromAuth;
-    if (!fromAuth) return;
+    if (!location?.state?.fromAuth) return;
     antdMessage.success({
       content: `Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`,
       duration: 2,
@@ -260,7 +237,7 @@ export default function DigitalPassportPage() {
     }
   }, [location?.state?.fromAuth, user?.name]);
 
-  /* ── profile music ── */
+  // ── Profile music ──
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
@@ -270,12 +247,11 @@ export default function DigitalPassportPage() {
     }
   }, []);
 
-  /* ── fetch XP (only when authed) ── */
+  // ── Fetch XP ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
     let mounted = true;
-
     (async () => {
       setXpLoading(true);
       try {
@@ -298,19 +274,17 @@ export default function DigitalPassportPage() {
         if (mounted) setXpLoading(false);
       }
     })();
-
     return () => {
       mounted = false;
       controller.abort();
     };
   }, [isAuthed]);
 
-  /* ── fetch passport stats (only when authed) ── */
+  // ── Fetch passport stats ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
     let mounted = true;
-
     (async () => {
       setStatsLoading(true);
       try {
@@ -335,24 +309,20 @@ export default function DigitalPassportPage() {
         if (mounted) setStatsLoading(false);
       }
     })();
-
     return () => {
       mounted = false;
       controller.abort();
     };
   }, [isAuthed]);
 
-  /* ── socket live sync (only when authed) ── */
+  // ── Socket live sync ──
   useEffect(() => {
     if (!myId || !isAuthed) return;
-
     if (!socketRef.current) {
       socketRef.current = io("/", { transports: ["websocket"] });
     }
-
     const s = socketRef.current;
     s.emit("auth:join", { userId: myId });
-
     const handler = (payload) => {
       if (!payload) return;
       setPassportStats((prev) => ({
@@ -367,12 +337,11 @@ export default function DigitalPassportPage() {
             : prev.following,
       }));
     };
-
     s.on("social:counts:update", handler);
     return () => s.off("social:counts:update", handler);
   }, [myId, isAuthed]);
 
-  /* ── actions ── */
+  // ── Actions ──
   const copyPassportLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -386,68 +355,57 @@ export default function DigitalPassportPage() {
     antdMessage.info("Sharing enabled post-launch");
   }, []);
 
-  /* ── mock data ── */
-  const journeys = useMemo(
-    () => [
-      {
-        id: "tokyo",
-        name: "Tokyo",
-        last: "Sep 2021",
-        img: "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?auto=format&fit=crop&w=1200&q=70",
-      },
-      {
-        id: "paris",
-        name: "Paris",
-        last: "2021",
-        img: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=70",
-      },
-      {
-        id: "rome",
-        name: "Rome",
-        last: "Dec 2025",
-        img: "https://images.unsplash.com/photo-1526481280695-3c687fd5432c?auto=format&fit=crop&w=1200&q=70",
-      },
-      {
-        id: "miami",
-        name: "Miami",
-        last: "Aug 2025",
-        img: "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=1200&q=70",
-      },
-    ],
-    []
-  );
+  // ── Edit profile save ──
+  const handleSaveProfile = async () => {
+    if (!editUsername.trim() && !editBio.trim() && !editCity.trim()) return;
+    setEditSaving(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/profile/settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          username: editUsername.trim() || user?.username,
+          bio: editBio.trim(),
+          city: editCity.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update");
 
-  const partners = useMemo(
-    () => [
-      {
-        id: "p1",
-        name: "Marcus",
-        trips: "2 Trips Together",
-        last: "Last Trip: Miami (Dec 2025)",
-      },
-      {
-        id: "p2",
-        name: "Sarah",
-        trips: "1 Trip Together",
-        last: "Last Trip: Cancun (Aug 2025)",
-      },
-    ],
-    []
-  );
+      if (setUser) {
+        setUser((prev) => ({
+          ...prev,
+          username: editUsername.trim() || user?.username,
+          city: editCity.trim(),
+        }));
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...JSON.parse(localStorage.getItem("user") || "{}"),
+            username: editUsername.trim() || user?.username,
+            city: editCity.trim(),
+          })
+        );
+      }
 
-  /* ─────────────────────────────────────────
-     ✅ GUEST / UNAUTHENTICATED GATE
-     Wait for auth hydration to finish before
-     deciding — prevents flash of lock screen
-     for users who ARE logged in.
-  ───────────────────────────────────────── */
-  if (loading) return null; // hydrating — renders nothing briefly, no flash
+      antdMessage.success("Profile updated ✓");
+      setEditOpen(false);
+    } catch (err) {
+      antdMessage.error(err.message);
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
+  // ── Auth gate ──
+  if (loading) return null;
   if (!isAuthed) return <PassportLocked />;
 
-  /* ─────────────────────────────────────────
-     AUTHENTICATED RENDER
-  ───────────────────────────────────────── */
   return (
     <div className="passport-page">
       <svg
@@ -494,7 +452,7 @@ export default function DigitalPassportPage() {
               <div className="pp-mockGrid">
                 {/* ── LEFT MAIN ── */}
                 <div className="pp-mockMain">
-                  <Card bordered={false} className="pp-card pp-profileCard">
+                  <Card variant="borderless" className="pp-card pp-profileCard">
                     <div className="pp-profileRow">
                       <div className="pp-profileAvatar">
                         <Avatar size={92} icon={<UserOutlined />} />
@@ -508,17 +466,14 @@ export default function DigitalPassportPage() {
                         >
                           {displayName}
                         </Title>
-
                         <Text className="pp-muted">
                           {handle} · Level {levelNumber}
                         </Text>
-
                         <div style={{ marginTop: 10 }}>
                           <span className="pp-pill pp-pill--active">
                             🟠 Passport Active
                           </span>
                         </div>
-
                         <div className="pp-followRow pp-followRow--mock">
                           <button
                             className="ppFollowBtn"
@@ -537,7 +492,6 @@ export default function DigitalPassportPage() {
                             </strong>
                             <span>Followers</span>
                           </button>
-
                           <button
                             className="ppFollowBtn"
                             onClick={() => {
@@ -593,111 +547,96 @@ export default function DigitalPassportPage() {
                     <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
-                  <Card bordered={false} className="pp-card pp-soundtrackCard">
-                    <div className="pp-soundtrackRow">
-                      <div
-                        className="pp-soundtrackCover"
-                        style={{
-                          backgroundImage: profileMusic?.artworkUrl
-                            ? `url(${profileMusic.artworkUrl})`
-                            : "url(https://images.unsplash.com/photo-1504805572947-34fad45aed93?auto=format&fit=crop&w=1200&q=70)",
-                        }}
-                      />
-                      <div className="pp-soundtrackMeta">
-                        <div className="pp-soundtrackTitle">
-                          Travel Soundtrack
-                        </div>
-                        <div className="pp-soundtrackSub">
-                          Lo-Fi Japan Playlist
-                        </div>
-                        <div className="pp-soundtrackTiny">
-                          Tokyo Trip · Sep 2021
-                        </div>
-                        <div className="pp-audioBar">
-                          <div
-                            className="pp-audioProgress"
-                            style={{ width: "42%" }}
-                          />
-                        </div>
-                        <div className="pp-audioControls">
-                          <button
-                            type="button"
-                            className="pp-audioBtn"
-                            aria-label="Previous"
-                          >
-                            ⏮
-                          </button>
-                          <button
-                            type="button"
-                            className="pp-audioBtn pp-audioBtn--main"
-                            aria-label="Play"
-                            onClick={() => setMusicOpen(true)}
-                          >
-                            ⏯
-                          </button>
-                          <button
-                            type="button"
-                            className="pp-audioBtn"
-                            aria-label="Next"
-                          >
-                            ⏭
-                          </button>
-                          <div className="pp-audioWave" aria-hidden="true">
-                            <span />
-                            <span />
-                            <span />
-                            <span />
-                            <span />
-                            <span />
+                  {profileMusic && (
+                    <Card
+                      variant="borderless"
+                      className="pp-card pp-soundtrackCard"
+                    >
+                      <div className="pp-soundtrackRow">
+                        <div
+                          className="pp-soundtrackCover"
+                          style={{
+                            backgroundImage: profileMusic?.artworkUrl
+                              ? `url(${profileMusic.artworkUrl})`
+                              : "url(https://images.unsplash.com/photo-1504805572947-34fad45aed93?auto=format&fit=crop&w=1200&q=70)",
+                          }}
+                        />
+                        <div className="pp-soundtrackMeta">
+                          <div className="pp-soundtrackTitle">
+                            Travel Soundtrack
+                          </div>
+                          <div className="pp-soundtrackSub">
+                            {profileMusic?.name || "My Playlist"}
+                          </div>
+                          <div className="pp-audioBar">
+                            <div
+                              className="pp-audioProgress"
+                              style={{ width: "42%" }}
+                            />
+                          </div>
+                          <div className="pp-audioControls">
+                            <button
+                              type="button"
+                              className="pp-audioBtn"
+                              aria-label="Previous"
+                            >
+                              ⏮
+                            </button>
+                            <button
+                              type="button"
+                              className="pp-audioBtn pp-audioBtn--main"
+                              aria-label="Play"
+                              onClick={() => setMusicOpen(true)}
+                            >
+                              ⏯
+                            </button>
+                            <button
+                              type="button"
+                              className="pp-audioBtn"
+                              aria-label="Next"
+                            >
+                              ⏭
+                            </button>
+                            <div className="pp-audioWave" aria-hidden="true">
+                              <span />
+                              <span />
+                              <span />
+                              <span />
+                              <span />
+                              <span />
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </Card>
+                    </Card>
+                  )}
 
-                  <Card bordered={false} className="pp-card pp-journeysCard">
+                  <Card
+                    variant="borderless"
+                    className="pp-card pp-journeysCard"
+                  >
                     <div className="pp-journeysHeader">
                       <div className="pp-journeysTitle">Travel Journeys</div>
                     </div>
-                    <div className="pp-journeysGrid">
-                      {journeys.map((j) => (
-                        <button
-                          key={j.id}
-                          type="button"
-                          className="pp-journeyTile"
-                          onClick={() =>
-                            antdMessage.info("Journeys go live post-launch")
-                          }
-                        >
-                          <div
-                            className="pp-journeyImg"
-                            style={{ backgroundImage: `url(${j.img})` }}
-                          />
-                          <div className="pp-journeyOverlay" />
-                          <div className="pp-journeyText">
-                            <div className="pp-journeyName">{j.name}</div>
-                            <div className="pp-journeyLast">
-                              Last Trip: {j.last}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                    <div className="pp-journeysEmpty">
+                      <div
+                        style={{
+                          padding: "32px 16px",
+                          textAlign: "center",
+                          opacity: 0.5,
+                          fontSize: 14,
+                        }}
+                      >
+                        ✈️ Your journeys will appear here after your first
+                        booking
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      className="pp-viewAll"
-                      onClick={() =>
-                        antdMessage.info("View all journeys (post-launch)")
-                      }
-                    >
-                      View All Journeys <span className="pp-arrow">→</span>
-                    </button>
                   </Card>
                 </div>
 
                 {/* ── RIGHT SIDEBAR ── */}
                 <div className="pp-mockSide">
-                  <Card bordered={false} className="pp-card pp-actionsCard">
+                  <Card variant="borderless" className="pp-card pp-actionsCard">
                     <Title
                       level={3}
                       className="pp-title"
@@ -706,6 +645,18 @@ export default function DigitalPassportPage() {
                       Digital Passport
                     </Title>
                     <div className="pp-actionsStack">
+                      <Button
+                        className="pp-actionBtn"
+                        icon={<EditOutlined />}
+                        onClick={() => {
+                          setEditUsername(user?.username || "");
+                          setEditBio(user?.bio || "");
+                          setEditCity(user?.city || "");
+                          setEditOpen(true);
+                        }}
+                      >
+                        Edit Profile
+                      </Button>
                       <Button
                         className="pp-actionBtn"
                         icon={
@@ -745,37 +696,6 @@ export default function DigitalPassportPage() {
                     </Button>
                   </Card>
 
-                  <Card bordered={false} className="pp-card pp-partnersCard">
-                    <div className="pp-partnersTitle">
-                      <span className="pp-partnersIcon">✈︎</span>
-                      Travel Journeys
-                    </div>
-                    <div className="pp-partnerList">
-                      {partners.map((p) => (
-                        <div key={p.id} className="pp-partnerItem">
-                          <div className="pp-partnerAvatar">
-                            <Avatar size={34} icon={<UserOutlined />} />
-                          </div>
-                          <div className="pp-partnerMeta">
-                            <div className="pp-partnerName">
-                              {displayName} · {p.name}
-                            </div>
-                            <div className="pp-partnerSub">{p.trips}</div>
-                            <div className="pp-partnerTiny">{p.last}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <Button
-                      className="pp-inviteBtn"
-                      onClick={() =>
-                        antdMessage.info("Invite travel partner (post-launch)")
-                      }
-                    >
-                      + Invite Travel Partner
-                    </Button>
-                  </Card>
-
                   <div style={{ marginTop: 10, opacity: 0.95 }}>
                     <Tag className="pp-tag ppTagDark">Soft Launch</Tag>
                   </div>
@@ -798,6 +718,93 @@ export default function DigitalPassportPage() {
         onSave={setProfileMusic}
         value={profileMusic}
       />
+
+      <Modal
+        open={editOpen}
+        onCancel={() => setEditOpen(false)}
+        onOk={handleSaveProfile}
+        confirmLoading={editSaving}
+        title="Edit Profile"
+        okText="Save Changes"
+        cancelText="Cancel"
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            paddingTop: 8,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 12,
+                marginBottom: 6,
+                opacity: 0.6,
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+              }}
+            >
+              USERNAME
+            </div>
+            <Input
+              value={editUsername}
+              onChange={(e) =>
+                setEditUsername(
+                  e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, "")
+                )
+              }
+              prefix={<span style={{ opacity: 0.5 }}>@</span>}
+              placeholder="skyexplorer99"
+              maxLength={30}
+            />
+            <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
+              Letters, numbers, _ and . only · 3–30 characters
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 12,
+                marginBottom: 6,
+                opacity: 0.6,
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+              }}
+            >
+              HOME BASE
+            </div>
+            <Input
+              value={editCity}
+              onChange={(e) => setEditCity(e.target.value)}
+              placeholder="New York, Miami, London..."
+              maxLength={60}
+            />
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 12,
+                marginBottom: 6,
+                opacity: 0.6,
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+              }}
+            >
+              BIO
+            </div>
+            <Input.TextArea
+              value={editBio}
+              onChange={(e) => setEditBio(e.target.value)}
+              placeholder="Tell the world about your travel style..."
+              maxLength={160}
+              rows={3}
+              showCount
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

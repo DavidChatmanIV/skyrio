@@ -9,9 +9,6 @@ function safeParse(json) {
   }
 }
 
-/**
- * Normalize id fields so the rest of the app can rely on _id/id
- */
 function normalizeUser(u) {
   if (!u || typeof u !== "object") return null;
   const id = u._id || u.id;
@@ -22,44 +19,32 @@ function pickError(data) {
   return data?.error || data?.message || "Request failed";
 }
 
+function getStoredToken() {
+  return localStorage.getItem("token") || null;
+}
+
+function buildAuthHeaders(extraHeaders = {}) {
+  const token = getStoredToken();
+
+  return {
+    ...extraHeaders,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(() =>
     safeParse(localStorage.getItem("user"))
   );
-  const [token, setToken] = useState(
-    () => localStorage.getItem("token") || null
-  );
-
-  // guest flag
+  const [token, setToken] = useState(() => getStoredToken());
   const [guestFlag, setGuestFlag] = useState(
     () => localStorage.getItem("skyrio_guest") === "1"
   );
-
-  // ✅ loading flag — prevents flash of lock screen for authed users
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // hydration is synchronous via useState initialisers above,
-    // so we just flip loading off on mount
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === "user") setUser(safeParse(e.newValue));
-      if (e.key === "token") setToken(e.newValue || null);
-      if (e.key === "skyrio_guest") setGuestFlag(e.newValue === "1");
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  const isAuthed = !!(token || user?.id || user?._id);
+  const isAuthed = !!(token && (user?.id || user?._id));
   const isGuest = !!guestFlag && !isAuthed;
 
-  /**
-   * setSession — called after login/register fetches
-   */
   const setSession = useCallback(
     ({ user: nextUser, token: nextToken } = {}) => {
       localStorage.removeItem("skyrio_guest");
@@ -70,6 +55,7 @@ export default function AuthProvider({ children }) {
         setUser(normalized);
         localStorage.setItem("user", JSON.stringify(normalized));
       }
+
       if (nextToken) {
         setToken(nextToken);
         localStorage.setItem("token", nextToken);
@@ -78,19 +64,103 @@ export default function AuthProvider({ children }) {
     []
   );
 
-  const logout = useCallback(() => {
+  const clearSession = useCallback(() => {
     setUser(null);
     setToken(null);
+    setGuestFlag(false);
     localStorage.removeItem("user");
     localStorage.removeItem("token");
+    localStorage.removeItem("skyrio_guest");
   }, []);
 
-  /**
-   * available — check email/username availability
-   * GET /api/auth/available?email=...&username=...
-   */
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: buildAuthHeaders(),
+      });
+    } catch (err) {
+      console.error("Logout request failed:", err);
+    } finally {
+      clearSession();
+    }
+  }, [clearSession]);
+
+  const authFetch = useCallback(
+    async (url, options = {}) => {
+      const res = await fetch(url, {
+        credentials: "include",
+        ...options,
+        headers: buildAuthHeaders(options.headers || {}),
+      });
+
+      if (res.status === 401) {
+        clearSession();
+      }
+
+      return res;
+    },
+    [clearSession]
+  );
+
+  const restoreSession = useCallback(async () => {
+    try {
+      const existingToken = getStoredToken();
+
+      if (!existingToken) {
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch("/api/profile/me", {
+        method: "GET",
+        credentials: "include",
+        headers: buildAuthHeaders(),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        clearSession();
+        setLoading(false);
+        return;
+      }
+
+      const nextUser = normalizeUser(data?.user || data?.profile || data);
+
+      if (nextUser) {
+        setUser(nextUser);
+        localStorage.setItem("user", JSON.stringify(nextUser));
+      } else {
+        clearSession();
+      }
+    } catch (err) {
+      console.error("restoreSession failed:", err);
+      clearSession();
+    } finally {
+      setLoading(false);
+    }
+  }, [clearSession]);
+
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "user") setUser(safeParse(e.newValue));
+      if (e.key === "token") setToken(e.newValue || null);
+      if (e.key === "skyrio_guest") setGuestFlag(e.newValue === "1");
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const available = useCallback(async ({ email, username } = {}) => {
     const params = new URLSearchParams();
+
     if (email) params.set("email", String(email).trim().toLowerCase());
     if (username) params.set("username", String(username).trim());
 
@@ -109,14 +179,13 @@ export default function AuthProvider({ children }) {
     return data;
   }, []);
 
-  /**
-   * login — POST /api/auth/login
-   * accepts: { identity, emailOrUsername, email, password }
-   */
   const login = useCallback(
     async ({ identity, emailOrUsername, email, password } = {}) => {
       const id = String(identity || emailOrUsername || email || "").trim();
-      if (!id || !password) return false;
+
+      if (!id || !password) {
+        throw new Error("Email/username and password are required");
+      }
 
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -126,21 +195,30 @@ export default function AuthProvider({ children }) {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(pickError(data));
 
-      setSession({ token: data?.token, user: data?.user });
+      if (!res.ok) {
+        throw new Error(pickError(data));
+      }
+
+      if (!data?.token || !data?.user) {
+        throw new Error("Login response missing token or user");
+      }
+
+      setSession({
+        token: data.token,
+        user: data.user,
+      });
+
       return true;
     },
     [setSession]
   );
 
-  /**
-   * signup — POST /api/auth/register
-   * accepts: { name, email, password, username }
-   */
   const signup = useCallback(
     async ({ name, email, password, username } = {}) => {
-      if (!email || !password) return false;
+      if (!email || !password) {
+        throw new Error("Email and password are required");
+      }
 
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -155,22 +233,30 @@ export default function AuthProvider({ children }) {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(pickError(data));
 
-      setSession({ token: data?.token, user: data?.user });
+      if (!res.ok) {
+        throw new Error(pickError(data));
+      }
+
+      if (!data?.token || !data?.user) {
+        throw new Error("Register response missing token or user");
+      }
+
+      setSession({
+        token: data.token,
+        user: data.user,
+      });
+
       return true;
     },
     [setSession]
   );
 
-  /**
-   * continueAsGuest — clears session, sets guest flag
-   */
   const continueAsGuest = useCallback(() => {
-    logout();
+    clearSession();
     localStorage.setItem("skyrio_guest", "1");
     setGuestFlag(true);
-  }, [logout]);
+  }, [clearSession]);
 
   const value = useMemo(
     () => ({
@@ -179,20 +265,16 @@ export default function AuthProvider({ children }) {
       isAuthed,
       isGuest,
       loading,
-
-      // session
       setSession,
       logout,
-
-      // async flows
       login,
       signup,
       available,
       continueAsGuest,
-
-      // direct setters (profile updates etc.)
       setUser,
       setToken,
+      authFetch,
+      restoreSession,
     }),
     [
       user,
@@ -206,6 +288,8 @@ export default function AuthProvider({ children }) {
       signup,
       available,
       continueAsGuest,
+      authFetch,
+      restoreSession,
     ]
   );
 

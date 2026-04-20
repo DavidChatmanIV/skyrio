@@ -1,10 +1,17 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 
+function getBearerToken(req) {
+  const authHeader = req.headers.authorization || "";
+  if (!authHeader.startsWith("Bearer ")) return null;
+  return authHeader.slice(7).trim();
+}
+
 export async function requireAuth(req, res, next) {
   try {
-    const token =
-      req.cookies?.token || req.headers.authorization?.replace("Bearer ", "");
+    const cookieToken = req.cookies?.token || null;
+    const bearerToken = getBearerToken(req);
+    const token = cookieToken || bearerToken;
 
     if (!token) {
       return res.status(401).json({
@@ -14,8 +21,16 @@ export async function requireAuth(req, res, next) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId || decoded.id || decoded._id;
 
-    const user = await User.findById(decoded.userId);
+    if (!userId) {
+      return res.status(401).json({
+        ok: false,
+        message: "Invalid token payload",
+      });
+    }
+
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(401).json({
         ok: false,
@@ -23,7 +38,7 @@ export async function requireAuth(req, res, next) {
       });
     }
 
-    if (!user.isActive) {
+    if (user.isActive === false) {
       return res.status(403).json({
         ok: false,
         message: "Account is inactive",
@@ -43,8 +58,10 @@ export async function requireAuth(req, res, next) {
       role: user.role,
     };
 
-    next();
+    return next();
   } catch (err) {
+    console.error("requireAuth error:", err.message);
+
     return res.status(401).json({
       ok: false,
       message: "Invalid or expired token",

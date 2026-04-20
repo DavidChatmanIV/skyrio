@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Table, Tag, Select, Switch, Input, Space, message, Card } from "antd";
-import { useAuth } from "../hooks/useAuth"; // assuming you have this
+import { useAuth } from "../auth/useAuth"; // assuming you have this
 
 const { Search } = Input;
 const ROLE_OPTIONS = ["user", "support", "manager", "admin"];

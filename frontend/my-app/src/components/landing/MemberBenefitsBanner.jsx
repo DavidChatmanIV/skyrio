@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { LockOutlined, CheckCircleOutlined } from "@ant-design/icons";
 
 // If you have this hook already, use it:
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../auth/useAuth";
 
 const { Text } = Typography;
 

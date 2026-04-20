@@ -19,9 +19,6 @@ import "../../styles/TripBudgetCard.css";
 
 const { Title, Text } = Typography;
 
-/* ─────────────────────────────────────────────
-   ATLAS AI SUGGESTION LOGIC
-───────────────────────────────────────────── */
 function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
   const p = Number(planned || 0);
   const u = Number(used || 0);
@@ -94,9 +91,6 @@ function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
   };
 }
 
-/* ─────────────────────────────────────────────
-   TYPEWRITER HOOK
-───────────────────────────────────────────── */
 function useTypewriter(text, { speed = 18, enabled = true } = {}) {
   const [out, setOut] = useState("");
   const idxRef = useRef(0);
@@ -127,31 +121,18 @@ function useTypewriter(text, { speed = 18, enabled = true } = {}) {
   return { out, done: out.length >= String(text || "").length };
 }
 
-/* ─────────────────────────────────────────────
-   CATEGORY QUICK-ADD
-   Clicking a chip adds a preset amount to expenses
-───────────────────────────────────────────── */
 const CATEGORY_PRESETS = [
   { icon: <CoffeeOutlined />, label: "Dining", amount: 45 },
   { icon: <CarOutlined />, label: "Transport", amount: 25 },
   { icon: <HomeOutlined />, label: "Lodging", amount: 120 },
 ];
 
-/* ─────────────────────────────────────────────
-   MAIN COMPONENT
-   Props (all optional — card works standalone):
-     initialBookingTotal  number   seed value for trip cost
-     initialTripDays      number   seed value for days
-     initialDestination   string   city name shown in Atlas copy
-     onStateChange        fn       optional callback → { planned, used, bookingTotal, tripDays }
-───────────────────────────────────────────── */
 export default function TripBudgetCard({
   initialBookingTotal = 0,
   initialTripDays = 3,
   initialDestination = "your destination",
   onStateChange,
 }) {
-  /* ── All budget state lives here ── */
   const [planned, setPlanned] = useState(null);
   const [used, setUsed] = useState(0);
   const [bookingTotal, setBookingTotal] = useState(
@@ -161,7 +142,6 @@ export default function TripBudgetCard({
   const [tripDays, setTripDays] = useState(Number(initialTripDays) || 3);
   const [destination, setDestination] = useState(initialDestination);
 
-  /* Sync if parent passes new initialBookingTotal after mount */
   useEffect(() => {
     if (initialBookingTotal) setBookingTotal(Number(initialBookingTotal));
   }, [initialBookingTotal]);
@@ -170,7 +150,6 @@ export default function TripBudgetCard({
     if (initialDestination) setDestination(initialDestination);
   }, [initialDestination]);
 
-  /* ── Reset ── */
   const handleReset = useCallback(() => {
     setPlanned(null);
     setUsed(0);
@@ -179,7 +158,6 @@ export default function TripBudgetCard({
     setTripDays(Number(initialTripDays) || 3);
   }, [initialBookingTotal, initialTripDays]);
 
-  /* ── Add expense ── */
   const handleAddExpense = useCallback(() => {
     const amt = Number(expenseAmount || 0);
     if (!amt || amt <= 0) return;
@@ -187,17 +165,20 @@ export default function TripBudgetCard({
     setExpenseAmount(null);
   }, [expenseAmount]);
 
-  /* ── Category quick-add ── */
   const handleCategoryAdd = useCallback((amount) => {
     setUsed((prev) => prev + amount);
   }, []);
 
-  /* ── Notify parent ── */
+  // ✅ FIX — use a ref to avoid onStateChange recreating on every render
+  const onStateChangeRef = useRef(onStateChange);
   useEffect(() => {
-    onStateChange?.({ planned, used, bookingTotal, tripDays });
-  }, [planned, used, bookingTotal, tripDays, onStateChange]);
+    onStateChangeRef.current = onStateChange;
+  });
 
-  /* ── Derived values ── */
+  useEffect(() => {
+    onStateChangeRef.current?.({ planned, used, bookingTotal, tripDays });
+  }, [planned, used, bookingTotal, tripDays]);
+
   const totalNum = useMemo(() => {
     const n = Number(planned);
     return Number.isFinite(n) && n > 0 ? n : 0;
@@ -227,7 +208,6 @@ export default function TripBudgetCard({
     [totalNum, used, bookingTotal, tripDays]
   );
 
-  /* ── Ring style — fallbacks prevent white box on first render ── */
   const ringStyle = useMemo(
     () => ({
       "--pct": `${Math.max(0, Math.min(100, percent))}%`,
@@ -246,7 +226,6 @@ export default function TripBudgetCard({
     return "Last stretch — watch extras";
   }, [hasBudget, isOverBudget, percent]);
 
-  /* ── Atlas AI system ── */
   const [atlasThinking, setAtlasThinking] = useState(false);
   const [atlasReveal, setAtlasReveal] = useState(false);
   const [atlasLine, setAtlasLine] = useState("");
@@ -291,7 +270,6 @@ export default function TripBudgetCard({
     [atlasVariant, atlasSuggestions, hasBudget, destination, ai.detail]
   );
 
-  /* Initial Atlas reveal on mount */
   useEffect(() => {
     const t = window.setTimeout(() => {
       setAtlasLine(currentAtlasText);
@@ -308,9 +286,6 @@ export default function TripBudgetCard({
 
   const cardSpeaking = atlasThinking || (atlasReveal && !typingDone);
 
-  /* ─────────────────────────────────────────
-     RENDER
-  ───────────────────────────────────────── */
   return (
     <Card
       variant="borderless"
@@ -319,7 +294,6 @@ export default function TripBudgetCard({
       }`}
     >
       <div className="tb-bodyScroll">
-        {/* ── Top bar ── */}
         <div className="tb-topBar">
           <div className="tb-topBarTitle">Trip Budget</div>
           <button
@@ -332,7 +306,6 @@ export default function TripBudgetCard({
           </button>
         </div>
 
-        {/* ── Header ── */}
         <div className="tb-header">
           <Title level={4} className="tb-title">
             {moodLabel}
@@ -342,7 +315,6 @@ export default function TripBudgetCard({
           </Text>
         </div>
 
-        {/* ── Summary strip — all three cells fully editable ── */}
         <div className="tb-summaryStrip">
           <div className="tb-summaryItem">
             <div className="tb-summaryKey">Trip Cost</div>
@@ -386,7 +358,6 @@ export default function TripBudgetCard({
           </div>
         </div>
 
-        {/* ── Ring + progress meta ── */}
         <div className="tb-progressWrap">
           <div className="tb-ring" style={ringStyle}>
             <div className="tb-ringInner">
@@ -429,7 +400,6 @@ export default function TripBudgetCard({
           </div>
         </div>
 
-        {/* ── Main inputs ── */}
         <div className="tb-grid">
           <div className="tb-field">
             <div className="tb-fieldLabel">Set total budget</div>
@@ -444,7 +414,6 @@ export default function TripBudgetCard({
               onChange={(v) => setPlanned(v ?? null)}
             />
           </div>
-
           <div className="tb-field">
             <div className="tb-fieldLabel">Track an expense</div>
             <div className="tb-add-row">
@@ -472,7 +441,6 @@ export default function TripBudgetCard({
           </div>
         </div>
 
-        {/* ── Category quick-add chips ── */}
         <div className="tb-chips">
           {CATEGORY_PRESETS.map((cat) => (
             <button
@@ -488,7 +456,6 @@ export default function TripBudgetCard({
           ))}
         </div>
 
-        {/* ── Atlas Plan module ── */}
         <div className="tb-stack">
           <div className={`tb-ai tone-${ai.tone || "neutral"}`}>
             <div className="tb-aiTop">
@@ -535,7 +502,6 @@ export default function TripBudgetCard({
               </button>
             </div>
 
-            {/* Atlas thinking + typewriter bubble */}
             <div
               className={`tb-novaBubble ${
                 atlasThinking ? "is-thinking" : atlasReveal ? "is-reveal" : ""
