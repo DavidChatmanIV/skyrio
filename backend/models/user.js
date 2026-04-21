@@ -109,6 +109,10 @@ const UserSchema = new Schema(
 
     // ---------- Saved Trips ----------
     savedTrips: [{ type: Schema.Types.ObjectId, ref: "Place" }],
+
+    // ---------- Password Reset ----------
+    resetToken: { type: String, select: false },
+    resetTokenExpiry: { type: Date, select: false },
   },
   { timestamps: true }
 );
@@ -185,7 +189,7 @@ UserSchema.set("toJSON", {
     delete ret._id;
     delete ret.__v;
     delete ret.passwordHash;
-    delete ret.followers; // 👈 don’t expose raw lists by default
+    delete ret.followers;
     delete ret.following;
     return ret;
   },

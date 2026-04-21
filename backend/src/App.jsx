@@ -6,8 +6,6 @@ import {
   Navigate,
 } from "react-router-dom";
 
-import RegisterForm from "./components/RegisterForm";
-import LoginForm from "./components/LoginForm";
 import Home from "./components/Home";
 import ProfileForm from "./components/ProfileForm";
 import SavedTrips from "./components/SavedTrips";
@@ -16,6 +14,11 @@ import Dashboard from "./components/Dashboard";
 import QuestFeed from "./components/QuestFeed";
 import Layout from "./components/Layout";
 import PrivateRoute from "./components/PrivateRoute";
+
+// Auth pages
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 
 // SkyHub
 import SkyHubLayout from "./pages/skyhub/SkyHubLayout";
@@ -31,8 +34,9 @@ function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/register" element={<RegisterForm />} />
-          <Route path="/login" element={<LoginForm />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/reset" element={<ForgotPasswordPage />} />
           <Route path="/explore" element={<Explore />} />
 
           <Route
@@ -43,7 +47,6 @@ function App() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="/profile"
             element={
@@ -52,7 +55,6 @@ function App() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="/saved-trips"
             element={
@@ -61,7 +63,6 @@ function App() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="/quest-feed"
             element={

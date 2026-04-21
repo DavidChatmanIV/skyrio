@@ -4,27 +4,22 @@ import Message from "../models/Message.js";
 
 const router = Router();
 
-// sanity check
 router.get("/ping", (_req, res) => {
   res.json({ ok: true, route: "dm" });
 });
 
-// GET /api/dm/mine?userId=...
 router.get("/mine", async (req, res, next) => {
   try {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: "userId is required" });
 
-    // Find convos where user participates
     const convos = await Conversation.find({ participants: userId })
       .sort({ updatedAt: -1 })
       .select("_id participants isGroup title lastMessage updatedAt")
       .lean();
 
-    // If no convos, return early (avoids $in: [])
     if (!convos.length) return res.json([]);
 
-    // Get latest message for each convo in one shot
     const convoIds = convos.map((c) => c._id);
 
     const latestByConvo = await Message.aggregate([
@@ -43,7 +38,6 @@ router.get("/mine", async (req, res, next) => {
 
     const latestMap = new Map(latestByConvo.map((m) => [String(m._id), m]));
 
-    // Shape response: include partnerId for 1:1 convos
     const data = convos.map((c) => {
       const latest = latestMap.get(String(c._id)) || null;
       const partnerId = !c.isGroup
