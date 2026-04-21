@@ -23,6 +23,7 @@ import {
   EditOutlined,
   CheckOutlined,
   CloseOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { Link, useSearchParams } from "react-router-dom";
@@ -50,14 +51,11 @@ const DEFAULT_FILTERS = {
 
 function getFlightXP(flight) {
   let xp = 40;
-
   if (flight.stops === 0) xp += 30;
   else if (flight.stops === 1) xp += 10;
-
   const price = parseFloat(flight.totalAmount);
   if (price < 300) xp += 20;
   else if (price < 600) xp += 10;
-
   return xp;
 }
 
@@ -72,26 +70,15 @@ function getFlightTimeSlot(flight) {
 function applyFilters(flights, filters) {
   return flights.filter((f) => {
     const price = parseFloat(f.totalAmount);
-
     if (filters.price !== "any" && price > filters.price) return false;
-
     if (filters.stops !== "any") {
       if (filters.stops === 2 && f.stops < 2) return false;
       if (filters.stops !== 2 && f.stops !== filters.stops) return false;
     }
-
-    if (filters.time !== "any" && getFlightTimeSlot(f) !== filters.time) {
+    if (filters.time !== "any" && getFlightTimeSlot(f) !== filters.time)
       return false;
-    }
-
-    if (filters.airline !== "any" && f.owner !== filters.airline) {
-      return false;
-    }
-
-    if (filters.xp !== "any" && getFlightXP(f) < filters.xp) {
-      return false;
-    }
-
+    if (filters.airline !== "any" && f.owner !== filters.airline) return false;
+    if (filters.xp !== "any" && getFlightXP(f) < filters.xp) return false;
     return true;
   });
 }
@@ -168,11 +155,9 @@ const KNOWN_DESTINATIONS = [
 
 function extractDestFromPrompt(prompt) {
   if (!prompt) return null;
-
   const lower = prompt.toLowerCase();
   const found = KNOWN_DESTINATIONS.find((d) => lower.includes(d));
   if (found) return found.charAt(0).toUpperCase() + found.slice(1);
-
   const skip = new Set([
     "a",
     "in",
@@ -187,11 +172,9 @@ function extractDestFromPrompt(prompt) {
     "budget",
     "plan",
   ]);
-
   const cap = prompt
     .split(/\s+/)
     .find((w) => /^[A-Z]/.test(w) && !skip.has(w.toLowerCase()));
-
   return cap ?? null;
 }
 
@@ -341,16 +324,12 @@ const DEFAULT_WEATHER = {
 
 function getWeatherForCity(cityStr) {
   if (!cityStr) return DEFAULT_WEATHER;
-
   const key = cityStr.toLowerCase().trim();
   if (CITY_WEATHER[key]) return CITY_WEATHER[key];
-
   const partial = Object.keys(CITY_WEATHER).find((k) => key.includes(k));
   if (partial) return CITY_WEATHER[partial];
-
   const reverse = Object.keys(CITY_WEATHER).find((k) => k.includes(key));
   if (reverse) return CITY_WEATHER[reverse];
-
   return {
     label: cityStr
       .split(" ")
@@ -386,18 +365,13 @@ function FlightsForm({ onSearch, onDestChange }) {
   const [loading, setLoading] = useState(false);
 
   const handleSearch = async () => {
-    if (!originAirport) {
+    if (!originAirport)
       return antdMessage.warning("Select a departure airport");
-    }
-    if (!destAirport) {
+    if (!destAirport)
       return antdMessage.warning("Select a destination airport");
-    }
-    if (!dates[0]) {
-      return antdMessage.warning("Select a departure date");
-    }
+    if (!dates[0]) return antdMessage.warning("Select a departure date");
 
     setLoading(true);
-
     try {
       const params = new URLSearchParams({
         from: originAirport.code,
@@ -406,17 +380,12 @@ function FlightsForm({ onSearch, onDestChange }) {
         adults: String(adults),
         cabin,
       });
-
-      if (dates[1]) {
+      if (dates[1])
         params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
-      }
 
       const res = await fetch(`/api/flights/search?${params}`);
       const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.message || "Search failed");
-      }
+      if (!res.ok || !data.ok) throw new Error(data.message || "Search failed");
 
       onSearch(data.flights ?? []);
       antdMessage.success(`Found ${data.flights?.length ?? 0} flights`);
@@ -429,12 +398,10 @@ function FlightsForm({ onSearch, onDestChange }) {
 
   const handleSwap = () => {
     const newDestCity = originAirport?.city ?? null;
-
     setOriginAirport(destAirport);
     setDestAirport(originAirport);
     setOriginDisplay(destDisplay);
     setDestDisplay(originDisplay);
-
     if (newDestCity) onDestChange?.(newDestCity);
   };
 
@@ -449,11 +416,9 @@ function FlightsForm({ onSearch, onDestChange }) {
             setOriginDisplay(`${ap.city} (${ap.code})`);
           }}
         />
-
         <button type="button" className="sk-swap-btn" onClick={handleSwap}>
           <SwapOutlined />
         </button>
-
         <AirportInput
           value={destDisplay}
           placeholder="To: City or airport"
@@ -464,13 +429,11 @@ function FlightsForm({ onSearch, onDestChange }) {
           }}
         />
       </div>
-
       <RangePicker
         className="sk-orange-picker"
         onChange={(v) => setDates(v ?? [null, null])}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
-
       <Select
         className="sk-select-cabin"
         value={cabin}
@@ -482,7 +445,6 @@ function FlightsForm({ onSearch, onDestChange }) {
         <Option value="business">Business</Option>
         <Option value="first">First Class</Option>
       </Select>
-
       <InputNumber
         className="sk-input-travelers"
         min={1}
@@ -491,7 +453,6 @@ function FlightsForm({ onSearch, onDestChange }) {
         onChange={(v) => setAdults(v ?? 1)}
         placeholder="Travelers"
       />
-
       <SearchBtn onClick={handleSearch} loading={loading} />
     </div>
   );
@@ -505,13 +466,11 @@ function StaysForm({ onDestChange }) {
         placeholder="Where to? City or hotel"
         onChange={(ap) => onDestChange?.(ap.city)}
       />
-
       <RangePicker
         className="sk-orange-picker"
         placeholder={["Check-in", "Check-out"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
-
       <Select
         className="sk-select-cabin"
         defaultValue="2t1r"
@@ -522,7 +481,6 @@ function StaysForm({ onDestChange }) {
         <Option value="3t1r">3 travelers, 1 room</Option>
         <Option value="2t2r">2 travelers, 2 rooms</Option>
       </Select>
-
       <SearchBtn />
     </div>
   );
@@ -536,19 +494,16 @@ function CarsForm({ onDestChange }) {
         placeholder="Pick-up location"
         onChange={(ap) => onDestChange?.(ap.city)}
       />
-
       <AirportInput
         value=""
         placeholder="Drop-off (same as pick-up)"
         onChange={() => {}}
       />
-
       <RangePicker
         className="sk-orange-picker"
         placeholder={["Pick-up date", "Drop-off date"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
-
       <SearchBtn />
     </div>
   );
@@ -562,10 +517,8 @@ function PackagesForm({ onDestChange }) {
     flight: true,
     car: false,
   });
-
-  const toggle = (key) => {
+  const toggle = (key) =>
     setPkgOptions((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
 
   return (
     <div className="sk-search-bar">
@@ -586,13 +539,11 @@ function PackagesForm({ onDestChange }) {
           </button>
         ))}
       </div>
-
       <AirportInput
         value={originDisplay}
         placeholder="Leaving from"
         onChange={(ap) => setOriginDisplay(`${ap.city} (${ap.code})`)}
       />
-
       <AirportInput
         value={destDisplay}
         placeholder="Going to"
@@ -601,12 +552,10 @@ function PackagesForm({ onDestChange }) {
           onDestChange?.(ap.city);
         }}
       />
-
       <RangePicker
         className="sk-orange-picker"
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
-
       <Select
         className="sk-select-cabin"
         defaultValue="2t1r"
@@ -616,7 +565,6 @@ function PackagesForm({ onDestChange }) {
         <Option value="2t1r">2 travelers, 1 room</Option>
         <Option value="2t2r">2 travelers, 2 rooms</Option>
       </Select>
-
       <SearchBtn />
     </div>
   );
@@ -630,13 +578,11 @@ function ExcursionsForm({ onDestChange }) {
         placeholder="Destination city"
         onChange={(ap) => onDestChange?.(ap.city)}
       />
-
       <RangePicker
         className="sk-orange-picker"
         placeholder={["Activity from", "Activity to"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
-
       <Select
         className="sk-select-cabin"
         defaultValue="any"
@@ -649,7 +595,6 @@ function ExcursionsForm({ onDestChange }) {
         <Option value="culture">Culture</Option>
         <Option value="wellness">Wellness</Option>
       </Select>
-
       <SearchBtn />
     </div>
   );
@@ -659,7 +604,6 @@ function LastMinuteForm() {
   return (
     <div className="sk-search-bar">
       <AirportInput value="" placeholder="Departing from" onChange={() => {}} />
-
       <Select
         className="sk-select-cabin"
         defaultValue="anywhere"
@@ -671,24 +615,113 @@ function LastMinuteForm() {
         <Option value="mountains">⛰ Mountains</Option>
         <Option value="theme">🎡 Theme parks</Option>
       </Select>
-
       <RangePicker
         className="sk-orange-picker"
         placeholder={["This weekend", "Next weekend"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
-
       <SearchBtn />
     </div>
   );
 }
 
+// ─── Real SavedForm ────────────────────────────────────────────────────────────
 function SavedForm() {
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    fetch("/api/saved-trips", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.ok)
+          throw new Error(data.message || "Failed to load saved trips");
+        setTrips(data.savedTrips);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleDelete = async (id) => {
+    setDeletingId(id);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/saved-trips/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.message || "Delete failed");
+      setTrips((prev) => prev.filter((t) => (t.id || t._id) !== id));
+      antdMessage.success("Trip removed");
+    } catch (err) {
+      antdMessage.error(err.message || "Failed to remove trip");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="sk-search-bar" style={{ justifyContent: "center" }}>
+        <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
+          <LoadingOutlined style={{ marginRight: 8 }} />
+          Loading saved trips…
+        </Text>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="sk-search-bar" style={{ justifyContent: "center" }}>
+        <Text style={{ color: "#ff4d4f", fontSize: 14 }}>⚠️ {error}</Text>
+      </div>
+    );
+  }
+
+  if (!trips.length) {
+    return (
+      <div className="sk-search-bar" style={{ justifyContent: "center" }}>
+        <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
+          💾 No saved trips yet — hit Save on any result to add one
+        </Text>
+      </div>
+    );
+  }
+
   return (
-    <div className="sk-search-bar" style={{ justifyContent: "center" }}>
-      <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
-        💾 Your saved trips will appear in results below
-      </Text>
+    <div className="sk-search-bar sk-saved-list">
+      {trips.map((trip) => {
+        const id = trip.id || trip._id;
+        return (
+          <div key={id} className="sk-saved-chip">
+            <span className="sk-saved-chip-title">{trip.title}</span>
+            {trip.destination && (
+              <span className="sk-saved-chip-dest">📍 {trip.destination}</span>
+            )}
+            {trip.price > 0 && (
+              <span className="sk-saved-chip-price">
+                ${trip.price.toLocaleString()}
+              </span>
+            )}
+            <button
+              type="button"
+              className="sk-saved-chip-delete"
+              onClick={() => handleDelete(id)}
+              disabled={deletingId === id}
+              aria-label="Remove saved trip"
+            >
+              {deletingId === id ? <LoadingOutlined /> : <DeleteOutlined />}
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -732,12 +765,10 @@ export default function BookingPage() {
     if (exampleParam && EXAMPLE_PLANS[exampleParam]) {
       return { ...EXAMPLE_PLANS[exampleParam], source: "example" };
     }
-
     if (planParam && PLAN_SEEDS[planParam]) {
       const seed = PLAN_SEEDS[planParam];
       const mergedPrompt = promptParam ?? seed.prompt;
       const mergedBudget = extractBudgetFromPrompt(mergedPrompt) ?? seed.budget;
-
       return {
         ...seed,
         prompt: mergedPrompt,
@@ -745,7 +776,6 @@ export default function BookingPage() {
         source: "plan",
       };
     }
-
     if (promptParam) {
       return {
         prompt: promptParam,
@@ -757,7 +787,6 @@ export default function BookingPage() {
         source: "prompt",
       };
     }
-
     return null;
   }, [searchParams]);
 
@@ -801,7 +830,6 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!prefillData?.iata || autoSearchDone) return;
-
     const { iata, tripDays: days = 10 } = prefillData;
     const { departDate, returnDate } = getAutoSearchDates(days);
 
@@ -821,13 +849,9 @@ export default function BookingPage() {
     fetch(`/api/flights/search?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        if (!data.ok) {
-          throw new Error(data.message || "Search failed");
-        }
-
+        if (!data.ok) throw new Error(data.message || "Search failed");
         setFlightResults(data.flights ?? []);
         setAutoSearchDone(true);
-
         if (data.flights?.length) {
           antdMessage.success(
             `✈️ Found ${data.flights.length} flights to ${prefillData.destination}`
@@ -849,16 +873,9 @@ export default function BookingPage() {
   const handlePrefillSave = useCallback(() => {
     const newDest = extractDestFromPrompt(editPrompt) ?? destCity;
     const newBudget = editBudget ?? extractBudgetFromPrompt(editPrompt);
-
     setDestCity(newDest);
-    if (newBudget) {
-      setBudgetState((prev) => ({ ...prev, planned: newBudget }));
-    }
-
-    if (editDays) {
-      setBudgetState((prev) => ({ ...prev, tripDays: editDays }));
-    }
-
+    if (newBudget) setBudgetState((prev) => ({ ...prev, planned: newBudget }));
+    if (editDays) setBudgetState((prev) => ({ ...prev, tripDays: editDays }));
     setPrefillEditing(false);
     antdMessage.success("Trip details updated!");
   }, [editPrompt, editBudget, editDays, destCity]);
@@ -874,7 +891,6 @@ export default function BookingPage() {
   );
 
   const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
-
   const weatherTitle = weather.label
     ? `${weather.label} Weather${weather.temp ? ` • ${weather.temp}` : ""}`
     : "Select a destination";
@@ -886,15 +902,11 @@ export default function BookingPage() {
     () => ["Under $500", "Luxury", "Unwind", "Adventure", "Romantic"],
     []
   );
-
   const [activeFilters, setActiveFilters] = useState(["Under $500"]);
-
-  const toggleFilter = (label) => {
+  const toggleFilter = (label) =>
     setActiveFilters((prev) =>
       prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
     );
-  };
-
   const clearFilters = () => setActiveFilters([]);
 
   const [selectedResult, setSelectedResult] = useState({
@@ -902,10 +914,6 @@ export default function BookingPage() {
     title: "Skyrio Select Stay – Deluxe",
     total: 168,
   });
-
-  const handleSaveTrip = (src = "page") => {
-    antdMessage.success(`Trip saved! (${src})`);
-  };
 
   const rating = 4.7;
   const reviews = 1243;
@@ -925,7 +933,6 @@ export default function BookingPage() {
 
   const searchForm = useMemo(() => {
     const props = { onDestChange: setDestCity };
-
     switch (tab) {
       case "Flights":
         return (
@@ -973,11 +980,9 @@ export default function BookingPage() {
 
         <div className="sk-tripState">
           <div className="sk-tripRoute">{heroRoute}</div>
-
           <div className="sk-tripMeta">
             {heroNights} • {weather.sub} • Best value window
           </div>
-
           <div className="sk-tripAssist">
             {autoSearchLoading
               ? "⏳ Searching live flights for you…"
@@ -993,21 +998,17 @@ export default function BookingPage() {
                   <span className="sk-prefill-bolt">⚡</span>
                   <span className="sk-prefill-loaded">Loaded from AI</span>
                   <span className="sk-prefill-divider">·</span>
-
                   {destCity && (
                     <span className="sk-prefill-chip">📍 {destCity}</span>
                   )}
-
                   {budgetSeed && (
                     <span className="sk-prefill-chip">
                       💰 ${budgetSeed.toLocaleString()}
                     </span>
                   )}
-
                   {tripDaySeed && (
                     <span className="sk-prefill-chip">🗓 {tripDaySeed}d</span>
                   )}
-
                   <button
                     type="button"
                     className="sk-prefill-editBtn"
@@ -1015,7 +1016,6 @@ export default function BookingPage() {
                   >
                     <EditOutlined /> Edit
                   </button>
-
                   <button
                     type="button"
                     className="sk-prefill-dismissBtn"
@@ -1036,7 +1036,6 @@ export default function BookingPage() {
                         onChange={(e) => setEditPrompt(e.target.value)}
                       />
                     </div>
-
                     <div className="sk-prefill-field">
                       <label className="sk-prefill-label">Budget ($)</label>
                       <InputNumber
@@ -1050,7 +1049,6 @@ export default function BookingPage() {
                         placeholder="2500"
                       />
                     </div>
-
                     <div className="sk-prefill-field">
                       <label className="sk-prefill-label">Days</label>
                       <InputNumber
@@ -1063,7 +1061,6 @@ export default function BookingPage() {
                       />
                     </div>
                   </div>
-
                   <div className="sk-prefill-expandedActions">
                     <button
                       type="button"
@@ -1072,7 +1069,6 @@ export default function BookingPage() {
                     >
                       <CheckOutlined /> Save
                     </button>
-
                     <button
                       type="button"
                       className="sk-prefill-cancelBtn"
@@ -1178,8 +1174,6 @@ export default function BookingPage() {
         <Space className="sk-action-row" wrap>
           <Button className="sk-btn-orange">Sort: Recommended</Button>
 
-          <SaveTripButton onSaveConfirmed={() => handleSaveTrip("hero")} />
-
           <Link to="/sync-together">
             <Button className="sk-btn-sync" icon={<SyncOutlined />}>
               ✈️ Sync Together
@@ -1200,7 +1194,6 @@ export default function BookingPage() {
               {f}
             </button>
           ))}
-
           <button
             type="button"
             className="sk-qf sk-qf-clear"
@@ -1217,7 +1210,6 @@ export default function BookingPage() {
             <Title level={4} className="sk-section-title">
               {resultsTitle}
             </Title>
-
             <div className="sk-resultsSub">
               {autoSearchLoading
                 ? `Searching EWR → ${
@@ -1235,7 +1227,6 @@ export default function BookingPage() {
                 ? "Try relaxing your filters to see more results"
                 : "Curated picks based on your budget + comfort preferences."}
             </div>
-
             {!autoSearchLoading &&
               flightResults.length > 0 &&
               visibleFlights.length === 0 && (
@@ -1267,6 +1258,7 @@ export default function BookingPage() {
             </div>
           )}
 
+          {/* ── Flight results ── */}
           {!autoSearchLoading &&
             visibleFlights.length > 0 &&
             visibleFlights.map((flight) => (
@@ -1287,20 +1279,16 @@ export default function BookingPage() {
               >
                 <div className="sk-resultRow">
                   <div className="sk-thumb" />
-
                   <div className="sk-resultMain">
                     <div className="sk-resultTop">
                       <div>
                         <div className="sk-resultTitle">{flight.owner}</div>
-
                         <div className="sk-resultMeta">
                           <span className="sk-metaItem">
                             <EnvironmentOutlined /> {flight.origin} →{" "}
                             {flight.destination}
                           </span>
-
                           <span className="sk-metaDot">•</span>
-
                           <span className="sk-metaItem">
                             {flight.stops === 0
                               ? "Nonstop"
@@ -1308,7 +1296,6 @@ export default function BookingPage() {
                                   flight.stops > 1 ? "s" : ""
                                 }`}
                           </span>
-
                           {flight.departingAt && (
                             <>
                               <span className="sk-metaDot">•</span>
@@ -1321,12 +1308,10 @@ export default function BookingPage() {
                             </>
                           )}
                         </div>
-
                         <div className="sk-pickedWhy">
                           Why Skyrio picked this: best price + comfort score
                         </div>
                       </div>
-
                       <div className="sk-resultRight">
                         <div className="sk-priceLine">
                           <span className="sk-priceAmt">
@@ -1336,34 +1321,44 @@ export default function BookingPage() {
                             {flight.totalCurrency}
                           </span>
                         </div>
-
+                        {/* Per-flight save button — passes real flight data */}
                         <SaveTripButton
                           size="small"
                           variant="ghost"
                           label="Save"
-                          onSaveConfirmed={() => handleSaveTrip("result")}
+                          tripData={{
+                            tripType: "flight",
+                            title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
+                            destination: flight.destination,
+                            price: parseFloat(flight.totalAmount),
+                            currency: flight.totalCurrency || "USD",
+                            startDate: flight.departingAt
+                              ? dayjs(flight.departingAt).format("YYYY-MM-DD")
+                              : "",
+                            metadata: {
+                              flightId: flight.id,
+                              stops: flight.stops,
+                            },
+                          }}
+                          onSaveError={(msg) => antdMessage.error(msg)}
                         />
                       </div>
                     </div>
-
                     <div className="sk-tagRow">
                       <span className="sk-tag sk-tag-good">
                         {flight.stops === 0
                           ? "Nonstop"
                           : `${flight.stops} stop`}
                       </span>
-
                       <span className="sk-tag sk-tag-orange">
                         {flight.ownerCode}
                       </span>
-
                       {budgetSeed &&
                         parseFloat(flight.totalAmount) <= budgetSeed && (
                           <span className="sk-tag sk-tag-good">
                             Within budget
                           </span>
                         )}
-
                       <span className="sk-tag sk-tag-xp">
                         ⚡ {getFlightXP(flight)} XP
                       </span>
@@ -1373,6 +1368,7 @@ export default function BookingPage() {
               </Card>
             ))}
 
+          {/* ── Placeholder result card ── */}
           {!autoSearchLoading &&
             flightResults.length === 0 &&
             !autoSearchError && (
@@ -1392,21 +1388,17 @@ export default function BookingPage() {
               >
                 <div className="sk-resultRow">
                   <div className="sk-thumb" />
-
                   <div className="sk-resultMain">
                     <div className="sk-resultTop">
                       <div>
                         <div className="sk-resultTitle">
                           Skyrio Select Stay – Deluxe
                         </div>
-
                         <div className="sk-resultMeta">
                           <span className="sk-metaItem">
                             <EnvironmentOutlined /> {heroRoute}
                           </span>
-
                           <span className="sk-metaDot">•</span>
-
                           <span className="sk-metaItem">
                             <StarFilled className="sk-star" /> {rating}
                             <span className="sk-reviews">
@@ -1415,28 +1407,31 @@ export default function BookingPage() {
                             </span>
                           </span>
                         </div>
-
                         <div className="sk-pickedWhy">
                           Why Skyrio picked this: high rating + best value this
                           window
                         </div>
                       </div>
-
                       <div className="sk-resultRight">
                         <div className="sk-priceLine">
                           <span className="sk-priceAmt">$168</span>
                           <span className="sk-priceSub">total</span>
                         </div>
-
                         <SaveTripButton
                           size="small"
                           variant="ghost"
                           label="Save"
-                          onSaveConfirmed={() => handleSaveTrip("result")}
+                          tripData={{
+                            tripType: "hotel",
+                            title: "Skyrio Select Stay – Deluxe",
+                            destination: destCity,
+                            price: 168,
+                            currency: "USD",
+                          }}
+                          onSaveError={(msg) => antdMessage.error(msg)}
                         />
                       </div>
                     </div>
-
                     <div className="sk-tagRow">
                       <span className="sk-tag sk-tag-good">Best Value</span>
                       <span className="sk-tag sk-tag-orange">
@@ -1444,7 +1439,6 @@ export default function BookingPage() {
                       </span>
                       <span className="sk-tag sk-tag-soft">No resort fee</span>
                     </div>
-
                     <div className="sk-bestFor">
                       <span className="sk-bestForLabel">Best for:</span>
                       {bestFor.map((t) => (

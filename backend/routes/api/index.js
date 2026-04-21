@@ -42,6 +42,7 @@ await mount("/airports", "./airports.routes.js");
 await mount("/skyhub", "./skyhub.routes.js");
 await mount("/weather", "./weather.routes.js");
 await mount("/notifications", "./notifications.routes.js");
+await mount("/saved-trips", "./savedTrips.routes.js");
 
 /* ======================================================
    Extended Modules (outside api folder)
