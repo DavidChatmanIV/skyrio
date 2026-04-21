@@ -439,14 +439,12 @@ export default function DigitalPassportPage() {
           <div className="pp-page">
             <div className="pp-shell">
               <div className="pp-homeBtnWrap">
-                <Button
-                  type="text"
-                  icon={<LeftOutlined />}
-                  className="pp-homeBtn"
+                <button
+                  className="pp-homeBtn-pill"
                   onClick={() => navigate("/")}
                 >
                   Home
-                </Button>
+                </button>
               </div>
 
               <div className="pp-mockGrid">
