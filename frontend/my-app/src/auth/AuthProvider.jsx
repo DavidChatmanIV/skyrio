@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { AuthContext } from "../context/AuthContext";
 
+const API = import.meta.env.VITE_API_URL || "";
+
 function safeParse(json) {
   try {
     return json ? JSON.parse(json) : null;
@@ -25,7 +27,6 @@ function getStoredToken() {
 
 function buildAuthHeaders(extraHeaders = {}) {
   const token = getStoredToken();
-
   return {
     ...extraHeaders,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -75,7 +76,7 @@ export default function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch("/api/auth/logout", {
+      await fetch(`${API}/api/auth/logout`, {
         method: "POST",
         credentials: "include",
         headers: buildAuthHeaders(),
@@ -113,7 +114,7 @@ export default function AuthProvider({ children }) {
         return;
       }
 
-      const res = await fetch("/api/profile/me", {
+      const res = await fetch(`${API}/api/profile/me`, {
         method: "GET",
         credentials: "include",
         headers: buildAuthHeaders(),
@@ -168,7 +169,7 @@ export default function AuthProvider({ children }) {
       return { ok: false, error: "Provide email and/or username" };
     }
 
-    const res = await fetch(`/api/auth/available?${params.toString()}`, {
+    const res = await fetch(`${API}/api/auth/available?${params.toString()}`, {
       method: "GET",
       headers: { Accept: "application/json" },
       credentials: "include",
@@ -187,7 +188,7 @@ export default function AuthProvider({ children }) {
         throw new Error("Email/username and password are required");
       }
 
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${API}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -204,11 +205,7 @@ export default function AuthProvider({ children }) {
         throw new Error("Login response missing token or user");
       }
 
-      setSession({
-        token: data.token,
-        user: data.user,
-      });
-
+      setSession({ token: data.token, user: data.user });
       return true;
     },
     [setSession]
@@ -220,7 +217,7 @@ export default function AuthProvider({ children }) {
         throw new Error("Email and password are required");
       }
 
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch(`${API}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -242,11 +239,7 @@ export default function AuthProvider({ children }) {
         throw new Error("Register response missing token or user");
       }
 
-      setSession({
-        token: data.token,
-        user: data.user,
-      });
-
+      setSession({ token: data.token, user: data.user });
       return true;
     },
     [setSession]

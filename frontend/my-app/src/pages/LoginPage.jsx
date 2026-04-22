@@ -19,6 +19,7 @@ import gateBg from "../assets/LoginBoardingpass/gate.png";
 import "../styles/login.css";
 
 const { Title, Text } = Typography;
+const API = import.meta.env.VITE_API_URL || "";
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -64,7 +65,7 @@ export default function LoginPage() {
     setIsScanning(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${API}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -177,7 +178,6 @@ export default function LoginPage() {
               <div className="sk-passScan" aria-hidden="true" />
 
               <div className="sk-passGrid">
-                {/* ── MAIN ── */}
                 <div className="sk-passMain">
                   <div className="sk-passHeader">
                     <div className="sk-brandRow">
@@ -314,7 +314,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* ✅ Real QR stub */}
                 <PassStub />
               </div>
             </div>

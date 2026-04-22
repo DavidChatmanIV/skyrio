@@ -29,6 +29,7 @@ import "../styles/login.css";
 import "../styles/RegisterPage.css";
 
 const { Title, Text } = Typography;
+const API = import.meta.env.VITE_API_URL || "";
 
 const UN_IDLE = "idle";
 const UN_CHECKING = "checking";
@@ -51,7 +52,6 @@ export default function RegisterPage() {
   const [isScanning, setIsScanning] = useState(false);
   const successHandledRef = useRef(false);
 
-  /* ── Username availability ── */
   const [unStatus, setUnStatus] = useState(UN_IDLE);
   const [unMessage, setUnMessage] = useState("");
   const debounceRef = useRef(null);
@@ -146,7 +146,7 @@ export default function RegisterPage() {
     setIsScanning(true);
 
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch(`${API}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -259,7 +259,6 @@ export default function RegisterPage() {
               <div className="sk-passScan" aria-hidden="true" />
 
               <div className="sk-passGrid">
-                {/* ── MAIN ── */}
                 <div className="sk-passMain">
                   <div className="sk-passHeader">
                     <div className="sk-brandRow">
@@ -308,7 +307,6 @@ export default function RegisterPage() {
                   </div>
 
                   <div className="sk-form">
-                    {/* Row 1: Name + Username */}
                     <div className="sk-fieldRow">
                       <div className="sk-field">
                         <div className="sk-fieldLabel">FULL NAME *</div>
@@ -362,7 +360,6 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
-                    {/* Row 2: Email */}
                     <div className="sk-field">
                       <div className="sk-fieldLabel">EMAIL *</div>
                       <Input
@@ -377,7 +374,6 @@ export default function RegisterPage() {
                       />
                     </div>
 
-                    {/* Row 3: Password + Confirm */}
                     <div className="sk-fieldRow">
                       <div className="sk-field">
                         <div className="sk-fieldLabel">PASSWORD *</div>
@@ -463,7 +459,6 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                {/* ✅ Real QR stub */}
                 <PassStub />
               </div>
             </div>
