@@ -1,4 +1,4 @@
-import User from "../models/User.js";
+import User from "../models/user.js";
 
 const OFFICIAL_EMAIL = (
   process.env.OFFICIAL_EMAIL || "official@skyrio.com"
