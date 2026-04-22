@@ -11,6 +11,8 @@ const bookingSchema = new mongoose.Schema({
     required: true,
   },
   destination: { type: String },
+  destinationCity: { type: String },
+  destinationCountry: { type: String },
   date: { type: Date, default: Date.now },
   status: {
     type: String,
@@ -19,7 +21,6 @@ const bookingSchema = new mongoose.Schema({
   },
 });
 
-// Avoid OverwriteModelError in dev/hot-reload
 const Booking =
   mongoose.models.Booking || mongoose.model("Booking", bookingSchema);
 export default Booking;

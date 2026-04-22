@@ -1,6 +1,6 @@
 import { Router } from "express";
-import Conversation from "../models/Conversation.js";
-import Message from "../models/Message.js";
+import Conversation from "../models/conversation.js";
+import Message from "../models/message.js";
 
 const router = Router();
 

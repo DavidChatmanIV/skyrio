@@ -8,21 +8,16 @@ const WatchSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
-    // MVP-friendly payload (store search intent)
-    type: { type: String, default: "flights" }, // stays/flights/cars...
+    type: { type: String, default: "flights" },
     destination: { type: String, default: "" },
     dates: { type: [String], default: null },
     guests: { type: String, default: "" },
-
-    // price tracking
     lastSeenPrice: { type: Number, default: null },
     active: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
-// Prevent duplicates (same user watching same “intent”)
 WatchSchema.index(
   { userId: 1, type: 1, destination: 1, guests: 1, dates: 1, active: 1 },
   { unique: false }
