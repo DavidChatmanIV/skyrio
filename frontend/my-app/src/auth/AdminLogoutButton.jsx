@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Button, message } from "antd";
 import { LogoutOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "@/lib/api";
 
 export default function AdminLogoutButton({
   size = "middle",
@@ -14,7 +15,7 @@ export default function AdminLogoutButton({
   const onLogout = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/logout", {
+      const res = await fetch(apiUrl("/api/admin/logout"), {
         method: "POST",
         credentials: "include",
       });

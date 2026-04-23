@@ -13,11 +13,11 @@ import {
 import { HomeOutlined, RocketOutlined } from "@ant-design/icons";
 import { Link } from "react-router-dom";
 import "../styles/SmartPlan.css";
+import { apiUrl } from "@/lib/api";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-/* ------------ Options ------------ */
 const FLIGHT_CLASSES = ["Economy", "Premium Economy", "Business", "First"];
 
 const FOOD_PLAN_OPTIONS = [
@@ -26,12 +26,10 @@ const FOOD_PLAN_OPTIONS = [
   { label: "Room service focused", value: "room-service" },
 ];
 
-/* ------------ Helpers ------------ */
 function buildTripPrompt(values) {
   const v = values || {};
-
   const lines = [
-    `You are Atlas, Skyrio’s AI travel engine.`,
+    `You are Atlas, Skyrio's AI travel engine.`,
     ``,
     `Create a practical trip plan for:`,
     `Destination: ${v.destination || "N/A"}`,
@@ -50,23 +48,19 @@ function buildTripPrompt(values) {
     ``,
     `Tone: confident, optimized, momentum-driven. Use bullet points and clear sections.`,
   ].filter(Boolean);
-
   return lines.join("\n");
 }
 
 export default function TravelAssistant() {
   const [form] = Form.useForm();
-
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [aiPlan, setAiPlan] = useState("");
   const [selectedPreset, setSelectedPreset] = useState(null);
 
-  // Atlas-only system prompt
   const systemPrompt =
     "You are Atlas, Skyrio's AI travel engine. Be fast, confident, optimized, and actionable. Use bullet points and clear structure. Keep answers practical and booking-ready.";
 
-  // Presets
   const applyPreset = (key) => {
     const presets = {
       solo: { destination: "Paris", days: 3, flightClass: "Economy" },
@@ -77,9 +71,8 @@ export default function TravelAssistant() {
     setSelectedPreset(key);
   };
 
-  // Call your backend AI
   const callAi = async (messages) => {
-    const res = await fetch("/api/ai/chat", {
+    const res = await fetch(apiUrl("/api/ai/chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages }),
@@ -102,15 +95,12 @@ export default function TravelAssistant() {
     setErr("");
     setAiPlan("");
     setLoading(true);
-
     try {
       const userPrompt = buildTripPrompt(values);
-
       const reply = await callAi([
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ]);
-
       setAiPlan(reply);
     } catch (e) {
       setErr(e?.message || "Something went wrong generating your plan.");
@@ -130,12 +120,10 @@ export default function TravelAssistant() {
   return (
     <div className="ta-wrap">
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
-        {/* Home Button */}
         <Link to="/" className="ta-home">
           <HomeOutlined /> Home
         </Link>
 
-        {/* Heading */}
         <Title level={3} style={{ color: "white", margin: 0 }}>
           ✨ Build Your Perfect Trip with Atlas
         </Title>
@@ -144,12 +132,10 @@ export default function TravelAssistant() {
           Powered by <b>Atlas</b>.
         </Text>
 
-        {/* Quick start */}
         <div className="ta-prefills ta-quickstart">
           <Text style={{ color: "rgba(255,255,255,0.7)" }}>
             Quick start <i>(optional)</i>
           </Text>
-
           <Space wrap>
             <Button
               className={selectedPreset === "solo" ? "active" : ""}
@@ -170,23 +156,20 @@ export default function TravelAssistant() {
               Luxury Escape
             </Button>
           </Space>
-
           <Text type="secondary" style={{ color: "rgba(255,255,255,0.6)" }}>
             Or skip this and fill in the fields below.
           </Text>
         </div>
 
-        {/* Error */}
         {!!err && (
           <Alert
             type="error"
             showIcon
-            message="Couldn’t generate your trip plan"
+            message="Couldn't generate your trip plan"
             description={err}
           />
         )}
 
-        {/* Form */}
         <Form
           form={form}
           layout="vertical"
@@ -244,14 +227,12 @@ export default function TravelAssistant() {
                   popupClassName="ta-select-dark"
                 />
               </Form.Item>
-
               <Form.Item
                 label={<span style={{ color: "white" }}>Budget Range</span>}
                 name="budget"
               >
                 <Input placeholder="e.g., under $1000" />
               </Form.Item>
-
               <Form.Item
                 label={
                   <span style={{ color: "white" }}>Preferred Activities</span>
@@ -273,13 +254,11 @@ export default function TravelAssistant() {
               >
                 {loading ? "Generating..." : "Generate with Atlas"}
               </Button>
-
               <Button onClick={handleReset}>Reset</Button>
             </Space>
           </Form.Item>
         </Form>
 
-        {/* AI Output */}
         {!!aiPlan && (
           <Card className="ta-glass" style={{ borderRadius: 16 }}>
             <Title level={4} style={{ color: "white", marginTop: 0 }}>

@@ -1,3 +1,5 @@
+import { apiUrl } from "@/lib/api";
+
 const PASSPORT_EVENT_MAP = {
   SEARCH_EXECUTED: "trip_planned",
   TRIP_SAVED: "trip_saved",
@@ -17,24 +19,16 @@ export async function trackPassportEvent(type, meta = {}) {
   }
 
   try {
-    const res = await fetch("/api/passport/activity", {
+    const res = await fetch(apiUrl("/api/passport/activity"), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({
-        type: mappedType,
-        meta,
-      }),
+      body: JSON.stringify({ type: mappedType, meta }),
     });
 
     const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
+    if (!res.ok)
       throw new Error(data?.message || "Passport event request failed");
-    }
-
     return data;
   } catch (err) {
     console.warn("Passport event failed:", err);

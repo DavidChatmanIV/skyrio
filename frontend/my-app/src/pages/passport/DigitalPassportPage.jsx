@@ -24,7 +24,6 @@ import {
   ShareAltOutlined,
   PlayCircleOutlined,
   SoundOutlined,
-  LeftOutlined,
   EditOutlined,
 } from "@ant-design/icons";
 import { io } from "socket.io-client";
@@ -41,6 +40,7 @@ import FollowersModal from "./FollowersModal";
 import { useAuth } from "../../auth/useAuth";
 import RewardsOptInPrompt from "../../components/rewards/RewardsOptInPrompt";
 import useRewardsOptInPrompt from "../../hooks/useRewardsOptInPrompt";
+import { apiUrl } from "@/lib/api";
 
 const { Title, Text } = Typography;
 
@@ -166,7 +166,6 @@ export default function DigitalPassportPage() {
 
   const myId = useMemo(() => user?._id || user?.id || null, [user]);
 
-  // ── UI state ──
   const [musicOpen, setMusicOpen] = useState(false);
   const [profileMusic, setProfileMusic] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -175,7 +174,6 @@ export default function DigitalPassportPage() {
   const [editCity, setEditCity] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
-  // ── Data state ──
   const [xpLoading, setXpLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [xp, setXp] = useState(0);
@@ -190,7 +188,6 @@ export default function DigitalPassportPage() {
 
   const socketRef = useRef(null);
 
-  // ── Derived ──
   const displayName = useMemo(() => {
     if (!user) return "Explorer";
     return (
@@ -223,7 +220,6 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
-  // ── Transition toast ──
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
     antdMessage.success({
@@ -237,7 +233,6 @@ export default function DigitalPassportPage() {
     }
   }, [location?.state?.fromAuth, user?.name]);
 
-  // ── Profile music ──
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
@@ -247,7 +242,6 @@ export default function DigitalPassportPage() {
     }
   }, []);
 
-  // ── Fetch XP ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -255,7 +249,7 @@ export default function DigitalPassportPage() {
     (async () => {
       setXpLoading(true);
       try {
-        const res = await fetch("/api/profile/me", {
+        const res = await fetch(apiUrl("/api/profile/me"), {
           credentials: "include",
           signal: controller.signal,
         });
@@ -280,7 +274,6 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed]);
 
-  // ── Fetch passport stats ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -288,7 +281,7 @@ export default function DigitalPassportPage() {
     (async () => {
       setStatsLoading(true);
       try {
-        const res = await fetch("/api/passport/stats", {
+        const res = await fetch(apiUrl("/api/passport/stats"), {
           credentials: "include",
           signal: controller.signal,
         });
@@ -315,7 +308,6 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed]);
 
-  // ── Socket live sync ──
   useEffect(() => {
     if (!myId || !isAuthed) return;
     if (!socketRef.current) {
@@ -341,7 +333,6 @@ export default function DigitalPassportPage() {
     return () => s.off("social:counts:update", handler);
   }, [myId, isAuthed]);
 
-  // ── Actions ──
   const copyPassportLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -355,13 +346,12 @@ export default function DigitalPassportPage() {
     antdMessage.info("Sharing enabled post-launch");
   }, []);
 
-  // ── Edit profile save ──
   const handleSaveProfile = async () => {
     if (!editUsername.trim() && !editBio.trim() && !editCity.trim()) return;
     setEditSaving(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/profile/settings", {
+      const res = await fetch(apiUrl("/api/profile/settings"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -402,7 +392,6 @@ export default function DigitalPassportPage() {
     }
   };
 
-  // ── Auth gate ──
   if (loading) return null;
   if (!isAuthed) return <PassportLocked />;
 
@@ -448,14 +437,12 @@ export default function DigitalPassportPage() {
               </div>
 
               <div className="pp-mockGrid">
-                {/* ── LEFT MAIN ── */}
                 <div className="pp-mockMain">
                   <Card variant="borderless" className="pp-card pp-profileCard">
                     <div className="pp-profileRow">
                       <div className="pp-profileAvatar">
                         <Avatar size={92} icon={<UserOutlined />} />
                       </div>
-
                       <div className="pp-profileMeta">
                         <Title
                           level={2}
@@ -509,7 +496,6 @@ export default function DigitalPassportPage() {
                           </button>
                         </div>
                       </div>
-
                       <div className="pp-profileRing">
                         {xpLoading ? (
                           <div style={{ width: 190 }}>
@@ -632,7 +618,6 @@ export default function DigitalPassportPage() {
                   </Card>
                 </div>
 
-                {/* ── RIGHT SIDEBAR ── */}
                 <div className="pp-mockSide">
                   <Card variant="borderless" className="pp-card pp-actionsCard">
                     <Title
@@ -709,7 +694,6 @@ export default function DigitalPassportPage() {
         onClose={() => setFollowOpen(false)}
         mode={followMode}
       />
-
       <ProfileMusicModal
         open={musicOpen}
         onClose={() => setMusicOpen(false)}

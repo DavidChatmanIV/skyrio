@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Input, Button, message, Card } from "antd";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "@/lib/api";
 
 const LoginForm = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ email: "", password: "" });
 
   useEffect(() => {
     if (localStorage.getItem("token")) {
@@ -22,19 +20,15 @@ const LoginForm = () => {
 
   const handleLogin = async () => {
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
+      if (!res.ok)
         throw new Error(data.error || data.message || "Login failed");
-      }
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));

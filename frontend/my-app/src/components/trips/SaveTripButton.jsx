@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { HeartOutlined, HeartFilled, LoadingOutlined } from "@ant-design/icons";
 import { useAuth } from "../../auth/useAuth";
 import { useAuthModal } from "../../auth/useAuthModal";
+import { apiUrl } from "@/lib/api";
 
 export default function SaveTripButton({
   tripData = {},
@@ -18,13 +19,11 @@ export default function SaveTripButton({
   const [loading, setLoading] = useState(false);
 
   async function handleSave() {
-    // Not logged in — open auth modal and bail
     if (!auth?.user) {
       openAuthModal({ intent: "save", redirectTo: "/booking" });
       return;
     }
 
-    // Already saved — no-op (could wire unsave here later)
     if (saved) return;
 
     setLoading(true);
@@ -44,7 +43,7 @@ export default function SaveTripButton({
         metadata: tripData.metadata ?? {},
       };
 
-      const res = await fetch("/api/saved-trips", {
+      const res = await fetch(apiUrl("/api/saved-trips"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

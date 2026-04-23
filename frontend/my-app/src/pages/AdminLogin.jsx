@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Form, Input, Button, Typography, message, Card } from "antd";
 import { LockOutlined, UserOutlined, SafetyOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
+import { apiUrl } from "@/lib/api";
 
 const { Title, Text } = Typography;
 
@@ -15,7 +16,7 @@ export default function AdminLogin() {
   const handleLogin = async ({ email, password }) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/login", {
+      const res = await fetch(apiUrl("/api/admin/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

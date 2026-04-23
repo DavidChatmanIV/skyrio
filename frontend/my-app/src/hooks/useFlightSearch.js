@@ -3,11 +3,10 @@ import {
   makeMockFlights,
   normalizeAmadeusOffers,
 } from "../utils/flightNormalize";
+import { apiUrl } from "@/lib/api";
 
-// You will wire this to your backend proxy later (recommended)
-// For now it can hit your backend: /api/amadeus/flights (example)
 async function fetchAmadeusFlights(params) {
-  const res = await fetch("/api/amadeus/flights", {
+  const res = await fetch(apiUrl("/api/amadeus/flights"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -19,14 +18,13 @@ async function fetchAmadeusFlights(params) {
 export function useFlightSearch() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
-  const [mode, setMode] = useState("idle"); // idle | mock | live | failed
+  const [mode, setMode] = useState("idle");
   const [error, setError] = useState(null);
 
   const search = useCallback(async (params) => {
     setError(null);
     setLoading(true);
 
-    // 1) Show mock cards immediately
     setResults(
       makeMockFlights({
         origin: params?.origin,
@@ -36,11 +34,8 @@ export function useFlightSearch() {
     setMode("mock");
 
     try {
-      // 2) Try live
       const payload = await fetchAmadeusFlights(params);
       const live = normalizeAmadeusOffers(payload);
-
-      // If live returns empty, keep mock but mark failed/empty
       if (live?.length) {
         setResults(live);
         setMode("live");
@@ -50,7 +45,6 @@ export function useFlightSearch() {
     } catch (e) {
       setError(e?.message || "Flight search failed");
       setMode("failed");
-      // Keep mock results on screen
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Input, Button, message, Card } from "antd";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "@/lib/api";
 
 const SignupForm = () => {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ const SignupForm = () => {
 
   const handleSignup = async () => {
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch(apiUrl("/api/auth/signup"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -27,13 +28,11 @@ const SignupForm = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Signup failed");
 
-      // ✅ Save token & referral XP flag
       localStorage.setItem("token", data.token);
       if (formData.referralCode) {
         localStorage.setItem("referralXpEarned", "true");
       }
 
-      // ✅ Success message & redirect
       const bonus = formData.referralCode
         ? " You earned XP from referral 🎉"
         : "";

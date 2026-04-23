@@ -23,6 +23,7 @@ import SkyHubCommentDrawer from "./SkyHubCommentDrawer";
 import SkyHubPassportCard from "./SkyHubPassportCard";
 import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
+import { apiUrl } from "@/lib/api";
 
 function mapBackendPost(post) {
   return {
@@ -52,15 +53,12 @@ export default function SkyHubPage() {
   const [activeTab, setActiveTab] = useState("forYou");
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchValue, setSearchValue] = useState("");
-
   const [composerText, setComposerText] = useState("");
   const [destination, setDestination] = useState("");
   const [activePostType, setActivePostType] = useState("Tip");
-
   const [posts, setPosts] = useState([]);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [creatingPost, setCreatingPost] = useState(false);
-
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState(null);
 
@@ -71,20 +69,14 @@ export default function SkyHubPage() {
   const fetchFeed = async () => {
     try {
       setLoadingFeed(true);
-
-      const res = await fetch("/api/skyhub/feed", {
+      const res = await fetch(apiUrl("/api/skyhub/feed"), {
         credentials: "include",
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to load feed");
-      }
-
+      if (!res.ok) throw new Error(data?.message || "Failed to load feed");
       const mappedPosts = Array.isArray(data.posts)
         ? data.posts.map(mapBackendPost)
         : [];
-
       setPosts(mappedPosts);
     } catch (err) {
       console.error("fetchFeed error:", err);
@@ -97,21 +89,18 @@ export default function SkyHubPage() {
   const visiblePosts = useMemo(() => {
     return posts.filter((post) => {
       const search = searchValue.toLowerCase();
-
       const matchesSearch =
         !search ||
         (post.text || "").toLowerCase().includes(search) ||
         (post.destination || "").toLowerCase().includes(search) ||
         (post.author || "").toLowerCase().includes(search) ||
         (post.tags || []).join(" ").toLowerCase().includes(search);
-
       const matchesFilter =
         activeFilter === "All" ||
         (post.tags || []).some(
           (tag) => tag.toLowerCase() === activeFilter.toLowerCase()
         ) ||
         (post.type || "").toLowerCase() === activeFilter.toLowerCase();
-
       const matchesTab =
         activeTab === "forYou"
           ? true
@@ -120,7 +109,6 @@ export default function SkyHubPage() {
           : activeTab === "trips"
           ? post.type === "Join Trip" || post.type === "Story"
           : true;
-
       return matchesSearch && matchesFilter && matchesTab;
     });
   }, [posts, searchValue, activeFilter, activeTab]);
@@ -130,15 +118,11 @@ export default function SkyHubPage() {
       message.warning("Write something before posting.");
       return;
     }
-
     try {
       setCreatingPost(true);
-
-      const res = await fetch("/api/skyhub/posts", {
+      const res = await fetch(apiUrl("/api/skyhub/posts"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           text: composerText.trim(),
@@ -146,19 +130,13 @@ export default function SkyHubPage() {
           destination: destination.trim(),
         }),
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to create post");
-      }
-
+      if (!res.ok) throw new Error(data?.message || "Failed to create post");
       const newPost = mapBackendPost(data.post);
       setPosts((prev) => [newPost, ...prev]);
-
       setComposerText("");
       setDestination("");
       setActivePostType("Tip");
-
       message.success("Posted to SkyHub.");
     } catch (err) {
       console.error("handleCreatePost error:", err);
@@ -170,16 +148,12 @@ export default function SkyHubPage() {
 
   const handleToggleLike = async (postId) => {
     try {
-      const res = await fetch(`/api/skyhub/posts/${postId}/like`, {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}/like`), {
         method: "POST",
         credentials: "include",
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to like post");
-      }
-
+      if (!res.ok) throw new Error(data?.message || "Failed to like post");
       setPosts((prev) =>
         prev.map((post) =>
           post.id === postId
@@ -199,16 +173,12 @@ export default function SkyHubPage() {
 
   const handleToggleSave = async (postId) => {
     try {
-      const res = await fetch(`/api/skyhub/posts/${postId}/save`, {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}/save`), {
         method: "POST",
         credentials: "include",
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to save post");
-      }
-
+      if (!res.ok) throw new Error(data?.message || "Failed to save post");
       setPosts((prev) =>
         prev.map((post) =>
           post.id === postId
@@ -220,7 +190,6 @@ export default function SkyHubPage() {
             : post
         )
       );
-
       message.success(data.saved ? "Post saved." : "Post removed from saved.");
     } catch (err) {
       console.error("handleToggleSave error:", err);
@@ -235,22 +204,16 @@ export default function SkyHubPage() {
 
   const handleReportPost = async (post) => {
     try {
-      const res = await fetch(`/api/skyhub/posts/${post.id}/report`, {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${post.id}/report`), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           reason: "User reported this post from beta UI",
         }),
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to report post");
-      }
-
+      if (!res.ok) throw new Error(data?.message || "Failed to report post");
       message.success("Post reported. Thanks for helping keep SkyHub safe.");
     } catch (err) {
       console.error("handleReportPost error:", err);
@@ -287,7 +250,6 @@ export default function SkyHubPage() {
               Share travel experiences, ask smart questions, and help other
               travelers move better.
             </p>
-
             <div className="skyhub-heroStats">
               <div className="skyhub-heroStat">
                 <FireOutlined />
@@ -303,7 +265,6 @@ export default function SkyHubPage() {
               </div>
             </div>
           </div>
-
           <div className="skyhub-headerActions">
             <Input
               allowClear
@@ -314,7 +275,6 @@ export default function SkyHubPage() {
               onChange={(e) => setSearchValue(e.target.value)}
               className="skyhub-searchInput"
             />
-
             <Button
               type="primary"
               icon={<GlobalOutlined />}
@@ -324,7 +284,6 @@ export default function SkyHubPage() {
             </Button>
           </div>
         </div>
-
         <div className="skyhub-topStats">
           {skyhubStats.map((item) => (
             <div key={item.id} className="skyhub-statItem">
@@ -337,9 +296,7 @@ export default function SkyHubPage() {
       </header>
 
       <main className="skyhub-main">
-        {/* ── TOOLBAR ── */}
         <section className="skyhub-toolbar">
-          {/* Browse Feed — pill buttons matching navbar style */}
           <div className="skyhub-toolbarBlock">
             <div className="skyhub-toolbarLabel">Browse Feed</div>
             <div className="skyhub-filterRow">
@@ -357,8 +314,6 @@ export default function SkyHubPage() {
               ))}
             </div>
           </div>
-
-          {/* Filter by Vibe — same pill buttons */}
           <div className="skyhub-toolbarBlock">
             <div className="skyhub-toolbarLabel">Filter by Vibe</div>
             <div className="skyhub-filterRow">
@@ -378,7 +333,6 @@ export default function SkyHubPage() {
           </div>
         </section>
 
-        {/* ── CONTENT GRID ── */}
         <section className="skyhub-contentGrid">
           <div className="skyhub-leftRail">
             <SkyHubComposer
@@ -391,7 +345,6 @@ export default function SkyHubPage() {
               onCreatePost={handleCreatePost}
               creatingPost={creatingPost}
             />
-
             <section className="skyhub-feedSection">
               <div className="skyhub-feedSectionHeader">
                 <div>
@@ -400,13 +353,11 @@ export default function SkyHubPage() {
                     Travel-first posts with real community insights.
                   </p>
                 </div>
-
                 <Badge
                   count={visiblePosts.length}
                   style={{ backgroundColor: "#ff8a2a" }}
                 />
               </div>
-
               <div className="skyhub-feedList">
                 {loadingFeed ? (
                   <div className="skyhub-emptyState">
@@ -436,7 +387,6 @@ export default function SkyHubPage() {
               </div>
             </section>
           </div>
-
           <aside className="skyhub-rightRail">
             <SkyHubPassportCard />
             <SkyHubTrendingDestinations items={trendingDestinationsMock} />

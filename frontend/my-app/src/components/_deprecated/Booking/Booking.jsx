@@ -21,24 +21,23 @@ import ResultsList from "../components/booking/ResultsList";
 import PackageFilterForm from "../components/booking/PackageFilterForm";
 import SavedTrips from "../components/booking/SavedTrips";
 import ToastNotification from "../components/common/ToastNotification";
+import { apiUrl } from "@/lib/api";
 
 import "../styles/booking.css";
 
 const { Content } = Layout;
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 
 const Booking = () => {
-  console.log("[Booking.jsx] mounted ✅"); // Sanity check: you should see this in DevTools
+  console.log("[Booking.jsx] mounted ✅");
 
   const navigate = useNavigate();
 
-  // Smart back handler
   const handleBack = () => {
     if (window.history.length > 1) navigate(-1);
     else navigate("/");
   };
 
-  // Results state
   const [stayType, setStayType] = useState("hotel");
   const [stayResults, setStayResults] = useState([]);
   const [flightResults, setFlightResults] = useState([]);
@@ -46,7 +45,6 @@ const Booking = () => {
   const [carResults, setCarResults] = useState([]);
   const [cruiseResults, setCruiseResults] = useState([]);
 
-  // Toast state
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState("success");
@@ -57,14 +55,13 @@ const Booking = () => {
     setToastVisible(true);
   };
 
-  // Load Cars & Cruises
   useEffect(() => {
-    fetch("/api/cars")
+    fetch(apiUrl("/api/cars"))
       .then((res) => res.json())
       .then((cars) => setCarResults(cars))
       .catch(() => showToast("Failed to load cars.", "error"));
 
-    fetch("/api/cruises")
+    fetch(apiUrl("/api/cruises"))
       .then((res) => res.json())
       .then((cruises) => setCruiseResults(cruises))
       .catch(() => showToast("Failed to load cruises.", "error"));
@@ -73,7 +70,6 @@ const Booking = () => {
   return (
     <Layout style={{ background: "#f9fafb", minHeight: "100vh" }}>
       <Content>
-        {/* 1) Affixed (sticky) Home button in top-right */}
         <Affix offsetTop={12}>
           <div
             style={{
@@ -98,14 +94,11 @@ const Booking = () => {
         </Affix>
 
         <div className="booking-wrapper" data-testid="booking-wrapper">
-          {/* Header row with inline Back button */}
           <Row align="middle" justify="center" style={{ marginBottom: 12 }}>
             <Col span={24} style={{ textAlign: "center" }}>
               <Title level={2} className="booking-title" style={{ margin: 0 }}>
                 Book Your Next Adventure
               </Title>
-
-              {/* 2) Inline primary Back/Home button under the title */}
               <div style={{ marginTop: 12 }}>
                 <Space size="middle">
                   <Button
@@ -120,7 +113,6 @@ const Booking = () => {
                   </Button>
                 </Space>
               </div>
-
               <div style={{ marginTop: 10 }}>
                 <Text>Level 1 – XP: 0/100</Text>
                 <div className="xp-bar">
@@ -130,12 +122,10 @@ const Booking = () => {
             </Col>
           </Row>
 
-          {/* Tabs + search live inside BookingForm */}
           <Card className="section-card mb-24">
             <BookingForm showToast={showToast} selectedType={stayType} />
           </Card>
 
-          {/* Flights */}
           <Divider className="section-divider" />
           <Card className="section-card">
             <FlightSearchForm
@@ -149,7 +139,6 @@ const Booking = () => {
             type="flight"
           />
 
-          {/* Stays */}
           <Divider className="section-divider" />
           <Card className="section-card">
             <StaySearchForm
@@ -167,7 +156,6 @@ const Booking = () => {
           />
           <SavedTrips />
 
-          {/* Packages */}
           <Divider className="section-divider" />
           <Card className="section-card">
             <PackageFilterForm
@@ -181,11 +169,9 @@ const Booking = () => {
             type="package"
           />
 
-          {/* Cars */}
           <Divider className="section-divider" />
           <ResultsList title="🚗 Rental Cars" results={carResults} type="car" />
 
-          {/* Cruises */}
           <Divider className="section-divider" />
           <ResultsList
             title="🚢 Cruise Deals"
@@ -193,7 +179,6 @@ const Booking = () => {
             type="cruise"
           />
 
-          {/* Toast */}
           <ToastNotification
             type={toastType}
             message={toastMessage}
@@ -202,7 +187,6 @@ const Booking = () => {
           />
         </div>
 
-        {/* 3) Floating FAB fallback (bottom-right) */}
         <button
           onClick={handleBack}
           aria-label="Home (fab)"

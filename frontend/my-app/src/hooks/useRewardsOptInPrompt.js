@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiUrl } from "@/lib/api";
 
 const OPTIN_KEY = "skyrio_rewards_optin_prompted";
 
@@ -21,7 +22,7 @@ export default function useRewardsOptInPrompt() {
 
   async function confirm(enabled) {
     try {
-      const res = await fetch("/api/profile/settings", {
+      const res = await fetch(apiUrl("/api/profile/settings"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

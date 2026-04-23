@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiUrl } from "@/lib/api";
 
 export default function useAdminSession() {
   const [state, setState] = useState({
@@ -12,7 +13,9 @@ export default function useAdminSession() {
 
     (async () => {
       try {
-        const res = await fetch("/api/admin/me", { credentials: "include" });
+        const res = await fetch(apiUrl("/api/admin/me"), {
+          credentials: "include",
+        });
         const data = await res.json();
         if (ignore) return;
 

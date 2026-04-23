@@ -27,23 +27,21 @@ import {
 import { motion as MotionDiv } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { apiUrl } from "@/lib/api";
 
 const { Text } = Typography;
 
-/* helper is outside the component so hooks don't depend on it */
 const getAuthHeaders = () => {
   const token = localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-/* icon per notification type */
 const iconMap = {
   xp: <GiftOutlined className="text-green-500" />,
   trip: <CheckCircleOutlined className="text-blue-500" />,
   message: <MessageOutlined className="text-purple-500" />,
 };
 
-/* small relative-time helper */
 const timeAgo = (date) => {
   const d = typeof date === "string" ? new Date(date) : date;
   const diff = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -53,7 +51,6 @@ const timeAgo = (date) => {
   return `${Math.floor(diff / 86400)}d`;
 };
 
-/* tab filtering */
 const byTab = (items, key) => {
   if (key === "mentions") return items.filter((i) => i.type === "mention");
   if (key === "system") return items.filter((i) => i.type === "system");
@@ -69,14 +66,11 @@ export default function Notifications() {
   const panelRef = useRef(null);
   const navigate = useNavigate();
 
-  /* memoized so it can safely go in deps */
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/notifications?limit=20", {
-        headers: {
-          ...getAuthHeaders(),
-        },
+      const res = await fetch(apiUrl("/api/notifications?limit=20"), {
+        headers: { ...getAuthHeaders() },
       });
       if (!res.ok) throw new Error("Failed to fetch notifications");
       const data = await res.json();
@@ -87,16 +81,14 @@ export default function Notifications() {
     } finally {
       setLoading(false);
     }
-  }, []); // reads from localStorage only → safe empty deps
+  }, []);
 
   const markAllAsRead = async () => {
     try {
       setBusy(true);
-      await fetch("/api/notifications/read-all", {
+      await fetch(apiUrl("/api/notifications/read-all"), {
         method: "PUT",
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: { ...getAuthHeaders() },
       });
       await fetchNotifications();
       toast.success("Marked all as read");
@@ -111,11 +103,9 @@ export default function Notifications() {
   const clearAll = async () => {
     try {
       setBusy(true);
-      await fetch("/api/notifications/clear", {
+      await fetch(apiUrl("/api/notifications/clear"), {
         method: "DELETE",
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: { ...getAuthHeaders() },
       });
       await fetchNotifications();
       toast("Notifications cleared", { icon: "🧹" });
@@ -127,22 +117,20 @@ export default function Notifications() {
     }
   };
 
-  // Load when panel becomes visible
   useEffect(() => {
     if (visible) {
       fetchNotifications();
       const t = setTimeout(() => panelRef.current?.focus(), 0);
       return () => clearTimeout(t);
     }
-  }, [visible, fetchNotifications]); // no more missing-deps warning
+  }, [visible, fetchNotifications]);
 
-  /* Realtime via WebSocket with safe close */
   useEffect(() => {
     if (!visible) return;
 
-    let ws; // current socket
-    let reconnectTimer; // timeout id
-    let tries = 0; // backoff counter
+    let ws;
+    let reconnectTimer;
+    let tries = 0;
 
     const url =
       (location.protocol === "https:" ? "wss://" : "ws://") +
@@ -205,7 +193,6 @@ export default function Notifications() {
     };
   }, [visible]);
 
-  /* derived values */
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
     [notifications]
@@ -215,13 +202,11 @@ export default function Notifications() {
     [notifications, activeKey]
   );
 
-  //* per-item click: mark-as-read + navigate based on targetType */
   const handleItemClick = async (item) => {
     try {
       const notifId = item._id || item.id;
       const hasId = Boolean(notifId);
 
-      // 1) Optimistic mark as read in UI
       if (hasId && !item.read) {
         setNotifications((prev) =>
           prev.map((n) =>
@@ -230,17 +215,16 @@ export default function Notifications() {
         );
       }
 
-      // 2) Mark as read in backend
       if (hasId && !item.read) {
-        fetch(`/api/notifications/${encodeURIComponent(notifId)}/read`, {
-          method: "PATCH",
-          headers: {
-            ...getAuthHeaders(),
-          },
-        }).catch(() => {});
+        fetch(
+          apiUrl(`/api/notifications/${encodeURIComponent(notifId)}/read`),
+          {
+            method: "PATCH",
+            headers: { ...getAuthHeaders() },
+          }
+        ).catch(() => {});
       }
 
-      // 3) Navigate to correct destination
       if (item.targetType === "booking" && item.targetId) {
         setVisible(false);
         navigate(`/dashboard/bookings/${item.targetId}`);
@@ -251,7 +235,6 @@ export default function Notifications() {
         setVisible(false);
         navigate(`/saved-trips/${item.targetId}`);
       } else if (item.route && typeof item.route === "string") {
-        // fallback for old-style notifications
         setVisible(false);
         navigate(item.route);
       }
@@ -260,7 +243,6 @@ export default function Notifications() {
     }
   };
 
-  /* custom dropdown content */
   const dropdownPanel = (
     <MotionDiv
       initial={{ opacity: 0, y: 10 }}

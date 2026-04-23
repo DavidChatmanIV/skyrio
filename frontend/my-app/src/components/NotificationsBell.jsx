@@ -21,8 +21,9 @@ import {
   GiftOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { socket } from "../lib/socket"; // adjust path if needed
-import { useAuth } from "../auth/useAuth"; // you already have this
+import { socket } from "../lib/socket";
+import { useAuth } from "../auth/useAuth";
+import { apiUrl } from "@/lib/api";
 
 const { Text } = Typography;
 
@@ -43,7 +44,6 @@ function timeAgo(iso) {
 function iconFor(n) {
   const type = (n?.type || "").toLowerCase();
   const event = (n?.event || "").toLowerCase();
-
   if (event.includes("price") || type.includes("price"))
     return <DollarOutlined />;
   if (type.includes("dm") || event.includes("message"))
@@ -51,15 +51,13 @@ function iconFor(n) {
   if (type.includes("booking") || event.includes("booking"))
     return <CalendarOutlined />;
   if (type.includes("xp") || event.includes("reward")) return <GiftOutlined />;
-
   return <ThunderboltOutlined />;
 }
 
 export default function NotificationsBell({ maxItems = 20 }) {
   const nav = useNavigate();
   const auth = useAuth();
-
-  const userId = auth?.user?.id || auth?.user?._id; // your auth uses req.user.id backend
+  const userId = auth?.user?.id || auth?.user?._id;
 
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -69,7 +67,7 @@ export default function NotificationsBell({ maxItems = 20 }) {
   const fetchMine = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/notifications/mine", {
+      const res = await fetch(apiUrl("/api/notifications/mine"), {
         credentials: "include",
       });
       if (!res.ok) throw new Error();
@@ -77,63 +75,54 @@ export default function NotificationsBell({ maxItems = 20 }) {
       setUnread(Number(data?.unread || 0));
       setItems(Array.isArray(data?.items) ? data.items.slice(0, maxItems) : []);
     } catch {
-      if (open) message.error("Couldn’t load notifications");
+      if (open) message.error("Couldn't load notifications");
     } finally {
       setLoading(false);
     }
   };
 
   const markAllRead = async () => {
-    // optimistic
     const prevUnread = unread;
     setUnread(0);
     setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
-
     try {
-      const res = await fetch("/api/notifications/read-all", {
+      const res = await fetch(apiUrl("/api/notifications/read-all"), {
         method: "PATCH",
         credentials: "include",
       });
       if (!res.ok) throw new Error();
       message.success("All caught up ✅");
     } catch {
-      // rollback
       setUnread(prevUnread);
       fetchMine();
-      message.error("Couldn’t mark all as read");
+      message.error("Couldn't mark all as read");
     }
   };
 
   const markOneRead = async (id) => {
     const target = items.find((x) => x._id === id);
     if (!target || target.isRead) return;
-
-    // optimistic
     setItems((prev) =>
       prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
     );
     setUnread((u) => Math.max(0, u - 1));
-
     try {
-      const res = await fetch(`/api/notifications/${id}/read`, {
+      const res = await fetch(apiUrl(`/api/notifications/${id}/read`), {
         method: "PATCH",
         credentials: "include",
       });
       if (!res.ok) throw new Error();
     } catch {
-      // rollback
       fetchMine();
-      message.error("Couldn’t mark as read");
+      message.error("Couldn't mark as read");
     }
   };
 
   const removeOne = async (id) => {
-    // optimistic remove
     const prev = items;
     setItems((p) => p.filter((n) => n._id !== id));
-
     try {
-      const res = await fetch(`/api/notifications/${id}`, {
+      const res = await fetch(apiUrl(`/api/notifications/${id}`), {
         method: "DELETE",
         credentials: "include",
       });
@@ -142,35 +131,28 @@ export default function NotificationsBell({ maxItems = 20 }) {
       fetchMine();
     } catch {
       setItems(prev);
-      message.error("Couldn’t delete");
+      message.error("Couldn't delete");
     }
   };
 
-  // initial load
   useEffect(() => {
     fetchMine();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // join socket room when userId is available
   useEffect(() => {
     if (!userId) return;
-
     socket.emit("notifications:join", { userId });
-
     const onNew = (notif) => {
-      // optimistic increment + prepend
       setItems((prev) => [notif, ...prev].slice(0, maxItems));
       setUnread((u) => u + 1);
     };
-
     socket.on("notification:new", onNew);
     return () => {
       socket.off("notification:new", onNew);
     };
   }, [userId, maxItems]);
 
-  // refresh when opening dropdown (optional but nice)
   useEffect(() => {
     if (open) fetchMine();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,13 +186,11 @@ export default function NotificationsBell({ maxItems = 20 }) {
               Mark all read
             </Button>
           </div>
-
           <div style={{ marginTop: 6 }}>
             <Text style={{ color: "rgba(255,255,255,.70)", fontSize: 12 }}>
-              {unread ? `${unread} unread` : "You’re all caught up"}
+              {unread ? `${unread} unread` : "You're all caught up"}
             </Text>
           </div>
-
           <Divider
             style={{ margin: "10px 0", borderColor: "rgba(255,255,255,.10)" }}
           />
@@ -245,7 +225,6 @@ export default function NotificationsBell({ maxItems = 20 }) {
       ...items.map((n) => {
         const isUnread = !n.isRead;
         const link = n.link || "/";
-
         return {
           key: n._id,
           label: (
@@ -286,18 +265,15 @@ export default function NotificationsBell({ maxItems = 20 }) {
                     </Tag>
                   )}
                 </Space>
-
                 <Text style={{ color: "rgba(255,255,255,.65)", fontSize: 12 }}>
                   {timeAgo(n.createdAt)}
                 </Text>
               </div>
-
               <div style={{ marginTop: 6 }}>
                 <Text style={{ color: "rgba(255,255,255,.78)" }}>
                   {n.message || ""}
                 </Text>
               </div>
-
               <div
                 style={{
                   marginTop: 10,
@@ -306,21 +282,12 @@ export default function NotificationsBell({ maxItems = 20 }) {
                 }}
               >
                 <Space size={8}>
-                  {!isUnread ? (
-                    <Text
-                      style={{ color: "rgba(255,255,255,.60)", fontSize: 12 }}
-                    >
-                      Read
-                    </Text>
-                  ) : (
-                    <Text
-                      style={{ color: "rgba(255,255,255,.60)", fontSize: 12 }}
-                    >
-                      Unread
-                    </Text>
-                  )}
+                  <Text
+                    style={{ color: "rgba(255,255,255,.60)", fontSize: 12 }}
+                  >
+                    {isUnread ? "Unread" : "Read"}
+                  </Text>
                 </Space>
-
                 <Space size={8}>
                   {isUnread && (
                     <Button
@@ -334,7 +301,6 @@ export default function NotificationsBell({ maxItems = 20 }) {
                       Mark read
                     </Button>
                   )}
-
                   <Button
                     size="small"
                     className="sk-ghostBtn"

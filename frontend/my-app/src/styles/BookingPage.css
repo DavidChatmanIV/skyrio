@@ -173,8 +173,7 @@
   box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.18) !important;
 }
 
-/* ================= SAVE TRIP BUTTON (native <button>) ================= */
-/* SaveTripButton is now a native button — no .ant-btn selector needed */
+/* ================= SAVE TRIP BUTTON ================= */
 .sk-save-btn {
   background: rgba(20, 12, 40, 0.55) !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
@@ -281,11 +280,11 @@
   position: relative;
   z-index: 20;
 }
-.sk-search-bar .sk-airport-wrap { flex: 1 1 180px; min-width: 160px; }
-.sk-search-bar .sk-orange-picker { flex: 0 0 auto; min-width: 200px; }
-.sk-search-bar .sk-select-cabin  { flex: 0 0 auto; }
-.sk-search-bar .sk-input-travelers { flex: 0 0 auto; }
-.sk-search-bar .sk-btn-search-pill { flex: 0 0 auto; margin-left: auto; }
+.sk-search-bar .sk-airport-wrap      { flex: 1 1 180px; min-width: 160px; }
+.sk-search-bar .sk-orange-picker     { flex: 0 0 auto; min-width: 200px; }
+.sk-search-bar .sk-select-cabin      { flex: 0 0 auto; }
+.sk-search-bar .sk-input-travelers   { flex: 0 0 auto; }
+.sk-search-bar .sk-btn-search-pill   { flex: 0 0 auto; margin-left: auto; }
 .sk-search-bar-pills {
   flex: 0 0 100%;
   display: flex;
@@ -293,7 +292,7 @@
   flex-wrap: wrap;
 }
 
-/* ================= SAVED TRIPS LIST (inside SavedForm) ================= */
+/* ================= SAVED TRIPS LIST ================= */
 .sk-saved-list {
   flex-wrap: wrap !important;
   gap: 10px !important;
@@ -688,9 +687,7 @@
   font-size: 14px;
 }
 
-/* =================================================
-   PRE-FILL STRIP (lives inside .sk-tripState)
-================================================= */
+/* ================= PRE-FILL STRIP ================= */
 .sk-prefill-strip {
   margin-top: 10px;
   padding-top: 10px;
@@ -817,9 +814,8 @@
 .sk-prefill-cancelBtn:hover { background: rgba(255, 255, 255, 0.12); }
 
 /* ═══════════════════════════════════════════════
-   SMART FILTER BAR  (skf-*)  — single source of truth
+   SMART FILTER BAR  (skf-*)
 ═══════════════════════════════════════════════ */
-
 .skf-bar {
   width: 100%;
   margin: 12px 0 0;
@@ -870,7 +866,6 @@
   line-height: 1;
 }
 
-/* ── Pills row ── */
 .skf-pills {
   display: flex;
   align-items: center;
@@ -881,13 +876,11 @@
   overflow: visible;
 }
 
-/* ── Individual pill wrapper ── */
 .skf-pill-wrap {
   position: relative;
   overflow: visible;
 }
 
-/* ── Pill button ── */
 .skf-pill {
   display: inline-flex;
   align-items: center;
@@ -916,7 +909,6 @@
 .skf-pill-caret  { font-size: 10px; color: rgba(255, 255, 255, 0.45); transition: transform 0.2s ease; display: inline-block; }
 .skf-pill-caret--up { transform: rotate(180deg); }
 
-/* ── Dropdown panel ── */
 .skf-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -933,7 +925,6 @@
   animation: skfDropIn 0.18s ease forwards;
 }
 
-/* Time dropdown is wider */
 .skf-pill-wrap:has(.skf-time-grid) .skf-dropdown {
   min-width: 300px;
 }
@@ -943,7 +934,6 @@
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ── Dropdown internals ── */
 .skf-inner {
   display: flex;
   flex-direction: column;
@@ -959,7 +949,6 @@
   margin-bottom: 2px;
 }
 
-/* ── Price slider ── */
 .skf-price-val {
   font-size: 22px;
   font-weight: 700;
@@ -1001,7 +990,6 @@
   margin-top: -4px;
 }
 
-/* ── Radio rows ── */
 .skf-radio-row {
   display: flex;
   align-items: center;
@@ -1021,7 +1009,6 @@
   flex-shrink: 0;
 }
 
-/* ── Time tiles grid ── */
 .skf-time-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1048,7 +1035,6 @@
 .skf-time-sub            { font-size: 10px; color: rgba(255, 255, 255, 0.4); line-height: 1; }
 .skf-time-tile--active .skf-time-name { color: #ffb066; }
 
-/* ── Apply button ── */
 .skf-apply-btn {
   width: 100%;
   margin-top: 12px;
@@ -1111,7 +1097,17 @@
 .sk-ai-insight-dismiss:hover { color: rgba(255, 255, 255, 0.8); }
 
 /* ═══════════════════════════════════════════════
-   RESPONSIVE
+   ATLAS FAB — iOS safe area
+═══════════════════════════════════════════════ */
+.atlas-fab,
+.atlas-trigger,
+[class*="atlas-fab"],
+[class*="atlas-trigger"] {
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — 992px
 ═══════════════════════════════════════════════ */
 @media (max-width: 992px) {
   .sk-booking-hero { padding: 28px 18px; }
@@ -1124,27 +1120,122 @@
   .sk-search-bar { flex-direction: column; align-items: stretch; }
   .sk-airport-pair { flex-direction: row; }
   .sk-btn-search-pill.ant-btn { width: 100% !important; margin-left: 0 !important; }
+
+  /* Release fixed widths when search bar stacks */
+  .sk-search-bar .sk-orange-picker {
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .sk-search-bar .sk-select-cabin,
+  .sk-search-bar .sk-input-travelers {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .sk-select-cabin .ant-select-selector {
+    width: 100% !important;
+  }
+  .sk-input-travelers.ant-input-number {
+    width: 100% !important;
+  }
 }
 
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — 768px  (iOS zoom fix)
+═══════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Prevent iOS Safari from zooming on input focus */
+  .sk-booking input[type="text"],
+  .sk-booking input[type="number"],
+  .sk-booking input[type="search"],
+  .sk-booking input[type="email"],
+  .sk-booking .ant-picker-input > input,
+  .sk-booking .ant-input-number-input,
+  .sk-booking .ant-select-selection-search-input {
+    font-size: 16px !important;
+  }
+
+  /* Results bottom padding clears Atlas FAB + safe area */
+  .sk-results-wrap {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — 640px
+═══════════════════════════════════════════════ */
 @media (max-width: 640px) {
   .sk-weatherInner { padding: 12px 14px; }
   .sk-weatherTop   { font-size: 16px; }
   .sk-weatherIcon  { width: 30px; height: 30px; border-radius: 10px; }
-  .sk-airport-pair { flex-direction: column; }
-  .sk-swap-btn     { display: none; }
 
+  /* Tab bar — scroll horizontally, never clip */
+  .sk-booking .sk-booking-tabs.ant-segmented {
+    display: flex !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    max-width: 100% !important;
+    padding: 4px !important;
+  }
+  .sk-booking .sk-booking-tabs.ant-segmented::-webkit-scrollbar {
+    display: none;
+  }
+  .sk-booking .sk-booking-tabs .ant-segmented-item {
+    flex-shrink: 0 !important;
+    min-height: 44px !important;
+    padding: 0 14px !important;
+  }
+
+  /* Airport pair */
+  .sk-airport-pair {
+    flex-direction: column;
+    width: 100%;
+  }
+  .sk-airport-pair .sk-airport-wrap {
+    min-width: 0 !important;
+    width: 100%;
+  }
+  .sk-swap-btn { display: none; }
+
+  /* Filter dropdown — can't bleed off 320px screens */
+  .skf-dropdown {
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: min(260px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+  }
+
+  /* Prefill */
   .sk-prefill-expandedRow { flex-direction: column; }
   .sk-prefill-field--grow { width: 100%; }
 
+  /* Filter bar */
   .skf-bar-label { font-size: 10px; }
   .skf-pill      { font-size: 12px; padding: 5px 11px; }
-  .skf-dropdown  { left: 50%; transform: translateX(-50%); min-width: 260px; }
   .skf-time-grid { gap: 6px; }
   .skf-time-tile { padding: 10px 4px 8px; }
   .skf-time-icon { font-size: 18px; }
   .skf-time-name { font-size: 10px; }
   .skf-time-sub  { display: none; }
 
+  /* AI insight */
   .sk-ai-insight-pill { font-size: 12px; padding: 6px 10px 6px 8px; }
   .sk-hero-pills      { flex-wrap: wrap; gap: 8px !important; }
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — 480px
+═══════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .sk-booking-hero {
+    padding: 20px 14px;
+    border-radius: 18px;
+  }
+  .sk-hero-sub {
+    font-size: 13px;
+    padding: 0 8px;
+  }
 }

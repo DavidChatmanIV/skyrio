@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Typography, Input, Button, Space, message } from "antd";
 import { MailOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import { apiUrl } from "@/lib/api";
 
 import "../styles/auth-boarding.css";
 
@@ -9,7 +10,6 @@ const { Title, Text } = Typography;
 
 export default function ResetPage() {
   const nav = useNavigate();
-
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,14 +23,11 @@ export default function ResetPage() {
 
     setLoading(true);
     try {
-      // POST /api/auth/reset/request { email }
-      const res = await fetch("/api/auth/reset/request", {
+      const res = await fetch(apiUrl("/api/auth/reset/request"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: v }),
       });
-
-      // ✅ Always show success for privacy
       await res.json().catch(() => ({}));
       setSent(true);
     } catch {
@@ -45,7 +42,7 @@ export default function ResetPage() {
       <div className="sk-authHero">
         <Title className="sk-authTitle">Reset your boarding pass</Title>
         <Text className="sk-authSub">
-          We’ll send a reset link to your email.
+          We'll send a reset link to your email.
         </Text>
       </div>
 
@@ -80,7 +77,7 @@ export default function ResetPage() {
             </Button>
 
             <Text className="sk-micro">
-              If an account exists for that email, we’ll send a link within a
+              If an account exists for that email, we'll send a link within a
               minute.
             </Text>
 
@@ -99,10 +96,9 @@ export default function ResetPage() {
               Check your inbox
             </Title>
             <Text type="secondary">
-              If an account exists for that email, you’ll get a reset link in a
+              If an account exists for that email, you'll get a reset link in a
               minute.
             </Text>
-
             <Button
               type="primary"
               className="sk-primaryBtn"

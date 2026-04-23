@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Typography, Button, Space } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
+import { apiUrl } from "@/lib/api";
 
 const { Title, Text } = Typography;
 
@@ -20,12 +21,12 @@ export default function RequireAdminBlock({
 
     (async () => {
       try {
-        const res = await fetch("/api/admin/me", { credentials: "include" });
+        const res = await fetch(apiUrl("/api/admin/me"), {
+          credentials: "include",
+        });
         const data = await res.json();
         if (ignore) return;
-
-        const ok = !!data?.isAdmin;
-        setIsAdmin(ok);
+        setIsAdmin(!!data?.isAdmin);
       } catch {
         if (!ignore) setIsAdmin(false);
       } finally {
@@ -59,7 +60,6 @@ export default function RequireAdminBlock({
             To view <b>{feature}</b>, please log in with your Skyrio Admin
             account.
           </Text>
-
           <Space style={{ display: "flex", justifyContent: "flex-end" }}>
             <Button
               type="primary"
@@ -72,7 +72,6 @@ export default function RequireAdminBlock({
             </Button>
           </Space>
         </Modal>
-
         <div style={{ minHeight: "60vh" }} />
       </>
     );
