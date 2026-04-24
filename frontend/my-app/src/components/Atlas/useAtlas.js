@@ -8,7 +8,10 @@ export function useAtlas() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Prevent double sends
   const isLoadingRef = useRef(false);
+
+  // Keep latest messages without re-render issues
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
 
@@ -36,9 +39,9 @@ export function useAtlas() {
           content,
         }));
 
-        const res = await fetch(apiUrl("/atlas/chat"), {
+        const res = await fetch(apiUrl("/api/atlas/chat"), {
           method: "POST",
-          credentials: "include",
+          credentials: "include", // 🔑 important for cookies/JWT
           headers: {
             "Content-Type": "application/json",
           },
@@ -62,7 +65,11 @@ export function useAtlas() {
 
         setMessages((prev) => [...prev, atlasMsg]);
       } catch (err) {
+        console.error("Atlas error:", err);
+
         setError(err.message || "Atlas is unavailable. Please try again.");
+
+        // Rollback optimistic message
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       } finally {
         isLoadingRef.current = false;
