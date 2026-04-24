@@ -41,6 +41,9 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
+// ── API base URL ──
+const API = import.meta.env.VITE_API_URL || "";
+
 const DEFAULT_FILTERS = {
   price: "any",
   stops: "any",
@@ -383,7 +386,7 @@ function FlightsForm({ onSearch, onDestChange }) {
       if (dates[1])
         params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
 
-      const res = await fetch(`/api/flights/search?${params}`);
+      const res = await fetch(`${API}/api/flights/search?${params}`);
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.message || "Search failed");
 
@@ -625,7 +628,6 @@ function LastMinuteForm() {
   );
 }
 
-// ─── Real SavedForm ────────────────────────────────────────────────────────────
 function SavedForm() {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -634,7 +636,7 @@ function SavedForm() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    fetch("/api/saved-trips", {
+    fetch(`${API}/api/saved-trips`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -651,7 +653,7 @@ function SavedForm() {
     setDeletingId(id);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/saved-trips/${id}`, {
+      const res = await fetch(`${API}/api/saved-trips/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -676,7 +678,6 @@ function SavedForm() {
       </div>
     );
   }
-
   if (error) {
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
@@ -684,7 +685,6 @@ function SavedForm() {
       </div>
     );
   }
-
   if (!trips.length) {
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
@@ -762,9 +762,8 @@ export default function BookingPage() {
     const planParam = searchParams.get("plan");
     const exampleParam = searchParams.get("example");
 
-    if (exampleParam && EXAMPLE_PLANS[exampleParam]) {
+    if (exampleParam && EXAMPLE_PLANS[exampleParam])
       return { ...EXAMPLE_PLANS[exampleParam], source: "example" };
-    }
     if (planParam && PLAN_SEEDS[planParam]) {
       const seed = PLAN_SEEDS[planParam];
       const mergedPrompt = promptParam ?? seed.prompt;
@@ -796,11 +795,9 @@ export default function BookingPage() {
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "miami");
-
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [priceWatchOn, setPriceWatchOn] = useState(false);
-
   const [budgetState, setBudgetState] = useState({
     planned: prefillData?.budget ?? null,
     used: 0,
@@ -846,7 +843,7 @@ export default function BookingPage() {
       cabin: "economy",
     });
 
-    fetch(`/api/flights/search?${params}`)
+    fetch(`${API}/api/flights/search?${params}`)
       .then((r) => r.json())
       .then((data) => {
         if (!data.ok) throw new Error(data.message || "Search failed");
@@ -884,17 +881,14 @@ export default function BookingPage() {
     () => applyFilters(flightResults, smartFilters),
     [flightResults, smartFilters]
   );
-
   const activeFilterCount = useMemo(
     () => Object.values(smartFilters).filter((v) => v !== "any").length,
     [smartFilters]
   );
-
   const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
   const weatherTitle = weather.label
     ? `${weather.label} Weather${weather.temp ? ` • ${weather.temp}` : ""}`
     : "Select a destination";
-
   const heroRoute = destCity ? `New York → ${destCity}` : "New York → Miami";
   const heroNights = `${tripDaySeed} nights`;
 
@@ -914,7 +908,6 @@ export default function BookingPage() {
     title: "Skyrio Select Stay – Deluxe",
     total: 168,
   });
-
   const rating = 4.7;
   const reviews = 1243;
   const bestFor = useMemo(
@@ -1084,7 +1077,6 @@ export default function BookingPage() {
 
           <Space size="middle" className="sk-hero-pills">
             <div className="sk-pill sk-pill-orange">⚡ XP 60</div>
-
             {!aiInsightDismissed ? (
               <div className="sk-ai-insight-pill">
                 <span className="sk-ai-insight-icon">⚡</span>
@@ -1109,7 +1101,6 @@ export default function BookingPage() {
                 ⚡ AI Insight
               </button>
             )}
-
             <button
               type="button"
               className={`sk-pill sk-pill-glass sk-pill-toggle ${
@@ -1173,7 +1164,6 @@ export default function BookingPage() {
 
         <Space className="sk-action-row" wrap>
           <Button className="sk-btn-orange">Sort: Recommended</Button>
-
           <Link to="/sync-together">
             <Button className="sk-btn-sync" icon={<SyncOutlined />}>
               ✈️ Sync Together
@@ -1258,7 +1248,6 @@ export default function BookingPage() {
             </div>
           )}
 
-          {/* ── Flight results ── */}
           {!autoSearchLoading &&
             visibleFlights.length > 0 &&
             visibleFlights.map((flight) => (
@@ -1321,7 +1310,6 @@ export default function BookingPage() {
                             {flight.totalCurrency}
                           </span>
                         </div>
-                        {/* Per-flight save button — passes real flight data */}
                         <SaveTripButton
                           size="small"
                           variant="ghost"
@@ -1368,7 +1356,6 @@ export default function BookingPage() {
               </Card>
             ))}
 
-          {/* ── Placeholder result card ── */}
           {!autoSearchLoading &&
             flightResults.length === 0 &&
             !autoSearchError && (
