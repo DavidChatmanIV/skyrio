@@ -15,7 +15,6 @@ import {
 } from "antd";
 import {
   SearchOutlined,
-  StarFilled,
   EnvironmentOutlined,
   LoadingOutlined,
   SwapOutlined,
@@ -41,7 +40,6 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-// ── API base URL ──
 const API = import.meta.env.VITE_API_URL || "";
 
 const DEFAULT_FILTERS = {
@@ -333,15 +331,7 @@ function getWeatherForCity(cityStr) {
   if (partial) return CITY_WEATHER[partial];
   const reverse = Object.keys(CITY_WEATHER).find((k) => k.includes(key));
   if (reverse) return CITY_WEATHER[reverse];
-  return {
-    label: cityStr
-      .split(" ")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" "),
-    icon: "🌍",
-    temp: "",
-    sub: "Weather data not available for this destination",
-  };
+  return DEFAULT_WEATHER;
 }
 
 function SearchBtn({ onClick, loading }) {
@@ -668,7 +658,7 @@ function SavedForm() {
     }
   };
 
-  if (loading) {
+  if (loading)
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
         <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
@@ -677,15 +667,13 @@ function SavedForm() {
         </Text>
       </div>
     );
-  }
-  if (error) {
+  if (error)
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
         <Text style={{ color: "#ff4d4f", fontSize: 14 }}>⚠️ {error}</Text>
       </div>
     );
-  }
-  if (!trips.length) {
+  if (!trips.length)
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
         <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
@@ -693,7 +681,6 @@ function SavedForm() {
         </Text>
       </div>
     );
-  }
 
   return (
     <div className="sk-search-bar sk-saved-list">
@@ -794,7 +781,10 @@ export default function BookingPage() {
   const [autoSearchDone, setAutoSearchDone] = useState(false);
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
-  const [destCity, setDestCity] = useState(prefillData?.destination ?? "miami");
+
+  // ── FIX 1: default empty, not "miami" ──
+  const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
+
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [priceWatchOn, setPriceWatchOn] = useState(false);
@@ -889,8 +879,12 @@ export default function BookingPage() {
   const weatherTitle = weather.label
     ? `${weather.label} Weather${weather.temp ? ` • ${weather.temp}` : ""}`
     : "Select a destination";
-  const heroRoute = destCity ? `New York → ${destCity}` : "New York → Miami";
-  const heroNights = `${tripDaySeed} nights`;
+
+  // ── FIX 2: no hardcoded Miami ──
+  const heroRoute = destCity
+    ? `New York → ${destCity}`
+    : "Search for your next trip ✈️";
+  const heroNights = destCity ? `${tripDaySeed} nights` : "";
 
   const quickFilters = useMemo(
     () => ["Under $500", "Luxury", "Unwind", "Adventure", "Romantic"],
@@ -904,16 +898,10 @@ export default function BookingPage() {
   const clearFilters = () => setActiveFilters([]);
 
   const [selectedResult, setSelectedResult] = useState({
-    id: "stay-1",
-    title: "Skyrio Select Stay – Deluxe",
-    total: 168,
+    id: "",
+    title: "",
+    total: 0,
   });
-  const rating = 4.7;
-  const reviews = 1243;
-  const bestFor = useMemo(
-    () => ["Beach access", "Couples", "Great breakfast"],
-    []
-  );
 
   const handleSelectResult = useCallback((result) => {
     setSelectedResult(result);
@@ -974,7 +962,9 @@ export default function BookingPage() {
         <div className="sk-tripState">
           <div className="sk-tripRoute">{heroRoute}</div>
           <div className="sk-tripMeta">
-            {heroNights} • {weather.sub} • Best value window
+            {heroNights && `${heroNights} • `}
+            {weather.sub}
+            {destCity && " • Best value window"}
           </div>
           <div className="sk-tripAssist">
             {autoSearchLoading
@@ -1215,7 +1205,7 @@ export default function BookingPage() {
                   }`
                 : flightResults.length > 0 && visibleFlights.length === 0
                 ? "Try relaxing your filters to see more results"
-                : "Curated picks based on your budget + comfort preferences."}
+                : "Search above to find flights."}
             </div>
             {!autoSearchLoading &&
               flightResults.length > 0 &&
@@ -1356,87 +1346,26 @@ export default function BookingPage() {
               </Card>
             ))}
 
+          {/* ── FIX 3: Replace mock card with clean empty state ── */}
           {!autoSearchLoading &&
             flightResults.length === 0 &&
             !autoSearchError && (
-              <Card
-                variant="borderless"
-                className={`sk-result-card ${
-                  selectedResult.id === "stay-1" ? "is-selected" : ""
-                }`}
-                onClick={() =>
-                  handleSelectResult({
-                    id: "stay-1",
-                    title: "Skyrio Select Stay – Deluxe",
-                    total: 168,
-                  })
-                }
-                style={{ cursor: "pointer" }}
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "48px 24px",
+                  color: "rgba(255,255,255,0.45)",
+                  fontSize: 15,
+                }}
               >
-                <div className="sk-resultRow">
-                  <div className="sk-thumb" />
-                  <div className="sk-resultMain">
-                    <div className="sk-resultTop">
-                      <div>
-                        <div className="sk-resultTitle">
-                          Skyrio Select Stay – Deluxe
-                        </div>
-                        <div className="sk-resultMeta">
-                          <span className="sk-metaItem">
-                            <EnvironmentOutlined /> {heroRoute}
-                          </span>
-                          <span className="sk-metaDot">•</span>
-                          <span className="sk-metaItem">
-                            <StarFilled className="sk-star" /> {rating}
-                            <span className="sk-reviews">
-                              {" "}
-                              ({reviews.toLocaleString()})
-                            </span>
-                          </span>
-                        </div>
-                        <div className="sk-pickedWhy">
-                          Why Skyrio picked this: high rating + best value this
-                          window
-                        </div>
-                      </div>
-                      <div className="sk-resultRight">
-                        <div className="sk-priceLine">
-                          <span className="sk-priceAmt">$168</span>
-                          <span className="sk-priceSub">total</span>
-                        </div>
-                        <SaveTripButton
-                          size="small"
-                          variant="ghost"
-                          label="Save"
-                          tripData={{
-                            tripType: "hotel",
-                            title: "Skyrio Select Stay – Deluxe",
-                            destination: destCity,
-                            price: 168,
-                            currency: "USD",
-                          }}
-                          onSaveError={(msg) => antdMessage.error(msg)}
-                        />
-                      </div>
-                    </div>
-                    <div className="sk-tagRow">
-                      <span className="sk-tag sk-tag-good">Best Value</span>
-                      <span className="sk-tag sk-tag-orange">
-                        Free cancellation
-                      </span>
-                      <span className="sk-tag sk-tag-soft">No resort fee</span>
-                    </div>
-                    <div className="sk-bestFor">
-                      <span className="sk-bestForLabel">Best for:</span>
-                      {bestFor.map((t) => (
-                        <span key={t} className="sk-tag sk-tag-bestfor">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>✈️</div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  Ready when you are
                 </div>
-              </Card>
+                <div style={{ fontSize: 13 }}>
+                  Select airports and dates above to search live flights
+                </div>
+              </div>
             )}
         </Col>
 
