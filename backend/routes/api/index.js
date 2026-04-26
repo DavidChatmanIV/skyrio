@@ -60,6 +60,7 @@ await mount("/admin", "../admin.routes.js");
 await mount("/hotspots", "../hotspots.js");
 await mount("/watches", "../watches.js");
 await mount("/xp", "../xp.js");
+await mount("/atlas", "../atlas/atlas.routes.js"); // 👈 added
 
 /* ======================================================
    API Root
@@ -77,6 +78,7 @@ api.get("/", (_req, res) => {
       "/skyhub",
       "/dm",
       "/notifications",
+      "/atlas",
     ],
   });
 });

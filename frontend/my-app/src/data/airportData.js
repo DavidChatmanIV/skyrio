@@ -513,20 +513,61 @@ export const AIRPORTS = [
 ];
 
 /**
- * Search airports by query string.
- * Matches city name, airport name, IATA code, state, or country.
- * Returns up to `limit` results (default 8).
+ * Score-based airport search.
+ *
+ * Priority order (highest → lowest):
+ *   1. Exact IATA code match          (score: 100)
+ *   2. City name starts with query    (score: 80)
+ *   3. City name contains query       (score: 60)
+ *   4. Airport name word starts with  (score: 40)
+ *   5. State/country starts with      (score: 20)
+ *
+ * Deliberately excluded:
+ *   - Mid-word matches in airport names (e.g. "mi" matching "Kingsford Smith")
+ *   - This prevents SYD showing when typing "mi" for Miami
+ *
+ * Returns up to `limit` results sorted by score descending.
  */
 export function searchAirports(query, limit = 8) {
   if (!query || query.trim().length < 2) return [];
   const q = query.trim().toLowerCase();
 
-  return AIRPORTS.filter(
-    (a) =>
-      a.city.toLowerCase().includes(q) ||
-      a.name.toLowerCase().includes(q) ||
-      a.code.toLowerCase().includes(q) ||
-      (a.state && a.state.toLowerCase().includes(q)) ||
-      (a.country && a.country.toLowerCase().includes(q))
-  ).slice(0, limit);
+  const scored = AIRPORTS.reduce((acc, airport) => {
+    const city = airport.city.toLowerCase();
+    const code = airport.code.toLowerCase();
+    const name = airport.name.toLowerCase();
+    const state = (airport.state || "").toLowerCase();
+    const country = (airport.country || "").toLowerCase();
+
+    let score = 0;
+
+    // Exact IATA code — highest priority
+    if (code === q) {
+      score = 100;
+    }
+    // City starts with query — very strong signal
+    else if (city.startsWith(q)) {
+      score = 80;
+    }
+    // City contains query anywhere (e.g. "new" matches "New York")
+    else if (city.includes(q)) {
+      score = 60;
+    }
+    // Airport name — only match at word boundaries to avoid "Smith" matching "mi"
+    else if (name.split(/[\s\-\/]+/).some((word) => word.startsWith(q))) {
+      score = 40;
+    }
+    // State or country starts with query (e.g. "ca" for California)
+    else if (state.startsWith(q) || country.startsWith(q)) {
+      score = 20;
+    }
+
+    if (score > 0) acc.push({ airport, score });
+    return acc;
+  }, []);
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s) => s.airport);
 }

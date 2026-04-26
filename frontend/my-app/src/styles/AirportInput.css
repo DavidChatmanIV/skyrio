@@ -3,6 +3,9 @@
   position: relative;
   flex: 1;
   min-width: 180px;
+  /* ✅ isolation:isolate creates a new stacking context so z-index
+     works correctly even if parent has overflow or transform */
+  isolation: isolate;
 }
 
 /* Input inherits sk-glass-input — just make it full width */
@@ -20,9 +23,13 @@
   border: 1px solid rgba(255, 138, 42, 0.25);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  z-index: 9999;
+  /* ✅ High z-index — must beat .sk-search-bar, filters bar, and any
+     Ant Design components (Segmented, DatePicker) which sit at ~1000 */
+  z-index: 2000;
   overflow: hidden;
   padding: 6px 0;
+  /* ✅ Prevents dropdown from being clipped by parent overflow */
+  contain: layout;
 }
 
 /* City header — only rendered when a city has 2+ airports */
@@ -102,4 +109,18 @@
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   margin-top: 4px;
   padding-top: 4px;
+}
+
+/* ── Mobile responsive ── */
+@media (max-width: 640px) {
+  .sk-airport-dropdown {
+    min-width: 100%;
+    left: 0;
+    right: 0;
+  }
+
+  .sk-airport-wrap {
+    min-width: 0;
+    width: 100%;
+  }
 }

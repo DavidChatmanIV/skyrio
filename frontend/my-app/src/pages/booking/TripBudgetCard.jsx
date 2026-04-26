@@ -19,7 +19,7 @@ import "../../styles/TripBudgetCard.css";
 
 const { Title, Text } = Typography;
 
-function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
+function buildAiSuggestion({ planned, used, bookingTotal, tripDays }) {
   const p = Number(planned || 0);
   const u = Number(used || 0);
   const b = Number(bookingTotal || 0);
@@ -39,24 +39,27 @@ function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
     };
   }
 
-  const days = Math.max(1, Number(tripDays || 1));
-  const perDay = left / days;
+  // ── Only calculate per-day if we have nights ──
+  const days = tripDays ? Math.max(1, Number(tripDays)) : null;
+  const perDay = days ? left / days : null;
   const dining = Math.round(p * 0.25);
   const transport = Math.round(p * 0.15);
   const activities = Math.round(p * 0.2);
 
   if (left < 0) {
-    const recoverPerDay = Math.ceil(Math.abs(left) / days);
+    const recoverPerDay = days ? Math.ceil(Math.abs(left) / days) : null;
     return {
       title: `You're $${Math.abs(left).toLocaleString()} over budget.`,
-      detail: `Atlas can fix this fast. Either increase your budget or cut about $${recoverPerDay.toLocaleString()} / day for extras.`,
+      detail: recoverPerDay
+        ? `Atlas can fix this fast. Cut about $${recoverPerDay.toLocaleString()} / day for extras.`
+        : `Atlas can fix this fast. Increase your budget or trim extras.`,
       hint: "Tap Optimize and I'll rebalance your split.",
       tone: "danger",
       actions: ["optimize", "deal"],
     };
   }
 
-  if (perDay < 35) {
+  if (perDay !== null && perDay < 35) {
     return {
       title: "Tight pacing — but doable.",
       detail: `You've got ~$${Math.floor(
@@ -68,13 +71,24 @@ function buildAiSuggestion({ planned, used, bookingTotal, tripDays = 3 }) {
     };
   }
 
-  if (perDay < 80) {
+  if (perDay !== null && perDay < 80) {
     return {
       title: "You're on track.",
       detail: `You can spend ~$${Math.floor(
         perDay
       ).toLocaleString()} / day and stay smooth. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
       hint: "Want a better deal window? Tap Find better deal.",
+      tone: "ok",
+      actions: ["deal", "surprise"],
+    };
+  }
+
+  // Has budget but no nights yet — give a useful summary without per-day math
+  if (perDay === null) {
+    return {
+      title: "Budget set — add your dates to pace it out.",
+      detail: `You've budgeted $${p.toLocaleString()} total. Select dates and Atlas will break this down day by day.`,
+      hint: `Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
       tone: "ok",
       actions: ["deal", "surprise"],
     };
@@ -129,7 +143,7 @@ const CATEGORY_PRESETS = [
 
 export default function TripBudgetCard({
   initialBookingTotal = 0,
-  initialTripDays = 3,
+  initialTripDays = null, // ✅ null by default — no hardcoded 3
   initialDestination = "your destination",
   onStateChange,
 }) {
@@ -139,9 +153,14 @@ export default function TripBudgetCard({
     Number(initialBookingTotal) || 0
   );
   const [expenseAmount, setExpenseAmount] = useState(null);
-  const [tripDays, setTripDays] = useState(Number(initialTripDays) || 3);
+
+  // ✅ null until dates are picked or user manually types a value
+  const [tripDays, setTripDays] = useState(
+    initialTripDays ? Number(initialTripDays) : null
+  );
   const [destination, setDestination] = useState(initialDestination);
 
+  // Sync from parent when BookingPage date picker updates nights
   useEffect(() => {
     if (initialBookingTotal) setBookingTotal(Number(initialBookingTotal));
   }, [initialBookingTotal]);
@@ -150,12 +169,19 @@ export default function TripBudgetCard({
     if (initialDestination) setDestination(initialDestination);
   }, [initialDestination]);
 
+  // ✅ Sync nights from parent date picker — only override if parent has a value
+  useEffect(() => {
+    if (initialTripDays !== null && initialTripDays !== undefined) {
+      setTripDays(Number(initialTripDays));
+    }
+  }, [initialTripDays]);
+
   const handleReset = useCallback(() => {
     setPlanned(null);
     setUsed(0);
     setBookingTotal(Number(initialBookingTotal) || 0);
     setExpenseAmount(null);
-    setTripDays(Number(initialTripDays) || 3);
+    setTripDays(initialTripDays ? Number(initialTripDays) : null);
   }, [initialBookingTotal, initialTripDays]);
 
   const handleAddExpense = useCallback(() => {
@@ -169,7 +195,6 @@ export default function TripBudgetCard({
     setUsed((prev) => prev + amount);
   }, []);
 
-  // ✅ FIX — use a ref to avoid onStateChange recreating on every render
   const onStateChangeRef = useRef(onStateChange);
   useEffect(() => {
     onStateChangeRef.current = onStateChange;
@@ -185,6 +210,8 @@ export default function TripBudgetCard({
   }, [planned]);
 
   const hasBudget = totalNum > 0;
+  const hasNights = tripDays !== null && tripDays > 0;
+
   const spent = useMemo(
     () => Number(used || 0) + Number(bookingTotal || 0),
     [used, bookingTotal]
@@ -345,15 +372,24 @@ export default function TripBudgetCard({
           </div>
           <div className="tb-summaryDivider" />
           <div className="tb-summaryItem">
-            <div className="tb-summaryKey">Days</div>
+            {/* ✅ Nights label — shows placeholder hint when not yet set */}
+            <div className="tb-summaryKey">
+              Nights
+              {!hasNights && (
+                <span style={{ fontSize: 10, opacity: 0.5, marginLeft: 4 }}>
+                  (from dates)
+                </span>
+              )}
+            </div>
             <InputNumber
-              value={tripDays}
+              value={tripDays ?? undefined}
               min={1}
               max={90}
               step={1}
               controls={false}
               className="tb-stripInput tb-stripInputDays"
-              onChange={(v) => setTripDays(Number(v || 1))}
+              placeholder="—"
+              onChange={(v) => setTripDays(v ? Number(v) : null)}
             />
           </div>
         </div>
@@ -385,6 +421,11 @@ export default function TripBudgetCard({
               <span className="tb-miniPill">
                 Spent: ${Number(spent).toLocaleString()}
               </span>
+              {hasNights && (
+                <span className="tb-miniPill">
+                  {tripDays} night{tripDays !== 1 ? "s" : ""}
+                </span>
+              )}
             </div>
             <div className="tb-meter">
               <div

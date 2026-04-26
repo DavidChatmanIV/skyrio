@@ -347,7 +347,9 @@ function SearchBtn({ onClick, loading }) {
   );
 }
 
-function FlightsForm({ onSearch, onDestChange }) {
+// ─── FlightsForm ──────────────────────────────────────────────
+// Now calls onDatesChange so BookingPage knows about selected dates
+function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
   const [originDisplay, setOriginDisplay] = useState("");
@@ -356,6 +358,22 @@ function FlightsForm({ onSearch, onDestChange }) {
   const [cabin, setCabin] = useState("economy");
   const [adults, setAdults] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  const handleDatesChange = useCallback(
+    (v) => {
+      const newDates = v ?? [null, null];
+      setDates(newDates);
+
+      // ── Calculate nights and bubble up to BookingPage ──
+      if (newDates[0] && newDates[1]) {
+        const nights = newDates[1].diff(newDates[0], "day");
+        onDatesChange?.({ dates: newDates, nights });
+      } else {
+        onDatesChange?.({ dates: newDates, nights: null });
+      }
+    },
+    [onDatesChange]
+  );
 
   const handleSearch = async () => {
     if (!originAirport)
@@ -424,7 +442,7 @@ function FlightsForm({ onSearch, onDestChange }) {
       </div>
       <RangePicker
         className="sk-orange-picker"
-        onChange={(v) => setDates(v ?? [null, null])}
+        onChange={handleDatesChange}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
       <Select
@@ -451,7 +469,22 @@ function FlightsForm({ onSearch, onDestChange }) {
   );
 }
 
-function StaysForm({ onDestChange }) {
+// ─── StaysForm ────────────────────────────────────────────────
+// Also wires up date-driven nights
+function StaysForm({ onDestChange, onDatesChange }) {
+  const handleDatesChange = useCallback(
+    (v) => {
+      const newDates = v ?? [null, null];
+      if (newDates[0] && newDates[1]) {
+        const nights = newDates[1].diff(newDates[0], "day");
+        onDatesChange?.({ dates: newDates, nights });
+      } else {
+        onDatesChange?.({ dates: newDates, nights: null });
+      }
+    },
+    [onDatesChange]
+  );
+
   return (
     <div className="sk-search-bar">
       <AirportInput
@@ -462,6 +495,7 @@ function StaysForm({ onDestChange }) {
       <RangePicker
         className="sk-orange-picker"
         placeholder={["Check-in", "Check-out"]}
+        onChange={handleDatesChange}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
       <Select
@@ -502,7 +536,7 @@ function CarsForm({ onDestChange }) {
   );
 }
 
-function PackagesForm({ onDestChange }) {
+function PackagesForm({ onDestChange, onDatesChange }) {
   const [originDisplay, setOriginDisplay] = useState("");
   const [destDisplay, setDestDisplay] = useState("");
   const [pkgOptions, setPkgOptions] = useState({
@@ -512,6 +546,19 @@ function PackagesForm({ onDestChange }) {
   });
   const toggle = (key) =>
     setPkgOptions((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const handleDatesChange = useCallback(
+    (v) => {
+      const newDates = v ?? [null, null];
+      if (newDates[0] && newDates[1]) {
+        const nights = newDates[1].diff(newDates[0], "day");
+        onDatesChange?.({ dates: newDates, nights });
+      } else {
+        onDatesChange?.({ dates: newDates, nights: null });
+      }
+    },
+    [onDatesChange]
+  );
 
   return (
     <div className="sk-search-bar">
@@ -547,6 +594,7 @@ function PackagesForm({ onDestChange }) {
       />
       <RangePicker
         className="sk-orange-picker"
+        onChange={handleDatesChange}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
       <Select
@@ -781,19 +829,30 @@ export default function BookingPage() {
   const [autoSearchDone, setAutoSearchDone] = useState(false);
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
-
-  // ── FIX 1: default empty, not "miami" ──
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
-
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [priceWatchOn, setPriceWatchOn] = useState(false);
+
+  // ── Nights driven by date picker, falls back to prefill, then null ──
+  const [selectedNights, setSelectedNights] = useState(
+    prefillData?.tripDays ?? null
+  );
+
   const [budgetState, setBudgetState] = useState({
     planned: prefillData?.budget ?? null,
     used: 0,
     bookingTotal: 0,
-    tripDays: prefillData?.tripDays ?? 3,
+    tripDays: prefillData?.tripDays ?? null,
   });
+
+  // ── Handle date change from any search form ──
+  const handleDatesChange = useCallback(({ nights }) => {
+    if (nights !== null && nights > 0) {
+      setSelectedNights(nights);
+      setBudgetState((prev) => ({ ...prev, tripDays: nights }));
+    }
+  }, []);
 
   useEffect(() => {
     updateAtlasContext({
@@ -810,10 +869,10 @@ export default function BookingPage() {
   const [prefillDismissed, setPrefillDismissed] = useState(false);
   const [editPrompt, setEditPrompt] = useState(prefillData?.prompt ?? "");
   const [editBudget, setEditBudget] = useState(prefillData?.budget ?? null);
-  const [editDays, setEditDays] = useState(prefillData?.tripDays ?? 3);
+  const [editDays, setEditDays] = useState(prefillData?.tripDays ?? null);
 
   const budgetSeed = prefillData?.budget ?? null;
-  const tripDaySeed = prefillData?.tripDays ?? 3;
+  const tripDaySeed = prefillData?.tripDays ?? null;
 
   useEffect(() => {
     if (!prefillData?.iata || autoSearchDone) return;
@@ -862,7 +921,10 @@ export default function BookingPage() {
     const newBudget = editBudget ?? extractBudgetFromPrompt(editPrompt);
     setDestCity(newDest);
     if (newBudget) setBudgetState((prev) => ({ ...prev, planned: newBudget }));
-    if (editDays) setBudgetState((prev) => ({ ...prev, tripDays: editDays }));
+    if (editDays) {
+      setSelectedNights(editDays);
+      setBudgetState((prev) => ({ ...prev, tripDays: editDays }));
+    }
     setPrefillEditing(false);
     antdMessage.success("Trip details updated!");
   }, [editPrompt, editBudget, editDays, destCity]);
@@ -880,11 +942,13 @@ export default function BookingPage() {
     ? `${weather.label} Weather${weather.temp ? ` • ${weather.temp}` : ""}`
     : "Select a destination";
 
-  // ── FIX 2: no hardcoded Miami ──
+  // ── Hero text — only shows nights if we actually have them ──
   const heroRoute = destCity
     ? `New York → ${destCity}`
     : "Search for your next trip ✈️";
-  const heroNights = destCity ? `${tripDaySeed} nights` : "";
+  const heroNights = selectedNights
+    ? `${selectedNights} night${selectedNights !== 1 ? "s" : ""}`
+    : "";
 
   const quickFilters = useMemo(
     () => ["Under $500", "Luxury", "Unwind", "Adventure", "Romantic"],
@@ -912,8 +976,12 @@ export default function BookingPage() {
     setBudgetState(state);
   }, []);
 
+  const searchFormProps = {
+    onDestChange: setDestCity,
+    onDatesChange: handleDatesChange,
+  };
+
   const searchForm = useMemo(() => {
-    const props = { onDestChange: setDestCity };
     switch (tab) {
       case "Flights":
         return (
@@ -923,24 +991,25 @@ export default function BookingPage() {
               setSmartFilters(DEFAULT_FILTERS);
             }}
             onDestChange={setDestCity}
+            onDatesChange={handleDatesChange}
           />
         );
       case "Stays":
-        return <StaysForm {...props} />;
+        return <StaysForm {...searchFormProps} />;
       case "Cars":
-        return <CarsForm {...props} />;
+        return <CarsForm onDestChange={setDestCity} />;
       case "Saved":
         return <SavedForm />;
       case "Excursions":
-        return <ExcursionsForm {...props} />;
+        return <ExcursionsForm onDestChange={setDestCity} />;
       case "Packages":
-        return <PackagesForm {...props} />;
+        return <PackagesForm {...searchFormProps} />;
       case "Last-Minute":
         return <LastMinuteForm />;
       default:
         return null;
     }
-  }, [tab]);
+  }, [tab, handleDatesChange]);
 
   const resultsTitle = autoSearchLoading
     ? "Searching flights…"
@@ -971,7 +1040,9 @@ export default function BookingPage() {
               ? "⏳ Searching live flights for you…"
               : autoSearchDone && flightResults.length > 0
               ? `✈️ Found ${flightResults.length} flights — scroll down to pick`
-              : "Smart Plan found 4 great options for you"}
+              : destCity
+              ? "Smart Plan found great options for you"
+              : "Enter your destination to get started"}
           </div>
 
           {prefillData && !prefillDismissed && (
@@ -1033,14 +1104,15 @@ export default function BookingPage() {
                       />
                     </div>
                     <div className="sk-prefill-field">
-                      <label className="sk-prefill-label">Days</label>
+                      <label className="sk-prefill-label">Nights</label>
                       <InputNumber
                         className="sk-prefill-numInput"
                         value={editDays}
                         min={1}
                         max={60}
                         controls={false}
-                        onChange={(v) => setEditDays(v ?? 3)}
+                        onChange={(v) => setEditDays(v ?? null)}
+                        placeholder="7"
                       />
                     </div>
                   </div>
@@ -1346,7 +1418,6 @@ export default function BookingPage() {
               </Card>
             ))}
 
-          {/* ── FIX 3: Replace mock card with clean empty state ── */}
           {!autoSearchLoading &&
             flightResults.length === 0 &&
             !autoSearchError && (
@@ -1372,7 +1443,7 @@ export default function BookingPage() {
         <Col xs={24} lg={8}>
           <TripBudgetCard
             initialBookingTotal={selectedResult?.total ?? 0}
-            initialTripDays={tripDaySeed}
+            initialTripDays={selectedNights}
             initialDestination={destCity}
             onStateChange={handleBudgetChange}
           />

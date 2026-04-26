@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { EnvironmentOutlined } from "@ant-design/icons";
 import { searchAirports } from "@/data/airportData";
 import "@/styles/AirportInput.css";
@@ -10,6 +11,10 @@ import "@/styles/AirportInput.css";
  *   onChange    – (airport) => void — called with the full airport object
  *   placeholder – string
  *   className   – extra className on the wrapper
+ *
+ * Uses React Portal to render the dropdown directly into document.body,
+ * bypassing any parent stacking context (overflow, transform, z-index)
+ * that would clip or overlap the dropdown.
  */
 export default function AirportInput({
   value,
@@ -20,17 +25,48 @@ export default function AirportInput({
   const [inputVal, setInputVal] = useState(value || "");
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+
   const wrapRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Sync controlled value from parent
   useEffect(() => {
     setInputVal(value || "");
   }, [value]);
 
+  // Recalculate dropdown position whenever it opens or window resizes
+  useEffect(() => {
+    if (!open || !inputRef.current) return;
+
+    const updatePos = () => {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + window.scrollY + 6,
+        left: rect.left + window.scrollX,
+        width: Math.max(320, rect.width),
+      });
+    };
+
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true);
+    return () => {
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
+    };
+  }, [open]);
+
   // Close dropdown on outside click
   useEffect(() => {
     const handleOutside = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+      // Check both the wrapper and the portal dropdown
+      const dropdown = document.querySelector(".sk-airport-dropdown-portal");
+      if (
+        wrapRef.current &&
+        !wrapRef.current.contains(e.target) &&
+        (!dropdown || !dropdown.contains(e.target))
+      ) {
         setOpen(false);
       }
     };
@@ -65,23 +101,18 @@ export default function AirportInput({
     return acc;
   }, {});
 
-  return (
-    <div ref={wrapRef} className={`sk-airport-wrap ${className}`}>
-      <input
-        type="text"
-        className="sk-glass-input sk-airport-input"
-        value={inputVal}
-        onChange={handleChange}
-        onFocus={() => {
-          if (results.length > 0) setOpen(true);
-        }}
-        placeholder={placeholder}
-        autoComplete="off"
-        spellCheck={false}
-      />
-
-      {open && (
-        <div className="sk-airport-dropdown">
+  const dropdown = open
+    ? createPortal(
+        <div
+          className="sk-airport-dropdown sk-airport-dropdown-portal"
+          style={{
+            position: "absolute",
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            width: dropdownPos.width,
+            zIndex: 9999,
+          }}
+        >
           {Object.entries(grouped).map(([city, airports]) => (
             <div key={city} className="sk-airport-group">
               {/* City header only when 2+ airports in same city */}
@@ -122,8 +153,27 @@ export default function AirportInput({
               ))}
             </div>
           ))}
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <div ref={wrapRef} className={`sk-airport-wrap ${className}`}>
+      <input
+        ref={inputRef}
+        type="text"
+        className="sk-glass-input sk-airport-input"
+        value={inputVal}
+        onChange={handleChange}
+        onFocus={() => {
+          if (results.length > 0) setOpen(true);
+        }}
+        placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      {dropdown}
     </div>
   );
 }

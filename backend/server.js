@@ -104,6 +104,17 @@ if (process.env.NODE_ENV !== "production") {
       frontendOrigin: FRONTEND_ORIGIN,
     });
   });
+
+  // ── Atlas AI diagnostics ──────────────────────────────────────
+  // Hit http://localhost:4000/__atlascheck to verify AI config
+  app.get("/__atlascheck", (_req, res) => {
+    res.json({
+      hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+      hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+      provider: process.env.ATLAS_PROVIDER || "openai (default)",
+      fallback: process.env.ATLAS_FALLBACK_PROVIDER || "not set",
+    });
+  });
 }
 
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
