@@ -30,6 +30,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import heroImg from "@/assets/Booking/skyrio-hero.jpg";
 import "@/styles/BookingPage.css";
 
+import BookingCheckout from "@/pages/booking/BookingCheckout";
 import SaveTripButton from "@/components/trips/SaveTripButton";
 import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
@@ -193,6 +194,12 @@ const CITY_WEATHER = {
     icon: "🌥",
     temp: "Avg 62° / 48°",
     sub: "Partly cloudy • Light wind",
+  },
+  newark: {
+    label: "Newark",
+    icon: "🌥",
+    temp: "Avg 58° / 44°",
+    sub: "Partly cloudy • Cool winds",
   },
   miami: {
     label: "Miami",
@@ -834,6 +841,10 @@ export default function BookingPage() {
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [priceWatchOn, setPriceWatchOn] = useState(false);
 
+  // ── Checkout state for selected live flight ──
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [selectedFlight, setSelectedFlight] = useState(null);
+
   // ── Nights driven by date picker, falls back to prefill, then null ──
   const [selectedNights, setSelectedNights] = useState(
     prefillData?.tripDays ?? null
@@ -1020,6 +1031,18 @@ export default function BookingPage() {
     : flightResults.length > 0
     ? "No flights match your filters"
     : "Results";
+
+  if (showCheckout && selectedFlight) {
+    return (
+      <BookingCheckout
+        flight={selectedFlight}
+        onBack={() => {
+          setShowCheckout(false);
+          setSelectedFlight(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="sk-booking" style={{ "--sk-bg-image": `url(${heroImg})` }}>
@@ -1392,6 +1415,22 @@ export default function BookingPage() {
                           }}
                           onSaveError={(msg) => antdMessage.error(msg)}
                         />
+                        <Button
+                          className="sk-btn-orange"
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFlight(flight);
+                            setShowCheckout(true);
+                            handleSelectResult({
+                              id: flight.id,
+                              title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
+                              total: parseFloat(flight.totalAmount),
+                            });
+                          }}
+                        >
+                          Book Now
+                        </Button>
                       </div>
                     </div>
                     <div className="sk-tagRow">
