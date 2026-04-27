@@ -13,6 +13,7 @@ const MembershipPage = lazy(() => import("./pages/passport/Membership"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SyncTogether = lazy(() => import("./pages/SyncTogether"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -53,6 +54,7 @@ export default function AppRoutes() {
           <Route path="register" element={<RegisterPage />} />
           <Route path="forgot-password" element={<ForgotPasswordPage />} />
           <Route path="reset" element={<ForgotPasswordPage />} />
+          <Route path="verify-email" element={<VerifyEmailPage />} />
           <Route path="booking" element={<BookingPage />} />
           <Route path="skyhub" element={<SkyHubPage />} />
           <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
