@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { Input } from "antd";
 import AuthLayout from "../layout/AuthLayout";
 import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
 import gateBg from "../assets/LoginBoardingpass/gate.png";
@@ -12,15 +13,11 @@ export default function ForgotPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
 
-  // ── Request reset state
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-
-  // ── Reset password state
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [done, setDone] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -198,9 +195,8 @@ export default function ForgotPasswordPage() {
                       <>
                         <div className="sk-field">
                           <div className="sk-fieldLabel">NEW PASSWORD</div>
-                          <input
+                          <Input.Password
                             className="sk-input"
-                            type="password"
                             placeholder="New password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -208,9 +204,8 @@ export default function ForgotPasswordPage() {
                         </div>
                         <div className="sk-field">
                           <div className="sk-fieldLabel">CONFIRM PASSWORD</div>
-                          <input
+                          <Input.Password
                             className="sk-input"
-                            type="password"
                             placeholder="Confirm password"
                             value={confirm}
                             onChange={(e) => setConfirm(e.target.value)}
