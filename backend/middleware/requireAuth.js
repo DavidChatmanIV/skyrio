@@ -21,7 +21,7 @@ export async function requireAuth(req, res, next) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id; // standardized — signToken always uses `id`
+    const userId = decoded.userId || decoded.id || decoded._id;
 
     if (!userId) {
       return res
