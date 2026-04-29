@@ -114,7 +114,10 @@ export default function AuthProvider({ children }) {
         return;
       }
 
-      const res = await fetch(`${API}/api/profile/me`, {
+      // ── Use /api/auth/check instead of /api/profile/me ──
+      // /auth/check only validates the token — it doesn't fail
+      // due to profile data shape mismatches
+      const res = await fetch(`${API}/api/auth/check`, {
         method: "GET",
         credentials: "include",
         headers: buildAuthHeaders(),
@@ -123,22 +126,37 @@ export default function AuthProvider({ children }) {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        // Token is genuinely invalid or expired — clear everything
         clearSession();
         setLoading(false);
         return;
       }
 
+      // Token is valid — restore user from response or keep cached
       const nextUser = normalizeUser(data?.user || data?.profile || data);
 
-      if (nextUser) {
+      if (nextUser?.id || nextUser?._id) {
         setUser(nextUser);
         localStorage.setItem("user", JSON.stringify(nextUser));
       } else {
-        clearSession();
+        // Server responded ok but no user shape — keep cached user
+        const cachedUser = safeParse(localStorage.getItem("user"));
+        if (cachedUser) {
+          setUser(cachedUser);
+        } else {
+          clearSession();
+        }
       }
     } catch (err) {
       console.error("restoreSession failed:", err);
-      clearSession();
+      // Network error — don't clear session, keep cached data
+      // User stays logged in, requests will fail gracefully
+      const cachedUser = safeParse(localStorage.getItem("user"));
+      const cachedToken = getStoredToken();
+      if (cachedUser && cachedToken) {
+        setUser(cachedUser);
+        setToken(cachedToken);
+      }
     } finally {
       setLoading(false);
     }
