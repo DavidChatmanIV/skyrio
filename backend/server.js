@@ -1,4 +1,5 @@
 import "dotenv/config";
+import * as Sentry from "@sentry/node";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -16,6 +17,13 @@ import apiRouter from "./routes/api/index.js";
 import healthRouter from "./routes/health.routes.js";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || "development",
+  tracesSampleRate: 0.2,
+  enabled: process.env.NODE_ENV === "production",
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,8 +113,6 @@ if (process.env.NODE_ENV !== "production") {
     });
   });
 
-  // ── Atlas AI diagnostics ──────────────────────────────────────
-  // Hit http://localhost:4000/__atlascheck to verify AI config
   app.get("/__atlascheck", (_req, res) => {
     res.json({
       hasOpenAIKey: !!process.env.OPENAI_API_KEY,
@@ -212,6 +218,8 @@ app.use((req, _res, next) => {
   }
   next();
 });
+
+Sentry.setupExpressErrorHandler(app);
 
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;

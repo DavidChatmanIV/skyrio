@@ -15,6 +15,7 @@
     "nodemon": "^3.1.14"
   },
   "dependencies": {
+    "@sentry/react": "^10.51.0",
     "mongodb": "^7.0.0"
   }
 }
