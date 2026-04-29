@@ -161,7 +161,9 @@ function PassportLocked() {
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAuthed, loading, setUser } = useAuth();
+
+  // ── FIX: added token to destructure so all fetch calls can use it ──
+  const { user, token, isAuthed, loading, setUser } = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
 
   const myId = useMemo(() => user?._id || user?.id || null, [user]);
@@ -242,6 +244,7 @@ export default function DigitalPassportPage() {
     }
   }, []);
 
+  // ── FIX: added Authorization header to profile/me fetch ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -252,11 +255,14 @@ export default function DigitalPassportPage() {
         const res = await fetch(apiUrl("/api/profile/me"), {
           credentials: "include",
           signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
         if (!res.ok) throw new Error("profile fetch failed");
         const data = await res.json();
         if (!mounted) return;
-        setXp(Number(data?.xp ?? 0));
+        setXp(Number(data?.user?.xp ?? data?.xp ?? 0));
         setXpToNextBadge(Number(data?.xpToNextBadge ?? 0));
         setNextBadgeName(String(data?.nextBadgeName ?? "Explorer"));
       } catch {
@@ -272,8 +278,9 @@ export default function DigitalPassportPage() {
       mounted = false;
       controller.abort();
     };
-  }, [isAuthed]);
+  }, [isAuthed, token]);
 
+  // ── FIX: added Authorization header to passport/stats fetch ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -284,6 +291,9 @@ export default function DigitalPassportPage() {
         const res = await fetch(apiUrl("/api/passport/stats"), {
           credentials: "include",
           signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
         const data = await res.json();
         if (!mounted) return;
@@ -306,7 +316,7 @@ export default function DigitalPassportPage() {
       mounted = false;
       controller.abort();
     };
-  }, [isAuthed]);
+  }, [isAuthed, token]);
 
   useEffect(() => {
     if (!myId || !isAuthed) return;
@@ -350,7 +360,6 @@ export default function DigitalPassportPage() {
     if (!editUsername.trim() && !editBio.trim() && !editCity.trim()) return;
     setEditSaving(true);
     try {
-      const token = localStorage.getItem("token");
       const res = await fetch(apiUrl("/api/profile/settings"), {
         method: "PATCH",
         headers: {

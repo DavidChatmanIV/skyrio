@@ -5,6 +5,7 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 
 const router = Router();
 
+// GET /api/profile/me
 router.get("/me", requireAuth, async (req, res) => {
   try {
     let profile = await Profile.findOne({ user: req.user._id });
@@ -14,7 +15,17 @@ router.get("/me", requireAuth, async (req, res) => {
         username: req.user.username,
       });
     }
-    return res.json({ ok: true, profile });
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(401).json({ ok: false, message: "User not found" });
+    }
+
+    return res.json({
+      ok: true,
+      user: user.toSafeJSON(),
+      profile,
+    });
   } catch (err) {
     console.error("Profile me error:", err);
     return res
@@ -23,10 +34,12 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/profile/settings
 router.patch("/settings", requireAuth, async (req, res) => {
   try {
     const { username, fullName, bio, city, country, homeAirport, vibe } =
       req.body;
+
     const profileUpdates = {};
     const userUpdates = {};
 
@@ -43,10 +56,9 @@ router.patch("/settings", requireAuth, async (req, res) => {
         _id: { $ne: req.user._id },
       }).lean();
       if (existing) {
-        return res.status(409).json({
-          ok: false,
-          message: "Username already taken",
-        });
+        return res
+          .status(409)
+          .json({ ok: false, message: "Username already taken" });
       }
       userUpdates.username = normalized;
       profileUpdates.username = normalized;
@@ -84,6 +96,7 @@ router.patch("/settings", requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/profile/update
 router.patch("/update", requireAuth, async (req, res) => {
   try {
     const allowedFields = [
@@ -97,15 +110,18 @@ router.patch("/update", requireAuth, async (req, res) => {
       "badges",
       "username",
     ];
+
     const updates = {};
     for (const key of allowedFields) {
       if (key in req.body) updates[key] = req.body[key];
     }
+
     const profile = await Profile.findOneAndUpdate(
       { user: req.user._id },
       { $set: updates },
       { new: true, upsert: true }
     );
+
     return res.json({ ok: true, message: "Profile updated", profile });
   } catch (err) {
     console.error("Profile update error:", err);
@@ -115,6 +131,7 @@ router.patch("/update", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/profile/:username
 router.get("/:username", async (req, res) => {
   try {
     const profile = await Profile.findOne({ username: req.params.username });
