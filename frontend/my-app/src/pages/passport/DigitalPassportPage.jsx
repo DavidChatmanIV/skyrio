@@ -173,6 +173,7 @@ export default function DigitalPassportPage() {
   const [editBio, setEditBio] = useState("");
   const [editCity, setEditCity] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const [xpLoading, setXpLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -187,6 +188,7 @@ export default function DigitalPassportPage() {
   const [followMode, setFollowMode] = useState("following");
 
   const socketRef = useRef(null);
+  const avatarInputRef = useRef(null);
 
   const displayName = useMemo(() => {
     if (!user) return "Explorer";
@@ -348,6 +350,60 @@ export default function DigitalPassportPage() {
     antdMessage.info("Sharing enabled post-launch");
   }, []);
 
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAvatarUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(apiUrl("/api/uploads/image"), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Upload failed");
+
+      // Save avatar URL to profile
+      const profileRes = await fetch(apiUrl("/api/profile/update"), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ avatar: data.url }),
+      });
+
+      const profileData = await profileRes.json();
+      if (!profileRes.ok)
+        throw new Error(profileData.message || "Failed to save avatar");
+
+      if (setUser) {
+        setUser((prev) => ({ ...prev, avatar: data.url }));
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...JSON.parse(localStorage.getItem("user") || "{}"),
+            avatar: data.url,
+          })
+        );
+      }
+
+      antdMessage.success("Avatar updated ✓");
+    } catch (err) {
+      antdMessage.error(err.message);
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!editUsername.trim() && !editBio.trim() && !editCity.trim()) return;
     setEditSaving(true);
@@ -443,9 +499,64 @@ export default function DigitalPassportPage() {
                 <div className="pp-mockMain">
                   <Card variant="borderless" className="pp-card pp-profileCard">
                     <div className="pp-profileRow">
-                      <div className="pp-profileAvatar">
-                        <Avatar size={92} icon={<UserOutlined />} />
+                      {/* ── Avatar with upload ── */}
+                      <div
+                        className="pp-profileAvatar"
+                        style={{ position: "relative" }}
+                      >
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          ref={avatarInputRef}
+                          onChange={handleAvatarUpload}
+                        />
+                        <Avatar
+                          size={92}
+                          src={
+                            user?.avatar &&
+                            user.avatar !== "/default-avatar.png"
+                              ? user.avatar
+                              : undefined
+                          }
+                          icon={
+                            !user?.avatar ||
+                            user.avatar === "/default-avatar.png" ? (
+                              <UserOutlined />
+                            ) : undefined
+                          }
+                          onClick={() =>
+                            !avatarUploading && avatarInputRef.current?.click()
+                          }
+                          style={{
+                            cursor: avatarUploading ? "not-allowed" : "pointer",
+                          }}
+                        />
+                        <div
+                          onClick={() =>
+                            !avatarUploading && avatarInputRef.current?.click()
+                          }
+                          style={{
+                            position: "absolute",
+                            bottom: 0,
+                            right: 0,
+                            width: 26,
+                            height: 26,
+                            borderRadius: "50%",
+                            background: "#ff8a2a",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 13,
+                            cursor: avatarUploading ? "not-allowed" : "pointer",
+                            border: "2px solid rgba(9,7,26,0.8)",
+                            opacity: avatarUploading ? 0.6 : 1,
+                          }}
+                        >
+                          {avatarUploading ? "⏳" : "📷"}
+                        </div>
                       </div>
+
                       <div className="pp-profileMeta">
                         <Title
                           level={2}
@@ -513,6 +624,7 @@ export default function DigitalPassportPage() {
                           </button>
                         </div>
                       </div>
+
                       <div className="pp-profileRing">
                         {xpLoading ? (
                           <div style={{ width: 190 }}>
@@ -541,7 +653,6 @@ export default function DigitalPassportPage() {
                     </div>
                   </Card>
 
-                  {/* ── Home Base + Bio row ── */}
                   <div className="pp-homeBaseRow">
                     <span className="pp-homeBaseDot" />
                     <span className="pp-homeBaseLabel">Home Base</span>
