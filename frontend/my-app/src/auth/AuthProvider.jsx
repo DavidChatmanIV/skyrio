@@ -50,13 +50,11 @@ export default function AuthProvider({ children }) {
     ({ user: nextUser, token: nextToken } = {}) => {
       localStorage.removeItem("skyrio_guest");
       setGuestFlag(false);
-
       if (nextUser) {
         const normalized = normalizeUser(nextUser);
         setUser(normalized);
         localStorage.setItem("user", JSON.stringify(normalized));
       }
-
       if (nextToken) {
         setToken(nextToken);
         localStorage.setItem("token", nextToken);
@@ -95,11 +93,9 @@ export default function AuthProvider({ children }) {
         ...options,
         headers: buildAuthHeaders(options.headers || {}),
       });
-
       if (res.status === 401) {
         clearSession();
       }
-
       return res;
     },
     [clearSession]
@@ -114,7 +110,7 @@ export default function AuthProvider({ children }) {
         return;
       }
 
-      const res = await fetch(`${API}/api/profile/me`, {
+      const res = await fetch(`${API}/api/auth/check`, {
         method: "GET",
         credentials: "include",
         headers: buildAuthHeaders(),
@@ -130,15 +126,45 @@ export default function AuthProvider({ children }) {
 
       const nextUser = normalizeUser(data?.user || data?.profile || data);
 
-      if (nextUser) {
-        setUser(nextUser);
-        localStorage.setItem("user", JSON.stringify(nextUser));
+      if (nextUser?.id || nextUser?._id) {
+        // Fetch full profile to get bio, city, homeBase
+        try {
+          const profileRes = await fetch(`${API}/api/profile/me`, {
+            method: "GET",
+            credentials: "include",
+            headers: buildAuthHeaders(),
+          });
+          if (profileRes.ok) {
+            const profileData = await profileRes.json().catch(() => ({}));
+            const fullUser = normalizeUser(profileData?.user || nextUser);
+            setUser(fullUser);
+            localStorage.setItem("user", JSON.stringify(fullUser));
+          } else {
+            setUser(nextUser);
+            localStorage.setItem("user", JSON.stringify(nextUser));
+          }
+        } catch {
+          setUser(nextUser);
+          localStorage.setItem("user", JSON.stringify(nextUser));
+        }
       } else {
-        clearSession();
+        // Server responded ok but no user shape — keep cached user
+        const cachedUser = safeParse(localStorage.getItem("user"));
+        if (cachedUser) {
+          setUser(cachedUser);
+        } else {
+          clearSession();
+        }
       }
     } catch (err) {
       console.error("restoreSession failed:", err);
-      clearSession();
+      // Network error — don't clear session, keep cached data
+      const cachedUser = safeParse(localStorage.getItem("user"));
+      const cachedToken = getStoredToken();
+      if (cachedUser && cachedToken) {
+        setUser(cachedUser);
+        setToken(cachedToken);
+      }
     } finally {
       setLoading(false);
     }
@@ -154,27 +180,22 @@ export default function AuthProvider({ children }) {
       if (e.key === "token") setToken(e.newValue || null);
       if (e.key === "skyrio_guest") setGuestFlag(e.newValue === "1");
     };
-
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const available = useCallback(async ({ email, username } = {}) => {
     const params = new URLSearchParams();
-
     if (email) params.set("email", String(email).trim().toLowerCase());
     if (username) params.set("username", String(username).trim());
-
     if ([...params.keys()].length === 0) {
       return { ok: false, error: "Provide email and/or username" };
     }
-
     const res = await fetch(`${API}/api/auth/available?${params.toString()}`, {
       method: "GET",
       headers: { Accept: "application/json" },
       credentials: "include",
     });
-
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: pickError(data) };
     return data;
@@ -183,28 +204,22 @@ export default function AuthProvider({ children }) {
   const login = useCallback(
     async ({ identity, emailOrUsername, email, password } = {}) => {
       const id = String(identity || emailOrUsername || email || "").trim();
-
       if (!id || !password) {
         throw new Error("Email/username and password are required");
       }
-
       const res = await fetch(`${API}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ emailOrUsername: id, password }),
       });
-
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
         throw new Error(pickError(data));
       }
-
       if (!data?.token || !data?.user) {
         throw new Error("Login response missing token or user");
       }
-
       setSession({ token: data.token, user: data.user });
       return true;
     },
@@ -216,7 +231,6 @@ export default function AuthProvider({ children }) {
       if (!email || !password) {
         throw new Error("Email and password are required");
       }
-
       const res = await fetch(`${API}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -228,17 +242,13 @@ export default function AuthProvider({ children }) {
           username: username || "",
         }),
       });
-
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
         throw new Error(pickError(data));
       }
-
       if (!data?.token || !data?.user) {
         throw new Error("Register response missing token or user");
       }
-
       setSession({ token: data.token, user: data.user });
       return true;
     },

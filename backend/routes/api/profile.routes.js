@@ -23,7 +23,12 @@ router.get("/me", requireAuth, async (req, res) => {
 
     return res.json({
       ok: true,
-      user: user.toSafeJSON(),
+      user: {
+        ...user.toSafeJSON(),
+        bio: profile?.bio || "",
+        city: profile?.city || user.toSafeJSON().city || "",
+        homeBase: profile?.homeBase || "",
+      },
       profile,
     });
   } catch (err) {

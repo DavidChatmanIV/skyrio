@@ -1,12 +1,14 @@
 /* ──────────────────────────────────────────────────────────────
-   One Sky Quest – Overlay Tone Patch (AntD)
+   Overlay Tone Patch (AntD)
    ────────────────────────────────────────────────────────────── */
 
 /* ===== Backdrop masks ===== */
-:where(.ant-modal-root .ant-modal-mask,
-       .ant-drawer .ant-drawer-mask,
-       .ant-dropdown-root .ant-dropdown-mask) {
-  background: rgba(8, 12, 22, 0.55) !important; /* soft dim */
+:where(
+    .ant-modal-root .ant-modal-mask,
+    .ant-drawer .ant-drawer-mask,
+    .ant-dropdown-root .ant-dropdown-mask
+  ) {
+  background: rgba(8, 12, 22, 0.55) !important;
   backdrop-filter: blur(2px);
 }
 
@@ -21,18 +23,22 @@
 }
 :where(.ant-modal) .ant-modal-header {
   background: transparent !important;
-  border-bottom: 1px solid rgba(255,255,255,0.10);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px 18px 0 0;
 }
 :where(.ant-modal) .ant-modal-title {
-  color: var(--text-1);
+  color: #ffffff !important;
   font-weight: 700;
 }
-:where(.ant-modal) .ant-modal-close-x { color: var(--text-2); }
-:where(.ant-modal) .ant-modal-body { color: var(--text-1); }
+:where(.ant-modal) .ant-modal-close-x {
+  color: var(--text-2);
+}
+:where(.ant-modal) .ant-modal-body {
+  color: var(--text-1);
+}
 :where(.ant-modal) .ant-modal-footer {
   background: transparent;
-  border-top: 1px solid rgba(255,255,255,0.10);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Buttons inside modals */
@@ -43,67 +49,74 @@
   font-weight: 700;
 }
 :where(.ant-modal) .ant-btn-default {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   color: var(--text-1);
 }
 :where(.ant-modal) .ant-btn-default:hover {
-  background: rgba(255,255,255,0.14);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 /* ===== Drawer ===== */
 :where(.ant-drawer) .ant-drawer-content {
   background: var(--glass-bg) !important;
-  border-left: 1px solid var(--glass-ring) !important; /* right-side */
-  border-right: 1px solid var(--glass-ring) !important; /* left-side */
-  box-shadow: 0 22px 60px rgba(0,0,0,0.55);
+  border-left: 1px solid var(--glass-ring) !important;
+  border-right: 1px solid var(--glass-ring) !important;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
   color: var(--text-1);
   backdrop-filter: blur(12px);
 }
 :where(.ant-drawer) .ant-drawer-header {
   background: transparent;
-  border-bottom: 1px solid rgba(255,255,255,0.10);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 :where(.ant-drawer) .ant-drawer-title {
   color: var(--text-1);
   font-weight: 700;
 }
-:where(.ant-drawer) .ant-drawer-close { color: var(--text-2); }
-:where(.ant-drawer) .ant-drawer-body { color: var(--text-1); }
+:where(.ant-drawer) .ant-drawer-close {
+  color: var(--text-2);
+}
+:where(.ant-drawer) .ant-drawer-body {
+  color: var(--text-1);
+}
 
 /* ===== Dropdown / Popover / Tooltip ===== */
-:where(.ant-dropdown .ant-dropdown-menu,
-       .ant-popover .ant-popover-inner,
-       .ant-tooltip .ant-tooltip-inner) {
+:where(
+    .ant-dropdown .ant-dropdown-menu,
+    .ant-popover .ant-popover-inner,
+    .ant-tooltip .ant-tooltip-inner
+  ) {
   background: var(--card-bg) !important;
   border: 1px solid var(--card-border) !important;
   color: var(--text-1);
   backdrop-filter: blur(10px);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
-:where(.ant-dropdown .ant-dropdown-menu-item,
-       .ant-dropdown .ant-dropdown-menu-submenu-title,
-       .ant-popover .ant-popover-inner-content) {
+:where(
+    .ant-dropdown .ant-dropdown-menu-item,
+    .ant-dropdown .ant-dropdown-menu-submenu-title,
+    .ant-popover .ant-popover-inner-content
+  ) {
   color: var(--text-1);
 }
 :where(.ant-dropdown .ant-dropdown-menu-item:hover) {
   background: var(--card-bg-hover) !important;
 }
 
-/* Dropdown item dividers */
-:where(.ant-dropdown .ant-dropdown-menu) 
+:where(.ant-dropdown .ant-dropdown-menu)
   .ant-dropdown-menu-item:not(:last-child) {
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Popover/Tooltip arrows */
-:where(.ant-popover .ant-popover-arrow:before,
-       .ant-tooltip .ant-tooltip-arrow:before) {
+:where(
+    .ant-popover .ant-popover-arrow:before,
+    .ant-tooltip .ant-tooltip-arrow:before
+  ) {
   background: var(--card-bg) !important;
 }
-:where(.ant-popover .ant-popover-arrow,
-       .ant-tooltip .ant-tooltip-arrow) {
+:where(.ant-popover .ant-popover-arrow, .ant-tooltip .ant-tooltip-arrow) {
   --antd-arrow-background-color: var(--card-bg) !important;
   --antd-arrow-border-color: var(--card-border) !important;
 }
@@ -113,9 +126,9 @@
 :where(.ant-modal, .ant-drawer) .ant-input-affix-wrapper,
 :where(.ant-modal, .ant-drawer) .ant-select-selector,
 :where(.ant-modal, .ant-drawer) .ant-picker {
-  background: rgba(255,255,255,0.10) !important;
-  color: var(--text-1) !important;
-  border: 1px solid rgba(255,255,255,0.18) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 :where(.ant-modal, .ant-drawer) input::placeholder,
 :where(.ant-modal, .ant-drawer) .ant-select-selection-placeholder {
@@ -128,10 +141,23 @@
 :where(.ant-modal, .ant-drawer) .ant-input-affix-wrapper-focused,
 :where(.ant-modal, .ant-drawer) .ant-select-focused .ant-select-selector,
 :where(.ant-modal, .ant-drawer) .ant-picker-focused {
-  outline: 2px solid rgba(255,255,255,0.22);
+  outline: 2px solid rgba(255, 255, 255, 0.22);
   outline-offset: 2px;
   box-shadow: none;
-  border-color: rgba(255,255,255,0.22) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+/* ===== Fix double border on inputs inside modals ===== */
+:where(.ant-modal) .ant-input-affix-wrapper .ant-input {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ===== Fix bio textarea text color ===== */
+:where(.ant-modal) textarea.ant-input {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 
 /* ===== Reduced transparency fallback ===== */
@@ -143,6 +169,17 @@
   :where(.ant-tooltip .ant-tooltip-inner) {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background: rgba(255,255,255,0.12) !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+  }
+  /* ===== Bio textarea fix ===== */
+  :where(.ant-modal) textarea.ant-input {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    caret-color: #ff8a2a !important;
+  }
+
+  :where(.ant-modal) textarea.ant-input::placeholder {
+    color: rgba(255, 255, 255, 0.45) !important;
   }
 }

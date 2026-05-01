@@ -161,8 +161,6 @@ function PassportLocked() {
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  // ── FIX: added token to destructure so all fetch calls can use it ──
   const { user, token, isAuthed, loading, setUser } = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
 
@@ -244,7 +242,6 @@ export default function DigitalPassportPage() {
     }
   }, []);
 
-  // ── FIX: added Authorization header to profile/me fetch ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -255,9 +252,7 @@ export default function DigitalPassportPage() {
         const res = await fetch(apiUrl("/api/profile/me"), {
           credentials: "include",
           signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error("profile fetch failed");
         const data = await res.json();
@@ -280,7 +275,6 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed, token]);
 
-  // ── FIX: added Authorization header to passport/stats fetch ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -291,9 +285,7 @@ export default function DigitalPassportPage() {
         const res = await fetch(apiUrl("/api/passport/stats"), {
           credentials: "include",
           signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         if (!mounted) return;
@@ -381,6 +373,7 @@ export default function DigitalPassportPage() {
           ...prev,
           username: editUsername.trim() || user?.username,
           city: editCity.trim(),
+          bio: editBio.trim(),
         }));
         localStorage.setItem(
           "user",
@@ -388,6 +381,7 @@ export default function DigitalPassportPage() {
             ...JSON.parse(localStorage.getItem("user") || "{}"),
             username: editUsername.trim() || user?.username,
             city: editCity.trim(),
+            bio: editBio.trim(),
           })
         );
       }
@@ -463,6 +457,20 @@ export default function DigitalPassportPage() {
                         <Text className="pp-muted">
                           {handle} · Level {levelNumber}
                         </Text>
+                        {user?.bio && (
+                          <Text
+                            style={{
+                              display: "block",
+                              marginTop: 6,
+                              fontSize: 13,
+                              color: "rgba(255,255,255,0.65)",
+                              lineHeight: 1.5,
+                              fontStyle: "italic",
+                            }}
+                          >
+                            {user.bio}
+                          </Text>
+                        )}
                         <div style={{ marginTop: 10 }}>
                           <span className="pp-pill pp-pill--active">
                             🟠 Passport Active
@@ -533,6 +541,7 @@ export default function DigitalPassportPage() {
                     </div>
                   </Card>
 
+                  {/* ── Home Base + Bio row ── */}
                   <div className="pp-homeBaseRow">
                     <span className="pp-homeBaseDot" />
                     <span className="pp-homeBaseLabel">Home Base</span>
