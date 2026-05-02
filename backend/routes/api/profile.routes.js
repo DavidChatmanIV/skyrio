@@ -28,6 +28,7 @@ router.get("/me", requireAuth, async (req, res) => {
         bio: profile?.bio || "",
         city: profile?.city || user.toSafeJSON().city || "",
         homeBase: profile?.homeBase || "",
+        avatar: profile?.avatar || user.toSafeJSON().avatar || "",
       },
       profile,
     });
