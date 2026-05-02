@@ -12,11 +12,11 @@ import {
   Avatar,
   Button,
   Progress,
-  message as antdMessage,
   Skeleton,
   Tag,
   Modal,
   Input,
+  App,
 } from "antd";
 import {
   UserOutlined,
@@ -163,6 +163,7 @@ export default function DigitalPassportPage() {
   const navigate = useNavigate();
   const { user, token, isAuthed, loading, setUser } = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
+  const { message } = App.useApp();
 
   const myId = useMemo(() => user?._id || user?.id || null, [user]);
 
@@ -224,10 +225,7 @@ export default function DigitalPassportPage() {
 
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
-    antdMessage.success({
-      content: `Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`,
-      duration: 2,
-    });
+    message.success(`Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`);
     try {
       window.history.replaceState({}, document.title);
     } catch {
@@ -340,15 +338,15 @@ export default function DigitalPassportPage() {
   const copyPassportLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      antdMessage.success("Passport link copied");
+      message.success("Passport link copied");
     } catch {
-      antdMessage.error("Copy failed");
+      message.error("Copy failed");
     }
-  }, []);
+  }, [message]);
 
   const onShare = useCallback(() => {
-    antdMessage.info("Sharing enabled post-launch");
-  }, []);
+    message.info("Sharing enabled post-launch");
+  }, [message]);
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -369,7 +367,6 @@ export default function DigitalPassportPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Upload failed");
 
-      // Save avatar URL to profile
       const profileRes = await fetch(apiUrl("/api/profile/update"), {
         method: "PATCH",
         headers: {
@@ -395,9 +392,9 @@ export default function DigitalPassportPage() {
         );
       }
 
-      antdMessage.success("Avatar updated ✓");
+      message.success("Avatar updated ✓");
     } catch (err) {
-      antdMessage.error(err.message);
+      message.error(err.message);
     } finally {
       setAvatarUploading(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
@@ -442,10 +439,10 @@ export default function DigitalPassportPage() {
         );
       }
 
-      antdMessage.success("Profile updated ✓");
+      message.success("Profile updated ✓");
       setEditOpen(false);
     } catch (err) {
-      antdMessage.error(err.message);
+      message.error(err.message);
     } finally {
       setEditSaving(false);
     }
