@@ -1,33 +1,20 @@
 import { Router } from "express";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
 import { requireAuth } from "../../middleware/requireAuth.js";
 
 const router = Router();
 
-// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Cloudinary storage — avatars folder, auto format + quality
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "skyrio/avatars",
-    allowed_formats: ["jpg", "jpeg", "png", "webp"],
-    transformation: [
-      { width: 400, height: 400, crop: "fill", gravity: "face" },
-    ],
-  },
-});
-
+// Use memory storage — no disk, no CloudinaryStorage dependency
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 // POST /api/uploads/image
@@ -37,10 +24,27 @@ router.post("/image", requireAuth, upload.single("file"), async (req, res) => {
       return res.status(400).json({ ok: false, message: "No file uploaded" });
     }
 
+    // Upload buffer directly to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "skyrio/avatars",
+          transformation: [
+            { width: 400, height: 400, crop: "fill", gravity: "face" },
+          ],
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      stream.end(req.file.buffer);
+    });
+
     return res.json({
       ok: true,
-      url: req.file.path,
-      public_id: req.file.filename,
+      url: result.secure_url,
+      public_id: result.public_id,
     });
   } catch (err) {
     console.error("Upload error:", err);

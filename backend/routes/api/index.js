@@ -1,5 +1,4 @@
 import { Router } from "express";
-
 const api = Router();
 
 /* ======================================================
@@ -9,7 +8,7 @@ async function mount(routeBase, modulePath) {
   try {
     const mod = await import(modulePath);
     const router = mod.default || mod;
-    if (typeof router === "function") {
+    if (router) {
       api.use(routeBase, router);
       console.log(`[api] Mounted ${routeBase} ← ${modulePath}`);
     } else {
@@ -60,7 +59,7 @@ await mount("/admin", "../admin.routes.js");
 await mount("/hotspots", "../hotspots.js");
 await mount("/watches", "../watches.js");
 await mount("/xp", "../xp.js");
-await mount("/atlas", "../atlas/atlas.routes.js"); // 👈 added
+await mount("/atlas", "../atlas/atlas.routes.js");
 
 /* ======================================================
    API Root
