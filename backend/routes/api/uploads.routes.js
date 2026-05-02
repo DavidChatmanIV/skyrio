@@ -11,6 +11,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// DEBUG — remove after fix
+console.log("Cloudinary config:", {
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? "SET" : "MISSING",
+  api_key: process.env.CLOUDINARY_API_KEY ? "SET" : "MISSING",
+  api_secret: process.env.CLOUDINARY_API_SECRET ? "SET" : "MISSING",
+});
 // Use memory storage — no disk, no CloudinaryStorage dependency
 const upload = multer({
   storage: multer.memoryStorage(),
