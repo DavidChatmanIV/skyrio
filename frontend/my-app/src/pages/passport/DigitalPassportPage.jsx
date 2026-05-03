@@ -175,6 +175,7 @@ export default function DigitalPassportPage() {
   const [editCity, setEditCity] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [xpToastShown, setXpToastShown] = useState(false);
 
   const [xpLoading, setXpLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -274,6 +275,20 @@ export default function DigitalPassportPage() {
       controller.abort();
     };
   }, [isAuthed, token]);
+
+  // ── XP earned toast ──
+  useEffect(() => {
+    if (xp > 0 && !xpToastShown && !xpLoading) {
+      const timer = setTimeout(() => {
+        message.success({
+          content: `✦ ${xp} XP earned — keep exploring!`,
+          duration: 3,
+        });
+        setXpToastShown(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [xp, xpLoading, xpToastShown, message]);
 
   useEffect(() => {
     if (!isAuthed) return;
