@@ -1,5 +1,6 @@
 import { Router } from "express";
 import Booking from "../models/booking.js";
+import User from "../models/user.js";
 import authRequired from "../middleware/authRequired.js";
 
 const router = Router();
@@ -21,10 +22,8 @@ router.get("/", authRequired, async (req, res) => {
     );
     const sortBy = req.query.sortBy || "createdAt";
     const sortDir = req.query.sortDir === "asc" ? 1 : -1;
-
     const skip = (page - 1) * limit;
     const sort = { [sortBy]: sortDir };
-
     const isAdmin = req.user?.role === "admin" || req.user?.isAdmin === true;
     const baseFilter = isAdmin ? {} : { user: req.user.id };
 
@@ -65,13 +64,20 @@ router.post("/", authRequired, async (req, res) => {
       user: req.user.id,
       hotel,
       flight,
-      package: pkg, // frontend sends `pkg`
+      package: pkg,
       place,
       dates,
       travelers,
     });
 
     await newBooking.save();
+
+    // ── Award booking XP ──
+    try {
+      await User.findByIdAndUpdate(req.user.id, { $inc: { xp: 200 } });
+    } catch (xpErr) {
+      console.error("Booking XP award failed:", xpErr);
+    }
 
     await newBooking.populate("user", "email");
     await newBooking.populate("hotel");
@@ -93,7 +99,6 @@ router.delete("/:id", authRequired, async (req, res) => {
   try {
     const { id } = req.params;
     const isAdmin = req.user?.role === "admin" || req.user?.isAdmin === true;
-
     const filter = isAdmin ? { _id: id } : { _id: id, user: req.user.id };
 
     const booking = await Booking.findOneAndDelete(filter);

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import SavedTrip from "../../models/savedTrip.js";
 import Notification from "../../models/notification.js";
+import User from "../../models/user.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 
 const router = Router();
@@ -71,6 +72,13 @@ router.post("/", requireAuth, async (req, res) => {
       message: `${savedTrip.title} was added to your saved trips`,
       link: "/saved-trips",
     });
+
+    // ── Award save-trip XP ──
+    try {
+      await User.findByIdAndUpdate(req.user._id, { $inc: { xp: 50 } });
+    } catch (xpErr) {
+      console.error("Save-trip XP award failed:", xpErr);
+    }
 
     return res.status(201).json({
       ok: true,
