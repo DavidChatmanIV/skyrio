@@ -313,7 +313,8 @@ export default function DigitalPassportPage() {
   useEffect(() => {
     if (!myId || !isAuthed) return;
     if (!socketRef.current) {
-      socketRef.current = io("/", { transports: ["websocket"] });
+      const SOCKET_URL = import.meta.env.VITE_API_URL || "";
+      socketRef.current = io(SOCKET_URL, { transports: ["websocket"] });
     }
     const s = socketRef.current;
     s.emit("auth:join", { userId: myId });
