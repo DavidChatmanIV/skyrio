@@ -66,6 +66,13 @@ router.post("/register", async (req, res) => {
     user.emailVerifyExpiry = Date.now() + 1000 * 60 * 60 * 24; // 24 hours
     await user.save();
 
+    // ── Award signup XP ──
+    try {
+      await User.findByIdAndUpdate(user._id, { $inc: { xp: 100 } });
+    } catch (xpErr) {
+      console.error("Signup XP award failed:", xpErr);
+    }
+
     const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verifyToken}`;
     createMailer()
       .sendMail({
