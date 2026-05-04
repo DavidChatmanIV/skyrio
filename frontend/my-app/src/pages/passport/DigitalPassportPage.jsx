@@ -182,6 +182,10 @@ export default function DigitalPassportPage() {
   const [xp, setXp] = useState(0);
   const [xpToNextBadge, setXpToNextBadge] = useState(0);
   const [nextBadgeName, setNextBadgeName] = useState("Explorer");
+  const [currentBadge, setCurrentBadge] = useState("Explorer");
+  const [badgePercent, setBadgePercent] = useState(0);
+  const [xpIntoLevel, setXpIntoLevel] = useState(0);
+  const [xpNeeded, setXpNeeded] = useState(100);
   const [passportStats, setPassportStats] = useState({
     followers: 0,
     following: 0,
@@ -258,14 +262,20 @@ export default function DigitalPassportPage() {
         if (!res.ok) throw new Error("profile fetch failed");
         const data = await res.json();
         if (!mounted) return;
-        setXp(Number(data?.user?.xp ?? data?.xp ?? 0));
+        setXp(Number(data?.xp ?? data?.user?.xp ?? 0));
         setXpToNextBadge(Number(data?.xpToNextBadge ?? 0));
-        setNextBadgeName(String(data?.nextBadgeName ?? "Explorer"));
+        setNextBadgeName(
+          String(data?.nextBadge ?? data?.nextBadgeName ?? "Adventurer")
+        );
+        setCurrentBadge(String(data?.currentBadge ?? "Explorer"));
+        setBadgePercent(Number(data?.badgePercent ?? 0));
+        setXpIntoLevel(Number(data?.xpIntoLevel ?? 0));
+        setXpNeeded(Number(data?.xpNeeded ?? 100));
       } catch {
         if (!mounted) return;
         setXp(0);
         setXpToNextBadge(0);
-        setNextBadgeName("Explorer");
+        setNextBadgeName("Adventurer");
       } finally {
         if (mounted) setXpLoading(false);
       }
@@ -367,22 +377,18 @@ export default function DigitalPassportPage() {
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setAvatarUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
-
       const res = await fetch(apiUrl("/api/uploads/image"), {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         credentials: "include",
         body: formData,
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Upload failed");
-
       const profileRes = await fetch(apiUrl("/api/profile/update"), {
         method: "PATCH",
         headers: {
@@ -392,11 +398,9 @@ export default function DigitalPassportPage() {
         credentials: "include",
         body: JSON.stringify({ avatar: data.url }),
       });
-
       const profileData = await profileRes.json();
       if (!profileRes.ok)
         throw new Error(profileData.message || "Failed to save avatar");
-
       if (setUser) {
         setUser((prev) => ({ ...prev, avatar: data.url }));
         localStorage.setItem(
@@ -407,7 +411,6 @@ export default function DigitalPassportPage() {
           })
         );
       }
-
       message.success("Avatar updated ✓");
     } catch (err) {
       message.error(err.message);
@@ -436,7 +439,6 @@ export default function DigitalPassportPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update");
-
       if (setUser) {
         setUser((prev) => ({
           ...prev,
@@ -454,7 +456,6 @@ export default function DigitalPassportPage() {
           })
         );
       }
-
       message.success("Profile updated ✓");
       setEditOpen(false);
     } catch (err) {
@@ -579,7 +580,7 @@ export default function DigitalPassportPage() {
                           {displayName}
                         </Title>
                         <Text className="pp-muted">
-                          {handle} · Level {levelNumber}
+                          {handle} · {currentBadge}
                         </Text>
                         {user?.bio && (
                           <Text
@@ -644,23 +645,75 @@ export default function DigitalPassportPage() {
                             <Skeleton active paragraph={{ rows: 2 }} />
                           </div>
                         ) : (
-                          <Progress
-                            type="dashboard"
-                            percent={xpPercent}
-                            strokeWidth={10}
-                            className="pp-levelRing pp-levelRing--mock"
-                            format={() => (
-                              <div className="pp-levelText">
-                                <div className="pp-levelRole">
-                                  {nextBadgeName}
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Progress
+                              type="dashboard"
+                              percent={xpPercent}
+                              strokeWidth={10}
+                              className="pp-levelRing pp-levelRing--mock"
+                              format={() => (
+                                <div className="pp-levelText">
+                                  <div className="pp-levelRole">
+                                    {currentBadge}
+                                  </div>
+                                  <div className="pp-levelXp">{xp} XP</div>
                                 </div>
-                                <div className="pp-levelNum">
-                                  Level {levelNumber}
+                              )}
+                            />
+                            {/* ── Next badge progress bar ── */}
+                            {nextBadgeName && (
+                              <div style={{ width: "100%", maxWidth: 180 }}>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    fontSize: 10,
+                                    color: "rgba(255,255,255,0.45)",
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  <span>{currentBadge}</span>
+                                  <span>{nextBadgeName} ✦</span>
                                 </div>
-                                <div className="pp-levelXp">{xp} XP</div>
+                                <div
+                                  style={{
+                                    height: 4,
+                                    background: "rgba(255,255,255,0.1)",
+                                    borderRadius: 99,
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      height: "100%",
+                                      width: `${badgePercent}%`,
+                                      background:
+                                        "linear-gradient(90deg, #ff8a2a, #ffb066)",
+                                      borderRadius: 99,
+                                      transition: "width 0.6s ease",
+                                    }}
+                                  />
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 10,
+                                    color: "rgba(255,255,255,0.35)",
+                                    marginTop: 3,
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  {xpIntoLevel} / {xpNeeded} XP
+                                </div>
                               </div>
                             )}
-                          />
+                          </div>
                         )}
                       </div>
                     </div>

@@ -2,6 +2,7 @@ import { Router } from "express";
 import Profile from "../../models/profile.js";
 import User from "../../models/user.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
+import { getLevel } from "../../lib/xpLevels.js";
 
 const router = Router();
 
@@ -21,6 +22,8 @@ router.get("/me", requireAuth, async (req, res) => {
       return res.status(401).json({ ok: false, message: "User not found" });
     }
 
+    const levelData = getLevel(user.xp || 0);
+
     return res.json({
       ok: true,
       user: {
@@ -31,6 +34,13 @@ router.get("/me", requireAuth, async (req, res) => {
         avatar: profile?.avatar || user.toSafeJSON().avatar || "",
       },
       profile,
+      xp: user.xp || 0,
+      currentBadge: levelData.current,
+      nextBadge: levelData.next,
+      xpToNextBadge: levelData.xpToNext,
+      xpIntoLevel: levelData.xpIntoLevel,
+      xpNeeded: levelData.xpNeeded,
+      badgePercent: levelData.percent,
     });
   } catch (err) {
     console.error("Profile me error:", err);
