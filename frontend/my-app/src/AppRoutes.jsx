@@ -17,6 +17,7 @@ const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SyncTogether = lazy(() => import("./pages/SyncTogether"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 
 function PageLoader() {
   return (
@@ -70,6 +71,7 @@ export default function AppRoutes() {
             path="team-travel"
             element={<Navigate to="/sync-together" replace />}
           />
+          <Route path="saved-trips" element={<SavedTripsPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="dashboard" element={<Dashboard />} />
           </Route>
