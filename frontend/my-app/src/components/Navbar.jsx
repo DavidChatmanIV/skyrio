@@ -23,6 +23,7 @@ function getActiveKey(pathname) {
   if (pathname.startsWith("/booking")) return "book";
   if (pathname.startsWith("/skyhub")) return "skyhub";
   if (pathname.startsWith("/passport")) return "passport";
+  if (pathname.startsWith("/saved-trips")) return "saved";
   return "";
 }
 
@@ -64,7 +65,6 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close mobile menu on outside click
   useEffect(() => {
     if (!mobileOpen) return;
     const handler = (e) => {
@@ -76,7 +76,6 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, [mobileOpen]);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
@@ -123,6 +122,37 @@ export default function Navbar() {
             <div className="sk-nav-actions-desktop">
               {isAuthed ? (
                 <Space size={8}>
+                  {/* ── Saved Trips heart icon ── */}
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate("/saved-trips")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      position: "relative",
+                      padding: "4px 8px",
+                      fontSize: 18,
+                      lineHeight: 1,
+                      color:
+                        activeKey === "saved"
+                          ? "#ff8a2a"
+                          : "rgba(255,255,255,0.7)",
+                      transition: "color 0.2s",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.color = "#ff8a2a")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.color =
+                        activeKey === "saved"
+                          ? "#ff8a2a"
+                          : "rgba(255,255,255,0.7)")
+                    }
+                    title="Saved Trips"
+                  >
+                    ❤️
+                  </button>
                   <button
                     type="button"
                     className="sk-nav-user"
@@ -178,7 +208,7 @@ export default function Navbar() {
             </button>
           </div>
 
-          {/* ── MOBILE MENU — pure CSS, no Drawer ── */}
+          {/* ── MOBILE MENU ── */}
           {mobileOpen && (
             <div className="sk-mobile-menu">
               {NAV_ITEMS.map((item) => (
@@ -193,6 +223,19 @@ export default function Navbar() {
                   {item.label}
                 </button>
               ))}
+
+              {/* Saved Trips in mobile menu */}
+              {isAuthed && (
+                <button
+                  type="button"
+                  className={`sk-mobile-link ${
+                    activeKey === "saved" ? "active" : ""
+                  }`}
+                  onClick={() => handleNavigate("/saved-trips")}
+                >
+                  ❤️ Saved Trips
+                </button>
+              )}
 
               <div className="sk-mobile-actions">
                 {isAuthed ? (

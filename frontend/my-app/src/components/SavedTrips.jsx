@@ -50,17 +50,6 @@ export default function SavedTrips() {
 
   return (
     <section style={{ padding: "24px 16px 40px" }}>
-      <h2
-        style={{
-          fontSize: 20,
-          fontWeight: 700,
-          color: "#fff",
-          marginBottom: 20,
-        }}
-      >
-        💾 Saved Trips
-      </h2>
-
       {loading ? (
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           {[1, 2, 3].map((i) => (
