@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar, Badge, Button, Space } from "antd";
+import { Avatar, Button, Space } from "antd";
 import {
   LogoutOutlined,
   MenuOutlined,
   UserOutlined,
   CloseOutlined,
-  BellOutlined,
 } from "@ant-design/icons";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
 import skyrioLogo from "@/assets/logo/skyrio-logo-transparent.png";
+import Notifications from "@/components/Notifications";
 import "@/styles/Navbar.css";
 
 const NAV_ITEMS = [
@@ -82,23 +82,21 @@ export default function Navbar() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  // ── Fetch unread notification count every 60s ──
+  // ── Fetch unread count for mobile menu badge ──
   useEffect(() => {
     if (!isAuthed) return;
     const fetchUnread = async () => {
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || ""
-          }/api/notifications?unread=true&limit=1`,
+          `${import.meta.env.VITE_API_URL || ""}/api/notifications?limit=1`,
           {
             headers: { Authorization: `Bearer ${token}` },
             credentials: "include",
           }
         );
         const data = await res.json();
-        setUnreadCount(data?.unreadCount ?? data?.total ?? 0);
+        setUnreadCount(data?.unreadCount ?? 0);
       } catch {
         /* ignore */
       }
@@ -182,34 +180,8 @@ export default function Navbar() {
                     ❤️
                   </button>
 
-                  {/* ── Notifications bell ── */}
-                  <Badge count={unreadCount} size="small" offset={[-2, 2]}>
-                    <button
-                      type="button"
-                      onClick={() => handleNavigate("/passport")}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "4px 8px",
-                        fontSize: 18,
-                        lineHeight: 1,
-                        color: "rgba(255,255,255,0.7)",
-                        transition: "color 0.2s",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "#ff8a2a")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "rgba(255,255,255,0.7)")
-                      }
-                      title="Notifications"
-                    >
-                      <BellOutlined />
-                    </button>
-                  </Badge>
+                  {/* ── Notifications dropdown ── */}
+                  <Notifications />
 
                   <button
                     type="button"
@@ -218,6 +190,11 @@ export default function Navbar() {
                   >
                     <Avatar
                       size={32}
+                      src={
+                        user?.avatar && user.avatar !== "/default-avatar.png"
+                          ? user.avatar
+                          : undefined
+                      }
                       style={{
                         backgroundColor: "#7c5cfc",
                         fontSize: 13,
@@ -225,7 +202,9 @@ export default function Navbar() {
                         flexShrink: 0,
                       }}
                     >
-                      {initials}
+                      {!user?.avatar || user.avatar === "/default-avatar.png"
+                        ? initials
+                        : null}
                     </Avatar>
                     <span className="sk-nav-username">{displayName}</span>
                   </button>
@@ -295,11 +274,15 @@ export default function Navbar() {
                 </button>
               )}
 
+              {/* Notifications in mobile menu */}
               {isAuthed && (
                 <button
                   type="button"
                   className="sk-mobile-link"
-                  onClick={() => handleNavigate("/passport")}
+                  onClick={() => {
+                    setMobileOpen(false);
+                    navigate("/passport");
+                  }}
                 >
                   🔔 Notifications{" "}
                   {unreadCount > 0 && (
@@ -330,9 +313,16 @@ export default function Navbar() {
                     >
                       <Avatar
                         size={28}
+                        src={
+                          user?.avatar && user.avatar !== "/default-avatar.png"
+                            ? user.avatar
+                            : undefined
+                        }
                         style={{ backgroundColor: "#7c5cfc", fontSize: 12 }}
                       >
-                        {initials}
+                        {!user?.avatar || user.avatar === "/default-avatar.png"
+                          ? initials
+                          : null}
                       </Avatar>
                       <span>{displayName}</span>
                     </button>

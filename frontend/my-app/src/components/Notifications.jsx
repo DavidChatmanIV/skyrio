@@ -74,7 +74,9 @@ export default function Notifications() {
       });
       if (!res.ok) throw new Error("Failed to fetch notifications");
       const data = await res.json();
-      setNotifications(Array.isArray(data) ? data : []);
+      setNotifications(
+        Array.isArray(data?.notifications) ? data.notifications : []
+      );
     } catch (err) {
       console.error("❌ load notifications:", err);
       toast.error("Could not load notifications");
