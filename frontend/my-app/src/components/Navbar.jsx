@@ -295,6 +295,31 @@ export default function Navbar() {
                 </button>
               )}
 
+              {isAuthed && (
+                <button
+                  type="button"
+                  className="sk-mobile-link"
+                  onClick={() => handleNavigate("/passport")}
+                >
+                  🔔 Notifications{" "}
+                  {unreadCount > 0 && (
+                    <span
+                      style={{
+                        background: "#ff4d6d",
+                        color: "#fff",
+                        borderRadius: 99,
+                        fontSize: 10,
+                        padding: "1px 6px",
+                        marginLeft: 6,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
               <div className="sk-mobile-actions">
                 {isAuthed ? (
                   <>
