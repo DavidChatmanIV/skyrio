@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar, Button, Space } from "antd";
+import { Avatar, Badge, Button, Space } from "antd";
 import {
   LogoutOutlined,
   MenuOutlined,
   UserOutlined,
   CloseOutlined,
+  BellOutlined,
 } from "@ant-design/icons";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
@@ -34,6 +35,7 @@ export default function Navbar() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const menuRef = useRef(null);
 
   const activeKey = useMemo(
@@ -79,6 +81,32 @@ export default function Navbar() {
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  // ── Fetch unread notification count every 60s ──
+  useEffect(() => {
+    if (!isAuthed) return;
+    const fetchUnread = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || ""
+          }/api/notifications?unread=true&limit=1`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
+          }
+        );
+        const data = await res.json();
+        setUnreadCount(data?.unreadCount ?? data?.total ?? 0);
+      } catch {
+        /* ignore */
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000);
+    return () => clearInterval(interval);
+  }, [isAuthed]);
 
   const handleNavigate = (path) => {
     navigate(path);
@@ -153,6 +181,36 @@ export default function Navbar() {
                   >
                     ❤️
                   </button>
+
+                  {/* ── Notifications bell ── */}
+                  <Badge count={unreadCount} size="small" offset={[-2, 2]}>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigate("/passport")}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "4px 8px",
+                        fontSize: 18,
+                        lineHeight: 1,
+                        color: "rgba(255,255,255,0.7)",
+                        transition: "color 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.color = "#ff8a2a")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.color = "rgba(255,255,255,0.7)")
+                      }
+                      title="Notifications"
+                    >
+                      <BellOutlined />
+                    </button>
+                  </Badge>
+
                   <button
                     type="button"
                     className="sk-nav-user"
@@ -275,7 +333,7 @@ export default function Navbar() {
                     <Button
                       block
                       className="sk-btn sk-btn-primary"
-                      onClick={() => handleNavigate("/register")}
+                      onClick={() => navigate("/register")}
                     >
                       Sign up
                     </Button>
