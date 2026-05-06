@@ -5,6 +5,8 @@ import {
   MenuOutlined,
   UserOutlined,
   CloseOutlined,
+  HeartFilled,
+  HeartOutlined,
 } from "@ant-design/icons";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
@@ -117,6 +119,8 @@ export default function Navbar() {
     setMobileOpen(false);
   };
 
+  const isSaved = activeKey === "saved";
+
   return (
     <header className={`sk-navbar-wrap ${scrolled ? "is-scrolled" : ""}`}>
       <div className="sk-navbar-shell">
@@ -156,28 +160,31 @@ export default function Navbar() {
                       background: "none",
                       border: "none",
                       cursor: "pointer",
-                      position: "relative",
                       padding: "4px 8px",
                       fontSize: 18,
                       lineHeight: 1,
-                      color:
-                        activeKey === "saved"
-                          ? "#ff8a2a"
-                          : "rgba(255,255,255,0.7)",
-                      transition: "color 0.2s",
+                      color: isSaved ? "#ff8a2a" : "rgba(255,255,255,0.6)",
+                      transition: "color 0.2s, transform 0.2s",
+                      display: "flex",
+                      alignItems: "center",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.color = "#ff8a2a")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.color =
-                        activeKey === "saved"
-                          ? "#ff8a2a"
-                          : "rgba(255,255,255,0.7)")
-                    }
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "#ff8a2a";
+                      e.currentTarget.style.transform = "scale(1.15)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = isSaved
+                        ? "#ff8a2a"
+                        : "rgba(255,255,255,0.6)";
+                      e.currentTarget.style.transform = "scale(1)";
+                    }}
                     title="Saved Trips"
                   >
-                    ❤️
+                    {isSaved ? (
+                      <HeartFilled style={{ color: "#ff8a2a" }} />
+                    ) : (
+                      <HeartOutlined />
+                    )}
                   </button>
 
                   {/* ── Notifications dropdown ── */}
@@ -265,12 +272,12 @@ export default function Navbar() {
               {isAuthed && (
                 <button
                   type="button"
-                  className={`sk-mobile-link ${
-                    activeKey === "saved" ? "active" : ""
-                  }`}
+                  className={`sk-mobile-link ${isSaved ? "active" : ""}`}
                   onClick={() => handleNavigate("/saved-trips")}
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
                 >
-                  ❤️ Saved Trips
+                  <HeartFilled style={{ color: "#ff8a2a", fontSize: 16 }} />
+                  Saved Trips
                 </button>
               )}
 
@@ -283,8 +290,10 @@ export default function Navbar() {
                     setMobileOpen(false);
                     navigate("/passport");
                   }}
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
                 >
-                  🔔 Notifications{" "}
+                  <span style={{ fontSize: 16 }}>🔔</span>
+                  Notifications
                   {unreadCount > 0 && (
                     <span
                       style={{
@@ -293,7 +302,7 @@ export default function Navbar() {
                         borderRadius: 99,
                         fontSize: 10,
                         padding: "1px 6px",
-                        marginLeft: 6,
+                        marginLeft: 4,
                         fontWeight: 700,
                       }}
                     >
