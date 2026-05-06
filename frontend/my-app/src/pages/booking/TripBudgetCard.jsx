@@ -224,11 +224,7 @@ export default function TripBudgetCard({
     return "Watch extras";
   }, [hasBudget, isOverBudget, percent]);
 
-  const moodColor = isOverBudget
-    ? "#ff4d6d"
-    : hasBudget && percent > 84
-    ? "#ff8a2a"
-    : "#00c9a7";
+  const moodColor = isOverBudget ? "#ff4d6d" : "#ff8a2a";
 
   const currentAtlasText = useMemo(() => {
     if (!hasBudget) return `You're planning ${destination}. ${ai.detail}`;
