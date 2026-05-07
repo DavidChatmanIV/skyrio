@@ -747,46 +747,49 @@ export default function DigitalPassportPage() {
                           <div className="pp-soundtrackSub">
                             {profileMusic?.name || "My Playlist"}
                           </div>
-                          <div className="pp-audioBar">
-                            <div
-                              className="pp-audioProgress"
-                              style={{ width: "42%" }}
-                            />
-                          </div>
-                          <div className="pp-audioControls">
-                            <button
-                              type="button"
-                              className="pp-audioBtn"
-                              aria-label="Previous"
-                            >
-                              ⏮
-                            </button>
-                            <button
-                              type="button"
-                              className="pp-audioBtn pp-audioBtn--main"
-                              aria-label="Play"
-                              onClick={() => setMusicOpen(true)}
-                            >
-                              ⏯
-                            </button>
-                            <button
-                              type="button"
-                              className="pp-audioBtn"
-                              aria-label="Next"
-                            >
-                              ⏭
-                            </button>
-                            <div className="pp-audioWave" aria-hidden="true">
-                              <span />
-                              <span />
-                              <span />
-                              <span />
-                              <span />
-                              <span />
-                            </div>
-                          </div>
                         </div>
                       </div>
+
+                      {/* ── Actual YouTube Player ── */}
+                      {profileMusic?.provider === "youtube" &&
+                        profileMusic?.url &&
+                        (() => {
+                          let embedUrl = null;
+                          try {
+                            if (profileMusic.url.includes("youtu.be/")) {
+                              const id = profileMusic.url
+                                .split("youtu.be/")[1]
+                                .split("?")[0];
+                              embedUrl = `https://www.youtube.com/embed/${id}?autoplay=0&rel=0`;
+                            } else {
+                              const u = new URL(profileMusic.url);
+                              const id = u.searchParams.get("v");
+                              if (id)
+                                embedUrl = `https://www.youtube.com/embed/${id}?autoplay=0&rel=0`;
+                            }
+                          } catch {}
+
+                          return embedUrl ? (
+                            <div
+                              style={{
+                                marginTop: 12,
+                                borderRadius: 10,
+                                overflow: "hidden",
+                                border: "1px solid rgba(255,138,42,0.2)",
+                              }}
+                            >
+                              <iframe
+                                width="100%"
+                                height="200"
+                                src={embedUrl}
+                                title="Travel Soundtrack"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+                          ) : null;
+                        })()}
                     </Card>
                   )}
 
