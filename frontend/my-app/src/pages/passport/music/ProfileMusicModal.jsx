@@ -7,25 +7,21 @@ export const SKYRIO_PROFILE_MUSIC_KEY = "skyrio_profile_music_v1";
 
 function detectProvider(link) {
   const v = String(link || "").toLowerCase();
-  if (v.includes("spotify.com")) return "spotify";
-  if (v.includes("music.apple.com") || v.includes("apple.com/music"))
-    return "apple";
   if (v.includes("youtu.be") || v.includes("youtube.com")) return "youtube";
   return "link";
 }
 
-function placeholderFromProvider(p) {
-  if (p === "spotify") return "Paste Spotify track/playlist/album URL…";
-  if (p === "apple") return "Paste Apple Music song/album/playlist URL…";
-  if (p === "youtube") return "Paste YouTube / YouTube Music URL…";
-  return "Paste a music link (Spotify / Apple Music / YouTube)…";
-}
-
-function iconFromProvider(p) {
-  if (p === "spotify") return "🎵";
-  if (p === "apple") return "🎶";
-  if (p === "youtube") return "▶️";
-  return "🎵";
+function getYouTubeEmbedUrl(url) {
+  try {
+    if (url.includes("youtu.be/")) {
+      const id = url.split("youtu.be/")[1].split("?")[0];
+      return `https://www.youtube.com/embed/${id}`;
+    }
+    const u = new URL(url);
+    const id = u.searchParams.get("v");
+    if (id) return `https://www.youtube.com/embed/${id}`;
+  } catch {}
+  return null;
 }
 
 export default function ProfileMusicModal({ open, onClose, onSave, value }) {
@@ -48,19 +44,16 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
   }, [open, value?.url]);
 
   const provider = useMemo(() => detectProvider(url), [url]);
-  const placeholder = useMemo(
-    () => placeholderFromProvider(provider),
-    [provider]
-  );
-  const icon = useMemo(() => iconFromProvider(provider), [provider]);
 
   const save = () => {
     const trimmed = (url || "").trim();
-    if (!trimmed) return message.error("Add a link first.");
+    if (!trimmed) return message.error("Add a YouTube link first.");
+    if (provider !== "youtube")
+      return message.error("Please paste a valid YouTube link.");
     const payload = {
       provider,
       url: trimmed,
-      name: `${icon} My Travel Soundtrack`,
+      name: "▶️ My Travel Soundtrack",
       updatedAt: new Date().toISOString(),
     };
     try {
@@ -84,10 +77,15 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
     onSave?.(null);
   };
 
+  const embedUrl =
+    provider === "youtube" && url.trim()
+      ? getYouTubeEmbedUrl(url.trim())
+      : null;
+
   return (
     <Modal
       title={
-        <span style={{ color: "#fff", fontWeight: 700 }}>🎵 Profile Music</span>
+        <span style={{ color: "#fff", fontWeight: 700 }}>▶️ Profile Music</span>
       }
       open={!!open}
       onCancel={onClose}
@@ -120,12 +118,11 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
             lineHeight: 1.5,
           }}
         >
-          Add your travel theme song. Paste a link from Spotify, Apple Music, or
-          YouTube.
+          Add your travel theme song. Paste a YouTube link below.
         </Text>
 
         {/* ── Provider detected badge ── */}
-        {url.trim() && provider !== "link" && (
+        {url.trim() && provider === "youtube" && (
           <div
             style={{
               display: "inline-flex",
@@ -140,15 +137,14 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
               fontWeight: 700,
             }}
           >
-            {icon} {provider.charAt(0).toUpperCase() + provider.slice(1)}{" "}
-            detected
+            ▶️ YouTube detected
           </div>
         )}
 
         <Input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder={placeholder}
+          placeholder="Paste a YouTube link (youtube.com/watch?v=... or youtu.be/...)"
           allowClear
           size="large"
           style={{
@@ -160,9 +156,29 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
         />
 
         <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
-          Examples: open.spotify.com/track/... · music.apple.com/... ·
-          youtube.com/watch?v=...
+          Example: youtube.com/watch?v=... · youtu.be/...
         </div>
+
+        {/* ── YouTube Preview Player ── */}
+        {embedUrl && (
+          <div
+            style={{
+              borderRadius: 10,
+              overflow: "hidden",
+              border: "1px solid rgba(255,138,42,0.2)",
+            }}
+          >
+            <iframe
+              width="100%"
+              height="200"
+              src={embedUrl}
+              title="YouTube Music Preview"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        )}
 
         <Space wrap>
           <Button

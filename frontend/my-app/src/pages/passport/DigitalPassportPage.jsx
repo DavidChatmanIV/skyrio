@@ -17,6 +17,7 @@ import {
   Modal,
   Input,
   App,
+  message as antdMessage,
 } from "antd";
 import {
   UserOutlined,
@@ -228,9 +229,12 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
+  // ── Welcome toast — uses antdMessage directly (safe in useEffect) ──
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
-    message.success(`Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`);
+    antdMessage.success(
+      `Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`
+    );
     try {
       window.history.replaceState({}, document.title);
     } catch {
@@ -286,19 +290,16 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed, token]);
 
-  // ── XP earned toast ──
+  // ── XP toast — uses antdMessage directly (safe in useEffect) ──
   useEffect(() => {
     if (xp > 0 && !xpToastShown && !xpLoading) {
       const timer = setTimeout(() => {
-        message.success({
-          content: `✦ ${xp} XP earned — keep exploring!`,
-          duration: 3,
-        });
+        antdMessage.success(`✦ ${xp} XP earned — keep exploring!`);
         setXpToastShown(true);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [xp, xpLoading, xpToastShown, message]);
+  }, [xp, xpLoading, xpToastShown]);
 
   useEffect(() => {
     if (!isAuthed) return;
@@ -667,7 +668,6 @@ export default function DigitalPassportPage() {
                                 </div>
                               )}
                             />
-                            {/* ── Next badge progress bar ── */}
                             {nextBadgeName && (
                               <div style={{ width: "100%", maxWidth: 180 }}>
                                 <div
