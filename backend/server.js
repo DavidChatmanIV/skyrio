@@ -76,6 +76,10 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
+
+// ── Stripe webhook needs raw body — must come BEFORE express.json() ──
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
+
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());

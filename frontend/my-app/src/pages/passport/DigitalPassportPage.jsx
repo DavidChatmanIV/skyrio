@@ -67,6 +67,27 @@ const PREVIEW_STATS = [
 
 const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
 
+// ── Helper: extract YouTube embed URL from any YT link ──
+function getYouTubeEmbedUrl(url) {
+  try {
+    if (!url) return null;
+    if (url.includes("youtu.be/")) {
+      const id = url.split("youtu.be/")[1].split("?")[0];
+      if (id) return `https://www.youtube.com/embed/${id}?rel=0`;
+    }
+    const u = new URL(url);
+    const id = u.searchParams.get("v");
+    if (id) return `https://www.youtube.com/embed/${id}?rel=0`;
+  } catch {}
+  return null;
+}
+
+// ── Helper: detect if a URL is YouTube ──
+function isYouTubeUrl(url) {
+  const v = String(url || "").toLowerCase();
+  return v.includes("youtu.be") || v.includes("youtube.com");
+}
+
 function PassportLocked() {
   const navigate = useNavigate();
   return (
@@ -229,7 +250,7 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
-  // ── Welcome toast — uses antdMessage directly (safe in useEffect) ──
+  // ── Welcome toast ──
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
     antdMessage.success(
@@ -242,13 +263,31 @@ export default function DigitalPassportPage() {
     }
   }, [location?.state?.fromAuth, user?.name]);
 
+  // ── Load profile music from localStorage on mount ──
+  // Also normalises old saves that may be missing the provider field
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
-      if (raw) setProfileMusic(JSON.parse(raw));
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved?.url) {
+        // Backfill provider if missing (handles old saves)
+        if (!saved.provider && isYouTubeUrl(saved.url)) {
+          saved.provider = "youtube";
+        }
+        setProfileMusic(saved);
+      }
     } catch {
       /* ignore */
     }
+  }, []);
+
+  // ── When music is saved via modal, also persist provider fix ──
+  const handleMusicSave = useCallback((payload) => {
+    if (payload && !payload.provider && isYouTubeUrl(payload.url)) {
+      payload.provider = "youtube";
+    }
+    setProfileMusic(payload);
   }, []);
 
   useEffect(() => {
@@ -290,7 +329,7 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed, token]);
 
-  // ── XP toast — uses antdMessage directly (safe in useEffect) ──
+  // ── XP toast ──
   useEffect(() => {
     if (xp > 0 && !xpToastShown && !xpLoading) {
       const timer = setTimeout(() => {
@@ -465,6 +504,15 @@ export default function DigitalPassportPage() {
       setEditSaving(false);
     }
   };
+
+  // ── Derive YouTube embed URL from saved music ──
+  const youtubeEmbedUrl = useMemo(() => {
+    if (!profileMusic?.url) return null;
+    if (profileMusic.provider === "youtube" || isYouTubeUrl(profileMusic.url)) {
+      return getYouTubeEmbedUrl(profileMusic.url);
+    }
+    return null;
+  }, [profileMusic]);
 
   if (loading) return null;
   if (!isAuthed) return <PassportLocked />;
@@ -726,6 +774,7 @@ export default function DigitalPassportPage() {
                     <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
+                  {/* ── Travel Soundtrack Card ── */}
                   {profileMusic && (
                     <Card
                       variant="borderless"
@@ -750,46 +799,44 @@ export default function DigitalPassportPage() {
                         </div>
                       </div>
 
-                      {/* ── Actual YouTube Player ── */}
-                      {profileMusic?.provider === "youtube" &&
-                        profileMusic?.url &&
-                        (() => {
-                          let embedUrl = null;
-                          try {
-                            if (profileMusic.url.includes("youtu.be/")) {
-                              const id = profileMusic.url
-                                .split("youtu.be/")[1]
-                                .split("?")[0];
-                              embedUrl = `https://www.youtube.com/embed/${id}?autoplay=0&rel=0`;
-                            } else {
-                              const u = new URL(profileMusic.url);
-                              const id = u.searchParams.get("v");
-                              if (id)
-                                embedUrl = `https://www.youtube.com/embed/${id}?autoplay=0&rel=0`;
-                            }
-                          } catch {}
-
-                          return embedUrl ? (
-                            <div
-                              style={{
-                                marginTop: 12,
-                                borderRadius: 10,
-                                overflow: "hidden",
-                                border: "1px solid rgba(255,138,42,0.2)",
-                              }}
-                            >
-                              <iframe
-                                width="100%"
-                                height="200"
-                                src={embedUrl}
-                                title="Travel Soundtrack"
-                                frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                              />
-                            </div>
-                          ) : null;
-                        })()}
+                      {/* ── YouTube Player (real, playable) ── */}
+                      {youtubeEmbedUrl ? (
+                        <div
+                          style={{
+                            marginTop: 12,
+                            borderRadius: 10,
+                            overflow: "hidden",
+                            border: "1px solid rgba(255,138,42,0.2)",
+                          }}
+                        >
+                          <iframe
+                            width="100%"
+                            height="200"
+                            src={youtubeEmbedUrl}
+                            title="Travel Soundtrack"
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            style={{ display: "block" }}
+                          />
+                        </div>
+                      ) : (
+                        // Fallback if URL somehow can't be parsed
+                        <div
+                          style={{
+                            marginTop: 12,
+                            padding: "12px 16px",
+                            borderRadius: 10,
+                            background: "rgba(255,138,42,0.08)",
+                            border: "1px solid rgba(255,138,42,0.2)",
+                            fontSize: 13,
+                            color: "rgba(255,255,255,0.5)",
+                            textAlign: "center",
+                          }}
+                        >
+                          ▶️ Tap "Profile Music" to update your song
+                        </div>
+                      )}
                     </Card>
                   )}
 
@@ -892,10 +939,12 @@ export default function DigitalPassportPage() {
         onClose={() => setFollowOpen(false)}
         mode={followMode}
       />
+
+      {/* ── Use handleMusicSave instead of setProfileMusic directly ── */}
       <ProfileMusicModal
         open={musicOpen}
         onClose={() => setMusicOpen(false)}
-        onSave={setProfileMusic}
+        onSave={handleMusicSave}
         value={profileMusic}
       />
 
