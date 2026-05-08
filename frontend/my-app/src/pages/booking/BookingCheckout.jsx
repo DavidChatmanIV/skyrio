@@ -38,8 +38,6 @@ function formatDuration(start, end) {
   return `${mins}m`;
 }
 
-// Normalises a raw Duffel flight object into the shape all sub-components expect.
-// If flight is null/undefined it returns MOCK_FLIGHT so nothing ever crashes.
 function buildFlightData(flight) {
   if (!flight) return MOCK_FLIGHT;
 
@@ -160,13 +158,10 @@ function ProgressBar({ step }) {
   );
 }
 
-// Expects a normalised flight object (output of buildFlightData), never raw Duffel.
 function FlightSummaryCard({ flight }) {
   if (!flight?.outbound) return null;
-
   return (
     <div className="sk-flight-card">
-      {/* Outbound leg */}
       <div className="sk-flight-card__leg">
         <div className="sk-flight-card__route">
           <span className="sk-flight-card__code">{flight.outbound.from}</span>
@@ -189,10 +184,7 @@ function FlightSummaryCard({ flight }) {
             : ""}
         </div>
       </div>
-
       <div className="sk-flight-card__divider" />
-
-      {/* Return leg */}
       <div className="sk-flight-card__leg">
         <div className="sk-flight-card__route">
           <span className="sk-flight-card__code">{flight.return.from}</span>
@@ -291,7 +283,6 @@ function StepPassengers({ onNext }) {
       <p className="sk-step__sub">
         Must match your government-issued ID exactly.
       </p>
-
       <div className="sk-form-grid">
         <label className="sk-label">
           First name <span className="sk-req">*</span>
@@ -345,7 +336,6 @@ function StepPassengers({ onNext }) {
           />
         </label>
       </div>
-
       <button
         type="button"
         className={`sk-btn-primary ${!valid ? "sk-btn-primary--disabled" : ""}`}
@@ -368,7 +358,6 @@ function StepSeatsBags({ onNext, onBack, basePrice }) {
   return (
     <div className="sk-step">
       <h2 className="sk-step__title">Seats &amp; Bags</h2>
-
       <section className="sk-section">
         <div className="sk-section__header">
           <span className="sk-section__icon">💺</span>
@@ -384,7 +373,6 @@ function StepSeatsBags({ onNext, onBack, basePrice }) {
           name="Seat preference"
         />
       </section>
-
       <section className="sk-section">
         <div className="sk-section__header">
           <span className="sk-section__icon">🧳</span>
@@ -402,7 +390,6 @@ function StepSeatsBags({ onNext, onBack, basePrice }) {
           name="Baggage"
         />
       </section>
-
       <section className="sk-section">
         <div className="sk-section__header">
           <span className="sk-section__icon">🛡️</span>
@@ -437,14 +424,12 @@ function StepSeatsBags({ onNext, onBack, basePrice }) {
           </div>
         </button>
       </section>
-
       <PriceSummary
         base={basePrice}
         seat={seat}
         bag={bag}
         insurance={insurance}
       />
-
       <div className="sk-step__actions">
         <button type="button" className="sk-btn-secondary" onClick={onBack}>
           ← Back
@@ -463,7 +448,6 @@ function StepSeatsBags({ onNext, onBack, basePrice }) {
 
 // ─── Step 3: Review & Pay ──────────────────────────────────────────────────────
 
-// NOTE: flight here is always the normalised object from buildFlightData — never raw.
 function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
   const [card, setCard] = useState({
     name: "",
@@ -475,6 +459,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
 
   const seatPrice = SEAT_OPTIONS.find((o) => o.id === extras.seat)?.price ?? 0;
   const bagPrice = BAG_OPTIONS.find((o) => o.id === extras.bag)?.price ?? 0;
@@ -498,13 +483,85 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
     card.cvv.length >= 3 &&
     agreed;
 
-  const handleBook = () => {
+  // ── Real booking + Stripe PaymentIntent ──
+  const handleBook = async () => {
     if (!canBook) return;
     setLoading(true);
-    setTimeout(() => {
+    setError("");
+    try {
+      const token = localStorage.getItem("token");
+      const API = import.meta.env.VITE_API_URL || "";
+
+      // Step 1 — Create booking record
+      const bookingRes = await fetch(`${API}/api/bookings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          flight: {
+            origin: flight.outbound.from,
+            destination: flight.outbound.to,
+            departingAt: flight.outbound.date,
+            airline: flight.outbound.airline,
+          },
+          travelers: [
+            {
+              firstName: passenger.firstName,
+              lastName: passenger.lastName,
+              email: passenger.email,
+            },
+          ],
+          dates: {
+            depart: flight.outbound.date,
+            return: flight.return?.date || null,
+          },
+        }),
+      });
+
+      const bookingData = await bookingRes.json();
+      const bookingId = bookingData?._id || bookingData?.id || "";
+
+      // Step 2 — Create Stripe PaymentIntent
+      const intentRes = await fetch(`${API}/api/stripe/create-payment-intent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          amount: total,
+          currency: "usd",
+          bookingId,
+        }),
+      });
+
+      const intentData = await intentRes.json();
+      if (!intentData.ok)
+        throw new Error(intentData.message || "Payment setup failed");
+
+      // Step 3 — Store for confirmation page
+      sessionStorage.setItem(
+        "skyrio_pending_booking",
+        JSON.stringify({
+          bookingId,
+          total,
+          flight,
+          passenger,
+          paymentIntentId: intentData.paymentIntentId,
+        })
+      );
+
       setLoading(false);
       setDone(true);
-    }, 1800);
+    } catch (err) {
+      console.error("Booking error:", err);
+      setError(err.message || "Something went wrong. Please try again.");
+      setLoading(false);
+    }
   };
 
   if (done) {
@@ -651,7 +708,24 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
         </div>
       </section>
 
-      {/* Terms agreement */}
+      {/* Error message */}
+      {error && (
+        <div
+          style={{
+            background: "rgba(255,77,109,0.12)",
+            border: "1px solid rgba(255,77,109,0.3)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            color: "#ff4d6d",
+            fontSize: 13,
+            marginBottom: 12,
+          }}
+        >
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* Terms */}
       <button
         type="button"
         className={`sk-agree ${agreed ? "sk-agree--checked" : ""}`}
@@ -706,9 +780,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
 // ─── Main export ───────────────────────────────────────────────────────────────
 
 export default function BookingCheckout({ flight, onBack }) {
-  // Always normalise to internal shape here — every child gets liveFlight, never raw
   const liveFlight = buildFlightData(flight);
-
   const [step, setStep] = useState(0);
   const [passenger, setPassenger] = useState(null);
   const [extras, setExtras] = useState(null);
@@ -728,7 +800,6 @@ export default function BookingCheckout({ flight, onBack }) {
 
       <ProgressBar step={step} />
 
-      {/* ✅ Always pass liveFlight here, never raw flight */}
       <div className="sk-checkout__flight-wrap">
         <FlightSummaryCard flight={liveFlight} />
       </div>
