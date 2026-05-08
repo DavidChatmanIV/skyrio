@@ -2,6 +2,7 @@ import { Router } from "express";
 import Booking from "../models/booking.js";
 import User from "../models/user.js";
 import authRequired from "../middleware/authRequired.js";
+import { sendBookingConfirmationEmail } from "../utils/sendConfirmationEmail.js";
 
 const router = Router();
 
@@ -77,6 +78,26 @@ router.post("/", authRequired, async (req, res) => {
       await User.findByIdAndUpdate(req.user.id, { $inc: { xp: 200 } });
     } catch (xpErr) {
       console.error("Booking XP award failed:", xpErr);
+    }
+
+    // ── Send booking confirmation email ──
+    try {
+      const userDoc = await User.findById(req.user.id).lean();
+      if (userDoc?.email) {
+        await sendBookingConfirmationEmail({
+          name: userDoc.name || userDoc.username || "Traveler",
+          email: userDoc.email,
+          origin: flight?.origin || "",
+          destination: flight?.destination || "",
+          departDate: dates?.depart || "",
+          returnDate: dates?.return || "",
+          airline: flight?.airline || "",
+          total: 0,
+          bookingId: newBooking._id,
+        });
+      }
+    } catch (emailErr) {
+      console.error("Confirmation email error:", emailErr);
     }
 
     await newBooking.populate("user", "email");
