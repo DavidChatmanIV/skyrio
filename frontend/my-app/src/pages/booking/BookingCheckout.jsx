@@ -1,5 +1,15 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import dayjs from "dayjs";
+import { loadStripe } from "@stripe/stripe-js";
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+
+// ─── Stripe instance (created once outside component) ──────────────────────────
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const G = {
@@ -21,7 +31,6 @@ const G = {
 };
 
 const css = `
-  /* Uses global font + CSS variables from your app — no extra imports */
   .skc * { box-sizing: border-box; margin: 0; padding: 0; }
   .skc { font-family: inherit; color: #fff; min-height: 100vh; position: relative; }
 
@@ -88,7 +97,6 @@ const css = `
 
   select.skc-input option { background: #100c22; color: white; }
 
-  /* ── Background layers — scoped to component, not fixed ── */
   .skc-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
   .skc-bg__img {
     position: absolute; inset: 0;
@@ -96,7 +104,6 @@ const css = `
     background-size: cover; background-position: center 30%;
     opacity: 0.35;
   }
-  /* Smooth top blend into navbar */
   .skc-bg__fade {
     position: absolute; inset: 0;
     background: linear-gradient(
@@ -108,12 +115,22 @@ const css = `
       #0b0b18 100%
     );
   }
-  /* Side vignette so image doesn't bleed to edges */
   .skc-bg__vignette {
     position: absolute; inset: 0;
     background: radial-gradient(ellipse 85% 100% at 50% 40%, transparent 30%, #0b0b18 100%);
   }
 `;
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+function getUserIdFromToken() {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return "";
+    return JSON.parse(atob(token.split(".")[1]))?.id || "";
+  } catch {
+    return "";
+  }
+}
 
 // ─── Mock / data helpers ───────────────────────────────────────────────────────
 const MOCK_FLIGHT = {
@@ -702,7 +719,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
   const [touched, setTouched] = useState({});
   const [showKtn, setShowKtn] = useState(false);
 
-  // Refs to read DOM values — handles browser autofill that skips onChange
   const firstRef = useRef();
   const lastRef = useRef();
   const dobRef = useRef();
@@ -714,7 +730,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
     setTouched((t) => ({ ...t, [k]: true }));
   };
   const blur = (k) => () => setTouched((t) => ({ ...t, [k]: true }));
-
   const dobOk = (v) => {
     if (!v) return false;
     const d = dayjs(v);
@@ -730,7 +745,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
   };
 
   const handleContinue = () => {
-    // Read live DOM values to catch autofill
     const live = {
       firstName: firstRef.current?.value || form.firstName,
       lastName: lastRef.current?.value || form.lastName,
@@ -739,7 +753,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
       phone: phoneRef.current?.value || form.phone,
       ktn: form.ktn,
     };
-    // Sync state so errors show if invalid
     setForm(live);
     setTouched({ firstName: true, lastName: true, dob: true, email: true });
     if (
@@ -769,7 +782,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
           <p style={{ color: G.muted, fontSize: 14, marginBottom: 24 }}>
             Must match your government-issued ID exactly.
           </p>
-
           <div
             style={{
               display: "grid",
@@ -821,7 +833,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
               </label>
             ))}
           </div>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <label className="skc-label">
               Date of birth{" "}
@@ -929,7 +940,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
               />
             )}
           </div>
-
           <button
             type="button"
             className="skc-btn-primary"
@@ -1144,100 +1154,47 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
   );
 }
 
-// ─── Step 3: Review & Pay ──────────────────────────────────────────────────────
-function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
-  const [card, setCard] = useState({
-    name: "",
-    number: "",
-    expMonth: "",
-    expYear: "",
-    cvv: "",
-  });
+// ─── Step 3 inner: Stripe pay form (must live inside <Elements>) ───────────────
+function StripePayForm({
+  onBack,
+  passenger,
+  flight,
+  total,
+  loading,
+  setLoading,
+  error,
+  setError,
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
   const [agreed, setAgreed] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  const [error, setError] = useState("");
-
-  const sp = SEAT_OPTIONS.find((o) => o.id === extras.seat)?.price ?? 0;
-  const bp = BAG_OPTIONS.find((o) => o.id === extras.bag)?.price ?? 0;
-  const ip = extras.insurance ? 28.25 : 0;
-  const total = basePrice + sp + bp + ip;
-
-  const setC = (k) => (e) => setCard((c) => ({ ...c, [k]: e.target.value }));
-  const fmtCard = (v) =>
-    v
-      .replace(/\D/g, "")
-      .replace(/(.{4})/g, "$1 ")
-      .trim()
-      .slice(0, 19);
-
-  const canBook =
-    card.name &&
-    card.number.replace(/\s/g, "").length === 16 &&
-    card.expMonth &&
-    card.expYear &&
-    card.cvv.length >= 3 &&
-    agreed;
 
   const handleBook = async () => {
-    if (!canBook) return;
+    if (!stripe || !elements || !agreed) return;
     setLoading(true);
     setError("");
     try {
-      const token = localStorage.getItem("token");
-      const API = import.meta.env?.VITE_API_URL || "";
-      const bRes = await fetch(`${API}/api/bookings`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          flight: {
-            origin: flight.outbound.from,
-            destination: flight.outbound.to,
-            departingAt: flight.outbound.date,
-            airline: flight.outbound.airline,
+      const { error: stripeError, paymentIntent } = await stripe.confirmPayment(
+        {
+          elements,
+          confirmParams: {
+            return_url: `${window.location.origin}/booking-confirmed`,
+            receipt_email: passenger.email,
           },
-          travelers: [
-            {
-              firstName: passenger.firstName,
-              lastName: passenger.lastName,
-              email: passenger.email,
-            },
-          ],
-          dates: {
-            depart: flight.outbound.date,
-            return: flight.return?.date || null,
-          },
-        }),
-      });
-      const bData = await bRes.json();
-      const bookingId = bData?._id || bData?.id || "";
-      const iRes = await fetch(`${API}/api/stripe/create-payment-intent`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-        body: JSON.stringify({ amount: total, currency: "usd", bookingId }),
-      });
-      const iData = await iRes.json();
-      if (!iData.ok) throw new Error(iData.message || "Payment setup failed");
-      sessionStorage.setItem(
-        "skyrio_pending_booking",
-        JSON.stringify({
-          bookingId,
-          total,
-          flight,
-          passenger,
-          paymentIntentId: iData.paymentIntentId,
-        })
+          redirect: "if_required",
+        }
       );
-      setLoading(false);
-      setDone(true);
+      if (stripeError) {
+        setError(stripeError.message);
+        setLoading(false);
+        return;
+      }
+      // Succeeded without redirect — webhook fires automatically to handle
+      // booking confirmation, XP award, and both notifications
+      if (paymentIntent?.status === "succeeded") {
+        setDone(true);
+      }
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
       setLoading(false);
@@ -1280,7 +1237,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
             {flight.outbound.from} → {flight.outbound.to} ·{" "}
             {flight.outbound.date}
           </div>
-          {flight.return.date !== "Return TBD" && (
+          {flight.return?.date !== "Return TBD" && (
             <div style={{ marginBottom: 8 }}>
               {flight.return.from} → {flight.return.to} · {flight.return.date}
             </div>
@@ -1303,6 +1260,173 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
     );
   }
 
+  return (
+    <>
+      <section style={{ marginBottom: 20 }}>
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: ".06em",
+            textTransform: "uppercase",
+            color: G.faint,
+            fontWeight: 600,
+            marginBottom: 14,
+          }}
+        >
+          Payment
+        </div>
+        <div
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            border: `1px solid ${G.border}`,
+            borderRadius: 14,
+            padding: "20px 16px",
+          }}
+        >
+          <PaymentElement
+            options={{
+              layout: "tabs",
+              paymentMethodOrder: ["card", "apple_pay", "google_pay"],
+            }}
+          />
+        </div>
+      </section>
+
+      {error && (
+        <div
+          style={{
+            background: "rgba(248,113,113,.1)",
+            border: "1px solid rgba(248,113,113,.3)",
+            borderRadius: 10,
+            padding: "12px 16px",
+            color: G.danger,
+            fontSize: 13,
+            marginBottom: 16,
+          }}
+        >
+          ⚠️ {error}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setAgreed((v) => !v)}
+        role="checkbox"
+        aria-checked={agreed}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          padding: "14px 16px",
+          borderRadius: 12,
+          border: `1px solid ${agreed ? G.orange : G.border}`,
+          background: agreed ? "rgba(249,115,22,.08)" : G.bgCard,
+          cursor: "pointer",
+          marginBottom: 20,
+          color: "#fff",
+          fontFamily: "inherit",
+          fontSize: 14,
+          transition: ".2s",
+        }}
+      >
+        <div
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            border: `2px solid ${agreed ? G.orange : G.faint}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: agreed ? G.orange : "transparent",
+            fontSize: 11,
+            color: "white",
+            flexShrink: 0,
+            transition: ".2s",
+          }}
+        >
+          {agreed ? "✓" : ""}
+        </div>
+        <span>
+          I agree to the{" "}
+          <a
+            href="#"
+            onClick={(e) => e.stopPropagation()}
+            style={{ color: "var(--cta, #ff8a2a)", textDecoration: "none" }}
+          >
+            fare rules
+          </a>{" "}
+          and{" "}
+          <a
+            href="#"
+            onClick={(e) => e.stopPropagation()}
+            style={{ color: "var(--cta, #ff8a2a)", textDecoration: "none" }}
+          >
+            privacy policy
+          </a>
+          .
+        </span>
+      </button>
+
+      <div style={{ display: "flex", gap: 12 }}>
+        <button
+          type="button"
+          className="skc-btn-back"
+          onClick={onBack}
+          disabled={loading}
+        >
+          ← Back
+        </button>
+        <button
+          type="button"
+          className="skc-btn-primary"
+          style={{
+            flex: 1,
+            opacity: agreed && stripe ? 1 : 0.4,
+            cursor: agreed && stripe ? "pointer" : "not-allowed",
+          }}
+          onClick={handleBook}
+          disabled={!agreed || loading || !stripe}
+        >
+          {loading ? (
+            <span className="skc-spinner" />
+          ) : (
+            `Book · $${total.toFixed(2)}`
+          )}
+        </button>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          color: G.muted,
+          fontSize: 12,
+          justifyContent: "center",
+          marginTop: 14,
+        }}
+      >
+        <LockIcon />
+        <span>Your information is secure and encrypted</span>
+      </div>
+    </>
+  );
+}
+
+// ─── Step 3 outer: creates booking + PaymentIntent, mounts Elements ────────────
+function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
+  const [clientSecret, setClientSecret] = useState(null);
+  const [bookingId, setBookingId] = useState(null);
+  const [initLoading, setInitLoading] = useState(true);
+  const [payLoading, setPayLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const sp = SEAT_OPTIONS.find((o) => o.id === extras.seat)?.price ?? 0;
+  const bp = BAG_OPTIONS.find((o) => o.id === extras.bag)?.price ?? 0;
+  const ip = extras.insurance ? 28.25 : 0;
+  const total = basePrice + sp + bp + ip;
+
   const recapRows = [
     {
       label: "Passenger",
@@ -1319,6 +1443,118 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
     extras.insurance && { label: "Protection", value: "Travel Guard" },
   ].filter(Boolean);
 
+  useEffect(() => {
+    (async () => {
+      setInitLoading(true);
+      setError("");
+      try {
+        const token = localStorage.getItem("token");
+        const API = import.meta.env?.VITE_API_URL || "";
+
+        // ── Decode userId from JWT so webhook can award XP + fire notifications ──
+        const userId = getUserIdFromToken();
+
+        // 1. Create booking (status: pending)
+        const bRes = await fetch(`${API}/api/bookings`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            flight: {
+              origin: flight.outbound.from,
+              destination: flight.outbound.to,
+              departingAt: flight.outbound.date,
+              airline: flight.outbound.airline,
+            },
+            travelers: [
+              {
+                firstName: passenger.firstName,
+                lastName: passenger.lastName,
+                email: passenger.email,
+              },
+            ],
+            dates: {
+              depart: flight.outbound.date,
+              return: flight.return?.date || null,
+            },
+          }),
+        });
+        const bData = await bRes.json();
+        const bId = bData?._id || bData?.id || "";
+        setBookingId(bId);
+
+        // 2. Create PaymentIntent — bookingId + userId go into metadata
+        //    so the webhook can confirm the booking, award XP, and fire notifications
+        const iRes = await fetch(`${API}/api/stripe/create-payment-intent`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            amount: total,
+            currency: "usd",
+            bookingId: bId,
+            userId, // ← NEW: required for XP + notification webhook handlers
+          }),
+        });
+        const iData = await iRes.json();
+        if (!iData.ok) throw new Error(iData.message || "Payment setup failed");
+        setClientSecret(iData.clientSecret);
+      } catch (err) {
+        setError(
+          err.message ||
+            "Could not initialize payment. Please go back and try again."
+        );
+      }
+      setInitLoading(false);
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const stripeAppearance = {
+    theme: "night",
+    variables: {
+      colorPrimary: "#f97316",
+      colorBackground: "#100c22",
+      colorText: "#ffffff",
+      colorTextSecondary: "rgba(255,255,255,0.5)",
+      colorDanger: "#f87171",
+      borderRadius: "10px",
+      fontFamily: "inherit",
+      spacingUnit: "4px",
+    },
+    rules: {
+      ".Input": {
+        border: "1px solid rgba(255,255,255,0.10)",
+        backgroundColor: "rgba(255,255,255,0.06)",
+      },
+      ".Input:focus": {
+        border: "1px solid #f97316",
+        boxShadow: "0 0 0 3px rgba(249,115,22,0.35)",
+      },
+      ".Label": {
+        color: "rgba(255,255,255,0.5)",
+        fontSize: "12px",
+        fontWeight: "600",
+        letterSpacing: "0.05em",
+        textTransform: "uppercase",
+      },
+      ".Tab": {
+        border: "1px solid rgba(255,255,255,0.10)",
+        backgroundColor: "rgba(255,255,255,0.04)",
+      },
+      ".Tab:hover": { backgroundColor: "rgba(255,255,255,0.07)" },
+      ".Tab--selected": {
+        border: "1px solid #f97316",
+        backgroundColor: "rgba(249,115,22,0.08)",
+      },
+    },
+  };
+
   return (
     <div className="skc-fade">
       <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
@@ -1333,6 +1569,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
           >
             Review &amp; Pay
           </h2>
+
           <section style={{ marginBottom: 24 }}>
             <div
               style={{
@@ -1363,111 +1600,31 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
               </div>
             ))}
           </section>
+
           <PriceSummary
             base={basePrice}
             seat={extras.seat}
             bag={extras.bag}
             insurance={extras.insurance}
           />
-          <section style={{ marginBottom: 20 }}>
+
+          {initLoading && (
             <div
-              style={{
-                fontSize: 11,
-                letterSpacing: ".06em",
-                textTransform: "uppercase",
-                color: G.faint,
-                fontWeight: 600,
-                marginBottom: 14,
-              }}
+              style={{ textAlign: "center", padding: "40px 0", color: G.muted }}
             >
-              Payment
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <label className="skc-label">
-                Name on card{" "}
-                <span style={{ color: "var(--cta, #ff8a2a)" }}>*</span>
-                <input
-                  className="skc-input"
-                  value={card.name}
-                  onChange={setC("name")}
-                  placeholder="David Chatman"
-                  autoComplete="cc-name"
+              <div>
+                <span
+                  className="skc-spinner"
+                  style={{ width: 28, height: 28, borderWidth: 3 }}
                 />
-              </label>
-              <label className="skc-label">
-                Card number{" "}
-                <span style={{ color: "var(--cta, #ff8a2a)" }}>*</span>
-                <input
-                  className="skc-input"
-                  value={card.number}
-                  onChange={(e) =>
-                    setCard((c) => ({ ...c, number: fmtCard(e.target.value) }))
-                  }
-                  placeholder="0000 0000 0000 0000"
-                  inputMode="numeric"
-                  autoComplete="cc-number"
-                  maxLength={19}
-                />
-              </label>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 1fr",
-                  gap: 12,
-                }}
-              >
-                <label className="skc-label">
-                  Month <span style={{ color: "var(--cta, #ff8a2a)" }}>*</span>
-                  <select
-                    className="skc-input"
-                    value={card.expMonth}
-                    onChange={setC("expMonth")}
-                    autoComplete="cc-exp-month"
-                  >
-                    <option value="">MM</option>
-                    {Array.from({ length: 12 }, (_, i) =>
-                      String(i + 1).padStart(2, "0")
-                    ).map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="skc-label">
-                  Year <span style={{ color: "var(--cta, #ff8a2a)" }}>*</span>
-                  <select
-                    className="skc-input"
-                    value={card.expYear}
-                    onChange={setC("expYear")}
-                    autoComplete="cc-exp-year"
-                  >
-                    <option value="">YYYY</option>
-                    {Array.from({ length: 10 }, (_, i) => String(2025 + i)).map(
-                      (y) => (
-                        <option key={y} value={y}>
-                          {y}
-                        </option>
-                      )
-                    )}
-                  </select>
-                </label>
-                <label className="skc-label">
-                  CVV <span style={{ color: "var(--cta, #ff8a2a)" }}>*</span>
-                  <input
-                    className="skc-input"
-                    value={card.cvv}
-                    onChange={setC("cvv")}
-                    placeholder="•••"
-                    inputMode="numeric"
-                    maxLength={4}
-                    autoComplete="cc-csc"
-                  />
-                </label>
+              </div>
+              <div style={{ marginTop: 14, fontSize: 13 }}>
+                Setting up secure payment...
               </div>
             </div>
-          </section>
-          {error && (
+          )}
+
+          {!initLoading && error && (
             <div
               style={{
                 background: "rgba(248,113,113,.1)",
@@ -1480,110 +1637,41 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
               }}
             >
               ⚠️ {error}
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="skc-btn-back"
+                  style={{ fontSize: 12, padding: "8px 14px" }}
+                  onClick={onBack}
+                >
+                  ← Go back
+                </button>
+              </div>
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => setAgreed((v) => !v)}
-            role="checkbox"
-            aria-checked={agreed}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              width: "100%",
-              padding: "14px 16px",
-              borderRadius: 12,
-              border: `1px solid ${agreed ? G.orange : G.border}`,
-              background: agreed ? "rgba(249,115,22,.08)" : G.bgCard,
-              cursor: "pointer",
-              marginBottom: 20,
-              color: "#fff",
-              fontFamily: "inherit",
-              fontSize: 14,
-              transition: ".2s",
-            }}
-          >
-            <div
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 4,
-                border: `2px solid ${agreed ? G.orange : G.faint}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: agreed ? G.orange : "transparent",
-                fontSize: 11,
-                color: "white",
-                flexShrink: 0,
-                transition: ".2s",
-              }}
+
+          {!initLoading && clientSecret && (
+            <Elements
+              stripe={stripePromise}
+              options={{ clientSecret, appearance: stripeAppearance }}
             >
-              {agreed ? "✓" : ""}
-            </div>
-            <span>
-              I agree to the{" "}
-              <a
-                href="#"
-                onClick={(e) => e.stopPropagation()}
-                style={{ color: "var(--cta, #ff8a2a)", textDecoration: "none" }}
-              >
-                fare rules
-              </a>{" "}
-              and{" "}
-              <a
-                href="#"
-                onClick={(e) => e.stopPropagation()}
-                style={{ color: "var(--cta, #ff8a2a)", textDecoration: "none" }}
-              >
-                privacy policy
-              </a>
-              .
-            </span>
-          </button>
-          <div style={{ display: "flex", gap: 12 }}>
-            <button
-              type="button"
-              className="skc-btn-back"
-              onClick={onBack}
-              disabled={loading}
-            >
-              ← Back
-            </button>
-            <button
-              type="button"
-              className="skc-btn-primary"
-              style={{
-                flex: 1,
-                opacity: canBook ? 1 : 0.4,
-                cursor: canBook ? "pointer" : "not-allowed",
-              }}
-              onClick={handleBook}
-              disabled={!canBook || loading}
-            >
-              {loading ? (
-                <span className="skc-spinner" />
-              ) : (
-                `Book · $${total.toFixed(2)}`
-              )}
-            </button>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              color: G.muted,
-              fontSize: 12,
-              justifyContent: "center",
-              marginTop: 14,
-            }}
-          >
-            <LockIcon />
-            <span>Your information is secure and encrypted</span>
-          </div>
+              <StripePayForm
+                onBack={onBack}
+                passenger={passenger}
+                extras={extras}
+                basePrice={basePrice}
+                flight={flight}
+                bookingId={bookingId}
+                total={total}
+                loading={payLoading}
+                setLoading={setPayLoading}
+                error={error}
+                setError={setError}
+              />
+            </Elements>
+          )}
         </div>
+
         <div style={{ width: 252, flexShrink: 0 }}>
           <TripSidebar
             flight={flight}
@@ -1608,14 +1696,11 @@ export default function BookingCheckout({ flight, onBack }) {
   return (
     <div className="skc" style={{ position: "relative", minHeight: "100vh" }}>
       <style>{css}</style>
-
-      {/* Background — scoped layers, blends with navbar */}
       <div className="skc-bg">
         <div className="skc-bg__img" />
         <div className="skc-bg__fade" />
         <div className="skc-bg__vignette" />
       </div>
-
       <div
         style={{
           position: "relative",
@@ -1625,7 +1710,6 @@ export default function BookingCheckout({ flight, onBack }) {
           padding: "0 24px 72px",
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -1680,11 +1764,8 @@ export default function BookingCheckout({ flight, onBack }) {
             Checkout
           </span>
         </div>
-
         <ProgressBar step={step} />
-
         {step === 0 && <FlightCard flight={liveFlight} />}
-
         {step === 0 && (
           <StepPassengers
             onNext={(p) => {

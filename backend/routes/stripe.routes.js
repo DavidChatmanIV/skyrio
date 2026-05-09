@@ -14,8 +14,8 @@ router.post(
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
     let event;
+
     try {
       event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
     } catch (err) {
@@ -29,6 +29,7 @@ router.post(
       const userId = intent.metadata?.userId;
 
       try {
+        // 1. Confirm booking in DB
         if (bookingId) {
           await Booking.findByIdAndUpdate(bookingId, {
             $set: {
@@ -39,17 +40,25 @@ router.post(
           });
         }
 
+        // 2. Award XP + fire both notifications
         if (userId) {
           await User.findByIdAndUpdate(userId, { $inc: { xp: 200 } });
-        }
 
-        if (userId) {
           await Notification.create({
             user: userId,
             type: "booking",
             title: "Booking Confirmed ✈️",
             message: "Your booking has been confirmed. Have a great trip!",
             link: "/saved-trips",
+          });
+
+          await Notification.create({
+            user: userId,
+            type: "xp",
+            title: "🌟 +200 XP Earned!",
+            message:
+              "You earned 200 XP for booking a trip. Check your Passport to see your progress!",
+            link: "/passport",
           });
         }
 
