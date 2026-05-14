@@ -25,7 +25,7 @@ const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 
 // ── Legal ── ← NEW
-const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
+const PrivacyPolicyPage = lazy(() => import("./pages/Privacypolicypage"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
 
 // ─── Page loader ──────────────────────────────────────────────────────────────
