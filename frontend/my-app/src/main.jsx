@@ -3,7 +3,6 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
-import { inject as injectVercelAnalytics } from "@vercel/analytics"; // ← NEW
 import AuthProvider from "@/auth/AuthProvider.jsx";
 import { AtlasProvider } from "@/components/Atlas/AtlasContext";
 import AppRoutes from "./AppRoutes";
@@ -21,7 +20,7 @@ import "./styles/surfaces.css";
 import "./styles/OverlayTone.css";
 import "./styles/theme.css";
 
-// ── Sentry (already configured) ──────────────────────────────────────────────
+// ── Sentry ────────────────────────────────────────────────────────────────────
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE,
@@ -30,8 +29,9 @@ Sentry.init({
   enabled: import.meta.env.PROD,
 });
 
-// ── Vercel Analytics — tracks page views automatically on Vercel ── ← NEW
-injectVercelAnalytics();
+// ── Vercel Analytics ──────────────────────────────────────────────────────────
+// No import needed — Vercel automatically injects analytics for projects
+// deployed on Vercel. Page views appear in your Vercel dashboard instantly.
 
 const rootEl = document.getElementById("root");
 
