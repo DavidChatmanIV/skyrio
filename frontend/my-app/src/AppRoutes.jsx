@@ -24,8 +24,8 @@ const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 
-// ── Legal ── ← NEW
-const PrivacyPolicyPage = lazy(() => import("./pages/Privacypolicypage"));
+// ── Legal ──
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage")); // ← fixed casing
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
 
 // ─── Page loader ──────────────────────────────────────────────────────────────
@@ -55,9 +55,7 @@ function PageLoader() {
   );
 }
 
-// ─── Analytics — fires on every route change ─────────────────────────────────
-// Vercel Analytics picks up page views automatically via @vercel/analytics.
-// This hook also sends a Mixpanel page view if the script is loaded.
+// ─── Analytics tracker ────────────────────────────────────────────────────────
 function usePageTracking() {
   const location = useLocation();
   useEffect(() => {
@@ -105,7 +103,7 @@ function TrackedRoutes() {
         />
         <Route path="saved-trips" element={<SavedTripsPage />} />
 
-        {/* ── Legal ── ← NEW */}
+        {/* ── Legal ── */}
         <Route path="privacy" element={<PrivacyPolicyPage />} />
         <Route path="terms" element={<TermsOfServicePage />} />
 
