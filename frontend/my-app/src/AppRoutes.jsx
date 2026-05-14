@@ -1,8 +1,9 @@
-import React, { lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { lazy, Suspense, useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
+// ── Core pages ──
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
 const SkyHubPage = lazy(() => import("./pages/skyhub/SkyHubPage"));
@@ -19,10 +20,15 @@ const SyncTogether = lazy(() => import("./pages/SyncTogether"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 
-// ── Admin pages (standalone — no AppLayout/navbar) ── ← NEW
+// ── Admin (standalone — no AppLayout/navbar) ──
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 
+// ── Legal ── ← NEW
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
+const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
+
+// ─── Page loader ──────────────────────────────────────────────────────────────
 function PageLoader() {
   return (
     <div
@@ -49,44 +55,75 @@ function PageLoader() {
   );
 }
 
+// ─── Analytics — fires on every route change ─────────────────────────────────
+// Vercel Analytics picks up page views automatically via @vercel/analytics.
+// This hook also sends a Mixpanel page view if the script is loaded.
+function usePageTracking() {
+  const location = useLocation();
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.mixpanel?.track) {
+      window.mixpanel.track("Page View", {
+        path: location.pathname,
+        search: location.search,
+      });
+    }
+  }, [location.pathname, location.search]);
+}
+
+// ─── Inner component (needs to be inside Router for useLocation) ──────────────
+function TrackedRoutes() {
+  usePageTracking();
+
+  return (
+    <Routes>
+      {/* ── Admin — standalone, no navbar ── */}
+      <Route path="admin/login" element={<AdminLogin />} />
+      <Route path="admin" element={<AdminDashboard />} />
+
+      {/* ── Main app with AppLayout (navbar + footer) ── */}
+      <Route element={<AppLayout />}>
+        <Route index element={<LandingPage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="reset" element={<ForgotPasswordPage />} />
+        <Route path="verify-email" element={<VerifyEmailPage />} />
+        <Route path="booking" element={<BookingPage />} />
+        <Route path="skyhub" element={<SkyHubPage />} />
+        <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
+        <Route path="feed" element={<Navigate to="/skyhub" replace />} />
+        <Route path="passport" element={<DigitalPassportPage />} />
+        <Route
+          path="digital-passport"
+          element={<Navigate to="/passport" replace />}
+        />
+        <Route path="membership" element={<MembershipPage />} />
+        <Route path="sync-together" element={<SyncTogether />} />
+        <Route
+          path="team-travel"
+          element={<Navigate to="/sync-together" replace />}
+        />
+        <Route path="saved-trips" element={<SavedTripsPage />} />
+
+        {/* ── Legal ── ← NEW */}
+        <Route path="privacy" element={<PrivacyPolicyPage />} />
+        <Route path="terms" element={<TermsOfServicePage />} />
+
+        <Route element={<ProtectedRoute />}>
+          <Route path="dashboard" element={<Dashboard />} />
+        </Route>
+
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
+  );
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
 export default function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
-      <Routes>
-        {/* ── Admin routes — outside AppLayout so no navbar shows ── */}
-        <Route path="admin/login" element={<AdminLogin />} />
-        <Route path="admin" element={<AdminDashboard />} />
-
-        {/* ── Main app with AppLayout (navbar + footer) ── */}
-        <Route element={<AppLayout />}>
-          <Route index element={<LandingPage />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
-          <Route path="forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="reset" element={<ForgotPasswordPage />} />
-          <Route path="verify-email" element={<VerifyEmailPage />} />
-          <Route path="booking" element={<BookingPage />} />
-          <Route path="skyhub" element={<SkyHubPage />} />
-          <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
-          <Route path="feed" element={<Navigate to="/skyhub" replace />} />
-          <Route path="passport" element={<DigitalPassportPage />} />
-          <Route
-            path="digital-passport"
-            element={<Navigate to="/passport" replace />}
-          />
-          <Route path="membership" element={<MembershipPage />} />
-          <Route path="sync-together" element={<SyncTogether />} />
-          <Route
-            path="team-travel"
-            element={<Navigate to="/sync-together" replace />}
-          />
-          <Route path="saved-trips" element={<SavedTripsPage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route path="dashboard" element={<Dashboard />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
+      <TrackedRoutes />
     </Suspense>
   );
 }

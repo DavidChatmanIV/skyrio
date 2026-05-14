@@ -8,10 +8,8 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 
-// ─── Stripe instance (created once outside component) ──────────────────────────
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
-// ─── Design tokens ─────────────────────────────────────────────────────────────
 const G = {
   bg: "#0d0b1a",
   bgCard: "rgba(255,255,255,0.04)",
@@ -37,7 +35,7 @@ const css = `
   .skc-input {
     width: 100%; padding: 13px 16px; border-radius: 12px;
     background: ${G.bgInput}; border: 1px solid ${G.border};
-    color: #fff; font-size: 15px; font-family: inherit;
+    color: #fff; font-size: 16px; font-family: inherit;
     transition: border-color .2s, box-shadow .2s; outline: none;
   }
   .skc-input:focus { border-color: var(--cta, ${G.orange}); box-shadow: 0 0 0 3px var(--cta-glow, ${G.orangeGlow}); }
@@ -56,7 +54,7 @@ const css = `
   .skc-btn-primary {
     width: 100%; padding: 17px; border-radius: 14px; border: none;
     background: ${G.gradBtn}; color: white; font-size: 16px; font-weight: 700;
-    font-family: inherit; cursor: pointer;
+    font-family: inherit; cursor: pointer; min-height: 52px;
     transition: opacity .2s, transform .15s, box-shadow .2s;
     box-shadow: 0 8px 30px var(--cta-glow, ${G.orangeGlow});
   }
@@ -68,6 +66,7 @@ const css = `
     background: none; border: 1px solid ${G.border}; color: ${G.muted};
     padding: 13px 20px; border-radius: 12px; cursor: pointer; font-size: 14px;
     font-family: inherit; transition: border-color .2s, color .2s; white-space: nowrap;
+    min-height: 52px;
   }
   .skc-btn-back:hover { border-color: ${G.faint}; color: #fff; }
 
@@ -76,7 +75,7 @@ const css = `
     padding: 14px 16px; border-radius: 12px; border: 1px solid ${G.border};
     background: ${G.bgCard}; cursor: pointer; text-align: left; color: #fff;
     transition: border-color .2s, background .2s; margin-bottom: 8px;
-    font-family: inherit;
+    font-family: inherit; min-height: 52px;
   }
   .skc-opt:hover { border-color: rgba(255,138,42,.4); background: ${G.bgCardHover}; }
   .skc-opt.sel { border-color: var(--cta, ${G.orange}); background: rgba(255,138,42,.08); }
@@ -101,27 +100,38 @@ const css = `
   .skc-bg__img {
     position: absolute; inset: 0;
     background-image: url('/src/assets/BookingCheckout/skyrio-checkout-bg.png');
-    background-size: cover; background-position: center 30%;
-    opacity: 0.35;
+    background-size: cover; background-position: center 30%; opacity: 0.35;
   }
   .skc-bg__fade {
     position: absolute; inset: 0;
-    background: linear-gradient(
-      to bottom,
-      #0b0b18 0%,
-      rgba(11,11,24,0.40) 20%,
-      rgba(11,11,24,0.10) 45%,
-      rgba(11,11,24,0.50) 75%,
-      #0b0b18 100%
-    );
+    background: linear-gradient(to bottom, #0b0b18 0%, rgba(11,11,24,0.40) 20%, rgba(11,11,24,0.10) 45%, rgba(11,11,24,0.50) 75%, #0b0b18 100%);
   }
   .skc-bg__vignette {
     position: absolute; inset: 0;
     background: radial-gradient(ellipse 85% 100% at 50% 40%, transparent 30%, #0b0b18 100%);
   }
+
+  /* ── Step layout — desktop: side by side, mobile: stacked ── */
+  .skc-step-layout { display: flex; gap: 28px; align-items: flex-start; }
+  .skc-step-form { flex: 1; min-width: 0; }
+  .skc-step-sidebar { width: 252px; flex-shrink: 0; }
+  .skc-name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .skc-btn-row { display: flex; gap: 12px; }
+
+  @media (max-width: 768px) {
+    .skc-step-layout { flex-direction: column-reverse; gap: 16px; }
+    .skc-step-sidebar { width: 100% !important; }
+    .skc-sidebar-full { display: none; }
+    .skc-sidebar-compact { display: flex !important; }
+    .skc-name-grid { gap: 10px; }
+    .skc-btn-row { flex-direction: column; }
+    .skc-btn-back { width: 100%; text-align: center; }
+  }
+  @media (max-width: 400px) {
+    .skc-name-grid { grid-template-columns: 1fr; }
+  }
 `;
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 function getUserIdFromToken() {
   try {
     const token = localStorage.getItem("token");
@@ -132,7 +142,6 @@ function getUserIdFromToken() {
   }
 }
 
-// ─── Mock / data helpers ───────────────────────────────────────────────────────
 const MOCK_FLIGHT = {
   outbound: {
     from: "EWR",
@@ -204,7 +213,6 @@ function buildFlight(flight) {
   };
 }
 
-// ─── Options ───────────────────────────────────────────────────────────────────
 const SEAT_OPTIONS = [
   {
     id: "none",
@@ -266,7 +274,6 @@ const BAG_OPTIONS = [
   },
 ];
 
-// ─── Shared atoms ──────────────────────────────────────────────────────────────
 function PlaneIcon({ size = 15 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -590,115 +597,157 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
         background: "rgba(255,255,255,.03)",
         border: `1px solid ${G.border}`,
         borderRadius: 18,
-        padding: 22,
+        padding: 20,
         position: "sticky",
         top: 24,
       }}
     >
+      {/* Compact strip — mobile only */}
       <div
+        className="skc-sidebar-compact"
         style={{
-          fontSize: 11,
-          letterSpacing: ".06em",
-          textTransform: "uppercase",
-          color: G.faint,
-          fontWeight: 600,
-          marginBottom: 16,
+          display: "none",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
         }}
       >
-        Your trip
-      </div>
-      {flight?.outbound && (
-        <>
+        <div>
+          <div style={{ fontSize: 11, color: G.faint, marginBottom: 2 }}>
+            YOUR TRIP
+          </div>
+          {flight?.outbound && (
+            <div style={{ fontWeight: 700, fontSize: 15 }}>
+              {flight.outbound.from} → {flight.outbound.to}
+            </div>
+          )}
+          <div style={{ fontSize: 12, color: G.muted }}>
+            {flight?.outbound?.date}
+          </div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontSize: 11, color: G.faint, marginBottom: 2 }}>
+            Total
+          </div>
           <div
             style={{
-              fontFamily: "inherit",
-              fontWeight: 700,
-              fontSize: 14,
-              marginBottom: 4,
+              fontWeight: 800,
+              fontSize: 20,
+              color: "var(--cta, #ff8a2a)",
             }}
           >
-            {flight.outbound.from} → {flight.outbound.to}
+            ${total.toFixed(2)}
           </div>
-          <div style={{ fontSize: 12, color: G.muted }}>
-            {flight.outbound.date} · {flight.outbound.time}
+        </div>
+      </div>
+
+      {/* Full card — desktop only */}
+      <div className="skc-sidebar-full">
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: ".06em",
+            textTransform: "uppercase",
+            color: G.faint,
+            fontWeight: 600,
+            marginBottom: 16,
+          }}
+        >
+          Your trip
+        </div>
+        {flight?.outbound && (
+          <>
+            <div
+              style={{
+                fontFamily: "inherit",
+                fontWeight: 700,
+                fontSize: 14,
+                marginBottom: 4,
+              }}
+            >
+              {flight.outbound.from} → {flight.outbound.to}
+            </div>
+            <div style={{ fontSize: 12, color: G.muted }}>
+              {flight.outbound.date} · {flight.outbound.time}
+            </div>
+            <div style={{ fontSize: 12, color: G.muted }}>
+              {flight.outbound.duration} ·{" "}
+              {flight.stops === 0 ? "Nonstop" : `${flight.stops} stops`}
+            </div>
+            <div style={{ fontSize: 12, color: G.muted, marginBottom: 12 }}>
+              {flight.outbound.airline}
+            </div>
+          </>
+        )}
+        {flight?.return && (
+          <div
+            style={{
+              borderTop: `1px solid ${G.border}`,
+              paddingTop: 12,
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "inherit",
+                fontWeight: 700,
+                fontSize: 14,
+                marginBottom: 4,
+              }}
+            >
+              {flight.return.from} → {flight.return.to}
+            </div>
+            <div style={{ fontSize: 12, color: G.muted }}>Return TBD</div>
           </div>
-          <div style={{ fontSize: 12, color: G.muted }}>
-            {flight.outbound.duration} ·{" "}
-            {flight.stops === 0 ? "Nonstop" : `${flight.stops} stops`}
-          </div>
-          <div style={{ fontSize: 12, color: G.muted, marginBottom: 12 }}>
-            {flight.outbound.airline}
-          </div>
-        </>
-      )}
-      {flight?.return && (
+        )}
         <div
           style={{
             borderTop: `1px solid ${G.border}`,
             paddingTop: 12,
-            marginBottom: 12,
+            marginBottom: 16,
           }}
         >
-          <div
-            style={{
-              fontFamily: "inherit",
-              fontWeight: 700,
-              fontSize: 14,
-              marginBottom: 4,
-            }}
-          >
-            {flight.return.from} → {flight.return.to}
+          <div style={{ fontSize: 11, color: G.faint, marginBottom: 4 }}>
+            Passengers
           </div>
-          <div style={{ fontSize: 12, color: G.muted }}>Return TBD</div>
+          <div style={{ fontSize: 14 }}>1 Adult</div>
         </div>
-      )}
-      <div
-        style={{
-          borderTop: `1px solid ${G.border}`,
-          paddingTop: 12,
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ fontSize: 11, color: G.faint, marginBottom: 4 }}>
-          Passengers
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontFamily: "inherit",
+            fontWeight: 800,
+            fontSize: 16,
+          }}
+        >
+          <span>Total</span>
+          <span style={{ color: "var(--cta, #ff8a2a)" }}>
+            ${total.toFixed(2)}
+          </span>
         </div>
-        <div style={{ fontSize: 14 }}>1 Adult</div>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontFamily: "inherit",
-          fontWeight: 800,
-          fontSize: 16,
-        }}
-      >
-        <span>Total</span>
-        <span style={{ color: "var(--cta, #ff8a2a)" }}>
-          ${total.toFixed(2)}
-        </span>
-      </div>
-      <div
-        style={{
-          marginTop: 16,
-          padding: "12px 14px",
-          background: "rgba(52,211,153,.07)",
-          border: "1px solid rgba(52,211,153,.2)",
-          borderRadius: 10,
-          display: "flex",
-          gap: 8,
-          alignItems: "flex-start",
-        }}
-      >
-        <span style={{ color: G.success, marginTop: 1 }}>
-          <ShieldIcon />
-        </span>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: G.success }}>
-            Book with confidence
-          </div>
-          <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-            Free cancellation within 24 hours of booking.
+        <div
+          style={{
+            marginTop: 16,
+            padding: "12px 14px",
+            background: "rgba(52,211,153,.07)",
+            border: "1px solid rgba(52,211,153,.2)",
+            borderRadius: 10,
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+          }}
+        >
+          <span style={{ color: G.success, marginTop: 1 }}>
+            <ShieldIcon />
+          </span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: G.success }}>
+              Book with confidence
+            </div>
+            <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
+              Free cancellation within 24 hours of booking.
+            </div>
           </div>
         </div>
       </div>
@@ -706,7 +755,6 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
   );
 }
 
-// ─── Step 1: Passengers ────────────────────────────────────────────────────────
 function StepPassengers({ onNext, flight, basePrice }) {
   const [form, setForm] = useState({
     firstName: "",
@@ -718,13 +766,11 @@ function StepPassengers({ onNext, flight, basePrice }) {
   });
   const [touched, setTouched] = useState({});
   const [showKtn, setShowKtn] = useState(false);
-
   const firstRef = useRef();
   const lastRef = useRef();
   const dobRef = useRef();
   const emailRef = useRef();
   const phoneRef = useRef();
-
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
     setTouched((t) => ({ ...t, [k]: true }));
@@ -736,14 +782,12 @@ function StepPassengers({ onNext, flight, basePrice }) {
     return d.isValid() && d.isBefore(dayjs().subtract(1, "day"));
   };
   const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-
   const errs = {
     firstName: touched.firstName && !form.firstName ? "Required" : null,
     lastName: touched.lastName && !form.lastName ? "Required" : null,
     dob: touched.dob && !dobOk(form.dob) ? "Enter a valid past date" : null,
     email: touched.email && !emailOk(form.email) ? "Enter a valid email" : null,
   };
-
   const handleContinue = () => {
     const live = {
       firstName: firstRef.current?.value || form.firstName,
@@ -764,11 +808,10 @@ function StepPassengers({ onNext, flight, basePrice }) {
       return;
     onNext(live);
   };
-
   return (
     <div className="skc-fade">
-      <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
+      <div className="skc-step-layout">
+        <div className="skc-step-form">
           <h2
             style={{
               fontFamily: "inherit",
@@ -782,14 +825,7 @@ function StepPassengers({ onNext, flight, basePrice }) {
           <p style={{ color: G.muted, fontSize: 14, marginBottom: 24 }}>
             Must match your government-issued ID exactly.
           </p>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 16,
-              marginBottom: 16,
-            }}
-          >
+          <div className="skc-name-grid">
             {[
               {
                 k: "firstName",
@@ -963,7 +999,7 @@ function StepPassengers({ onNext, flight, basePrice }) {
             <span>Your information is secure and encrypted</span>
           </div>
         </div>
-        <div style={{ width: 252, flexShrink: 0 }}>
+        <div className="skc-step-sidebar">
           <TripSidebar
             flight={flight}
             seat="none"
@@ -977,16 +1013,14 @@ function StepPassengers({ onNext, flight, basePrice }) {
   );
 }
 
-// ─── Step 2: Seats & Bags ──────────────────────────────────────────────────────
 function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
   const [seat, setSeat] = useState("none");
   const [bag, setBag] = useState("none");
   const [insurance, setInsurance] = useState(false);
-
   return (
     <div className="skc-fade">
-      <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
+      <div className="skc-step-layout">
+        <div className="skc-step-form">
           <h2
             style={{
               fontFamily: "inherit",
@@ -1126,7 +1160,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
             bag={bag}
             insurance={insurance}
           />
-          <div style={{ display: "flex", gap: 12 }}>
+          <div className="skc-btn-row">
             <button type="button" className="skc-btn-back" onClick={onBack}>
               ← Back
             </button>
@@ -1140,7 +1174,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
             </button>
           </div>
         </div>
-        <div style={{ width: 252, flexShrink: 0 }}>
+        <div className="skc-step-sidebar">
           <TripSidebar
             flight={flight}
             seat={seat}
@@ -1154,7 +1188,6 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
   );
 }
 
-// ─── Step 3 inner: Stripe pay form (must live inside <Elements>) ───────────────
 function StripePayForm({
   onBack,
   passenger,
@@ -1190,13 +1223,9 @@ function StripePayForm({
         setLoading(false);
         return;
       }
-      // Succeeded without redirect — webhook fires automatically to handle
-      // booking confirmation, XP award, and both notifications
-      if (paymentIntent?.status === "succeeded") {
-        setDone(true);
-      }
+      if (paymentIntent?.status === "succeeded") setDone(true);
     } catch (err) {
-      setError(err.message || "Something went wrong. Please try again.");
+      setError(err.message || "Something went wrong.");
       setLoading(false);
     }
   };
@@ -1349,9 +1378,11 @@ function StripePayForm({
           {agreed ? "✓" : ""}
         </div>
         <span>
-          I agree to the{" "}
+          I agree to the {/* ── Updated to real legal pages ── */}
           <a
-            href="#"
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             style={{ color: "var(--cta, #ff8a2a)", textDecoration: "none" }}
           >
@@ -1359,7 +1390,9 @@ function StripePayForm({
           </a>{" "}
           and{" "}
           <a
-            href="#"
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             style={{ color: "var(--cta, #ff8a2a)", textDecoration: "none" }}
           >
@@ -1369,7 +1402,7 @@ function StripePayForm({
         </span>
       </button>
 
-      <div style={{ display: "flex", gap: 12 }}>
+      <div className="skc-btn-row">
         <button
           type="button"
           className="skc-btn-back"
@@ -1414,19 +1447,16 @@ function StripePayForm({
   );
 }
 
-// ─── Step 3 outer: creates booking + PaymentIntent, mounts Elements ────────────
 function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
   const [clientSecret, setClientSecret] = useState(null);
   const [bookingId, setBookingId] = useState(null);
   const [initLoading, setInitLoading] = useState(true);
   const [payLoading, setPayLoading] = useState(false);
   const [error, setError] = useState("");
-
   const sp = SEAT_OPTIONS.find((o) => o.id === extras.seat)?.price ?? 0;
   const bp = BAG_OPTIONS.find((o) => o.id === extras.bag)?.price ?? 0;
   const ip = extras.insurance ? 28.25 : 0;
   const total = basePrice + sp + bp + ip;
-
   const recapRows = [
     {
       label: "Passenger",
@@ -1450,11 +1480,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
       try {
         const token = localStorage.getItem("token");
         const API = import.meta.env?.VITE_API_URL || "";
-
-        // ── Decode userId from JWT so webhook can award XP + fire notifications ──
         const userId = getUserIdFromToken();
-
-        // 1. Create booking (status: pending)
         const bRes = await fetch(`${API}/api/bookings`, {
           method: "POST",
           headers: {
@@ -1485,9 +1511,6 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
         const bData = await bRes.json();
         const bId = bData?._id || bData?.id || "";
         setBookingId(bId);
-
-        // 2. Create PaymentIntent — bookingId + userId go into metadata
-        //    so the webhook can confirm the booking, award XP, and fire notifications
         const iRes = await fetch(`${API}/api/stripe/create-payment-intent`, {
           method: "POST",
           headers: {
@@ -1499,7 +1522,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
             amount: total,
             currency: "usd",
             bookingId: bId,
-            userId, // ← NEW: required for XP + notification webhook handlers
+            userId,
           }),
         });
         const iData = await iRes.json();
@@ -1513,7 +1536,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
       }
       setInitLoading(false);
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line
 
   const stripeAppearance = {
     theme: "night",
@@ -1557,8 +1580,8 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
 
   return (
     <div className="skc-fade">
-      <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
+      <div className="skc-step-layout">
+        <div className="skc-step-form">
           <h2
             style={{
               fontFamily: "inherit",
@@ -1569,7 +1592,6 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
           >
             Review &amp; Pay
           </h2>
-
           <section style={{ marginBottom: 24 }}>
             <div
               style={{
@@ -1600,14 +1622,12 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
               </div>
             ))}
           </section>
-
           <PriceSummary
             base={basePrice}
             seat={extras.seat}
             bag={extras.bag}
             insurance={extras.insurance}
           />
-
           {initLoading && (
             <div
               style={{ textAlign: "center", padding: "40px 0", color: G.muted }}
@@ -1623,7 +1643,6 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
               </div>
             </div>
           )}
-
           {!initLoading && error && (
             <div
               style={{
@@ -1649,7 +1668,6 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
               </div>
             </div>
           )}
-
           {!initLoading && clientSecret && (
             <Elements
               stripe={stripePromise}
@@ -1671,8 +1689,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
             </Elements>
           )}
         </div>
-
-        <div style={{ width: 252, flexShrink: 0 }}>
+        <div className="skc-step-sidebar">
           <TripSidebar
             flight={flight}
             seat={extras.seat}
@@ -1686,7 +1703,6 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
   );
 }
 
-// ─── Main export ───────────────────────────────────────────────────────────────
 export default function BookingCheckout({ flight, onBack }) {
   const liveFlight = buildFlight(flight);
   const [step, setStep] = useState(0);
@@ -1707,7 +1723,7 @@ export default function BookingCheckout({ flight, onBack }) {
           zIndex: 1,
           maxWidth: 900,
           margin: "0 auto",
-          padding: "0 24px 72px",
+          padding: "0 20px 72px",
         }}
       >
         <div

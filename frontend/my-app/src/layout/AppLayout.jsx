@@ -1,6 +1,7 @@
 import React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import Footer from "../components/Footer"; // ← NEW
 import AtlasChat from "../components/Atlas/AtlasChat";
 import { useAtlasContext } from "../components/Atlas/AtlasContext";
 import CookieBanner from "../components/CookieBanner";
@@ -32,14 +33,14 @@ export default function AppLayout() {
   return (
     <div className={shellClass}>
       <Navbar />
+
       <main className={`osq-main ${isSkyHub ? "osq-main--flush" : ""}`}>
         <Outlet />
       </main>
-      {!isSkyHub && (
-        <footer className="osq-footer">
-          © {new Date().getFullYear()} Skyrio
-        </footer>
-      )}
+
+      {/* ── Footer — hidden on SkyHub (full-bleed layout) ── */}
+      {!isSkyHub && <Footer />}
+
       <AtlasChat destination={atlasDestination} />
       <CookieBanner />
     </div>

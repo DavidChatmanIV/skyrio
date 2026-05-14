@@ -231,7 +231,7 @@ export default function Navbar() {
                     Log out
                   </Button>
 
-                  {/* ── Admin link — only visible to skyriooffcial@gmail.com ── */}
+                  {/* ── Admin link — only visible to skyrioofficial@gmail.com ── */}
                   {isAdmin && (
                     <button
                       type="button"

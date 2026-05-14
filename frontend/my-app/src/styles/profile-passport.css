@@ -46,9 +46,16 @@
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(1200px 700px at 20% 0%, rgba(120, 90, 255, 0.22), transparent 60%),
-    radial-gradient(900px 600px at 80% 30%, rgba(255, 138, 42, 0.18), transparent 55%),
+  background: radial-gradient(
+      1200px 700px at 20% 0%,
+      rgba(120, 90, 255, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 600px at 80% 30%,
+      rgba(255, 138, 42, 0.18),
+      transparent 55%
+    ),
     linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.62));
 }
 
@@ -111,9 +118,15 @@
 /* =============================
    TYPOGRAPHY
    ============================= */
-.pp-title  { color: var(--pp-text) !important; }
-.pp-muted  { color: var(--pp-muted) !important; }
-.pp-faint  { color: var(--pp-faint) !important; }
+.pp-title {
+  color: var(--pp-text) !important;
+}
+.pp-muted {
+  color: var(--pp-muted) !important;
+}
+.pp-faint {
+  color: var(--pp-faint) !important;
+}
 
 /* =============================
    CARD SYSTEM
@@ -126,7 +139,9 @@
   backdrop-filter: var(--pp-blur);
 }
 
-.pp-card .ant-card-body { padding: 18px; }
+.pp-card .ant-card-body {
+  padding: 18px;
+}
 
 /* =============================
    MOCK GRID
@@ -148,7 +163,9 @@
 /* =============================
    PROFILE TOP STRIP
    ============================= */
-.pp-profileCard { overflow: hidden; }
+.pp-profileCard {
+  overflow: hidden;
+}
 
 .pp-profileRow {
   display: grid;
@@ -178,7 +195,11 @@
 
 .pp-pill--active {
   border-color: var(--pp-orange-border);
-  background: linear-gradient(180deg, rgba(255, 138, 42, 0.22), rgba(0, 0, 0, 0.16));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 138, 42, 0.22),
+    rgba(0, 0, 0, 0.16)
+  );
 }
 
 .pp-followRow {
@@ -188,7 +209,9 @@
   margin: 12px 0 0;
 }
 
-.pp-followRow--mock { max-width: 420px; }
+.pp-followRow--mock {
+  max-width: 420px;
+}
 
 .ppFollowBtn {
   width: 100%;
@@ -202,11 +225,17 @@
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+  transition: transform 0.14s ease, border-color 0.14s ease,
+    background 0.14s ease;
 }
 
-.ppFollowBtn strong { font-size: 14px; }
-.ppFollowBtn span   { font-size: 12px; color: var(--pp-muted); }
+.ppFollowBtn strong {
+  font-size: 14px;
+}
+.ppFollowBtn span {
+  font-size: 12px;
+  color: var(--pp-muted);
+}
 
 .ppFollowBtn:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -214,9 +243,15 @@
   background: rgba(0, 0, 0, 0.18);
 }
 
-.ppFollowBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+.ppFollowBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
-.pp-profileRing { display: grid; place-items: center; }
+.pp-profileRing {
+  display: grid;
+  place-items: center;
+}
 
 .pp-levelRing--mock {
   width: 210px;
@@ -227,10 +262,28 @@
   filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.35));
 }
 
-.pp-levelText  { display: grid; place-items: center; gap: 2px; }
-.pp-levelRole  { font-size: 12px; color: var(--pp-muted); font-weight: 800; letter-spacing: 0.3px; }
-.pp-levelNum   { font-size: 20px; color: var(--pp-text); font-weight: 900; line-height: 1.05; }
-.pp-levelXp    { font-size: 12px; color: var(--pp-muted); font-weight: 800; }
+.pp-levelText {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+}
+.pp-levelRole {
+  font-size: 12px;
+  color: var(--pp-muted);
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+.pp-levelNum {
+  font-size: 20px;
+  color: var(--pp-text);
+  font-weight: 900;
+  line-height: 1.05;
+}
+.pp-levelXp {
+  font-size: 12px;
+  color: var(--pp-muted);
+  font-weight: 800;
+}
 
 /* =============================
    HOME BASE ROW
@@ -246,22 +299,36 @@
 }
 
 .pp-homeBaseDot {
-  width: 10px; height: 10px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   border: 2px solid rgba(255, 255, 255, 0.22);
   background: rgba(0, 0, 0, 0.18);
 }
 
-.pp-homeBaseLabel { opacity: 0.92; }
-.pp-homeBaseSep   { opacity: 0.55; }
-.pp-homeBaseValue { color: rgba(244, 246, 251, 0.82); }
+.pp-homeBaseLabel {
+  opacity: 0.92;
+}
+.pp-homeBaseSep {
+  opacity: 0.55;
+}
+.pp-homeBaseValue {
+  color: rgba(244, 246, 251, 0.82);
+}
 
 /* =============================
    RIGHT SIDEBAR ACTIONS
    ============================= */
-.pp-actionsCard .ant-card-body { display: grid; gap: 10px; }
+.pp-actionsCard .ant-card-body {
+  display: grid;
+  gap: 10px;
+}
 
-.pp-actionsStack { display: grid; gap: 10px; margin-top: 6px; }
+.pp-actionsStack {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
 
 .pp-actionBtn.ant-btn {
   height: 40px;
@@ -280,7 +347,9 @@
   transform: translateY(-1px);
 }
 
-.pp-actionBtn.ant-btn:focus-visible { box-shadow: var(--pp-focus); }
+.pp-actionBtn.ant-btn:focus-visible {
+  box-shadow: var(--pp-focus);
+}
 
 .pp-credentialHint {
   font-size: 13px;
@@ -302,7 +371,9 @@
 /* =============================
    SOUNDTRACK CARD
    ============================= */
-.pp-soundtrackCard { overflow: hidden; }
+.pp-soundtrackCard {
+  overflow: hidden;
+}
 
 .pp-soundtrackRow {
   display: grid;
@@ -312,7 +383,8 @@
 }
 
 .pp-soundtrackCover {
-  width: 140px; height: 108px;
+  width: 140px;
+  height: 108px;
   border-radius: 16px;
   background-size: cover;
   background-position: center;
@@ -320,15 +392,28 @@
   box-shadow: 0 18px 34px rgba(0, 0, 0, 0.35);
 }
 
-.pp-soundtrackTitle { font-size: 20px; font-weight: 950; color: rgba(244, 246, 251, 0.95); }
-.pp-soundtrackSub   { font-size: 14px; font-weight: 850; color: rgba(244, 246, 251, 0.82); margin-top: 3px; }
-.pp-soundtrackTiny  { font-size: 12px; color: rgba(244, 246, 251, 0.62); margin-top: 3px; }
+.pp-soundtrackTitle {
+  font-size: 20px;
+  font-weight: 950;
+  color: rgba(244, 246, 251, 0.95);
+}
+.pp-soundtrackSub {
+  font-size: 14px;
+  font-weight: 850;
+  color: rgba(244, 246, 251, 0.82);
+  margin-top: 3px;
+}
+.pp-soundtrackTiny {
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.62);
+  margin-top: 3px;
+}
 
 .pp-audioBar {
   height: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
   margin-top: 12px;
 }
@@ -347,7 +432,8 @@
 }
 
 .pp-audioBtn {
-  height: 34px; min-width: 34px;
+  height: 34px;
+  min-width: 34px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(0, 0, 0, 0.14);
@@ -357,7 +443,8 @@
 }
 
 .pp-audioBtn--main {
-  min-width: 42px; height: 42px;
+  min-width: 42px;
+  height: 42px;
   border-color: rgba(255, 138, 42, 0.35);
   background: rgba(255, 138, 42, 0.12);
 }
@@ -370,13 +457,29 @@
   opacity: 0.55;
 }
 
-.pp-audioWave span { width: 4px; border-radius: 6px; background: rgba(244, 246, 251, 0.75); }
-.pp-audioWave span:nth-child(1) { height: 10px; }
-.pp-audioWave span:nth-child(2) { height: 16px; }
-.pp-audioWave span:nth-child(3) { height: 12px; }
-.pp-audioWave span:nth-child(4) { height: 18px; }
-.pp-audioWave span:nth-child(5) { height: 13px; }
-.pp-audioWave span:nth-child(6) { height: 16px; }
+.pp-audioWave span {
+  width: 4px;
+  border-radius: 6px;
+  background: rgba(244, 246, 251, 0.75);
+}
+.pp-audioWave span:nth-child(1) {
+  height: 10px;
+}
+.pp-audioWave span:nth-child(2) {
+  height: 16px;
+}
+.pp-audioWave span:nth-child(3) {
+  height: 12px;
+}
+.pp-audioWave span:nth-child(4) {
+  height: 18px;
+}
+.pp-audioWave span:nth-child(5) {
+  height: 13px;
+}
+.pp-audioWave span:nth-child(6) {
+  height: 16px;
+}
 
 /* =============================
    JOURNEYS CARD
@@ -388,7 +491,11 @@
   margin-bottom: 12px;
 }
 
-.pp-journeysTitle { font-size: 20px; font-weight: 950; color: rgba(244, 246, 251, 0.95); }
+.pp-journeysTitle {
+  font-size: 20px;
+  font-weight: 950;
+  color: rgba(244, 246, 251, 0.95);
+}
 
 .pp-journeysEmpty {
   border-radius: 16px;
@@ -418,7 +525,9 @@
    RESPONSIVE
    ============================= */
 @media (max-width: 1100px) {
-  .pp-mockGrid { grid-template-columns: 1fr; }
+  .pp-mockGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -430,6 +539,147 @@
     justify-self: center;
     width: 100%;
   }
-  .pp-soundtrackRow { grid-template-columns: 1fr; }
-  .pp-soundtrackCover { width: 100%; height: 140px; }
+  .pp-soundtrackRow {
+    grid-template-columns: 1fr;
+  }
+  .pp-soundtrackCover {
+    width: 100%;
+    height: 140px;
+  }
+
+  /* ════════════════════════════════════════════
+   PASSPORT PAGE MOBILE POLISH
+════════════════════════════════════════════ */
+
+  /* ── Safe area bottom padding ── */
+  .pp-page {
+    padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ── At tablet (below 1100px) side panel stacks below main ── */
+  @media (max-width: 1100px) {
+    .pp-mockGrid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    /* Side panel full width when stacked */
+    .pp-mockSide {
+      grid-row: auto;
+    }
+
+    /* Action buttons full width */
+    .pp-actionsStack {
+      grid-template-columns: 1fr 1fr;
+      display: grid;
+      gap: 10px;
+    }
+
+    .pp-upgradeBtn.ant-btn {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* ── Mobile (560px and below) ── */
+  @media (max-width: 560px) {
+    .pp-page {
+      padding: 14px 12px calc(40px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Home button — push down slightly so it doesn't overlap navbar */
+    .pp-homeBtnWrap {
+      position: relative;
+      top: 0;
+      left: 0;
+      margin-bottom: 12px;
+    }
+
+    /* Profile row — avatar + name side by side, ring below */
+    .pp-profileRow {
+      grid-template-columns: auto 1fr;
+      grid-template-rows: auto auto;
+      gap: 12px;
+    }
+
+    /* Ring spans full width below avatar+name */
+    .pp-profileRing {
+      grid-column: 1 / -1;
+      justify-self: stretch;
+      display: flex;
+      justify-content: center;
+    }
+
+    .pp-levelRing--mock {
+      width: 180px;
+    }
+
+    /* Follow row full width with proper spacing */
+    .pp-followRow--mock {
+      max-width: 100%;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .ppFollowBtn {
+      min-height: 44px;
+      font-size: 13px;
+    }
+
+    /* Passport card title smaller */
+    .pp-actionsCard .ant-card-title,
+    .pp-actionsCard h3 {
+      font-size: 18px !important;
+    }
+
+    /* Action buttons stack single column on very small screens */
+    .pp-actionsStack {
+      grid-template-columns: 1fr;
+    }
+
+    .pp-upgradeBtn.ant-btn {
+      grid-column: auto;
+    }
+
+    /* Action button touch target */
+    .pp-actionBtn.ant-btn {
+      height: 46px !important;
+      font-size: 14px !important;
+    }
+
+    /* Soundtrack card — cover full width (already in CSS but re-enforce) */
+    .pp-soundtrackRow {
+      grid-template-columns: 1fr;
+    }
+    .pp-soundtrackCover {
+      width: 100%;
+      height: 160px;
+    }
+
+    /* Journeys empty state */
+    .pp-journeysEmpty {
+      padding: 24px 16px;
+    }
+
+    /* Home base row */
+    .pp-homeBaseRow {
+      font-size: 13px;
+      padding-left: 4px;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+  }
+
+  /* ── Very small (375px iPhone SE) ── */
+  @media (max-width: 390px) {
+    .pp-levelRing--mock {
+      width: 160px;
+    }
+
+    .pp-followRow--mock {
+      grid-template-columns: 1fr;
+    }
+
+    .ppFollowBtn {
+      width: 100%;
+    }
+  }
 }
