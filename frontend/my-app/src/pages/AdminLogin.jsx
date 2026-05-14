@@ -11,7 +11,7 @@ export default function AdminLogin() {
   const location = useLocation();
   const [loading, setLoading] = useState(false);
 
-  const returnTo = location.state?.returnTo || "/passport";
+  const returnTo = location.state?.returnTo || "/admin";
 
   const handleLogin = async ({ email, password }) => {
     setLoading(true);
@@ -22,14 +22,17 @@ export default function AdminLogin() {
         credentials: "include",
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
-
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error || "Login failed");
       }
 
       message.success("Admin verified");
+      localStorage.setItem("admin", "true");
+
+      // ── Store email so dashboard can send it as fallback auth header ──
+      localStorage.setItem("admin_email", email.toLowerCase());
+
       navigate(returnTo);
     } catch (err) {
       message.error(err?.message || "Invalid admin credentials");
@@ -48,7 +51,6 @@ export default function AdminLogin() {
           </Title>
           <Text type="secondary">Restricted access — administrators only</Text>
         </div>
-
         <Form layout="vertical" onFinish={handleLogin}>
           <Form.Item
             name="email"
@@ -64,7 +66,6 @@ export default function AdminLogin() {
               autoComplete="email"
             />
           </Form.Item>
-
           <Form.Item
             name="password"
             label="Password"
@@ -76,7 +77,6 @@ export default function AdminLogin() {
               autoComplete="current-password"
             />
           </Form.Item>
-
           <Form.Item style={{ marginTop: 12 }}>
             <Button type="primary" htmlType="submit" block loading={loading}>
               Verify Admin

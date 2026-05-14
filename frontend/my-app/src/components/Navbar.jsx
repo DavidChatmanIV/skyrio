@@ -30,6 +30,9 @@ function getActiveKey(pathname) {
   return "";
 }
 
+// ── Admin email — only this account sees the admin link ──
+const ADMIN_EMAIL = "skyriooffcial@gmail.com";
+
 export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -61,6 +64,8 @@ export default function Navbar() {
       .toUpperCase()
       .slice(0, 2);
   }, [displayName]);
+
+  const isAdmin = isAuthed && user?.email === ADMIN_EMAIL;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -190,6 +195,7 @@ export default function Navbar() {
                   {/* ── Notifications dropdown ── */}
                   <Notifications />
 
+                  {/* ── User avatar + name ── */}
                   <button
                     type="button"
                     className="sk-nav-user"
@@ -215,6 +221,8 @@ export default function Navbar() {
                     </Avatar>
                     <span className="sk-nav-username">{displayName}</span>
                   </button>
+
+                  {/* ── Logout ── */}
                   <Button
                     className="sk-btn sk-btn-logout"
                     icon={<LogoutOutlined />}
@@ -222,6 +230,40 @@ export default function Navbar() {
                   >
                     Log out
                   </Button>
+
+                  {/* ── Admin link — only visible to skyriooffcial@gmail.com ── */}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/admin/login")}
+                      title="Admin Dashboard"
+                      style={{
+                        background: "none",
+                        border: "1px solid rgba(255,138,42,0.25)",
+                        borderRadius: 999,
+                        cursor: "pointer",
+                        fontSize: 11,
+                        color: "rgba(255,138,42,0.6)",
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        padding: "4px 10px",
+                        transition: "border-color 0.2s, color 0.2s",
+                        whiteSpace: "nowrap",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor =
+                          "rgba(255,138,42,0.6)";
+                        e.currentTarget.style.color = "#ff8a2a";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor =
+                          "rgba(255,138,42,0.25)";
+                        e.currentTarget.style.color = "rgba(255,138,42,0.6)";
+                      }}
+                    >
+                      ⚙ Admin
+                    </button>
+                  )}
                 </Space>
               ) : (
                 <Space size={8}>
@@ -309,6 +351,24 @@ export default function Navbar() {
                       {unreadCount}
                     </span>
                   )}
+                </button>
+              )}
+
+              {/* Admin in mobile menu — only for admin email */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="sk-mobile-link"
+                  onClick={() => handleNavigate("/admin/login")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    color: "rgba(255,138,42,0.7)",
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>⚙</span>
+                  Admin Dashboard
                 </button>
               )}
 

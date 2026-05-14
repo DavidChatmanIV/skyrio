@@ -10,6 +10,7 @@ import {
   MoreOutlined,
   SendOutlined,
   ShareAltOutlined,
+  FlagOutlined,
 } from "@ant-design/icons";
 
 /* ─────────────────────────────────────────────────────────
@@ -42,7 +43,6 @@ function timeAgo(dateValue) {
   return `${days}d`;
 }
 
-/* Maps badge name → CSS modifier class */
 const BADGE_CLASS = {
   Nomad: "is-nomad",
   Explorer: "is-explorer",
@@ -51,7 +51,6 @@ const BADGE_CLASS = {
   Legend: "is-legend",
 };
 
-/* Maps badge name → small icon glyph */
 const BADGE_ICON = {
   Nomad: "◎",
   Explorer: "⬡",
@@ -60,7 +59,6 @@ const BADGE_ICON = {
   Legend: "◈",
 };
 
-/* Avatar color class based on name length parity — same logic as before */
 function avatarClass(name = "") {
   const n = name.toLowerCase();
   if (n.length % 3 === 0) return "is-blue";
@@ -110,12 +108,11 @@ function ReplyInput({ onSubmit }) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   CONTEXT DROPDOWN
+   CONTEXT DROPDOWN — wired to onReport callback
 ───────────────────────────────────────────────────────── */
-function ContextMenu({ handle, onClose }) {
+function ContextMenu({ handle, onClose, onReport }) {
   const ref = useRef(null);
 
-  // Close on outside click
   useEffect(() => {
     function handler(e) {
       if (ref.current && !ref.current.contains(e.target)) onClose();
@@ -125,11 +122,26 @@ function ContextMenu({ handle, onClose }) {
   }, [onClose]);
 
   const items = [
-    { label: `Follow ${handle}`, danger: false },
-    { label: "Mute", danger: false },
-    { label: "Copy link", danger: false },
-    { label: "Not interested", danger: false },
-    { label: "Report", danger: true },
+    { label: `Follow ${handle}`, danger: false, action: onClose },
+    { label: "Mute", danger: false, action: onClose },
+    {
+      label: "Copy link",
+      danger: false,
+      action: () => {
+        navigator.clipboard?.writeText(window.location.href).catch(() => {});
+        onClose();
+      },
+    },
+    { label: "Not interested", danger: false, action: onClose },
+    {
+      label: "Report post",
+      danger: true,
+      icon: <FlagOutlined style={{ fontSize: 12 }} />,
+      action: () => {
+        onReport?.(); // ← calls handleReportPost in SkyHubPage
+        onClose();
+      },
+    },
   ];
 
   return (
@@ -140,9 +152,10 @@ function ContextMenu({ handle, onClose }) {
           className={`skyhub-feedCard__dropdownItem${
             item.danger ? " is-danger" : ""
           }`}
-          onClick={onClose}
+          onClick={item.action}
           type="button"
         >
+          {item.icon && <span style={{ marginRight: 6 }}>{item.icon}</span>}
           {item.label}
         </button>
       ))}
@@ -159,10 +172,15 @@ export default function SkyHubFeedCard({
   onComment,
   onRepost,
   onBookmark,
+  onToggleLike, // ← SkyHubPage passes this
+  onToggleSave, // ← SkyHubPage passes this
+  onOpenComments, // ← SkyHubPage passes this
+  onReportPost, // ← SkyHubPage passes this ✅ NOW WIRED
 }) {
-  /* ── Local state ── */
   const [liked, setLiked] = useState(Boolean(post?.liked));
-  const [bookmarked, setBookmarked] = useState(Boolean(post?.bookmarked));
+  const [bookmarked, setBookmarked] = useState(
+    Boolean(post?.bookmarked || post?.saved)
+  );
   const [reposted, setReposted] = useState(false);
   const [likeCount, setLikeCount] = useState(post?.likes || 0);
   const [repostCount, setRepostCount] = useState(post?.reposts || 0);
@@ -170,10 +188,11 @@ export default function SkyHubFeedCard({
   const [showReply, setShowReply] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [localReplies, setLocalReplies] = useState([]);
+  const [reported, setReported] = useState(false);
 
-  /* ── Derived display values ── */
   const displayName = post?.user?.name || post?.author || "Traveler";
-  const handle = post?.user?.handle || post?.handle || "@traveler";
+  const handle =
+    post?.user?.handle || post?.username || post?.handle || "@traveler";
   const location = post?.location || post?.destination || "Somewhere amazing";
   const createdAt = post?.createdAt || post?.date;
   const text = post?.text || post?.caption || "";
@@ -186,35 +205,27 @@ export default function SkyHubFeedCard({
   const hasStory = Boolean(post?.hasStory);
   const isThread = Boolean(post?.isThread);
 
-  const initials = useMemo(
-    () => getInitials(post?.user?.name || post?.author || "Traveler"),
-    [post]
-  );
-
-  const avClass = useMemo(
-    () => avatarClass(post?.user?.name || post?.author || ""),
-    [post]
-  );
-
+  const initials = useMemo(() => getInitials(displayName), [displayName]);
+  const avClass = useMemo(() => avatarClass(displayName), [displayName]);
   const needsExpand = text.length > CONTENT_LIMIT;
   const displayText =
     needsExpand && !expanded ? text.slice(0, CONTENT_LIMIT) + "…" : text;
-
   const badgeClass = BADGE_CLASS[badge] || "is-explorer";
   const badgeIcon = BADGE_ICON[badge] || "⬡";
 
-  /* ── Handlers ── */
   function handleLike() {
     const next = !liked;
     setLiked(next);
     setLikeCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
     onLike?.(post, next);
+    onToggleLike?.(post?.id || post?._id); // ← support both prop names
   }
 
   function handleBookmark() {
     const next = !bookmarked;
     setBookmarked(next);
     onBookmark?.(post, next);
+    onToggleSave?.(post?.id || post?._id);
   }
 
   function handleRepost() {
@@ -234,6 +245,14 @@ export default function SkyHubFeedCard({
   function handleComment() {
     setShowReply((v) => !v);
     onComment?.(post);
+    onOpenComments?.(post); // ← opens drawer in SkyHubPage
+  }
+
+  // ── Report handler — calls SkyHubPage's handleReportPost ──
+  function handleReport() {
+    if (reported) return;
+    setReported(true);
+    onReportPost?.(post); // ← this is the key wire
   }
 
   return (
@@ -244,7 +263,6 @@ export default function SkyHubFeedCard({
     >
       {/* ── TOP ROW ── */}
       <div className="skyhub-feedCard__top">
-        {/* Avatar */}
         <div
           className={`skyhub-feedCard__avatar ${avClass}${
             hasStory ? " has-story" : ""
@@ -252,9 +270,9 @@ export default function SkyHubFeedCard({
           role="img"
           aria-label={displayName}
         >
-          {post?.user?.avatar ? (
+          {post?.user?.avatar || post?.avatar ? (
             <img
-              src={post.user.avatar}
+              src={post?.user?.avatar || post?.avatar}
               alt={displayName}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
@@ -263,19 +281,15 @@ export default function SkyHubFeedCard({
           )}
         </div>
 
-        {/* Head */}
         <div className="skyhub-feedCard__head">
           <div className="skyhub-feedCard__line1">
             <span className="skyhub-feedCard__name">{displayName}</span>
-
             {verified && (
               <span className="skyhub-feedCard__verified" aria-label="Verified">
                 ✓
               </span>
             )}
-
             <span className="skyhub-feedCard__handle">{handle}</span>
-
             <span
               className={`skyhub-feedCard__badge ${badgeClass}`}
               title={`${badge} — ${post?.xp ?? 0} XP`}
@@ -283,12 +297,9 @@ export default function SkyHubFeedCard({
               <span style={{ fontSize: "0.62rem" }}>{badgeIcon}</span>
               {badge}
             </span>
-
             <span className="skyhub-feedCard__dot">·</span>
             <span className="skyhub-feedCard__time">{timeAgo(createdAt)}</span>
           </div>
-
-          {/* Location */}
           <div className="skyhub-feedCard__location">
             <EnvironmentOutlined />
             <span>{location}</span>
@@ -305,16 +316,18 @@ export default function SkyHubFeedCard({
           >
             <MoreOutlined />
           </button>
-
           {showMenu && (
-            <ContextMenu handle={handle} onClose={() => setShowMenu(false)} />
+            <ContextMenu
+              handle={handle}
+              onClose={() => setShowMenu(false)}
+              onReport={handleReport} // ← wired
+            />
           )}
         </div>
       </div>
 
       {/* ── BODY ── */}
       <div className="skyhub-feedCard__body">
-        {/* Post text */}
         <p className="skyhub-feedCard__text">
           {displayText}
           {needsExpand && (
@@ -328,14 +341,12 @@ export default function SkyHubFeedCard({
           )}
         </p>
 
-        {/* Single image */}
-        {image && !post?.images?.length ? (
+        {image && !post?.images?.length && (
           <div className="skyhub-feedCard__media">
             <img src={image} alt="Travel post" />
           </div>
-        ) : null}
+        )}
 
-        {/* Tags */}
         {tags.length > 0 && (
           <div className="skyhub-feedCard__tags">
             {tags.map((tag) => (
@@ -345,13 +356,32 @@ export default function SkyHubFeedCard({
             ))}
           </div>
         )}
+
+        {/* Reported state */}
+        {reported && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: "8px 12px",
+              borderRadius: 8,
+              background: "rgba(248,113,113,0.08)",
+              border: "1px solid rgba(248,113,113,0.2)",
+              fontSize: 12,
+              color: "rgba(248,113,113,0.8)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <FlagOutlined /> Post reported — thanks for helping keep SkyHub
+            safe.
+          </div>
+        )}
       </div>
 
       {/* ── FOOTER ── */}
       <div className="skyhub-feedCard__footer">
-        {/* Left actions — Twitter style */}
         <div className="skyhub-feedCard__actions">
-          {/* Like */}
           <button
             type="button"
             className={`skyhub-feedCard__action${liked ? " is-liked" : ""}`}
@@ -362,7 +392,6 @@ export default function SkyHubFeedCard({
             <span>{formatCount(likeCount)}</span>
           </button>
 
-          {/* Comment / Reply */}
           <button
             type="button"
             className={`skyhub-feedCard__action${
@@ -383,7 +412,6 @@ export default function SkyHubFeedCard({
             <span>{formatCount(commentCount + localReplies.length)}</span>
           </button>
 
-          {/* Repost */}
           <button
             type="button"
             className="skyhub-feedCard__action"
@@ -402,7 +430,6 @@ export default function SkyHubFeedCard({
             <span>{formatCount(repostCount)}</span>
           </button>
 
-          {/* Bookmark */}
           <button
             type="button"
             className={`skyhub-feedCard__action${
@@ -415,7 +442,6 @@ export default function SkyHubFeedCard({
             <span>{formatCount(saves + (bookmarked ? 1 : 0))}</span>
           </button>
 
-          {/* Share */}
           <button
             type="button"
             className="skyhub-feedCard__action"
@@ -425,7 +451,6 @@ export default function SkyHubFeedCard({
           </button>
         </div>
 
-        {/* Right — Skyrio-exclusive Book CTA + meta */}
         <div
           style={{
             display: "flex",
@@ -442,18 +467,15 @@ export default function SkyHubFeedCard({
             <SendOutlined style={{ fontSize: "0.8rem" }} />
             Book trip
           </button>
-
           <div className="skyhub-feedCard__meta">
-            <span>{post?.postType || "Travel Tip"}</span>
+            <span>{post?.postType || post?.type || "Travel Tip"}</span>
             <span>{post?.visibility || "Public"}</span>
           </div>
         </div>
       </div>
 
-      {/* ── INLINE REPLY COMPOSER ── */}
       {showReply && <ReplyInput onSubmit={handleReply} />}
 
-      {/* ── THREADED REPLIES ── */}
       {localReplies.length > 0 && (
         <div className="sh-replies">
           {localReplies.map((r) => (

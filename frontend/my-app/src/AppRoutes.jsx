@@ -19,6 +19,10 @@ const SyncTogether = lazy(() => import("./pages/SyncTogether"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 
+// ── Admin pages (standalone — no AppLayout/navbar) ── ← NEW
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+
 function PageLoader() {
   return (
     <div
@@ -49,6 +53,11 @@ export default function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
+        {/* ── Admin routes — outside AppLayout so no navbar shows ── */}
+        <Route path="admin/login" element={<AdminLogin />} />
+        <Route path="admin" element={<AdminDashboard />} />
+
+        {/* ── Main app with AppLayout (navbar + footer) ── */}
         <Route element={<AppLayout />}>
           <Route index element={<LandingPage />} />
           <Route path="login" element={<LoginPage />} />

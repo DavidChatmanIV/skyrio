@@ -14,7 +14,8 @@
   min-height: 100vh;
   background: var(--bg, #09071a);
   padding: 0 0 80px;
-  max-width: 480px;
+  /* Desktop: allow wider layout */
+  max-width: 900px;
   margin: 0 auto;
   font-family: "DM Sans", sans-serif;
   color: var(--text, #f0ecff);
@@ -176,7 +177,169 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-/* ─── Step wrapper ───────────────────────────────────────────────────────────── */
+/* ─── Step layout — desktop: form + sidebar, mobile: stacked ────────────────── */
+
+.sk-step-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 24px 20px;
+}
+
+.sk-step-form {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sk-step-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+}
+
+/* ─── Sidebar card ───────────────────────────────────────────────────────────── */
+
+.sk-sidebar-card {
+  background: rgba(20, 12, 40, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  backdrop-filter: blur(22px);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sk-sidebar-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(240, 236, 255, 0.4);
+}
+
+.sk-sidebar-card__route {
+  font-family: "Syne", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sk-sidebar-card__meta {
+  font-size: 12px;
+  color: rgba(240, 236, 255, 0.5);
+  line-height: 1.6;
+}
+
+.sk-sidebar-card__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sk-sidebar-card__total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.sk-sidebar-card__total-amt {
+  color: #ff8a2a;
+  font-family: "Syne", sans-serif;
+  font-size: 20px;
+}
+
+.sk-sidebar-card__confidence {
+  background: rgba(76, 175, 130, 0.08);
+  border: 1px solid rgba(76, 175, 130, 0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.sk-sidebar-card__confidence-icon {
+  color: #4caf82;
+  font-size: 14px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.sk-sidebar-card__confidence-text {
+  font-size: 12px;
+  color: rgba(240, 236, 255, 0.6);
+  line-height: 1.5;
+}
+
+.sk-sidebar-card__confidence-title {
+  font-weight: 600;
+  color: #4caf82;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+/* ─── Compact mobile summary (shown only on mobile) ─────────────────────────── */
+
+.sk-sidebar-compact {
+  display: none; /* shown via media query on mobile */
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(20, 12, 40, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 0 20px 4px;
+}
+
+.sk-sidebar-compact__left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sk-sidebar-compact__label {
+  font-size: 11px;
+  color: rgba(240, 236, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.sk-sidebar-compact__route {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.sk-sidebar-compact__date {
+  font-size: 12px;
+  color: rgba(240, 236, 255, 0.5);
+}
+
+.sk-sidebar-compact__right {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.sk-sidebar-compact__total-label {
+  font-size: 11px;
+  color: rgba(240, 236, 255, 0.4);
+  margin-bottom: 2px;
+}
+
+.sk-sidebar-compact__total {
+  font-family: "Syne", sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: #ff8a2a;
+}
+
+/* ─── Step wrapper (legacy — mobile-only fallback) ───────────────────────────── */
 
 .sk-step {
   padding: 24px 20px;
@@ -264,6 +427,8 @@
   font-family: "DM Sans", sans-serif;
   transition: border-color 0.2s, background 0.2s;
   gap: 10px;
+  /* Touch target */
+  min-height: 52px;
 }
 
 .sk-option:hover {
@@ -412,12 +577,15 @@
   padding: 12px 14px;
   color: #f0ecff;
   font-family: "DM Sans", sans-serif;
-  font-size: 15px;
+  /* 16px prevents iOS zoom on focus */
+  font-size: 16px;
   outline: none;
   transition: border-color 0.2s;
   width: 100%;
   appearance: none;
   -webkit-appearance: none;
+  /* Ensure full touch height */
+  min-height: 48px;
 }
 
 .sk-input:focus {
@@ -505,6 +673,7 @@
   padding: 14px 24px;
   cursor: pointer;
   width: 100%;
+  min-height: 50px;
   transition: opacity 0.2s, transform 0.1s;
 }
 
@@ -529,6 +698,7 @@
   padding: 14px 20px;
   cursor: pointer;
   white-space: nowrap;
+  min-height: 50px;
   transition: background 0.2s;
 }
 
@@ -546,6 +716,7 @@
   font-weight: 700;
   font-size: 16px;
   padding: 14px 24px;
+  min-height: 50px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -643,7 +814,114 @@
   margin-top: 6px;
 }
 
-/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   RESPONSIVE — Desktop (769px+)
+   Two-column layout: form left, sidebar right
+════════════════════════════════════════════════════ */
+
+@media (min-width: 769px) {
+  .sk-checkout {
+    padding: 0 0 80px;
+  }
+
+  /* Show full sidebar, hide compact strip */
+  .sk-sidebar-card {
+    display: flex;
+  }
+  .sk-sidebar-compact {
+    display: none !important;
+  }
+
+  /* Progress bar gets more padding on desktop */
+  .sk-progress {
+    padding: 24px 24px 0;
+    max-width: 600px;
+  }
+
+  .sk-checkout__flight-wrap {
+    padding: 20px 24px 0;
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   RESPONSIVE — Mobile (768px and below)
+   Single column, compact sidebar strip at top
+════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .sk-checkout {
+    max-width: 100%;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+  }
+
+  /* Stack layout vertically, sidebar strip goes above form */
+  .sk-step-layout {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+
+  .sk-step-form {
+    padding: 16px 16px 24px;
+    gap: 16px;
+  }
+
+  /* Full sidebar hidden on mobile — use compact strip instead */
+  .sk-step-sidebar {
+    width: 100% !important;
+    position: static !important;
+    padding: 0;
+  }
+
+  .sk-sidebar-card {
+    display: none !important; /* hide full sidebar on mobile */
+  }
+
+  .sk-sidebar-compact {
+    display: flex !important; /* show compact strip on mobile */
+  }
+
+  /* Name grid stays 2-col on mobile — wide enough */
+  .sk-form-grid {
+    gap: 10px;
+  }
+
+  /* Action button row stacks on mobile */
+  .sk-step__actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .sk-btn-secondary {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Progress bar labels smaller */
+  .sk-progress__label {
+    font-size: 10px;
+    white-space: normal;
+    text-align: center;
+    max-width: 56px;
+  }
+
+  /* Flight card tighter on mobile */
+  .sk-flight-card {
+    margin: 0 16px 0;
+  }
+
+  .sk-checkout__flight-wrap {
+    padding: 12px 0 0;
+  }
+
+  .sk-progress {
+    padding: 16px 16px 0;
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   RESPONSIVE — Very small (360px)
+════════════════════════════════════════════════════ */
 
 @media (max-width: 360px) {
   .sk-form-grid {
@@ -659,6 +937,10 @@
   }
 
   .sk-progress__label {
-    font-size: 10px;
+    font-size: 9px;
+  }
+
+  .sk-flight-card__code {
+    font-size: 15px;
   }
 }

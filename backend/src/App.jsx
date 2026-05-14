@@ -5,7 +5,6 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-
 import Home from "./components/Home";
 import ProfileForm from "./components/ProfileForm";
 import SavedTrips from "./components/SavedTrips";
@@ -28,10 +27,19 @@ import DmPage from "./pages/skyhub/DmPage";
 import SkyHubInsights from "./pages/skyhub/SkyHubInsights";
 import SavedPage from "./pages/skyhub/SavedPage";
 
+// ── Admin ── ← NEW
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+
 function App() {
   return (
     <Router>
       <Routes>
+        {/* ── Admin routes — no Layout/navbar, fully standalone ── */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+
+        {/* ── Main app with Layout ── */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<LoginPage />} />
@@ -39,7 +47,6 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset" element={<ForgotPasswordPage />} />
           <Route path="/explore" element={<Explore />} />
-
           <Route
             path="/dashboard"
             element={
@@ -72,7 +79,6 @@ function App() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="/skyhub"
             element={

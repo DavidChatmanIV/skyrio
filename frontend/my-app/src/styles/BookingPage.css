@@ -1669,4 +1669,110 @@
     font-size: 13px;
     padding: 0 8px;
   }
+  /* ═══════════════════════════════════════════════════════════
+   DATE PICKER CALENDAR — MOBILE FIX
+   Fixes: calendar bleeding off left edge on
+═══════════════════════════════════════════════════════════ */
+
+  @media (max-width: 768px) {
+    /* ── Force calendar to stay within viewport ── */
+    .ant-picker-dropdown {
+      position: fixed !important;
+      left: 8px !important;
+      right: 8px !important;
+      top: auto !important;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 100px) !important;
+      max-width: calc(100vw - 16px) !important;
+      width: calc(100vw - 16px) !important;
+      z-index: 9999 !important;
+    }
+
+    /* ── Panel container fills the dropdown ── */
+    .ant-picker-panel-container {
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
+      border-radius: 16px !important;
+    }
+
+    /* ── Stack the two months vertically (not side by side) ── */
+    .ant-picker-panels {
+      flex-direction: column !important;
+      width: 100% !important;
+    }
+
+    .ant-picker-panel {
+      width: 100% !important;
+    }
+
+    /* ── Spread the calendar grid to fill width ── */
+    .ant-picker-date-panel,
+    .ant-picker-month-panel,
+    .ant-picker-year-panel {
+      width: 100% !important;
+    }
+
+    .ant-picker-content {
+      width: 100% !important;
+    }
+
+    /* ── Bigger touch targets for day cells ── */
+    .ant-picker-cell {
+      padding: 4px 0 !important;
+    }
+
+    .ant-picker-cell-inner {
+      min-width: 34px !important;
+      height: 34px !important;
+      line-height: 34px !important;
+      font-size: 14px !important;
+      border-radius: 8px !important;
+    }
+
+    /* ── Header nav buttons ── */
+    .ant-picker-header {
+      padding: 0 8px !important;
+    }
+
+    .ant-picker-header button {
+      min-width: 40px !important;
+      height: 40px !important;
+      font-size: 16px !important;
+    }
+
+    /* ── Footer (OK/Today buttons) ── */
+    .ant-picker-footer {
+      padding: 8px !important;
+    }
+
+    .ant-picker-ok button,
+    .ant-picker-today-btn {
+      min-height: 36px !important;
+      font-size: 14px !important;
+    }
+
+    /* ── Dim the background when calendar is open ── */
+    .ant-picker-dropdown::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: -1;
+      pointer-events: none;
+    }
+  }
+
+  /* ── Very small screens (375px iPhone SE) ── */
+  @media (max-width: 390px) {
+    .ant-picker-cell-inner {
+      min-width: 30px !important;
+      height: 30px !important;
+      line-height: 30px !important;
+      font-size: 13px !important;
+    }
+
+    .ant-picker-column-header {
+      font-size: 11px !important;
+    }
+  }
 }

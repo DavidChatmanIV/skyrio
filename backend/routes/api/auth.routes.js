@@ -5,6 +5,7 @@ import nodemailer from "nodemailer";
 import User from "../../models/user.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 import { signToken, setAuthCookie, clearAuthCookie } from "./utils/auth.js";
+import { sendWelcomeEmail } from "../../utils/sendWelcomeEmail.js"; // ← NEW
 
 const router = Router();
 
@@ -72,6 +73,12 @@ router.post("/register", async (req, res) => {
     } catch (xpErr) {
       console.error("Signup XP award failed:", xpErr);
     }
+
+    // ── Send welcome email async (don't block registration) ── ← NEW
+    sendWelcomeEmail({
+      name: user.name || user.username,
+      email: user.email,
+    }).catch((err) => console.error("Welcome email failed:", err));
 
     const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verifyToken}`;
     createMailer()
