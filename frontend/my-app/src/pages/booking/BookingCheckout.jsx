@@ -32,14 +32,18 @@ const css = `
   .skc * { box-sizing: border-box; margin: 0; padding: 0; }
   .skc { font-family: inherit; color: #fff; min-height: 100vh; position: relative; }
 
+  /* ✅ FIX: 16px prevents iOS Safari zoom on input focus */
   .skc-input {
     width: 100%; padding: 13px 16px; border-radius: 12px;
     background: ${G.bgInput}; border: 1px solid ${G.border};
     color: #fff; font-size: 16px; font-family: inherit;
     transition: border-color .2s, box-shadow .2s; outline: none;
+    min-height: 48px; touch-action: manipulation; caret-color: #ff8a2a;
   }
   .skc-input:focus { border-color: var(--cta, ${G.orange}); box-shadow: 0 0 0 3px var(--cta-glow, ${G.orangeGlow}); }
   .skc-input::placeholder { color: ${G.muted}; }
+
+  /* ✅ FIX: autofill dark background fix for iOS Safari */
   .skc-input:-webkit-autofill,
   .skc-input:-webkit-autofill:hover,
   .skc-input:-webkit-autofill:focus {
@@ -51,10 +55,12 @@ const css = `
 
   .skc-label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: ${G.faint}; letter-spacing: .05em; text-transform: uppercase; font-weight: 600; font-family: inherit; }
 
+  /* ✅ FIX m4: All buttons minimum 52px touch height */
   .skc-btn-primary {
     width: 100%; padding: 17px; border-radius: 14px; border: none;
     background: ${G.gradBtn}; color: white; font-size: 16px; font-weight: 700;
     font-family: inherit; cursor: pointer; min-height: 52px;
+    touch-action: manipulation;
     transition: opacity .2s, transform .15s, box-shadow .2s;
     box-shadow: 0 8px 30px var(--cta-glow, ${G.orangeGlow});
   }
@@ -66,7 +72,7 @@ const css = `
     background: none; border: 1px solid ${G.border}; color: ${G.muted};
     padding: 13px 20px; border-radius: 12px; cursor: pointer; font-size: 14px;
     font-family: inherit; transition: border-color .2s, color .2s; white-space: nowrap;
-    min-height: 52px;
+    min-height: 52px; touch-action: manipulation;
   }
   .skc-btn-back:hover { border-color: ${G.faint}; color: #fff; }
 
@@ -75,7 +81,7 @@ const css = `
     padding: 14px 16px; border-radius: 12px; border: 1px solid ${G.border};
     background: ${G.bgCard}; cursor: pointer; text-align: left; color: #fff;
     transition: border-color .2s, background .2s; margin-bottom: 8px;
-    font-family: inherit; min-height: 52px;
+    font-family: inherit; min-height: 52px; touch-action: manipulation;
   }
   .skc-opt:hover { border-color: rgba(255,138,42,.4); background: ${G.bgCardHover}; }
   .skc-opt.sel { border-color: var(--cta, ${G.orange}); background: rgba(255,138,42,.08); }
@@ -111,26 +117,56 @@ const css = `
     background: radial-gradient(ellipse 85% 100% at 50% 40%, transparent 30%, #0b0b18 100%);
   }
 
-  /* ── Step layout — desktop: side by side, mobile: stacked ── */
+  /* ✅ FIX m1: Desktop — side by side. Mobile — stacked, no overlap. */
   .skc-step-layout { display: flex; gap: 28px; align-items: flex-start; }
   .skc-step-form { flex: 1; min-width: 0; }
   .skc-step-sidebar { width: 252px; flex-shrink: 0; }
   .skc-name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
   .skc-btn-row { display: flex; gap: 12px; }
 
+  /* ✅ FIX m1: Mobile — stack vertically, form first, no overlap */
   @media (max-width: 768px) {
-    .skc-step-layout { flex-direction: column-reverse; gap: 16px; }
-    .skc-step-sidebar { width: 100% !important; }
+    .skc-step-layout {
+      flex-direction: column;
+      gap: 0;
+    }
+    /* ✅ FIX m1: Compact trip summary ABOVE form on mobile */
+    .skc-step-sidebar {
+      width: 100% !important;
+      order: 1;
+    }
+    .skc-step-form {
+      order: 2;
+    }
+    /* Full sidebar hidden on mobile */
     .skc-sidebar-full { display: none; }
+    /* Compact strip shown on mobile */
     .skc-sidebar-compact { display: flex !important; }
     .skc-name-grid { gap: 10px; }
     .skc-btn-row { flex-direction: column; }
     .skc-btn-back { width: 100%; text-align: center; }
   }
+
+  /* ✅ FIX: Stack name fields on very small phones */
   @media (max-width: 400px) {
     .skc-name-grid { grid-template-columns: 1fr; }
   }
 `;
+
+// ✅ FIX m2: --vh fix for iOS keyboard pushing content off screen
+function useVhFix() {
+  useEffect(() => {
+    const setVh = () => {
+      document.documentElement.style.setProperty(
+        "--vh",
+        `${window.innerHeight * 0.01}px`
+      );
+    };
+    setVh();
+    window.addEventListener("resize", setVh);
+    return () => window.removeEventListener("resize", setVh);
+  }, []);
+}
 
 function getUserIdFromToken() {
   try {
@@ -243,6 +279,7 @@ const SEAT_OPTIONS = [
     icon: "👑",
   },
 ];
+
 const BAG_OPTIONS = [
   {
     id: "none",
@@ -281,6 +318,7 @@ function PlaneIcon({ size = 15 }) {
     </svg>
   );
 }
+
 function LockIcon() {
   return (
     <svg
@@ -296,6 +334,7 @@ function LockIcon() {
     </svg>
   );
 }
+
 function ShieldIcon() {
   return (
     <svg
@@ -314,7 +353,16 @@ function ShieldIcon() {
 function ProgressBar({ step }) {
   const steps = ["Passengers", "Seats & Bags", "Review & Pay"];
   return (
-    <div style={{ display: "flex", alignItems: "center", marginBottom: 32 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        marginBottom: 32,
+        overflowX: "auto",
+        scrollbarWidth: "none",
+        WebkitOverflowScrolling: "touch",
+      }}
+    >
       {steps.map((s, i) => (
         <div
           key={s}
@@ -322,6 +370,7 @@ function ProgressBar({ step }) {
             display: "flex",
             alignItems: "center",
             flex: i < steps.length - 1 ? 1 : "none",
+            minWidth: 80,
           }}
         >
           <div
@@ -353,6 +402,9 @@ function ProgressBar({ step }) {
                 color: i < step ? "#fff" : i === step ? G.orange : G.muted,
                 boxShadow: i === step ? `0 0 24px ${G.orangeGlow}` : "none",
                 transition: "all .3s",
+                /* ✅ FIX m4: min touch target */
+                minWidth: 44,
+                minHeight: 44,
               }}
             >
               {i < step ? "✓" : i + 1}
@@ -591,6 +643,7 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
   const bp = BAG_OPTIONS.find((o) => o.id === bag)?.price ?? 0;
   const ip = insurance ? 28.25 : 0;
   const total = basePrice + sp + bp + ip;
+
   return (
     <div
       style={{
@@ -602,7 +655,7 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
         top: 24,
       }}
     >
-      {/* Compact strip — mobile only */}
+      {/* ✅ FIX m1: Compact strip — mobile only. Shows above the form. No overlap. */}
       <div
         className="skc-sidebar-compact"
         style={{
@@ -771,6 +824,7 @@ function StepPassengers({ onNext, flight, basePrice }) {
   const dobRef = useRef();
   const emailRef = useRef();
   const phoneRef = useRef();
+
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
     setTouched((t) => ({ ...t, [k]: true }));
@@ -782,12 +836,14 @@ function StepPassengers({ onNext, flight, basePrice }) {
     return d.isValid() && d.isBefore(dayjs().subtract(1, "day"));
   };
   const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
   const errs = {
     firstName: touched.firstName && !form.firstName ? "Required" : null,
     lastName: touched.lastName && !form.lastName ? "Required" : null,
     dob: touched.dob && !dobOk(form.dob) ? "Enter a valid past date" : null,
     email: touched.email && !emailOk(form.email) ? "Enter a valid email" : null,
   };
+
   const handleContinue = () => {
     const live = {
       firstName: firstRef.current?.value || form.firstName,
@@ -808,6 +864,7 @@ function StepPassengers({ onNext, flight, basePrice }) {
       return;
     onNext(live);
   };
+
   return (
     <div className="skc-fade">
       <div className="skc-step-layout">
@@ -949,6 +1006,8 @@ function StepPassengers({ onNext, flight, basePrice }) {
                 fontSize: 14,
                 cursor: "pointer",
                 fontFamily: "inherit",
+                minHeight: 52,
+                touchAction: "manipulation",
               }}
             >
               <span>
@@ -1017,6 +1076,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
   const [seat, setSeat] = useState("none");
   const [bag, setBag] = useState("none");
   const [insurance, setInsurance] = useState(false);
+
   return (
     <div className="skc-fade">
       <div className="skc-step-layout">
@@ -1357,6 +1417,8 @@ function StripePayForm({
           fontFamily: "inherit",
           fontSize: 14,
           transition: ".2s",
+          minHeight: 52,
+          touchAction: "manipulation",
         }}
       >
         <div
@@ -1378,7 +1440,7 @@ function StripePayForm({
           {agreed ? "✓" : ""}
         </div>
         <span>
-          I agree to the {/* ── Updated to real legal pages ── */}
+          I agree to the{" "}
           <a
             href="/terms"
             target="_blank"
@@ -1453,10 +1515,12 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
   const [initLoading, setInitLoading] = useState(true);
   const [payLoading, setPayLoading] = useState(false);
   const [error, setError] = useState("");
+
   const sp = SEAT_OPTIONS.find((o) => o.id === extras.seat)?.price ?? 0;
   const bp = BAG_OPTIONS.find((o) => o.id === extras.bag)?.price ?? 0;
   const ip = extras.insurance ? 28.25 : 0;
   const total = basePrice + sp + bp + ip;
+
   const recapRows = [
     {
       label: "Passenger",
@@ -1709,8 +1773,14 @@ export default function BookingCheckout({ flight, onBack }) {
   const [passenger, setPassenger] = useState(null);
   const [extras, setExtras] = useState(null);
 
+  // ✅ FIX m2: --vh fix so iOS keyboard doesn't push content off screen
+  useVhFix();
+
   return (
-    <div className="skc" style={{ position: "relative", minHeight: "100vh" }}>
+    <div
+      className="skc"
+      style={{ position: "relative", minHeight: "calc(var(--vh, 1vh) * 100)" }}
+    >
       <style>{css}</style>
       <div className="skc-bg">
         <div className="skc-bg__img" />
@@ -1726,6 +1796,7 @@ export default function BookingCheckout({ flight, onBack }) {
           padding: "0 20px 72px",
         }}
       >
+        {/* ── Header ── */}
         <div
           style={{
             display: "flex",
@@ -1752,6 +1823,8 @@ export default function BookingCheckout({ flight, onBack }) {
                   fontSize: 14,
                   fontFamily: "inherit",
                   padding: 0,
+                  minHeight: 44,
+                  touchAction: "manipulation",
                 }}
               >
                 ← Back to results
@@ -1780,7 +1853,9 @@ export default function BookingCheckout({ flight, onBack }) {
             Checkout
           </span>
         </div>
+
         <ProgressBar step={step} />
+
         {step === 0 && <FlightCard flight={liveFlight} />}
         {step === 0 && (
           <StepPassengers

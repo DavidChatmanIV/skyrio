@@ -33,6 +33,15 @@ const NAV_COLS = [
       { label: "Report an Issue", href: `mailto:${SUPPORT_EMAIL}` },
     ],
   },
+  // ✅ NEW: Legal column — required for GDPR/CCPA compliance
+  {
+    heading: "Legal",
+    links: [
+      { label: "Privacy Policy", to: "/privacy" },
+      { label: "Terms of Service", to: "/terms" },
+      { label: "Cookie Policy", to: "/cookies" },
+    ],
+  },
 ];
 
 export default function Footer() {
@@ -83,6 +92,7 @@ export default function Footer() {
           <span className="sk-footer__copy">
             © {YEAR} Skyrio. All rights reserved.
           </span>
+          {/* ✅ UPDATED: Added Cookie Policy to bottom legal bar */}
           <div className="sk-footer__legal">
             <Link to="/privacy" className="sk-footer__legal-link">
               Privacy Policy
@@ -90,6 +100,10 @@ export default function Footer() {
             <span className="sk-footer__legal-sep">·</span>
             <Link to="/terms" className="sk-footer__legal-link">
               Terms of Service
+            </Link>
+            <span className="sk-footer__legal-sep">·</span>
+            <Link to="/cookies" className="sk-footer__legal-link">
+              Cookie Policy
             </Link>
             <span className="sk-footer__legal-sep">·</span>
             <a

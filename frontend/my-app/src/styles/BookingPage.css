@@ -15,6 +15,12 @@
   --sk-text: rgba(255, 255, 255, 0.92);
   --sk-muted: rgba(255, 255, 255, 0.72);
 
+  /* ── Override AntD blue → Skyrio orange globally ── */
+  --ant-color-primary: #ff8a2a !important;
+  --ant-color-primary-hover: #ffb347 !important;
+  --ant-color-primary-active: #e67520 !important;
+  --ant-color-primary-border: rgba(255, 138, 42, 0.4) !important;
+
   min-height: 100vh;
   color: var(--sk-text);
   overflow-x: clip;
@@ -284,9 +290,11 @@
   flex: 1 1 180px;
   min-width: 160px;
 }
+/* FIX: was min-width: 200px — caused negative space gap on mobile */
 .sk-search-bar .sk-orange-picker {
-  flex: 0 0 auto;
-  min-width: 200px;
+  flex: 1 1 200px;
+  min-width: 0 !important;
+  box-sizing: border-box;
 }
 .sk-search-bar .sk-select-cabin {
   flex: 0 0 auto;
@@ -1454,6 +1462,127 @@
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
+/* ═══════════════════════════════════════════════════════════
+   ANT DESIGN DATE PICKER — SKYRIO ORANGE THEME
+   Replaces all AntD blue with #ff8a2a across the calendar
+═══════════════════════════════════════════════════════════ */
+
+/* Selected date cells — filled orange circle */
+.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
+  background: #ff8a2a !important;
+  border-color: #ff8a2a !important;
+  color: #1b1024 !important;
+  font-weight: 700 !important;
+}
+
+/* Range strip between start and end dates */
+.ant-picker-cell-in-view.ant-picker-cell-in-range .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-in-range::before {
+  background: rgba(255, 138, 42, 0.12) !important;
+}
+
+/* Range start/end connecting strip */
+.ant-picker-cell-in-view.ant-picker-cell-range-start::before,
+.ant-picker-cell-in-view.ant-picker-cell-range-end::before {
+  background: rgba(255, 138, 42, 0.12) !important;
+}
+
+/* Today marker ring */
+.ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+  border-color: #ff8a2a !important;
+}
+
+/* Hover state on individual cells */
+.ant-picker-cell-in-view .ant-picker-cell-inner:hover {
+  background: rgba(255, 138, 42, 0.18) !important;
+}
+
+/* OK / Apply button */
+.ant-picker-ok .ant-btn-primary {
+  background: #ff8a2a !important;
+  border-color: #ff8a2a !important;
+  color: #1b1024 !important;
+  font-weight: 700 !important;
+}
+.ant-picker-ok .ant-btn-primary:hover {
+  background: #ffb347 !important;
+  border-color: #ffb347 !important;
+}
+
+/* "Today" shortcut link */
+.ant-picker-today-btn {
+  color: #ff8a2a !important;
+}
+.ant-picker-today-btn:hover {
+  color: #ffb347 !important;
+}
+
+/* Header prev/next arrow hover */
+.ant-picker-header-view button:hover,
+.ant-picker-header button:hover {
+  color: #ff8a2a !important;
+}
+
+/* Dark themed popup panel — matches Skyrio glass UI */
+.ant-picker-dropdown {
+  z-index: 9999 !important;
+}
+.ant-picker-panel-container {
+  background: rgba(14, 8, 30, 0.97) !important;
+  backdrop-filter: blur(28px) !important;
+  -webkit-backdrop-filter: blur(28px) !important;
+  border: 1px solid rgba(255, 138, 42, 0.22) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Header */
+.ant-picker-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+.ant-picker-header button {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+.ant-picker-header-view button {
+  color: rgba(255, 255, 255, 0.95) !important;
+  font-weight: 700 !important;
+}
+
+/* Day of week headers */
+.ant-picker-content th {
+  color: rgba(255, 255, 255, 0.4) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+}
+
+/* Regular in-view date cells */
+.ant-picker-cell-in-view .ant-picker-cell-inner {
+  color: rgba(255, 255, 255, 0.85) !important;
+  border-radius: 8px !important;
+}
+
+/* Disabled / out-of-range cells */
+.ant-picker-cell-disabled .ant-picker-cell-inner {
+  color: rgba(255, 255, 255, 0.2) !important;
+}
+.ant-picker-cell:not(.ant-picker-cell-in-view) .ant-picker-cell-inner {
+  color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Panel divider */
+.ant-picker-panels {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Footer */
+.ant-picker-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: transparent !important;
+}
+
 /* ═══════════════════════════════════════════════
    RESPONSIVE — 992px
 ═══════════════════════════════════════════════ */
@@ -1515,7 +1644,8 @@
 }
 
 /* ═══════════════════════════════════════════════
-   RESPONSIVE — 768px  (iOS zoom fix)
+   RESPONSIVE — 768px
+   Mobile calendar bottom sheet + iOS zoom fix
 ═══════════════════════════════════════════════ */
 @media (max-width: 768px) {
   /* Prevent iOS Safari from zooming on input focus */
@@ -1532,6 +1662,122 @@
   /* Results bottom padding clears Atlas FAB + safe area */
   .sk-results-wrap {
     padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* ── Calendar: pin to bottom of viewport (bottom sheet style) ── */
+  .ant-picker-dropdown {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 80px) !important;
+    top: auto !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding: 0 8px !important;
+    z-index: 9999 !important;
+  }
+
+  /* Panel fills the sheet width */
+  .ant-picker-panel-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Stack months vertically — not side by side */
+  .ant-picker-panels {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+
+  .ant-picker-panel,
+  .ant-picker-date-panel,
+  .ant-picker-month-panel,
+  .ant-picker-year-panel {
+    width: 100% !important;
+  }
+
+  /* Calendar grid fills full width */
+  .ant-picker-content {
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  /* 44px tap targets — iOS HIG minimum */
+  .ant-picker-cell {
+    padding: 3px 0 !important;
+  }
+
+  .ant-picker-cell-inner {
+    min-width: 40px !important;
+    height: 40px !important;
+    line-height: 40px !important;
+    font-size: 15px !important;
+    border-radius: 50% !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Header */
+  .ant-picker-header {
+    padding: 0 12px !important;
+    height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .ant-picker-header button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 18px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .ant-picker-header-view button {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+  }
+
+  /* Column header row */
+  .ant-picker-content th {
+    height: 36px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  /* Footer — full width orange OK button */
+  .ant-picker-footer {
+    padding: 12px 16px !important;
+  }
+
+  .ant-picker-ok {
+    width: 100% !important;
+  }
+
+  .ant-picker-ok .ant-btn {
+    width: 100% !important;
+    height: 48px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    border-radius: 12px !important;
+    background: #ff8a2a !important;
+    color: #1b1024 !important;
+    border: none !important;
+  }
+
+  /* Dim overlay behind calendar */
+  .ant-picker-dropdown::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: -1;
+    pointer-events: none;
   }
 }
 
@@ -1575,19 +1821,19 @@
   .sk-airport-pair {
     flex-direction: column;
     width: 100%;
-    gap: 8px; /* tight consistent gap between From/To inputs */
+    gap: 8px;
     align-items: stretch;
   }
   .sk-airport-pair .sk-airport-wrap {
     min-width: 0 !important;
     width: 100%;
-    flex: none; /* don't let flex sizing create phantom height */
+    flex: none;
   }
   .sk-swap-btn {
-    display: none; /* remove from flow entirely — no ghost space */
+    display: none;
   }
 
-  /* Filter dropdown — can't bleed off 320px screens */
+  /* Filter dropdown — safe on 320px screens */
   .skf-dropdown {
     left: 50%;
     transform: translateX(-50%);
@@ -1637,19 +1883,19 @@
     gap: 8px !important;
   }
 
-  /* Airport inputs — force glass style on mobile (overrides browser defaults) */
+  /* Airport inputs — glass style on mobile */
   .sk-airport-wrap input,
   .sk-airport-pair input {
     background: rgba(255, 255, 255, 0.08) !important;
     border: 1px solid rgba(255, 255, 255, 0.14) !important;
     border-radius: 14px !important;
     color: rgba(255, 255, 255, 0.92) !important;
-    font-size: 16px !important; /* iOS zoom prevention */
+    font-size: 16px !important;
     height: 50px !important;
     padding: 0 14px !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    -webkit-appearance: none; /* removes iOS default input styling */
+    -webkit-appearance: none;
   }
   .sk-airport-wrap input::placeholder,
   .sk-airport-pair input::placeholder {
@@ -1669,110 +1915,24 @@
     font-size: 13px;
     padding: 0 8px;
   }
-  /* ═══════════════════════════════════════════════════════════
-   DATE PICKER CALENDAR — MOBILE FIX
-   Fixes: calendar bleeding off left edge on
-═══════════════════════════════════════════════════════════ */
+}
 
-  @media (max-width: 768px) {
-    /* ── Force calendar to stay within viewport ── */
-    .ant-picker-dropdown {
-      position: fixed !important;
-      left: 8px !important;
-      right: 8px !important;
-      top: auto !important;
-      bottom: calc(env(safe-area-inset-bottom, 0px) + 100px) !important;
-      max-width: calc(100vw - 16px) !important;
-      width: calc(100vw - 16px) !important;
-      z-index: 9999 !important;
-    }
-
-    /* ── Panel container fills the dropdown ── */
-    .ant-picker-panel-container {
-      width: 100% !important;
-      max-width: 100% !important;
-      overflow: hidden !important;
-      border-radius: 16px !important;
-    }
-
-    /* ── Stack the two months vertically (not side by side) ── */
-    .ant-picker-panels {
-      flex-direction: column !important;
-      width: 100% !important;
-    }
-
-    .ant-picker-panel {
-      width: 100% !important;
-    }
-
-    /* ── Spread the calendar grid to fill width ── */
-    .ant-picker-date-panel,
-    .ant-picker-month-panel,
-    .ant-picker-year-panel {
-      width: 100% !important;
-    }
-
-    .ant-picker-content {
-      width: 100% !important;
-    }
-
-    /* ── Bigger touch targets for day cells ── */
-    .ant-picker-cell {
-      padding: 4px 0 !important;
-    }
-
-    .ant-picker-cell-inner {
-      min-width: 34px !important;
-      height: 34px !important;
-      line-height: 34px !important;
-      font-size: 14px !important;
-      border-radius: 8px !important;
-    }
-
-    /* ── Header nav buttons ── */
-    .ant-picker-header {
-      padding: 0 8px !important;
-    }
-
-    .ant-picker-header button {
-      min-width: 40px !important;
-      height: 40px !important;
-      font-size: 16px !important;
-    }
-
-    /* ── Footer (OK/Today buttons) ── */
-    .ant-picker-footer {
-      padding: 8px !important;
-    }
-
-    .ant-picker-ok button,
-    .ant-picker-today-btn {
-      min-height: 36px !important;
-      font-size: 14px !important;
-    }
-
-    /* ── Dim the background when calendar is open ── */
-    .ant-picker-dropdown::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: -1;
-      pointer-events: none;
-    }
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — 390px  (iPhone SE / small phones)
+═══════════════════════════════════════════════ */
+@media (max-width: 390px) {
+  .ant-picker-cell-inner {
+    min-width: 34px !important;
+    height: 34px !important;
+    line-height: 34px !important;
+    font-size: 13px !important;
   }
 
-  /* ── Very small screens (375px iPhone SE) ── */
-  @media (max-width: 390px) {
-    .ant-picker-cell-inner {
-      min-width: 30px !important;
-      height: 30px !important;
-      line-height: 30px !important;
-      font-size: 13px !important;
-    }
+  .ant-picker-content th {
+    font-size: 11px !important;
+  }
 
-    .ant-picker-column-header {
-      font-size: 11px !important;
-    }
+  .ant-picker-header-view button {
+    font-size: 14px !important;
   }
 }

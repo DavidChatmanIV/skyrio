@@ -5,28 +5,98 @@
 /* =========================================================
    BASE RESET
 ========================================================= */
-html, body, #root { height: 100%; }
-* { box-sizing: border-box; }
-img, svg, video, canvas { display:block; max-width:100%; }
-button, input, textarea, select { font: inherit; }
-a { color: inherit; text-decoration: none; }
-:focus { outline: none; }
-:focus-visible { outline: 2px solid var(--cta); outline-offset: 2px; }
-html { scroll-behavior: smooth; }
+html,
+body,
+#root {
+  height: 100%;
+}
+* {
+  box-sizing: border-box;
+}
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--cta);
+  outline-offset: 2px;
+}
+html {
+  scroll-behavior: smooth;
+}
 
-@media (prefers-reduced-motion: reduce){
-  *{
-    animation-duration:0.01ms !important;
-    animation-iteration-count:1 !important;
-    transition-duration:0.01ms !important;
-    scroll-behavior:auto !important;
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
 /* =========================================================
-   ROOT TOKENS (NEUTRAL)
+   ✅ FIX: ANDROID CHROME + iOS SAFARI GLOBAL FIXES
+   These 4 rules fix the majority of mobile rendering bugs.
 ========================================================= */
-:root{
+
+/* 1. Prevent iOS Safari from auto-zooming text on screen rotation */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* 2. Eliminate 300ms tap delay on Android Chrome */
+  touch-action: manipulation;
+}
+
+/* 3. Prevent horizontal overflow scroll — common Android Chrome bug */
+body {
+  overflow-x: hidden;
+  /* 4. Fix rendering glitches on Android caused by transforms + backdrop-filter */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =========================================================
+   ✅ FIX: WEBKIT PREFIX — backdrop-filter
+   Android Chrome requires -webkit-backdrop-filter.
+   Without this, glass cards render as solid black on Android.
+========================================================= */
+.ant-card,
+.sk-nav,
+.sk-authModal .ant-modal-content,
+[class*="glass"],
+[class*="backdrop"] {
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+/* =========================================================
+   ✅ FIX: SAFE AREA INSETS
+   Required for iPhone notch (iPhone X+) and
+   Android gesture nav bar. Without this, content
+   gets hidden behind the system UI.
+========================================================= */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
   --nav-h: 88px;
   --page-w: 1180px;
   --radius: 16px;
@@ -34,31 +104,108 @@ html { scroll-behavior: smooth; }
   --text-1: rgba(244, 246, 251, 0.92);
   --text-2: rgba(244, 246, 251, 0.72);
 
-  --glass: rgba(255,255,255,.08);
-  --glass-2: rgba(255,255,255,.12);
-  --border-soft: rgba(255,255,255,.14);
+  --glass: rgba(255, 255, 255, 0.08);
+  --glass-2: rgba(255, 255, 255, 0.12);
+  --border-soft: rgba(255, 255, 255, 0.14);
 
   --cta: #ff8a2a;
   --cta-2: #ffa94d;
-  --cta-glow: rgba(255,138,42,.45);
+  --cta-glow: rgba(255, 138, 42, 0.45);
 
   --sk-bg-image: none;
 }
 
-body{
-  margin:0;
+body {
+  margin: 0;
   color: var(--text-1);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter;
-  line-height:1.45;
+  line-height: 1.45;
   background: #0b0b18;
 }
 
-#root{
+#root {
   background: transparent;
 }
 
 /* =========================================================
-   ANT DESIGN SAFETY (don't paint)
+   ✅ FIX: MINIMUM TAP TARGETS — 44×44px
+   iOS HIG and Google Material both require 44px minimum.
+   Prevents mis-taps throughout the entire app.
+========================================================= */
+button,
+a,
+[role="button"],
+[role="link"],
+.ant-btn,
+.ant-segmented-item,
+.ant-select-selector {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* Ant Design specific — their defaults are too small on mobile */
+.ant-btn {
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* =========================================================
+   ✅ FIX: SMOOTH SCROLL CONTAINERS — iOS Safari
+   -webkit-overflow-scrolling: touch enables momentum
+   scrolling (rubber-band effect) on iOS.
+   overscroll-behavior: contain prevents scroll chaining
+   (page scrolling when inner scroll hits the end).
+========================================================= */
+.overflow-y-auto,
+.overflow-auto,
+.overflow-scroll,
+[class*="scroll"],
+[class*="Scroll"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Hide scrollbar visually but keep functionality */
+.scrollbar-hide,
+[class*="scroll"]::-webkit-scrollbar {
+  display: none;
+}
+
+/* =========================================================
+   ✅ FIX: INPUT FONT SIZE — prevents iOS zoom on focus
+   iOS Safari zooms the page when an input has font-size < 16px.
+   This is one of the most common mobile bugs.
+========================================================= */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select,
+  .ant-input,
+  .ant-input-affix-wrapper input,
+  .ant-select-selection-search-input,
+  .ant-picker-input > input,
+  .ant-input-number-input {
+    font-size: 16px !important;
+  }
+}
+
+/* =========================================================
+   ✅ FIX: BOTTOM NAV SAFE AREA
+   Apply this to any fixed bottom navigation bar so it
+   doesn't get hidden behind Android gesture nav or
+   iPhone home indicator.
+========================================================= */
+.sk-bottom-nav,
+.bottom-nav,
+[class*="bottom-nav"],
+[class*="bottomNav"] {
+  padding-bottom: calc(0.75rem + var(--safe-bottom));
+}
+
+/* =========================================================
+   ANT DESIGN SAFETY (don't paint over transparent layout)
 ========================================================= */
 .ant-layout,
 .ant-layout-header,
@@ -67,11 +214,13 @@ body{
 }
 
 /* =========================================================
-   NAVBAR (your existing look)
+   NAVBAR
 ========================================================= */
-.sk-nav{
+.sk-nav {
   position: sticky;
   top: 0;
+  /* Account for iOS status bar */
+  padding-top: var(--safe-top);
   z-index: 5000;
   height: var(--nav-h);
   display: flex;
@@ -79,24 +228,30 @@ body{
 
   background: linear-gradient(
     90deg,
-    rgba(255,138,42,.12),
-    rgba(120,90,255,.12)
+    rgba(255, 138, 42, 0.12),
+    rgba(120, 90, 255, 0.12)
   );
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
 
 /* =========================================================
-   GLOBAL GLASS DEFAULTS (safe)
+   GLOBAL GLASS DEFAULTS
 ========================================================= */
-.ant-card{
-  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+.ant-card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.04)
+  );
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  box-shadow: 0 10px 30px rgba(0,0,0,.30);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-.ant-btn-primary{
+.ant-btn-primary {
   background: linear-gradient(180deg, var(--cta-2), var(--cta)) !important;
   border: none !important;
   color: #0b1220 !important;
@@ -105,21 +260,27 @@ body{
 }
 
 /* =========================================================
-   SKYRIO AUTH MODAL CLEANUP
+   SKYRIO AUTH MODAL
 ========================================================= */
 .sk-authModal .ant-modal-mask {
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .sk-authModal .ant-modal-content {
   background: rgba(16, 10, 26, 0.92) !important;
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55);
 }
 
 .sk-authModal .ant-modal-close {
   color: rgba(244, 246, 251, 0.92) !important;
+  /* Ensure close button is always tappable */
+  min-width: 44px !important;
+  min-height: 44px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .sk-authModal .ant-modal-close:hover {
@@ -142,6 +303,7 @@ body{
   overflow: auto;
   padding: 18px 18px 16px;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .sk-authModal .ant-input,
@@ -150,6 +312,7 @@ body{
   border-radius: 14px !important;
 }
 
+/* Mobile auth modal — full screen bottom sheet */
 @media (max-width: 520px) {
   .sk-authModal .ant-modal {
     width: 100vw !important;
@@ -161,6 +324,8 @@ body{
 
   .sk-authModal .ant-modal-content {
     border-radius: 18px 18px 0 0 !important;
+    /* Account for iPhone home indicator */
+    padding-bottom: var(--safe-bottom) !important;
   }
 
   .sk-authShell,
@@ -174,9 +339,9 @@ body{
 }
 
 /* =========================================================
-   ✅ BOARDING PASS TOAST — kills white notification background
-   Ant Design wraps notifications in a white card by default.
-   These rules strip it so the glass BoardingPassToast shows.
+   BOARDING PASS TOAST
+   Strips Ant Design's white notification background
+   so the glass BoardingPassToast component shows correctly.
 ========================================================= */
 .ant-notification-notice {
   background: transparent !important;
@@ -197,13 +362,62 @@ body{
   padding: 0 !important;
 }
 
-/* Close button on toast */
 .ant-notification-notice-close {
   top: 10px !important;
   right: 10px !important;
   color: rgba(255, 255, 255, 0.55) !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
 }
 
 .ant-notification-notice-close:hover {
   color: rgba(255, 255, 255, 0.88) !important;
+}
+
+/* =========================================================
+   ✅ FIX: ANDROID CHROME — SPECIFIC KNOWN ISSUES
+========================================================= */
+
+/* Fix: position: fixed elements flickering on Android Chrome
+   when scroll happens. Common with navbars and modals. */
+.sk-nav,
+.ant-modal-wrap,
+.ant-drawer-wrapper-body,
+[class*="fixed"],
+[class*="sticky"] {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Fix: Gradient backgrounds sometimes don't render on
+   Android Chrome when combined with backdrop-filter.
+   Force GPU layer. */
+[style*="backdrop-filter"],
+[class*="glass"],
+[class*="blur"] {
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+/* Fix: Android Chrome sometimes clips border-radius on
+   elements with overflow: hidden + backdrop-filter */
+.ant-card,
+.ant-modal-content,
+[class*="card"],
+[class*="Card"] {
+  isolation: isolate;
+}
+
+/* Fix: Ant Design Select dropdown z-index bug on Android —
+   dropdowns sometimes render behind content */
+.ant-select-dropdown,
+.ant-picker-dropdown {
+  z-index: 9999 !important;
+}
+
+/* Fix: Input cursor invisible on Android dark backgrounds */
+input,
+textarea {
+  caret-color: var(--cta);
 }

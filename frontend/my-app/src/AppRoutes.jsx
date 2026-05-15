@@ -25,8 +25,10 @@ const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 
 // ── Legal ──
-const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage")); // ← fixed casing
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
+// ✅ NEW: Cookie Policy page (l4)
+const CookiePolicyPage = lazy(() => import("./pages/CookiePolicyPage"));
 
 // ─── Page loader ──────────────────────────────────────────────────────────────
 function PageLoader() {
@@ -106,6 +108,8 @@ function TrackedRoutes() {
         {/* ── Legal ── */}
         <Route path="privacy" element={<PrivacyPolicyPage />} />
         <Route path="terms" element={<TermsOfServicePage />} />
+        {/* ✅ NEW: Cookie Policy route (l4) */}
+        <Route path="cookies" element={<CookiePolicyPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="dashboard" element={<Dashboard />} />

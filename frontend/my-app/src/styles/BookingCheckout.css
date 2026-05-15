@@ -1,5 +1,4 @@
 /* ─── Reset & tokens ─────────────────────────────────────────────────────────── */
-
 *,
 *::before,
 *::after {
@@ -9,12 +8,10 @@
 }
 
 /* ─── Shell ──────────────────────────────────────────────────────────────────── */
-
 .sk-checkout {
   min-height: 100vh;
   background: var(--bg, #09071a);
   padding: 0 0 80px;
-  /* Desktop: allow wider layout */
   max-width: 900px;
   margin: 0 auto;
   font-family: "DM Sans", sans-serif;
@@ -22,7 +19,6 @@
 }
 
 /* ─── Header ─────────────────────────────────────────────────────────────────── */
-
 .sk-header {
   padding: 20px 20px 0;
   display: flex;
@@ -51,19 +47,24 @@
 }
 
 /* ─── Flight wrap ────────────────────────────────────────────────────────────── */
-
 .sk-checkout__flight-wrap {
   padding: 16px 20px 0;
 }
 
 /* ─── Progress bar ───────────────────────────────────────────────────────────── */
-
 .sk-progress {
   display: flex;
   align-items: flex-start;
   padding: 20px 20px 0;
   gap: 0;
   position: relative;
+  /* ✅ FIX m2: horizontal scroll on small screens — stepper never wraps */
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.sk-progress::-webkit-scrollbar {
+  display: none;
 }
 
 .sk-progress__step {
@@ -73,6 +74,8 @@
   flex: 1;
   position: relative;
   gap: 6px;
+  /* ✅ FIX: prevent steps from shrinking too small on mobile */
+  min-width: 72px;
 }
 
 .sk-progress__dot {
@@ -89,6 +92,9 @@
   background: #09071a;
   z-index: 1;
   transition: all 0.3s;
+  /* ✅ FIX m4: minimum 44px tap target */
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .sk-progress__step.active .sk-progress__dot {
@@ -130,12 +136,12 @@
 }
 
 /* ─── Flight card ────────────────────────────────────────────────────────────── */
-
 .sk-flight-card {
   background: rgba(20, 12, 40, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -177,8 +183,9 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-/* ─── Step layout — desktop: form + sidebar, mobile: stacked ────────────────── */
-
+/* ─── Step layout ────────────────────────────────────────────────────────────── */
+/* ✅ FIX m1: Desktop — form left, sidebar right.
+   Mobile — stacked vertically, compact sidebar strip above form. */
 .sk-step-layout {
   display: flex;
   gap: 24px;
@@ -202,12 +209,12 @@
 }
 
 /* ─── Sidebar card ───────────────────────────────────────────────────────────── */
-
 .sk-sidebar-card {
   background: rgba(20, 12, 40, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -283,8 +290,9 @@
   margin-bottom: 2px;
 }
 
-/* ─── Compact mobile summary (shown only on mobile) ─────────────────────────── */
-
+/* ─── Compact mobile summary ─────────────────────────────────────────────────── */
+/* ✅ FIX m1: Shows above the form on mobile — replaces full sidebar.
+   Gives user key trip info + price at a glance without overlap. */
 .sk-sidebar-compact {
   display: none; /* shown via media query on mobile */
   align-items: center;
@@ -293,8 +301,10 @@
   background: rgba(20, 12, 40, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   padding: 14px 16px;
-  margin: 0 20px 4px;
+  margin: 0 16px 4px;
 }
 
 .sk-sidebar-compact__left {
@@ -339,8 +349,7 @@
   color: #ff8a2a;
 }
 
-/* ─── Step wrapper (legacy — mobile-only fallback) ───────────────────────────── */
-
+/* ─── Step wrapper ───────────────────────────────────────────────────────────── */
 .sk-step {
   padding: 24px 20px;
   display: flex;
@@ -367,12 +376,12 @@
 }
 
 /* ─── Section ────────────────────────────────────────────────────────────────── */
-
 .sk-section {
   background: rgba(20, 12, 40, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -388,16 +397,13 @@
 .sk-section__icon {
   font-size: 20px;
 }
-
 .sk-section__name {
   font-weight: 600;
   font-size: 15px;
 }
-
 .sk-section__name--spaced {
   margin-bottom: 12px;
 }
-
 .sk-section__hint {
   font-size: 12px;
   color: rgba(240, 236, 255, 0.5);
@@ -405,7 +411,6 @@
 }
 
 /* ─── Option selector ────────────────────────────────────────────────────────── */
-
 .sk-option-group {
   display: flex;
   flex-direction: column;
@@ -427,8 +432,9 @@
   font-family: "DM Sans", sans-serif;
   transition: border-color 0.2s, background 0.2s;
   gap: 10px;
-  /* Touch target */
+  /* ✅ FIX m4: minimum 44px tap target */
   min-height: 52px;
+  touch-action: manipulation;
 }
 
 .sk-option:hover {
@@ -485,26 +491,22 @@
   font-size: 14px;
   font-weight: 500;
 }
-
 .sk-option__desc {
   font-size: 12px;
   color: rgba(240, 236, 255, 0.5);
   margin-top: 2px;
 }
-
 .sk-option__price {
   font-size: 14px;
   font-weight: 600;
   color: #ffb066;
   white-space: nowrap;
 }
-
 .sk-option__free {
   color: #4caf82;
 }
 
 /* ─── Price summary ──────────────────────────────────────────────────────────── */
-
 .sk-price-summary {
   background: rgba(124, 92, 252, 0.06);
   border: 1px solid rgba(124, 92, 252, 0.2);
@@ -540,7 +542,6 @@
 }
 
 /* ─── Form ───────────────────────────────────────────────────────────────────── */
-
 .sk-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -565,7 +566,6 @@
 .sk-label--full {
   grid-column: 1 / -1;
 }
-
 .sk-req {
   color: #ff8a2a;
 }
@@ -577,35 +577,46 @@
   padding: 12px 14px;
   color: #f0ecff;
   font-family: "DM Sans", sans-serif;
-  /* 16px prevents iOS zoom on focus */
+  /* ✅ FIX: 16px prevents iOS Safari zoom on input focus */
   font-size: 16px;
   outline: none;
   transition: border-color 0.2s;
   width: 100%;
   appearance: none;
   -webkit-appearance: none;
-  /* Ensure full touch height */
+  /* ✅ FIX m4: minimum 48px touch height */
   min-height: 48px;
+  /* ✅ FIX m5: no 300ms delay on Android */
+  touch-action: manipulation;
+  /* ✅ FIX: show orange cursor on dark bg */
+  caret-color: #ff8a2a;
 }
 
 .sk-input:focus {
   border-color: #a394ff;
 }
-
 .sk-input::placeholder {
   color: rgba(240, 236, 255, 0.25);
+}
+
+/* ✅ FIX: autofill styling so iOS doesn't paint yellow over dark bg */
+.sk-input:-webkit-autofill,
+.sk-input:-webkit-autofill:hover,
+.sk-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 30px #100c22 inset !important;
+  -webkit-text-fill-color: #f0ecff !important;
+  border-color: #a394ff !important;
+  caret-color: #ff8a2a;
 }
 
 .sk-input--select {
   cursor: pointer;
 }
-
 .sk-input--card {
   letter-spacing: 0.05em;
 }
 
 /* ─── Recap rows ─────────────────────────────────────────────────────────────── */
-
 .sk-recap-row {
   display: flex;
   justify-content: space-between;
@@ -619,7 +630,6 @@
 }
 
 /* ─── Agree checkbox ─────────────────────────────────────────────────────────── */
-
 .sk-agree {
   display: flex;
   align-items: flex-start;
@@ -632,6 +642,9 @@
   cursor: pointer;
   text-align: left;
   padding: 0;
+  /* ✅ FIX m4: minimum touch height */
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 .sk-agree__box {
@@ -661,7 +674,6 @@
 }
 
 /* ─── Buttons ────────────────────────────────────────────────────────────────── */
-
 .sk-btn-primary {
   background: linear-gradient(135deg, #ff8a2a, #ffb066);
   border: none;
@@ -673,7 +685,9 @@
   padding: 14px 24px;
   cursor: pointer;
   width: 100%;
+  /* ✅ FIX m4: minimum 50px touch height */
   min-height: 50px;
+  touch-action: manipulation;
   transition: opacity 0.2s, transform 0.1s;
 }
 
@@ -699,6 +713,7 @@
   cursor: pointer;
   white-space: nowrap;
   min-height: 50px;
+  touch-action: manipulation;
   transition: background 0.2s;
 }
 
@@ -718,6 +733,7 @@
   padding: 14px 24px;
   min-height: 50px;
   cursor: pointer;
+  touch-action: manipulation;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -734,13 +750,11 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
-
 .sk-btn-book--loading {
   pointer-events: none;
 }
 
 /* ─── Spinner ────────────────────────────────────────────────────────────────── */
-
 .sk-spinner {
   width: 20px;
   height: 20px;
@@ -757,7 +771,6 @@
 }
 
 /* ─── Done / confirmation ────────────────────────────────────────────────────── */
-
 .sk-done {
   display: flex;
   flex-direction: column;
@@ -816,15 +829,13 @@
 
 /* ════════════════════════════════════════════════════
    RESPONSIVE — Desktop (769px+)
-   Two-column layout: form left, sidebar right
 ════════════════════════════════════════════════════ */
-
 @media (min-width: 769px) {
   .sk-checkout {
     padding: 0 0 80px;
   }
 
-  /* Show full sidebar, hide compact strip */
+  /* Full sidebar visible, compact strip hidden */
   .sk-sidebar-card {
     display: flex;
   }
@@ -832,7 +843,6 @@
     display: none !important;
   }
 
-  /* Progress bar gets more padding on desktop */
   .sk-progress {
     padding: 24px 24px 0;
     max-width: 600px;
@@ -845,48 +855,56 @@
 
 /* ════════════════════════════════════════════════════
    RESPONSIVE — Mobile (768px and below)
-   Single column, compact sidebar strip at top
+   ✅ FIX m1: Single column, no overlapping panels.
+   Passenger form is first, compact trip summary above it.
 ════════════════════════════════════════════════════ */
-
 @media (max-width: 768px) {
   .sk-checkout {
     max-width: 100%;
+    /* ✅ FIX m3: safe area inset for iPhone home bar */
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
   }
 
-  /* Stack layout vertically, sidebar strip goes above form */
+  /* ✅ FIX m1: Stack vertically — form on top, no overlap */
   .sk-step-layout {
     flex-direction: column;
     gap: 0;
     padding: 0;
   }
 
+  /* ✅ FIX m1: Form fills full width with comfortable padding */
   .sk-step-form {
     padding: 16px 16px 24px;
     gap: 16px;
+    /* Passenger form FIRST — most important content */
+    order: 2;
   }
 
-  /* Full sidebar hidden on mobile — use compact strip instead */
+  /* ✅ FIX m1: Sidebar goes above form on mobile */
   .sk-step-sidebar {
     width: 100% !important;
     position: static !important;
     padding: 0;
+    /* Compact strip above the form */
+    order: 1;
   }
 
+  /* Full sidebar hidden on mobile */
   .sk-sidebar-card {
-    display: none !important; /* hide full sidebar on mobile */
+    display: none !important;
   }
 
+  /* ✅ FIX m1: Compact strip shown on mobile — no overlap */
   .sk-sidebar-compact {
-    display: flex !important; /* show compact strip on mobile */
+    display: flex !important;
   }
 
-  /* Name grid stays 2-col on mobile — wide enough */
+  /* Name grid stays 2-col — wide enough on phones */
   .sk-form-grid {
     gap: 10px;
   }
 
-  /* Action button row stacks on mobile */
+  /* Action button row stacks vertically */
   .sk-step__actions {
     flex-direction: column;
     gap: 10px;
@@ -897,7 +915,7 @@
     text-align: center;
   }
 
-  /* Progress bar labels smaller */
+  /* Progress bar labels smaller on mobile */
   .sk-progress__label {
     font-size: 10px;
     white-space: normal;
@@ -905,25 +923,28 @@
     max-width: 56px;
   }
 
-  /* Flight card tighter on mobile */
+  /* Flight card — consistent margin on mobile */
   .sk-flight-card {
     margin: 0 16px 0;
   }
-
   .sk-checkout__flight-wrap {
     padding: 12px 0 0;
   }
-
   .sk-progress {
     padding: 16px 16px 0;
+  }
+
+  /* ✅ FIX m2: keyboard pushes content — use dynamic viewport height */
+  .sk-checkout {
+    min-height: calc(var(--vh, 1vh) * 100);
   }
 }
 
 /* ════════════════════════════════════════════════════
    RESPONSIVE — Very small (360px)
 ════════════════════════════════════════════════════ */
-
 @media (max-width: 360px) {
+  /* Stack name fields on very small phones */
   .sk-form-grid {
     grid-template-columns: 1fr;
   }
@@ -931,7 +952,6 @@
   .sk-form-row {
     grid-template-columns: 1fr 1fr;
   }
-
   .sk-form-row > :last-child {
     grid-column: 1 / -1;
   }
@@ -939,7 +959,6 @@
   .sk-progress__label {
     font-size: 9px;
   }
-
   .sk-flight-card__code {
     font-size: 15px;
   }

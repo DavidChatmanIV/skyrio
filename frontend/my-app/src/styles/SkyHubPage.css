@@ -42,7 +42,12 @@
   --sh-ease: cubic-bezier(0.4, 0, 0.2, 1);
   --sh-t: 0.2s var(--sh-ease);
 
-  --sh-nav-h: 74px;
+  /* ✅ FIX c5: was 74px — corrected to match real navbar height.
+     Navbar = 70px bar + 12px top padding + 8px buffer = 90px.
+     SkyHub uses this in .skyhub-topHeader padding-top and
+     .skyhub-rightRail top — both were clipping under the nav. */
+  --sh-nav-h: 90px;
+
   --sh-max: 1380px;
 }
 
@@ -70,7 +75,6 @@
 /* ══════════════════════════════════════════════════════════
    PAGE SHELL
 ══════════════════════════════════════════════════════════ */
-
 .skyhub-page::before {
   content: "";
   position: fixed;
@@ -96,6 +100,8 @@
 ══════════════════════════════════════════════════════════ */
 .skyhub-topHeader {
   position: relative;
+  /* ✅ FIX c5: Now uses corrected --sh-nav-h (90px) instead of old 74px.
+     This ensures the hero content clears the fixed navbar correctly. */
   padding: calc(var(--sh-nav-h) + 20px) 32px 0;
   overflow: hidden;
 }
@@ -376,6 +382,12 @@
   transition: all var(--sh-t);
   line-height: 1;
   white-space: nowrap;
+  /* ✅ Ensure minimum tap target for mobile */
+  min-height: 44px;
+  touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .skyhub-filterChip:hover {
@@ -417,20 +429,21 @@
 
 .skyhub-rightRail {
   position: sticky;
+  /* ✅ FIX c5: Uses corrected --sh-nav-h so sticky sidebar
+     doesn't hide behind the navbar either */
   top: calc(var(--sh-nav-h) + 16px);
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-/* ══════════════════════════════════════════════════════════
-  STYLE TABS
-══════════════════════════════════════════════════════════ */
 
-/* ──TABS (Browse Feed) ── */
+/* ══════════════════════════════════════════════════════════
+   STYLE TABS
+══════════════════════════════════════════════════════════ */
 .skyhub-tabs {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(5, 1fr); /* adjust if more tabs */
+  grid-template-columns: repeat(5, 1fr);
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
 
@@ -445,6 +458,8 @@
   padding: 14px 10px;
   cursor: pointer;
   transition: color 0.25s ease;
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 .skyhub-tab:hover {
@@ -467,7 +482,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-  FEED SECTION  —  dark glass, unified with all cards
+   FEED SECTION
 ══════════════════════════════════════════════════════════ */
 .skyhub-feedSection {
   background: rgba(20, 12, 40, 0.45);
@@ -529,7 +544,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-  GLASS CARD  —  legacy base class
+   GLASS CARD — legacy base class
 ══════════════════════════════════════════════════════════ */
 .skyhub-card {
   background: var(--sh-glass-card);
@@ -563,8 +578,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-  FEED CARD  —  individual post rows
-  Warm light glass so posts contrast against dark section.
+   FEED CARD — individual post rows
 ══════════════════════════════════════════════════════════ */
 .skyhub-feedCard {
   background: rgba(255, 251, 246, 0.7) !important;
@@ -678,8 +692,8 @@
   border: none;
   background: transparent;
   color: var(--sh-text-faint);
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   cursor: pointer;
   display: grid;
@@ -687,6 +701,7 @@
   font-size: 1.1rem;
   flex-shrink: 0;
   transition: background var(--sh-t), color var(--sh-t);
+  touch-action: manipulation;
 }
 
 .skyhub-feedCard__menu:hover {
@@ -759,7 +774,7 @@
 .skyhub-feedCard__action {
   border: none;
   background: transparent;
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 10px;
   border-radius: var(--sh-r-pill);
   display: inline-flex;
@@ -771,6 +786,7 @@
   font-size: 0.84rem;
   cursor: pointer;
   transition: all var(--sh-t);
+  touch-action: manipulation;
 }
 
 .skyhub-feedCard__action:hover {
@@ -799,7 +815,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-  ANIMATIONS
+   ANIMATIONS
 ══════════════════════════════════════════════════════════ */
 @keyframes shPulse {
   0% {
@@ -863,7 +879,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-  RESPONSIVE
+   RESPONSIVE
 ══════════════════════════════════════════════════════════ */
 @media (max-width: 1200px) {
   .skyhub-contentGrid {
@@ -901,10 +917,26 @@
   .skyhub-pageTitle {
     font-size: clamp(2.4rem, 9vw, 3.5rem);
   }
-
   .skyhub-feedCard__body,
   .skyhub-feedCard__footer {
     margin-left: 0;
+  }
+}
+
+/* ✅ FIX c5: Mobile nav height corrections.
+   The navbar shrinks on smaller screens — update --sh-nav-h
+   to match so the header padding stays correct. */
+@media (max-width: 575px) {
+  :root {
+    /* Navbar: 60px bar + 10px padding + 8px buffer */
+    --sh-nav-h: 78px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    /* Navbar: 58px bar + 8px padding + 8px buffer */
+    --sh-nav-h: 74px;
   }
 }
 
