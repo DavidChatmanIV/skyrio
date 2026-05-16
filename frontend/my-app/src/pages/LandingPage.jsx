@@ -21,8 +21,7 @@ import { trackPassportEvent } from "@/utils/passportEvents";
 const { Option } = Select;
 
 // ─────────────────────────────────────────────
-// ✅ Home airport — inlined (no external hook file needed)
-// Persists to localStorage key "skyrio_home_airport"
+// Home airport — inlined, persists to localStorage
 // ─────────────────────────────────────────────
 const HOME_AIRPORT_KEY = "skyrio_home_airport";
 const DEFAULT_AIRPORT = {
@@ -71,9 +70,6 @@ function useHomeAirport() {
   };
 }
 
-// ─────────────────────────────────────────────
-// Common US departure airports
-// ─────────────────────────────────────────────
 const COMMON_AIRPORTS = [
   { code: "EWR", city: "Newark", name: "Newark Liberty Intl" },
   { code: "JFK", city: "New York", name: "John F. Kennedy Intl" },
@@ -239,12 +235,32 @@ const SUPPORT_FAQS = [
 ];
 
 // ─────────────────────────────────────────────
-// Injected styles
+// ✅ s3: Social proof bar items
+// ─────────────────────────────────────────────
+const SOCIAL_PROOF = [
+  { stat: "8 sec", label: "avg. plan build time" },
+  { stat: "30+", label: "destinations covered" },
+  { stat: "Free", label: "to search & plan" },
+  { stat: "Stripe", label: "secure payments" },
+];
+
+// ─────────────────────────────────────────────
+// ✅ s3: Trust signals below CTA
+// ─────────────────────────────────────────────
+const TRUST_SIGNALS = [
+  "✓ No credit card required",
+  "✓ Free to search & plan",
+  "✓ Cancel bookings within 24h",
+];
+
+// ─────────────────────────────────────────────
+// Injected styles — s3 additions + existing
 // ─────────────────────────────────────────────
 const INJECTED_CSS = `
+
 /* ── Home airport picker ── */
 .sk-home-airport {
-  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 18px;
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 0;
 }
 .sk-home-airport__label {
   font-size: 12px; color: rgba(255,255,255,0.45); font-weight: 500;
@@ -255,7 +271,7 @@ const INJECTED_CSS = `
   border: 1px solid rgba(255,255,255,0.18) !important;
   border-radius: 10px !important; color: rgba(255,255,255,0.9) !important;
   font-family: "DM Sans", sans-serif !important; font-size: 13px !important;
-  height: 34px !important; min-width: 200px;
+  height: 34px !important; min-width: 180px;
 }
 .sk-home-airport .ant-select-arrow { color: rgba(255,255,255,0.4) !important; }
 .sk-home-airport .ant-select-selector:hover { border-color: rgba(255,138,42,0.5) !important; }
@@ -271,6 +287,119 @@ const INJECTED_CSS = `
 .sk-home-airport-popup .ant-select-item-option-active,
 .sk-home-airport-popup .ant-select-item-option-selected {
   background: rgba(255,138,42,0.15) !important; color: #ff8a2a !important;
+}
+
+/* ✅ s3: Search row — airport inline with search bar */
+.sk-hero__searchRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 640px;
+}
+.sk-hero__searchInputRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+.sk-hero__airportRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ✅ s3: Social proof bar */
+.sk-social-proof {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 28px auto 0;
+  max-width: 560px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.sk-social-proof__item {
+  flex: 1;
+  padding: 14px 12px;
+  text-align: center;
+  border-right: 1px solid rgba(255,255,255,0.07);
+}
+.sk-social-proof__item:last-child { border-right: none; }
+.sk-social-proof__stat {
+  font-family: "Syne", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #ff8a2a;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.sk-social-proof__label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+}
+
+/* ✅ s3: Trust signals */
+.sk-trust-signals {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.sk-trust-signals span {
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  font-weight: 500;
+}
+
+/* ✅ s3: Secondary CTA below hero */
+.sk-hero__secondaryCta {
+  margin-top: 20px;
+  text-align: center;
+}
+.sk-hero__secondaryCta-text {
+  font-size: 13px;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 8px;
+}
+.sk-hero__secondaryCta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,138,42,0.35);
+  background: rgba(255,138,42,0.08);
+  color: #ff8a2a;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-decoration: none;
+}
+.sk-hero__secondaryCta-btn:hover {
+  background: rgba(255,138,42,0.15);
+  border-color: #ff8a2a;
+}
+
+/* ✅ s3: Examples section — tighter, more visual */
+.sk-examples__kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff8a2a;
+  margin-bottom: 10px;
 }
 
 /* ══════════════════════════════════════════ ATLAS SECTION ══════════════════════════════════════════ */
@@ -362,12 +491,19 @@ const INJECTED_CSS = `
 .sk-support__contact-text strong { color: #fff; }
 .sk-support__email { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.3); color: #ff8a2a; font-size: 13px; font-weight: 600; text-decoration: none; transition: background 0.2s, transform 0.2s; }
 .sk-support__email:hover { background: rgba(255,138,42,0.2); transform: translateY(-1px); }
+
 @media (max-width: 640px) {
   .sk-support__grid { grid-template-columns: 1fr; }
   .sk-support { padding: 0 16px 72px; }
   .sk-support__contact { flex-direction: column; padding: 20px 16px; }
   .sk-support__email { width: 100%; justify-content: center; }
   .sk-home-airport { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .sk-hero__searchInputRow { flex-direction: column; }
+  .sk-hero__searchInputRow .sk-cta { width: 100% !important; }
+  .sk-social-proof { border-radius: 12px; }
+  .sk-social-proof__stat { font-size: 15px; }
+  .sk-trust-signals { gap: 12px; }
+  .sk-trust-signals span { font-size: 11px; }
 }
 `;
 
@@ -375,7 +511,6 @@ export default function LandingPage() {
   const nav = useNavigate();
   const landingRef = useRef(null);
 
-  // ✅ Home airport — reads/writes localStorage, no external file needed
   const { homeAirport, setHomeAirport, homeCode, homeCity } = useHomeAirport();
 
   const [timePeriod, setTimePeriod] = useState(() =>
@@ -402,7 +537,6 @@ export default function LandingPage() {
   const [isRouting, setIsRouting] = useState(false);
   const [visibleBubbles, setVisibleBubbles] = useState(1);
 
-  // ✅ Atlas conversation uses homeCity dynamically
   const atlasConversation = useMemo(
     () => buildAtlasConversation(homeCity),
     [homeCity]
@@ -470,7 +604,6 @@ export default function LandingPage() {
     setShowSuggestion(next.trim().length >= 8);
   }, []);
 
-  // ✅ All navigation includes &from=homeCode
   const goPlan = useCallback(async () => {
     const prompt = normalizePrompt(q);
     if (!prompt) {
@@ -547,68 +680,81 @@ export default function LandingPage() {
       </div>
 
       <div className="sk-landing__content">
-        {/* ── Hero ── */}
+        {/* ── ✅ s3: Restructured Hero ── */}
         <header className="sk-hero">
-          <div className="sk-hero__eyebrow">AI-powered travel planning</div>
+          {/* ✅ s3: Sharper eyebrow — benefit not category */}
+          <div className="sk-hero__eyebrow">
+            Your AI travel planner — free to use
+          </div>
+
+          {/* ✅ s3: Specific, outcome-driven headline */}
           <h1 className="sk-hero__title">
-            Plan smarter.
+            Tell us where you want to go.
             <br />
-            Travel better.
+            We'll handle the rest.
           </h1>
+
+          {/* ✅ s3: One concrete proof point, not a vague claim */}
           <p className="sk-hero__sub">
-            Skyrio helps you turn one travel idea into a smarter plan, faster.
+            Type a destination and budget. Skyrio's AI builds a full flight +
+            hotel plan in seconds — then you book it directly.
           </p>
 
-          {/* ✅ Home airport picker */}
-          <div className="sk-home-airport">
-            <span className="sk-home-airport__label">
-              <EnvironmentOutlined /> Flying from
-            </span>
-            <Select
-              value={homeCode}
-              onChange={(code) => {
-                const ap = COMMON_AIRPORTS.find((a) => a.code === code);
-                if (ap) setHomeAirport(ap);
-              }}
-              classNames={{ popup: { root: "sk-home-airport-popup" } }}
-              showSearch
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                String(option?.children || "")
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
-            >
-              {COMMON_AIRPORTS.map((ap) => (
-                <Option key={ap.code} value={ap.code}>
-                  {ap.city} ({ap.code}) — {ap.name}
-                </Option>
-              ))}
-            </Select>
+          {/* ✅ s3: Search bar is the primary CTA — no airport picker above it */}
+          <div className="sk-hero__searchRow">
+            <div className="sk-hero__searchInputRow">
+              <Input
+                size="large"
+                prefix={<SearchOutlined />}
+                value={q}
+                onChange={handleQueryChange}
+                onPressEnter={goPlan}
+                placeholder='e.g. "Tokyo in April under $2,500"'
+                className="sk-searchInput"
+                disabled={isRouting}
+              />
+              <Button
+                size="large"
+                type="primary"
+                className="sk-cta"
+                onClick={goPlan}
+                loading={isRouting}
+              >
+                Plan my trip
+              </Button>
+            </div>
+
+            {/* ✅ s3: Airport picker moves below search — less friction above fold */}
+            <div className="sk-hero__airportRow">
+              <span className="sk-home-airport__label">
+                <EnvironmentOutlined /> Flying from
+              </span>
+              <Select
+                value={homeCode}
+                onChange={(code) => {
+                  const ap = COMMON_AIRPORTS.find((a) => a.code === code);
+                  if (ap) setHomeAirport(ap);
+                }}
+                classNames={{ popup: { root: "sk-home-airport-popup" } }}
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  String(option?.children || "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
+                }
+                className="sk-home-airport"
+              >
+                {COMMON_AIRPORTS.map((ap) => (
+                  <Option key={ap.code} value={ap.code}>
+                    {ap.city} ({ap.code}) — {ap.name}
+                  </Option>
+                ))}
+              </Select>
+            </div>
           </div>
 
-          <div className="sk-hero__search">
-            <Input
-              size="large"
-              prefix={<SearchOutlined />}
-              value={q}
-              onChange={handleQueryChange}
-              onPressEnter={goPlan}
-              placeholder='Try: "Japan in April under $2500"'
-              className="sk-searchInput"
-              disabled={isRouting}
-            />
-            <Button
-              size="large"
-              type="primary"
-              className="sk-cta"
-              onClick={goPlan}
-              loading={isRouting}
-            >
-              Plan my trip
-            </Button>
-          </div>
-
+          {/* ✅ s3: Quick chips — still here, now visually secondary */}
           <div className="sk-hero__quickActions">
             <button
               type="button"
@@ -638,6 +784,7 @@ export default function LandingPage() {
             </button>
           </div>
 
+          {/* AI suggestion card */}
           <section
             className={`sk-suggestion ${showSuggestion ? "is-visible" : ""}`}
           >
@@ -677,14 +824,51 @@ export default function LandingPage() {
               </div>
             </div>
           </section>
+
+          {/* ✅ s3: Social proof bar — numbers build immediate trust */}
+          <div className="sk-social-proof">
+            {SOCIAL_PROOF.map((item) => (
+              <div key={item.label} className="sk-social-proof__item">
+                <div className="sk-social-proof__stat">{item.stat}</div>
+                <div className="sk-social-proof__label">{item.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ✅ s3: Trust signals — kill objections early */}
+          <div className="sk-trust-signals">
+            {TRUST_SIGNALS.map((t) => (
+              <span key={t}>{t}</span>
+            ))}
+          </div>
+
+          {/* ✅ s3: Secondary CTA — signup path for users not ready to search */}
+          <div className="sk-hero__secondaryCta">
+            <p className="sk-hero__secondaryCta-text">
+              Want to track trips, earn XP, and unlock rewards?
+            </p>
+            <button
+              type="button"
+              className="sk-hero__secondaryCta-btn"
+              onClick={goSignup}
+            >
+              Create a free account <ArrowRightOutlined />
+            </button>
+          </div>
         </header>
 
         {/* ── Examples ── */}
         <section className="sk-examples">
           <div className="sk-examples__head">
-            <h2 className="sk-examples__title">See what Skyrio can do</h2>
+            {/* ✅ s3: kicker makes it feel more like proof, less like a feature list */}
+            <div className="sk-examples__kicker">
+              Real plans, built instantly
+            </div>
+            <h2 className="sk-examples__title">
+              See what Skyrio builds for you
+            </h2>
             <p className="sk-examples__sub">
-              Explore fast ideas, then jump straight into planning.
+              Click any trip — a full flight + hotel plan loads in seconds.
             </p>
           </div>
           <div className="sk-examples__grid">
@@ -715,8 +899,9 @@ export default function LandingPage() {
               </button>
             ))}
           </div>
+          {/* ✅ s3: footline is now a benefit statement, not just a tagline */}
           <p className="sk-footline">
-            Travel planning should feel exciting, not overwhelming.
+            No account needed to plan. Sign up when you're ready to book.
           </p>
         </section>
 

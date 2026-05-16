@@ -41,6 +41,8 @@ import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
 import SmartFilterBar from "@/pages/booking/SmartFilterBar";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
+// ✅ n3/n4: price watch wired to notifications service
+import { createNotification } from "@/services/notificationsService";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -359,15 +361,12 @@ function SearchBtn({ onClick, loading }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// ✅ BOOKING TAB BAR — clean text labels, More ▾ dropdown
-// ─────────────────────────────────────────────────────────────
+// ── Tab bar ───────────────────────────────────────────────────
 const PRIMARY_TABS = [
   { key: "Flights", label: "Flights" },
   { key: "Stays", label: "Stays" },
   { key: "Saved", label: "Saved" },
 ];
-
 const MORE_TABS = [
   { key: "Cars", label: "Cars" },
   { key: "Excursions", label: "Excursions" },
@@ -451,7 +450,7 @@ function BookingTabBar({ value, onChange }) {
   );
 }
 
-// ─── Search forms ─────────────────────────────────────────────
+// ── Search forms ──────────────────────────────────────────────
 function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
@@ -893,7 +892,7 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
 
-  // ✅ f4: read departure airport from URL param (set by LandingPage via homeAirport hook)
+  // ✅ f4: departure airport from URL param
   const fromCode = searchParams.get("from") || "EWR";
 
   const prefillData = useMemo(() => {
@@ -935,7 +934,6 @@ export default function BookingPage() {
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
-  const [priceWatchOn, setPriceWatchOn] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
   const [selectedNights, setSelectedNights] = useState(
@@ -947,6 +945,80 @@ export default function BookingPage() {
     bookingTotal: 0,
     tripDays: prefillData?.tripDays ?? null,
   });
+
+  // ✅ n3/n4: price watch state
+  const [priceWatchOn, setPriceWatchOn] = useState(false);
+  const [priceWatchRoute, setPriceWatchRoute] = useState(null);
+  const [watchingId, setWatchingId] = useState(null);
+
+  // ✅ n3/n4: toggle global price watch for the current route
+  const handlePriceWatchToggle = useCallback(async () => {
+    const next = !priceWatchOn;
+    setPriceWatchOn(next);
+
+    if (next && priceWatchRoute) {
+      try {
+        await createNotification({
+          type: "price_watch",
+          event: "price_watch_enabled",
+          title: "Price Watch enabled",
+          message: `We'll alert you when prices drop for ${priceWatchRoute.from} → ${priceWatchRoute.to}.`,
+          targetType: "route",
+          metadata: priceWatchRoute,
+        });
+        antdMessage.success("🔔 Price Watch on — we'll notify you of drops!");
+      } catch {
+        antdMessage.info("Price Watch enabled — alerts coming soon.");
+      }
+    } else if (!next) {
+      antdMessage.info("Price Watch disabled.");
+    } else {
+      antdMessage.info("Search for a route first to watch its price.");
+      setPriceWatchOn(false);
+    }
+  }, [priceWatchOn, priceWatchRoute]);
+
+  // ✅ n3/n4: watch price for a specific flight
+  const handleWatchFlight = useCallback(
+    async (flight) => {
+      const alreadyWatching = watchingId === flight.id;
+      if (alreadyWatching) {
+        setWatchingId(null);
+        antdMessage.info("Stopped watching this flight.");
+        return;
+      }
+      setWatchingId(flight.id);
+      const price = parseFloat(flight.totalAmount);
+      const route = {
+        from: flight.origin,
+        to: flight.destination,
+        price,
+        flightId: flight.id,
+        airline: flight.owner,
+      };
+      setPriceWatchRoute(route);
+      setPriceWatchOn(true);
+      try {
+        await createNotification({
+          type: "price_watch",
+          event: "flight_price_watch",
+          title: "Watching flight price",
+          message: `Alert set for ${flight.owner} ${flight.origin} → ${
+            flight.destination
+          } at $${price.toFixed(0)}.`,
+          targetType: "flight",
+          targetId: flight.id,
+          metadata: route,
+        });
+        antdMessage.success(
+          `🔔 Watching $${price.toFixed(0)} — you'll be notified if it drops!`
+        );
+      } catch {
+        antdMessage.info("Price watch set — alerts coming soon.");
+      }
+    },
+    [watchingId]
+  );
 
   const handleDatesChange = useCallback(({ nights }) => {
     if (nights !== null && nights > 0) {
@@ -975,7 +1047,6 @@ export default function BookingPage() {
   const budgetSeed = prefillData?.budget ?? null;
   const tripDaySeed = prefillData?.tripDays ?? null;
 
-  // ✅ f4: auto-search uses fromCode from URL instead of hardcoded "EWR"
   useEffect(() => {
     if (!prefillData?.iata || autoSearchDone) return;
     const { iata, tripDays: days = 10 } = prefillData;
@@ -984,7 +1055,7 @@ export default function BookingPage() {
     setAutoSearchError(null);
     setTab("Flights");
     const params = new URLSearchParams({
-      from: fromCode, // ✅ was hardcoded "EWR"
+      from: fromCode,
       to: iata,
       departDate,
       returnDate,
@@ -997,7 +1068,17 @@ export default function BookingPage() {
         if (!data.ok) throw new Error(data.message || "Search failed");
         setFlightResults(data.flights ?? []);
         setAutoSearchDone(true);
+        // ✅ Set initial price watch route from auto-search
         if (data.flights?.length) {
+          const cheapest = [...data.flights].sort(
+            (a, b) => parseFloat(a.totalAmount) - parseFloat(b.totalAmount)
+          )[0];
+          setPriceWatchRoute({
+            from: fromCode,
+            to: iata,
+            price: parseFloat(cheapest.totalAmount),
+            airline: cheapest.owner,
+          });
           antdMessage.success(
             `✈️ Found ${data.flights.length} flights to ${prefillData.destination}`
           );
@@ -1048,7 +1129,6 @@ export default function BookingPage() {
     ? `${selectedNights} night${selectedNights !== 1 ? "s" : ""}`
     : "";
 
-  // ✅ Quick filters — only shown when Flights tab is active
   const quickFilters = useMemo(
     () => ["Under $500", "Luxury", "Unwind", "Adventure", "Romantic"],
     []
@@ -1088,6 +1168,19 @@ export default function BookingPage() {
             onSearch={(f) => {
               setFlightResults(f);
               setSmartFilters(DEFAULT_FILTERS);
+              // ✅ Update price watch route when user manually searches
+              if (f.length > 0) {
+                const cheapest = [...f].sort(
+                  (a, b) =>
+                    parseFloat(a.totalAmount) - parseFloat(b.totalAmount)
+                )[0];
+                setPriceWatchRoute({
+                  from: cheapest.origin,
+                  to: cheapest.destination,
+                  price: parseFloat(cheapest.totalAmount),
+                  airline: cheapest.owner,
+                });
+              }
             }}
             onDestChange={setDestCity}
             onDatesChange={handleDatesChange}
@@ -1274,19 +1367,13 @@ export default function BookingPage() {
                 ⚡ AI Insight
               </button>
             )}
+            {/* ✅ n3/n4: Price Watch pill now calls real handler */}
             <button
               type="button"
               className={`sk-pill sk-pill-glass sk-pill-toggle${
                 priceWatchOn ? " is-active" : ""
               }`}
-              onClick={() => {
-                setPriceWatchOn((p) => !p);
-                antdMessage.info(
-                  priceWatchOn
-                    ? "Price Watch disabled"
-                    : "Price Watch enabled — we'll alert you on drops!"
-                );
-              }}
+              onClick={handlePriceWatchToggle}
             >
               {priceWatchOn ? "🔔 Price Watch On" : "🔕 Price Watch Off"}
             </button>
@@ -1297,7 +1384,6 @@ export default function BookingPage() {
           Smart Plan AI helps balance budget, comfort, and XP.
         </Text>
 
-        {/* ✅ Clean tab bar — text only, no emoji */}
         <BookingTabBar
           value={tab}
           onChange={(val) => {
@@ -1327,7 +1413,6 @@ export default function BookingPage() {
           visible={tab === "Flights"}
         />
 
-        {/* Sort + Sync — always visible */}
         <Space className="sk-action-row" wrap>
           <Button className="sk-btn-orange">Sort: Recommended</Button>
           <Link to="/sync-together">
@@ -1337,7 +1422,6 @@ export default function BookingPage() {
           </Link>
         </Space>
 
-        {/* ✅ Quick filter chips — ONLY on Flights tab */}
         {tab === "Flights" && (
           <Space className="sk-filters" wrap>
             {quickFilters.map((f) => (
@@ -1371,7 +1455,6 @@ export default function BookingPage() {
             <Title level={4} className="sk-section-title">
               {resultsTitle}
             </Title>
-            {/* ✅ f4: uses fromCode instead of hardcoded "EWR" */}
             <div className="sk-resultsSub">
               {autoSearchLoading
                 ? `Searching ${fromCode} → ${
@@ -1504,6 +1587,26 @@ export default function BookingPage() {
                           }}
                           onSaveError={(msg) => antdMessage.error(msg)}
                         />
+                        {/* ✅ n4: Watch Price button on each flight card */}
+                        <button
+                          type="button"
+                          className={`sk-watch-btn${
+                            watchingId === flight.id ? " is-watching" : ""
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleWatchFlight(flight);
+                          }}
+                          title={
+                            watchingId === flight.id
+                              ? "Stop watching price"
+                              : "Watch price"
+                          }
+                        >
+                          {watchingId === flight.id
+                            ? "🔔 Watching"
+                            : "🔕 Watch"}
+                        </button>
                         <Button
                           className="sk-btn-orange"
                           size="small"

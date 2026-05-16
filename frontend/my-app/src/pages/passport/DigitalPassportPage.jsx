@@ -44,8 +44,12 @@ import { useAuth } from "../../auth/useAuth";
 import RewardsOptInPrompt from "../../components/rewards/RewardsOptInPrompt";
 import useRewardsOptInPrompt from "../../hooks/useRewardsOptInPrompt";
 import { apiUrl } from "@/lib/api";
+// ✅ n7: post-registration onboarding flow
+import OnboardingModal from "@/components/onboarding/OnboardingModal";
 
 const { Title, Text } = Typography;
+
+const API = import.meta.env.VITE_API_URL || "";
 
 function safeEmailPrefix(email) {
   if (!email) return "";
@@ -89,7 +93,7 @@ function isYouTubeUrl(url) {
   return v.includes("youtu.be") || v.includes("youtube.com");
 }
 
-// ── Locked state for unauthenticated users ───────────────────
+// ── Locked state ─────────────────────────────────────────────
 function PassportLocked() {
   const navigate = useNavigate();
   return (
@@ -203,8 +207,8 @@ export default function DigitalPassportPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [xpToastShown, setXpToastShown] = useState(false);
 
-  // ✅ NEW: Delete account modal state — 2-step flow
-  const [deleteStep, setDeleteStep] = useState(0); // 0=closed, 1=confirm, 2=type to confirm
+  // Delete account — 2-step flow
+  const [deleteStep, setDeleteStep] = useState(0);
   const [deleteInput, setDeleteInput] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const DELETE_PHRASE = "DELETE";
@@ -271,20 +275,46 @@ export default function DigitalPassportPage() {
     } catch {}
   }, [location?.state?.fromAuth, user?.name]);
 
-  // ── Load profile music ──
+  // ── Load profile music — API first, localStorage as instant cache ──
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (saved?.url) {
-        if (!saved.provider && isYouTubeUrl(saved.url)) {
-          saved.provider = "youtube";
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached?.url) {
+          if (!cached.provider && isYouTubeUrl(cached.url))
+            cached.provider = "youtube";
+          setProfileMusic(cached);
         }
-        setProfileMusic(saved);
       }
-    } catch {}
-  }, []);
+    } catch {
+      /* ignore */
+    }
+
+    if (!token) return;
+    fetch(`${API}/api/profile/music`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.music?.url) {
+          const m = data.music;
+          if (!m.provider && isYouTubeUrl(m.url)) m.provider = "youtube";
+          setProfileMusic(m);
+          try {
+            localStorage.setItem(SKYRIO_PROFILE_MUSIC_KEY, JSON.stringify(m));
+          } catch {}
+        } else if (data && data.music === null) {
+          setProfileMusic(null);
+          try {
+            localStorage.removeItem(SKYRIO_PROFILE_MUSIC_KEY);
+          } catch {}
+        }
+      })
+      .catch(() => {
+        /* silent */
+      });
+  }, [token]);
 
   const handleMusicSave = useCallback((payload) => {
     if (payload && !payload.provider && isYouTubeUrl(payload.url)) {
@@ -514,7 +544,7 @@ export default function DigitalPassportPage() {
     }
   };
 
-  // ✅ NEW: Delete account handler
+  // ── Delete account ──
   const handleDeleteAccount = async () => {
     if (deleteInput.trim().toUpperCase() !== DELETE_PHRASE) {
       message.error(`Type ${DELETE_PHRASE} to confirm.`);
@@ -529,15 +559,9 @@ export default function DigitalPassportPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Failed to delete account");
-
-      // Clear all local data
       localStorage.clear();
       sessionStorage.clear();
-
-      // Clear auth context
       if (logout) await logout();
-
-      // Close modal and redirect
       setDeleteStep(0);
       setDeleteInput("");
       navigate("/", { replace: true });
@@ -969,7 +993,6 @@ export default function DigitalPassportPage() {
                       Upgrade your Passport
                     </Button>
 
-                    {/* ✅ NEW: Delete account — separated visually with a divider */}
                     <div
                       style={{
                         marginTop: 24,
@@ -1017,6 +1040,9 @@ export default function DigitalPassportPage() {
             </div>
           </div>
         </div>
+
+        {/* ✅ n7: Onboarding modal — shows once for new users, dismissed forever after */}
+        <OnboardingModal user={user} token={token} />
       </div>
 
       {/* ── Followers modal ── */}
@@ -1122,7 +1148,7 @@ export default function DigitalPassportPage() {
         </div>
       </Modal>
 
-      {/* ✅ NEW: Delete account — Step 1: Are you sure? */}
+      {/* ── Delete account — Step 1 ── */}
       <Modal
         open={deleteStep === 1}
         onCancel={() => setDeleteStep(0)}
@@ -1142,7 +1168,14 @@ export default function DigitalPassportPage() {
         centered
       >
         <div style={{ padding: "8px 0 16px" }}>
-          <p style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 20 }}>
+          <p
+            style={{
+              fontSize: 15,
+              lineHeight: 1.7,
+              marginBottom: 20,
+              color: "rgba(255,255,255,0.75)",
+            }}
+          >
             Are you sure you want to delete your Skyrio account?
           </p>
           <div
@@ -1207,7 +1240,7 @@ export default function DigitalPassportPage() {
         </div>
       </Modal>
 
-      {/* ✅ NEW: Delete account — Step 2: Type DELETE to confirm */}
+      {/* ── Delete account — Step 2 ── */}
       <Modal
         open={deleteStep === 2}
         onCancel={() => {
@@ -1234,7 +1267,7 @@ export default function DigitalPassportPage() {
             style={{
               fontSize: 14,
               marginBottom: 16,
-              color: "rgba(0,0,0,0.65)",
+              color: "rgba(255,255,255,0.75)",
             }}
           >
             Type{" "}

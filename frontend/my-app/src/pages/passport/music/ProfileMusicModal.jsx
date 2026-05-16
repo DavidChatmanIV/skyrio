@@ -5,6 +5,8 @@ const { Text } = Typography;
 
 export const SKYRIO_PROFILE_MUSIC_KEY = "skyrio_profile_music_v1";
 
+const API = import.meta.env.VITE_API_URL || "";
+
 function detectProvider(link) {
   const v = String(link || "").toLowerCase();
   if (v.includes("youtu.be") || v.includes("youtube.com")) return "youtube";
@@ -24,57 +26,144 @@ function getYouTubeEmbedUrl(url) {
   return null;
 }
 
+function getToken() {
+  return localStorage.getItem("token") || "";
+}
+
+// ── Write to localStorage cache ──────────────────────────────
+function cacheMusic(payload) {
+  try {
+    if (payload) {
+      localStorage.setItem(SKYRIO_PROFILE_MUSIC_KEY, JSON.stringify(payload));
+    } else {
+      localStorage.removeItem(SKYRIO_PROFILE_MUSIC_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+// ── Read from localStorage cache ─────────────────────────────
+function readCache() {
+  try {
+    const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.url ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ProfileMusicModal({ open, onClose, onSave, value }) {
   const [url, setUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
+  // ── On open: seed from prop → cache → API ────────────────
   useEffect(() => {
     if (!open) return;
-    if (value?.url) {
-      setUrl(value.url);
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (saved?.url) setUrl(saved.url);
-    } catch {
-      /* ignore */
-    }
+
+    // 1. Immediate seed from prop or cache (no flicker)
+    const seed = value?.url || readCache()?.url || "";
+    setUrl(seed);
+
+    // 2. Fetch canonical value from API
+    const token = getToken();
+    if (!token) return;
+
+    setLoading(true);
+    fetch(`${API}/api/profile/music`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.music?.url) {
+          setUrl(data.music.url);
+          cacheMusic(data.music);
+        }
+      })
+      .catch(() => {
+        /* silent — cache already seeded */
+      })
+      .finally(() => setLoading(false));
   }, [open, value?.url]);
 
   const provider = useMemo(() => detectProvider(url), [url]);
 
-  const save = () => {
+  // ── Save ─────────────────────────────────────────────────
+  const save = async () => {
     const trimmed = (url || "").trim();
     if (!trimmed) return message.error("Add a YouTube link first.");
     if (provider !== "youtube")
       return message.error("Please paste a valid YouTube link.");
+
     const payload = {
       provider,
       url: trimmed,
       name: "▶️ My Travel Soundtrack",
       updatedAt: new Date().toISOString(),
     };
+
+    setSaving(true);
     try {
-      localStorage.setItem(SKYRIO_PROFILE_MUSIC_KEY, JSON.stringify(payload));
-    } catch {
-      /* ignore */
+      const token = getToken();
+
+      // ✅ Save to API so all devices stay in sync
+      if (token) {
+        const res = await fetch(`${API}/api/profile/music`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ music: payload }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to save music");
+        }
+      }
+
+      // ✅ Also write to cache for instant display on reload
+      cacheMusic(payload);
+
+      message.success("Profile music saved ✓");
+      onSave?.(payload);
+      onClose?.();
+    } catch (err) {
+      message.error(err.message || "Could not save music. Try again.");
+    } finally {
+      setSaving(false);
     }
-    message.success("Profile music saved ✓");
-    onSave?.(payload);
-    onClose?.();
   };
 
-  const clear = () => {
+  // ── Remove ────────────────────────────────────────────────
+  const clear = async () => {
+    setSaving(true);
     try {
-      localStorage.removeItem(SKYRIO_PROFILE_MUSIC_KEY);
-    } catch {
-      /* ignore */
+      const token = getToken();
+
+      // ✅ Remove from API
+      if (token) {
+        await fetch(`${API}/api/profile/music`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {
+          /* silent */
+        });
+      }
+
+      // ✅ Clear cache
+      cacheMusic(null);
+      setUrl("");
+
+      message.success("Profile music removed.");
+      onSave?.(null);
+    } finally {
+      setSaving(false);
     }
-    setUrl("");
-    message.success("Profile music removed.");
-    onSave?.(null);
   };
 
   const embedUrl =
@@ -101,9 +190,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
           background: "transparent",
           borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
         },
-        mask: {
-          backdropFilter: "blur(8px)",
-        },
+        mask: { backdropFilter: "blur(8px)" },
       }}
     >
       <Space
@@ -121,7 +208,14 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
           Add your travel theme song. Paste a YouTube link below.
         </Text>
 
-        {/* ── Provider detected badge ── */}
+        {/* Loading indicator */}
+        {loading && (
+          <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
+            Loading your saved music…
+          </Text>
+        )}
+
+        {/* Provider badge */}
         {url.trim() && provider === "youtube" && (
           <div
             style={{
@@ -147,6 +241,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
           placeholder="Paste a YouTube link (youtube.com/watch?v=... or youtu.be/...)"
           allowClear
           size="large"
+          disabled={loading}
           style={{
             background: "rgba(255,255,255,0.06)",
             border: "1px solid rgba(255,255,255,0.15)",
@@ -156,10 +251,10 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
         />
 
         <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
-          Example: youtube.com/watch?v=... · youtu.be/...
+          Saved music syncs across all your devices.
         </div>
 
-        {/* ── YouTube Preview Player ── */}
+        {/* YouTube preview */}
         {embedUrl && (
           <div
             style={{
@@ -184,6 +279,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
           <Button
             type="primary"
             onClick={save}
+            loading={saving}
             style={{
               background: "linear-gradient(135deg, #ff8a2a, #ffb066)",
               border: "none",
@@ -198,6 +294,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
           </Button>
           <Button
             onClick={clear}
+            loading={saving}
             style={{
               background: "rgba(255,255,255,0.06)",
               border: "1px solid rgba(255,255,255,0.15)",

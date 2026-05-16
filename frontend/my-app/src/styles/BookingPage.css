@@ -145,7 +145,7 @@
 }
 
 /* ═══════════════════════════════════════════════
-   ✅ NEW: BOOKING TAB BAR (replaces AntD Segmented)
+   BOOKING TAB BAR
    Flights | Stays | Saved | More ▾
 ═══════════════════════════════════════════════ */
 .sk-tab-bar {
@@ -161,8 +161,6 @@
   flex-wrap: nowrap;
   overflow: visible;
 }
-
-/* Primary tab buttons */
 .sk-tab-btn {
   flex: 1;
   padding: 10px 18px;
@@ -187,13 +185,10 @@
   background: linear-gradient(135deg, #ff8a2a, #ffb347);
   color: #1b1024;
 }
-
-/* More › dropdown trigger */
 .sk-tab-more {
   position: relative;
   flex-shrink: 0;
 }
-
 .sk-tab-more-btn {
   padding: 10px 16px;
   border-radius: 10px;
@@ -223,8 +218,6 @@
   border-color: rgba(255, 138, 42, 0.45);
   color: #ff8a2a;
 }
-
-/* More dropdown menu */
 .sk-tab-more-menu {
   position: absolute;
   top: calc(100% + 8px);
@@ -240,7 +233,6 @@
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
   animation: skTabMenuIn 0.16s ease forwards;
 }
-
 @keyframes skTabMenuIn {
   from {
     opacity: 0;
@@ -251,7 +243,6 @@
     transform: translateY(0) scale(1);
   }
 }
-
 .sk-tab-more-item {
   width: 100%;
   padding: 11px 16px;
@@ -280,7 +271,7 @@
   color: #ff8a2a;
 }
 
-/* ================= BUTTONS — glass default ================= */
+/* ================= BUTTONS ================= */
 .sk-btn-orange {
   background: rgba(255, 255, 255, 0.08) !important;
   border: 1px solid var(--sk-border-2) !important;
@@ -318,7 +309,6 @@
   color: #fff !important;
   cursor: default !important;
 }
-
 .sk-save-btn-ghost {
   background: rgba(255, 138, 42, 0.06) !important;
   border: 1px solid rgba(255, 138, 42, 0.28) !important;
@@ -343,7 +333,7 @@
   cursor: default !important;
 }
 
-/* ================= SYNC TOGETHER BUTTON ================= */
+/* ================= SYNC TOGETHER ================= */
 .sk-btn-sync.ant-btn {
   background: var(--sk-orange-grad) !important;
   border: none !important;
@@ -433,7 +423,6 @@
   padding: 12px 16px !important;
   justify-content: flex-start !important;
 }
-
 .sk-saved-chip {
   display: inline-flex;
   align-items: center;
@@ -590,7 +579,7 @@
   background: rgba(255, 138, 42, 0.18) !important;
 }
 
-/* ================= TRAVELERS INPUT NUMBER ================= */
+/* ================= TRAVELERS INPUT ================= */
 .sk-input-travelers {
   width: 110px !important;
 }
@@ -786,7 +775,6 @@
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38),
     0 0 0 3px rgba(255, 138, 42, 0.14);
 }
-
 .sk-resultRow {
   display: flex;
   gap: 14px;
@@ -999,7 +987,6 @@
   border-radius: 10px;
   flex-shrink: 0;
 }
-
 .sk-search-error {
   background: rgba(255, 80, 80, 0.08);
   border: 1px solid rgba(255, 80, 80, 0.22);
@@ -1188,7 +1175,7 @@
 }
 
 /* ═══════════════════════════════════════════════
-   SMART FILTER BAR  (skf-*)
+   SMART FILTER BAR (skf-*)
 ═══════════════════════════════════════════════ */
 .skf-bar {
   width: 100%;
@@ -1537,7 +1524,7 @@
 }
 
 /* ═══════════════════════════════════════════════
-   ATLAS FAB — iOS safe area
+   ATLAS FAB
 ═══════════════════════════════════════════════ */
 .atlas-fab,
 .atlas-trigger,
@@ -1819,8 +1806,6 @@
     height: 30px;
     border-radius: 10px;
   }
-
-  /* ✅ NEW: Tab bar mobile — compact */
   .sk-tab-bar {
     padding: 4px;
     gap: 4px;
@@ -1837,8 +1822,6 @@
     right: 0;
     min-width: 160px;
   }
-
-  /* Airport pair */
   .sk-airport-pair {
     flex-direction: column;
     width: 100%;
@@ -1853,24 +1836,18 @@
   .sk-swap-btn {
     display: none;
   }
-
-  /* Filter dropdown */
   .skf-dropdown {
     left: 50%;
     transform: translateX(-50%);
     min-width: min(260px, calc(100vw - 32px));
     max-width: calc(100vw - 32px);
   }
-
-  /* Prefill */
   .sk-prefill-expandedRow {
     flex-direction: column;
   }
   .sk-prefill-field--grow {
     width: 100%;
   }
-
-  /* Filter bar */
   .skf-bar-label {
     font-size: 10px;
   }
@@ -1893,8 +1870,6 @@
   .skf-time-sub {
     display: none;
   }
-
-  /* AI insight */
   .sk-ai-insight-pill {
     font-size: 12px;
     padding: 6px 10px 6px 8px;
@@ -1903,8 +1878,6 @@
     flex-wrap: wrap;
     gap: 8px !important;
   }
-
-  /* Airport inputs */
   .sk-airport-wrap input,
   .sk-airport-pair input {
     background: rgba(255, 255, 255, 0.08) !important;
@@ -1954,4 +1927,37 @@
   .ant-picker-header-view button {
     font-size: 14px !important;
   }
+}
+
+/* ═══════════════════════════════════════════════
+   ✅ n3/n4: WATCH PRICE BUTTON — flight cards
+═══════════════════════════════════════════════ */
+.sk-watch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  touch-action: manipulation;
+  min-height: 28px;
+}
+.sk-watch-btn:hover {
+  border-color: rgba(255, 138, 42, 0.4);
+  color: #ff8a2a;
+  background: rgba(255, 138, 42, 0.08);
+}
+.sk-watch-btn.is-watching {
+  border-color: rgba(255, 138, 42, 0.55);
+  background: rgba(255, 138, 42, 0.15);
+  color: #ffb066;
+  box-shadow: 0 0 0 2px rgba(255, 138, 42, 0.12);
 }
