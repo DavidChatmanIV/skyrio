@@ -5,33 +5,51 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { Card, InputNumber } from "antd";
+import { Card, InputNumber, Select } from "antd";
 import {
   ReloadOutlined,
   PlusOutlined,
-  CoffeeOutlined,
-  CarOutlined,
-  HomeOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  CheckOutlined,
+  CloseOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
 
 import "../../styles/TripBudgetCard.css";
 
-function buildAiSuggestion({ planned, used, bookingTotal, tripDays }) {
+const { Option } = Select;
+
+// ── Expense categories ────────────────────────────────────────
+const EXPENSE_CATEGORIES = [
+  { key: "flights", label: "✈️ Flights", color: "#7c5cfc" },
+  { key: "hotel", label: "🏨 Hotel", color: "#00b8d9" },
+  { key: "dining", label: "🍽 Dining", color: "#ff8a2a" },
+  { key: "transport", label: "🚗 Transport", color: "#36b37e" },
+  { key: "activities", label: "🎯 Activities", color: "#ff5630" },
+  { key: "shopping", label: "🛍 Shopping", color: "#6554c0" },
+  { key: "other", label: "📌 Other", color: "#8993a4" },
+];
+
+function getCategoryMeta(key) {
+  return (
+    EXPENSE_CATEGORIES.find((c) => c.key === key) ??
+    EXPENSE_CATEGORIES[EXPENSE_CATEGORIES.length - 1]
+  );
+}
+
+// ── AI budget insight ─────────────────────────────────────────
+function buildAiSuggestion({ planned, spent, bookingTotal, tripDays }) {
   const p = Number(planned || 0);
-  const u = Number(used || 0);
-  const b = Number(bookingTotal || 0);
-  const spent = u + b;
-  const left = p - spent;
+  const s = Number(spent || 0) + Number(bookingTotal || 0);
+  const left = p - s;
 
   if (!p) {
     return {
       title: "Set a budget and Atlas will pace the trip for you.",
-      detail: `Most travelers land around $780–$1,200. Pick a number and I'll keep your spending smooth.`,
-      hint: `Quick start: try $${Math.max(
-        210,
-        Math.ceil(b * 1.25) || 210
-      ).toLocaleString()}.`,
+      detail:
+        "Most travelers budget $800–$1,500 for a week. Pick a number and I'll keep your spending on track.",
+      hint: null,
       tone: "neutral",
     };
   }
@@ -43,13 +61,14 @@ function buildAiSuggestion({ planned, used, bookingTotal, tripDays }) {
   const activities = Math.round(p * 0.2);
 
   if (left < 0) {
-    const recoverPerDay = days ? Math.ceil(Math.abs(left) / days) : null;
     return {
-      title: `You're $${Math.abs(left).toLocaleString()} over budget.`,
-      detail: recoverPerDay
-        ? `Cut about $${recoverPerDay.toLocaleString()} / day for extras.`
-        : `Increase your budget or trim extras.`,
-      hint: "Tap Optimize and I'll rebalance your split.",
+      title: `$${Math.abs(left).toLocaleString()} over budget.`,
+      detail: days
+        ? `Cut about $${Math.ceil(
+            Math.abs(left) / days
+          ).toLocaleString()} per day for the rest of the trip.`
+        : "Increase your budget or trim upcoming expenses.",
+      hint: "Tap Optimize and Atlas will rebalance your spend.",
       tone: "danger",
     };
   }
@@ -59,42 +78,32 @@ function buildAiSuggestion({ planned, used, bookingTotal, tripDays }) {
       title: "Tight pacing — but doable.",
       detail: `~$${Math.floor(
         perDay
-      ).toLocaleString()} / day for extras. Split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
-      hint: "Atlas can help you stretch this without ruining the fun.",
+      ).toLocaleString()} / day left. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
+      hint: "Atlas can help you stretch this without sacrificing the experience.",
       tone: "warn",
     };
   }
 
-  if (perDay !== null && perDay < 80) {
+  if (perDay !== null) {
     return {
       title: "You're on track.",
       detail: `~$${Math.floor(
         perDay
-      ).toLocaleString()} / day remaining. Split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
-      hint: "Want a better deal window? Tap Find better deal.",
-      tone: "ok",
-    };
-  }
-
-  if (perDay === null) {
-    return {
-      title: "Budget set — add your dates to pace it out.",
-      detail: `You've budgeted $${p.toLocaleString()} total. Select dates and Atlas will break this down day by day.`,
-      hint: `Split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
+      ).toLocaleString()} / day remaining. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
+      hint: "Want to find a better deal? Tap below.",
       tone: "ok",
     };
   }
 
   return {
-    title: "Comfortable pacing.",
-    detail: `~$${Math.floor(
-      perDay
-    ).toLocaleString()} / day for extras. Split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
-    hint: "Atlas can upgrade the experience without breaking budget.",
-    tone: "great",
+    title: "Budget set — add your dates to pace it out.",
+    detail: `You've budgeted $${p.toLocaleString()} total. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
+    hint: "Select dates and Atlas will break this down day by day.",
+    tone: "ok",
   };
 }
 
+// ── Typewriter ────────────────────────────────────────────────
 function useTypewriter(text, { speed = 16, enabled = true } = {}) {
   const [out, setOut] = useState("");
   const idxRef = useRef(0);
@@ -125,25 +134,11 @@ function useTypewriter(text, { speed = 16, enabled = true } = {}) {
   return { out, done: out.length >= String(text || "").length };
 }
 
-const CATEGORY_PRESETS = [
-  { icon: <CoffeeOutlined />, label: "Dining", amount: 45 },
-  { icon: <CarOutlined />, label: "Transport", amount: 25 },
-  { icon: <HomeOutlined />, label: "Lodging", amount: 120 },
-];
-
-const TONE_COLORS = {
-  neutral: "#7c5cfc",
-  ok: "#00c9a7",
-  great: "#00c9a7",
-  warn: "#ff8a2a",
-  danger: "#ff4d6d",
-};
-
-const ATLAS_SUGGESTIONS = [
-  "Atlas thinks you should visit Kyoto instead — less rush, better value, and the nights hit different.",
-  "Atlas pick: Lisbon. Beautiful views, great food, and surprisingly budget-friendly right now.",
-  "Atlas move: fly into Osaka to save money, then train to Kyoto for the vibes.",
-  'Atlas tip: lock your "extras" budget first — it\'s what keeps trips stress-free.',
+const ATLAS_LINES = [
+  "Atlas tip: lock your transport budget early — prices shift fast.",
+  "Atlas pick: flexible check-in dates save 15–30% on hotels most weeks.",
+  "Atlas move: book flights on Tuesday evenings for the best base fares.",
+  "Atlas insight: dining out for lunch instead of dinner cuts food spend by ~40%.",
 ];
 
 export default function TripBudgetCard({
@@ -152,21 +147,36 @@ export default function TripBudgetCard({
   initialDestination = "your destination",
   onStateChange,
 }) {
+  // ── Core budget state ──
   const [planned, setPlanned] = useState(null);
-  const [used, setUsed] = useState(0);
   const [bookingTotal, setBookingTotal] = useState(
     Number(initialBookingTotal) || 0
   );
-  const [expenseAmount, setExpenseAmount] = useState(null);
   const [tripDays, setTripDays] = useState(
     initialTripDays ? Number(initialTripDays) : null
   );
   const [destination, setDestination] = useState(initialDestination);
+
+  // ── Expense list state ──
+  // Each expense: { id, label, amount, category }
+  const [expenses, setExpenses] = useState([]);
+  const [newAmount, setNewAmount] = useState(null);
+  const [newLabel, setNewLabel] = useState("");
+  const [newCategory, setNewCategory] = useState("other");
+
+  // ── Edit state ──
+  const [editingId, setEditingId] = useState(null);
+  const [editAmount, setEditAmount] = useState(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editCategory, setEditCategory] = useState("other");
+
+  // ── Atlas state ──
   const [atlasThinking, setAtlasThinking] = useState(false);
   const [atlasReveal, setAtlasReveal] = useState(false);
   const [atlasLine, setAtlasLine] = useState("");
-  const [atlasVariant, setAtlasVariant] = useState(0);
+  const [atlasIdx, setAtlasIdx] = useState(0);
 
+  // ── Sync props ──
   useEffect(() => {
     if (initialBookingTotal) setBookingTotal(Number(initialBookingTotal));
   }, [initialBookingTotal]);
@@ -174,28 +184,37 @@ export default function TripBudgetCard({
     if (initialDestination) setDestination(initialDestination);
   }, [initialDestination]);
   useEffect(() => {
-    if (initialTripDays !== null && initialTripDays !== undefined)
-      setTripDays(Number(initialTripDays));
+    if (initialTripDays != null) setTripDays(Number(initialTripDays));
   }, [initialTripDays]);
 
+  // ── Notify parent ──
   const onStateChangeRef = useRef(onStateChange);
   useEffect(() => {
     onStateChangeRef.current = onStateChange;
   });
+  const totalUsed = useMemo(
+    () => expenses.reduce((s, e) => s + Number(e.amount), 0),
+    [expenses]
+  );
   useEffect(() => {
-    onStateChangeRef.current?.({ planned, used, bookingTotal, tripDays });
-  }, [planned, used, bookingTotal, tripDays]);
+    onStateChangeRef.current?.({
+      planned,
+      used: totalUsed,
+      bookingTotal,
+      tripDays,
+    });
+  }, [planned, totalUsed, bookingTotal, tripDays]);
 
+  // ── Derived values ──
   const totalNum = useMemo(() => {
     const n = Number(planned);
     return Number.isFinite(n) && n > 0 ? n : 0;
   }, [planned]);
 
   const hasBudget = totalNum > 0;
-  const hasNights = tripDays !== null && tripDays > 0;
   const spent = useMemo(
-    () => Number(used || 0) + Number(bookingTotal || 0),
-    [used, bookingTotal]
+    () => totalUsed + Number(bookingTotal || 0),
+    [totalUsed, bookingTotal]
   );
   const left = useMemo(
     () => (hasBudget ? totalNum - spent : 0),
@@ -212,8 +231,13 @@ export default function TripBudgetCard({
 
   const ai = useMemo(
     () =>
-      buildAiSuggestion({ planned: totalNum, used, bookingTotal, tripDays }),
-    [totalNum, used, bookingTotal, tripDays]
+      buildAiSuggestion({
+        planned: totalNum,
+        spent: totalUsed,
+        bookingTotal,
+        tripDays,
+      }),
+    [totalNum, totalUsed, bookingTotal, tripDays]
   );
 
   const moodLabel = useMemo(() => {
@@ -226,62 +250,99 @@ export default function TripBudgetCard({
 
   const moodColor = isOverBudget ? "#ff4d6d" : "#ff8a2a";
 
-  const currentAtlasText = useMemo(() => {
-    if (!hasBudget) return `You're planning ${destination}. ${ai.detail}`;
-    return ATLAS_SUGGESTIONS[atlasVariant % ATLAS_SUGGESTIONS.length];
-  }, [hasBudget, destination, ai.detail, atlasVariant]);
-
-  const startAtlas = useCallback(
-    (mode = "surprise") => {
-      setAtlasReveal(false);
-      setAtlasThinking(true);
-      const nextIdx =
-        (atlasVariant + (mode === "deal" ? 2 : 1)) % ATLAS_SUGGESTIONS.length;
-      setAtlasVariant(nextIdx);
-      window.setTimeout(() => {
-        setAtlasThinking(false);
-        setAtlasReveal(true);
-        setAtlasLine(
-          hasBudget
-            ? ATLAS_SUGGESTIONS[nextIdx]
-            : `You're planning ${destination}. ${ai.detail}`
-        );
-      }, 650);
-    },
-    [atlasVariant, hasBudget, destination, ai.detail]
-  );
-
+  // ── Atlas ──
   useEffect(() => {
     const t = window.setTimeout(() => {
-      setAtlasLine(currentAtlasText);
+      setAtlasLine(ATLAS_LINES[0]);
       setAtlasReveal(true);
     }, 350);
     return () => window.clearTimeout(t);
   }, []);
+
+  const startAtlas = useCallback(() => {
+    setAtlasReveal(false);
+    setAtlasThinking(true);
+    const next = (atlasIdx + 1) % ATLAS_LINES.length;
+    setAtlasIdx(next);
+    window.setTimeout(() => {
+      setAtlasThinking(false);
+      setAtlasReveal(true);
+      setAtlasLine(ATLAS_LINES[next]);
+    }, 650);
+  }, [atlasIdx]);
 
   const { out: typedText, done: typingDone } = useTypewriter(atlasLine, {
     speed: 14,
     enabled: atlasReveal,
   });
 
+  // ── Add expense ──
+  const handleAddExpense = useCallback(() => {
+    const amt = Number(newAmount || 0);
+    if (!amt || amt <= 0) return;
+    setExpenses((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random()}`,
+        label:
+          newLabel.trim() ||
+          getCategoryMeta(newCategory).label.replace(/^\S+\s/, ""),
+        amount: amt,
+        category: newCategory,
+      },
+    ]);
+    setNewAmount(null);
+    setNewLabel("");
+    setNewCategory("other");
+  }, [newAmount, newLabel, newCategory]);
+
+  // ── Delete expense ──
+  const handleDelete = useCallback(
+    (id) => {
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
+      if (editingId === id) setEditingId(null);
+    },
+    [editingId]
+  );
+
+  // ── Start edit ──
+  const handleStartEdit = useCallback((expense) => {
+    setEditingId(expense.id);
+    setEditAmount(expense.amount);
+    setEditLabel(expense.label);
+    setEditCategory(expense.category);
+  }, []);
+
+  // ── Save edit ──
+  const handleSaveEdit = useCallback(() => {
+    const amt = Number(editAmount || 0);
+    if (!amt || amt <= 0) return;
+    setExpenses((prev) =>
+      prev.map((e) =>
+        e.id === editingId
+          ? {
+              ...e,
+              amount: amt,
+              label: editLabel.trim() || e.label,
+              category: editCategory,
+            }
+          : e
+      )
+    );
+    setEditingId(null);
+  }, [editingId, editAmount, editLabel, editCategory]);
+
+  // ── Reset ──
   const handleReset = useCallback(() => {
     setPlanned(null);
-    setUsed(0);
     setBookingTotal(Number(initialBookingTotal) || 0);
-    setExpenseAmount(null);
     setTripDays(initialTripDays ? Number(initialTripDays) : null);
+    setExpenses([]);
+    setNewAmount(null);
+    setNewLabel("");
+    setNewCategory("other");
+    setEditingId(null);
   }, [initialBookingTotal, initialTripDays]);
-
-  const handleAddExpense = useCallback(() => {
-    const amt = Number(expenseAmount || 0);
-    if (!amt || amt <= 0) return;
-    setUsed((prev) => prev + amt);
-    setExpenseAmount(null);
-  }, [expenseAmount]);
-
-  const handleCategoryAdd = useCallback((amount) => {
-    setUsed((prev) => prev + amount);
-  }, []);
 
   return (
     <Card
@@ -292,17 +353,7 @@ export default function TripBudgetCard({
         {/* ── Header ── */}
         <div className="tb-topBar">
           <div>
-            <div
-              style={{
-                fontSize: 10,
-                color: "rgba(255,255,255,0.4)",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                marginBottom: 2,
-              }}
-            >
-              Trip Budget
-            </div>
+            <div className="tb-topLabel">Trip Budget</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: moodColor }}>
               {moodLabel}
             </div>
@@ -327,7 +378,7 @@ export default function TripBudgetCard({
               min={0}
               step={50}
               controls={false}
-              placeholder="e.g. 1200"
+              placeholder="e.g. 1500"
               onChange={(v) => setPlanned(v ?? null)}
               className="tb-input tb-force"
               style={{ width: "100%" }}
@@ -336,7 +387,7 @@ export default function TripBudgetCard({
           <div style={{ flex: 1 }}>
             <div className="tb-fieldLabel">
               Nights{" "}
-              {!hasNights && (
+              {!tripDays && (
                 <span style={{ opacity: 0.4, fontSize: 10 }}>(from dates)</span>
               )}
             </div>
@@ -355,115 +406,232 @@ export default function TripBudgetCard({
         </div>
 
         {/* ── Progress bar ── */}
-        <div style={{ marginTop: 14 }}>
-          <div
-            style={{
-              height: 7,
-              background: "rgba(255,255,255,0.08)",
-              borderRadius: 99,
-              overflow: "hidden",
-              marginBottom: 7,
-            }}
-          >
+        {hasBudget && (
+          <div style={{ marginTop: 14 }}>
             <div
               style={{
-                height: "100%",
-                width: `${Math.min(100, percent)}%`,
-                background: isOverBudget
-                  ? "linear-gradient(90deg, #ff4d6d, #ff8a2a)"
-                  : "linear-gradient(90deg, #ff8a2a, #ffb066)",
+                height: 7,
+                background: "rgba(255,255,255,0.08)",
                 borderRadius: 99,
-                transition: "width 0.5s ease",
+                overflow: "hidden",
+                marginBottom: 7,
               }}
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: 11,
-              color: "rgba(255,255,255,0.4)",
-            }}
-          >
-            <span>
-              Spent:{" "}
-              <span
+            >
+              <div
                 style={{
-                  color: isOverBudget ? "#ff4d6d" : "rgba(255,255,255,0.7)",
-                  fontWeight: 600,
+                  height: "100%",
+                  width: `${Math.min(100, percent)}%`,
+                  background: isOverBudget
+                    ? "linear-gradient(90deg, #ff4d6d, #ff8a2a)"
+                    : "linear-gradient(90deg, #ff8a2a, #ffb066)",
+                  borderRadius: 99,
+                  transition: "width 0.5s ease",
                 }}
-              >
-                ${spent.toLocaleString()}
+              />
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 11,
+                color: "rgba(255,255,255,0.4)",
+              }}
+            >
+              <span>
+                Spent:{" "}
+                <span
+                  style={{
+                    color: isOverBudget ? "#ff4d6d" : "rgba(255,255,255,0.7)",
+                    fontWeight: 600,
+                  }}
+                >
+                  ${spent.toLocaleString()}
+                </span>
               </span>
-            </span>
-            {hasBudget && (
               <span>
                 {isOverBudget ? "Over by" : "Left"}:{" "}
                 <span style={{ color: moodColor, fontWeight: 700 }}>
                   {isOverBudget ? "-" : ""}${Math.abs(left).toLocaleString()}
                 </span>
               </span>
-            )}
-            {hasBudget && <span>{percent}%</span>}
+              <span>{percent}%</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ── Divider ── */}
-        <div
-          style={{
-            height: 1,
-            background: "rgba(255,255,255,0.07)",
-            margin: "14px 0",
-          }}
-        />
+        <div className="tb-divider" />
 
-        {/* ── Expense tracker ── */}
+        {/* ── Add expense ── */}
         <div>
-          <div className="tb-fieldLabel">Track Expense</div>
-          <div className="tb-add-row" style={{ marginBottom: 10 }}>
+          <div className="tb-fieldLabel" style={{ marginBottom: 8 }}>
+            Add Expense
+          </div>
+
+          {/* Row 1: amount + label */}
+          <div className="tb-add-row" style={{ marginBottom: 8 }}>
             <InputNumber
               prefix="$"
-              value={expenseAmount ?? null}
+              value={newAmount ?? null}
               min={0}
-              step={10}
+              step={5}
               controls={false}
               placeholder="Amount"
-              onChange={(v) => setExpenseAmount(Number(v || 0))}
+              onChange={(v) => setNewAmount(Number(v || 0))}
               className="tb-input tb-force"
-              style={{ width: "100%" }}
+              style={{ width: 110, flexShrink: 0 }}
             />
+            <input
+              className="tb-text-input"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="Description (optional)"
+              onKeyDown={(e) => e.key === "Enter" && handleAddExpense()}
+            />
+          </div>
+
+          {/* Row 2: category + add button */}
+          <div className="tb-add-row" style={{ marginBottom: 0 }}>
+            <Select
+              value={newCategory}
+              onChange={setNewCategory}
+              className="tb-category-select"
+              style={{ flex: 1 }}
+              popupClassName="tb-select-popup"
+            >
+              {EXPENSE_CATEGORIES.map((c) => (
+                <Option key={c.key} value={c.key}>
+                  {c.label}
+                </Option>
+              ))}
+            </Select>
             <button
               type="button"
               className="tb-addBtn"
               onClick={handleAddExpense}
+              disabled={!newAmount || newAmount <= 0}
             >
               <PlusOutlined /> Add
             </button>
           </div>
-          <div className="tb-chips">
-            {CATEGORY_PRESETS.map((cat) => (
-              <button
-                key={cat.label}
-                type="button"
-                className="tb-chip"
-                onClick={() => handleCategoryAdd(cat.amount)}
-                title={`Quick add $${cat.amount} for ${cat.label}`}
-              >
-                {cat.icon} {cat.label}
-                <span className="tb-chipAmount">+${cat.amount}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
+        {/* ── Expense list ── */}
+        {expenses.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div className="tb-fieldLabel" style={{ marginBottom: 8 }}>
+              Expenses
+              <span
+                style={{
+                  marginLeft: 8,
+                  color: "rgba(255,255,255,0.35)",
+                  fontWeight: 400,
+                }}
+              >
+                ({expenses.length}) · ${totalUsed.toLocaleString()} total
+              </span>
+            </div>
+            <div className="tb-expense-list">
+              {expenses.map((expense) => {
+                const meta = getCategoryMeta(expense.category);
+                const isEditing = editingId === expense.id;
+
+                if (isEditing) {
+                  return (
+                    <div
+                      key={expense.id}
+                      className="tb-expense-row tb-expense-row--editing"
+                    >
+                      <InputNumber
+                        prefix="$"
+                        value={editAmount ?? null}
+                        min={0}
+                        step={5}
+                        controls={false}
+                        onChange={(v) => setEditAmount(Number(v || 0))}
+                        className="tb-input tb-force tb-edit-amount"
+                      />
+                      <input
+                        className="tb-text-input tb-edit-label"
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
+                        placeholder="Description"
+                        autoFocus
+                      />
+                      <Select
+                        value={editCategory}
+                        onChange={setEditCategory}
+                        className="tb-category-select tb-category-select--sm"
+                        popupClassName="tb-select-popup"
+                      >
+                        {EXPENSE_CATEGORIES.map((c) => (
+                          <Option key={c.key} value={c.key}>
+                            {c.label}
+                          </Option>
+                        ))}
+                      </Select>
+                      <div className="tb-expense-actions">
+                        <button
+                          type="button"
+                          className="tb-icon-btn tb-icon-btn--save"
+                          onClick={handleSaveEdit}
+                          aria-label="Save"
+                        >
+                          <CheckOutlined />
+                        </button>
+                        <button
+                          type="button"
+                          className="tb-icon-btn tb-icon-btn--cancel"
+                          onClick={() => setEditingId(null)}
+                          aria-label="Cancel"
+                        >
+                          <CloseOutlined />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={expense.id} className="tb-expense-row">
+                    <span
+                      className="tb-expense-dot"
+                      style={{ background: meta.color }}
+                    />
+                    <span className="tb-expense-label" title={expense.label}>
+                      {expense.label}
+                    </span>
+                    <span className="tb-expense-amount">
+                      ${Number(expense.amount).toLocaleString()}
+                    </span>
+                    <div className="tb-expense-actions">
+                      <button
+                        type="button"
+                        className="tb-icon-btn tb-icon-btn--edit"
+                        onClick={() => handleStartEdit(expense)}
+                        aria-label="Edit"
+                      >
+                        <EditOutlined />
+                      </button>
+                      <button
+                        type="button"
+                        className="tb-icon-btn tb-icon-btn--delete"
+                        onClick={() => handleDelete(expense.id)}
+                        aria-label="Delete"
+                      >
+                        <DeleteOutlined />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ── Divider ── */}
-        <div
-          style={{
-            height: 1,
-            background: "rgba(255,255,255,0.07)",
-            margin: "14px 0",
-          }}
-        />
+        <div className="tb-divider" />
 
         {/* ── Atlas Plan ── */}
         <div className="tb-stack">
@@ -483,42 +651,23 @@ export default function TripBudgetCard({
               </div>
             </div>
 
-            {/* AI insight */}
             <div className="tb-aiCopy">
               <div className="tb-aiTitle">{ai.title}</div>
               <div className="tb-aiDetail">{ai.detail}</div>
               {ai.hint && <div className="tb-aiHint">{ai.hint}</div>}
             </div>
 
-            {/* Action buttons */}
             <div className="tb-aiActions">
               <button
                 type="button"
                 className="tb-pillBtn"
-                onClick={() => startAtlas("optimize")}
+                onClick={startAtlas}
                 disabled={atlasThinking}
               >
-                Optimize
-              </button>
-              <button
-                type="button"
-                className="tb-pillBtn"
-                onClick={() => startAtlas("deal")}
-                disabled={atlasThinking}
-              >
-                Better deal
-              </button>
-              <button
-                type="button"
-                className="tb-pillBtnPrimary"
-                onClick={() => startAtlas("surprise")}
-                disabled={atlasThinking}
-              >
-                {atlasThinking ? "Atlas is thinking…" : "Surprise me ✨"}
+                {atlasThinking ? "Thinking…" : "Atlas tip ✨"}
               </button>
             </div>
 
-            {/* Atlas bubble */}
             {(atlasThinking || atlasReveal) && (
               <div
                 className={`tb-novaBubble ${
@@ -534,7 +683,7 @@ export default function TripBudgetCard({
                         <span className="tb-typingDot" />
                         <span className="tb-typingDot" />
                         <span className="tb-typingLabel">
-                          Atlas is analyzing…
+                          Atlas is thinking…
                         </span>
                       </div>
                       <div className="tb-shimmerLine" />

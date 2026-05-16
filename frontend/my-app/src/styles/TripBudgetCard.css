@@ -827,6 +827,211 @@
   opacity: 0;
   animation: none;
 }
+/* ═══════════════════════════════════════════════════════════
+ EXPENSE LIST ADDITIONS
+═══════════════════════════════════════════════════════════ */
+
+/* ── Divider ── */
+.tb-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 14px 0;
+}
+
+/* ── Top label ── */
+.tb-topLabel {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+/* ── Text input (description field) ── */
+.tb-text-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #fff;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  height: 38px;
+  padding: 0 12px;
+  outline: none;
+  transition: border-color 0.18s;
+  caret-color: #ff8a2a;
+  touch-action: manipulation;
+}
+.tb-text-input:focus {
+  border-color: rgba(255, 138, 42, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.1);
+}
+.tb-text-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Category select ── */
+.tb-category-select .ant-select-selector {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 10px !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  height: 38px !important;
+  display: flex !important;
+  align-items: center !important;
+  font-family: "DM Sans", sans-serif !important;
+  font-size: 13px !important;
+}
+.tb-category-select .ant-select-arrow {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+.tb-category-select--sm {
+  min-width: 110px !important;
+}
+
+.tb-select-popup {
+  background: rgba(14, 8, 30, 0.97) !important;
+  border: 1px solid rgba(255, 138, 42, 0.22) !important;
+  border-radius: 12px !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+}
+.tb-select-popup .ant-select-item {
+  color: rgba(255, 255, 255, 0.8) !important;
+  background: transparent !important;
+  font-family: "DM Sans", sans-serif !important;
+  font-size: 13px !important;
+}
+.tb-select-popup .ant-select-item-option-active,
+.tb-select-popup .ant-select-item-option-selected {
+  background: rgba(255, 138, 42, 0.15) !important;
+  color: #ff8a2a !important;
+}
+
+/* ── Expense list ── */
+.tb-expense-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Single expense row */
+.tb-expense-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: background 0.15s, border-color 0.15s;
+  min-height: 44px;
+}
+.tb-expense-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Editing state */
+.tb-expense-row--editing {
+  background: rgba(255, 138, 42, 0.06);
+  border-color: rgba(255, 138, 42, 0.3);
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Category colour dot */
+.tb-expense-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Expense label */
+.tb-expense-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Expense amount */
+.tb-expense-amount {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  flex-shrink: 0;
+}
+
+/* Edit / delete buttons */
+.tb-expense-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tb-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+  touch-action: manipulation;
+}
+
+.tb-icon-btn--edit {
+  color: rgba(255, 255, 255, 0.3);
+}
+.tb-icon-btn--edit:hover {
+  background: rgba(255, 138, 42, 0.15);
+  color: #ff8a2a;
+}
+
+.tb-icon-btn--delete {
+  color: rgba(255, 255, 255, 0.25);
+}
+.tb-icon-btn--delete:hover {
+  background: rgba(255, 77, 109, 0.15);
+  color: #ff4d6d;
+}
+
+.tb-icon-btn--save {
+  color: rgba(255, 255, 255, 0.4);
+}
+.tb-icon-btn--save:hover {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+
+.tb-icon-btn--cancel {
+  color: rgba(255, 255, 255, 0.25);
+}
+.tb-icon-btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Edit row inputs */
+.tb-edit-amount {
+  width: 90px !important;
+  flex-shrink: 0;
+}
+.tb-edit-label {
+  flex: 1;
+  min-width: 80px;
+}
 
 @keyframes caretBlink {
   0%,

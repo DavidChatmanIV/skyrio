@@ -6,16 +6,106 @@ import React, {
   useRef,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { Input, Button, message } from "antd";
+import { Input, Button, message, Select } from "antd";
 import {
   SearchOutlined,
   ArrowRightOutlined,
   ThunderboltOutlined,
+  EnvironmentOutlined,
 } from "@ant-design/icons";
 
 import "@/styles/LandingPage.css";
 import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
 import { trackPassportEvent } from "@/utils/passportEvents";
+
+const { Option } = Select;
+
+// ─────────────────────────────────────────────
+// ✅ Home airport — inlined (no external hook file needed)
+// Persists to localStorage key "skyrio_home_airport"
+// ─────────────────────────────────────────────
+const HOME_AIRPORT_KEY = "skyrio_home_airport";
+const DEFAULT_AIRPORT = {
+  code: "EWR",
+  city: "Newark",
+  name: "Newark Liberty International",
+};
+
+function readStoredAirport() {
+  try {
+    const raw = localStorage.getItem(HOME_AIRPORT_KEY);
+    if (!raw) return DEFAULT_AIRPORT;
+    const parsed = JSON.parse(raw);
+    if (parsed?.code && parsed?.city) return parsed;
+    return DEFAULT_AIRPORT;
+  } catch {
+    return DEFAULT_AIRPORT;
+  }
+}
+
+function useHomeAirport() {
+  const [homeAirport, setHomeAirportState] = useState(() =>
+    readStoredAirport()
+  );
+
+  const setHomeAirport = useCallback((airport) => {
+    if (!airport?.code) return;
+    const next = {
+      code: airport.code,
+      city: airport.city || airport.code,
+      name: airport.name || airport.city || airport.code,
+    };
+    setHomeAirportState(next);
+    try {
+      localStorage.setItem(HOME_AIRPORT_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  return {
+    homeAirport,
+    setHomeAirport,
+    homeCode: homeAirport.code,
+    homeCity: homeAirport.city,
+  };
+}
+
+// ─────────────────────────────────────────────
+// Common US departure airports
+// ─────────────────────────────────────────────
+const COMMON_AIRPORTS = [
+  { code: "EWR", city: "Newark", name: "Newark Liberty Intl" },
+  { code: "JFK", city: "New York", name: "John F. Kennedy Intl" },
+  { code: "LGA", city: "New York", name: "LaGuardia" },
+  { code: "LAX", city: "Los Angeles", name: "Los Angeles Intl" },
+  { code: "ORD", city: "Chicago", name: "O'Hare Intl" },
+  { code: "MDW", city: "Chicago", name: "Midway Intl" },
+  { code: "ATL", city: "Atlanta", name: "Hartsfield-Jackson" },
+  { code: "MIA", city: "Miami", name: "Miami Intl" },
+  { code: "FLL", city: "Fort Lauderdale", name: "Fort Lauderdale-Hollywood" },
+  { code: "DFW", city: "Dallas", name: "Dallas/Fort Worth Intl" },
+  { code: "IAH", city: "Houston", name: "George Bush Intercontinental" },
+  { code: "DEN", city: "Denver", name: "Denver Intl" },
+  { code: "SEA", city: "Seattle", name: "Seattle-Tacoma Intl" },
+  { code: "SFO", city: "San Francisco", name: "San Francisco Intl" },
+  { code: "SJC", city: "San Jose", name: "Norman Y. Mineta San Jose" },
+  { code: "OAK", city: "Oakland", name: "Oakland Intl" },
+  { code: "BOS", city: "Boston", name: "Logan Intl" },
+  { code: "PHL", city: "Philadelphia", name: "Philadelphia Intl" },
+  { code: "DCA", city: "Washington DC", name: "Reagan National" },
+  { code: "IAD", city: "Washington DC", name: "Dulles Intl" },
+  { code: "MSP", city: "Minneapolis", name: "Minneapolis-Saint Paul Intl" },
+  { code: "DTW", city: "Detroit", name: "Detroit Metro Wayne County" },
+  { code: "PHX", city: "Phoenix", name: "Phoenix Sky Harbor" },
+  { code: "LAS", city: "Las Vegas", name: "Harry Reid Intl" },
+  { code: "MCO", city: "Orlando", name: "Orlando Intl" },
+  { code: "TPA", city: "Tampa", name: "Tampa Intl" },
+  { code: "CLT", city: "Charlotte", name: "Charlotte Douglas Intl" },
+  { code: "BNA", city: "Nashville", name: "Nashville Intl" },
+  { code: "AUS", city: "Austin", name: "Austin-Bergstrom Intl" },
+  { code: "HNL", city: "Honolulu", name: "Daniel K. Inouye Intl" },
+];
 
 // ─────────────────────────────────────────────
 // Time-aware background system
@@ -60,26 +150,28 @@ function normalizePrompt(value) {
 }
 
 // ─────────────────────────────────────────────
-// Atlas conversation
+// Atlas demo conversation — uses homeCity dynamically
 // ─────────────────────────────────────────────
-const ATLAS_CONVERSATION = [
-  {
-    id: 1,
-    from: "user",
-    text: "I want to go somewhere warm in March, budget around $1,800.",
-  },
-  {
-    id: 2,
-    from: "atlas",
-    text: "Perfect timing — Tulum and Cartagena are both peaking in March. I can get you 5 nights in Tulum with flights from Newark for $1,640 total. Want me to lock that in?",
-  },
-  { id: 3, from: "user", text: "Yes! Can you find a hotel near the beach?" },
-  {
-    id: 4,
-    from: "atlas",
-    text: "Found 3 beachfront options under $180/night. The top pick has free cancellation and a rooftop pool. Adding it to your plan now ✈️",
-  },
-];
+function buildAtlasConversation(homeCity) {
+  return [
+    {
+      id: 1,
+      from: "user",
+      text: "I want to go somewhere warm in March, budget around $1,800.",
+    },
+    {
+      id: 2,
+      from: "atlas",
+      text: `Perfect timing — Tulum and Cartagena are both peaking in March. I can get you 5 nights in Tulum with flights from ${homeCity} for $1,640 total. Want me to lock that in?`,
+    },
+    { id: 3, from: "user", text: "Yes! Can you find a hotel near the beach?" },
+    {
+      id: 4,
+      from: "atlas",
+      text: "Found 3 beachfront options under $180/night. The top pick has free cancellation and a rooftop pool. Adding it to your plan now ✈️",
+    },
+  ];
+}
 
 const ATLAS_FEATURES = [
   {
@@ -147,38 +239,49 @@ const SUPPORT_FAQS = [
 ];
 
 // ─────────────────────────────────────────────
-// Injected styles — NEW sections only
-// (Hero + Examples mobile CSS is already in LandingPage.css)
+// Injected styles
 // ─────────────────────────────────────────────
 const INJECTED_CSS = `
+/* ── Home airport picker ── */
+.sk-home-airport {
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 18px;
+}
+.sk-home-airport__label {
+  font-size: 12px; color: rgba(255,255,255,0.45); font-weight: 500;
+  white-space: nowrap; display: flex; align-items: center; gap: 5px;
+}
+.sk-home-airport .ant-select-selector {
+  background: rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  border-radius: 10px !important; color: rgba(255,255,255,0.9) !important;
+  font-family: "DM Sans", sans-serif !important; font-size: 13px !important;
+  height: 34px !important; min-width: 200px;
+}
+.sk-home-airport .ant-select-arrow { color: rgba(255,255,255,0.4) !important; }
+.sk-home-airport .ant-select-selector:hover { border-color: rgba(255,138,42,0.5) !important; }
+.sk-home-airport-popup {
+  background: rgba(14,8,30,0.97) !important; border: 1px solid rgba(255,138,42,0.22) !important;
+  border-radius: 12px !important; backdrop-filter: blur(20px) !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6) !important;
+}
+.sk-home-airport-popup .ant-select-item {
+  color: rgba(255,255,255,0.8) !important; background: transparent !important;
+  font-family: "DM Sans", sans-serif !important; font-size: 13px !important;
+}
+.sk-home-airport-popup .ant-select-item-option-active,
+.sk-home-airport-popup .ant-select-item-option-selected {
+  background: rgba(255,138,42,0.15) !important; color: #ff8a2a !important;
+}
 
-/* ══════════════════════════════════════════
-   ATLAS SECTION
-══════════════════════════════════════════ */
+/* ══════════════════════════════════════════ ATLAS SECTION ══════════════════════════════════════════ */
 .sk-atlas { padding: 0 24px 80px; max-width: 1100px; margin: 0 auto; }
 .sk-atlas__head { text-align: center; margin-bottom: 48px; }
-.sk-atlas__eyebrow {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(255,138,42,0.14); border: 1px solid rgba(255,138,42,0.28);
-  border-radius: 999px; padding: 5px 16px;
-  font-size: 12px; font-weight: 500; letter-spacing: 0.04em;
-  color: #ff8a2a; margin-bottom: 18px;
-}
+.sk-atlas__eyebrow { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,138,42,0.14); border: 1px solid rgba(255,138,42,0.28); border-radius: 999px; padding: 5px 16px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: #ff8a2a; margin-bottom: 18px; }
 .sk-atlas__eyebrow::before { content: "✦"; font-size: 10px; }
-.sk-atlas__title {
-  font-family: "Syne", sans-serif !important;
-  font-size: clamp(28px, 4.5vw, 42px) !important; font-weight: 800 !important;
-  letter-spacing: -0.02em !important; color: #fff !important;
-  margin: 0 0 14px !important; line-height: 1.1 !important;
-}
-.sk-atlas__name {
-  background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
+.sk-atlas__title { font-family: "Syne", sans-serif !important; font-size: clamp(28px, 4.5vw, 42px) !important; font-weight: 800 !important; letter-spacing: -0.02em !important; color: #fff !important; margin: 0 0 14px !important; line-height: 1.1 !important; }
+.sk-atlas__name { background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 .sk-atlas__sub { font-size: 15px; color: rgba(255,255,255,0.6); max-width: 500px; margin: 0 auto; line-height: 1.65; }
 .sk-atlas__body { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
-
-/* Chat */
 .sk-atlas__chat { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.22s; }
 .sk-atlas__chat:hover { border-color: rgba(255,255,255,0.22); }
 .sk-atlas__chatHeader { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
@@ -203,43 +306,18 @@ const INJECTED_CSS = `
 .sk-atlas__fakeInput { flex: 1; padding: 9px 14px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); font-size: 12px; color: rgba(255,255,255,0.25); }
 .sk-atlas__chatCta { padding: 9px 16px; border-radius: 999px; border: none; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%); color: #1a0d04; font-family: "DM Sans", sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: filter 0.18s, transform 0.18s; }
 .sk-atlas__chatCta:hover { filter: brightness(1.08); transform: translateY(-1px); }
-
-/* Features list */
 .sk-atlas__features { display: flex; flex-direction: column; gap: 14px; }
 .sk-atlas__feature { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; transition: border-color 0.22s, transform 0.22s; }
 .sk-atlas__feature:hover { border-color: rgba(255,138,42,0.3); transform: translateX(4px); }
 .sk-atlas__featureIcon { width: 40px; height: 40px; border-radius: 10px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.25); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
 .sk-atlas__featureTitle { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
 .sk-atlas__featureDesc { font-size: 12.5px; color: rgba(255,255,255,0.55); line-height: 1.5; }
-.sk-atlas__mainCta {
-  display: flex !important; align-items: center !important; justify-content: center !important;
-  width: 100%; margin-top: 8px;
-  background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%) !important;
-  border: none !important; border-radius: 999px !important;
-  color: #1a0d04 !important; font-family: "DM Sans", sans-serif !important;
-  font-size: 15px !important; font-weight: 700 !important; height: 48px !important;
-  padding: 0 28px !important; cursor: pointer;
-  transition: filter 0.18s, transform 0.18s;
-  box-shadow: 0 8px 24px rgba(255,138,42,0.28);
-}
+.sk-atlas__mainCta { display: flex !important; align-items: center !important; justify-content: center !important; width: 100%; margin-top: 8px; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%) !important; border: none !important; border-radius: 999px !important; color: #1a0d04 !important; font-family: "DM Sans", sans-serif !important; font-size: 15px !important; font-weight: 700 !important; height: 48px !important; padding: 0 28px !important; cursor: pointer; transition: filter 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(255,138,42,0.28); }
 .sk-atlas__mainCta:hover { filter: brightness(1.08) !important; transform: translateY(-2px) !important; }
+@media (max-width: 820px) { .sk-atlas__body { grid-template-columns: 1fr; } .sk-atlas { padding: 0 16px 64px; } .sk-atlas__head { margin-bottom: 32px; } }
 
-@media (max-width: 820px) {
-  .sk-atlas__body { grid-template-columns: 1fr; }
-  .sk-atlas { padding: 0 16px 64px; }
-  .sk-atlas__head { margin-bottom: 32px; }
-}
-
-/* ══════════════════════════════════════════
-   PASSPORT BANNER
-══════════════════════════════════════════ */
-.sk-passport-banner {
-  margin: 0 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto;
-  position: relative; border-radius: 24px; overflow: hidden;
-  background: linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(255,138,42,0.25) 50%, rgba(236,72,153,0.25) 100%);
-  border: 1px solid rgba(255,138,42,0.3); padding: 52px 48px;
-  display: flex; align-items: center; justify-content: space-between; gap: 32px;
-}
+/* ══════════════════════════════════════════ PASSPORT BANNER ══════════════════════════════════════════ */
+.sk-passport-banner { margin: 0 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto; position: relative; border-radius: 24px; overflow: hidden; background: linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(255,138,42,0.25) 50%, rgba(236,72,153,0.25) 100%); border: 1px solid rgba(255,138,42,0.3); padding: 52px 48px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
 .sk-passport-banner::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 80% at 80% 50%, rgba(255,138,42,0.15) 0%, transparent 70%); pointer-events: none; }
 .sk-passport-banner__left { flex: 1; position: relative; z-index: 1; }
 .sk-passport-banner__badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,138,42,0.15); border: 1px solid rgba(255,138,42,0.35); border-radius: 999px; padding: 4px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #ff8a2a; margin-bottom: 18px; }
@@ -261,31 +339,13 @@ const INJECTED_CSS = `
 .sk-passport-card__xp-label { font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
 .sk-passport-card__bar { height: 5px; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden; }
 .sk-passport-card__fill { height: 100%; width: 35%; background: linear-gradient(90deg, #ff8a2a, #ffb347); border-radius: 999px; }
-.sk-passport-banner__cta {
-  display: flex !important; align-items: center !important; justify-content: center !important;
-  background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%) !important;
-  border: none !important; border-radius: 999px !important; color: #1a0d04 !important;
-  font-family: "DM Sans", sans-serif !important; font-size: 14px !important;
-  font-weight: 700 !important; height: 46px !important; padding: 0 28px !important;
-  cursor: pointer; transition: filter 0.18s, transform 0.18s;
-  box-shadow: 0 8px 24px rgba(255,138,42,0.35); white-space: nowrap; width: 220px;
-}
+.sk-passport-banner__cta { display: flex !important; align-items: center !important; justify-content: center !important; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%) !important; border: none !important; border-radius: 999px !important; color: #1a0d04 !important; font-family: "DM Sans", sans-serif !important; font-size: 14px !important; font-weight: 700 !important; height: 46px !important; padding: 0 28px !important; cursor: pointer; transition: filter 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(255,138,42,0.35); white-space: nowrap; width: 220px; }
 .sk-passport-banner__cta:hover { filter: brightness(1.08) !important; transform: translateY(-2px) !important; }
 .sk-passport-banner__note { font-size: 11px; color: rgba(255,255,255,0.3); text-align: center; }
+@media (max-width: 820px) { .sk-passport-banner { flex-direction: column; padding: 32px 20px; margin: 0 16px 64px; } .sk-passport-banner__right { width: 100%; } .sk-passport-card { width: 100%; } .sk-passport-banner__cta { width: 100% !important; } }
+@media (max-width: 480px) { .sk-passport-banner__perks { grid-template-columns: 1fr; } }
 
-@media (max-width: 820px) {
-  .sk-passport-banner { flex-direction: column; padding: 32px 20px; margin: 0 16px 64px; }
-  .sk-passport-banner__right { width: 100%; }
-  .sk-passport-card { width: 100%; }
-  .sk-passport-banner__cta { width: 100% !important; }
-}
-@media (max-width: 480px) {
-  .sk-passport-banner__perks { grid-template-columns: 1fr; }
-}
-
-/* ══════════════════════════════════════════
-   SUPPORT / FAQ
-══════════════════════════════════════════ */
+/* ══════════════════════════════════════════ SUPPORT / FAQ ══════════════════════════════════════════ */
 .sk-support { padding: 0 24px 96px; max-width: 860px; margin: 0 auto; }
 .sk-support__head { text-align: center; margin-bottom: 40px; }
 .sk-support__eyebrow { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.25); border-radius: 999px; padding: 5px 16px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: #ff8a2a; margin-bottom: 16px; }
@@ -302,18 +362,21 @@ const INJECTED_CSS = `
 .sk-support__contact-text strong { color: #fff; }
 .sk-support__email { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.3); color: #ff8a2a; font-size: 13px; font-weight: 600; text-decoration: none; transition: background 0.2s, transform 0.2s; }
 .sk-support__email:hover { background: rgba(255,138,42,0.2); transform: translateY(-1px); }
-
 @media (max-width: 640px) {
   .sk-support__grid { grid-template-columns: 1fr; }
   .sk-support { padding: 0 16px 72px; }
   .sk-support__contact { flex-direction: column; padding: 20px 16px; }
   .sk-support__email { width: 100%; justify-content: center; }
+  .sk-home-airport { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
 `;
 
 export default function LandingPage() {
   const nav = useNavigate();
   const landingRef = useRef(null);
+
+  // ✅ Home airport — reads/writes localStorage, no external file needed
+  const { homeAirport, setHomeAirport, homeCode, homeCity } = useHomeAirport();
 
   const [timePeriod, setTimePeriod] = useState(() =>
     getTimePeriod(new Date().getHours())
@@ -337,14 +400,20 @@ export default function LandingPage() {
   );
   const [showSuggestion, setShowSuggestion] = useState(true);
   const [isRouting, setIsRouting] = useState(false);
-
   const [visibleBubbles, setVisibleBubbles] = useState(1);
+
+  // ✅ Atlas conversation uses homeCity dynamically
+  const atlasConversation = useMemo(
+    () => buildAtlasConversation(homeCity),
+    [homeCity]
+  );
+
   useEffect(() => {
-    if (visibleBubbles >= ATLAS_CONVERSATION.length) return;
+    if (visibleBubbles >= atlasConversation.length) return;
     const delay = visibleBubbles === 1 ? 1400 : 1800;
     const t = setTimeout(() => setVisibleBubbles((v) => v + 1), delay);
     return () => clearTimeout(t);
-  }, [visibleBubbles]);
+  }, [visibleBubbles, atlasConversation.length]);
 
   const suggestion = useMemo(
     () => ({
@@ -401,6 +470,7 @@ export default function LandingPage() {
     setShowSuggestion(next.trim().length >= 8);
   }, []);
 
+  // ✅ All navigation includes &from=homeCode
   const goPlan = useCallback(async () => {
     const prompt = normalizePrompt(q);
     if (!prompt) {
@@ -412,14 +482,13 @@ export default function LandingPage() {
       await trackPassportEvent("AI_PROMPT_SUBMITTED", {
         source: "landing_hero",
         prompt,
-        promptLength: prompt.length,
-        suggestionVisible: prompt.length >= 8,
+        homeAirport: homeCode,
       });
-      nav(`/booking?prompt=${encodeURIComponent(prompt)}`);
+      nav(`/booking?prompt=${encodeURIComponent(prompt)}&from=${homeCode}`);
     } finally {
       setIsRouting(false);
     }
-  }, [q, nav]);
+  }, [q, nav, homeCode]);
 
   const viewPlan = useCallback(async () => {
     const prompt = normalizePrompt(q);
@@ -429,21 +498,17 @@ export default function LandingPage() {
         source: "landing_suggestion",
         prompt,
         planKey: suggestion.planKey,
-        trip: suggestion.trip,
-        destination: suggestion.destination,
-        dates: suggestion.dates,
-        total: suggestion.total,
-        vibe: suggestion.vibe,
+        homeAirport: homeCode,
       });
       nav(
         `/booking?plan=${encodeURIComponent(
           suggestion.planKey
-        )}&prompt=${encodeURIComponent(prompt)}`
+        )}&prompt=${encodeURIComponent(prompt)}&from=${homeCode}`
       );
     } finally {
       setIsRouting(false);
     }
-  }, [q, nav, suggestion]);
+  }, [q, nav, suggestion, homeCode]);
 
   const openExamplePlan = useCallback(
     async (card) => {
@@ -452,22 +517,19 @@ export default function LandingPage() {
         await trackPassportEvent("EXAMPLE_TRIP_OPENED", {
           source: "landing_examples",
           exampleKey: card.key,
-          title: card.title,
-          subtitle: card.subtitle,
-          destination: card.destination,
-          vibe: card.vibe,
+          homeAirport: homeCode,
         });
-        nav(`/booking?example=${encodeURIComponent(card.key)}`);
+        nav(
+          `/booking?example=${encodeURIComponent(card.key)}&from=${homeCode}`
+        );
       } finally {
         setIsRouting(false);
       }
     },
-    [nav]
+    [nav, homeCode]
   );
 
-  // ── Fix: was /signup — correct route is /register ──
   const goSignup = useCallback(() => nav("/register"), [nav]);
-  const goPassport = useCallback(() => nav("/passport"), [nav]);
 
   return (
     <div
@@ -497,6 +559,34 @@ export default function LandingPage() {
             Skyrio helps you turn one travel idea into a smarter plan, faster.
           </p>
 
+          {/* ✅ Home airport picker */}
+          <div className="sk-home-airport">
+            <span className="sk-home-airport__label">
+              <EnvironmentOutlined /> Flying from
+            </span>
+            <Select
+              value={homeCode}
+              onChange={(code) => {
+                const ap = COMMON_AIRPORTS.find((a) => a.code === code);
+                if (ap) setHomeAirport(ap);
+              }}
+              classNames={{ popup: { root: "sk-home-airport-popup" } }}
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children || "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+            >
+              {COMMON_AIRPORTS.map((ap) => (
+                <Option key={ap.code} value={ap.code}>
+                  {ap.city} ({ap.code}) — {ap.name}
+                </Option>
+              ))}
+            </Select>
+          </div>
+
           <div className="sk-hero__search">
             <Input
               size="large"
@@ -523,26 +613,26 @@ export default function LandingPage() {
             <button
               type="button"
               className="sk-quickChip"
+              disabled={isRouting}
               onClick={() =>
                 setQ("Tokyo in April with food spots and a $2,000 budget")
               }
-              disabled={isRouting}
             >
               Tokyo in April
             </button>
             <button
               type="button"
               className="sk-quickChip"
-              onClick={() => setQ("Miami weekend for two under $600")}
               disabled={isRouting}
+              onClick={() => setQ("Miami weekend for two under $600")}
             >
               Miami under $600
             </button>
             <button
               type="button"
               className="sk-quickChip"
-              onClick={() => setQ("Paris honeymoon with premium stay ideas")}
               disabled={isRouting}
+              onClick={() => setQ("Paris honeymoon with premium stay ideas")}
             >
               Paris honeymoon
             </button>
@@ -655,7 +745,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="sk-atlas__messages">
-                {ATLAS_CONVERSATION.map((bubble, i) => {
+                {atlasConversation.map((bubble, i) => {
                   if (i >= visibleBubbles) return null;
                   return (
                     <div
@@ -669,8 +759,8 @@ export default function LandingPage() {
                     </div>
                   );
                 })}
-                {visibleBubbles < ATLAS_CONVERSATION.length &&
-                  ATLAS_CONVERSATION[visibleBubbles]?.from === "atlas" && (
+                {visibleBubbles < atlasConversation.length &&
+                  atlasConversation[visibleBubbles]?.from === "atlas" && (
                     <div className="sk-atlas__bubble sk-atlas__bubble--atlas">
                       <div className="sk-atlas__bubbleAvatar">✦</div>
                       <div className="sk-atlas__typing">
@@ -792,7 +882,6 @@ export default function LandingPage() {
             <div className="sk-support__contact-text">
               Still have questions? <strong>Our team is here to help.</strong>
             </div>
-            {/* ── Fix: no space after mailto: ── */}
             <a
               href="mailto:skyrioofficial@gmail.com"
               className="sk-support__email"

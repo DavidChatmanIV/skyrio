@@ -26,6 +26,8 @@ import {
   PlayCircleOutlined,
   SoundOutlined,
   EditOutlined,
+  DeleteOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { io } from "socket.io-client";
 
@@ -67,7 +69,7 @@ const PREVIEW_STATS = [
 
 const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
 
-// ── Helper: extract YouTube embed URL from any YT link ──
+// ── Helpers ──────────────────────────────────────────────────
 function getYouTubeEmbedUrl(url) {
   try {
     if (!url) return null;
@@ -82,12 +84,12 @@ function getYouTubeEmbedUrl(url) {
   return null;
 }
 
-// ── Helper: detect if a URL is YouTube ──
 function isYouTubeUrl(url) {
   const v = String(url || "").toLowerCase();
   return v.includes("youtu.be") || v.includes("youtube.com");
 }
 
+// ── Locked state for unauthenticated users ───────────────────
 function PassportLocked() {
   const navigate = useNavigate();
   return (
@@ -180,15 +182,17 @@ function PassportLocked() {
   );
 }
 
+// ── Main page ─────────────────────────────────────────────────
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, token, isAuthed, loading, setUser } = useAuth();
+  const { user, token, isAuthed, loading, setUser, logout } = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
   const { message } = App.useApp();
 
   const myId = useMemo(() => user?._id || user?.id || null, [user]);
 
+  // ── Modal state ──
   const [musicOpen, setMusicOpen] = useState(false);
   const [profileMusic, setProfileMusic] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -199,6 +203,13 @@ export default function DigitalPassportPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [xpToastShown, setXpToastShown] = useState(false);
 
+  // ✅ NEW: Delete account modal state — 2-step flow
+  const [deleteStep, setDeleteStep] = useState(0); // 0=closed, 1=confirm, 2=type to confirm
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const DELETE_PHRASE = "DELETE";
+
+  // ── XP / stats state ──
   const [xpLoading, setXpLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [xp, setXp] = useState(0);
@@ -218,6 +229,7 @@ export default function DigitalPassportPage() {
   const socketRef = useRef(null);
   const avatarInputRef = useRef(null);
 
+  // ── Derived display values ──
   const displayName = useMemo(() => {
     if (!user) return "Explorer";
     return (
@@ -230,8 +242,6 @@ export default function DigitalPassportPage() {
     const base = user.username || safeEmailPrefix(user.email) || "explorer";
     return `@${String(base).toLowerCase()}`;
   }, [user]);
-
-  const levelNumber = useMemo(() => Number(user?.level ?? 1), [user]);
 
   const homeBaseLabel = useMemo(() => {
     const hb = user?.city || user?.homeBase;
@@ -258,31 +268,24 @@ export default function DigitalPassportPage() {
     );
     try {
       window.history.replaceState({}, document.title);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, [location?.state?.fromAuth, user?.name]);
 
-  // ── Load profile music from localStorage on mount ──
-  // Also normalises old saves that may be missing the provider field
+  // ── Load profile music ──
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw);
       if (saved?.url) {
-        // Backfill provider if missing (handles old saves)
         if (!saved.provider && isYouTubeUrl(saved.url)) {
           saved.provider = "youtube";
         }
         setProfileMusic(saved);
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, []);
 
-  // ── When music is saved via modal, also persist provider fix ──
   const handleMusicSave = useCallback((payload) => {
     if (payload && !payload.provider && isYouTubeUrl(payload.url)) {
       payload.provider = "youtube";
@@ -290,6 +293,7 @@ export default function DigitalPassportPage() {
     setProfileMusic(payload);
   }, []);
 
+  // ── Fetch XP ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -340,6 +344,7 @@ export default function DigitalPassportPage() {
     }
   }, [xp, xpLoading, xpToastShown]);
 
+  // ── Fetch passport stats ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -375,6 +380,7 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed, token]);
 
+  // ── Socket for live follower counts ──
   useEffect(() => {
     if (!myId || !isAuthed) return;
     if (!socketRef.current) {
@@ -401,6 +407,7 @@ export default function DigitalPassportPage() {
     return () => s.off("social:counts:update", handler);
   }, [myId, isAuthed]);
 
+  // ── Copy passport link ──
   const copyPassportLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -414,6 +421,7 @@ export default function DigitalPassportPage() {
     message.info("Sharing enabled post-launch");
   }, [message]);
 
+  // ── Avatar upload ──
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -460,6 +468,7 @@ export default function DigitalPassportPage() {
     }
   };
 
+  // ── Save profile edits ──
   const handleSaveProfile = async () => {
     if (!editUsername.trim() && !editBio.trim() && !editCity.trim()) return;
     setEditSaving(true);
@@ -505,7 +514,43 @@ export default function DigitalPassportPage() {
     }
   };
 
-  // ── Derive YouTube embed URL from saved music ──
+  // ✅ NEW: Delete account handler
+  const handleDeleteAccount = async () => {
+    if (deleteInput.trim().toUpperCase() !== DELETE_PHRASE) {
+      message.error(`Type ${DELETE_PHRASE} to confirm.`);
+      return;
+    }
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/user/delete"), {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Failed to delete account");
+
+      // Clear all local data
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // Clear auth context
+      if (logout) await logout();
+
+      // Close modal and redirect
+      setDeleteStep(0);
+      setDeleteInput("");
+      navigate("/", { replace: true });
+      antdMessage.success("Your account has been deleted.");
+    } catch (err) {
+      message.error(
+        err.message || "Could not delete account. Please try again."
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const youtubeEmbedUrl = useMemo(() => {
     if (!profileMusic?.url) return null;
     if (profileMusic.provider === "youtube" || isYouTubeUrl(profileMusic.url)) {
@@ -560,9 +605,9 @@ export default function DigitalPassportPage() {
 
               <div className="pp-mockGrid">
                 <div className="pp-mockMain">
+                  {/* ── Profile card ── */}
                   <Card variant="borderless" className="pp-card pp-profileCard">
                     <div className="pp-profileRow">
-                      {/* ── Avatar with upload ── */}
                       <div
                         className="pp-profileAvatar"
                         style={{ position: "relative" }}
@@ -637,7 +682,7 @@ export default function DigitalPassportPage() {
                               display: "block",
                               marginTop: 6,
                               fontSize: 13,
-                              color: "rgba(255,255,255,0.65)",
+                              color: "rgba(255,255,255,0.75)",
                               lineHeight: 1.5,
                               fontStyle: "italic",
                             }}
@@ -774,7 +819,7 @@ export default function DigitalPassportPage() {
                     <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
-                  {/* ── Travel Soundtrack Card ── */}
+                  {/* ── Travel Soundtrack ── */}
                   {profileMusic && (
                     <Card
                       variant="borderless"
@@ -798,8 +843,6 @@ export default function DigitalPassportPage() {
                           </div>
                         </div>
                       </div>
-
-                      {/* ── YouTube Player (real, playable) ── */}
                       {youtubeEmbedUrl ? (
                         <div
                           style={{
@@ -821,7 +864,6 @@ export default function DigitalPassportPage() {
                           />
                         </div>
                       ) : (
-                        // Fallback if URL somehow can't be parsed
                         <div
                           style={{
                             marginTop: 12,
@@ -840,6 +882,7 @@ export default function DigitalPassportPage() {
                     </Card>
                   )}
 
+                  {/* ── Travel Journeys ── */}
                   <Card
                     variant="borderless"
                     className="pp-card pp-journeysCard"
@@ -863,6 +906,7 @@ export default function DigitalPassportPage() {
                   </Card>
                 </div>
 
+                {/* ── Actions sidebar ── */}
                 <div className="pp-mockSide">
                   <Card variant="borderless" className="pp-card pp-actionsCard">
                     <Title
@@ -913,15 +957,56 @@ export default function DigitalPassportPage() {
                         Share
                       </Button>
                     </div>
+
                     <Text className="pp-credentialHint">
                       This passport unlocks stamps, borders, and rewards.
                     </Text>
+
                     <Button
                       className="pp-upgradeBtn"
                       onClick={() => navigate("/membership")}
                     >
                       Upgrade your Passport
                     </Button>
+
+                    {/* ✅ NEW: Delete account — separated visually with a divider */}
+                    <div
+                      style={{
+                        marginTop: 24,
+                        paddingTop: 16,
+                        borderTop: "1px solid rgba(255,255,255,0.07)",
+                      }}
+                    >
+                      <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => setDeleteStep(1)}
+                        style={{
+                          width: "100%",
+                          background: "transparent",
+                          borderColor: "rgba(255,77,79,0.3)",
+                          color: "rgba(255,100,100,0.7)",
+                          borderRadius: 10,
+                          height: 40,
+                          fontSize: 13,
+                          transition: "all 0.2s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "#ff4d4f";
+                          e.currentTarget.style.color = "#ff4d4f";
+                          e.currentTarget.style.background =
+                            "rgba(255,77,79,0.08)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor =
+                            "rgba(255,77,79,0.3)";
+                          e.currentTarget.style.color = "rgba(255,100,100,0.7)";
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        Delete Account
+                      </Button>
+                    </div>
                   </Card>
 
                   <div style={{ marginTop: 10, opacity: 0.95 }}>
@@ -934,13 +1019,14 @@ export default function DigitalPassportPage() {
         </div>
       </div>
 
+      {/* ── Followers modal ── */}
       <FollowersModal
         open={followOpen}
         onClose={() => setFollowOpen(false)}
         mode={followMode}
       />
 
-      {/* ── Use handleMusicSave instead of setProfileMusic directly ── */}
+      {/* ── Profile music modal ── */}
       <ProfileMusicModal
         open={musicOpen}
         onClose={() => setMusicOpen(false)}
@@ -948,6 +1034,7 @@ export default function DigitalPassportPage() {
         value={profileMusic}
       />
 
+      {/* ── Edit profile modal ── */}
       <Modal
         open={editOpen}
         onCancel={() => setEditOpen(false)}
@@ -1031,6 +1118,175 @@ export default function DigitalPassportPage() {
               rows={3}
               showCount
             />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ✅ NEW: Delete account — Step 1: Are you sure? */}
+      <Modal
+        open={deleteStep === 1}
+        onCancel={() => setDeleteStep(0)}
+        footer={null}
+        title={
+          <span
+            style={{
+              color: "#ff4d4f",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <WarningOutlined /> Delete Account
+          </span>
+        }
+        centered
+      >
+        <div style={{ padding: "8px 0 16px" }}>
+          <p style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 20 }}>
+            Are you sure you want to delete your Skyrio account?
+          </p>
+          <div
+            style={{
+              background: "rgba(255,77,79,0.06)",
+              border: "1px solid rgba(255,77,79,0.2)",
+              borderRadius: 10,
+              padding: "12px 16px",
+              marginBottom: 24,
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 13,
+                color: "#ff4d4f",
+                marginBottom: 8,
+              }}
+            >
+              ⚠️ This will permanently delete:
+            </div>
+            <ul
+              style={{
+                margin: 0,
+                paddingLeft: 18,
+                fontSize: 13,
+                color: "rgba(255,255,255,0.65)",
+                lineHeight: 2,
+              }}
+            >
+              <li>Your profile, username, and bio</li>
+              <li>All XP, badges, and Passport progress</li>
+              <li>Your saved trips and bookings history</li>
+              <li>All SkyHub posts and community activity</li>
+            </ul>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: "rgba(255,255,255,0.45)",
+              }}
+            >
+              This action is permanent and cannot be undone.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button block onClick={() => setDeleteStep(0)} style={{ flex: 1 }}>
+              Keep my account
+            </Button>
+            <Button
+              danger
+              block
+              onClick={() => {
+                setDeleteStep(2);
+                setDeleteInput("");
+              }}
+              style={{ flex: 1 }}
+            >
+              Yes, delete it
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ✅ NEW: Delete account — Step 2: Type DELETE to confirm */}
+      <Modal
+        open={deleteStep === 2}
+        onCancel={() => {
+          setDeleteStep(0);
+          setDeleteInput("");
+        }}
+        footer={null}
+        title={
+          <span
+            style={{
+              color: "#ff4d4f",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <WarningOutlined /> Confirm Deletion
+          </span>
+        }
+        centered
+      >
+        <div style={{ padding: "8px 0 16px" }}>
+          <p
+            style={{
+              fontSize: 14,
+              marginBottom: 16,
+              color: "rgba(0,0,0,0.65)",
+            }}
+          >
+            Type{" "}
+            <strong style={{ color: "#ff4d4f", letterSpacing: 1 }}>
+              DELETE
+            </strong>{" "}
+            below to permanently delete your account.
+          </p>
+          <Input
+            value={deleteInput}
+            onChange={(e) => setDeleteInput(e.target.value)}
+            placeholder="Type DELETE to confirm"
+            size="large"
+            status={
+              deleteInput && deleteInput.toUpperCase() !== DELETE_PHRASE
+                ? "error"
+                : ""
+            }
+            style={{ marginBottom: 20, letterSpacing: 1, fontWeight: 600 }}
+            autoFocus
+          />
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button
+              block
+              onClick={() => {
+                setDeleteStep(0);
+                setDeleteInput("");
+              }}
+              style={{ flex: 1 }}
+            >
+              Cancel
+            </Button>
+            <Button
+              danger
+              block
+              loading={deleteLoading}
+              disabled={deleteInput.trim().toUpperCase() !== DELETE_PHRASE}
+              onClick={handleDeleteAccount}
+              style={{ flex: 1 }}
+            >
+              Delete my account
+            </Button>
+          </div>
+          <div
+            style={{
+              marginTop: 12,
+              fontSize: 12,
+              color: "rgba(255,255,255,0.35)",
+              textAlign: "center",
+            }}
+          >
+            This will immediately log you out and delete all your data.
           </div>
         </div>
       </Modal>

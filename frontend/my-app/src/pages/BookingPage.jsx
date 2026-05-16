@@ -1,8 +1,13 @@
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import {
   Typography,
   Space,
-  Segmented,
   Button,
   DatePicker,
   Card,
@@ -354,8 +359,99 @@ function SearchBtn({ onClick, loading }) {
   );
 }
 
-// ─── FlightsForm ──────────────────────────────────────────────
-// Now calls onDatesChange so BookingPage knows about selected dates
+// ─────────────────────────────────────────────────────────────
+// ✅ BOOKING TAB BAR — clean text labels, More ▾ dropdown
+// ─────────────────────────────────────────────────────────────
+const PRIMARY_TABS = [
+  { key: "Flights", label: "Flights" },
+  { key: "Stays", label: "Stays" },
+  { key: "Saved", label: "Saved" },
+];
+
+const MORE_TABS = [
+  { key: "Cars", label: "Cars" },
+  { key: "Excursions", label: "Excursions" },
+  { key: "Packages", label: "Packages" },
+  { key: "Last-Minute", label: "Last-Minute" },
+];
+
+function BookingTabBar({ value, onChange }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef(null);
+  const isMoreActive = MORE_TABS.some((t) => t.key === value);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handler = (e) => {
+      if (moreRef.current && !moreRef.current.contains(e.target))
+        setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [moreOpen]);
+
+  const handleSelect = (key) => {
+    onChange(key);
+    setMoreOpen(false);
+  };
+
+  return (
+    <div className="sk-tab-bar">
+      {PRIMARY_TABS.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          className={`sk-tab-btn${value === t.key ? " is-active" : ""}`}
+          onClick={() => handleSelect(t.key)}
+        >
+          {t.label}
+        </button>
+      ))}
+      <div className="sk-tab-more" ref={moreRef}>
+        <button
+          type="button"
+          className={`sk-tab-more-btn${moreOpen ? " is-open" : ""}${
+            isMoreActive ? " has-active" : ""
+          }`}
+          onClick={() => setMoreOpen((v) => !v)}
+        >
+          {isMoreActive
+            ? MORE_TABS.find((t) => t.key === value)?.label
+            : "More"}
+          <span
+            style={{
+              fontSize: 10,
+              opacity: 0.7,
+              display: "inline-block",
+              transition: "transform 0.18s",
+              transform: moreOpen ? "rotate(180deg)" : "none",
+            }}
+          >
+            ▾
+          </span>
+        </button>
+        {moreOpen && (
+          <div className="sk-tab-more-menu">
+            {MORE_TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`sk-tab-more-item${
+                  value === t.key ? " is-active" : ""
+                }`}
+                onClick={() => handleSelect(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Search forms ─────────────────────────────────────────────
 function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
@@ -370,11 +466,11 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
     (v) => {
       const newDates = v ?? [null, null];
       setDates(newDates);
-
-      // ── Calculate nights and bubble up to BookingPage ──
       if (newDates[0] && newDates[1]) {
-        const nights = newDates[1].diff(newDates[0], "day");
-        onDatesChange?.({ dates: newDates, nights });
+        onDatesChange?.({
+          dates: newDates,
+          nights: newDates[1].diff(newDates[0], "day"),
+        });
       } else {
         onDatesChange?.({ dates: newDates, nights: null });
       }
@@ -388,7 +484,6 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
     if (!destAirport)
       return antdMessage.warning("Select a destination airport");
     if (!dates[0]) return antdMessage.warning("Select a departure date");
-
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -400,11 +495,9 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
       });
       if (dates[1])
         params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
-
       const res = await fetch(`${API}/api/flights/search?${params}`);
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.message || "Search failed");
-
       onSearch(data.flights ?? []);
       antdMessage.success(`Found ${data.flights?.length ?? 0} flights`);
     } catch (err) {
@@ -476,22 +569,21 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   );
 }
 
-// ─── StaysForm ────────────────────────────────────────────────
-// Also wires up date-driven nights
 function StaysForm({ onDestChange, onDatesChange }) {
   const handleDatesChange = useCallback(
     (v) => {
       const newDates = v ?? [null, null];
       if (newDates[0] && newDates[1]) {
-        const nights = newDates[1].diff(newDates[0], "day");
-        onDatesChange?.({ dates: newDates, nights });
+        onDatesChange?.({
+          dates: newDates,
+          nights: newDates[1].diff(newDates[0], "day"),
+        });
       } else {
         onDatesChange?.({ dates: newDates, nights: null });
       }
     },
     [onDatesChange]
   );
-
   return (
     <div className="sk-search-bar">
       <AirportInput
@@ -558,8 +650,10 @@ function PackagesForm({ onDestChange, onDatesChange }) {
     (v) => {
       const newDates = v ?? [null, null];
       if (newDates[0] && newDates[1]) {
-        const nights = newDates[1].diff(newDates[0], "day");
-        onDatesChange?.({ dates: newDates, nights });
+        onDatesChange?.({
+          dates: newDates,
+          nights: newDates[1].diff(newDates[0], "day"),
+        });
       } else {
         onDatesChange?.({ dates: newDates, nights: null });
       }
@@ -799,11 +893,13 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
 
+  // ✅ f4: read departure airport from URL param (set by LandingPage via homeAirport hook)
+  const fromCode = searchParams.get("from") || "EWR";
+
   const prefillData = useMemo(() => {
     const promptParam = searchParams.get("prompt");
     const planParam = searchParams.get("plan");
     const exampleParam = searchParams.get("example");
-
     if (exampleParam && EXAMPLE_PLANS[exampleParam])
       return { ...EXAMPLE_PLANS[exampleParam], source: "example" };
     if (planParam && PLAN_SEEDS[planParam]) {
@@ -831,7 +927,7 @@ export default function BookingPage() {
     return null;
   }, [searchParams]);
 
-  const [tab, setTab] = useState(prefillData?.tab ?? "Stays");
+  const [tab, setTab] = useState(prefillData?.tab ?? "Flights");
   const [flightResults, setFlightResults] = useState([]);
   const [autoSearchDone, setAutoSearchDone] = useState(false);
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
@@ -840,16 +936,11 @@ export default function BookingPage() {
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [priceWatchOn, setPriceWatchOn] = useState(false);
-
-  // ── Checkout state for selected live flight ──
   const [showCheckout, setShowCheckout] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
-
-  // ── Nights driven by date picker, falls back to prefill, then null ──
   const [selectedNights, setSelectedNights] = useState(
     prefillData?.tripDays ?? null
   );
-
   const [budgetState, setBudgetState] = useState({
     planned: prefillData?.budget ?? null,
     used: 0,
@@ -857,7 +948,6 @@ export default function BookingPage() {
     tripDays: prefillData?.tripDays ?? null,
   });
 
-  // ── Handle date change from any search form ──
   const handleDatesChange = useCallback(({ nights }) => {
     if (nights !== null && nights > 0) {
       setSelectedNights(nights);
@@ -885,24 +975,22 @@ export default function BookingPage() {
   const budgetSeed = prefillData?.budget ?? null;
   const tripDaySeed = prefillData?.tripDays ?? null;
 
+  // ✅ f4: auto-search uses fromCode from URL instead of hardcoded "EWR"
   useEffect(() => {
     if (!prefillData?.iata || autoSearchDone) return;
     const { iata, tripDays: days = 10 } = prefillData;
     const { departDate, returnDate } = getAutoSearchDates(days);
-
     setAutoSearchLoading(true);
     setAutoSearchError(null);
     setTab("Flights");
-
     const params = new URLSearchParams({
-      from: "EWR",
+      from: fromCode, // ✅ was hardcoded "EWR"
       to: iata,
       departDate,
       returnDate,
       adults: "1",
       cabin: "economy",
     });
-
     fetch(`${API}/api/flights/search?${params}`)
       .then((r) => r.json())
       .then((data) => {
@@ -953,19 +1041,19 @@ export default function BookingPage() {
     ? `${weather.label} Weather${weather.temp ? ` • ${weather.temp}` : ""}`
     : "Select a destination";
 
-  // ── Hero text — only shows nights if we actually have them ──
   const heroRoute = destCity
-    ? `New York → ${destCity}`
+    ? `${fromCode} → ${destCity}`
     : "Search for your next trip ✈️";
   const heroNights = selectedNights
     ? `${selectedNights} night${selectedNights !== 1 ? "s" : ""}`
     : "";
 
+  // ✅ Quick filters — only shown when Flights tab is active
   const quickFilters = useMemo(
     () => ["Under $500", "Luxury", "Unwind", "Adventure", "Romantic"],
     []
   );
-  const [activeFilters, setActiveFilters] = useState(["Under $500"]);
+  const [activeFilters, setActiveFilters] = useState([]);
   const toggleFilter = (label) =>
     setActiveFilters((prev) =>
       prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
@@ -1188,8 +1276,8 @@ export default function BookingPage() {
             )}
             <button
               type="button"
-              className={`sk-pill sk-pill-glass sk-pill-toggle ${
-                priceWatchOn ? "is-active" : ""
+              className={`sk-pill sk-pill-glass sk-pill-toggle${
+                priceWatchOn ? " is-active" : ""
               }`}
               onClick={() => {
                 setPriceWatchOn((p) => !p);
@@ -1209,23 +1297,15 @@ export default function BookingPage() {
           Smart Plan AI helps balance budget, comfort, and XP.
         </Text>
 
-        <Segmented
-          className="sk-booking-tabs sk-orange-segmented"
+        {/* ✅ Clean tab bar — text only, no emoji */}
+        <BookingTabBar
           value={tab}
           onChange={(val) => {
             setTab(val);
             setFlightResults([]);
             setSmartFilters(DEFAULT_FILTERS);
+            setActiveFilters([]);
           }}
-          options={[
-            "Stays",
-            "Flights",
-            "Cars",
-            "Saved",
-            "Excursions",
-            "Packages",
-            "Last-Minute",
-          ]}
         />
 
         <div className="sk-weatherStrip">
@@ -1247,6 +1327,7 @@ export default function BookingPage() {
           visible={tab === "Flights"}
         />
 
+        {/* Sort + Sync — always visible */}
         <Space className="sk-action-row" wrap>
           <Button className="sk-btn-orange">Sort: Recommended</Button>
           <Link to="/sync-together">
@@ -1256,27 +1337,32 @@ export default function BookingPage() {
           </Link>
         </Space>
 
-        <Space className="sk-filters" wrap>
-          {quickFilters.map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={`sk-qf ${
-                activeFilters.includes(f) ? "is-active" : ""
-              }`}
-              onClick={() => toggleFilter(f)}
-            >
-              {f}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="sk-qf sk-qf-clear"
-            onClick={clearFilters}
-          >
-            Clear quick filters →
-          </button>
-        </Space>
+        {/* ✅ Quick filter chips — ONLY on Flights tab */}
+        {tab === "Flights" && (
+          <Space className="sk-filters" wrap>
+            {quickFilters.map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={`sk-qf${
+                  activeFilters.includes(f) ? " is-active" : ""
+                }`}
+                onClick={() => toggleFilter(f)}
+              >
+                {f}
+              </button>
+            ))}
+            {activeFilters.length > 0 && (
+              <button
+                type="button"
+                className="sk-qf sk-qf-clear"
+                onClick={clearFilters}
+              >
+                Clear filters →
+              </button>
+            )}
+          </Space>
+        )}
       </div>
 
       <Row gutter={[24, 24]} className="sk-results-wrap">
@@ -1285,13 +1371,16 @@ export default function BookingPage() {
             <Title level={4} className="sk-section-title">
               {resultsTitle}
             </Title>
+            {/* ✅ f4: uses fromCode instead of hardcoded "EWR" */}
             <div className="sk-resultsSub">
               {autoSearchLoading
-                ? `Searching EWR → ${
+                ? `Searching ${fromCode} → ${
                     prefillData?.iata ?? destCity
                   } • today +14 days`
                 : visibleFlights.length > 0
-                ? `Sorted by price • EWR → ${prefillData?.iata ?? destCity}${
+                ? `Sorted by price • ${fromCode} → ${
+                    prefillData?.iata ?? destCity
+                  }${
                     activeFilterCount > 0
                       ? ` • ${activeFilterCount} filter${
                           activeFilterCount > 1 ? "s" : ""
@@ -1339,8 +1428,8 @@ export default function BookingPage() {
               <Card
                 key={flight.id}
                 variant="borderless"
-                className={`sk-result-card ${
-                  selectedResult.id === flight.id ? "is-selected" : ""
+                className={`sk-result-card${
+                  selectedResult.id === flight.id ? " is-selected" : ""
                 }`}
                 onClick={() =>
                   handleSelectResult({

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Badge, Button, Input, message } from "antd";
 import {
   GlobalOutlined,
@@ -10,13 +10,7 @@ import {
 
 import "@/styles/SkyHubPage.css";
 import heroBeach from "@/assets/skyhub/beach.png";
-import {
-  skyhubFilters,
-  skyhubTabs,
-  skyhubStats,
-  trendingDestinationsMock,
-  activeTravelersMock,
-} from "./skyhubData";
+import { skyhubFilters, skyhubTabs, skyhubStats } from "./skyhubData";
 import SkyHubComposer from "./SkyHubComposer";
 import SkyHubFeedCard from "./SkyHubFeedCard";
 import SkyHubCommentDrawer from "./SkyHubCommentDrawer";
@@ -25,6 +19,7 @@ import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import { apiUrl } from "@/lib/api";
 
+// ── Map backend post shape to local shape ──────────────────────
 function mapBackendPost(post) {
   return {
     id: post._id,
@@ -37,6 +32,7 @@ function mapBackendPost(post) {
     timeAgo: post.timeAgo || "now",
     text: post.text || "",
     image: post.image || "",
+    images: Array.isArray(post.images) ? post.images : [],
     likes: post.likesCount || 0,
     comments: post.commentsCount || 0,
     shares: post.sharesCount || 0,
@@ -56,17 +52,23 @@ export default function SkyHubPage() {
   const [composerText, setComposerText] = useState("");
   const [destination, setDestination] = useState("");
   const [activePostType, setActivePostType] = useState("Tip");
+  const [composerPhotos, setComposerPhotos] = useState([]);
   const [posts, setPosts] = useState([]);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [creatingPost, setCreatingPost] = useState(false);
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState(null);
 
-  useEffect(() => {
-    fetchFeed();
-  }, []);
+  // ── Live data: trending destinations from API ──────────────
+  const [trendingDestinations, setTrendingDestinations] = useState([]);
+  const [loadingTrending, setLoadingTrending] = useState(false);
 
-  const fetchFeed = async () => {
+  // ── Live data: active travelers from API ───────────────────
+  const [activeTravelers, setActiveTravelers] = useState([]);
+  const [loadingTravelers, setLoadingTravelers] = useState(false);
+
+  // ── Fetch feed ─────────────────────────────────────────────
+  const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
       const res = await fetch(apiUrl("/api/skyhub/feed"), {
@@ -84,8 +86,53 @@ export default function SkyHubPage() {
     } finally {
       setLoadingFeed(false);
     }
-  };
+  }, []);
 
+  // ── Fetch trending destinations ────────────────────────────
+  const fetchTrending = useCallback(async () => {
+    try {
+      setLoadingTrending(true);
+      const res = await fetch(apiUrl("/api/skyhub/trending"), {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.destinations)) {
+        setTrendingDestinations(data.destinations);
+      }
+      // Silently fail — sidebar is non-critical
+    } catch (err) {
+      console.error("fetchTrending error:", err);
+    } finally {
+      setLoadingTrending(false);
+    }
+  }, []);
+
+  // ── Fetch active travelers ─────────────────────────────────
+  const fetchActiveTravelers = useCallback(async () => {
+    try {
+      setLoadingTravelers(true);
+      const res = await fetch(apiUrl("/api/skyhub/active-travelers"), {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.travelers)) {
+        setActiveTravelers(data.travelers);
+      }
+      // Silently fail — sidebar is non-critical
+    } catch (err) {
+      console.error("fetchActiveTravelers error:", err);
+    } finally {
+      setLoadingTravelers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFeed();
+    fetchTrending();
+    fetchActiveTravelers();
+  }, [fetchFeed, fetchTrending, fetchActiveTravelers]);
+
+  // ── Filtered posts ─────────────────────────────────────────
   const visiblePosts = useMemo(() => {
     return posts.filter((post) => {
       const search = searchValue.toLowerCase();
@@ -113,13 +160,48 @@ export default function SkyHubPage() {
     });
   }, [posts, searchValue, activeFilter, activeTab]);
 
+  // ── Create post (with optional photo upload) ───────────────
   const handleCreatePost = async () => {
-    if (!composerText.trim()) {
-      message.warning("Write something before posting.");
+    if (!composerText.trim() && composerPhotos.length === 0) {
+      message.warning("Write something or add a photo before posting.");
       return;
     }
     try {
       setCreatingPost(true);
+
+      // Upload photos first if any
+      let uploadedImageUrls = [];
+      if (composerPhotos.length > 0) {
+        const token = localStorage.getItem("token");
+        const uploadResults = await Promise.allSettled(
+          composerPhotos.map(async (file) => {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch(apiUrl("/api/uploads/image"), {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              credentials: "include",
+              body: formData,
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || "Upload failed");
+            return data.url;
+          })
+        );
+        uploadedImageUrls = uploadResults
+          .filter((r) => r.status === "fulfilled")
+          .map((r) => r.value);
+        const failed = uploadResults.filter(
+          (r) => r.status === "rejected"
+        ).length;
+        if (failed > 0) {
+          message.warning(
+            `${failed} photo${failed > 1 ? "s" : ""} failed to upload.`
+          );
+        }
+      }
+
+      // Create the post
       const res = await fetch(apiUrl("/api/skyhub/posts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,15 +210,21 @@ export default function SkyHubPage() {
           text: composerText.trim(),
           type: activePostType,
           destination: destination.trim(),
+          // Send images array — backend should support this field
+          images: uploadedImageUrls,
+          // Also send first image as `image` for backwards compat
+          image: uploadedImageUrls[0] || "",
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to create post");
+
       const newPost = mapBackendPost(data.post);
       setPosts((prev) => [newPost, ...prev]);
       setComposerText("");
       setDestination("");
       setActivePostType("Tip");
+      setComposerPhotos([]);
       message.success("Posted to SkyHub.");
     } catch (err) {
       console.error("handleCreatePost error:", err);
@@ -146,6 +234,7 @@ export default function SkyHubPage() {
     }
   };
 
+  // ── Like / Save / Comments / Report ───────────────────────
   const handleToggleLike = async (postId) => {
     try {
       const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}/like`), {
@@ -235,6 +324,7 @@ export default function SkyHubPage() {
     );
   };
 
+  // ── Render ─────────────────────────────────────────────────
   return (
     <div
       className="skyhub-page"
@@ -284,6 +374,8 @@ export default function SkyHubPage() {
             </Button>
           </div>
         </div>
+
+        {/* Live stats from skyhubData constants (not mock) */}
         <div className="skyhub-topStats">
           {skyhubStats.map((item) => (
             <div key={item.id} className="skyhub-statItem">
@@ -296,6 +388,7 @@ export default function SkyHubPage() {
       </header>
 
       <main className="skyhub-main">
+        {/* ── Filter toolbar ── */}
         <section className="skyhub-toolbar">
           <div className="skyhub-toolbarBlock">
             <div className="skyhub-toolbarLabel">Browse Feed</div>
@@ -333,8 +426,10 @@ export default function SkyHubPage() {
           </div>
         </section>
 
+        {/* ── Content grid ── */}
         <section className="skyhub-contentGrid">
           <div className="skyhub-leftRail">
+            {/* ── Composer with photo upload ── */}
             <SkyHubComposer
               composerText={composerText}
               setComposerText={setComposerText}
@@ -344,7 +439,10 @@ export default function SkyHubPage() {
               setDestination={setDestination}
               onCreatePost={handleCreatePost}
               creatingPost={creatingPost}
+              onPhotosChange={setComposerPhotos}
             />
+
+            {/* ── Feed ── */}
             <section className="skyhub-feedSection">
               <div className="skyhub-feedSectionHeader">
                 <div>
@@ -387,10 +485,18 @@ export default function SkyHubPage() {
               </div>
             </section>
           </div>
+
+          {/* ── Sidebar — live data, graceful empty states ── */}
           <aside className="skyhub-rightRail">
             <SkyHubPassportCard />
-            <SkyHubTrendingDestinations items={trendingDestinationsMock} />
-            <SkyHubActiveTravelers travelers={activeTravelersMock} />
+            <SkyHubTrendingDestinations
+              items={trendingDestinations}
+              loading={loadingTrending}
+            />
+            <SkyHubActiveTravelers
+              travelers={activeTravelers}
+              loading={loadingTravelers}
+            />
           </aside>
         </section>
       </main>

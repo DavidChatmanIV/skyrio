@@ -15,7 +15,6 @@
   --sk-text: rgba(255, 255, 255, 0.92);
   --sk-muted: rgba(255, 255, 255, 0.72);
 
-  /* ── Override AntD blue → Skyrio orange globally ── */
   --ant-color-primary: #ff8a2a !important;
   --ant-color-primary-hover: #ffb347 !important;
   --ant-color-primary-active: #e67520 !important;
@@ -145,25 +144,140 @@
   box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.15);
 }
 
-/* ================= SEGMENTED TABS ================= */
-.sk-booking .sk-booking-tabs.ant-segmented {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid var(--sk-border) !important;
-  border-radius: 14px !important;
-  padding: 6px !important;
-  max-width: 100%;
+/* ═══════════════════════════════════════════════
+   ✅ NEW: BOOKING TAB BAR (replaces AntD Segmented)
+   Flights | Stays | Saved | More ▾
+═══════════════════════════════════════════════ */
+.sk-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 6px;
+  position: relative;
+  width: min(980px, calc(100% - 24px));
+  flex-wrap: nowrap;
+  overflow: visible;
 }
-.sk-booking .sk-booking-tabs .ant-segmented-item {
-  color: rgba(255, 255, 255, 0.82) !important;
+
+/* Primary tab buttons */
+.sk-tab-btn {
+  flex: 1;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
   font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  white-space: nowrap;
+  min-height: 44px;
+  touch-action: manipulation;
 }
-.sk-booking .sk-booking-tabs .ant-segmented-item-selected {
-  background: var(--sk-orange-grad) !important;
-  border-radius: 12px !important;
-  color: #1b1024 !important;
+.sk-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
-.sk-booking .sk-booking-tabs .ant-segmented-item-selected * {
-  color: #1b1024 !important;
+.sk-tab-btn.is-active {
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1b1024;
+}
+
+/* More › dropdown trigger */
+.sk-tab-more {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sk-tab-more-btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.65);
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  white-space: nowrap;
+  min-height: 44px;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.sk-tab-more-btn:hover,
+.sk-tab-more-btn.is-open {
+  background: rgba(255, 138, 42, 0.12);
+  border-color: rgba(255, 138, 42, 0.4);
+  color: #ff8a2a;
+}
+.sk-tab-more-btn.has-active {
+  background: rgba(255, 138, 42, 0.12);
+  border-color: rgba(255, 138, 42, 0.45);
+  color: #ff8a2a;
+}
+
+/* More dropdown menu */
+.sk-tab-more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 9999;
+  min-width: 180px;
+  background: rgba(14, 8, 30, 0.97);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 138, 42, 0.22);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+  animation: skTabMenuIn 0.16s ease forwards;
+}
+
+@keyframes skTabMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sk-tab-more-item {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+.sk-tab-more-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.sk-tab-more-item.is-active {
+  background: rgba(255, 138, 42, 0.15);
+  color: #ff8a2a;
 }
 
 /* ================= BUTTONS — glass default ================= */
@@ -290,7 +404,6 @@
   flex: 1 1 180px;
   min-width: 160px;
 }
-/* FIX: was min-width: 200px — caused negative space gap on mobile */
 .sk-search-bar .sk-orange-picker {
   flex: 1 1 200px;
   min-width: 0 !important;
@@ -333,18 +446,15 @@
   color: #fff;
   font-weight: 500;
 }
-
 .sk-saved-chip-title {
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
 }
-
 .sk-saved-chip-dest,
 .sk-saved-chip-price {
   color: rgba(255, 255, 255, 0.5);
   font-size: 12px;
 }
-
 .sk-saved-chip-delete {
   display: inline-flex;
   align-items: center;
@@ -431,7 +541,6 @@
   flex: 1;
   min-width: 120px;
 }
-
 .sk-swap-btn {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -560,7 +669,6 @@
   margin-top: 10px;
   justify-content: center;
 }
-
 .sk-qf {
   padding: 8px 16px;
   border-radius: 999px;
@@ -659,7 +767,6 @@
   font-size: 13px;
   color: rgba(244, 246, 251, 0.78);
 }
-
 .sk-result-card {
   background: rgba(15, 12, 35, 0.52) !important;
   border-radius: 18px;
@@ -765,7 +872,6 @@
   font-size: 12px;
   color: rgba(255, 255, 255, 0.72);
 }
-
 .sk-tagRow {
   display: flex;
   flex-wrap: wrap;
@@ -817,7 +923,6 @@
   border-color: rgba(120, 90, 255, 0.26);
   background: rgba(120, 90, 255, 0.1);
 }
-
 .sk-clear-filters-cta {
   display: inline-flex;
   align-items: center;
@@ -838,7 +943,7 @@
   border-color: #ff8a2a;
 }
 
-/* ================= AUTO-SEARCH SKELETON ================= */
+/* ================= SKELETON ================= */
 @keyframes sk-shimmer {
   0% {
     background-position: -600px 0;
@@ -989,7 +1094,6 @@
 .sk-prefill-dismissBtn:hover {
   color: rgba(255, 255, 255, 0.65);
 }
-
 .sk-prefill-expanded {
   display: flex;
   flex-direction: column;
@@ -1023,7 +1127,6 @@
   display: flex;
   gap: 8px;
 }
-
 .sk-prefill-input.ant-input,
 .sk-prefill-input .ant-input {
   background: rgba(255, 255, 255, 0.07) !important;
@@ -1047,7 +1150,6 @@
 .sk-prefill-numInput .ant-input-number-input::placeholder {
   color: rgba(255, 255, 255, 0.35) !important;
 }
-
 .sk-prefill-saveBtn {
   display: inline-flex;
   align-items: center;
@@ -1067,7 +1169,6 @@
   opacity: 0.9;
   box-shadow: 0 6px 20px rgba(255, 138, 42, 0.45);
 }
-
 .sk-prefill-cancelBtn {
   display: inline-flex;
   align-items: center;
@@ -1099,7 +1200,6 @@
   position: relative;
   z-index: 50;
 }
-
 .skf-bar-inner {
   width: 100%;
   max-width: 980px;
@@ -1111,7 +1211,6 @@
   text-align: center;
   overflow: visible;
 }
-
 .skf-bar-label {
   font-size: 11px;
   font-weight: 700;
@@ -1124,7 +1223,6 @@
   gap: 6px;
   white-space: nowrap;
 }
-
 .skf-active-badge {
   display: inline-flex;
   align-items: center;
@@ -1138,7 +1236,6 @@
   font-weight: 700;
   line-height: 1;
 }
-
 .skf-pills {
   display: flex;
   align-items: center;
@@ -1148,12 +1245,10 @@
   width: 100%;
   overflow: visible;
 }
-
 .skf-pill-wrap {
   position: relative;
   overflow: visible;
 }
-
 .skf-pill {
   display: inline-flex;
   align-items: center;
@@ -1186,7 +1281,6 @@
   border-color: rgba(255, 138, 42, 0.6);
   background: rgba(255, 138, 42, 0.14);
 }
-
 .skf-pill-label {
   max-width: 120px;
   overflow: hidden;
@@ -1212,7 +1306,6 @@
 .skf-pill-caret--up {
   transform: rotate(180deg);
 }
-
 .skf-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -1229,11 +1322,9 @@
     0 0 0 1px rgba(124, 92, 252, 0.08);
   animation: skfDropIn 0.18s ease forwards;
 }
-
 .skf-pill-wrap:has(.skf-time-grid) .skf-dropdown {
   min-width: 300px;
 }
-
 @keyframes skfDropIn {
   from {
     opacity: 0;
@@ -1244,13 +1335,11 @@
     transform: translateY(0) scale(1);
   }
 }
-
 .skf-inner {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-
 .skf-section-title {
   font-size: 10px;
   font-weight: 700;
@@ -1259,7 +1348,6 @@
   color: rgba(255, 255, 255, 0.35);
   margin-bottom: 2px;
 }
-
 .skf-price-val {
   font-size: 22px;
   font-weight: 700;
@@ -1300,7 +1388,6 @@
   color: rgba(255, 255, 255, 0.35);
   margin-top: -4px;
 }
-
 .skf-radio-row {
   display: flex;
   align-items: center;
@@ -1321,7 +1408,6 @@
   cursor: pointer;
   flex-shrink: 0;
 }
-
 .skf-time-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1368,7 +1454,6 @@
 .skf-time-tile--active .skf-time-name {
   color: #ffb066;
 }
-
 .skf-apply-btn {
   width: 100%;
   margin-top: 12px;
@@ -1385,7 +1470,6 @@
 .skf-apply-btn:hover {
   opacity: 0.88;
 }
-
 .skf-clear-all {
   font-size: 12px;
   color: rgba(255, 138, 42, 0.7);
@@ -1464,10 +1548,7 @@
 
 /* ═══════════════════════════════════════════════════════════
    ANT DESIGN DATE PICKER — SKYRIO ORANGE THEME
-   Replaces all AntD blue with #ff8a2a across the calendar
 ═══════════════════════════════════════════════════════════ */
-
-/* Selected date cells — filled orange circle */
 .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
 .ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
 .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
@@ -1476,30 +1557,20 @@
   color: #1b1024 !important;
   font-weight: 700 !important;
 }
-
-/* Range strip between start and end dates */
 .ant-picker-cell-in-view.ant-picker-cell-in-range .ant-picker-cell-inner,
 .ant-picker-cell-in-view.ant-picker-cell-in-range::before {
   background: rgba(255, 138, 42, 0.12) !important;
 }
-
-/* Range start/end connecting strip */
 .ant-picker-cell-in-view.ant-picker-cell-range-start::before,
 .ant-picker-cell-in-view.ant-picker-cell-range-end::before {
   background: rgba(255, 138, 42, 0.12) !important;
 }
-
-/* Today marker ring */
 .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
   border-color: #ff8a2a !important;
 }
-
-/* Hover state on individual cells */
 .ant-picker-cell-in-view .ant-picker-cell-inner:hover {
   background: rgba(255, 138, 42, 0.18) !important;
 }
-
-/* OK / Apply button */
 .ant-picker-ok .ant-btn-primary {
   background: #ff8a2a !important;
   border-color: #ff8a2a !important;
@@ -1510,22 +1581,16 @@
   background: #ffb347 !important;
   border-color: #ffb347 !important;
 }
-
-/* "Today" shortcut link */
 .ant-picker-today-btn {
   color: #ff8a2a !important;
 }
 .ant-picker-today-btn:hover {
   color: #ffb347 !important;
 }
-
-/* Header prev/next arrow hover */
 .ant-picker-header-view button:hover,
 .ant-picker-header button:hover {
   color: #ff8a2a !important;
 }
-
-/* Dark themed popup panel — matches Skyrio glass UI */
 .ant-picker-dropdown {
   z-index: 9999 !important;
 }
@@ -1537,8 +1602,6 @@
   border-radius: 16px !important;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65) !important;
 }
-
-/* Header */
 .ant-picker-header {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: rgba(255, 255, 255, 0.9) !important;
@@ -1550,34 +1613,24 @@
   color: rgba(255, 255, 255, 0.95) !important;
   font-weight: 700 !important;
 }
-
-/* Day of week headers */
 .ant-picker-content th {
   color: rgba(255, 255, 255, 0.4) !important;
   font-weight: 600 !important;
   font-size: 12px !important;
 }
-
-/* Regular in-view date cells */
 .ant-picker-cell-in-view .ant-picker-cell-inner {
   color: rgba(255, 255, 255, 0.85) !important;
   border-radius: 8px !important;
 }
-
-/* Disabled / out-of-range cells */
 .ant-picker-cell-disabled .ant-picker-cell-inner {
   color: rgba(255, 255, 255, 0.2) !important;
 }
 .ant-picker-cell:not(.ant-picker-cell-in-view) .ant-picker-cell-inner {
   color: rgba(255, 255, 255, 0.15) !important;
 }
-
-/* Panel divider */
 .ant-picker-panels {
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
-
-/* Footer */
 .ant-picker-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
   background: transparent !important;
@@ -1623,8 +1676,6 @@
     width: 100% !important;
     margin-left: 0 !important;
   }
-
-  /* Release fixed widths when search bar stacks */
   .sk-search-bar .sk-orange-picker {
     min-width: 0 !important;
     width: 100% !important;
@@ -1645,10 +1696,8 @@
 
 /* ═══════════════════════════════════════════════
    RESPONSIVE — 768px
-   Mobile calendar bottom sheet + iOS zoom fix
 ═══════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  /* Prevent iOS Safari from zooming on input focus */
   .sk-booking input[type="text"],
   .sk-booking input[type="number"],
   .sk-booking input[type="search"],
@@ -1658,13 +1707,9 @@
   .sk-booking .ant-select-selection-search-input {
     font-size: 16px !important;
   }
-
-  /* Results bottom padding clears Atlas FAB + safe area */
   .sk-results-wrap {
     padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
   }
-
-  /* ── Calendar: pin to bottom of viewport (bottom sheet style) ── */
   .ant-picker-dropdown {
     position: fixed !important;
     left: 0 !important;
@@ -1676,39 +1721,29 @@
     padding: 0 8px !important;
     z-index: 9999 !important;
   }
-
-  /* Panel fills the sheet width */
   .ant-picker-panel-container {
     width: 100% !important;
     max-width: 100% !important;
     border-radius: 20px 20px 0 0 !important;
     overflow: hidden !important;
   }
-
-  /* Stack months vertically — not side by side */
   .ant-picker-panels {
     flex-direction: column !important;
     width: 100% !important;
   }
-
   .ant-picker-panel,
   .ant-picker-date-panel,
   .ant-picker-month-panel,
   .ant-picker-year-panel {
     width: 100% !important;
   }
-
-  /* Calendar grid fills full width */
   .ant-picker-content {
     width: 100% !important;
     table-layout: fixed !important;
   }
-
-  /* 44px tap targets — iOS HIG minimum */
   .ant-picker-cell {
     padding: 3px 0 !important;
   }
-
   .ant-picker-cell-inner {
     min-width: 40px !important;
     height: 40px !important;
@@ -1720,15 +1755,12 @@
     align-items: center !important;
     justify-content: center !important;
   }
-
-  /* Header */
   .ant-picker-header {
     padding: 0 12px !important;
     height: 48px !important;
     display: flex !important;
     align-items: center !important;
   }
-
   .ant-picker-header button {
     min-width: 44px !important;
     min-height: 44px !important;
@@ -1737,28 +1769,21 @@
     align-items: center !important;
     justify-content: center !important;
   }
-
   .ant-picker-header-view button {
     font-size: 15px !important;
     font-weight: 700 !important;
   }
-
-  /* Column header row */
   .ant-picker-content th {
     height: 36px !important;
     font-size: 12px !important;
     font-weight: 700 !important;
   }
-
-  /* Footer — full width orange OK button */
   .ant-picker-footer {
     padding: 12px 16px !important;
   }
-
   .ant-picker-ok {
     width: 100% !important;
   }
-
   .ant-picker-ok .ant-btn {
     width: 100% !important;
     height: 48px !important;
@@ -1769,8 +1794,6 @@
     color: #1b1024 !important;
     border: none !important;
   }
-
-  /* Dim overlay behind calendar */
   .ant-picker-dropdown::before {
     content: "";
     position: fixed;
@@ -1797,24 +1820,22 @@
     border-radius: 10px;
   }
 
-  /* Tab bar — scroll horizontally, never clip */
-  .sk-booking .sk-booking-tabs.ant-segmented {
-    display: flex !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    scrollbar-width: none !important;
-    -webkit-overflow-scrolling: touch;
-    flex-wrap: nowrap !important;
-    max-width: 100% !important;
-    padding: 4px !important;
+  /* ✅ NEW: Tab bar mobile — compact */
+  .sk-tab-bar {
+    padding: 4px;
+    gap: 4px;
   }
-  .sk-booking .sk-booking-tabs.ant-segmented::-webkit-scrollbar {
-    display: none;
+  .sk-tab-btn {
+    padding: 10px 12px;
+    font-size: 13px;
   }
-  .sk-booking .sk-booking-tabs .ant-segmented-item {
-    flex-shrink: 0 !important;
-    min-height: 44px !important;
-    padding: 0 14px !important;
+  .sk-tab-more-btn {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .sk-tab-more-menu {
+    right: 0;
+    min-width: 160px;
   }
 
   /* Airport pair */
@@ -1833,7 +1854,7 @@
     display: none;
   }
 
-  /* Filter dropdown — safe on 320px screens */
+  /* Filter dropdown */
   .skf-dropdown {
     left: 50%;
     transform: translateX(-50%);
@@ -1883,7 +1904,7 @@
     gap: 8px !important;
   }
 
-  /* Airport inputs — glass style on mobile */
+  /* Airport inputs */
   .sk-airport-wrap input,
   .sk-airport-pair input {
     background: rgba(255, 255, 255, 0.08) !important;
@@ -1918,7 +1939,7 @@
 }
 
 /* ═══════════════════════════════════════════════
-   RESPONSIVE — 390px  (iPhone SE / small phones)
+   RESPONSIVE — 390px
 ═══════════════════════════════════════════════ */
 @media (max-width: 390px) {
   .ant-picker-cell-inner {
@@ -1927,11 +1948,9 @@
     line-height: 34px !important;
     font-size: 13px !important;
   }
-
   .ant-picker-content th {
     font-size: 11px !important;
   }
-
   .ant-picker-header-view button {
     font-size: 14px !important;
   }
