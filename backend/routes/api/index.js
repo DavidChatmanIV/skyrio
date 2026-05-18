@@ -1,4 +1,5 @@
 import { Router } from "express";
+
 const api = Router();
 
 /* ======================================================
@@ -35,6 +36,7 @@ await mount("/profile", "./profile.routes.js");
 await mount("/uploads", "./uploads.routes.js");
 await mount("/social", "./social.routes.js");
 await mount("/follow", "./follow.routes.js");
+await mount("/users", "./userSearch.routes.js");
 await mount("/passport", "./passport.routes.js");
 await mount("/flights", "./flights/flights.routes.js");
 await mount("/airports", "./airports.routes.js");
@@ -73,6 +75,7 @@ api.get("/", (_req, res) => {
       "/auth",
       "/profile",
       "/passport",
+      "/users",
       "/flights",
       "/weather",
       "/skyhub",
