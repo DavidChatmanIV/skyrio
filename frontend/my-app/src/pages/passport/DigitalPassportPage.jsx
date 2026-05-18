@@ -153,7 +153,7 @@ function InlineTravelerSearch({ token }) {
       setLoading(true);
       try {
         const res = await fetch(
-          apiUrl(`/api/users/search?q=${encodeURIComponent(q)}&limit=8`),
+          apiUrl(`/api/follow/search?q=${encodeURIComponent(q)}&limit=8`),
           {
             credentials: "include",
             headers: token ? { Authorization: `Bearer ${token}` } : {},

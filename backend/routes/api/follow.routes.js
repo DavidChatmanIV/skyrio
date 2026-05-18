@@ -11,7 +11,52 @@ function requireAuth(req, res, next) {
   next();
 }
 
-// POST /api/follow/:targetUserId  -> follow
+// ─── GET /api/follow/search?q=john&limit=10 ─────────────────
+// Search for users by username or name
+router.get("/search", requireAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    const limit = Math.min(Number(req.query.limit) || 10, 25);
+    const me = req.authUserId;
+
+    if (!q || q.length < 2) {
+      return res.json({ ok: true, users: [] });
+    }
+
+    const meId = mongoose.Types.ObjectId.isValid(me)
+      ? new mongoose.Types.ObjectId(me)
+      : me;
+
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(escaped, "i");
+
+    const users = await User.find({
+      _id: { $ne: meId },
+      $or: [{ username: regex }, { name: regex }],
+    })
+      .select("_id username name avatar bio followersCount followingCount")
+      .limit(limit)
+      .lean();
+
+    // Check which ones the requester already follows
+    const caller = await User.findById(meId).select("following").lean();
+    const followingSet = new Set(
+      (caller?.following || []).map((id) => String(id))
+    );
+
+    const results = users.map((u) => ({
+      ...u,
+      isFollowing: followingSet.has(String(u._id)),
+    }));
+
+    return res.json({ ok: true, users: results });
+  } catch (err) {
+    console.error("User search error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// ─── POST /api/follow/:targetUserId ─────────────────────────
 router.post("/:targetUserId", requireAuth, async (req, res) => {
   try {
     const me = req.authUserId;
@@ -29,17 +74,13 @@ router.post("/:targetUserId", requireAuth, async (req, res) => {
         .json({ ok: false, error: "You cannot follow yourself" });
     }
 
-    // Only update counts if the relationship was newly added.
-    // Step 1: try to add target to my "following"
     const meUpdate = await User.updateOne(
       { _id: me, following: { $ne: target } },
       { $addToSet: { following: target }, $inc: { followingCount: 1 } }
     );
 
-    // If nothing modified, I already follow them
     const changed = meUpdate.modifiedCount === 1;
 
-    // Step 2: if changed, add me to target "followers" and increment their count
     if (changed) {
       await User.updateOne(
         { _id: target, followers: { $ne: me } },
@@ -54,7 +95,7 @@ router.post("/:targetUserId", requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/follow/:targetUserId -> unfollow
+// ─── DELETE /api/follow/:targetUserId ────────────────────────
 router.delete("/:targetUserId", requireAuth, async (req, res) => {
   try {
     const me = req.authUserId;
@@ -91,7 +132,7 @@ router.delete("/:targetUserId", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/follow/mine -> returns who I follow (IDs)
+// ─── GET /api/follow/mine/list ───────────────────────────────
 router.get("/mine/list", requireAuth, async (req, res) => {
   try {
     const me = req.authUserId;
