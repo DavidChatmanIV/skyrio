@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { EnvironmentOutlined } from "@ant-design/icons";
+import { MapPin } from "lucide-react";
 import { searchAirports } from "@/data/airportData";
 import "@/styles/AirportInput.css";
 
 /**
  * AirportInput
+ *
  * Props:
  *   value       – controlled display string e.g. "New York (JFK)"
  *   onChange    – (airport) => void — called with the full airport object
@@ -13,8 +15,10 @@ import "@/styles/AirportInput.css";
  *   className   – extra className on the wrapper
  *
  * Uses React Portal to render the dropdown directly into document.body,
- * bypassing any parent stacking context (overflow, transform, z-index)
- * that would clip or overlap the dropdown.
+ * bypassing any parent stacking context (overflow, transform, z-index).
+ *
+ * n5/n6: Surfaces nearby metro airports in a distinct "Also nearby" section
+ * when the top result belongs to a multi-airport metro area.
  */
 export default function AirportInput({
   value,
@@ -24,6 +28,7 @@ export default function AirportInput({
 }) {
   const [inputVal, setInputVal] = useState(value || "");
   const [results, setResults] = useState([]);
+  const [nearby, setNearby] = useState(null); // { label, airports }
   const [open, setOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
@@ -38,7 +43,6 @@ export default function AirportInput({
   // Recalculate dropdown position whenever it opens or window resizes
   useEffect(() => {
     if (!open || !inputRef.current) return;
-
     const updatePos = () => {
       const rect = inputRef.current.getBoundingClientRect();
       setDropdownPos({
@@ -47,7 +51,6 @@ export default function AirportInput({
         width: Math.max(320, rect.width),
       });
     };
-
     updatePos();
     window.addEventListener("resize", updatePos);
     window.addEventListener("scroll", updatePos, true);
@@ -60,7 +63,6 @@ export default function AirportInput({
   // Close dropdown on outside click
   useEffect(() => {
     const handleOutside = (e) => {
-      // Check both the wrapper and the portal dropdown
       const dropdown = document.querySelector(".sk-airport-dropdown-portal");
       if (
         wrapRef.current &&
@@ -77,9 +79,11 @@ export default function AirportInput({
   const handleChange = useCallback((e) => {
     const val = e.target.value;
     setInputVal(val);
-    const found = searchAirports(val);
+    // ✅ n5/n6: searchAirports now returns { results, nearby }
+    const { results: found, nearby: nearbyAirports } = searchAirports(val);
     setResults(found);
-    setOpen(found.length > 0);
+    setNearby(nearbyAirports);
+    setOpen(found.length > 0 || !!nearbyAirports);
   }, []);
 
   const handleSelect = useCallback(
@@ -88,12 +92,13 @@ export default function AirportInput({
       setInputVal(display);
       setOpen(false);
       setResults([]);
+      setNearby(null);
       onChange?.(airport);
     },
     [onChange]
   );
 
-  // Group results by city — multi-airport cities get a header row
+  // Group primary results by city for multi-airport cities
   const grouped = results.reduce((acc, airport) => {
     const key = airport.city;
     if (!acc[key]) acc[key] = [];
@@ -101,62 +106,99 @@ export default function AirportInput({
     return acc;
   }, {});
 
-  const dropdown = open
-    ? createPortal(
-        <div
-          className="sk-airport-dropdown sk-airport-dropdown-portal"
-          style={{
-            position: "absolute",
-            top: dropdownPos.top,
-            left: dropdownPos.left,
-            width: dropdownPos.width,
-            zIndex: 9999,
-          }}
-        >
-          {Object.entries(grouped).map(([city, airports]) => (
-            <div key={city} className="sk-airport-group">
-              {/* City header only when 2+ airports in same city */}
-              {airports.length > 1 && (
-                <div className="sk-airport-city-header">
-                  <EnvironmentOutlined /> {city}
-                </div>
-              )}
+  const hasContent = results.length > 0 || !!nearby;
 
-              {airports.map((ap) => (
-                <button
-                  key={ap.code}
-                  type="button"
-                  className={`sk-airport-option ${
-                    airports.length > 1 ? "is-sub" : ""
-                  }`}
-                  onMouseDown={(e) => {
-                    // Prevent blur before click registers
-                    e.preventDefault();
-                    handleSelect(ap);
-                  }}
-                >
-                  <div className="sk-airport-left">
-                    <span className="sk-airport-arrow">
-                      {airports.length > 1 ? "↳" : "✈"}
-                    </span>
-                    <div>
-                      <div className="sk-airport-name">
-                        {airports.length > 1
-                          ? `${ap.name} (${ap.code})`
-                          : `${ap.city} – ${ap.name} (${ap.code})`}
-                      </div>
-                      <div className="sk-airport-dist">{ap.distance}</div>
-                    </div>
+  const dropdown =
+    open && hasContent
+      ? createPortal(
+          <div
+            className="sk-airport-dropdown sk-airport-dropdown-portal"
+            style={{
+              position: "absolute",
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+              zIndex: 9999,
+            }}
+          >
+            {/* ── Primary results ── */}
+            {Object.entries(grouped).map(([city, airports]) => (
+              <div key={city} className="sk-airport-group">
+                {airports.length > 1 && (
+                  <div className="sk-airport-city-header">
+                    <EnvironmentOutlined /> {city}
                   </div>
-                  <span className="sk-airport-code">{ap.code}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>,
-        document.body
-      )
-    : null;
+                )}
+                {airports.map((ap) => (
+                  <button
+                    key={ap.code}
+                    type="button"
+                    className={`sk-airport-option${
+                      airports.length > 1 ? " is-sub" : ""
+                    }`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(ap);
+                    }}
+                  >
+                    <div className="sk-airport-left">
+                      <span className="sk-airport-arrow">
+                        {airports.length > 1 ? "↳" : "✈"}
+                      </span>
+                      <div>
+                        <div className="sk-airport-name">
+                          {airports.length > 1
+                            ? `${ap.name} (${ap.code})`
+                            : `${ap.city} – ${ap.name} (${ap.code})`}
+                        </div>
+                        <div className="sk-airport-dist">{ap.distance}</div>
+                      </div>
+                    </div>
+                    <span className="sk-airport-code">{ap.code}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+
+            {/* ✅ n5/n6: Nearby airports section */}
+            {nearby && nearby.airports.length > 0 && (
+              <div className="sk-airport-nearby">
+                <div className="sk-airport-nearby-header">
+                  <MapPin size={11} style={{ marginRight: 5 }} />
+                  Also nearby · {nearby.label}
+                </div>
+                {nearby.airports.map((ap) => (
+                  <button
+                    key={ap.code}
+                    type="button"
+                    className="sk-airport-option sk-airport-option--nearby"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(ap);
+                    }}
+                  >
+                    <div className="sk-airport-left">
+                      <span className="sk-airport-arrow sk-airport-arrow--nearby">
+                        ~
+                      </span>
+                      <div>
+                        <div className="sk-airport-name">
+                          {ap.city} – {ap.name} ({ap.code})
+                        </div>
+                        <div className="sk-airport-dist">{ap.distance}</div>
+                      </div>
+                    </div>
+                    <span className="sk-airport-code sk-airport-code--nearby">
+                      {ap.code}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
     <div ref={wrapRef} className={`sk-airport-wrap ${className}`}>
@@ -167,7 +209,7 @@ export default function AirportInput({
         value={inputVal}
         onChange={handleChange}
         onFocus={() => {
-          if (results.length > 0) setOpen(true);
+          if (results.length > 0 || nearby) setOpen(true);
         }}
         placeholder={placeholder}
         autoComplete="off"

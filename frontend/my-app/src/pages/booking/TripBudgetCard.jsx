@@ -15,6 +15,15 @@ import {
   CloseOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
+import {
+  Plane,
+  Hotel,
+  UtensilsCrossed,
+  Car,
+  Target,
+  ShoppingBag,
+  Pin,
+} from "lucide-react";
 
 import "../../styles/TripBudgetCard.css";
 
@@ -22,13 +31,38 @@ const { Option } = Select;
 
 // ── Expense categories ────────────────────────────────────────
 const EXPENSE_CATEGORIES = [
-  { key: "flights", label: "✈️ Flights", color: "#7c5cfc" },
-  { key: "hotel", label: "🏨 Hotel", color: "#00b8d9" },
-  { key: "dining", label: "🍽 Dining", color: "#ff8a2a" },
-  { key: "transport", label: "🚗 Transport", color: "#36b37e" },
-  { key: "activities", label: "🎯 Activities", color: "#ff5630" },
-  { key: "shopping", label: "🛍 Shopping", color: "#6554c0" },
-  { key: "other", label: "📌 Other", color: "#8993a4" },
+  {
+    key: "flights",
+    label: "Flights",
+    icon: <Plane size={13} />,
+    color: "#7c5cfc",
+  },
+  { key: "hotel", label: "Hotel", icon: <Hotel size={13} />, color: "#00b8d9" },
+  {
+    key: "dining",
+    label: "Dining",
+    icon: <UtensilsCrossed size={13} />,
+    color: "#ff8a2a",
+  },
+  {
+    key: "transport",
+    label: "Transport",
+    icon: <Car size={13} />,
+    color: "#36b37e",
+  },
+  {
+    key: "activities",
+    label: "Activities",
+    icon: <Target size={13} />,
+    color: "#ff5630",
+  },
+  {
+    key: "shopping",
+    label: "Shopping",
+    icon: <ShoppingBag size={13} />,
+    color: "#6554c0",
+  },
+  { key: "other", label: "Other", icon: <Pin size={13} />, color: "#8993a4" },
 ];
 
 function getCategoryMeta(key) {
@@ -284,9 +318,7 @@ export default function TripBudgetCard({
       ...prev,
       {
         id: `${Date.now()}-${Math.random()}`,
-        label:
-          newLabel.trim() ||
-          getCategoryMeta(newCategory).label.replace(/^\S+\s/, ""),
+        label: newLabel.trim() || getCategoryMeta(newCategory).label,
         amount: amt,
         category: newCategory,
       },
@@ -501,7 +533,15 @@ export default function TripBudgetCard({
             >
               {EXPENSE_CATEGORIES.map((c) => (
                 <Option key={c.key} value={c.key}>
-                  {c.label}
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    {c.icon} {c.label}
+                  </span>
                 </Option>
               ))}
             </Select>
@@ -567,7 +607,15 @@ export default function TripBudgetCard({
                       >
                         {EXPENSE_CATEGORIES.map((c) => (
                           <Option key={c.key} value={c.key}>
-                            {c.label}
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
+                            >
+                              {c.icon} {c.label}
+                            </span>
                           </Option>
                         ))}
                       </Select>
@@ -597,8 +645,19 @@ export default function TripBudgetCard({
                   <div key={expense.id} className="tb-expense-row">
                     <span
                       className="tb-expense-dot"
-                      style={{ background: meta.color }}
-                    />
+                      style={{
+                        background: meta.color,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#fff",
+                        borderRadius: "50%",
+                        width: 20,
+                        height: 20,
+                      }}
+                    >
+                      {meta.icon}
+                    </span>
                     <span className="tb-expense-label" title={expense.label}>
                       {expense.label}
                     </span>

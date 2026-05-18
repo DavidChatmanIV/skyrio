@@ -51,6 +51,29 @@ const profileSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
+    // ✅ n2/c2: Profile music — syncs across devices
+    // Saved by ProfileMusicModal via POST /api/profile/music
+    profileMusic: {
+      url: { type: String, default: "" },
+      name: { type: String, default: "" },
+      provider: { type: String, default: "youtube" },
+      updatedAt: { type: Date },
+    },
+
+    // ✅ n7: Travel vibes — set during onboarding
+    // Used by Atlas to personalise suggestions
+    travelVibes: {
+      type: [String],
+      default: [],
+    },
+
+    // ✅ s2: Home airport object — set during onboarding
+    homeAirportData: {
+      code: { type: String },
+      city: { type: String },
+      name: { type: String },
+    },
   },
   { timestamps: true }
 );

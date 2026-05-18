@@ -1,7 +1,38 @@
 import React, { useState } from "react";
 import { Button, Input, Avatar, message as antdMessage } from "antd";
 import { UserAddOutlined, SyncOutlined, TeamOutlined } from "@ant-design/icons";
+import {
+  Brain,
+  SplitSquareHorizontal,
+  Hotel,
+  Zap,
+  Plane,
+  Users,
+} from "lucide-react";
 import "@/styles/SyncTogether.css";
+
+const FEATURES = [
+  {
+    icon: <Brain size={22} />,
+    title: "Smart Date Matching",
+    body: "Tell us when everyone's free. Atlas finds the overlap and picks the best window automatically.",
+  },
+  {
+    icon: <SplitSquareHorizontal size={22} />,
+    title: "Fair Budget Split",
+    body: "Different budgets, same trip. Everyone stays comfortable — no awkward money conversations.",
+  },
+  {
+    icon: <Hotel size={22} />,
+    title: "Group Stay Finder",
+    body: "Atlas finds hotels and rentals that fit your whole group — price, location, and vibe.",
+  },
+  {
+    icon: <Zap size={22} />,
+    title: "XP for Everyone",
+    body: "Every traveler earns Passport XP on group trips. Plan together, level up together.",
+  },
+];
 
 export default function SyncTogether() {
   const [emails, setEmails] = useState([]);
@@ -25,64 +56,58 @@ export default function SyncTogether() {
     <section className="sk-sync-section">
       {/* ── Header ── */}
       <div className="sk-sync-header">
-        <div className="sk-sync-badge">✈️ Sync Together</div>
+        <div className="sk-sync-badge">
+          <Plane size={12} style={{ marginRight: 6 }} />
+          Group Travel
+        </div>
         <h2 className="sk-sync-title">
-          Plan smarter.
+          Tell us who's coming.
           <br />
-          Travel better.
-          <br />
-          <span className="sk-sync-highlight">Experience it together.</span>
+          <span className="sk-sync-highlight">We'll handle the rest.</span>
         </h2>
         <p className="sk-sync-sub">
-          We'll find the best dates, split costs fairly, and match stays for
-          everyone — automatically.
+          Add your travel crew, set everyone's budget and Atlas builds a plan
+          that works for the whole group flights, hotels and splits included.
         </p>
+        <div className="sk-sync-trust">
+          <span>No account required to plan</span>
+          <span className="sk-sync-trust-dot">·</span>
+          <span>Free to use</span>
+          <span className="sk-sync-trust-dot">·</span>
+          <span>Everyone earns XP</span>
+        </div>
       </div>
 
       {/* ── Feature grid ── */}
       <div className="sk-sync-grid">
-        <div className="sk-sync-card">
-          <div className="sk-sync-card-icon">🧠</div>
-          <div className="sk-sync-card-title">Trip Sync</div>
-          <div className="sk-sync-card-body">
-            We'll find the best dates for everyone automatically.
+        {FEATURES.map((f) => (
+          <div key={f.title} className="sk-sync-card">
+            <div className="sk-sync-card-icon">{f.icon}</div>
+            <div className="sk-sync-card-title">{f.title}</div>
+            <div className="sk-sync-card-body">{f.body}</div>
           </div>
-        </div>
-        <div className="sk-sync-card">
-          <div className="sk-sync-card-icon">💰</div>
-          <div className="sk-sync-card-title">Smart Budget Split</div>
-          <div className="sk-sync-card-body">
-            Everyone stays within their comfort zone.
-          </div>
-        </div>
-        <div className="sk-sync-card">
-          <div className="sk-sync-card-icon">🏨</div>
-          <div className="sk-sync-card-title">AI Stay Matching</div>
-          <div className="sk-sync-card-body">
-            Atlas finds the best options for your whole group.
-          </div>
-        </div>
-        <div className="sk-sync-card">
-          <div className="sk-sync-card-icon">⚡</div>
-          <div className="sk-sync-card-title">XP for Everyone</div>
-          <div className="sk-sync-card-body">
-            Every group trip earns Passport XP for all travelers.
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* ── Group builder ── */}
       <div className="sk-sync-group-builder">
         <div className="sk-sync-group-title">
-          <TeamOutlined /> Who's joining you?
+          <Users
+            size={16}
+            style={{ marginRight: 8, verticalAlign: "middle" }}
+          />
+          Who's joining you?
         </div>
+        <p className="sk-sync-group-hint">
+          Add names or emails — we'll send them a link to join the plan.
+        </p>
         <div className="sk-sync-group-input-row">
           <Input
             className="sk-sync-input"
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
             onPressEnter={addTraveler}
-            placeholder="Add email or name"
+            placeholder="Name or email address"
           />
           <Button
             className="sk-sync-add-btn"
@@ -121,9 +146,12 @@ export default function SyncTogether() {
           </div>
         )}
 
-        <p className="sk-sync-copy">
-          We'll handle the planning — you enjoy the experience.
-        </p>
+        {emails.length > 0 && (
+          <p className="sk-sync-count">
+            {emails.length} traveler{emails.length !== 1 ? "s" : ""} added —
+            ready to sync
+          </p>
+        )}
       </div>
 
       {/* ── CTA ── */}
@@ -133,9 +161,9 @@ export default function SyncTogether() {
           icon={<SyncOutlined />}
           size="large"
         >
-          Start Syncing
+          Start planning together
         </Button>
-        <p className="sk-sync-cta-sub">Travel better, together.</p>
+        <p className="sk-sync-cta-sub">One plan. Every traveler covered.</p>
       </div>
     </section>
   );

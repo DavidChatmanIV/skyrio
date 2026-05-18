@@ -20,6 +20,11 @@ const SyncTogether = lazy(() => import("./pages/SyncTogether"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 
+// ✅ s2: Public passport page — no auth required, drives signups
+const PublicPassportPage = lazy(() =>
+  import("./pages/passport/PublicPassportPage")
+);
+
 // ── Admin (standalone — no AppLayout/navbar) ──
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
@@ -27,7 +32,6 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 // ── Legal ──
 const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
-// ✅ NEW: Cookie Policy page (l4)
 const CookiePolicyPage = lazy(() => import("./pages/CookiePolicyPage"));
 
 // ─── Page loader ──────────────────────────────────────────────────────────────
@@ -70,7 +74,7 @@ function usePageTracking() {
   }, [location.pathname, location.search]);
 }
 
-// ─── Inner component (needs to be inside Router for useLocation) ──────────────
+// ─── Inner component ──────────────────────────────────────────────────────────
 function TrackedRoutes() {
   usePageTracking();
 
@@ -79,6 +83,9 @@ function TrackedRoutes() {
       {/* ── Admin — standalone, no navbar ── */}
       <Route path="admin/login" element={<AdminLogin />} />
       <Route path="admin" element={<AdminDashboard />} />
+
+      {/* ✅ s2: Public passport — outside AppLayout so it has its own nav/CTA bar */}
+      <Route path="u/:username" element={<PublicPassportPage />} />
 
       {/* ── Main app with AppLayout (navbar + footer) ── */}
       <Route element={<AppLayout />}>
@@ -108,7 +115,6 @@ function TrackedRoutes() {
         {/* ── Legal ── */}
         <Route path="privacy" element={<PrivacyPolicyPage />} />
         <Route path="terms" element={<TermsOfServicePage />} />
-        {/* ✅ NEW: Cookie Policy route (l4) */}
         <Route path="cookies" element={<CookiePolicyPage />} />
 
         <Route element={<ProtectedRoute />}>

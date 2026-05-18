@@ -15,6 +15,7 @@ import React, {
   useMemo,
 } from "react";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
+import { Sparkles, Bot, X } from "lucide-react";
 import "@/styles/AtlasPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -166,7 +167,11 @@ function Bubble({ msg }) {
         isStream ? " ap-bubble--streaming" : ""
       }`}
     >
-      {!isUser && <div className="ap-bubble__avatar">✦</div>}
+      {!isUser && (
+        <div className="ap-bubble__avatar">
+          <Bot size={12} />
+        </div>
+      )}
       <div className="ap-bubble__text">
         {msg.content}
         {isStream && <span className="ap-cursor" />}
@@ -361,8 +366,18 @@ export default function AtlasPanel() {
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Close Atlas" : "Open Atlas"}
       >
-        <span className="ap-fab__icon">{open ? "✕" : "✦"}</span>
-        {!open && <span className="ap-fab__label">Atlas</span>}
+        {open ? (
+          <span className="ap-fab__icon">
+            <X size={16} />
+          </span>
+        ) : (
+          <>
+            <span className="ap-fab__icon">
+              <Sparkles size={15} />
+            </span>
+            <span className="ap-fab__label">Atlas AI</span>
+          </>
+        )}
       </button>
 
       {/* ── Panel ── */}
@@ -371,7 +386,9 @@ export default function AtlasPanel() {
           {/* Header */}
           <div className="ap-header">
             <div className="ap-header__left">
-              <div className="ap-header__avatar">✦</div>
+              <div className="ap-header__avatar">
+                <Bot size={16} />
+              </div>
               <div>
                 <div className="ap-header__name">{headerLabel}</div>
                 <div className="ap-header__status">

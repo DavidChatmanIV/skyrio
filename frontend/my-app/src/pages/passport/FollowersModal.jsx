@@ -1,35 +1,39 @@
 import React, { useEffect, useState } from "react";
-import {
-  Modal,
-  List,
-  Avatar,
-  Typography,
-  Button,
-  Space,
-  Tag,
-  Spin,
-} from "antd";
+import { Modal, List, Avatar, Typography, Space, Tag, Spin } from "antd";
+import { useAuth } from "../../auth/useAuth";
+import { apiUrl } from "@/lib/api";
+import FollowButton from "./FollowButton";
+
 const { Text } = Typography;
 
-function FollowerRow({ user }) {
-  const display = user.name || user.username || "Traveler";
-  const handle = user.username ? `@${user.username}` : "";
+function FollowerRow({ user: u, myId, token }) {
+  const display = u.name || u.username || "Traveler";
+  const handle = u.username ? `@${u.username}` : "";
+  const isMe = myId && String(u.id || u._id) === String(myId);
 
   return (
     <List.Item
       className="sk-followRow"
-      actions={[
-        <Button key="view" size="small" className="sk-followBtn" type="default">
-          View
-        </Button>,
-      ]}
+      actions={
+        isMe
+          ? [] // don't show follow button on yourself
+          : [
+              <FollowButton
+                key="follow"
+                userId={u.id || u._id}
+                isFollowing={!!u.isFollowing}
+                size="small"
+                token={token}
+              />,
+            ]
+      }
     >
       <List.Item.Meta
-        avatar={<Avatar src={user.avatarUrl} />}
+        avatar={<Avatar src={u.avatarUrl || u.avatar} />}
         title={
           <Space size={8}>
             <Text className="sk-followName">{display}</Text>
-            {user.isOfficial ? (
+            {u.isOfficial ? (
               <Tag className="sk-officialTag">Official</Tag>
             ) : null}
           </Space>
@@ -45,6 +49,9 @@ export default function FollowersModal({
   onClose,
   mode = "following", // "following" | "followers"
 }) {
+  const { user, token } = useAuth();
+  const myId = user?._id || user?.id || null;
+
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
 
@@ -56,10 +63,13 @@ export default function FollowersModal({
       try {
         const url =
           mode === "followers"
-            ? "/api/passport/followers?limit=25"
-            : "/api/passport/following?limit=25";
+            ? apiUrl("/api/passport/followers?limit=25")
+            : apiUrl("/api/passport/following?limit=25");
 
-        const res = await fetch(url, { credentials: "include" });
+        const res = await fetch(url, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = await res.json();
         if (data?.ok) setItems(data.items || []);
       } catch (e) {
@@ -70,7 +80,7 @@ export default function FollowersModal({
     }
 
     load();
-  }, [open, mode]);
+  }, [open, mode, token]);
 
   return (
     <Modal
@@ -88,7 +98,14 @@ export default function FollowersModal({
       ) : (
         <List
           dataSource={items}
-          renderItem={(u) => <FollowerRow key={u.id} user={u} />}
+          renderItem={(u) => (
+            <FollowerRow
+              key={u.id || u._id}
+              user={u}
+              myId={myId}
+              token={token}
+            />
+          )}
           locale={{ emptyText: "Nothing here yet." }}
         />
       )}

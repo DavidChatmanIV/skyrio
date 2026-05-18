@@ -7,6 +7,22 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
+import {
+  Check,
+  Plane,
+  AlertTriangle,
+  Shield,
+  ShieldCheck,
+  Armchair,
+  Star,
+  Crown,
+  Shuffle,
+  Briefcase,
+  Luggage,
+  Package,
+  Backpack,
+  Medal,
+} from "lucide-react";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
@@ -32,7 +48,6 @@ const css = `
   .skc * { box-sizing: border-box; margin: 0; padding: 0; }
   .skc { font-family: inherit; color: #fff; min-height: 100vh; position: relative; }
 
-  /* ✅ FIX: 16px prevents iOS Safari zoom on input focus */
   .skc-input {
     width: 100%; padding: 13px 16px; border-radius: 12px;
     background: ${G.bgInput}; border: 1px solid ${G.border};
@@ -43,7 +58,6 @@ const css = `
   .skc-input:focus { border-color: var(--cta, ${G.orange}); box-shadow: 0 0 0 3px var(--cta-glow, ${G.orangeGlow}); }
   .skc-input::placeholder { color: ${G.muted}; }
 
-  /* ✅ FIX: autofill dark background fix for iOS Safari */
   .skc-input:-webkit-autofill,
   .skc-input:-webkit-autofill:hover,
   .skc-input:-webkit-autofill:focus {
@@ -55,7 +69,6 @@ const css = `
 
   .skc-label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: ${G.faint}; letter-spacing: .05em; text-transform: uppercase; font-weight: 600; font-family: inherit; }
 
-  /* ✅ FIX m4: All buttons minimum 52px touch height */
   .skc-btn-primary {
     width: 100%; padding: 17px; border-radius: 14px; border: none;
     background: ${G.gradBtn}; color: white; font-size: 16px; font-weight: 700;
@@ -117,43 +130,28 @@ const css = `
     background: radial-gradient(ellipse 85% 100% at 50% 40%, transparent 30%, #0b0b18 100%);
   }
 
-  /* ✅ FIX m1: Desktop — side by side. Mobile — stacked, no overlap. */
   .skc-step-layout { display: flex; gap: 28px; align-items: flex-start; }
   .skc-step-form { flex: 1; min-width: 0; }
   .skc-step-sidebar { width: 252px; flex-shrink: 0; }
   .skc-name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
   .skc-btn-row { display: flex; gap: 12px; }
 
-  /* ✅ FIX m1: Mobile — stack vertically, form first, no overlap */
   @media (max-width: 768px) {
-    .skc-step-layout {
-      flex-direction: column;
-      gap: 0;
-    }
-    /* ✅ FIX m1: Compact trip summary ABOVE form on mobile */
-    .skc-step-sidebar {
-      width: 100% !important;
-      order: 1;
-    }
-    .skc-step-form {
-      order: 2;
-    }
-    /* Full sidebar hidden on mobile */
+    .skc-step-layout { flex-direction: column; gap: 0; }
+    .skc-step-sidebar { width: 100% !important; order: 1; }
+    .skc-step-form { order: 2; }
     .skc-sidebar-full { display: none; }
-    /* Compact strip shown on mobile */
     .skc-sidebar-compact { display: flex !important; }
     .skc-name-grid { gap: 10px; }
     .skc-btn-row { flex-direction: column; }
     .skc-btn-back { width: 100%; text-align: center; }
   }
 
-  /* ✅ FIX: Stack name fields on very small phones */
   @media (max-width: 400px) {
     .skc-name-grid { grid-template-columns: 1fr; }
   }
 `;
 
-// ✅ FIX m2: --vh fix for iOS keyboard pushing content off screen
 function useVhFix() {
   useEffect(() => {
     const setVh = () => {
@@ -249,34 +247,35 @@ function buildFlight(flight) {
   };
 }
 
+// ✅ d1: All emoji replaced with Lucide icons
 const SEAT_OPTIONS = [
   {
     id: "none",
     label: "Skip — assign at check-in",
     price: 0,
     desc: "Random seat assigned free",
-    icon: "🎲",
+    icon: <Shuffle size={17} />,
   },
   {
     id: "standard",
     label: "Preferred Standard",
     price: 48,
     desc: "Rows 3–5 · Sit up front",
-    icon: "💺",
+    icon: <Armchair size={17} />,
   },
   {
     id: "premium",
     label: "Premium Extra Legroom",
     price: 69,
     desc: "Rows 4–6 · Extra legroom",
-    icon: "⭐",
+    icon: <Star size={17} />,
   },
   {
     id: "big",
     label: "Big Front Seat",
     price: 89,
     desc: "Row 1–2 · 11 in. more leg",
-    icon: "👑",
+    icon: <Crown size={17} />,
   },
 ];
 
@@ -286,32 +285,33 @@ const BAG_OPTIONS = [
     label: "Personal item only",
     price: 0,
     desc: "Small backpack — included",
-    icon: "🎒",
+    icon: <Backpack size={17} />,
   },
   {
     id: "carryon",
     label: "Add carry-on bag",
     price: 69,
     desc: "1 carry-on · limit per traveler",
-    icon: "💼",
+    icon: <Briefcase size={17} />,
   },
   {
     id: "checked",
     label: "Add checked bag",
     price: 79,
     desc: "Up to 50 lbs / 62 linear in.",
-    icon: "🧳",
+    icon: <Luggage size={17} />,
   },
   {
     id: "both",
     label: "Carry-on + Checked bag",
     price: 138,
     desc: "Full luggage bundle",
-    icon: "📦",
+    icon: <Package size={17} />,
   },
 ];
 
-function PlaneIcon({ size = 15 }) {
+// ── Inline SVG icons (kept for internal use, no emoji) ──────
+function PlaneIconSvg({ size = 15 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
@@ -335,7 +335,7 @@ function LockIcon() {
   );
 }
 
-function ShieldIcon() {
+function ShieldIconSvg() {
   return (
     <svg
       width="13"
@@ -350,6 +350,7 @@ function ShieldIcon() {
   );
 }
 
+// ── ✅ d2: Stepper with Lucide Check + horizontal scroll on mobile ──
 function ProgressBar({ step }) {
   const steps = ["Passengers", "Seats & Bags", "Review & Pay"];
   return (
@@ -359,8 +360,10 @@ function ProgressBar({ step }) {
         alignItems: "center",
         marginBottom: 32,
         overflowX: "auto",
-        scrollbarWidth: "none",
         WebkitOverflowScrolling: "touch",
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
+        paddingBottom: 4,
       }}
     >
       {steps.map((s, i) => (
@@ -370,7 +373,7 @@ function ProgressBar({ step }) {
             display: "flex",
             alignItems: "center",
             flex: i < steps.length - 1 ? 1 : "none",
-            minWidth: 80,
+            minWidth: 90,
           }}
         >
           <div
@@ -389,8 +392,8 @@ function ProgressBar({ step }) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 13,
                 fontWeight: 700,
+                fontSize: 13,
                 fontFamily: "inherit",
                 background: i < step ? G.gradBtn : "transparent",
                 border:
@@ -402,12 +405,13 @@ function ProgressBar({ step }) {
                 color: i < step ? "#fff" : i === step ? G.orange : G.muted,
                 boxShadow: i === step ? `0 0 24px ${G.orangeGlow}` : "none",
                 transition: "all .3s",
-                /* ✅ FIX m4: min touch target */
                 minWidth: 44,
                 minHeight: 44,
+                flexShrink: 0,
               }}
             >
-              {i < step ? "✓" : i + 1}
+              {/* ✅ d1: Lucide Check replaces ✓ emoji */}
+              {i < step ? <Check size={16} strokeWidth={2.5} /> : i + 1}
             </div>
             <span
               style={{
@@ -426,6 +430,7 @@ function ProgressBar({ step }) {
             <div
               style={{
                 flex: 1,
+                minWidth: 16,
                 height: 1,
                 background: i < step ? G.orange : G.border,
                 margin: "0 8px",
@@ -465,7 +470,7 @@ function FlightLeg({ leg, stops, ownerCode, isReturn }) {
             flexShrink: 0,
           }}
         >
-          <PlaneIcon />
+          <PlaneIconSvg />
         </div>
         <div>
           <div
@@ -545,7 +550,15 @@ function OptionSelector({ options, selected, onSelect, name }) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div className="skc-radio" />
-            <span style={{ fontSize: 17 }}>{opt.icon}</span>
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                color: selected === opt.id ? G.orange : G.faint,
+              }}
+            >
+              {opt.icon}
+            </span>
             <div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{opt.label}</div>
               <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
@@ -643,7 +656,6 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
   const bp = BAG_OPTIONS.find((o) => o.id === bag)?.price ?? 0;
   const ip = insurance ? 28.25 : 0;
   const total = basePrice + sp + bp + ip;
-
   return (
     <div
       style={{
@@ -655,7 +667,6 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
         top: 24,
       }}
     >
-      {/* ✅ FIX m1: Compact strip — mobile only. Shows above the form. No overlap. */}
       <div
         className="skc-sidebar-compact"
         style={{
@@ -693,8 +704,6 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
           </div>
         </div>
       </div>
-
-      {/* Full card — desktop only */}
       <div className="skc-sidebar-full">
         <div
           style={{
@@ -792,7 +801,7 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
           }}
         >
           <span style={{ color: G.success, marginTop: 1 }}>
-            <ShieldIcon />
+            <ShieldIconSvg />
           </span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: G.success }}>
@@ -991,6 +1000,7 @@ function StepPassengers({ onNext, flight, basePrice }) {
                 autoComplete="tel"
               />
             </label>
+            {/* ✅ d1: Known traveler — Lucide Medal icon */}
             <button
               type="button"
               onClick={() => setShowKtn((v) => !v)}
@@ -1010,8 +1020,9 @@ function StepPassengers({ onNext, flight, basePrice }) {
                 touchAction: "manipulation",
               }}
             >
-              <span>
-                🎖️ Add known traveler number{" "}
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Medal size={15} />
+                Add known traveler number{" "}
                 <span style={{ opacity: 0.6 }}>(optional)</span>
               </span>
               <span
@@ -1093,7 +1104,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
           </h2>
           {[
             {
-              icon: "💺",
+              icon: <Armchair size={20} />,
               title: "Seat preference",
               hint: "Applies to both flights",
               opts: SEAT_OPTIONS,
@@ -1102,7 +1113,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
               name: "Seat",
             },
             {
-              icon: "🧳",
+              icon: <Luggage size={20} />,
               title: "Baggage",
               hint: "Prices lower now than at airport · applies to both flights",
               opts: BAG_OPTIONS,
@@ -1120,7 +1131,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
                   marginBottom: 14,
                 }}
               >
-                <span style={{ fontSize: 20 }}>{icon}</span>
+                <span style={{ color: G.orange }}>{icon}</span>
                 <div>
                   <div
                     style={{
@@ -1142,6 +1153,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
               />
             </section>
           ))}
+          {/* ✅ d1: Travel protection — Lucide ShieldCheck */}
           <section style={{ marginBottom: 28 }}>
             <div
               style={{
@@ -1151,7 +1163,9 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
                 marginBottom: 14,
               }}
             >
-              <span style={{ fontSize: 20 }}>🛡️</span>
+              <span style={{ color: G.orange }}>
+                <ShieldCheck size={20} />
+              </span>
               <div>
                 <div
                   style={{
@@ -1186,12 +1200,11 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
                     alignItems: "center",
                     justifyContent: "center",
                     background: insurance ? G.orange : "transparent",
-                    fontSize: 11,
                     color: "white",
                     transition: ".2s",
                   }}
                 >
-                  {insurance ? "✓" : ""}
+                  {insurance && <Check size={11} strokeWidth={3} />}
                 </div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>
@@ -1296,7 +1309,28 @@ function StripePayForm({
         className="skc-pop"
         style={{ textAlign: "center", padding: "60px 20px" }}
       >
-        <div style={{ fontSize: 80, marginBottom: 20 }}>✈️</div>
+        {/* ✅ d1: Lucide Plane replaces ✈️ emoji */}
+        <div
+          style={{
+            marginBottom: 20,
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Plane size={36} color="#1b1024" />
+          </div>
+        </div>
         <h2
           style={{
             fontFamily: "inherit",
@@ -1391,9 +1425,14 @@ function StripePayForm({
             color: G.danger,
             fontSize: 13,
             marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
           }}
         >
-          ⚠️ {error}
+          {/* ✅ d1: Lucide AlertTriangle replaces ⚠️ */}
+          <AlertTriangle size={14} />
+          {error}
         </div>
       )}
 
@@ -1431,13 +1470,12 @@ function StripePayForm({
             alignItems: "center",
             justifyContent: "center",
             background: agreed ? G.orange : "transparent",
-            fontSize: 11,
             color: "white",
             flexShrink: 0,
             transition: ".2s",
           }}
         >
-          {agreed ? "✓" : ""}
+          {agreed && <Check size={11} strokeWidth={3} />}
         </div>
         <span>
           I agree to the{" "}
@@ -1717,18 +1755,27 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
                 color: G.danger,
                 fontSize: 13,
                 marginBottom: 16,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
               }}
             >
-              ⚠️ {error}
-              <div style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  className="skc-btn-back"
-                  style={{ fontSize: 12, padding: "8px 14px" }}
-                  onClick={onBack}
-                >
-                  ← Go back
-                </button>
+              <AlertTriangle
+                size={14}
+                style={{ marginTop: 1, flexShrink: 0 }}
+              />
+              <div>
+                {error}
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="skc-btn-back"
+                    style={{ fontSize: 12, padding: "8px 14px" }}
+                    onClick={onBack}
+                  >
+                    ← Go back
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1773,7 +1820,6 @@ export default function BookingCheckout({ flight, onBack }) {
   const [passenger, setPassenger] = useState(null);
   const [extras, setExtras] = useState(null);
 
-  // ✅ FIX m2: --vh fix so iOS keyboard doesn't push content off screen
   useVhFix();
 
   return (

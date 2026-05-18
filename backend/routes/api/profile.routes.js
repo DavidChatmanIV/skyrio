@@ -6,7 +6,9 @@ import { getLevel } from "../../lib/xpLevels.js";
 
 const router = Router();
 
+// ─────────────────────────────────────────────────────────────
 // GET /api/profile/me
+// ─────────────────────────────────────────────────────────────
 router.get("/me", requireAuth, async (req, res) => {
   try {
     let profile = await Profile.findOne({ user: req.user._id });
@@ -50,11 +52,98 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// ✅ GET /api/profile/music
+// Returns the user's saved profile music.
+// Frontend: DigitalPassportPage + ProfileMusicModal
+// ─────────────────────────────────────────────────────────────
+router.get("/music", requireAuth, async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ user: req.user._id }).select(
+      "profileMusic"
+    );
+    const music = profile?.profileMusic?.url ? profile.profileMusic : null;
+    return res.json({ ok: true, music });
+  } catch (err) {
+    console.error("Get music error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch music" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// ✅ POST /api/profile/music
+// Saves profile music — syncs across all devices.
+// Body: { music: { url, name, provider, updatedAt } }
+// ─────────────────────────────────────────────────────────────
+router.post("/music", requireAuth, async (req, res) => {
+  try {
+    const { music } = req.body;
+    if (!music?.url) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "music.url is required" });
+    }
+
+    const profile = await Profile.findOneAndUpdate(
+      { user: req.user._id },
+      {
+        $set: {
+          profileMusic: {
+            url: String(music.url).trim(),
+            name: String(music.name || "My Travel Soundtrack").trim(),
+            provider: String(music.provider || "youtube").trim(),
+            updatedAt: new Date(),
+          },
+        },
+      },
+      { new: true, upsert: true }
+    );
+
+    return res.json({ ok: true, music: profile.profileMusic });
+  } catch (err) {
+    console.error("Save music error:", err);
+    return res.status(500).json({ ok: false, message: "Failed to save music" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// ✅ DELETE /api/profile/music
+// Clears profile music.
+// ─────────────────────────────────────────────────────────────
+router.delete("/music", requireAuth, async (req, res) => {
+  try {
+    await Profile.findOneAndUpdate(
+      { user: req.user._id },
+      { $unset: { profileMusic: "" } },
+      { upsert: false }
+    );
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Delete music error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to delete music" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // PATCH /api/profile/settings
+// ─────────────────────────────────────────────────────────────
 router.patch("/settings", requireAuth, async (req, res) => {
   try {
-    const { username, fullName, bio, city, country, homeAirport, vibe } =
-      req.body;
+    const {
+      username,
+      fullName,
+      bio,
+      city,
+      country,
+      homeAirport,
+      homeAirportData,
+      vibe,
+      travelVibes,
+    } = req.body;
 
     const profileUpdates = {};
     const userUpdates = {};
@@ -80,6 +169,7 @@ router.patch("/settings", requireAuth, async (req, res) => {
       profileUpdates.username = normalized;
     }
 
+    // Standard profile fields
     const allowedProfileFields = [
       "fullName",
       "bio",
@@ -90,6 +180,20 @@ router.patch("/settings", requireAuth, async (req, res) => {
     ];
     for (const key of allowedProfileFields) {
       if (key in req.body) profileUpdates[key] = req.body[key];
+    }
+
+    // ✅ n7: Travel vibes from onboarding
+    if (Array.isArray(travelVibes)) {
+      profileUpdates.travelVibes = travelVibes.slice(0, 3);
+    }
+
+    // ✅ s2: Home airport object from onboarding
+    if (homeAirportData && homeAirportData.code) {
+      profileUpdates.homeAirportData = {
+        code: homeAirportData.code,
+        city: homeAirportData.city || "",
+        name: homeAirportData.name || "",
+      };
     }
 
     const [profile] = await Promise.all([
@@ -112,7 +216,9 @@ router.patch("/settings", requireAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
 // PATCH /api/profile/update
+// ─────────────────────────────────────────────────────────────
 router.patch("/update", requireAuth, async (req, res) => {
   try {
     const allowedFields = [
@@ -147,7 +253,65 @@ router.patch("/update", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/profile/:username
+// ─────────────────────────────────────────────────────────────
+// ✅ s2: GET /api/profile/public/:username
+// Public passport page — no auth required.
+// Only exposes safe fields — never email, phone, bookings.
+// ─────────────────────────────────────────────────────────────
+router.get("/public/:username", async (req, res) => {
+  try {
+    const { username } = req.params;
+
+    const profile = await Profile.findOne({
+      username: { $regex: new RegExp(`^${username}$`, "i") },
+    }).lean();
+
+    if (!profile) {
+      return res.status(404).json({ ok: false, message: "Profile not found" });
+    }
+
+    // Get XP + badge from user
+    const user = await User.findById(profile.user)
+      .select("xp username name")
+      .lean();
+    const levelData = user
+      ? getLevel(user.xp || 0)
+      : { current: "Explorer", next: "Adventurer", percent: 0 };
+
+    // Safe public subset — never expose email, token, private fields
+    const publicProfile = {
+      name: user?.name || profile.fullName || profile.username || null,
+      username: profile.username || null,
+      avatar: profile.avatar || null,
+      bio: profile.bio || null,
+      city: profile.city || null,
+      badge: levelData.current,
+      xp: user?.xp || 0,
+      xpPercent: levelData.percent || 0,
+      nextBadge: levelData.next || null,
+      travelVibes: profile.travelVibes || [],
+      profileMusic: profile.profileMusic?.url
+        ? {
+            url: profile.profileMusic.url,
+            name: profile.profileMusic.name,
+            provider: profile.profileMusic.provider,
+          }
+        : null,
+      joinedAt: profile.createdAt || null,
+    };
+
+    return res.json({ ok: true, profile: publicProfile });
+  } catch (err) {
+    console.error("Public profile error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch profile" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/profile/:username (existing — keep last, catch-all)
+// ─────────────────────────────────────────────────────────────
 router.get("/:username", async (req, res) => {
   try {
     const profile = await Profile.findOne({ username: req.params.username });

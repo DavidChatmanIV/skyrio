@@ -41,8 +41,16 @@ import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
 import SmartFilterBar from "@/pages/booking/SmartFilterBar";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
-// ✅ n3/n4: price watch wired to notifications service
 import { createNotification } from "@/services/notificationsService";
+import {
+  Zap,
+  Bell,
+  BellOff,
+  Plane as PlaneIcon,
+  MapPin,
+  DollarSign,
+  Calendar,
+} from "lucide-react";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -825,7 +833,7 @@ function SavedForm() {
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
         <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
-          💾 No saved trips yet — hit Save on any result to add one
+          No saved trips yet — hit Save on any result to add one
         </Text>
       </div>
     );
@@ -838,7 +846,13 @@ function SavedForm() {
           <div key={id} className="sk-saved-chip">
             <span className="sk-saved-chip-title">{trip.title}</span>
             {trip.destination && (
-              <span className="sk-saved-chip-dest">📍 {trip.destination}</span>
+              <span className="sk-saved-chip-dest">
+                <MapPin
+                  size={11}
+                  style={{ marginRight: 3, verticalAlign: "middle" }}
+                />
+                {trip.destination}
+              </span>
             )}
             {trip.price > 0 && (
               <span className="sk-saved-chip-price">
@@ -1124,7 +1138,7 @@ export default function BookingPage() {
 
   const heroRoute = destCity
     ? `${fromCode} → ${destCity}`
-    : "Search for your next trip ✈️";
+    : "Search for your next trip";
   const heroNights = selectedNights
     ? `${selectedNights} night${selectedNights !== 1 ? "s" : ""}`
     : "";
@@ -1229,7 +1243,7 @@ export default function BookingPage() {
     <div className="sk-booking" style={{ "--sk-bg-image": `url(${heroImg})` }}>
       <div className="sk-booking-hero">
         <Title className="sk-hero-title">
-          Let's lock in your next adventure ✈️
+          Let's lock in your next adventure
         </Title>
 
         <div className="sk-tripState">
@@ -1241,9 +1255,9 @@ export default function BookingPage() {
           </div>
           <div className="sk-tripAssist">
             {autoSearchLoading
-              ? "⏳ Searching live flights for you…"
+              ? "Searching live flights for you…"
               : autoSearchDone && flightResults.length > 0
-              ? `✈️ Found ${flightResults.length} flights — scroll down to pick`
+              ? `Found ${flightResults.length} flights — scroll down to pick`
               : destCity
               ? "Smart Plan found great options for you"
               : "Enter your destination to get started"}
@@ -1253,19 +1267,37 @@ export default function BookingPage() {
             <div className="sk-prefill-strip">
               {!prefillEditing ? (
                 <div className="sk-prefill-collapsed">
-                  <span className="sk-prefill-bolt">⚡</span>
+                  <span className="sk-prefill-bolt">
+                    <Zap size={12} />
+                  </span>
                   <span className="sk-prefill-loaded">Loaded from AI</span>
                   <span className="sk-prefill-divider">·</span>
                   {destCity && (
-                    <span className="sk-prefill-chip">📍 {destCity}</span>
+                    <span className="sk-prefill-chip">
+                      <MapPin
+                        size={11}
+                        style={{ marginRight: 3, verticalAlign: "middle" }}
+                      />
+                      {destCity}
+                    </span>
                   )}
                   {budgetSeed && (
                     <span className="sk-prefill-chip">
-                      💰 ${budgetSeed.toLocaleString()}
+                      <DollarSign
+                        size={11}
+                        style={{ marginRight: 2, verticalAlign: "middle" }}
+                      />
+                      {budgetSeed.toLocaleString()}
                     </span>
                   )}
                   {tripDaySeed && (
-                    <span className="sk-prefill-chip">🗓 {tripDaySeed}d</span>
+                    <span className="sk-prefill-chip">
+                      <Calendar
+                        size={11}
+                        style={{ marginRight: 3, verticalAlign: "middle" }}
+                      />
+                      {tripDaySeed}d
+                    </span>
                   )}
                   <button
                     type="button"
@@ -1342,10 +1374,18 @@ export default function BookingPage() {
           )}
 
           <Space size="middle" className="sk-hero-pills">
-            <div className="sk-pill sk-pill-orange">⚡ XP 60</div>
+            <div className="sk-pill sk-pill-orange">
+              <Zap
+                size={13}
+                style={{ marginRight: 4, verticalAlign: "middle" }}
+              />{" "}
+              XP 60
+            </div>
             {!aiInsightDismissed ? (
               <div className="sk-ai-insight-pill">
-                <span className="sk-ai-insight-icon">⚡</span>
+                <span className="sk-ai-insight-icon">
+                  <Zap size={14} />
+                </span>
                 <span className="sk-ai-insight-text">
                   <strong>AI Insight:</strong> Prices expected to rise +$40
                 </span>
@@ -1364,7 +1404,11 @@ export default function BookingPage() {
                 className="sk-pill sk-pill-glass"
                 onClick={() => setAiInsightDismissed(false)}
               >
-                ⚡ AI Insight
+                <Zap
+                  size={13}
+                  style={{ marginRight: 4, verticalAlign: "middle" }}
+                />{" "}
+                AI Insight
               </button>
             )}
             {/* ✅ n3/n4: Price Watch pill now calls real handler */}
@@ -1375,7 +1419,23 @@ export default function BookingPage() {
               }`}
               onClick={handlePriceWatchToggle}
             >
-              {priceWatchOn ? "🔔 Price Watch On" : "🔕 Price Watch Off"}
+              {priceWatchOn ? (
+                <>
+                  <Bell
+                    size={13}
+                    style={{ marginRight: 4, verticalAlign: "middle" }}
+                  />{" "}
+                  Price Watch On
+                </>
+              ) : (
+                <>
+                  <BellOff
+                    size={13}
+                    style={{ marginRight: 4, verticalAlign: "middle" }}
+                  />{" "}
+                  Price Watch Off
+                </>
+              )}
             </button>
           </Space>
         </div>
@@ -1417,7 +1477,7 @@ export default function BookingPage() {
           <Button className="sk-btn-orange">Sort: Recommended</Button>
           <Link to="/sync-together">
             <Button className="sk-btn-sync" icon={<SyncOutlined />}>
-              ✈️ Sync Together
+              Sync Together
             </Button>
           </Link>
         </Space>
@@ -1603,9 +1663,29 @@ export default function BookingPage() {
                               : "Watch price"
                           }
                         >
-                          {watchingId === flight.id
-                            ? "🔔 Watching"
-                            : "🔕 Watch"}
+                          {watchingId === flight.id ? (
+                            <>
+                              <Bell
+                                size={12}
+                                style={{
+                                  marginRight: 4,
+                                  verticalAlign: "middle",
+                                }}
+                              />{" "}
+                              Watching
+                            </>
+                          ) : (
+                            <>
+                              <BellOff
+                                size={12}
+                                style={{
+                                  marginRight: 4,
+                                  verticalAlign: "middle",
+                                }}
+                              />{" "}
+                              Watch
+                            </>
+                          )}
                         </button>
                         <Button
                           className="sk-btn-orange"
@@ -1641,7 +1721,11 @@ export default function BookingPage() {
                           </span>
                         )}
                       <span className="sk-tag sk-tag-xp">
-                        ⚡ {getFlightXP(flight)} XP
+                        <Zap
+                          size={11}
+                          style={{ marginRight: 3, verticalAlign: "middle" }}
+                        />{" "}
+                        {getFlightXP(flight)} XP
                       </span>
                     </div>
                   </div>
@@ -1660,7 +1744,13 @@ export default function BookingPage() {
                   fontSize: 15,
                 }}
               >
-                <div style={{ fontSize: 40, marginBottom: 12 }}>✈️</div>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>
+                  <PlaneIcon
+                    size={40}
+                    strokeWidth={1.5}
+                    color="rgba(255,255,255,0.45)"
+                  />
+                </div>
                 <div style={{ fontWeight: 600, marginBottom: 6 }}>
                   Ready when you are
                 </div>

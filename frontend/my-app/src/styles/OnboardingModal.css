@@ -253,9 +253,13 @@
   color: #ffb066;
   box-shadow: 0 0 0 1px rgba(255, 138, 42, 0.2);
 }
-.ob-vibe__emoji {
-  font-size: 18px;
+.ob-vibe__icon {
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
 }
 .ob-vibe__label {
   font-size: 13px;
@@ -354,7 +358,8 @@
     padding: 9px 10px;
     font-size: 12px;
   }
-  .ob-vibe__emoji {
-    font-size: 16px;
+  .ob-vibe__icon {
+    width: 16px;
+    height: 16px;
   }
 }

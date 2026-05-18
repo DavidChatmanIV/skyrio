@@ -1,11 +1,4 @@
 /**
- * OnboardingModal.jsx
- *
- * 3-step post-registration onboarding flow.
- * Appears once for new users on their first visit to Passport.
- * Dismissed forever after completion or skip — stored in localStorage
- * and optionally synced to the API.
- *
  * Steps:
  *   1. Welcome — what Skyrio is, what they unlocked
  *   2. Home airport — sets localStorage + API so Book page auto-searches correctly
@@ -14,6 +7,24 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { Select, Button, message } from "antd";
+import {
+  Zap,
+  Award,
+  Bot,
+  DollarSign,
+  PlaneTakeoff,
+  Target,
+  Waves,
+  Building2,
+  Mountain,
+  Landmark,
+  UtensilsCrossed,
+  Sparkles,
+  Wallet,
+  Leaf,
+  Car,
+  Users,
+} from "lucide-react";
 import "@/styles/OnboardingModal.css";
 
 const { Option } = Select;
@@ -57,16 +68,16 @@ const COMMON_AIRPORTS = [
 ];
 
 const TRAVEL_VIBES = [
-  { key: "beach", emoji: "🏖", label: "Beach & sun" },
-  { key: "city", emoji: "🏙", label: "City breaks" },
-  { key: "adventure", emoji: "🏔", label: "Adventure" },
-  { key: "culture", emoji: "🏛", label: "Culture & history" },
-  { key: "food", emoji: "🍜", label: "Food & drink" },
-  { key: "luxury", emoji: "✨", label: "Luxury" },
-  { key: "budget", emoji: "💰", label: "Budget travel" },
-  { key: "nature", emoji: "🌿", label: "Nature & wildlife" },
-  { key: "roadtrip", emoji: "🚗", label: "Road trips" },
-  { key: "family", emoji: "👨‍👩‍👧", label: "Family friendly" },
+  { key: "beach", icon: <Waves size={18} />, label: "Beach & sun" },
+  { key: "city", icon: <Building2 size={18} />, label: "City breaks" },
+  { key: "adventure", icon: <Mountain size={18} />, label: "Adventure" },
+  { key: "culture", icon: <Landmark size={18} />, label: "Culture & history" },
+  { key: "food", icon: <UtensilsCrossed size={18} />, label: "Food & drink" },
+  { key: "luxury", icon: <Sparkles size={18} />, label: "Luxury" },
+  { key: "budget", icon: <Wallet size={18} />, label: "Budget travel" },
+  { key: "nature", icon: <Leaf size={18} />, label: "Nature & wildlife" },
+  { key: "roadtrip", icon: <Car size={18} />, label: "Road trips" },
+  { key: "family", icon: <Users size={18} />, label: "Family friendly" },
 ];
 
 const TOTAL_STEPS = 3;
@@ -112,17 +123,31 @@ function StepDots({ current }) {
 function StepWelcome({ displayName, onNext }) {
   return (
     <div className="ob-step">
-      <div className="ob-step__icon">✦</div>
+      <div className="ob-step__icon">
+        <Sparkles size={36} color="#ff8a2a" />
+      </div>
       <h2 className="ob-step__title">Welcome aboard, {displayName}!</h2>
       <p className="ob-step__sub">
         Your Skyrio Passport is active. Here's what you just unlocked:
       </p>
       <div className="ob-perks">
         {[
-          { icon: "⚡", text: "XP on every search, save, and booking" },
-          { icon: "🏅", text: "Badges as you hit travel milestones" },
-          { icon: "🤖", text: "Atlas AI — your personal trip planner" },
-          { icon: "💰", text: "Redeem XP for real travel discounts" },
+          {
+            icon: <Zap size={18} />,
+            text: "XP on every search, save, and booking",
+          },
+          {
+            icon: <Award size={18} />,
+            text: "Badges as you hit travel milestones",
+          },
+          {
+            icon: <Bot size={18} />,
+            text: "Atlas AI — your personal trip planner",
+          },
+          {
+            icon: <DollarSign size={18} />,
+            text: "Redeem XP for real travel discounts",
+          },
         ].map((p) => (
           <div key={p.text} className="ob-perk">
             <span className="ob-perk__icon">{p.icon}</span>
@@ -159,7 +184,9 @@ function StepAirport({ onNext, onSkip }) {
 
   return (
     <div className="ob-step">
-      <div className="ob-step__icon">🛫</div>
+      <div className="ob-step__icon">
+        <PlaneTakeoff size={36} color="#ff8a2a" />
+      </div>
       <h2 className="ob-step__title">Where do you fly from?</h2>
       <p className="ob-step__sub">
         We'll use this to auto-search flights from your home airport.
@@ -216,7 +243,9 @@ function StepVibes({ onDone, onSkip }) {
 
   return (
     <div className="ob-step">
-      <div className="ob-step__icon">🎯</div>
+      <div className="ob-step__icon">
+        <Target size={36} color="#ff8a2a" />
+      </div>
       <h2 className="ob-step__title">What's your travel vibe?</h2>
       <p className="ob-step__sub">
         Pick up to 3 — Atlas will use these to personalise your suggestions.
@@ -231,7 +260,7 @@ function StepVibes({ onDone, onSkip }) {
             }`}
             onClick={() => toggle(v.key)}
           >
-            <span className="ob-vibe__emoji">{v.emoji}</span>
+            <span className="ob-vibe__icon">{v.icon}</span>
             <span className="ob-vibe__label">{v.label}</span>
           </button>
         ))}

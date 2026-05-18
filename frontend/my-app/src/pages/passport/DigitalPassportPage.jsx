@@ -29,10 +29,23 @@ import {
   DeleteOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
+import {
+  Star,
+  Award,
+  Tag as LucideTag,
+  MapPin,
+  Plane,
+  Lock,
+  Camera,
+  Loader2,
+  Circle,
+} from "lucide-react";
 import { io } from "socket.io-client";
 
 import "../../styles/profile-passport.css";
 import "../../styles/passport-locked.css";
+
+const SPIN_STYLE = `@keyframes spin { to { transform: rotate(360deg); } }`;
 import passportBg from "../../assets/DigitalPassport/worldmap.png";
 
 import ProfileMusicModal, {
@@ -40,12 +53,14 @@ import ProfileMusicModal, {
 } from "./music/ProfileMusicModal";
 
 import FollowersModal from "./FollowersModal";
+import FollowStats from "./FollowStats";
+import TravelerSearch from "./TravelerSearch";
 import { useAuth } from "../../auth/useAuth";
 import RewardsOptInPrompt from "../../components/rewards/RewardsOptInPrompt";
 import useRewardsOptInPrompt from "../../hooks/useRewardsOptInPrompt";
 import { apiUrl } from "@/lib/api";
-// ✅ n7: post-registration onboarding flow
 import OnboardingModal from "@/components/onboarding/OnboardingModal";
+import ShareRankPrompt from "./ShareRankPrompt";
 
 const { Title, Text } = Typography;
 
@@ -58,11 +73,26 @@ function safeEmailPrefix(email) {
 }
 
 const LOCK_PERKS = [
-  { icon: "⭐", text: "Earn XP on every flight, hotel, and activity" },
-  { icon: "🏅", text: "Unlock badges and level up your traveller rank" },
-  { icon: "🏷️", text: "Redeem XP for real discounts on future bookings" },
-  { icon: "📍", text: "Save trips and build your personal travel map" },
-  { icon: "✈️", text: "Get personalised AI trip recommendations" },
+  {
+    icon: <Star size={16} />,
+    text: "Earn XP on every flight, hotel, and activity",
+  },
+  {
+    icon: <Award size={16} />,
+    text: "Unlock badges and level up your traveller rank",
+  },
+  {
+    icon: <LucideTag size={16} />,
+    text: "Redeem XP for real discounts on future bookings",
+  },
+  {
+    icon: <MapPin size={16} />,
+    text: "Save trips and build your personal travel map",
+  },
+  {
+    icon: <Plane size={16} />,
+    text: "Get personalised AI trip recommendations",
+  },
 ];
 
 const PREVIEW_STATS = [
@@ -73,7 +103,6 @@ const PREVIEW_STATS = [
 
 const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
 
-// ── Helpers ──────────────────────────────────────────────────
 function getYouTubeEmbedUrl(url) {
   try {
     if (!url) return null;
@@ -93,7 +122,6 @@ function isYouTubeUrl(url) {
   return v.includes("youtu.be") || v.includes("youtube.com");
 }
 
-// ── Locked state ─────────────────────────────────────────────
 function PassportLocked() {
   const navigate = useNavigate();
   return (
@@ -139,7 +167,9 @@ function PassportLocked() {
                   </div>
                 </div>
                 <div className="plk-overlay">
-                  <div className="plk-lock-icon">🔒</div>
+                  <div className="plk-lock-icon">
+                    <Lock size={32} strokeWidth={1.5} />
+                  </div>
                   <h2 className="plk-lock-title">Your passport awaits</h2>
                   <p className="plk-lock-sub">
                     Create a free account to unlock your stats, badges, and
@@ -186,7 +216,6 @@ function PassportLocked() {
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -196,7 +225,6 @@ export default function DigitalPassportPage() {
 
   const myId = useMemo(() => user?._id || user?.id || null, [user]);
 
-  // ── Modal state ──
   const [musicOpen, setMusicOpen] = useState(false);
   const [profileMusic, setProfileMusic] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -207,13 +235,11 @@ export default function DigitalPassportPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [xpToastShown, setXpToastShown] = useState(false);
 
-  // Delete account — 2-step flow
   const [deleteStep, setDeleteStep] = useState(0);
   const [deleteInput, setDeleteInput] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const DELETE_PHRASE = "DELETE";
 
-  // ── XP / stats state ──
   const [xpLoading, setXpLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [xp, setXp] = useState(0);
@@ -233,7 +259,6 @@ export default function DigitalPassportPage() {
   const socketRef = useRef(null);
   const avatarInputRef = useRef(null);
 
-  // ── Derived display values ──
   const displayName = useMemo(() => {
     if (!user) return "Explorer";
     return (
@@ -264,7 +289,6 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
-  // ── Welcome toast ──
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
     antdMessage.success(
@@ -275,7 +299,6 @@ export default function DigitalPassportPage() {
     } catch {}
   }, [location?.state?.fromAuth, user?.name]);
 
-  // ── Load profile music — API first, localStorage as instant cache ──
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SKYRIO_PROFILE_MUSIC_KEY);
@@ -287,10 +310,7 @@ export default function DigitalPassportPage() {
           setProfileMusic(cached);
         }
       }
-    } catch {
-      /* ignore */
-    }
-
+    } catch {}
     if (!token) return;
     fetch(`${API}/api/profile/music`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -311,19 +331,15 @@ export default function DigitalPassportPage() {
           } catch {}
         }
       })
-      .catch(() => {
-        /* silent */
-      });
+      .catch(() => {});
   }, [token]);
 
   const handleMusicSave = useCallback((payload) => {
-    if (payload && !payload.provider && isYouTubeUrl(payload.url)) {
+    if (payload && !payload.provider && isYouTubeUrl(payload.url))
       payload.provider = "youtube";
-    }
     setProfileMusic(payload);
   }, []);
 
-  // ── Fetch XP ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -363,7 +379,6 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed, token]);
 
-  // ── XP toast ──
   useEffect(() => {
     if (xp > 0 && !xpToastShown && !xpLoading) {
       const timer = setTimeout(() => {
@@ -374,7 +389,6 @@ export default function DigitalPassportPage() {
     }
   }, [xp, xpLoading, xpToastShown]);
 
-  // ── Fetch passport stats ──
   useEffect(() => {
     if (!isAuthed) return;
     const controller = new AbortController();
@@ -410,7 +424,6 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed, token]);
 
-  // ── Socket for live follower counts ──
   useEffect(() => {
     if (!myId || !isAuthed) return;
     if (!socketRef.current) {
@@ -437,7 +450,26 @@ export default function DigitalPassportPage() {
     return () => s.off("social:counts:update", handler);
   }, [myId, isAuthed]);
 
-  // ── Copy passport link ──
+  const sharePassport = useCallback(async () => {
+    const username = user?.username || safeEmailPrefix(user?.email);
+    if (!username) {
+      message.info("Set a username first to share your passport.");
+      return;
+    }
+    const url = `${window.location.origin}/u/${username}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${displayName}'s Skyrio Passport`,
+          url,
+        });
+      } else {
+        await navigator.clipboard.writeText(url);
+        message.success("Passport link copied!");
+      }
+    } catch {}
+  }, [user, displayName, message]);
+
   const copyPassportLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -447,11 +479,6 @@ export default function DigitalPassportPage() {
     }
   }, [message]);
 
-  const onShare = useCallback(() => {
-    message.info("Sharing enabled post-launch");
-  }, [message]);
-
-  // ── Avatar upload ──
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -498,7 +525,6 @@ export default function DigitalPassportPage() {
     }
   };
 
-  // ── Save profile edits ──
   const handleSaveProfile = async () => {
     if (!editUsername.trim() && !editBio.trim() && !editCity.trim()) return;
     setEditSaving(true);
@@ -544,7 +570,6 @@ export default function DigitalPassportPage() {
     }
   };
 
-  // ── Delete account ──
   const handleDeleteAccount = async () => {
     if (deleteInput.trim().toUpperCase() !== DELETE_PHRASE) {
       message.error(`Type ${DELETE_PHRASE} to confirm.`);
@@ -588,6 +613,7 @@ export default function DigitalPassportPage() {
 
   return (
     <div className="passport-page">
+      <style>{SPIN_STYLE}</style>
       <svg
         width="0"
         height="0"
@@ -618,15 +644,6 @@ export default function DigitalPassportPage() {
         <div className="passport-scope">
           <div className="pp-page">
             <div className="pp-shell">
-              <div className="pp-homeBtnWrap">
-                <button
-                  className="pp-homeBtn-pill"
-                  onClick={() => navigate("/")}
-                >
-                  Home
-                </button>
-              </div>
-
               <div className="pp-mockGrid">
                 <div className="pp-mockMain">
                   {/* ── Profile card ── */}
@@ -685,7 +702,14 @@ export default function DigitalPassportPage() {
                             opacity: avatarUploading ? 0.6 : 1,
                           }}
                         >
-                          {avatarUploading ? "⏳" : "📷"}
+                          {avatarUploading ? (
+                            <Loader2
+                              size={13}
+                              style={{ animation: "spin 1s linear infinite" }}
+                            />
+                          ) : (
+                            <Camera size={13} />
+                          )}
                         </div>
                       </div>
 
@@ -716,45 +740,31 @@ export default function DigitalPassportPage() {
                         )}
                         <div style={{ marginTop: 10 }}>
                           <span className="pp-pill pp-pill--active">
-                            🟠 Passport Active
+                            <Circle
+                              size={10}
+                              fill="#ff8a2a"
+                              stroke="none"
+                              style={{
+                                marginRight: 5,
+                                verticalAlign: "middle",
+                              }}
+                            />
+                            Passport Active
                           </span>
                         </div>
-                        <div className="pp-followRow pp-followRow--mock">
-                          <button
-                            className="ppFollowBtn"
-                            onClick={() => {
-                              setFollowMode("followers");
-                              setFollowOpen(true);
-                            }}
-                            type="button"
-                          >
-                            <strong>
-                              {statsLoading ? (
-                                <span style={{ opacity: 0.75 }}>—</span>
-                              ) : (
-                                passportStats.followers
-                              )}
-                            </strong>
-                            <span>Followers</span>
-                          </button>
-                          <button
-                            className="ppFollowBtn"
-                            onClick={() => {
-                              setFollowMode("following");
-                              setFollowOpen(true);
-                            }}
-                            type="button"
-                          >
-                            <strong>
-                              {statsLoading ? (
-                                <span style={{ opacity: 0.75 }}>—</span>
-                              ) : (
-                                passportStats.following
-                              )}
-                            </strong>
-                            <span>Following</span>
-                          </button>
-                        </div>
+                        <FollowStats
+                          followers={passportStats.followers}
+                          following={passportStats.following}
+                          loading={statsLoading}
+                          onClickFollowers={() => {
+                            setFollowMode("followers");
+                            setFollowOpen(true);
+                          }}
+                          onClickFollowing={() => {
+                            setFollowMode("following");
+                            setFollowOpen(true);
+                          }}
+                        />
                       </div>
 
                       <div className="pp-profileRing">
@@ -843,7 +853,6 @@ export default function DigitalPassportPage() {
                     <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
-                  {/* ── Travel Soundtrack ── */}
                   {profileMusic && (
                     <Card
                       variant="borderless"
@@ -900,13 +909,12 @@ export default function DigitalPassportPage() {
                             textAlign: "center",
                           }}
                         >
-                          ▶️ Tap "Profile Music" to update your song
+                          Tap "Profile Music" to update your song
                         </div>
                       )}
                     </Card>
                   )}
 
-                  {/* ── Travel Journeys ── */}
                   <Card
                     variant="borderless"
                     className="pp-card pp-journeysCard"
@@ -923,15 +931,35 @@ export default function DigitalPassportPage() {
                           fontSize: 14,
                         }}
                       >
-                        ✈️ Your journeys will appear here after your first
-                        booking
+                        Your journeys will appear here after your first booking
                       </div>
                     </div>
                   </Card>
                 </div>
 
-                {/* ── Actions sidebar ── */}
+                {/* ── Sidebar ── */}
                 <div className="pp-mockSide">
+                  {/* ✅ NEW: Search for travelers and follow them */}
+                  <Card
+                    variant="borderless"
+                    className="pp-card"
+                    style={{ marginBottom: 12 }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: "rgba(255,255,255,0.35)",
+                        marginBottom: 12,
+                      }}
+                    >
+                      Find Travelers
+                    </div>
+                    <TravelerSearch />
+                  </Card>
+
                   <Card variant="borderless" className="pp-card pp-actionsCard">
                     <Title
                       level={3}
@@ -976,23 +1004,20 @@ export default function DigitalPassportPage() {
                       <Button
                         className="pp-actionBtn"
                         icon={<ShareAltOutlined />}
-                        onClick={onShare}
+                        onClick={sharePassport}
                       >
-                        Share
+                        Share Passport
                       </Button>
                     </div>
-
                     <Text className="pp-credentialHint">
                       This passport unlocks stamps, borders, and rewards.
                     </Text>
-
                     <Button
                       className="pp-upgradeBtn"
                       onClick={() => navigate("/membership")}
                     >
                       Upgrade your Passport
                     </Button>
-
                     <div
                       style={{
                         marginTop: 24,
@@ -1031,7 +1056,6 @@ export default function DigitalPassportPage() {
                       </Button>
                     </div>
                   </Card>
-
                   <div style={{ marginTop: 10, opacity: 0.95 }}>
                     <Tag className="pp-tag ppTagDark">Soft Launch</Tag>
                   </div>
@@ -1040,19 +1064,14 @@ export default function DigitalPassportPage() {
             </div>
           </div>
         </div>
-
-        {/* ✅ n7: Onboarding modal — shows once for new users, dismissed forever after */}
         <OnboardingModal user={user} token={token} />
       </div>
 
-      {/* ── Followers modal ── */}
       <FollowersModal
         open={followOpen}
         onClose={() => setFollowOpen(false)}
         mode={followMode}
       />
-
-      {/* ── Profile music modal ── */}
       <ProfileMusicModal
         open={musicOpen}
         onClose={() => setMusicOpen(false)}
@@ -1060,7 +1079,6 @@ export default function DigitalPassportPage() {
         value={profileMusic}
       />
 
-      {/* ── Edit profile modal ── */}
       <Modal
         open={editOpen}
         onCancel={() => setEditOpen(false)}
@@ -1148,7 +1166,6 @@ export default function DigitalPassportPage() {
         </div>
       </Modal>
 
-      {/* ── Delete account — Step 1 ── */}
       <Modal
         open={deleteStep === 1}
         onCancel={() => setDeleteStep(0)}
@@ -1195,7 +1212,7 @@ export default function DigitalPassportPage() {
                 marginBottom: 8,
               }}
             >
-              ⚠️ This will permanently delete:
+              This will permanently delete:
             </div>
             <ul
               style={{
@@ -1240,7 +1257,6 @@ export default function DigitalPassportPage() {
         </div>
       </Modal>
 
-      {/* ── Delete account — Step 2 ── */}
       <Modal
         open={deleteStep === 2}
         onCancel={() => {
@@ -1323,6 +1339,12 @@ export default function DigitalPassportPage() {
           </div>
         </div>
       </Modal>
+
+      <ShareRankPrompt
+        badge={currentBadge}
+        username={user?.username || safeEmailPrefix(user?.email)}
+        xp={xp}
+      />
     </div>
   );
 }

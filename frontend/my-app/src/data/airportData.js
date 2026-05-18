@@ -192,6 +192,61 @@ export const AIRPORTS = [
     distance: "10 mi from city center",
   },
 
+  // ── London metro ──
+  {
+    code: "LHR",
+    name: "Heathrow",
+    city: "London",
+    country: "UK",
+    distance: "15 mi from city center",
+  },
+  {
+    code: "LGW",
+    name: "Gatwick",
+    city: "London",
+    country: "UK",
+    distance: "28 mi from city center",
+  },
+  {
+    code: "STN",
+    name: "Stansted",
+    city: "London",
+    country: "UK",
+    distance: "40 mi from city center",
+  },
+
+  // ── Paris metro ──
+  {
+    code: "CDG",
+    name: "Charles de Gaulle",
+    city: "Paris",
+    country: "France",
+    distance: "16 mi from city center",
+  },
+  {
+    code: "ORY",
+    name: "Orly Airport",
+    city: "Paris",
+    country: "France",
+    distance: "9 mi from city center",
+  },
+
+  // ── Tokyo metro ──
+  {
+    code: "NRT",
+    name: "Narita Intl.",
+    city: "Tokyo",
+    country: "Japan",
+    distance: "38 mi from city center",
+  },
+  {
+    code: "HND",
+    name: "Haneda Airport",
+    city: "Tokyo",
+    country: "Japan",
+    distance: "11 mi from city center",
+  },
+
   // ── Single-airport cities ──
   {
     code: "ATL",
@@ -417,57 +472,6 @@ export const AIRPORTS = [
     state: "FL",
     distance: "14 mi from city center",
   },
-
-  // ── International ──
-  {
-    code: "LHR",
-    name: "Heathrow",
-    city: "London",
-    country: "UK",
-    distance: "15 mi from city center",
-  },
-  {
-    code: "LGW",
-    name: "Gatwick",
-    city: "London",
-    country: "UK",
-    distance: "28 mi from city center",
-  },
-  {
-    code: "STN",
-    name: "Stansted",
-    city: "London",
-    country: "UK",
-    distance: "40 mi from city center",
-  },
-  {
-    code: "CDG",
-    name: "Charles de Gaulle",
-    city: "Paris",
-    country: "France",
-    distance: "16 mi from city center",
-  },
-  {
-    code: "ORY",
-    name: "Orly Airport",
-    city: "Paris",
-    country: "France",
-    distance: "9 mi from city center",
-  },
-  {
-    code: "NRT",
-    name: "Narita Intl.",
-    city: "Tokyo",
-    country: "Japan",
-    distance: "38 mi from city center",
-  },
-  {
-    code: "HND",
-    name: "Haneda Airport",
-    city: "Tokyo",
-    country: "Japan",
-    distance: "11 mi from city center",
-  },
   {
     code: "DXB",
     name: "Dubai Intl.",
@@ -512,24 +516,104 @@ export const AIRPORTS = [
   },
 ];
 
-/**
- * Score-based airport search.
- *
- * Priority order (highest → lowest):
- *   1. Exact IATA code match          (score: 100)
- *   2. City name starts with query    (score: 80)
- *   3. City name contains query       (score: 60)
- *   4. Airport name word starts with  (score: 40)
- *   5. State/country starts with      (score: 20)
- *
- * Deliberately excluded:
- *   - Mid-word matches in airport names (e.g. "mi" matching "Kingsford Smith")
- *   - This prevents SYD showing when typing "mi" for Miami
- *
- * Returns up to `limit` results sorted by score descending.
- */
+// ─────────────────────────────────────────────────────────────
+// Metro groups — maps each airport code to its metro siblings.
+// When a user picks or searches any airport in a metro,
+// the other nearby options surface as alternatives.
+// ─────────────────────────────────────────────────────────────
+export const METRO_GROUPS = {
+  // New York / Tri-State
+  JFK: { label: "New York Area", codes: ["JFK", "LGA", "EWR"] },
+  LGA: { label: "New York Area", codes: ["JFK", "LGA", "EWR"] },
+  EWR: { label: "New York Area", codes: ["JFK", "LGA", "EWR"] },
+
+  // Los Angeles
+  LAX: { label: "Los Angeles Area", codes: ["LAX", "BUR", "LGB", "ONT"] },
+  BUR: { label: "Los Angeles Area", codes: ["LAX", "BUR", "LGB", "ONT"] },
+  LGB: { label: "Los Angeles Area", codes: ["LAX", "BUR", "LGB", "ONT"] },
+  ONT: { label: "Los Angeles Area", codes: ["LAX", "BUR", "LGB", "ONT"] },
+
+  // Chicago
+  ORD: { label: "Chicago Area", codes: ["ORD", "MDW"] },
+  MDW: { label: "Chicago Area", codes: ["ORD", "MDW"] },
+
+  // Washington DC
+  DCA: { label: "Washington DC Area", codes: ["DCA", "IAD", "BWI"] },
+  IAD: { label: "Washington DC Area", codes: ["DCA", "IAD", "BWI"] },
+  BWI: { label: "Washington DC Area", codes: ["DCA", "IAD", "BWI"] },
+
+  // San Francisco Bay Area
+  SFO: { label: "Bay Area", codes: ["SFO", "OAK", "SJC"] },
+  OAK: { label: "Bay Area", codes: ["SFO", "OAK", "SJC"] },
+  SJC: { label: "Bay Area", codes: ["SFO", "OAK", "SJC"] },
+
+  // Miami / South Florida
+  MIA: { label: "South Florida", codes: ["MIA", "FLL", "PBI"] },
+  FLL: { label: "South Florida", codes: ["MIA", "FLL", "PBI"] },
+  PBI: { label: "South Florida", codes: ["MIA", "FLL", "PBI"] },
+
+  // Boston / New England
+  BOS: { label: "Boston Area", codes: ["BOS", "MHT", "PVD"] },
+  MHT: { label: "Boston Area", codes: ["BOS", "MHT", "PVD"] },
+  PVD: { label: "Boston Area", codes: ["BOS", "MHT", "PVD"] },
+
+  // Dallas
+  DFW: { label: "Dallas Area", codes: ["DFW", "DAL"] },
+  DAL: { label: "Dallas Area", codes: ["DFW", "DAL"] },
+
+  // Houston
+  IAH: { label: "Houston Area", codes: ["IAH", "HOU"] },
+  HOU: { label: "Houston Area", codes: ["IAH", "HOU"] },
+
+  // London
+  LHR: { label: "London Area", codes: ["LHR", "LGW", "STN"] },
+  LGW: { label: "London Area", codes: ["LHR", "LGW", "STN"] },
+  STN: { label: "London Area", codes: ["LHR", "LGW", "STN"] },
+
+  // Paris
+  CDG: { label: "Paris Area", codes: ["CDG", "ORY"] },
+  ORY: { label: "Paris Area", codes: ["CDG", "ORY"] },
+
+  // Tokyo
+  NRT: { label: "Tokyo Area", codes: ["NRT", "HND"] },
+  HND: { label: "Tokyo Area", codes: ["NRT", "HND"] },
+};
+
+// ─────────────────────────────────────────────────────────────
+// Get nearby airports for a given code (excludes self)
+// ─────────────────────────────────────────────────────────────
+export function getNearbyAirports(code) {
+  const metro = METRO_GROUPS[code];
+  if (!metro) return { label: null, airports: [] };
+
+  const airportMap = Object.fromEntries(AIRPORTS.map((a) => [a.code, a]));
+  const airports = metro.codes
+    .filter((c) => c !== code)
+    .map((c) => airportMap[c])
+    .filter(Boolean);
+
+  return { label: metro.label, airports };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Score-based airport search.
+//
+// Returns: { results: Airport[], nearby: { label, airports } | null }
+//
+// Priority order (highest → lowest):
+//   1. Exact IATA code match          (score: 100)
+//   2. City name starts with query    (score: 80)
+//   3. City name contains query       (score: 60)
+//   4. Airport name word starts with  (score: 40)
+//   5. State/country starts with      (score: 20)
+//
+// When results include a metro airport, nearby siblings are
+// returned separately so AirportInput can show them in a
+// distinct "Also nearby" section.
+// ─────────────────────────────────────────────────────────────
 export function searchAirports(query, limit = 8) {
-  if (!query || query.trim().length < 2) return [];
+  if (!query || query.trim().length < 2) return { results: [], nearby: null };
+
   const q = query.trim().toLowerCase();
 
   const scored = AIRPORTS.reduce((acc, airport) => {
@@ -541,24 +625,15 @@ export function searchAirports(query, limit = 8) {
 
     let score = 0;
 
-    // Exact IATA code — highest priority
     if (code === q) {
       score = 100;
-    }
-    // City starts with query — very strong signal
-    else if (city.startsWith(q)) {
+    } else if (city.startsWith(q)) {
       score = 80;
-    }
-    // City contains query anywhere (e.g. "new" matches "New York")
-    else if (city.includes(q)) {
+    } else if (city.includes(q)) {
       score = 60;
-    }
-    // Airport name — only match at word boundaries to avoid "Smith" matching "mi"
-    else if (name.split(/[\s\-\/]+/).some((word) => word.startsWith(q))) {
+    } else if (name.split(/[\s\-\/]+/).some((word) => word.startsWith(q))) {
       score = 40;
-    }
-    // State or country starts with query (e.g. "ca" for California)
-    else if (state.startsWith(q) || country.startsWith(q)) {
+    } else if (state.startsWith(q) || country.startsWith(q)) {
       score = 20;
     }
 
@@ -566,8 +641,32 @@ export function searchAirports(query, limit = 8) {
     return acc;
   }, []);
 
-  return scored
+  const results = scored
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((s) => s.airport);
+
+  // ── Nearby airports ──────────────────────────────────────
+  // If any top result is in a metro group, surface the siblings
+  // that aren't already in the results list.
+  let nearby = null;
+  const resultCodes = new Set(results.map((a) => a.code));
+
+  for (const airport of results) {
+    const metro = METRO_GROUPS[airport.code];
+    if (!metro) continue;
+
+    const airportMap = Object.fromEntries(AIRPORTS.map((a) => [a.code, a]));
+    const siblings = metro.codes
+      .filter((c) => !resultCodes.has(c))
+      .map((c) => airportMap[c])
+      .filter(Boolean);
+
+    if (siblings.length > 0) {
+      nearby = { label: metro.label, airports: siblings };
+      break; // only surface one metro group at a time
+    }
+  }
+
+  return { results, nearby };
 }
