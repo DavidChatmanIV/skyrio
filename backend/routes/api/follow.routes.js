@@ -1,23 +1,16 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import User from "../../models/user.js";
+import { requireAuth } from "../../middleware/requireAuth.js";
 
 const router = Router();
 
-function requireAuth(req, res, next) {
-  const id = req.user?.id || req.user?._id || req.headers["x-user-id"];
-  if (!id) return res.status(401).json({ ok: false, error: "Unauthorized" });
-  req.authUserId = String(id);
-  next();
-}
-
 // ─── GET /api/follow/search?q=john&limit=10 ─────────────────
-// Search for users by username or name
 router.get("/search", requireAuth, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
     const limit = Math.min(Number(req.query.limit) || 10, 25);
-    const me = req.authUserId;
+    const me = req.user?._id || req.user?.id;
 
     if (!q || q.length < 2) {
       return res.json({ ok: true, users: [] });
@@ -38,7 +31,6 @@ router.get("/search", requireAuth, async (req, res) => {
       .limit(limit)
       .lean();
 
-    // Check which ones the requester already follows
     const caller = await User.findById(meId).select("following").lean();
     const followingSet = new Set(
       (caller?.following || []).map((id) => String(id))
@@ -59,7 +51,7 @@ router.get("/search", requireAuth, async (req, res) => {
 // ─── POST /api/follow/:targetUserId ─────────────────────────
 router.post("/:targetUserId", requireAuth, async (req, res) => {
   try {
-    const me = req.authUserId;
+    const me = String(req.user?._id || req.user?.id);
     const target = req.params.targetUserId;
 
     if (
@@ -98,7 +90,7 @@ router.post("/:targetUserId", requireAuth, async (req, res) => {
 // ─── DELETE /api/follow/:targetUserId ────────────────────────
 router.delete("/:targetUserId", requireAuth, async (req, res) => {
   try {
-    const me = req.authUserId;
+    const me = String(req.user?._id || req.user?.id);
     const target = req.params.targetUserId;
 
     if (
@@ -135,7 +127,7 @@ router.delete("/:targetUserId", requireAuth, async (req, res) => {
 // ─── GET /api/follow/mine/list ───────────────────────────────
 router.get("/mine/list", requireAuth, async (req, res) => {
   try {
-    const me = req.authUserId;
+    const me = req.user?._id || req.user?.id;
     const u = await User.findById(me).select("following").lean();
     return res.json({ ok: true, following: u?.following || [] });
   } catch (err) {
