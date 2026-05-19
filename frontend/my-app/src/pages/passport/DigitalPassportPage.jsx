@@ -125,7 +125,7 @@ function isYouTubeUrl(url) {
 }
 
 // ── Inline Traveler Search ───────────────────────────────────
-function InlineTravelerSearch({ token }) {
+function InlineTravelerSearch({ token, onFollowChange }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -177,6 +177,22 @@ function InlineTravelerSearch({ token }) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(val.trim()), 300);
   };
+
+  const handleFollowToggle = useCallback(
+    (userId, nowFollowing) => {
+      // Update the result list's isFollowing state
+      setResults((prev) =>
+        prev.map((u) =>
+          String(u._id || u.id) === String(userId)
+            ? { ...u, isFollowing: nowFollowing }
+            : u
+        )
+      );
+      // Notify parent to update following count
+      onFollowChange?.(nowFollowing);
+    },
+    [onFollowChange]
+  );
 
   const showDropdown = focused && query.length >= 2;
 
@@ -239,11 +255,11 @@ function InlineTravelerSearch({ token }) {
             top: "calc(100% + 6px)",
             left: 0,
             right: 0,
-            zIndex: 50,
+            zIndex: 9999,
             background: "rgba(22,18,40,0.98)",
             border: "1px solid rgba(255,255,255,0.1)",
             borderRadius: 14,
-            boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
             maxHeight: 380,
             overflowY: "auto",
             backdropFilter: "blur(20px)",
@@ -311,7 +327,7 @@ function InlineTravelerSearch({ token }) {
                     justifyContent: "center",
                   }}
                 >
-                  {u.avatar ? (
+                  {u.avatar && u.avatar !== "/default-avatar.png" ? (
                     <img
                       src={u.avatar}
                       alt={u.username}
@@ -356,21 +372,6 @@ function InlineTravelerSearch({ token }) {
                     }}
                   >
                     <span>@{u.username}</span>
-                    {u.city && (
-                      <>
-                        <span style={{ opacity: 0.3 }}>·</span>
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                          }}
-                        >
-                          <MapPin size={10} />
-                          {u.city}
-                        </span>
-                      </>
-                    )}
                   </div>
                 </div>
                 <div
@@ -382,6 +383,9 @@ function InlineTravelerSearch({ token }) {
                     isFollowing={!!u.isFollowing}
                     size="small"
                     token={token}
+                    onToggle={(nowFollowing) =>
+                      handleFollowToggle(u._id || u.id, nowFollowing)
+                    }
                   />
                 </div>
               </div>
@@ -560,6 +564,25 @@ export default function DigitalPassportPage() {
     const current = Number(xp || 0);
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
+
+  // ── Update following count when follow/unfollow from search ──
+  const handleSearchFollowChange = useCallback(() => {
+    // Re-fetch actual stats from server after follow/unfollow
+    fetch(apiUrl("/api/passport/stats"), {
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.ok) {
+          setPassportStats({
+            followers: Number(data?.stats?.followers ?? 0),
+            following: Number(data?.stats?.following ?? 0),
+          });
+        }
+      })
+      .catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
@@ -1210,7 +1233,12 @@ export default function DigitalPassportPage() {
                   <Card
                     variant="borderless"
                     className="pp-card"
-                    style={{ marginBottom: 12 }}
+                    style={{
+                      marginBottom: 12,
+                      overflow: "visible",
+                      position: "relative",
+                      zIndex: 100,
+                    }}
                   >
                     <div
                       style={{
@@ -1224,7 +1252,10 @@ export default function DigitalPassportPage() {
                     >
                       Find Travelers
                     </div>
-                    <InlineTravelerSearch token={token} />
+                    <InlineTravelerSearch
+                      token={token}
+                      onFollowChange={handleSearchFollowChange}
+                    />
                   </Card>
 
                   <Card variant="borderless" className="pp-card pp-actionsCard">

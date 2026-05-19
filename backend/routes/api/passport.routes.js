@@ -1,5 +1,6 @@
 import { Router } from "express";
 import Passport from "../../models/Passport.js";
+import User from "../../models/user.js";
 import Notification from "../../models/notification.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 
@@ -24,11 +25,9 @@ function getXpForActivity(type) {
 router.get("/", requireAuth, async (req, res) => {
   try {
     let passport = await Passport.findOne({ user: req.user._id });
-
     if (!passport) {
       passport = await Passport.create({ user: req.user._id });
     }
-
     return res.json({ ok: true, passport });
   } catch (err) {
     console.error("Passport fetch error:", err);
@@ -38,18 +37,30 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/passport/stats  ← FIXES THE 404
+// GET /api/passport/stats
 router.get("/stats", requireAuth, async (req, res) => {
   try {
     let passport = await Passport.findOne({ user: req.user._id });
-
     if (!passport) {
       passport = await Passport.create({ user: req.user._id });
     }
 
+    // Get real follower/following counts from User model
+    const user = await User.findById(req.user._id)
+      .select("followers following followersCount followingCount")
+      .lean();
+
+    // Use array length as source of truth (more reliable than counter fields)
+    const followers = user?.followers?.length ?? user?.followersCount ?? 0;
+    const following = user?.following?.length ?? user?.followingCount ?? 0;
+
     return res.json({
       ok: true,
-      stats: passport.stats,
+      stats: {
+        ...(passport.stats?.toObject?.() ?? passport.stats ?? {}),
+        followers,
+        following,
+      },
       xp: passport.xp,
       level: passport.level,
     });
@@ -65,7 +76,6 @@ router.get("/stats", requireAuth, async (req, res) => {
 router.post("/activity", requireAuth, async (req, res) => {
   try {
     const { type, metadata = {} } = req.body;
-
     if (!type) {
       return res
         .status(400)
