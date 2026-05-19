@@ -45,12 +45,10 @@ router.get("/stats", requireAuth, async (req, res) => {
       passport = await Passport.create({ user: req.user._id });
     }
 
-    // Get real follower/following counts from User model
     const user = await User.findById(req.user._id)
       .select("followers following followersCount followingCount")
       .lean();
 
-    // Use array length as source of truth (more reliable than counter fields)
     const followers = user?.followers?.length ?? user?.followersCount ?? 0;
     const following = user?.following?.length ?? user?.followingCount ?? 0;
 
@@ -69,6 +67,81 @@ router.get("/stats", requireAuth, async (req, res) => {
     return res
       .status(500)
       .json({ ok: false, message: "Failed to fetch passport stats" });
+  }
+});
+
+// GET /api/passport/followers?limit=25
+router.get("/followers", requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 25, 50);
+    const me = await User.findById(req.user._id)
+      .select("followers following")
+      .lean();
+
+    if (!me?.followers?.length) {
+      return res.json({ ok: true, items: [] });
+    }
+
+    const followerIds = me.followers.slice(0, limit);
+    const users = await User.find({ _id: { $in: followerIds } })
+      .select("_id username name avatar isOfficial")
+      .lean();
+
+    // Check which followers I follow back
+    const myFollowingSet = new Set(
+      (me.following || []).map((id) => String(id))
+    );
+
+    const items = users.map((u) => ({
+      id: String(u._id),
+      username: u.username,
+      name: u.name,
+      avatar: u.avatar,
+      avatarUrl: u.avatar,
+      isOfficial: u.isOfficial || false,
+      isFollowing: myFollowingSet.has(String(u._id)),
+    }));
+
+    return res.json({ ok: true, items });
+  } catch (err) {
+    console.error("Passport followers error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch followers" });
+  }
+});
+
+// GET /api/passport/following?limit=25
+router.get("/following", requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 25, 50);
+    const me = await User.findById(req.user._id).select("following").lean();
+
+    if (!me?.following?.length) {
+      return res.json({ ok: true, items: [] });
+    }
+
+    const followingIds = me.following.slice(0, limit);
+    const users = await User.find({ _id: { $in: followingIds } })
+      .select("_id username name avatar isOfficial")
+      .lean();
+
+    const items = users.map((u) => ({
+      id: String(u._id),
+      username: u.username,
+      name: u.name,
+      avatar: u.avatar,
+      avatarUrl: u.avatar,
+      isOfficial: u.isOfficial || false,
+      isFollowing: true, // you follow all of these by definition
+    }));
+
+    return res.json({ ok: true, items });
+  } catch (err) {
+    console.error("Passport following error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch following" });
   }
 });
 
