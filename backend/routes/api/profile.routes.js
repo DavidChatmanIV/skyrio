@@ -43,6 +43,25 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
+// Alias: GET /api/profile/me
+router.get("/me", requireAuth, async (req, res) => {
+  try {
+    let profile = await Profile.findOne({ user: req.user._id });
+    if (!profile) {
+      profile = await Profile.create({
+        user: req.user._id,
+        username: req.user.username,
+      });
+    }
+    return res.json({ ok: true, profile });
+  } catch (err) {
+    console.error("Profile me error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to fetch profile" });
+  }
+});
+
 // GET /api/profile/public/:username — no auth required
 router.get("/public/:username", async (req, res) => {
   try {
