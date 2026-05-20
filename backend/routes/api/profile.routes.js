@@ -84,51 +84,62 @@ router.get("/public/:username", async (req, res) => {
       }
     }
 
-    // Get profile music if available
+    // Get extra data from Profile model (avatar override, music, etc.)
     let profileMusic = null;
+    let profileAvatar = null;
+    let profileBio = null;
+    let profileCity = null;
+    let travelVibes = [];
     try {
       const profile = await Profile.findOne({ user: targetUser._id }).lean();
-      if (profile?.music?.url) {
-        profileMusic = profile.music;
+      if (profile) {
+        if (profile.profileMusic?.url) profileMusic = profile.profileMusic;
+        if (
+          profile.avatar &&
+          profile.avatar !== "/default-avatar.png" &&
+          profile.avatar !== ""
+        )
+          profileAvatar = profile.avatar;
+        if (profile.bio) profileBio = profile.bio;
+        if (profile.city) profileCity = profile.city;
+        if (profile.travelVibes?.length) travelVibes = profile.travelVibes;
       }
     } catch {
-      /* no profile music */
+      /* no profile data */
     }
+
+    // Use Profile avatar if User avatar is default, or vice versa
+    const avatar =
+      targetUser.avatar && targetUser.avatar !== "/default-avatar.png"
+        ? targetUser.avatar
+        : profileAvatar || targetUser.avatar;
+
+    const bio = targetUser.bio || profileBio;
+    const city = targetUser.city || profileCity;
+
+    const publicData = {
+      _id: targetUser._id,
+      id: String(targetUser._id),
+      username: targetUser.username,
+      name: targetUser.name,
+      avatar,
+      bio,
+      city,
+      xp: targetUser.xp || 0,
+      badge: targetUser.currentBadge || "Explorer",
+      currentBadge: targetUser.currentBadge || "Explorer",
+      isOfficial: targetUser.isOfficial || false,
+      followersCount,
+      followingCount,
+      joinedAt: targetUser.createdAt,
+      profileMusic,
+      travelVibes,
+    };
 
     return res.json({
       ok: true,
-      user: {
-        _id: targetUser._id,
-        username: targetUser.username,
-        name: targetUser.name,
-        avatar: targetUser.avatar,
-        bio: targetUser.bio,
-        city: targetUser.city,
-        xp: targetUser.xp || 0,
-        badge: targetUser.currentBadge || "Explorer",
-        currentBadge: targetUser.currentBadge || "Explorer",
-        isOfficial: targetUser.isOfficial || false,
-        followersCount,
-        followingCount,
-        joinedAt: targetUser.createdAt,
-        profileMusic,
-      },
-      profile: {
-        _id: targetUser._id,
-        username: targetUser.username,
-        name: targetUser.name,
-        avatar: targetUser.avatar,
-        bio: targetUser.bio,
-        city: targetUser.city,
-        xp: targetUser.xp || 0,
-        badge: targetUser.currentBadge || "Explorer",
-        currentBadge: targetUser.currentBadge || "Explorer",
-        isOfficial: targetUser.isOfficial || false,
-        followersCount,
-        followingCount,
-        joinedAt: targetUser.createdAt,
-        profileMusic,
-      },
+      user: publicData,
+      profile: publicData,
       isFollowing,
     });
   } catch (err) {
