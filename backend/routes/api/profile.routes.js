@@ -24,16 +24,50 @@ function getOptionalUserId(req) {
   }
 }
 
-// GET /api/profile (or /api/profile/me)
+// Helper: merge User + Profile data so avatar/name are always present
+async function getFullProfile(userId) {
+  let profile = await Profile.findOne({ user: userId });
+  if (!profile) {
+    const user = await User.findById(userId).select("username").lean();
+    profile = await Profile.create({
+      user: userId,
+      username: user?.username || "",
+    });
+  }
+
+  // Get User model data for avatar, name, xp, etc.
+  const user = await User.findById(userId)
+    .select(
+      "username name avatar bio city xp currentBadge followersCount followingCount followers following"
+    )
+    .lean();
+
+  const profileObj = profile.toObject ? profile.toObject() : profile;
+
+  // Merge: prefer non-empty values from either model
+  return {
+    ...profileObj,
+    username: profileObj.username || user?.username || "",
+    name: user?.name || profileObj.fullName || "",
+    avatar:
+      user?.avatar && user.avatar !== "/default-avatar.png"
+        ? user.avatar
+        : profileObj.avatar && profileObj.avatar !== ""
+        ? profileObj.avatar
+        : user?.avatar || "/default-avatar.png",
+    bio: user?.bio || profileObj.bio || "",
+    city: user?.city || profileObj.city || "",
+    xp: user?.xp || 0,
+    currentBadge: user?.currentBadge || "Explorer",
+    followersCount: user?.followers?.length ?? user?.followersCount ?? 0,
+    followingCount: user?.following?.length ?? user?.followingCount ?? 0,
+  };
+}
+
+// GET /api/profile
 router.get("/", requireAuth, async (req, res) => {
   try {
-    let profile = await Profile.findOne({ user: req.user._id });
-    if (!profile) {
-      profile = await Profile.create({
-        user: req.user._id,
-        username: req.user.username,
-      });
-    }
+    const profile = await getFullProfile(req.user._id);
     return res.json({ ok: true, profile });
   } catch (err) {
     console.error("Profile me error:", err);
@@ -43,16 +77,10 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// Alias: GET /api/profile/me
+// GET /api/profile/me
 router.get("/me", requireAuth, async (req, res) => {
   try {
-    let profile = await Profile.findOne({ user: req.user._id });
-    if (!profile) {
-      profile = await Profile.create({
-        user: req.user._id,
-        username: req.user.username,
-      });
-    }
+    const profile = await getFullProfile(req.user._id);
     return res.json({ ok: true, profile });
   } catch (err) {
     console.error("Profile me error:", err);
