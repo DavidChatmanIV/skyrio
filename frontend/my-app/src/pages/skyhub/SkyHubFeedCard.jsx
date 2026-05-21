@@ -1,504 +1,423 @@
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import {
   HeartOutlined,
   HeartFilled,
   MessageOutlined,
   RetweetOutlined,
-  EnvironmentOutlined,
-  BookOutlined,
-  BookFilled,
-  MoreOutlined,
-  SendOutlined,
+  StarOutlined,
+  StarFilled,
   ShareAltOutlined,
+  MoreOutlined,
+  EnvironmentOutlined,
   FlagOutlined,
 } from "@ant-design/icons";
+import { Dropdown } from "antd";
 
-/* ─────────────────────────────────────────────────────────
-   UTILS
-───────────────────────────────────────────────────────── */
-function getInitials(name = "") {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-function formatCount(value = 0) {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return `${value}`;
-}
-
-function timeAgo(dateValue) {
-  if (!dateValue) return "now";
-  const diff = Math.max(0, Date.now() - new Date(dateValue).getTime());
-  const mins = Math.floor(diff / 60_000);
-  const hours = Math.floor(diff / 3_600_000);
-  const days = Math.floor(diff / 86_400_000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  if (hours < 24) return `${hours}h`;
-  return `${days}d`;
-}
-
-const BADGE_CLASS = {
-  Nomad: "is-nomad",
-  Explorer: "is-explorer",
-  Voyager: "is-voyager",
-  Trailblazer: "is-trailblazer",
-  Legend: "is-legend",
+const TYPE_META = {
+  Tip: { emoji: "💡", color: "#fbbf24" },
+  Story: { emoji: "📖", color: "#34d399" },
+  Question: { emoji: "❓", color: "#60a5fa" },
+  Photo: { emoji: "📷", color: "#f472b6" },
+  "Join Trip": { emoji: "✈️", color: "#a78bfa" },
 };
 
-const BADGE_ICON = {
-  Nomad: "◎",
-  Explorer: "⬡",
-  Voyager: "✦",
-  Trailblazer: "★",
-  Legend: "◈",
-};
-
-function avatarClass(name = "") {
-  const n = name.toLowerCase();
-  if (n.length % 3 === 0) return "is-blue";
-  if (n.length % 2 === 0) return "is-orange";
-  return "is-purple";
-}
-
-const CONTENT_LIMIT = 240;
-
-/* ─────────────────────────────────────────────────────────
-   INLINE REPLY INPUT
-───────────────────────────────────────────────────────── */
-function ReplyInput({ onSubmit }) {
-  const [val, setVal] = useState("");
-  const ref = useRef(null);
-
-  useEffect(() => {
-    ref.current?.focus();
-  }, []);
-
-  function handleKey(e) {
-    if (e.key === "Enter" && val.trim()) submit();
-  }
-
-  function submit() {
-    if (!val.trim()) return;
-    onSubmit(val.trim());
-    setVal("");
-  }
-
-  return (
-    <div className="sh-replyInput">
-      <input
-        ref={ref}
-        className="sh-replyField"
-        placeholder="Write a reply…"
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        onKeyDown={handleKey}
-        maxLength={280}
+function PostAvatar({ post }) {
+  const looksLikeUrl = (s) =>
+    typeof s === "string" &&
+    (s.startsWith("http") || s.startsWith("/") || s.startsWith("data:"));
+  if (looksLikeUrl(post.avatar)) {
+    return (
+      <img
+        src={post.avatar}
+        alt={post.author}
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: "50%",
+          objectFit: "cover",
+          flexShrink: 0,
+          border: "2px solid rgba(255,255,255,0.1)",
+        }}
+        onError={(e) => {
+          e.target.style.display = "none";
+        }}
       />
-      <button className="sh-replySubmit" onClick={submit}>
-        Reply
-      </button>
+    );
+  }
+  const colours = [
+    "#ff8a2a",
+    "#7c3aed",
+    "#0ea5e9",
+    "#10b981",
+    "#e11d48",
+    "#f59e0b",
+  ];
+  const idx = (post.author || "T").charCodeAt(0) % colours.length;
+  const initials = (post.author || "T").slice(0, 2).toUpperCase();
+  return (
+    <div
+      style={{
+        width: 42,
+        height: 42,
+        borderRadius: "50%",
+        background: colours[idx],
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: 800,
+        fontSize: 15,
+        flexShrink: 0,
+        userSelect: "none",
+      }}
+    >
+      {initials}
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────────────────
-   CONTEXT DROPDOWN — wired to onReport callback
-───────────────────────────────────────────────────────── */
-function ContextMenu({ handle, onClose, onReport }) {
-  const ref = useRef(null);
+function ImageGrid({ images }) {
+  const [failed, setFailed] = useState({});
+  if (!images || images.length === 0) return null;
+  const visible = images.filter((_, i) => !failed[i]);
+  if (visible.length === 0) return null;
+  const mark = (i) => setFailed((f) => ({ ...f, [i]: true }));
+  const base = {
+    objectFit: "cover",
+    width: "100%",
+    height: "100%",
+    display: "block",
+  };
 
-  useEffect(() => {
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
+  if (visible.length === 1)
+    return (
+      <div style={{ borderRadius: 12, overflow: "hidden", marginTop: 10 }}>
+        <img
+          src={visible[0]}
+          alt="post"
+          onError={() => mark(0)}
+          style={{ ...base, height: 260, borderRadius: 12 }}
+        />
+      </div>
+    );
 
-  const items = [
-    { label: `Follow ${handle}`, danger: false, action: onClose },
-    { label: "Mute", danger: false, action: onClose },
-    {
-      label: "Copy link",
-      danger: false,
-      action: () => {
-        navigator.clipboard?.writeText(window.location.href).catch(() => {});
-        onClose();
-      },
-    },
-    { label: "Not interested", danger: false, action: onClose },
-    {
-      label: "Report post",
-      danger: true,
-      icon: <FlagOutlined style={{ fontSize: 12 }} />,
-      action: () => {
-        onReport?.(); // ← calls handleReportPost in SkyHubPage
-        onClose();
-      },
-    },
-  ];
+  if (visible.length === 2)
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 3,
+          borderRadius: 12,
+          overflow: "hidden",
+          marginTop: 10,
+          height: 200,
+        }}
+      >
+        {visible.map((src, i) => (
+          <img key={i} src={src} onError={() => mark(i)} style={base} alt="" />
+        ))}
+      </div>
+    );
+
+  if (visible.length === 3)
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gridTemplateRows: "1fr 1fr",
+          gap: 3,
+          borderRadius: 12,
+          overflow: "hidden",
+          marginTop: 10,
+          height: 220,
+        }}
+      >
+        <img
+          src={visible[0]}
+          onError={() => mark(0)}
+          style={{ ...base, gridRow: "1/3" }}
+          alt=""
+        />
+        <img src={visible[1]} onError={() => mark(1)} style={base} alt="" />
+        <img src={visible[2]} onError={() => mark(2)} style={base} alt="" />
+      </div>
+    );
 
   return (
-    <div className="skyhub-feedCard__dropdown" ref={ref}>
-      {items.map((item) => (
-        <button
-          key={item.label}
-          className={`skyhub-feedCard__dropdownItem${
-            item.danger ? " is-danger" : ""
-          }`}
-          onClick={item.action}
-          type="button"
-        >
-          {item.icon && <span style={{ marginRight: 6 }}>{item.icon}</span>}
-          {item.label}
-        </button>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gridTemplateRows: "1fr 1fr",
+        gap: 3,
+        borderRadius: 12,
+        overflow: "hidden",
+        marginTop: 10,
+        height: 240,
+      }}
+    >
+      {visible.slice(0, 4).map((src, i) => (
+        <img key={i} src={src} onError={() => mark(i)} style={base} alt="" />
       ))}
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────────────────
-   MAIN COMPONENT
-───────────────────────────────────────────────────────── */
+function ActionBtn({ icon, count, onClick, active, activeColor = "#ff8a2a" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "5px 8px",
+        borderRadius: 99,
+        fontSize: 13,
+        color: active ? activeColor : "rgba(255,255,255,0.35)",
+        fontWeight: active ? 700 : 400,
+        transition: "color 0.15s",
+      }}
+    >
+      <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
+      {count !== undefined && count !== null && (
+        <span style={{ fontSize: 13 }}>
+          {count >= 1000 ? `${(count / 1000).toFixed(1)}k` : count}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function SkyHubFeedCard({
   post,
-  onLike,
-  onComment,
-  onRepost,
-  onBookmark,
-  onToggleLike, // ← SkyHubPage passes this
-  onToggleSave, // ← SkyHubPage passes this
-  onOpenComments, // ← SkyHubPage passes this
-  onReportPost, // ← SkyHubPage passes this ✅ NOW WIRED
+  onToggleLike,
+  onToggleSave,
+  onOpenComments,
+  onReportPost,
 }) {
-  const [liked, setLiked] = useState(Boolean(post?.liked));
-  const [bookmarked, setBookmarked] = useState(
-    Boolean(post?.bookmarked || post?.saved)
-  );
-  const [reposted, setReposted] = useState(false);
-  const [likeCount, setLikeCount] = useState(post?.likes || 0);
-  const [repostCount, setRepostCount] = useState(post?.reposts || 0);
-  const [showMenu, setShowMenu] = useState(false);
-  const [showReply, setShowReply] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [localReplies, setLocalReplies] = useState([]);
-  const [reported, setReported] = useState(false);
-
-  const displayName = post?.user?.name || post?.author || "Traveler";
-  const handle =
-    post?.user?.handle || post?.username || post?.handle || "@traveler";
-  const location = post?.location || post?.destination || "Somewhere amazing";
-  const createdAt = post?.createdAt || post?.date;
-  const text = post?.text || post?.caption || "";
-  const commentCount = post?.comments || 0;
-  const saves = post?.saves || 0;
-  const image = post?.image || post?.imageUrl || "";
-  const tags = post?.tags || [];
-  const badge = post?.badge || post?.user?.badge || "Explorer";
-  const verified = Boolean(post?.verified || post?.user?.verified);
-  const hasStory = Boolean(post?.hasStory);
-  const isThread = Boolean(post?.isThread);
-
-  const initials = useMemo(() => getInitials(displayName), [displayName]);
-  const avClass = useMemo(() => avatarClass(displayName), [displayName]);
-  const needsExpand = text.length > CONTENT_LIMIT;
-  const displayText =
-    needsExpand && !expanded ? text.slice(0, CONTENT_LIMIT) + "…" : text;
-  const badgeClass = BADGE_CLASS[badge] || "is-explorer";
-  const badgeIcon = BADGE_ICON[badge] || "⬡";
-
-  function handleLike() {
-    const next = !liked;
-    setLiked(next);
-    setLikeCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
-    onLike?.(post, next);
-    onToggleLike?.(post?.id || post?._id); // ← support both prop names
-  }
-
-  function handleBookmark() {
-    const next = !bookmarked;
-    setBookmarked(next);
-    onBookmark?.(post, next);
-    onToggleSave?.(post?.id || post?._id);
-  }
-
-  function handleRepost() {
-    const next = !reposted;
-    setReposted(next);
-    setRepostCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
-  }
-
-  function handleReply(text) {
-    setLocalReplies((prev) => [
-      ...prev,
-      { id: Date.now(), author: "You", body: text },
-    ]);
-    setShowReply(false);
-  }
-
-  function handleComment() {
-    setShowReply((v) => !v);
-    onComment?.(post);
-    onOpenComments?.(post); // ← opens drawer in SkyHubPage
-  }
-
-  // ── Report handler — calls SkyHubPage's handleReportPost ──
-  function handleReport() {
-    if (reported) return;
-    setReported(true);
-    onReportPost?.(post); // ← this is the key wire
-  }
+  const meta = TYPE_META[post.type] || TYPE_META.Story;
+  const menuItems = [
+    {
+      key: "report",
+      icon: <FlagOutlined />,
+      label: "Report post",
+      danger: true,
+      onClick: () => onReportPost?.(post),
+    },
+  ];
 
   return (
-    <article
-      className={`skyhub-feedCard sh-card sh-hover${
-        isThread ? " is-thread" : ""
-      } fade-in-up`}
+    <div
+      style={{
+        background: "rgba(30, 18, 58, 0.65)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: 14,
+        padding: "14px 16px 10px",
+        marginBottom: 8,
+        transition: "border-color 0.15s",
+      }}
     >
-      {/* ── TOP ROW ── */}
-      <div className="skyhub-feedCard__top">
-        <div
-          className={`skyhub-feedCard__avatar ${avClass}${
-            hasStory ? " has-story" : ""
-          }`}
-          role="img"
-          aria-label={displayName}
-        >
-          {post?.user?.avatar || post?.avatar ? (
-            <img
-              src={post?.user?.avatar || post?.avatar}
-              alt={displayName}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            initials
-          )}
-        </div>
-
-        <div className="skyhub-feedCard__head">
-          <div className="skyhub-feedCard__line1">
-            <span className="skyhub-feedCard__name">{displayName}</span>
-            {verified && (
-              <span className="skyhub-feedCard__verified" aria-label="Verified">
-                ✓
-              </span>
-            )}
-            <span className="skyhub-feedCard__handle">{handle}</span>
-            <span
-              className={`skyhub-feedCard__badge ${badgeClass}`}
-              title={`${badge} — ${post?.xp ?? 0} XP`}
-            >
-              <span style={{ fontSize: "0.62rem" }}>{badgeIcon}</span>
-              {badge}
-            </span>
-            <span className="skyhub-feedCard__dot">·</span>
-            <span className="skyhub-feedCard__time">{timeAgo(createdAt)}</span>
-          </div>
-          <div className="skyhub-feedCard__location">
-            <EnvironmentOutlined />
-            <span>{location}</span>
-          </div>
-        </div>
-
-        {/* ⋯ Menu */}
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <button
-            type="button"
-            className="skyhub-feedCard__menu"
-            aria-label="More actions"
-            onClick={() => setShowMenu((v) => !v)}
-          >
-            <MoreOutlined />
-          </button>
-          {showMenu && (
-            <ContextMenu
-              handle={handle}
-              onClose={() => setShowMenu(false)}
-              onReport={handleReport} // ← wired
-            />
-          )}
-        </div>
-      </div>
-
-      {/* ── BODY ── */}
-      <div className="skyhub-feedCard__body">
-        <p className="skyhub-feedCard__text">
-          {displayText}
-          {needsExpand && (
-            <button
-              className="skyhub-feedCard__readMore"
-              onClick={() => setExpanded((v) => !v)}
-              type="button"
-            >
-              {expanded ? " Show less" : " Read more"}
-            </button>
-          )}
-        </p>
-
-        {image && !post?.images?.length && (
-          <div className="skyhub-feedCard__media">
-            <img src={image} alt="Travel post" />
-          </div>
-        )}
-
-        {tags.length > 0 && (
-          <div className="skyhub-feedCard__tags">
-            {tags.map((tag) => (
-              <span key={tag} className="skyhub-feedCard__tag">
-                #{tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Reported state */}
-        {reported && (
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <PostAvatar post={post} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Header */}
           <div
             style={{
-              marginTop: 8,
-              padding: "8px 12px",
-              borderRadius: 8,
-              background: "rgba(248,113,113,0.08)",
-              border: "1px solid rgba(248,113,113,0.2)",
-              fontSize: 12,
-              color: "rgba(248,113,113,0.8)",
               display: "flex",
-              alignItems: "center",
-              gap: 6,
+              alignItems: "flex-start",
+              justifyContent: "space-between",
             }}
           >
-            <FlagOutlined /> Post reported — thanks for helping keep SkyHub
-            safe.
-          </div>
-        )}
-      </div>
-
-      {/* ── FOOTER ── */}
-      <div className="skyhub-feedCard__footer">
-        <div className="skyhub-feedCard__actions">
-          <button
-            type="button"
-            className={`skyhub-feedCard__action${liked ? " is-liked" : ""}`}
-            onClick={handleLike}
-            aria-label={liked ? "Unlike" : "Like"}
-          >
-            {liked ? <HeartFilled /> : <HeartOutlined />}
-            <span>{formatCount(likeCount)}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`skyhub-feedCard__action${
-              showReply ? " is-active" : ""
-            }`}
-            onClick={handleComment}
-            aria-label="Reply"
-            style={
-              showReply
-                ? {
-                    color: "var(--sh-purple)",
-                    background: "var(--sh-purple-dim)",
-                  }
-                : {}
-            }
-          >
-            <MessageOutlined />
-            <span>{formatCount(commentCount + localReplies.length)}</span>
-          </button>
-
-          <button
-            type="button"
-            className="skyhub-feedCard__action"
-            onClick={handleRepost}
-            aria-label={reposted ? "Undo repost" : "Repost"}
-            style={
-              reposted
-                ? {
-                    color: "var(--sh-green)",
-                    background: "rgba(34,197,94,0.1)",
-                  }
-                : {}
-            }
-          >
-            <RetweetOutlined />
-            <span>{formatCount(repostCount)}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`skyhub-feedCard__action${
-              bookmarked ? " is-bookmarked" : ""
-            }`}
-            onClick={handleBookmark}
-            aria-label={bookmarked ? "Remove bookmark" : "Bookmark"}
-          >
-            {bookmarked ? <BookFilled /> : <BookOutlined />}
-            <span>{formatCount(saves + (bookmarked ? 1 : 0))}</span>
-          </button>
-
-          <button
-            type="button"
-            className="skyhub-feedCard__action"
-            aria-label="Share"
-          >
-            <ShareAltOutlined />
-          </button>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            type="button"
-            className="skyhub-feedCard__bookCta"
-            aria-label="Book this trip"
-          >
-            <SendOutlined style={{ fontSize: "0.8rem" }} />
-            Book trip
-          </button>
-          <div className="skyhub-feedCard__meta">
-            <span>{post?.postType || post?.type || "Travel Tip"}</span>
-            <span>{post?.visibility || "Public"}</span>
-          </div>
-        </div>
-      </div>
-
-      {showReply && <ReplyInput onSubmit={handleReply} />}
-
-      {localReplies.length > 0 && (
-        <div className="sh-replies">
-          {localReplies.map((r) => (
-            <div key={r.id} className="sh-replyItem">
+            <div style={{ minWidth: 0 }}>
               <div
-                className={`skyhub-feedCard__avatar ${avatarClass(r.author)}`}
                 style={{
-                  width: 28,
-                  height: 28,
-                  fontSize: "0.65rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontWeight: 700, fontSize: 14, color: "#fff" }}>
+                  {post.author}
+                </span>
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
+                  {post.username}
+                </span>
+                {post.verified && (
+                  <span style={{ fontSize: 12, color: "#60a5fa" }}>✓</span>
+                )}
+                <span
+                  style={{
+                    fontSize: 10,
+                    background: "rgba(255,138,42,0.15)",
+                    color: "#ff8a2a",
+                    border: "1px solid rgba(255,138,42,0.3)",
+                    borderRadius: 99,
+                    padding: "1px 7px",
+                    fontWeight: 700,
+                  }}
+                >
+                  {post.badge || "Explorer"}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.25)",
+                    marginLeft: "auto",
+                  }}
+                >
+                  {post.timeAgo}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 3,
+                  flexWrap: "wrap",
+                }}
+              >
+                {post.destination && (
+                  <>
+                    <EnvironmentOutlined
+                      style={{ fontSize: 11, color: "#ff8a2a" }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: "#ff8a2a",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {post.destination}
+                    </span>
+                  </>
+                )}
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: meta.color,
+                    background: `${meta.color}18`,
+                    borderRadius: 99,
+                    padding: "1px 7px",
+                    border: `1px solid ${meta.color}30`,
+                  }}
+                >
+                  {meta.emoji} {post.type}
+                </span>
+              </div>
+            </div>
+            <Dropdown
+              menu={{ items: menuItems }}
+              trigger={["click"]}
+              placement="bottomRight"
+            >
+              <button
+                type="button"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px 6px",
+                  color: "rgba(255,255,255,0.25)",
                   flexShrink: 0,
                 }}
               >
-                {getInitials(r.author)}
-              </div>
-              <div>
-                <span className="sh-replyItem__author">{r.author} </span>
-                <span className="sh-replyItem__body">{r.body}</span>
-              </div>
+                <MoreOutlined style={{ fontSize: 18 }} />
+              </button>
+            </Dropdown>
+          </div>
+
+          {/* Body */}
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontSize: 15,
+              lineHeight: 1.55,
+              color: "rgba(255,255,255,0.88)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {post.text}
+          </p>
+
+          {/* Tags */}
+          {post.tags?.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                flexWrap: "wrap",
+                marginTop: 6,
+              }}
+            >
+              {post.tags.map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: 13,
+                    color: "#ff8a2a",
+                    fontWeight: 600,
+                    background: "rgba(255,138,42,0.1)",
+                    borderRadius: 99,
+                    padding: "2px 9px",
+                  }}
+                >
+                  {tag.startsWith("#") ? tag : `#${tag}`}
+                </span>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* Images */}
+          <ImageGrid images={post.images} />
+
+          {/* Actions */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: 10,
+              maxWidth: 320,
+            }}
+          >
+            <ActionBtn
+              icon={<MessageOutlined />}
+              count={post.comments}
+              onClick={() => onOpenComments?.(post)}
+            />
+            <ActionBtn icon={<RetweetOutlined />} count={post.shares} />
+            <ActionBtn
+              icon={post.liked ? <HeartFilled /> : <HeartOutlined />}
+              count={post.likes}
+              onClick={() => onToggleLike?.(post.id)}
+              active={post.liked}
+              activeColor="#e11d48"
+            />
+            <ActionBtn
+              icon={post.saved ? <StarFilled /> : <StarOutlined />}
+              count={post.saves}
+              onClick={() => onToggleSave?.(post.id)}
+              active={post.saved}
+              activeColor="#a78bfa"
+            />
+            <ActionBtn icon={<ShareAltOutlined />} />
+          </div>
         </div>
-      )}
-    </article>
+      </div>
+    </div>
   );
 }

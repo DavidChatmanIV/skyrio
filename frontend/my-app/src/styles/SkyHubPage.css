@@ -1,136 +1,161 @@
-/* ── TOKENS ─────────────────────────────────────────────── */
+/* ================================================================
+   SkyHubPage.css — SkyHub v9.5
+   Goal: Better than Twitter. Feels like a premium travel universe.
+   Approach: Deep space dark × volcanic orange × colored type system
+   × glassmorphism depth × micro-animations × Sora display font
+================================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800;900&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap");
+
+/* ── Design tokens ───────────────────────────────────────── */
 :root {
-  --sh-orange: #ff8a2a;
-  --sh-orange-2: #ffb066;
-  --sh-orange-dim: rgba(255, 138, 42, 0.13);
-  --sh-orange-glow: rgba(255, 138, 42, 0.32);
-  --sh-purple: #7c5cfc;
-  --sh-purple-dim: rgba(124, 92, 252, 0.1);
-  --sh-green: #22c55e;
-  --sh-red: #ff5c7a;
-  --sh-blue: #4c8dff;
+  /* Core palette */
+  --sh-bg: #07050f;
+  --sh-s1: #0d0a1e;
+  --sh-s2: #141028;
+  --sh-s3: #1c1636;
+  --sh-s4: #241d42;
 
-  --sh-text: #1a1208;
-  --sh-text-soft: #4a3d2e;
-  --sh-text-faint: #8a7a68;
-  --sh-text-dim: #b8a898;
+  /* Orange fire */
+  --sh-orange: #ff6b2b;
+  --sh-orange2: #ff9555;
+  --sh-odim: rgba(255, 107, 43, 0.13);
+  --sh-oglow: rgba(255, 107, 43, 0.35);
 
-  --sh-glass-hero: rgba(20, 12, 40, 0.55);
-  --sh-glass-card: rgba(255, 252, 248, 0.72);
-  --sh-glass-card-hv: rgba(255, 253, 250, 0.88);
-  --sh-glass-input: rgba(255, 255, 255, 0.82);
-  --sh-glass-chip: rgba(255, 255, 255, 0.65);
+  /* Purple aurora */
+  --sh-purple: #9333ea;
+  --sh-pdim: rgba(147, 51, 234, 0.12);
 
-  --sh-border: rgba(255, 235, 210, 0.55);
-  --sh-border-warm: rgba(255, 220, 180, 0.7);
+  /* Type badge colors */
+  --tip-c: #f59e0b;
+  --tip-bg: rgba(245, 158, 11, 0.12);
+  --tip-br: rgba(245, 158, 11, 0.25);
+  --ask-c: #38bdf8;
+  --ask-bg: rgba(56, 189, 248, 0.12);
+  --ask-br: rgba(56, 189, 248, 0.25);
+  --story-c: #34d399;
+  --story-bg: rgba(52, 211, 153, 0.12);
+  --story-br: rgba(52, 211, 153, 0.25);
+  --photo-c: #f472b6;
+  --photo-bg: rgba(244, 114, 182, 0.12);
+  --photo-br: rgba(244, 114, 182, 0.25);
+  --trip-c: #a78bfa;
+  --trip-bg: rgba(167, 139, 250, 0.12);
+  --trip-br: rgba(167, 139, 250, 0.25);
 
-  --sh-shadow-sm: 0 4px 16px rgba(120, 80, 30, 0.1);
-  --sh-shadow-md: 0 8px 32px rgba(100, 60, 20, 0.15);
-  --sh-shadow-lg: 0 16px 56px rgba(80, 45, 10, 0.22);
-  --sh-shadow-card: 0 8px 40px rgba(100, 60, 20, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  /* Text */
+  --sh-text: #f0ecff;
+  --sh-soft: rgba(240, 236, 255, 0.78);
+  --sh-muted: rgba(240, 236, 255, 0.46);
+  --sh-faint: rgba(240, 236, 255, 0.22);
+  --sh-ghost: rgba(240, 236, 255, 0.1);
 
-  --sh-blur: 22px;
-  --sh-blur-heavy: 40px;
-  --sh-blur-soft: 12px;
+  /* Borders */
+  --sh-line: rgba(255, 255, 255, 0.07);
+  --sh-line2: rgba(255, 255, 255, 0.12);
+  --sh-line3: rgba(255, 255, 255, 0.18);
 
-  --sh-r-sm: 14px;
-  --sh-r-md: 20px;
-  --sh-r-lg: 28px;
-  --sh-r-pill: 999px;
+  /* Radius */
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
 
-  --sh-ease: cubic-bezier(0.4, 0, 0.2, 1);
-  --sh-t: 0.2s var(--sh-ease);
+  /* Motion */
+  --ease: cubic-bezier(0.22, 0.68, 0, 1.2);
+  --ease2: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 0.14s var(--ease2);
+  --t-med: 0.22s var(--ease2);
+  --t-pop: 0.2s var(--ease);
 
-  /* ✅ FIX c5: was 74px — corrected to match real navbar height.
-     Navbar = 70px bar + 12px top padding + 8px buffer = 90px.
-     SkyHub uses this in .skyhub-topHeader padding-top and
-     .skyhub-rightRail top — both were clipping under the nav. */
-  --sh-nav-h: 90px;
-
-  --sh-max: 1380px;
+  --sh-nav-h: 70px;
 }
 
-/* ── RESET ───────────────────────────────────────────────── */
+/* ── Reset ───────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-::-webkit-scrollbar {
-  width: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(180, 140, 100, 0.35);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(180, 140, 100, 0.55);
+/* ================================================================
+   PAGE SHELL
+================================================================ */
+.skyhub-page {
+  min-height: 100vh;
+  background-color: var(--sh-bg);
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: var(--sh-text);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGE SHELL
-══════════════════════════════════════════════════════════ */
+/* Multi-layer atmospheric overlay */
 .skyhub-page::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(18, 8, 45, 0.62) 0%,
-    rgba(30, 15, 60, 0.48) 25%,
-    rgba(20, 10, 40, 0.38) 55%,
-    rgba(10, 5, 20, 0.5) 100%
-  );
+  background: radial-gradient(
+      ellipse 800px 600px at 15% 20%,
+      rgba(147, 51, 234, 0.12) 0%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 600px 500px at 85% 70%,
+      rgba(255, 107, 43, 0.1) 0%,
+      transparent 60%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(7, 5, 15, 0.72) 0%,
+      rgba(7, 5, 15, 0.55) 35%,
+      rgba(7, 5, 15, 0.78) 70%,
+      rgba(7, 5, 15, 0.97) 100%
+    );
 }
-
 .skyhub-page > * {
   position: relative;
   z-index: 1;
 }
 
-/* ══════════════════════════════════════════════════════════
-   HEADER
-══════════════════════════════════════════════════════════ */
+/* ================================================================
+   HERO HEADER — premium cinematic feel
+================================================================ */
 .skyhub-topHeader {
   position: relative;
-  /* ✅ FIX c5: Now uses corrected --sh-nav-h (90px) instead of old 74px.
-     This ensures the hero content clears the fixed navbar correctly. */
-  padding: calc(var(--sh-nav-h) + 20px) 32px 0;
+  padding: calc(var(--sh-nav-h) + 28px) 40px 0;
   overflow: hidden;
 }
 
 .skyhub-topHeaderOverlay {
   position: absolute;
   inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background: linear-gradient(
-    160deg,
-    rgba(40, 18, 80, 0.55) 0%,
-    rgba(20, 10, 50, 0.4) 50%,
+    145deg,
+    rgba(147, 51, 234, 0.22) 0%,
+    rgba(255, 107, 43, 0.08) 50%,
     transparent 100%
   );
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  pointer-events: none;
-  z-index: 0;
 }
 
 .skyhub-topHeaderInner {
   position: relative;
   z-index: 1;
-  max-width: var(--sh-max);
+  max-width: 1280px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1fr minmax(280px, 380px);
-  gap: 32px;
-  align-items: start;
-  padding-bottom: 32px;
+  grid-template-columns: 1fr minmax(300px, 380px);
+  gap: 48px;
+  align-items: center;
+  padding-bottom: 40px;
 }
 
 .skyhub-heroCopy {
@@ -140,36 +165,57 @@
 .skyhub-eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  margin-bottom: 16px;
-  border-radius: var(--sh-r-pill);
-  font-size: 0.73rem;
+  gap: 7px;
+  padding: 5px 14px;
+  margin-bottom: 18px;
+  border-radius: var(--r-pill);
+  font-size: 0.7rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--sh-orange);
-  background: rgba(255, 138, 42, 0.18);
-  border: 1px solid rgba(255, 138, 42, 0.3);
+  color: var(--sh-orange2);
+  background: var(--sh-odim);
+  border: 1px solid rgba(255, 107, 43, 0.28);
+}
+.skyhub-eyebrow::before {
+  content: "✦";
+  font-size: 8px;
+  animation: twinkle 2s ease-in-out infinite;
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
 }
 
 .skyhub-pageTitle {
-  font-family: "Syne", sans-serif;
-  font-size: clamp(3rem, 6vw, 5.5rem);
-  line-height: 0.92;
-  letter-spacing: -0.045em;
+  font-family: "Sora", sans-serif;
+  font-size: clamp(3.2rem, 6.5vw, 6rem);
+  line-height: 0.9;
+  letter-spacing: -0.05em;
   font-weight: 900;
   color: #fff;
-  margin: 0 0 14px;
-  text-shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
+  margin: 0 0 18px;
+  /* Subtle gradient on the text */
+  background: linear-gradient(135deg, #fff 40%, rgba(255, 165, 120, 0.9) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: none;
 }
 
 .skyhub-pageSubtitle {
-  font-size: 1.05rem;
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.82);
-  max-width: 460px;
-  margin: 0 0 24px;
+  font-size: 1.08rem;
+  line-height: 1.72;
+  color: var(--sh-soft);
+  max-width: 480px;
+  margin: 0 0 28px;
 }
 
 .skyhub-heroStats {
@@ -177,321 +223,340 @@
   flex-direction: column;
   gap: 10px;
 }
-
 .skyhub-heroStat {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--sh-muted);
   font-size: 0.92rem;
   font-weight: 500;
 }
-
 .skyhub-heroStat .anticon {
-  color: var(--sh-orange);
+  color: var(--sh-orange2);
   font-size: 0.95rem;
 }
 
+/* Hero action card */
 .skyhub-headerActions {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 22px;
-  border-radius: var(--sh-r-lg);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(var(--sh-blur));
-  -webkit-backdrop-filter: blur(var(--sh-blur));
-  box-shadow: var(--sh-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  padding: 24px;
+  border-radius: var(--r-xl);
+  background: rgba(13, 10, 30, 0.65);
+  border: 1px solid var(--sh-line3);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 1px 0 rgba(255, 255, 255, 0.12) inset;
 }
 
 .skyhub-searchInput.ant-input-affix-wrapper {
-  background: rgba(255, 255, 255, 0.88) !important;
-  border: 1px solid rgba(255, 235, 210, 0.6) !important;
-  border-radius: var(--sh-r-sm) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid var(--sh-line3) !important;
+  border-radius: var(--r-sm) !important;
   height: 52px !important;
   box-shadow: none !important;
   font-family: "DM Sans", sans-serif !important;
   color: var(--sh-text) !important;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast) !important;
 }
-
 .skyhub-searchInput.ant-input-affix-wrapper:hover {
-  border-color: rgba(255, 138, 42, 0.4) !important;
+  border-color: rgba(255, 107, 43, 0.45) !important;
 }
-
 .skyhub-searchInput.ant-input-affix-wrapper-focused {
   border-color: var(--sh-orange) !important;
-  box-shadow: 0 0 0 3px var(--sh-orange-dim) !important;
+  box-shadow: 0 0 0 3px var(--sh-odim) !important;
 }
-
 .skyhub-searchInput .ant-input {
   background: transparent !important;
   color: var(--sh-text) !important;
   font-family: "DM Sans", sans-serif !important;
 }
-
 .skyhub-searchInput .ant-input::placeholder {
-  color: var(--sh-text-faint) !important;
+  color: var(--sh-muted) !important;
 }
 .skyhub-searchInput .anticon {
-  color: var(--sh-text-faint) !important;
+  color: var(--sh-muted) !important;
 }
 
 .skyhub-exploreBtn.ant-btn {
   width: 100%;
   height: 52px;
-  border-radius: var(--sh-r-sm) !important;
+  border-radius: var(--r-sm) !important;
   border: none !important;
-  background: var(--sh-orange) !important;
+  background: linear-gradient(
+    135deg,
+    var(--sh-orange) 0%,
+    #ff8c55 100%
+  ) !important;
   color: #fff !important;
-  font-family: "DM Sans", sans-serif !important;
+  font-family: "Sora", sans-serif !important;
   font-weight: 700 !important;
   font-size: 0.95rem !important;
-  box-shadow: 0 8px 28px var(--sh-orange-glow) !important;
-  transition: opacity var(--sh-t), transform var(--sh-t), box-shadow var(--sh-t) !important;
+  box-shadow: 0 8px 28px var(--sh-oglow) !important;
+  transition: opacity var(--t-fast), transform var(--t-pop),
+    box-shadow var(--t-fast) !important;
 }
-
 .skyhub-exploreBtn.ant-btn:hover {
-  opacity: 0.9 !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 14px 36px var(--sh-orange-glow) !important;
+  opacity: 0.92 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 14px 40px var(--sh-oglow) !important;
 }
 
-/* ── Top stats bar ── */
+/* Stats bar */
 .skyhub-topStats {
   position: relative;
   z-index: 1;
-  max-width: var(--sh-max);
+  max-width: 1280px;
   margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-  padding: 18px 0 28px;
+  padding: 16px 0 32px;
 }
-
 .skyhub-statItem {
   display: flex;
   flex-direction: column;
   align-items: center;
   min-width: 90px;
   padding: 12px 18px;
-  border-radius: var(--sh-r-sm);
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: var(--sh-shadow-sm);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--sh-line2);
+  backdrop-filter: blur(16px);
   text-align: center;
+  transition: background var(--t-fast), transform var(--t-pop);
 }
-
+.skyhub-statItem:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
 .skyhub-statItem strong {
-  font-family: "Syne", sans-serif;
+  font-family: "Sora", sans-serif;
   font-size: 1.45rem;
   font-weight: 900;
   color: #fff;
   line-height: 1;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
-
 .skyhub-statItem span {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.78rem;
+  color: var(--sh-muted);
 }
 
 .skyhub-onlinePill {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 22px;
-  border-radius: var(--sh-r-pill);
-  background: var(--sh-orange);
+  gap: 9px;
+  padding: 11px 22px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(135deg, var(--sh-orange) 0%, #ff8c55 100%);
   color: #fff;
   font-weight: 800;
-  font-size: 0.9rem;
-  box-shadow: 0 8px 24px var(--sh-orange-glow);
+  font-size: 0.88rem;
+  box-shadow: 0 8px 24px var(--sh-oglow);
+  transition: transform var(--t-pop);
 }
-
+.skyhub-onlinePill:hover {
+  transform: translateY(-1px);
+}
 .skyhub-onlinePill::before {
   content: "";
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: #fff;
-  animation: shPulse 1.8s infinite;
   flex-shrink: 0;
+  animation: livePulse 1.8s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.75);
+  }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ================================================================
    MAIN
-══════════════════════════════════════════════════════════ */
+================================================================ */
 .skyhub-main {
-  max-width: var(--sh-max);
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 0 32px 48px;
+  padding: 0 24px 80px;
 }
 
-/* ══════════════════════════════════════════════════════════
-   TOOLBAR
-══════════════════════════════════════════════════════════ */
-.skyhub-toolbar {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 20px;
+/* ================================================================
+   STICKY NAVBAR — premium centered tabs + vibe chips
+================================================================ */
+.skyhub-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  /* Purple-glass — matches the site's dark-purple hero/card theme */
+  background: rgba(28, 16, 58, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0 -24px;
+  padding: 0 24px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.skyhub-toolbarBlock {
-  background: rgba(20, 12, 40, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: var(--sh-r-md);
-  padding: 18px 20px;
-  backdrop-filter: blur(var(--sh-blur));
-  -webkit-backdrop-filter: blur(var(--sh-blur));
-  box-shadow: var(--sh-shadow-md);
-}
-
-.skyhub-toolbarLabel {
-  font-size: 0.73rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: rgba(255, 255, 255, 0.45);
-  margin-bottom: 12px;
-}
-
-.skyhub-filterRow {
+/* Tab row */
+.skyhub-navbar-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: stretch;
+  justify-content: center;
+  height: 48px;
+  border-bottom: 1px solid var(--sh-line);
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 4px;
+}
+.skyhub-navbar-tabs::-webkit-scrollbar {
+  display: none;
 }
 
-/* ── Pills — shared by Browse Feed + Filter by Vibe ── */
-.skyhub-filterChip {
-  padding: 8px 18px;
-  border-radius: var(--sh-r-pill);
-  font-size: 0.87rem;
-  font-weight: 700;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.78);
-  cursor: pointer;
-  font-family: "DM Sans", sans-serif;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  transition: all var(--sh-t);
-  line-height: 1;
-  white-space: nowrap;
-  /* ✅ Ensure minimum tap target for mobile */
-  min-height: 44px;
-  touch-action: manipulation;
+.skyhub-navbar-tab {
   display: inline-flex;
   align-items: center;
+  padding: 0 20px;
+  height: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: "DM Sans", sans-serif;
+  color: var(--sh-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.skyhub-navbar-tab:hover {
+  color: var(--sh-text);
+}
+.skyhub-navbar-tab.is-active {
+  color: var(--sh-orange2);
+  font-weight: 700;
+  border-bottom-color: var(--sh-orange);
+  /* Glow under active tab */
+  filter: drop-shadow(0 2px 8px var(--sh-oglow));
+}
+
+/* Vibe chips row */
+.skyhub-navbar-vibes {
+  display: flex;
+  gap: 7px;
+  padding: 9px 0;
   justify-content: center;
+  flex-wrap: wrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.skyhub-navbar-vibes::-webkit-scrollbar {
+  display: none;
 }
 
-.skyhub-filterChip:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 138, 42, 0.5);
-  color: #fff;
+.skyhub-vibe-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 15px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 1px solid var(--sh-line2);
+  background: var(--sh-s2);
+  color: var(--sh-muted);
+  font-family: "DM Sans", sans-serif;
+  transition: all var(--t-fast);
+}
+.skyhub-vibe-chip:hover {
+  border-color: var(--sh-orange);
+  color: var(--sh-orange2);
+  background: var(--sh-odim);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
-
-.skyhub-filterChip.is-selected {
-  background: var(--sh-orange);
+.skyhub-vibe-chip.is-on {
+  background: linear-gradient(135deg, var(--sh-orange), #ff9966);
   border-color: transparent;
   color: #fff;
-  font-weight: 800;
-  box-shadow: 0 6px 20px var(--sh-orange-glow);
+  font-weight: 700;
+  box-shadow: 0 4px 16px var(--sh-oglow);
   transform: translateY(-1px);
 }
 
-.skyhub-filterChip:focus-visible {
-  outline: 2px solid var(--sh-orange);
-  outline-offset: 2px;
-}
-
-/* ── Content grid ── */
+/* ================================================================
+   CONTENT GRID
+================================================================ */
 .skyhub-contentGrid {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 20px;
+  grid-template-columns: 1fr 300px;
+  gap: 22px;
   align-items: start;
+  padding-top: 24px;
 }
-
 .skyhub-leftRail {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-
 .skyhub-rightRail {
   position: sticky;
-  /* ✅ FIX c5: Uses corrected --sh-nav-h so sticky sidebar
-     doesn't hide behind the navbar either */
-  top: calc(var(--sh-nav-h) + 16px);
+  top: calc(var(--sh-nav-h) + 108px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
-/* ══════════════════════════════════════════════════════════
-   STYLE TABS
-══════════════════════════════════════════════════════════ */
-.skyhub-tabs {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+/* ================================================================
+   COMPOSER — premium feel
+================================================================ */
+/* These classes target SkyHubComposer — override to dark glass */
+.skyhub-composerCard,
+[class*="composerCard"],
+[class*="composer-card"] {
+  background: rgba(13, 10, 30, 0.75) !important;
+  border: 1px solid var(--sh-line3) !important;
+  border-radius: var(--r-lg) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  transition: box-shadow var(--t-med) !important;
+}
+[class*="composerCard"]:focus-within,
+[class*="composer-card"]:focus-within {
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.3), 0 0 0 2px var(--sh-odim),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
 }
 
-.skyhub-tab {
-  position: relative;
-  z-index: 2;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 700;
-  font-size: 0.95rem;
-  padding: 14px 10px;
-  cursor: pointer;
-  transition: color 0.25s ease;
-  min-height: 44px;
-  touch-action: manipulation;
-}
-
-.skyhub-tab:hover {
-  color: #fff;
-}
-
-.skyhub-tab.active {
-  color: #fff;
-}
-
-/* sliding indicator */
-.skyhub-tabs-indicator {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #ff8a2a, #ffb066);
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* ══════════════════════════════════════════════════════════
-   FEED SECTION
-══════════════════════════════════════════════════════════ */
+/* ================================================================
+   FEED SECTION — premium dark glass container
+================================================================ */
 .skyhub-feedSection {
-  background: rgba(20, 12, 40, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: var(--sh-r-lg);
-  backdrop-filter: blur(var(--sh-blur));
-  -webkit-backdrop-filter: blur(var(--sh-blur));
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: rgba(13, 10, 30, 0.6);
+  border: 1px solid var(--sh-line2);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   overflow: hidden;
 }
 
@@ -499,22 +564,21 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 22px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--sh-line);
+  background: rgba(255, 255, 255, 0.02);
 }
-
 .skyhub-sectionTitle {
-  font-family: "Syne", sans-serif;
-  font-size: 1.25rem;
+  font-family: "Sora", sans-serif;
+  font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #fff;
-  margin: 0 0 4px;
+  color: var(--sh-text);
+  margin: 0 0 3px;
 }
-
 .skyhub-sectionSubtext {
-  font-size: 0.88rem;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.84rem;
+  color: var(--sh-muted);
   margin: 0;
 }
 
@@ -523,130 +587,93 @@
   flex-direction: column;
 }
 
-/* Empty state */
-.skyhub-emptyState {
-  padding: 52px 24px;
-  text-align: center;
-}
-
-.skyhub-emptyState h3 {
-  font-family: "Syne", sans-serif;
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: #fff;
-  margin: 0 0 8px;
-}
-
-.skyhub-emptyState p {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.45);
-  margin: 0;
-}
-
-/* ══════════════════════════════════════════════════════════
-   GLASS CARD — legacy base class
-══════════════════════════════════════════════════════════ */
-.skyhub-card {
-  background: var(--sh-glass-card);
-  border: 1px solid var(--sh-border);
-  border-radius: var(--sh-r-lg);
-  backdrop-filter: blur(var(--sh-blur));
-  -webkit-backdrop-filter: blur(var(--sh-blur));
-  box-shadow: var(--sh-shadow-card);
-  position: relative;
-  overflow: hidden;
-}
-
-.skyhub-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    155deg,
-    rgba(255, 255, 255, 0.55) 0%,
-    rgba(255, 255, 255, 0.06) 45%,
-    transparent 100%
-  );
-  z-index: 0;
-}
-
-.skyhub-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* ══════════════════════════════════════════════════════════
-   FEED CARD — individual post rows
-══════════════════════════════════════════════════════════ */
+/* ================================================================
+   FEED CARD — the centrepiece, needs to be 9.5/10
+================================================================ */
 .skyhub-feedCard {
-  background: rgba(255, 251, 246, 0.7) !important;
+  background: transparent !important;
   border: none !important;
-  border-bottom: 1px solid rgba(200, 170, 140, 0.25) !important;
+  border-bottom: 1px solid var(--sh-line) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  padding: 20px 22px;
-  transition: background var(--sh-t);
+  padding: 18px 22px !important;
+  transition: background var(--t-fast) !important;
   position: relative;
 }
-
+.skyhub-feedCard::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background var(--t-fast);
+  border-radius: 0 2px 2px 0;
+}
+.skyhub-feedCard:hover {
+  background: rgba(255, 255, 255, 0.025) !important;
+}
+.skyhub-feedCard:hover::before {
+  background: var(--sh-orange);
+}
 .skyhub-feedCard:last-child {
   border-bottom: none !important;
-  border-radius: 0 0 var(--sh-r-lg) var(--sh-r-lg) !important;
 }
 
-.skyhub-feedCard:first-child {
-  border-radius: 0 !important;
+/* Type-specific accent bars */
+.skyhub-feedCard[data-type="Tip"]::before {
+  background: var(--tip-c);
+  opacity: 0.6;
+}
+.skyhub-feedCard[data-type="Question"]::before {
+  background: var(--ask-c);
+  opacity: 0.6;
+}
+.skyhub-feedCard[data-type="Story"]::before {
+  background: var(--story-c);
+  opacity: 0.6;
+}
+.skyhub-feedCard[data-type="Photo"]::before {
+  background: var(--photo-c);
+  opacity: 0.6;
+}
+.skyhub-feedCard[data-type="Join Trip"]::before {
+  background: var(--trip-c);
+  opacity: 0.6;
 }
 
-.skyhub-feedCard:hover {
-  background: rgba(255, 253, 250, 0.86) !important;
-}
-
-.skyhub-feedCard.sh-card,
-.skyhub-feedCard.sh-hover {
-  border-radius: 0 !important;
-  transform: none !important;
-}
-
-.skyhub-feedCard.sh-card::before {
-  display: none;
-}
-
-.skyhub-feedCard__top {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
+/* Avatar — rounded square like Discord/Notion */
 .skyhub-feedCard__avatar {
   width: 44px;
   height: 44px;
   border-radius: 14px;
   overflow: hidden;
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-family: "Syne", sans-serif;
-  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Sora", sans-serif;
+  font-size: 0.9rem;
   font-weight: 800;
-  box-shadow: 0 4px 14px rgba(100, 60, 20, 0.2);
-}
-
-.skyhub-feedCard__avatar.is-blue {
-  background: linear-gradient(135deg, #4b8fff, #75a9ff);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 .skyhub-feedCard__avatar.is-orange {
-  background: linear-gradient(135deg, #ff8a2a, #ffb066);
+  background: linear-gradient(135deg, var(--sh-orange), #ff9966);
+}
+.skyhub-feedCard__avatar.is-blue {
+  background: linear-gradient(135deg, #38bdf8, #1d6fbf);
 }
 .skyhub-feedCard__avatar.is-purple {
-  background: linear-gradient(135deg, #7a67ff, #a394ff);
+  background: linear-gradient(135deg, var(--sh-purple), #6d28d9);
 }
 
+.skyhub-feedCard__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
 .skyhub-feedCard__head {
   min-width: 0;
   flex: 1;
@@ -657,78 +684,131 @@
   align-items: center;
   gap: 7px;
   flex-wrap: wrap;
+  margin-bottom: 4px;
 }
-
 .skyhub-feedCard__name {
-  font-family: "Syne", sans-serif;
-  font-size: 0.95rem;
-  font-weight: 800;
+  font-family: "Sora", sans-serif;
+  font-size: 0.94rem;
+  font-weight: 700;
   color: var(--sh-text);
 }
-
-.skyhub-feedCard__handle,
+.skyhub-feedCard__handle {
+  color: var(--sh-muted);
+  font-size: 0.84rem;
+}
 .skyhub-feedCard__dot {
-  color: var(--sh-text-faint);
-  font-size: 0.87rem;
+  color: var(--sh-faint);
+  font-size: 0.84rem;
+}
+.skyhub-feedCard__time {
+  color: var(--sh-faint);
+  font-size: 0.79rem;
+  margin-left: auto;
 }
 
-.skyhub-feedCard__time {
-  color: var(--sh-text-faint);
-  font-size: 0.81rem;
-  margin-left: auto;
+/* Rank badge — premium */
+.skyhub-feedCard__badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--sh-odim);
+  color: var(--sh-orange2);
+  border: 1px solid rgba(255, 107, 43, 0.2);
+  font-family: "Sora", sans-serif;
 }
 
 .skyhub-feedCard__location {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-top: 5px;
-  color: var(--sh-text-faint);
-  font-size: 0.83rem;
+  color: var(--sh-orange);
+  font-size: 0.82rem;
   font-weight: 600;
+}
+
+/* Type pill — colored per type */
+.skyhub-feedCard__typepill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  font-family: "Sora", sans-serif;
+  letter-spacing: 0.02em;
+  margin-left: 4px;
+}
+.skyhub-feedCard__typepill.tp-Tip {
+  background: var(--tip-bg);
+  color: var(--tip-c);
+  border: 1px solid var(--tip-br);
+}
+.skyhub-feedCard__typepill.tp-Question {
+  background: var(--ask-bg);
+  color: var(--ask-c);
+  border: 1px solid var(--ask-br);
+}
+.skyhub-feedCard__typepill.tp-Story {
+  background: var(--story-bg);
+  color: var(--story-c);
+  border: 1px solid var(--story-br);
+}
+.skyhub-feedCard__typepill.tp-Photo {
+  background: var(--photo-bg);
+  color: var(--photo-c);
+  border: 1px solid var(--photo-br);
+}
+.skyhub-feedCard__typepill.tp-Join-Trip {
+  background: var(--trip-bg);
+  color: var(--trip-c);
+  border: 1px solid var(--trip-br);
 }
 
 .skyhub-feedCard__menu {
   border: none;
   background: transparent;
-  color: var(--sh-text-faint);
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+  color: var(--sh-faint);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   cursor: pointer;
-  display: grid;
-  place-items: center;
-  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
   flex-shrink: 0;
-  transition: background var(--sh-t), color var(--sh-t);
-  touch-action: manipulation;
+  transition: background var(--t-fast), color var(--t-fast);
 }
-
 .skyhub-feedCard__menu:hover {
-  background: rgba(255, 255, 255, 0.65);
+  background: var(--sh-s3);
   color: var(--sh-text);
 }
 
 .skyhub-feedCard__body {
-  margin: 12px 0 12px 56px;
+  margin: 12px 0 0 57px;
 }
-
 .skyhub-feedCard__text {
   margin: 0;
-  color: var(--sh-text);
-  line-height: 1.72;
+  color: var(--sh-soft);
+  line-height: 1.68;
   font-size: 0.97rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
+/* Image — premium bordered */
 .skyhub-feedCard__media {
   margin-top: 12px;
-  border-radius: 16px;
+  border-radius: var(--r-md);
   overflow: hidden;
-  border: 1px solid var(--sh-border);
+  border: 1px solid var(--sh-line2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
-
 .skyhub-feedCard__media img {
   display: block;
   width: 100%;
@@ -736,160 +816,141 @@
   object-fit: cover;
 }
 
+/* Tags */
 .skyhub-feedCard__tags {
   margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-
 .skyhub-feedCard__tag {
-  padding: 4px 10px;
-  border-radius: var(--sh-r-pill);
-  background: rgba(124, 92, 252, 0.08);
-  border: 1px solid rgba(124, 92, 252, 0.16);
-  color: var(--sh-purple);
-  font-size: 0.78rem;
+  padding: 3px 11px;
+  border-radius: var(--r-pill);
+  background: var(--sh-odim);
+  color: var(--sh-orange2);
+  font-size: 0.76rem;
   font-weight: 700;
+  transition: background var(--t-fast);
+}
+.skyhub-feedCard__tag:hover {
+  background: rgba(255, 107, 43, 0.22);
 }
 
+/* Action bar */
 .skyhub-feedCard__footer {
-  margin-left: 56px;
+  margin: 12px 0 0 57px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   flex-wrap: wrap;
-  padding-top: 11px;
-  border-top: 1px solid rgba(200, 170, 140, 0.2);
-  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sh-line);
 }
-
 .skyhub-feedCard__actions {
   display: flex;
   align-items: center;
   gap: 2px;
 }
-
 .skyhub-feedCard__action {
   border: none;
   background: transparent;
-  min-height: 44px;
+  min-height: 36px;
   padding: 0 10px;
-  border-radius: var(--sh-r-pill);
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: var(--sh-text-faint);
+  gap: 5px;
+  color: var(--sh-muted);
   font-family: "DM Sans", sans-serif;
   font-weight: 600;
-  font-size: 0.84rem;
+  font-size: 0.83rem;
   cursor: pointer;
-  transition: all var(--sh-t);
-  touch-action: manipulation;
+  transition: all var(--t-fast);
 }
-
 .skyhub-feedCard__action:hover {
-  background: rgba(255, 255, 255, 0.65);
-  color: var(--sh-text-soft);
+  background: var(--sh-s3);
+  color: var(--sh-text);
+  transform: scale(1.04);
 }
-
 .skyhub-feedCard__action.is-liked {
-  color: var(--sh-red);
-  background: rgba(255, 92, 122, 0.1);
-  animation: heartPop 0.3s ease;
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  animation: heartPop 0.28s var(--ease);
 }
-
 .skyhub-feedCard__action.is-bookmarked {
-  color: var(--sh-orange);
-  background: var(--sh-orange-dim);
+  color: var(--sh-purple);
+  background: var(--sh-pdim);
 }
 
 .skyhub-feedCard__meta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--sh-text-faint);
-  font-size: 0.79rem;
+  gap: 7px;
+  color: var(--sh-faint);
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
-/* ══════════════════════════════════════════════════════════
-   ANIMATIONS
-══════════════════════════════════════════════════════════ */
-@keyframes shPulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
-  }
-  70% {
-    box-shadow: 0 0 0 9px rgba(255, 255, 255, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
-  }
+/* ================================================================
+   EMPTY STATE
+================================================================ */
+.skyhub-emptyState {
+  padding: 56px 24px;
+  text-align: center;
+}
+.skyhub-emptyState h3 {
+  font-family: "Sora", sans-serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--sh-text);
+  margin: 0 0 8px;
+}
+.skyhub-emptyState p {
+  font-size: 0.88rem;
+  color: var(--sh-muted);
+  margin: 0;
 }
 
+/* ================================================================
+   ANIMATIONS
+================================================================ */
 @keyframes heartPop {
   0% {
     transform: scale(1);
   }
-  35% {
-    transform: scale(1.28);
+  40% {
+    transform: scale(1.35);
   }
   70% {
-    transform: scale(0.93);
+    transform: scale(0.88);
   }
   100% {
     transform: scale(1);
   }
 }
-
-@keyframes slideDown {
+@keyframes fadeSlideUp {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.skyhub-feedCard {
+  animation: fadeSlideUp 0.25s var(--ease2) both;
 }
 
-@keyframes pulseDot {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(0.8);
-  }
-}
-
-/* ══════════════════════════════════════════════════════════
+/* ================================================================
    RESPONSIVE
-══════════════════════════════════════════════════════════ */
-@media (max-width: 1200px) {
+================================================================ */
+@media (max-width: 1100px) {
   .skyhub-contentGrid {
-    grid-template-columns: 1fr 290px;
-  }
-  .skyhub-toolbar {
-    grid-template-columns: 1fr 290px;
+    grid-template-columns: 1fr 268px;
   }
 }
-
 @media (max-width: 1024px) {
   .skyhub-topHeaderInner {
     grid-template-columns: 1fr;
@@ -897,62 +958,26 @@
   .skyhub-contentGrid {
     grid-template-columns: 1fr;
   }
-  .skyhub-toolbar {
-    grid-template-columns: 1fr;
-  }
   .skyhub-rightRail {
     position: static;
   }
 }
-
 @media (max-width: 768px) {
   .skyhub-main {
-    padding-left: 14px;
-    padding-right: 14px;
+    padding: 0 14px 60px;
   }
   .skyhub-topHeader {
-    padding-left: 16px;
-    padding-right: 16px;
+    padding: calc(var(--sh-nav-h) + 18px) 16px 0;
+  }
+  .skyhub-navbar {
+    margin: 0 -14px;
+    padding: 0 14px;
   }
   .skyhub-pageTitle {
-    font-size: clamp(2.4rem, 9vw, 3.5rem);
+    font-size: clamp(2.6rem, 10vw, 3.8rem);
   }
   .skyhub-feedCard__body,
   .skyhub-feedCard__footer {
     margin-left: 0;
-  }
-}
-
-/* ✅ FIX c5: Mobile nav height corrections.
-   The navbar shrinks on smaller screens — update --sh-nav-h
-   to match so the header padding stays correct. */
-@media (max-width: 575px) {
-  :root {
-    /* Navbar: 60px bar + 10px padding + 8px buffer */
-    --sh-nav-h: 78px;
-  }
-}
-
-@media (max-width: 480px) {
-  :root {
-    /* Navbar: 58px bar + 8px padding + 8px buffer */
-    --sh-nav-h: 74px;
-  }
-}
-
-@media (max-width: 540px) {
-  .skyhub-topStats {
-    gap: 8px;
-  }
-  .skyhub-statItem {
-    min-width: calc(50% - 4px);
-  }
-  .skyhub-onlinePill {
-    width: 100%;
-    justify-content: center;
-  }
-  .skyhub-filterChip {
-    font-size: 0.82rem;
-    padding: 6px 14px;
   }
 }

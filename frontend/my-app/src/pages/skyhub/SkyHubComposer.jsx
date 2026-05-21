@@ -1,21 +1,13 @@
-import React, { useRef, useState, useCallback } from "react";
-import "@/styles/SkyHubComposer.css";
-import { Button, Input, Segmented, Tag, message } from "antd";
+import React, { useRef, useState, useEffect } from "react";
+import { Button, message } from "antd";
 import {
   EnvironmentOutlined,
-  SendOutlined,
-  CompassOutlined,
-  InfoCircleOutlined,
   CameraOutlined,
-  CloseOutlined,
-  PictureOutlined,
+  CloseCircleFilled,
+  SendOutlined,
 } from "@ant-design/icons";
-import { skyhubPostTypes } from "./skyhubData";
 
-const { TextArea } = Input;
-
-const MAX_PHOTOS = 4;
-const MAX_FILE_MB = 10;
+const POST_TYPES = ["Tip", "Question", "Story", "Photo", "Join Trip"];
 
 export default function SkyHubComposer({
   composerText,
@@ -25,280 +17,337 @@ export default function SkyHubComposer({
   destination,
   setDestination,
   onCreatePost,
-  creatingPost = false,
-  // Optional: parent receives selected File objects for upload
+  creatingPost,
   onPhotosChange,
+  user = {},
 }) {
-  const charCount = composerText.length;
-  const maxRecommended = 280;
+  const fileRef = useRef(null);
+  const [previews, setPreviews] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [focused, setFocused] = useState(false);
 
-  const [photos, setPhotos] = useState([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef(null);
+  useEffect(() => () => previews.forEach(URL.revokeObjectURL), []); // eslint-disable-line
 
-  const handleFiles = useCallback(
-    (files) => {
-      const valid = Array.from(files).filter((f) => {
-        if (!f.type.startsWith("image/")) {
-          message.error(`${f.name} is not an image.`);
-          return false;
-        }
-        if (f.size > MAX_FILE_MB * 1024 * 1024) {
-          message.error(`${f.name} exceeds ${MAX_FILE_MB}MB limit.`);
-          return false;
-        }
-        return true;
-      });
-
-      const slots = MAX_PHOTOS - photos.length;
-      if (slots <= 0) {
-        message.warning(`Maximum ${MAX_PHOTOS} photos per post.`);
-        return;
-      }
-      if (valid.length > slots) {
-        message.warning(
-          `Only ${slots} more photo${slots > 1 ? "s" : ""} allowed.`
-        );
-      }
-
-      valid.slice(0, slots).forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setPhotos((prev) => {
-            const next = [
-              ...prev,
-              {
-                id: `${Date.now()}-${Math.random()}`,
-                preview: e.target.result,
-                file,
-              },
-            ];
-            onPhotosChange?.(next.map((p) => p.file));
-            return next;
-          });
-        };
-        reader.readAsDataURL(file);
-      });
-    },
-    [photos.length, onPhotosChange]
-  );
-
-  const removePhoto = (id) => {
-    setPhotos((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      onPhotosChange?.(next.map((p) => p.file));
-      return next;
-    });
+  const handleFileChange = (e) => {
+    const incoming = Array.from(e.target.files || []);
+    if (!incoming.length) return;
+    const remaining = 4 - files.length;
+    if (remaining <= 0) {
+      message.warning("Max 4 photos per post.");
+      return;
+    }
+    const accepted = incoming.slice(0, remaining);
+    const newPreviews = accepted.map((f) => URL.createObjectURL(f));
+    const nextFiles = [...files, ...accepted];
+    const nextPreviews = [...previews, ...newPreviews];
+    setFiles(nextFiles);
+    setPreviews(nextPreviews);
+    onPhotosChange?.(nextFiles);
+    e.target.value = "";
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFiles(e.dataTransfer.files);
+  const removePhoto = (idx) => {
+    URL.revokeObjectURL(previews[idx]);
+    const nextFiles = files.filter((_, i) => i !== idx);
+    const nextPreviews = previews.filter((_, i) => i !== idx);
+    setFiles(nextFiles);
+    setPreviews(nextPreviews);
+    onPhotosChange?.(nextFiles);
   };
 
   const handlePost = () => {
-    onCreatePost();
-    setTimeout(() => {
-      setPhotos([]);
-      onPhotosChange?.([]);
-    }, 300);
+    if (!composerText.trim() && files.length === 0) {
+      message.warning("Write something or add a photo.");
+      return;
+    }
+    onCreatePost?.();
+    previews.forEach(URL.revokeObjectURL);
+    setFiles([]);
+    setPreviews([]);
   };
 
+  const charsLeft = 280 - composerText.length;
+  const canPost =
+    (composerText.trim().length > 0 || files.length > 0) && !creatingPost;
+
+  // Avatar
+  const initials = (
+    user?.initials || (user?.name ? user.name.slice(0, 2) : "ME")
+  ).toUpperCase();
+  const AvatarEl = user?.avatar ? (
+    <img
+      src={user.avatar}
+      alt={user.name || "You"}
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        objectFit: "cover",
+        flexShrink: 0,
+        border: "2px solid rgba(255,138,42,0.5)",
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        flexShrink: 0,
+        background: "linear-gradient(135deg,#ff8a2a,#7c3aed)",
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: 800,
+        fontSize: 14,
+        userSelect: "none",
+        border: "2px solid rgba(255,138,42,0.3)",
+      }}
+    >
+      {initials}
+    </div>
+  );
+
   return (
-    <section className="skyhub-composerCard">
-      {/* ── Header ── */}
-      <div className="skyhub-composerTop">
-        <div className="skyhub-composerTitleWrap">
-          <h2 className="skyhub-sectionTitle">Share with the community</h2>
-          <p className="skyhub-sectionSubtext">
-            Post travel tips, ask smart questions, and help other travelers move
-            better.
-          </p>
-        </div>
-      </div>
+    <div
+      style={{
+        background: "rgba(30, 18, 58, 0.75)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        border: focused
+          ? "1px solid rgba(255,138,42,0.4)"
+          : "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 14,
+        padding: "14px 16px 12px",
+        marginBottom: 10,
+        transition: "border-color 0.2s",
+      }}
+    >
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        {AvatarEl}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Post type pills — only when focused */}
+          {focused && (
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                overflowX: "auto",
+                scrollbarWidth: "none",
+                paddingBottom: 8,
+              }}
+            >
+              {POST_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setActivePostType(t)}
+                  style={{
+                    padding: "3px 12px",
+                    borderRadius: 99,
+                    whiteSpace: "nowrap",
+                    border: "1px solid",
+                    borderColor:
+                      activePostType === t
+                        ? "#ff8a2a"
+                        : "rgba(255,255,255,0.15)",
+                    background:
+                      activePostType === t
+                        ? "rgba(255,138,42,0.2)"
+                        : "rgba(255,255,255,0.05)",
+                    color:
+                      activePostType === t
+                        ? "#ff8a2a"
+                        : "rgba(255,255,255,0.5)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
 
-      {/* ── Post type ── */}
-      <div className="skyhub-composerTypeRow">
-        <div className="skyhub-toolbarLabel">Post type</div>
-        <Segmented
-          options={skyhubPostTypes}
-          value={activePostType}
-          onChange={setActivePostType}
-          block
-        />
-      </div>
-
-      {/* ── Inputs ── */}
-      <div className="skyhub-composerInputs">
-        <div className="skyhub-composerField">
-          <div className="skyhub-composerFieldLabel">Destination</div>
-          <Input
-            size="large"
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            placeholder="Add destination or city"
-            prefix={<EnvironmentOutlined />}
-            className="skyhub-input"
-          />
-        </div>
-
-        <div className="skyhub-composerField">
-          <div className="skyhub-composerFieldLabel">Your post</div>
-          <TextArea
+          {/* Textarea */}
+          <textarea
             value={composerText}
             onChange={(e) => setComposerText(e.target.value)}
-            placeholder="Share a travel tip, story, question, meetup idea, or something useful..."
-            autoSize={{ minRows: 5, maxRows: 8 }}
-            className="skyhub-textarea"
+            onFocus={() => setFocused(true)}
+            placeholder="Share a travel tip, story, question, or meetup idea..."
+            rows={focused ? 3 : 2}
+            maxLength={280}
+            style={{
+              width: "100%",
+              border: "none",
+              outline: "none",
+              resize: "none",
+              fontSize: 15,
+              lineHeight: 1.55,
+              color: "#fff",
+              background: "transparent",
+              fontFamily: "inherit",
+              boxSizing: "border-box",
+              caretColor: "#ff8a2a",
+            }}
           />
-        </div>
 
-        {/* ── Photos ── */}
-        <div className="skyhub-composerField">
-          <div className="skyhub-composerFieldLabel">
-            <PictureOutlined style={{ marginRight: 6 }} />
-            Photos
-            {photos.length > 0 && (
-              <span className="skyhub-photoCount">
-                {photos.length}/{MAX_PHOTOS}
-              </span>
-            )}
-          </div>
+          {/* Destination — only when focused */}
+          {focused && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                paddingTop: 8,
+                marginTop: 4,
+              }}
+            >
+              <EnvironmentOutlined style={{ color: "#ff8a2a", fontSize: 14 }} />
+              <input
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                placeholder="Add destination or city..."
+                style={{
+                  flex: 1,
+                  border: "none",
+                  outline: "none",
+                  fontSize: 14,
+                  color: "rgba(255,255,255,0.65)",
+                  background: "transparent",
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
+          )}
 
-          {/* Preview grid */}
-          {photos.length > 0 && (
-            <div className="skyhub-photoGrid">
-              {photos.map((photo) => (
-                <div key={photo.id} className="skyhub-photoThumb">
-                  <img src={photo.preview} alt="" />
+          {/* Image previews */}
+          {previews.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              {previews.map((src, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  <img
+                    src={src}
+                    alt={`preview-${i}`}
+                    style={{
+                      width: previews.length === 1 ? "100%" : 80,
+                      maxWidth: previews.length === 1 ? "100%" : 80,
+                      height: previews.length === 1 ? 180 : 80,
+                      objectFit: "cover",
+                      borderRadius: 10,
+                      border: "2px solid rgba(255,138,42,0.6)",
+                    }}
+                  />
                   <button
-                    type="button"
-                    className="skyhub-photoRemove"
-                    onClick={() => removePhoto(photo.id)}
-                    aria-label="Remove photo"
+                    onClick={() => removePhoto(i)}
+                    style={{
+                      position: "absolute",
+                      top: -8,
+                      right: -8,
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
                   >
-                    <CloseOutlined />
+                    <CloseCircleFilled
+                      style={{ fontSize: 20, color: "#ff4d4f" }}
+                    />
                   </button>
                 </div>
               ))}
-              {photos.length < MAX_PHOTOS && (
-                <button
-                  type="button"
-                  className="skyhub-photoAddMore"
-                  onClick={() => fileInputRef.current?.click()}
+            </div>
+          )}
+
+          {/* Actions row */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: 10,
+              borderTop: focused ? "1px solid rgba(255,255,255,0.07)" : "none",
+              paddingTop: focused ? 10 : 0,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={files.length >= 4}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: files.length < 4 ? "pointer" : "not-allowed",
+                  color: files.length < 4 ? "#ff8a2a" : "rgba(255,255,255,0.2)",
+                  fontSize: 20,
+                  padding: "4px 6px",
+                  display: "flex",
+                  alignItems: "center",
+                  transition: "color 0.15s",
+                }}
+                title="Add photos"
+              >
+                <CameraOutlined />
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/heic,image/webp"
+                multiple
+                style={{ display: "none" }}
+                onChange={handleFileChange}
+              />
+              {focused && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color:
+                      charsLeft < 30
+                        ? charsLeft < 0
+                          ? "#ff4d4f"
+                          : "#ff8a2a"
+                        : "rgba(255,255,255,0.25)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
                 >
-                  <span className="skyhub-photoAddMore-icon">+</span>
-                  <span className="skyhub-photoAddMore-label">Add more</span>
-                </button>
+                  {charsLeft}
+                </span>
               )}
             </div>
-          )}
-
-          {/* Drop zone — shown when no photos */}
-          {photos.length === 0 && (
-            <div
-              className={`skyhub-dropZone${isDragging ? " is-dragging" : ""}`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              loading={creatingPost}
+              disabled={!canPost}
+              onClick={handlePost}
+              style={{
+                background: canPost ? "#ff8a2a" : "rgba(255,138,42,0.3)",
+                borderColor: "transparent",
+                borderRadius: 99,
+                fontWeight: 700,
+                fontSize: 14,
+                height: 36,
+                paddingInline: 20,
+                color: canPost ? "#fff" : "rgba(255,255,255,0.3)",
               }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) =>
-                e.key === "Enter" && fileInputRef.current?.click()
-              }
             >
-              <CameraOutlined className="skyhub-dropZone-icon" />
-              <div className="skyhub-dropZone-title">
-                Add photos to your post
-              </div>
-              <div className="skyhub-dropZone-sub">
-                Tap to browse · or drag &amp; drop
-              </div>
-              <div className="skyhub-dropZone-hint">
-                JPG, PNG, HEIC · max {MAX_FILE_MB}MB · up to {MAX_PHOTOS} photos
-              </div>
-            </div>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: "none" }}
-            onChange={(e) => {
-              handleFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-        </div>
-      </div>
-
-      {/* ── Meta row ── */}
-      <div className="skyhub-composerMetaRow">
-        <div className="skyhub-composerHints">
-          <Tag className="skyhub-softTag" icon={<CompassOutlined />}>
-            Travel-first
-          </Tag>
-          <Tag className="skyhub-softTag" icon={<InfoCircleOutlined />}>
-            Helpful posts win
-          </Tag>
-          <Tag className="skyhub-softTag">{activePostType}</Tag>
-        </div>
-        <div
-          className={`skyhub-charCount${
-            charCount > maxRecommended ? " is-over" : ""
-          }`}
-        >
-          {charCount}/{maxRecommended}
-        </div>
-      </div>
-
-      {/* ── Footer ── */}
-      <div className="skyhub-composerFooter">
-        {/* Visible photo button — always in toolbar */}
-        <div className="skyhub-composerToolbar">
-          <button
-            type="button"
-            className="skyhub-toolbarBtn"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={photos.length >= MAX_PHOTOS}
-            title={
-              photos.length >= MAX_PHOTOS
-                ? `Max ${MAX_PHOTOS} photos`
-                : "Add a photo"
-            }
-          >
-            <CameraOutlined />
-            <span>Photo</span>
-            {photos.length > 0 && (
-              <span className="skyhub-toolbarBtn-badge">{photos.length}</span>
-            )}
-          </button>
-        </div>
-
-        <div className="skyhub-composerFooterRight">
-          <div className="skyhub-composerHelperText">
-            Keep it useful, clear, and travel-related so the right people can
-            find it.
+              Post to SkyHub
+            </Button>
           </div>
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handlePost}
-            className="skyhub-primaryBtn"
-            loading={creatingPost}
-            disabled={!composerText.trim() && photos.length === 0}
-          >
-            Post to SkyHub
-          </Button>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

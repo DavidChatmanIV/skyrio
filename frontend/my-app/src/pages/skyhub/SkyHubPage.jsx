@@ -19,7 +19,6 @@ import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import { apiUrl } from "@/lib/api";
 
-// ── Map backend post shape to local shape ──────────────────────
 function mapBackendPost(post) {
   return {
     id: post._id,
@@ -32,7 +31,13 @@ function mapBackendPost(post) {
     timeAgo: post.timeAgo || "now",
     text: post.text || "",
     image: post.image || "",
-    images: Array.isArray(post.images) ? post.images : [],
+    // Prefer images[] array; fall back to single image
+    images:
+      Array.isArray(post.images) && post.images.length > 0
+        ? post.images
+        : post.image
+        ? [post.image]
+        : [],
     likes: post.likesCount || 0,
     comments: post.commentsCount || 0,
     shares: post.sharesCount || 0,
@@ -58,16 +63,11 @@ export default function SkyHubPage() {
   const [creatingPost, setCreatingPost] = useState(false);
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState(null);
-
-  // ── Live data: trending destinations from API ──────────────
   const [trendingDestinations, setTrendingDestinations] = useState([]);
   const [loadingTrending, setLoadingTrending] = useState(false);
-
-  // ── Live data: active travelers from API ───────────────────
   const [activeTravelers, setActiveTravelers] = useState([]);
   const [loadingTravelers, setLoadingTravelers] = useState(false);
 
-  // ── Fetch feed ─────────────────────────────────────────────
   const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
@@ -76,19 +76,14 @@ export default function SkyHubPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to load feed");
-      const mappedPosts = Array.isArray(data.posts)
-        ? data.posts.map(mapBackendPost)
-        : [];
-      setPosts(mappedPosts);
+      setPosts(Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : []);
     } catch (err) {
-      console.error("fetchFeed error:", err);
       message.error(err.message || "Could not load SkyHub feed.");
     } finally {
       setLoadingFeed(false);
     }
   }, []);
 
-  // ── Fetch trending destinations ────────────────────────────
   const fetchTrending = useCallback(async () => {
     try {
       setLoadingTrending(true);
@@ -96,10 +91,8 @@ export default function SkyHubPage() {
         credentials: "include",
       });
       const data = await res.json();
-      if (res.ok && Array.isArray(data.destinations)) {
+      if (res.ok && Array.isArray(data.destinations))
         setTrendingDestinations(data.destinations);
-      }
-      // Silently fail — sidebar is non-critical
     } catch (err) {
       console.error("fetchTrending error:", err);
     } finally {
@@ -107,7 +100,6 @@ export default function SkyHubPage() {
     }
   }, []);
 
-  // ── Fetch active travelers ─────────────────────────────────
   const fetchActiveTravelers = useCallback(async () => {
     try {
       setLoadingTravelers(true);
@@ -115,10 +107,8 @@ export default function SkyHubPage() {
         credentials: "include",
       });
       const data = await res.json();
-      if (res.ok && Array.isArray(data.travelers)) {
+      if (res.ok && Array.isArray(data.travelers))
         setActiveTravelers(data.travelers);
-      }
-      // Silently fail — sidebar is non-critical
     } catch (err) {
       console.error("fetchActiveTravelers error:", err);
     } finally {
@@ -132,7 +122,6 @@ export default function SkyHubPage() {
     fetchActiveTravelers();
   }, [fetchFeed, fetchTrending, fetchActiveTravelers]);
 
-  // ── Filtered posts ─────────────────────────────────────────
   const visiblePosts = useMemo(() => {
     return posts.filter((post) => {
       const search = searchValue.toLowerCase();
@@ -145,7 +134,7 @@ export default function SkyHubPage() {
       const matchesFilter =
         activeFilter === "All" ||
         (post.tags || []).some(
-          (tag) => tag.toLowerCase() === activeFilter.toLowerCase()
+          (t) => t.toLowerCase() === activeFilter.toLowerCase()
         ) ||
         (post.type || "").toLowerCase() === activeFilter.toLowerCase();
       const matchesTab =
@@ -160,7 +149,6 @@ export default function SkyHubPage() {
     });
   }, [posts, searchValue, activeFilter, activeTab]);
 
-  // ── Create post (with optional photo upload) ───────────────
   const handleCreatePost = async () => {
     if (!composerText.trim() && composerPhotos.length === 0) {
       message.warning("Write something or add a photo before posting.");
@@ -168,8 +156,6 @@ export default function SkyHubPage() {
     }
     try {
       setCreatingPost(true);
-
-      // Upload photos first if any
       let uploadedImageUrls = [];
       if (composerPhotos.length > 0) {
         const token = localStorage.getItem("token");
@@ -194,14 +180,11 @@ export default function SkyHubPage() {
         const failed = uploadResults.filter(
           (r) => r.status === "rejected"
         ).length;
-        if (failed > 0) {
+        if (failed > 0)
           message.warning(
             `${failed} photo${failed > 1 ? "s" : ""} failed to upload.`
           );
-        }
       }
-
-      // Create the post
       const res = await fetch(apiUrl("/api/skyhub/posts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -210,31 +193,35 @@ export default function SkyHubPage() {
           text: composerText.trim(),
           type: activePostType,
           destination: destination.trim(),
-          // Send images array — backend should support this field
           images: uploadedImageUrls,
-          // Also send first image as `image` for backwards compat
           image: uploadedImageUrls[0] || "",
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to create post");
 
-      const newPost = mapBackendPost(data.post);
-      setPosts((prev) => [newPost, ...prev]);
+      // Inject uploaded URLs so images appear immediately in feed
+      const postWithImages = {
+        ...data.post,
+        images:
+          uploadedImageUrls.length > 0
+            ? uploadedImageUrls
+            : data.post.images || [],
+        image: uploadedImageUrls[0] || data.post.image || "",
+      };
+      setPosts((prev) => [mapBackendPost(postWithImages), ...prev]);
       setComposerText("");
       setDestination("");
       setActivePostType("Tip");
       setComposerPhotos([]);
-      message.success("Posted to SkyHub.");
+      message.success("Posted to SkyHub! ✈️");
     } catch (err) {
-      console.error("handleCreatePost error:", err);
       message.error(err.message || "Could not create post.");
     } finally {
       setCreatingPost(false);
     }
   };
 
-  // ── Like / Save / Comments / Report ───────────────────────
   const handleToggleLike = async (postId) => {
     try {
       const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}/like`), {
@@ -244,18 +231,13 @@ export default function SkyHubPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to like post");
       setPosts((prev) =>
-        prev.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                liked: !!data.liked,
-                likes: data.likesCount ?? post.likes,
-              }
-            : post
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, liked: !!data.liked, likes: data.likesCount ?? p.likes }
+            : p
         )
       );
     } catch (err) {
-      console.error("handleToggleLike error:", err);
       message.error(err.message || "Could not update like.");
     }
   };
@@ -269,19 +251,14 @@ export default function SkyHubPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to save post");
       setPosts((prev) =>
-        prev.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                saved: !!data.saved,
-                saves: data.savesCount ?? post.saves,
-              }
-            : post
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, saved: !!data.saved, saves: data.savesCount ?? p.saves }
+            : p
         )
       );
       message.success(data.saved ? "Post saved." : "Post removed from saved.");
     } catch (err) {
-      console.error("handleToggleSave error:", err);
       message.error(err.message || "Could not update saved state.");
     }
   };
@@ -303,33 +280,32 @@ export default function SkyHubPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to report post");
-      message.success("Post reported. Thanks for helping keep SkyHub safe.");
+      message.success("Post reported. Thanks for keeping SkyHub safe.");
     } catch (err) {
-      console.error("handleReportPost error:", err);
       message.error(err.message || "Could not report post.");
     }
   };
 
   const refreshPostComments = (postId, commentCount) => {
     setPosts((prev) =>
-      prev.map((post) =>
-        post.id === postId
+      prev.map((p) =>
+        p.id === postId
           ? {
-              ...post,
+              ...p,
               comments:
-                typeof commentCount === "number" ? commentCount : post.comments,
+                typeof commentCount === "number" ? commentCount : p.comments,
             }
-          : post
+          : p
       )
     );
   };
 
-  // ── Render ─────────────────────────────────────────────────
   return (
     <div
       className="skyhub-page"
       style={{ backgroundImage: `url(${heroBeach})` }}
     >
+      {/* ── HERO HEADER ── */}
       <header className="skyhub-topHeader">
         <div className="skyhub-topHeaderOverlay" />
         <div className="skyhub-topHeaderInner">
@@ -374,8 +350,6 @@ export default function SkyHubPage() {
             </Button>
           </div>
         </div>
-
-        {/* Live stats from skyhubData constants (not mock) */}
         <div className="skyhub-topStats">
           {skyhubStats.map((item) => (
             <div key={item.id} className="skyhub-statItem">
@@ -387,49 +361,45 @@ export default function SkyHubPage() {
         </div>
       </header>
 
+      {/* ── MAIN ── */}
       <main className="skyhub-main">
-        {/* ── Filter toolbar ── */}
-        <section className="skyhub-toolbar">
-          <div className="skyhub-toolbarBlock">
-            <div className="skyhub-toolbarLabel">Browse Feed</div>
-            <div className="skyhub-filterRow">
-              {skyhubTabs.map((tab) => (
-                <button
-                  key={tab.value ?? tab}
-                  type="button"
-                  className={`skyhub-filterChip${
-                    activeTab === (tab.value ?? tab) ? " is-selected" : ""
-                  }`}
-                  onClick={() => setActiveTab(tab.value ?? tab)}
-                >
-                  {tab.label ?? tab}
-                </button>
-              ))}
-            </div>
+        {/* Sticky nav bar — tabs + vibes in one compact row */}
+        <div className="skyhub-navbar">
+          <div className="skyhub-navbar-tabs">
+            {skyhubTabs.map((tab) => (
+              <button
+                key={tab.value ?? tab}
+                type="button"
+                className={`skyhub-navbar-tab${
+                  activeTab === (tab.value ?? tab) ? " is-active" : ""
+                }`}
+                onClick={() => setActiveTab(tab.value ?? tab)}
+              >
+                {tab.label ?? tab}
+              </button>
+            ))}
           </div>
-          <div className="skyhub-toolbarBlock">
-            <div className="skyhub-toolbarLabel">Filter by Vibe</div>
-            <div className="skyhub-filterRow">
-              {skyhubFilters.map((filter) => (
+          <div className="skyhub-navbar-vibes">
+            {skyhubFilters
+              .filter((f) => f !== "Team Travel")
+              .map((filter) => (
                 <button
                   key={filter}
                   type="button"
-                  className={`skyhub-filterChip${
-                    activeFilter === filter ? " is-selected" : ""
+                  className={`skyhub-vibe-chip${
+                    activeFilter === filter ? " is-on" : ""
                   }`}
                   onClick={() => setActiveFilter(filter)}
                 >
                   {filter}
                 </button>
               ))}
-            </div>
           </div>
-        </section>
+        </div>
 
-        {/* ── Content grid ── */}
+        {/* Content grid */}
         <section className="skyhub-contentGrid">
           <div className="skyhub-leftRail">
-            {/* ── Composer with photo upload ── */}
             <SkyHubComposer
               composerText={composerText}
               setComposerText={setComposerText}
@@ -442,7 +412,6 @@ export default function SkyHubPage() {
               onPhotosChange={setComposerPhotos}
             />
 
-            {/* ── Feed ── */}
             <section className="skyhub-feedSection">
               <div className="skyhub-feedSectionHeader">
                 <div>
@@ -453,7 +422,7 @@ export default function SkyHubPage() {
                 </div>
                 <Badge
                   count={visiblePosts.length}
-                  style={{ backgroundColor: "#ff8a2a" }}
+                  style={{ backgroundColor: "#ff7a35" }}
                 />
               </div>
               <div className="skyhub-feedList">
@@ -464,14 +433,19 @@ export default function SkyHubPage() {
                   </div>
                 ) : visiblePosts.length ? (
                   visiblePosts.map((post) => (
-                    <SkyHubFeedCard
+                    <div
                       key={post.id}
-                      post={post}
-                      onToggleLike={handleToggleLike}
-                      onToggleSave={handleToggleSave}
-                      onOpenComments={handleOpenComments}
-                      onReportPost={handleReportPost}
-                    />
+                      data-type={post.type}
+                      style={{ position: "relative" }}
+                    >
+                      <SkyHubFeedCard
+                        post={post}
+                        onToggleLike={handleToggleLike}
+                        onToggleSave={handleToggleSave}
+                        onOpenComments={handleOpenComments}
+                        onReportPost={handleReportPost}
+                      />
+                    </div>
                   ))
                 ) : (
                   <div className="skyhub-emptyState">
@@ -486,7 +460,6 @@ export default function SkyHubPage() {
             </section>
           </div>
 
-          {/* ── Sidebar — live data, graceful empty states ── */}
           <aside className="skyhub-rightRail">
             <SkyHubPassportCard />
             <SkyHubTrendingDestinations

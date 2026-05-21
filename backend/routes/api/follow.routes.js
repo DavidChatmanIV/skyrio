@@ -48,6 +48,70 @@ router.get("/search", requireAuth, async (req, res) => {
   }
 });
 
+// ─── GET /api/follow/mine/list ───────────────────────────────
+router.get("/mine/list", requireAuth, async (req, res) => {
+  try {
+    const me = req.user?._id || req.user?.id;
+    const u = await User.findById(me).select("following").lean();
+    return res.json({ ok: true, following: u?.following || [] });
+  } catch (err) {
+    console.error("follow mine error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// ─── GET /api/follow/:userId/followers ───────────────────────
+// Public — returns users who follow this person
+router.get("/:userId/followers", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ ok: false, error: "Invalid user id" });
+    }
+
+    const user = await User.findById(userId)
+      .select("followers")
+      .populate("followers", "username name avatar bio city")
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ ok: false, error: "User not found" });
+    }
+
+    return res.json({ ok: true, users: user.followers || [] });
+  } catch (err) {
+    console.error("get followers error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// ─── GET /api/follow/:userId/following ───────────────────────
+// Public — returns users this person follows
+router.get("/:userId/following", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ ok: false, error: "Invalid user id" });
+    }
+
+    const user = await User.findById(userId)
+      .select("following")
+      .populate("following", "username name avatar bio city")
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ ok: false, error: "User not found" });
+    }
+
+    return res.json({ ok: true, users: user.following || [] });
+  } catch (err) {
+    console.error("get following error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
 // ─── POST /api/follow/:targetUserId ─────────────────────────
 router.post("/:targetUserId", requireAuth, async (req, res) => {
   try {
@@ -120,18 +184,6 @@ router.delete("/:targetUserId", requireAuth, async (req, res) => {
     return res.json({ ok: true, unfollowed: changed });
   } catch (err) {
     console.error("unfollow error:", err);
-    return res.status(500).json({ ok: false, error: "Server error" });
-  }
-});
-
-// ─── GET /api/follow/mine/list ───────────────────────────────
-router.get("/mine/list", requireAuth, async (req, res) => {
-  try {
-    const me = req.user?._id || req.user?.id;
-    const u = await User.findById(me).select("following").lean();
-    return res.json({ ok: true, following: u?.following || [] });
-  } catch (err) {
-    console.error("follow mine error:", err);
     return res.status(500).json({ ok: false, error: "Server error" });
   }
 });
