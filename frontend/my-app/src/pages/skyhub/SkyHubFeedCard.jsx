@@ -1,42 +1,47 @@
 import React, { useState } from "react";
-import {
-  HeartOutlined,
-  HeartFilled,
-  MessageOutlined,
-  RetweetOutlined,
-  StarOutlined,
-  StarFilled,
-  ShareAltOutlined,
-  MoreOutlined,
-  EnvironmentOutlined,
-  FlagOutlined,
-} from "@ant-design/icons";
 import { Dropdown } from "antd";
+import {
+  MoreOutlined,
+  FlagOutlined,
+  DeleteOutlined,
+  EnvironmentOutlined,
+} from "@ant-design/icons";
 
 const TYPE_META = {
-  Tip: { emoji: "💡", color: "#fbbf24" },
-  Story: { emoji: "📖", color: "#34d399" },
-  Question: { emoji: "❓", color: "#60a5fa" },
-  Photo: { emoji: "📷", color: "#f472b6" },
-  "Join Trip": { emoji: "✈️", color: "#a78bfa" },
+  Tip: { e: "💡", c: "#fbbf24", bg: "rgba(251,191,36,0.1)" },
+  Question: { e: "❓", c: "#38bdf8", bg: "rgba(56,189,248,0.1)" },
+  Story: { e: "📖", c: "#34d399", bg: "rgba(52,211,153,0.1)" },
+  Photo: { e: "📷", c: "#f472b6", bg: "rgba(244,114,182,0.1)" },
+  "Join Trip": { e: "✈️", c: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
 };
 
-function PostAvatar({ post }) {
-  const looksLikeUrl = (s) =>
-    typeof s === "string" &&
-    (s.startsWith("http") || s.startsWith("/") || s.startsWith("data:"));
-  if (looksLikeUrl(post.avatar)) {
+const AV_COLORS = [
+  "linear-gradient(135deg,#ff7a35,#e05010)",
+  "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+  "linear-gradient(135deg,#8b5cf6,#6d28d9)",
+  "linear-gradient(135deg,#10b981,#065f46)",
+  "linear-gradient(135deg,#f59e0b,#b45309)",
+];
+
+function Avatar({ name, avatarUrl, size = 44 }) {
+  const init = (name || "T").slice(0, 2).toUpperCase();
+  const color = AV_COLORS[(name || "T").charCodeAt(0) % AV_COLORS.length];
+  if (
+    avatarUrl &&
+    typeof avatarUrl === "string" &&
+    avatarUrl.startsWith("http")
+  ) {
     return (
       <img
-        src={post.avatar}
-        alt={post.author}
+        src={avatarUrl}
+        alt={name}
         style={{
-          width: 42,
-          height: 42,
+          width: size,
+          height: size,
           borderRadius: "50%",
           objectFit: "cover",
           flexShrink: 0,
-          border: "2px solid rgba(255,255,255,0.1)",
+          border: "2px solid rgba(255,255,255,0.15)",
         }}
         onError={(e) => {
           e.target.style.display = "none";
@@ -44,378 +49,258 @@ function PostAvatar({ post }) {
       />
     );
   }
-  const colours = [
-    "#ff8a2a",
-    "#7c3aed",
-    "#0ea5e9",
-    "#10b981",
-    "#e11d48",
-    "#f59e0b",
-  ];
-  const idx = (post.author || "T").charCodeAt(0) % colours.length;
-  const initials = (post.author || "T").slice(0, 2).toUpperCase();
   return (
     <div
       style={{
-        width: 42,
-        height: 42,
+        width: size,
+        height: size,
         borderRadius: "50%",
-        background: colours[idx],
-        color: "#fff",
+        flexShrink: 0,
+        background: color,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         fontWeight: 800,
-        fontSize: 15,
-        flexShrink: 0,
+        fontSize: size * 0.34,
+        color: "#fff",
         userSelect: "none",
       }}
     >
-      {initials}
+      {init}
     </div>
   );
 }
 
+// ── Twitter-style image grid ───────────────────────────────
 function ImageGrid({ images }) {
   const [failed, setFailed] = useState({});
-  if (!images || images.length === 0) return null;
-  const visible = images.filter((_, i) => !failed[i]);
-  if (visible.length === 0) return null;
-  const mark = (i) => setFailed((f) => ({ ...f, [i]: true }));
-  const base = {
-    objectFit: "cover",
-    width: "100%",
-    height: "100%",
-    display: "block",
-  };
-
-  if (visible.length === 1)
-    return (
-      <div style={{ borderRadius: 12, overflow: "hidden", marginTop: 10 }}>
-        <img
-          src={visible[0]}
-          alt="post"
-          onError={() => mark(0)}
-          style={{ ...base, height: 260, borderRadius: 12 }}
-        />
-      </div>
-    );
-
-  if (visible.length === 2)
-    return (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 3,
-          borderRadius: 12,
-          overflow: "hidden",
-          marginTop: 10,
-          height: 200,
-        }}
-      >
-        {visible.map((src, i) => (
-          <img key={i} src={src} onError={() => mark(i)} style={base} alt="" />
-        ))}
-      </div>
-    );
-
-  if (visible.length === 3)
-    return (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gridTemplateRows: "1fr 1fr",
-          gap: 3,
-          borderRadius: 12,
-          overflow: "hidden",
-          marginTop: 10,
-          height: 220,
-        }}
-      >
-        <img
-          src={visible[0]}
-          onError={() => mark(0)}
-          style={{ ...base, gridRow: "1/3" }}
-          alt=""
-        />
-        <img src={visible[1]} onError={() => mark(1)} style={base} alt="" />
-        <img src={visible[2]} onError={() => mark(2)} style={base} alt="" />
-      </div>
-    );
-
-  return (
+  if (!images?.length) return null;
+  const vis = images.filter((_, i) => !failed[i]);
+  if (!vis.length) return null;
+  const fail = (i) => setFailed((f) => ({ ...f, [i]: true }));
+  const img = (src, i, style = {}) => (
+    <img
+      key={i}
+      src={src}
+      alt=""
+      loading="lazy"
+      onError={() => fail(i)}
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
+        ...style,
+      }}
+    />
+  );
+  const wrap = (children, gridStyle = {}) => (
     <div
       style={{
+        marginTop: 10,
+        borderRadius: 12,
+        overflow: "hidden",
+        ...gridStyle,
+      }}
+    >
+      {children}
+    </div>
+  );
+  if (vis.length === 1)
+    return wrap(img(vis[0], 0, { height: 280, borderRadius: 12 }));
+  if (vis.length === 2)
+    return wrap(
+      vis.map((s, i) => img(s, i)),
+      { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3, height: 210 }
+    );
+  if (vis.length === 3)
+    return wrap(
+      vis.map((s, i) => img(s, i, i === 0 ? { gridRow: "1/3" } : {})),
+      {
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
         gridTemplateRows: "1fr 1fr",
         gap: 3,
-        borderRadius: 12,
-        overflow: "hidden",
-        marginTop: 10,
-        height: 240,
-      }}
-    >
-      {visible.slice(0, 4).map((src, i) => (
-        <img key={i} src={src} onError={() => mark(i)} style={base} alt="" />
-      ))}
-    </div>
+        height: 230,
+      }
+    );
+  return wrap(
+    vis.slice(0, 4).map((s, i) => img(s, i)),
+    {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gridTemplateRows: "1fr 1fr",
+      gap: 3,
+      height: 230,
+    }
   );
 }
 
-function ActionBtn({ icon, count, onClick, active, activeColor = "#ff8a2a" }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        background: "none",
-        border: "none",
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "5px 8px",
-        borderRadius: 99,
-        fontSize: 13,
-        color: active ? activeColor : "rgba(255,255,255,0.35)",
-        fontWeight: active ? 700 : 400,
-        transition: "color 0.15s",
-      }}
-    >
-      <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
-      {count !== undefined && count !== null && (
-        <span style={{ fontSize: 13 }}>
-          {count >= 1000 ? `${(count / 1000).toFixed(1)}k` : count}
-        </span>
-      )}
-    </button>
-  );
+function fmt(n) {
+  return n >= 1000 ? (n / 1000).toFixed(1) + "k" : n;
 }
 
 export default function SkyHubFeedCard({
   post,
+  currentUserId,
   onToggleLike,
   onToggleSave,
   onOpenComments,
   onReportPost,
+  onDeletePost,
 }) {
-  const meta = TYPE_META[post.type] || TYPE_META.Story;
+  const tm = TYPE_META[post.type] || TYPE_META.Story;
+  const isOwner =
+    currentUserId &&
+    (post.authorId === currentUserId || post.username === `@${currentUserId}`); // fallback
+
   const menuItems = [
+    ...(isOwner
+      ? [
+          {
+            key: "delete",
+            icon: <DeleteOutlined />,
+            label: "Delete post",
+            danger: true,
+            onClick: () => onDeletePost?.(post.id),
+          },
+        ]
+      : []),
     {
       key: "report",
       icon: <FlagOutlined />,
       label: "Report post",
-      danger: true,
+      danger: !isOwner,
       onClick: () => onReportPost?.(post),
     },
   ];
 
   return (
-    <div
-      style={{
-        background: "rgba(30, 18, 58, 0.65)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        borderRadius: 14,
-        padding: "14px 16px 10px",
-        marginBottom: 8,
-        transition: "border-color 0.15s",
-      }}
-    >
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <PostAvatar post={post} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Header */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div
+    <div className="skyhub-feedCard">
+      <div className="skyhub-feedCard__top">
+        <Avatar name={post.author} avatarUrl={post.avatar} size={44} />
+
+        <div className="skyhub-feedCard__head">
+          <div className="skyhub-feedCard__line1">
+            <span className="skyhub-feedCard__name">{post.author}</span>
+            <span className="skyhub-feedCard__handle">{post.username}</span>
+            {post.badge && (
+              <span
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  flexWrap: "wrap",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: "rgba(255,122,53,0.12)",
+                  color: "#ff7a35",
+                  border: "1px solid rgba(255,122,53,0.22)",
                 }}
               >
-                <span style={{ fontWeight: 700, fontSize: 14, color: "#fff" }}>
-                  {post.author}
-                </span>
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
-                  {post.username}
-                </span>
-                {post.verified && (
-                  <span style={{ fontSize: 12, color: "#60a5fa" }}>✓</span>
-                )}
-                <span
-                  style={{
-                    fontSize: 10,
-                    background: "rgba(255,138,42,0.15)",
-                    color: "#ff8a2a",
-                    border: "1px solid rgba(255,138,42,0.3)",
-                    borderRadius: 99,
-                    padding: "1px 7px",
-                    fontWeight: 700,
-                  }}
-                >
-                  {post.badge || "Explorer"}
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "rgba(255,255,255,0.25)",
-                    marginLeft: "auto",
-                  }}
-                >
-                  {post.timeAgo}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  marginTop: 3,
-                  flexWrap: "wrap",
-                }}
-              >
-                {post.destination && (
-                  <>
-                    <EnvironmentOutlined
-                      style={{ fontSize: 11, color: "#ff8a2a" }}
-                    />
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: "#ff8a2a",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {post.destination}
-                    </span>
-                  </>
-                )}
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: meta.color,
-                    background: `${meta.color}18`,
-                    borderRadius: 99,
-                    padding: "1px 7px",
-                    border: `1px solid ${meta.color}30`,
-                  }}
-                >
-                  {meta.emoji} {post.type}
-                </span>
-              </div>
-            </div>
-            <Dropdown
-              menu={{ items: menuItems }}
-              trigger={["click"]}
-              placement="bottomRight"
-            >
-              <button
-                type="button"
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "4px 6px",
-                  color: "rgba(255,255,255,0.25)",
-                  flexShrink: 0,
-                }}
-              >
-                <MoreOutlined style={{ fontSize: 18 }} />
-              </button>
-            </Dropdown>
+                {post.badge}
+              </span>
+            )}
+            <span className="skyhub-feedCard__time">{post.timeAgo}</span>
           </div>
 
-          {/* Body */}
-          <p
-            style={{
-              margin: "8px 0 0",
-              fontSize: 15,
-              lineHeight: 1.55,
-              color: "rgba(255,255,255,0.88)",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-            }}
-          >
-            {post.text}
-          </p>
-
-          {/* Tags */}
-          {post.tags?.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                gap: 6,
-                flexWrap: "wrap",
-                marginTop: 6,
-              }}
-            >
-              {post.tags.map((tag) => (
-                <span
-                  key={tag}
-                  style={{
-                    fontSize: 13,
-                    color: "#ff8a2a",
-                    fontWeight: 600,
-                    background: "rgba(255,138,42,0.1)",
-                    borderRadius: 99,
-                    padding: "2px 9px",
-                  }}
-                >
-                  {tag.startsWith("#") ? tag : `#${tag}`}
-                </span>
-              ))}
+          {(post.destination || post.type) && (
+            <div className="skyhub-feedCard__location">
+              {post.destination && (
+                <>
+                  <EnvironmentOutlined
+                    style={{ fontSize: 11, color: "#ff7a35" }}
+                  />
+                  <span style={{ color: "#ff7a35", fontWeight: 600 }}>
+                    {post.destination}
+                  </span>
+                </>
+              )}
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  padding: "2px 8px",
+                  background: tm.bg,
+                  color: tm.c,
+                  border: `1px solid ${tm.c}30`,
+                  marginLeft: 4,
+                }}
+              >
+                {tm.e} {post.type}
+              </span>
             </div>
           )}
+        </div>
 
-          {/* Images */}
-          <ImageGrid images={post.images} />
+        <Dropdown
+          trigger={["click"]}
+          placement="bottomRight"
+          menu={{ items: menuItems }}
+        >
+          <button className="skyhub-feedCard__menu">
+            <MoreOutlined />
+          </button>
+        </Dropdown>
+      </div>
 
-          {/* Actions */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginTop: 10,
-              maxWidth: 320,
-            }}
-          >
-            <ActionBtn
-              icon={<MessageOutlined />}
-              count={post.comments}
-              onClick={() => onOpenComments?.(post)}
-            />
-            <ActionBtn icon={<RetweetOutlined />} count={post.shares} />
-            <ActionBtn
-              icon={post.liked ? <HeartFilled /> : <HeartOutlined />}
-              count={post.likes}
-              onClick={() => onToggleLike?.(post.id)}
-              active={post.liked}
-              activeColor="#e11d48"
-            />
-            <ActionBtn
-              icon={post.saved ? <StarFilled /> : <StarOutlined />}
-              count={post.saves}
-              onClick={() => onToggleSave?.(post.id)}
-              active={post.saved}
-              activeColor="#a78bfa"
-            />
-            <ActionBtn icon={<ShareAltOutlined />} />
+      <div className="skyhub-feedCard__body">
+        <p className="skyhub-feedCard__text">{post.text}</p>
+
+        {post.tags?.length > 0 && (
+          <div className="skyhub-feedCard__tags">
+            {post.tags.map((t) => (
+              <span key={t} className="skyhub-feedCard__tag">
+                {t.startsWith("#") ? t : `#${t}`}
+              </span>
+            ))}
           </div>
+        )}
+
+        {/* Image grid — uses images[] array */}
+        <ImageGrid images={post.images} />
+
+        {/* Legacy single image fallback */}
+        {!post.images?.length && post.image && (
+          <div className="skyhub-feedCard__media">
+            <img
+              src={post.image}
+              alt="post"
+              onError={(e) => {
+                e.target.parentElement.style.display = "none";
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="skyhub-feedCard__footer">
+        <div className="skyhub-feedCard__actions">
+          <button
+            className="skyhub-feedCard__action"
+            onClick={() => onOpenComments?.(post)}
+          >
+            💬 <span>{fmt(post.comments)}</span>
+          </button>
+          <button className="skyhub-feedCard__action">
+            🔁 <span>{fmt(post.shares)}</span>
+          </button>
+          <button
+            className={`skyhub-feedCard__action${
+              post.liked ? " is-liked" : ""
+            }`}
+            onClick={() => onToggleLike?.(post.id)}
+          >
+            {post.liked ? "❤️" : "🤍"} <span>{fmt(post.likes)}</span>
+          </button>
+          <button
+            className={`skyhub-feedCard__action${
+              post.saved ? " is-bookmarked" : ""
+            }`}
+            onClick={() => onToggleSave?.(post.id)}
+          >
+            {post.saved ? "🔖" : "🏷️"} <span>{fmt(post.saves)}</span>
+          </button>
+          <button className="skyhub-feedCard__action">↗️</button>
         </div>
       </div>
     </div>

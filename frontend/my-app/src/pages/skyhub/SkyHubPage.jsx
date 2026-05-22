@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Badge, Button, Input, message } from "antd";
+import { useNavigate } from "react-router-dom";
 import {
   GlobalOutlined,
   SearchOutlined,
@@ -22,16 +23,17 @@ import { apiUrl } from "@/lib/api";
 function mapBackendPost(post) {
   return {
     id: post._id,
+    authorId: post.authorId || post.userId || null,
     author: post.authorName || "Traveler",
     username: post.username ? `@${post.username}` : "@traveler",
-    avatar: post.avatar || "TR",
+    avatar: post.avatar || null,
     verified: !!post.verified,
     type: post.type || "Story",
     destination: post.destination || "",
     timeAgo: post.timeAgo || "now",
     text: post.text || "",
     image: post.image || "",
-    // Prefer images[] array; fall back to single image
+    // Always prefer images[] array, fall back to single image field
     images:
       Array.isArray(post.images) && post.images.length > 0
         ? post.images
@@ -51,6 +53,8 @@ function mapBackendPost(post) {
 }
 
 export default function SkyHubPage() {
+  const navigate = useNavigate();
+
   const [activeTab, setActiveTab] = useState("forYou");
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchValue, setSearchValue] = useState("");
@@ -67,6 +71,44 @@ export default function SkyHubPage() {
   const [loadingTrending, setLoadingTrending] = useState(false);
   const [activeTravelers, setActiveTravelers] = useState([]);
   const [loadingTravelers, setLoadingTravelers] = useState(false);
+
+  // ── Current logged-in user ─────────────────────────────────
+  const [currentUser, setCurrentUser] = useState(null);
+  // ── Live online count ──────────────────────────────────────
+  const [onlineCount, setOnlineCount] = useState(null);
+
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/api/auth/me"), {
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const u = data.user || data;
+      setCurrentUser({
+        id: u._id || u.id,
+        name: u.name || u.fullName || u.username || "Traveler",
+        username: u.username || "traveler",
+        avatar: u.avatar || u.profilePicture || u.profileImage || null,
+        xp: u.xp || u.passport || 0,
+        badge: u.badge || "Explorer",
+      });
+    } catch {
+      /* non-critical */
+    }
+  }, []);
+
+  const fetchOnlineCount = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/api/skyhub/online-count"), {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok && data.count) setOnlineCount(data.count);
+    } catch {
+      /* non-critical — fall back to static */
+    }
+  }, []);
 
   const fetchFeed = useCallback(async () => {
     try {
@@ -117,10 +159,29 @@ export default function SkyHubPage() {
   }, []);
 
   useEffect(() => {
+    fetchCurrentUser();
     fetchFeed();
     fetchTrending();
     fetchActiveTravelers();
-  }, [fetchFeed, fetchTrending, fetchActiveTravelers]);
+    fetchOnlineCount();
+    // Refresh online count every 60s
+    const timer = setInterval(fetchOnlineCount, 60_000);
+    return () => clearInterval(timer);
+  }, [
+    fetchCurrentUser,
+    fetchFeed,
+    fetchTrending,
+    fetchActiveTravelers,
+    fetchOnlineCount,
+  ]);
+
+  // ── Explore SkyHub search — scrolls feed into view & filters ──
+  const handleExploreSearch = () => {
+    // Scroll to feed
+    document
+      .querySelector(".skyhub-feedSection")
+      ?.scrollIntoView({ behavior: "smooth" });
+  };
 
   const visiblePosts = useMemo(() => {
     return posts.filter((post) => {
@@ -200,14 +261,19 @@ export default function SkyHubPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to create post");
 
-      // Inject uploaded URLs so images appear immediately in feed
       const postWithImages = {
         ...data.post,
+        // Always inject uploaded URLs — backend may not echo them back
         images:
           uploadedImageUrls.length > 0
             ? uploadedImageUrls
             : data.post.images || [],
         image: uploadedImageUrls[0] || data.post.image || "",
+        // Use actual logged-in user details so name/username show correctly
+        authorName: currentUser?.name || data.post.authorName,
+        username: currentUser?.username || data.post.username,
+        avatar: currentUser?.avatar || data.post.avatar,
+        authorId: currentUser?.id,
       };
       setPosts((prev) => [mapBackendPost(postWithImages), ...prev]);
       setComposerText("");
@@ -229,7 +295,7 @@ export default function SkyHubPage() {
         credentials: "include",
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to like post");
+      if (!res.ok) throw new Error(data?.message);
       setPosts((prev) =>
         prev.map((p) =>
           p.id === postId
@@ -249,7 +315,7 @@ export default function SkyHubPage() {
         credentials: "include",
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to save post");
+      if (!res.ok) throw new Error(data?.message);
       setPosts((prev) =>
         prev.map((p) =>
           p.id === postId
@@ -260,6 +326,22 @@ export default function SkyHubPage() {
       message.success(data.saved ? "Post saved." : "Post removed from saved.");
     } catch (err) {
       message.error(err.message || "Could not update saved state.");
+    }
+  };
+
+  // ── Delete own post ────────────────────────────────────────
+  const handleDeletePost = async (postId) => {
+    try {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to delete post");
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      message.success("Post deleted.");
+    } catch (err) {
+      message.error(err.message || "Could not delete post.");
     }
   };
 
@@ -279,7 +361,7 @@ export default function SkyHubPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to report post");
+      if (!res.ok) throw new Error(data?.message);
       message.success("Post reported. Thanks for keeping SkyHub safe.");
     } catch (err) {
       message.error(err.message || "Could not report post.");
@@ -300,6 +382,12 @@ export default function SkyHubPage() {
     );
   };
 
+  // ── Live online count display ──────────────────────────────
+  const onlineDisplay =
+    onlineCount != null
+      ? `${onlineCount.toLocaleString()} travelers online`
+      : "247 travelers online";
+
   return (
     <div
       className="skyhub-page"
@@ -310,6 +398,65 @@ export default function SkyHubPage() {
         <div className="skyhub-topHeaderOverlay" />
         <div className="skyhub-topHeaderInner">
           <div className="skyhub-heroCopy">
+            {currentUser && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 14,
+                }}
+              >
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      border: "2px solid rgba(255,255,255,0.5)",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg,#ff7a35,#8b5cf6)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 800,
+                      fontSize: 14,
+                      color: "#fff",
+                    }}
+                  >
+                    {currentUser.name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <div
+                    style={{
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: 14,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Hey, {currentUser.name.split(" ")[0]} 👋
+                  </div>
+                  <div
+                    style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}
+                  >
+                    @{currentUser.username} · {currentUser.badge} · ✈️{" "}
+                    {(currentUser.xp || 0).toLocaleString()} XP
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="skyhub-eyebrow">Skyrio Community</div>
             <h1 className="skyhub-pageTitle">SkyHub</h1>
             <p className="skyhub-pageSubtitle">
@@ -331,6 +478,7 @@ export default function SkyHubPage() {
               </div>
             </div>
           </div>
+
           <div className="skyhub-headerActions">
             <Input
               allowClear
@@ -339,17 +487,21 @@ export default function SkyHubPage() {
               prefix={<SearchOutlined />}
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
+              onPressEnter={handleExploreSearch}
               className="skyhub-searchInput"
             />
             <Button
               type="primary"
               icon={<GlobalOutlined />}
               className="skyhub-exploreBtn"
+              onClick={handleExploreSearch}
             >
               Explore SkyHub
             </Button>
           </div>
         </div>
+
+        {/* Live stats */}
         <div className="skyhub-topStats">
           {skyhubStats.map((item) => (
             <div key={item.id} className="skyhub-statItem">
@@ -357,13 +509,13 @@ export default function SkyHubPage() {
               <span>{item.label}</span>
             </div>
           ))}
-          <div className="skyhub-onlinePill">247 travelers online</div>
+          <div className="skyhub-onlinePill">{onlineDisplay}</div>
         </div>
       </header>
 
       {/* ── MAIN ── */}
       <main className="skyhub-main">
-        {/* Sticky nav bar — tabs + vibes in one compact row */}
+        {/* Sticky nav */}
         <div className="skyhub-navbar">
           <div className="skyhub-navbar-tabs">
             {skyhubTabs.map((tab) => (
@@ -410,6 +562,7 @@ export default function SkyHubPage() {
               onCreatePost={handleCreatePost}
               creatingPost={creatingPost}
               onPhotosChange={setComposerPhotos}
+              user={currentUser}
             />
 
             <section className="skyhub-feedSection">
@@ -433,19 +586,16 @@ export default function SkyHubPage() {
                   </div>
                 ) : visiblePosts.length ? (
                   visiblePosts.map((post) => (
-                    <div
+                    <SkyHubFeedCard
                       key={post.id}
-                      data-type={post.type}
-                      style={{ position: "relative" }}
-                    >
-                      <SkyHubFeedCard
-                        post={post}
-                        onToggleLike={handleToggleLike}
-                        onToggleSave={handleToggleSave}
-                        onOpenComments={handleOpenComments}
-                        onReportPost={handleReportPost}
-                      />
-                    </div>
+                      post={post}
+                      currentUserId={currentUser?.id}
+                      onToggleLike={handleToggleLike}
+                      onToggleSave={handleToggleSave}
+                      onOpenComments={handleOpenComments}
+                      onReportPost={handleReportPost}
+                      onDeletePost={handleDeletePost}
+                    />
                   ))
                 ) : (
                   <div className="skyhub-emptyState">
@@ -461,14 +611,17 @@ export default function SkyHubPage() {
           </div>
 
           <aside className="skyhub-rightRail">
-            <SkyHubPassportCard />
+            {/* Passport XP synced from currentUser */}
+            <SkyHubPassportCard currentUser={currentUser} />
             <SkyHubTrendingDestinations
               items={trendingDestinations}
               loading={loadingTrending}
+              onSeeAll={() => navigate("/skyhub/destinations")}
             />
             <SkyHubActiveTravelers
               travelers={activeTravelers}
               loading={loadingTravelers}
+              onViewAll={() => navigate("/skyhub/travelers")}
             />
           </aside>
         </section>

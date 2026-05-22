@@ -522,17 +522,9 @@ function FollowListModal({
     };
   }, []);
 
-  // Build profile path by replacing current username in URL with target username
+  // Navigate to another user's public profile
   const buildProfilePath = (targetUsername) => {
-    if (!targetUsername) return "/";
-    const path = window.location.pathname;
-    if (profileUsername && path.includes(profileUsername)) {
-      return path.replace(profileUsername, targetUsername);
-    }
-    // Fallback: replace last path segment
-    const parts = path.split("/").filter(Boolean);
-    parts[parts.length - 1] = targetUsername;
-    return "/" + parts.join("/");
+    return `/u/${targetUsername}`;
   };
 
   return (
@@ -789,39 +781,47 @@ function FollowListModal({
                   }}
                 >
                   {/* Avatar */}
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt={displayName}
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                        flexShrink: 0,
-                        border: "1.5px solid rgba(255,255,255,0.1)",
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: "50%",
-                        background:
-                          "linear-gradient(135deg, #7c5cfc, rgba(255,138,42,0.5))",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 18,
-                        fontWeight: 800,
-                        color: "#fff",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {displayName[0].toUpperCase()}
-                    </div>
-                  )}
+                  {/* Avatar with error fallback */}
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      position: "relative",
+                      background:
+                        "linear-gradient(135deg, #7c5cfc, rgba(255,138,42,0.5))",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 18,
+                      fontWeight: 800,
+                      color: "#fff",
+                      overflow: "hidden",
+                      border: "1.5px solid rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    {/* Letter fallback always renders behind */}
+                    {displayName[0].toUpperCase()}
+                    {/* Image overlays on top if it loads successfully */}
+                    {avatarUrl && (
+                      <img
+                        src={avatarUrl}
+                        alt={displayName}
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    )}
+                  </div>
 
                   {/* Name + handle */}
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -862,12 +862,26 @@ function FollowListModal({
                     )}
                   </div>
 
-                  {/* Chevron */}
-                  <ChevronRight
-                    size={16}
-                    color="rgba(255,255,255,0.2)"
-                    style={{ flexShrink: 0 }}
-                  />
+                  {/* View profile button */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      background: "rgba(255,138,42,0.12)",
+                      border: "1px solid rgba(255,138,42,0.25)",
+                      color: "#ff8a2a",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    View
+                    <ChevronRight size={12} />
+                  </div>
                 </button>
               );
             })}
@@ -1062,6 +1076,8 @@ export default function PublicPassportPage() {
         .pp-pub-card:nth-child(5) { animation-delay: 0.33s; }
         .pp-pub-card:nth-child(6) { animation-delay: 0.40s; }
         .pp-vibe-chip:hover { transform: translateY(-2px) scale(1.04); }
+        .pp-follow-btn { transition: opacity 0.15s; }
+        .pp-follow-btn:hover { opacity: 0.75; text-decoration: underline; }
         .pp-stamp:hover { transform: scale(1.05); }
         .pp-journey-card:hover {
           border-color: rgba(255,138,42,0.25) !important;
@@ -1249,6 +1265,7 @@ export default function PublicPassportPage() {
                       }}
                     >
                       <button
+                        className="pp-follow-btn"
                         onClick={() => setFollowListTab("followers")}
                         style={{
                           background: "none",
@@ -1290,6 +1307,7 @@ export default function PublicPassportPage() {
                         ·
                       </span>
                       <button
+                        className="pp-follow-btn"
                         onClick={() => setFollowListTab("following")}
                         style={{
                           background: "none",
