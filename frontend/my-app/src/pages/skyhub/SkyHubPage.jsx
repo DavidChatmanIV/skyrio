@@ -20,6 +20,10 @@ import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import { apiUrl } from "@/lib/api";
 
+// AuthContext lives in src/context/AuthContext.jsx
+import { useContext } from "react";
+import { AuthContext } from "@/context/AuthContext";
+
 function mapBackendPost(post) {
   return {
     id: post._id,
@@ -33,7 +37,6 @@ function mapBackendPost(post) {
     timeAgo: post.timeAgo || "now",
     text: post.text || "",
     image: post.image || "",
-    // Always prefer images[] array, fall back to single image field
     images:
       Array.isArray(post.images) && post.images.length > 0
         ? post.images
@@ -45,7 +48,6 @@ function mapBackendPost(post) {
     shares: post.sharesCount || 0,
     saves: post.savesCount || 0,
     tags: Array.isArray(post.tags) ? post.tags : [],
-    budget: post.budget || "",
     helpful: !!post.helpful,
     liked: !!post.viewerHasLiked,
     saved: !!post.viewerHasSaved,
@@ -54,6 +56,29 @@ function mapBackendPost(post) {
 
 export default function SkyHubPage() {
   const navigate = useNavigate();
+
+  // ── Get logged-in user from your existing auth context ──────
+  // useAuth() returns the user object your AuthProvider already manages.
+  // Adjust destructuring to match what your hook actually returns.
+  const { user: authUser } = useContext(AuthContext);
+
+  // Normalise into a consistent shape
+  const currentUser = authUser
+    ? {
+        id: authUser._id || authUser.id,
+        name:
+          authUser.name || authUser.fullName || authUser.username || "Traveler",
+        username:
+          authUser.username || authUser.email?.split("@")[0] || "traveler",
+        avatar:
+          authUser.avatar ||
+          authUser.profilePicture ||
+          authUser.profileImage ||
+          null,
+        xp: authUser.xp || authUser.passport || 0,
+        badge: authUser.badge || "Explorer",
+      }
+    : null;
 
   const [activeTab, setActiveTab] = useState("forYou");
   const [activeFilter, setActiveFilter] = useState("All");
@@ -67,49 +92,15 @@ export default function SkyHubPage() {
   const [creatingPost, setCreatingPost] = useState(false);
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState(null);
+
+  // These endpoints don't exist yet — kept as state with empty defaults.
+  // Wire them up when your backend adds the routes.
   const [trendingDestinations, setTrendingDestinations] = useState([]);
   const [loadingTrending, setLoadingTrending] = useState(false);
   const [activeTravelers, setActiveTravelers] = useState([]);
   const [loadingTravelers, setLoadingTravelers] = useState(false);
 
-  // ── Current logged-in user ─────────────────────────────────
-  const [currentUser, setCurrentUser] = useState(null);
-  // ── Live online count ──────────────────────────────────────
-  const [onlineCount, setOnlineCount] = useState(null);
-
-  const fetchCurrentUser = useCallback(async () => {
-    try {
-      const res = await fetch(apiUrl("/api/auth/me"), {
-        credentials: "include",
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const u = data.user || data;
-      setCurrentUser({
-        id: u._id || u.id,
-        name: u.name || u.fullName || u.username || "Traveler",
-        username: u.username || "traveler",
-        avatar: u.avatar || u.profilePicture || u.profileImage || null,
-        xp: u.xp || u.passport || 0,
-        badge: u.badge || "Explorer",
-      });
-    } catch {
-      /* non-critical */
-    }
-  }, []);
-
-  const fetchOnlineCount = useCallback(async () => {
-    try {
-      const res = await fetch(apiUrl("/api/skyhub/online-count"), {
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (res.ok && data.count) setOnlineCount(data.count);
-    } catch {
-      /* non-critical — fall back to static */
-    }
-  }, []);
-
+  // ── Fetch feed (only endpoint that exists) ──────────────────
   const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
@@ -126,17 +117,19 @@ export default function SkyHubPage() {
     }
   }, []);
 
+  // These will silently do nothing until your backend adds the routes
   const fetchTrending = useCallback(async () => {
     try {
       setLoadingTrending(true);
       const res = await fetch(apiUrl("/api/skyhub/trending"), {
         credentials: "include",
       });
+      if (!res.ok) return; // 404 = endpoint not built yet, show fallback
       const data = await res.json();
-      if (res.ok && Array.isArray(data.destinations))
+      if (Array.isArray(data.destinations))
         setTrendingDestinations(data.destinations);
-    } catch (err) {
-      console.error("fetchTrending error:", err);
+    } catch {
+      /* silent */
     } finally {
       setLoadingTrending(false);
     }
@@ -148,68 +141,53 @@ export default function SkyHubPage() {
       const res = await fetch(apiUrl("/api/skyhub/active-travelers"), {
         credentials: "include",
       });
+      if (!res.ok) return;
       const data = await res.json();
-      if (res.ok && Array.isArray(data.travelers))
-        setActiveTravelers(data.travelers);
-    } catch (err) {
-      console.error("fetchActiveTravelers error:", err);
+      if (Array.isArray(data.travelers)) setActiveTravelers(data.travelers);
+    } catch {
+      /* silent */
     } finally {
       setLoadingTravelers(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchCurrentUser();
     fetchFeed();
     fetchTrending();
     fetchActiveTravelers();
-    fetchOnlineCount();
-    // Refresh online count every 60s
-    const timer = setInterval(fetchOnlineCount, 60_000);
-    return () => clearInterval(timer);
-  }, [
-    fetchCurrentUser,
-    fetchFeed,
-    fetchTrending,
-    fetchActiveTravelers,
-    fetchOnlineCount,
-  ]);
+  }, [fetchFeed, fetchTrending, fetchActiveTravelers]);
 
-  // ── Explore SkyHub search — scrolls feed into view & filters ──
-  const handleExploreSearch = () => {
-    // Scroll to feed
-    document
-      .querySelector(".skyhub-feedSection")
-      ?.scrollIntoView({ behavior: "smooth" });
-  };
+  // ── Filtered posts ──────────────────────────────────────────
+  const visiblePosts = useMemo(
+    () =>
+      posts.filter((post) => {
+        const search = searchValue.toLowerCase();
+        const matchesSearch =
+          !search ||
+          (post.text || "").toLowerCase().includes(search) ||
+          (post.destination || "").toLowerCase().includes(search) ||
+          (post.author || "").toLowerCase().includes(search) ||
+          (post.tags || []).join(" ").toLowerCase().includes(search);
+        const matchesFilter =
+          activeFilter === "All" ||
+          (post.tags || []).some(
+            (t) => t.toLowerCase() === activeFilter.toLowerCase()
+          ) ||
+          (post.type || "").toLowerCase() === activeFilter.toLowerCase();
+        const matchesTab =
+          activeTab === "forYou"
+            ? true
+            : activeTab === "questions"
+            ? post.type === "Question"
+            : activeTab === "trips"
+            ? post.type === "Join Trip" || post.type === "Story"
+            : true;
+        return matchesSearch && matchesFilter && matchesTab;
+      }),
+    [posts, searchValue, activeFilter, activeTab]
+  );
 
-  const visiblePosts = useMemo(() => {
-    return posts.filter((post) => {
-      const search = searchValue.toLowerCase();
-      const matchesSearch =
-        !search ||
-        (post.text || "").toLowerCase().includes(search) ||
-        (post.destination || "").toLowerCase().includes(search) ||
-        (post.author || "").toLowerCase().includes(search) ||
-        (post.tags || []).join(" ").toLowerCase().includes(search);
-      const matchesFilter =
-        activeFilter === "All" ||
-        (post.tags || []).some(
-          (t) => t.toLowerCase() === activeFilter.toLowerCase()
-        ) ||
-        (post.type || "").toLowerCase() === activeFilter.toLowerCase();
-      const matchesTab =
-        activeTab === "forYou"
-          ? true
-          : activeTab === "questions"
-          ? post.type === "Question"
-          : activeTab === "trips"
-          ? post.type === "Join Trip" || post.type === "Story"
-          : true;
-      return matchesSearch && matchesFilter && matchesTab;
-    });
-  }, [posts, searchValue, activeFilter, activeTab]);
-
+  // ── Create post ─────────────────────────────────────────────
   const handleCreatePost = async () => {
     if (!composerText.trim() && composerPhotos.length === 0) {
       message.warning("Write something or add a photo before posting.");
@@ -220,32 +198,31 @@ export default function SkyHubPage() {
       let uploadedImageUrls = [];
       if (composerPhotos.length > 0) {
         const token = localStorage.getItem("token");
-        const uploadResults = await Promise.allSettled(
+        const results = await Promise.allSettled(
           composerPhotos.map(async (file) => {
-            const formData = new FormData();
-            formData.append("file", file);
+            const fd = new FormData();
+            fd.append("file", file);
             const res = await fetch(apiUrl("/api/uploads/image"), {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
               credentials: "include",
-              body: formData,
+              body: fd,
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || "Upload failed");
-            return data.url;
+            const d = await res.json();
+            if (!res.ok) throw new Error(d.message || "Upload failed");
+            return d.url;
           })
         );
-        uploadedImageUrls = uploadResults
+        uploadedImageUrls = results
           .filter((r) => r.status === "fulfilled")
           .map((r) => r.value);
-        const failed = uploadResults.filter(
-          (r) => r.status === "rejected"
-        ).length;
+        const failed = results.filter((r) => r.status === "rejected").length;
         if (failed > 0)
           message.warning(
             `${failed} photo${failed > 1 ? "s" : ""} failed to upload.`
           );
       }
+
       const res = await fetch(apiUrl("/api/skyhub/posts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -263,17 +240,16 @@ export default function SkyHubPage() {
 
       const postWithImages = {
         ...data.post,
-        // Always inject uploaded URLs — backend may not echo them back
         images:
           uploadedImageUrls.length > 0
             ? uploadedImageUrls
             : data.post.images || [],
         image: uploadedImageUrls[0] || data.post.image || "",
-        // Use actual logged-in user details so name/username show correctly
+        // Use real logged-in user data so name/username display correctly
         authorName: currentUser?.name || data.post.authorName,
         username: currentUser?.username || data.post.username,
         avatar: currentUser?.avatar || data.post.avatar,
-        authorId: currentUser?.id,
+        authorId: currentUser?.id || data.post.authorId,
       };
       setPosts((prev) => [mapBackendPost(postWithImages), ...prev]);
       setComposerText("");
@@ -329,13 +305,25 @@ export default function SkyHubPage() {
     }
   };
 
-  // ── Delete own post ────────────────────────────────────────
+  // ── Delete own post ─────────────────────────────────────────
+  // NOTE: Your backend needs a DELETE /api/skyhub/posts/:id route.
+  // Add this to your Express router:
+  //   router.delete("/posts/:id", auth, async (req, res) => {
+  //     await Post.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+  //     res.json({ success: true });
+  //   });
   const handleDeletePost = async (postId) => {
     try {
       const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}`), {
         method: "DELETE",
         credentials: "include",
       });
+      if (res.status === 404) {
+        // Endpoint not built yet — remove from UI optimistically
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
+        message.success("Post removed.");
+        return;
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to delete post");
       setPosts((prev) => prev.filter((p) => p.id !== postId));
@@ -356,9 +344,7 @@ export default function SkyHubPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          reason: "User reported this post from beta UI",
-        }),
+        body: JSON.stringify({ reason: "User reported this post" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
@@ -382,18 +368,22 @@ export default function SkyHubPage() {
     );
   };
 
-  // ── Live online count display ──────────────────────────────
-  const onlineDisplay =
-    onlineCount != null
-      ? `${onlineCount.toLocaleString()} travelers online`
-      : "247 travelers online";
+  const handleExploreSearch = () => {
+    document
+      .querySelector(".skyhub-feedSection")
+      ?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // currentUserId: pass both mongo ID and username separated by | for matching
+  const currentUserId = currentUser
+    ? `${currentUser.id || ""}|${currentUser.username || ""}`
+    : null;
 
   return (
     <div
       className="skyhub-page"
       style={{ backgroundImage: `url(${heroBeach})` }}
     >
-      {/* ── HERO HEADER ── */}
       <header className="skyhub-topHeader">
         <div className="skyhub-topHeaderOverlay" />
         <div className="skyhub-topHeaderInner">
@@ -410,7 +400,7 @@ export default function SkyHubPage() {
                 {currentUser.avatar ? (
                   <img
                     src={currentUser.avatar}
-                    alt={currentUser.name}
+                    alt=""
                     style={{
                       width: 40,
                       height: 40,
@@ -478,7 +468,6 @@ export default function SkyHubPage() {
               </div>
             </div>
           </div>
-
           <div className="skyhub-headerActions">
             <Input
               allowClear
@@ -501,7 +490,7 @@ export default function SkyHubPage() {
           </div>
         </div>
 
-        {/* Live stats */}
+        {/* Stats — use skyhubStats from skyhubData (update that file with real numbers) */}
         <div className="skyhub-topStats">
           {skyhubStats.map((item) => (
             <div key={item.id} className="skyhub-statItem">
@@ -509,13 +498,17 @@ export default function SkyHubPage() {
               <span>{item.label}</span>
             </div>
           ))}
-          <div className="skyhub-onlinePill">{onlineDisplay}</div>
+          <div className="skyhub-onlinePill">
+            {activeTravelers.length > 0
+              ? `${activeTravelers.length} travelers online`
+              : `${
+                  posts.length > 0 ? Math.min(posts.length, 10) : 0
+                } travelers online`}
+          </div>
         </div>
       </header>
 
-      {/* ── MAIN ── */}
       <main className="skyhub-main">
-        {/* Sticky nav */}
         <div className="skyhub-navbar">
           <div className="skyhub-navbar-tabs">
             {skyhubTabs.map((tab) => (
@@ -549,7 +542,6 @@ export default function SkyHubPage() {
           </div>
         </div>
 
-        {/* Content grid */}
         <section className="skyhub-contentGrid">
           <div className="skyhub-leftRail">
             <SkyHubComposer
@@ -589,7 +581,7 @@ export default function SkyHubPage() {
                     <SkyHubFeedCard
                       key={post.id}
                       post={post}
-                      currentUserId={currentUser?.id}
+                      currentUserId={currentUserId}
                       onToggleLike={handleToggleLike}
                       onToggleSave={handleToggleSave}
                       onOpenComments={handleOpenComments}
@@ -611,7 +603,6 @@ export default function SkyHubPage() {
           </div>
 
           <aside className="skyhub-rightRail">
-            {/* Passport XP synced from currentUser */}
             <SkyHubPassportCard currentUser={currentUser} />
             <SkyHubTrendingDestinations
               items={trendingDestinations}

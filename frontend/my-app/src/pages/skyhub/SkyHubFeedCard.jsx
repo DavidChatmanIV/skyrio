@@ -150,30 +150,41 @@ export default function SkyHubFeedCard({
   onDeletePost,
 }) {
   const tm = TYPE_META[post.type] || TYPE_META.Story;
+  // The backend returns username:"you" or "@you" ONLY for the logged-in user's own posts.
+  // That is the single reliable signal — no ID matching needed.
+  const rawUsername = (post.username || "").replace(/^@/, "").toLowerCase();
   const isOwner =
-    currentUserId &&
-    (post.authorId === currentUserId || post.username === `@${currentUserId}`); // fallback
+    rawUsername === "you" ||
+    (() => {
+      if (!currentUserId) return false;
+      const parts = String(currentUserId).split("|");
+      const myMongoId = parts[0] || "";
+      const myUsername = (parts[1] || parts[0] || "").toLowerCase();
+      return (
+        (post.authorId && String(post.authorId) === myMongoId) ||
+        (myUsername && rawUsername && rawUsername === myUsername)
+      );
+    })();
 
-  const menuItems = [
-    ...(isOwner
-      ? [
-          {
-            key: "delete",
-            icon: <DeleteOutlined />,
-            label: "Delete post",
-            danger: true,
-            onClick: () => onDeletePost?.(post.id),
-          },
-        ]
-      : []),
-    {
-      key: "report",
-      icon: <FlagOutlined />,
-      label: "Report post",
-      danger: !isOwner,
-      onClick: () => onReportPost?.(post),
-    },
-  ];
+  const menuItems = isOwner
+    ? [
+        {
+          key: "delete",
+          icon: <DeleteOutlined />,
+          label: "Delete post",
+          danger: true,
+          onClick: () => onDeletePost?.(post.id),
+        },
+      ]
+    : [
+        {
+          key: "report",
+          icon: <FlagOutlined />,
+          label: "Report post",
+          danger: true,
+          onClick: () => onReportPost?.(post),
+        },
+      ];
 
   return (
     <div className="skyhub-feedCard">
