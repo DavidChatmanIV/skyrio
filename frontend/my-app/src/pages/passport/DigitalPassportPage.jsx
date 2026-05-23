@@ -105,6 +105,25 @@ const PREVIEW_STATS = [
 
 const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
 
+// ── Travel vibe options ──────────────────────────────────────
+const VIBE_OPTIONS = [
+  "Beach",
+  "Adventure",
+  "Food",
+  "Culture",
+  "Nightlife",
+  "Nature",
+  "Solo",
+  "Luxury",
+  "Budget",
+  "Road Trip",
+  "Wellness",
+  "Photography",
+  "Music",
+  "History",
+  "Backpacking",
+];
+
 function getYouTubeEmbedUrl(url) {
   try {
     if (!url) return null;
@@ -180,7 +199,6 @@ function InlineTravelerSearch({ token, onFollowChange }) {
 
   const handleFollowToggle = useCallback(
     (userId, nowFollowing) => {
-      // Update the result list's isFollowing state
       setResults((prev) =>
         prev.map((u) =>
           String(u._id || u.id) === String(userId)
@@ -188,7 +206,6 @@ function InlineTravelerSearch({ token, onFollowChange }) {
             : u
         )
       );
-      // Notify parent to update following count
       onFollowChange?.(nowFollowing);
     },
     [onFollowChange]
@@ -507,6 +524,7 @@ export default function DigitalPassportPage() {
   const [editUsername, setEditUsername] = useState("");
   const [editBio, setEditBio] = useState("");
   const [editCity, setEditCity] = useState("");
+  const [editVibes, setEditVibes] = useState([]);
   const [editSaving, setEditSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [xpToastShown, setXpToastShown] = useState(false);
@@ -565,9 +583,7 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
-  // ── Update following count when follow/unfollow from search ──
   const handleSearchFollowChange = useCallback(() => {
-    // Re-fetch actual stats from server after follow/unfollow
     fetch(apiUrl("/api/passport/stats"), {
       credentials: "include",
       headers: { Authorization: `Bearer ${token}` },
@@ -821,7 +837,13 @@ export default function DigitalPassportPage() {
   };
 
   const handleSaveProfile = async () => {
-    if (!editUsername.trim() && !editBio.trim() && !editCity.trim()) return;
+    if (
+      !editUsername.trim() &&
+      !editBio.trim() &&
+      !editCity.trim() &&
+      editVibes.length === 0
+    )
+      return;
     setEditSaving(true);
     try {
       const res = await fetch(apiUrl("/api/profile/settings"), {
@@ -835,6 +857,7 @@ export default function DigitalPassportPage() {
           username: editUsername.trim() || user?.username,
           bio: editBio.trim(),
           city: editCity.trim(),
+          travelVibes: editVibes,
         }),
       });
       const data = await res.json();
@@ -845,6 +868,7 @@ export default function DigitalPassportPage() {
           username: editUsername.trim() || user?.username,
           city: editCity.trim(),
           bio: editBio.trim(),
+          travelVibes: editVibes,
         }));
         localStorage.setItem(
           "user",
@@ -853,6 +877,7 @@ export default function DigitalPassportPage() {
             username: editUsername.trim() || user?.username,
             city: editCity.trim(),
             bio: editBio.trim(),
+            travelVibes: editVibes,
           })
         );
       }
@@ -1144,6 +1169,37 @@ export default function DigitalPassportPage() {
                     <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
+                  {/* ── Travel Vibes display ── */}
+                  {user?.travelVibes?.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        padding: "0 4px",
+                        marginBottom: 12,
+                      }}
+                    >
+                      {user.travelVibes.map((vibe) => (
+                        <span
+                          key={vibe}
+                          style={{
+                            padding: "6px 14px",
+                            borderRadius: 999,
+                            background: "rgba(255,138,42,0.1)",
+                            border: "1px solid rgba(255,138,42,0.25)",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "#ffb066",
+                            textTransform: "capitalize",
+                          }}
+                        >
+                          {vibe}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   {profileMusic && (
                     <Card
                       variant="borderless"
@@ -1274,6 +1330,7 @@ export default function DigitalPassportPage() {
                           setEditUsername(user?.username || "");
                           setEditBio(user?.bio || "");
                           setEditCity(user?.city || "");
+                          setEditVibes(user?.travelVibes || []);
                           setEditOpen(true);
                         }}
                       >
@@ -1377,6 +1434,7 @@ export default function DigitalPassportPage() {
         value={profileMusic}
       />
 
+      {/* ── Edit Profile Modal ── */}
       <Modal
         open={editOpen}
         onCancel={() => setEditOpen(false)}
@@ -1461,9 +1519,87 @@ export default function DigitalPassportPage() {
               showCount
             />
           </div>
+
+          {/* ── Travel Vibe picker ── */}
+          <div>
+            <div
+              style={{
+                fontSize: 12,
+                marginBottom: 8,
+                opacity: 0.6,
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+              }}
+            >
+              TRAVEL VIBE{" "}
+              <span style={{ fontWeight: 400, opacity: 0.7 }}>
+                (pick up to 5)
+              </span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              {VIBE_OPTIONS.map((vibe) => {
+                const selected = editVibes.includes(vibe);
+                return (
+                  <button
+                    key={vibe}
+                    type="button"
+                    onClick={() => {
+                      setEditVibes((prev) =>
+                        selected
+                          ? prev.filter((v) => v !== vibe)
+                          : prev.length < 5
+                          ? [...prev, vibe]
+                          : prev
+                      );
+                    }}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 999,
+                      border: selected
+                        ? "1.5px solid #ff8a2a"
+                        : "1px solid rgba(255,255,255,0.15)",
+                      background: selected
+                        ? "rgba(255,138,42,0.15)"
+                        : "rgba(255,255,255,0.04)",
+                      color: selected ? "#ff8a2a" : "rgba(255,255,255,0.55)",
+                      fontSize: 13,
+                      fontWeight: selected ? 700 : 500,
+                      cursor:
+                        !selected && editVibes.length >= 5
+                          ? "not-allowed"
+                          : "pointer",
+                      opacity: !selected && editVibes.length >= 5 ? 0.4 : 1,
+                      transition: "all 0.15s",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {vibe}
+                  </button>
+                );
+              })}
+            </div>
+            {editVibes.length > 0 && (
+              <div
+                style={{
+                  fontSize: 11,
+                  opacity: 0.4,
+                  marginTop: 6,
+                }}
+              >
+                {editVibes.length}/5 selected
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
 
+      {/* ── Delete Account — Step 1 ── */}
       <Modal
         open={deleteStep === 1}
         onCancel={() => setDeleteStep(0)}
@@ -1555,6 +1691,7 @@ export default function DigitalPassportPage() {
         </div>
       </Modal>
 
+      {/* ── Delete Account — Step 2 ── */}
       <Modal
         open={deleteStep === 2}
         onCancel={() => {
