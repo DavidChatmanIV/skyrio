@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar, Button, Space } from "antd";
+import { Avatar, Button, Space, Tooltip } from "antd";
 import {
   LogoutOutlined,
   MenuOutlined,
@@ -31,7 +31,7 @@ function getActiveKey(pathname) {
 }
 
 // ── Admin email — only this account sees the admin link ──
-const ADMIN_EMAIL = "skyriooffcial@gmail.com";
+const ADMIN_EMAIL = "skyrioofficial@gmail.com";
 
 export default function Navbar() {
   const location = useLocation();
@@ -156,41 +156,20 @@ export default function Navbar() {
           <div className="sk-nav-actions">
             <div className="sk-nav-actions-desktop">
               {isAuthed ? (
-                <Space size={8}>
+                <div className="sk-authed-actions">
                   {/* ── Saved Trips heart icon ── */}
-                  <button
-                    type="button"
-                    onClick={() => handleNavigate("/saved-trips")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "4px 8px",
-                      fontSize: 18,
-                      lineHeight: 1,
-                      color: isSaved ? "#ff8a2a" : "rgba(255,255,255,0.6)",
-                      transition: "color 0.2s, transform 0.2s",
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#ff8a2a";
-                      e.currentTarget.style.transform = "scale(1.15)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = isSaved
-                        ? "#ff8a2a"
-                        : "rgba(255,255,255,0.6)";
-                      e.currentTarget.style.transform = "scale(1)";
-                    }}
-                    title="Saved Trips"
-                  >
-                    {isSaved ? (
-                      <HeartFilled style={{ color: "#ff8a2a" }} />
-                    ) : (
-                      <HeartOutlined />
-                    )}
-                  </button>
+                  <Tooltip title="Saved Trips">
+                    <button
+                      type="button"
+                      className="sk-icon-btn"
+                      onClick={() => handleNavigate("/saved-trips")}
+                      style={{
+                        color: isSaved ? "#ff8a2a" : undefined,
+                      }}
+                    >
+                      {isSaved ? <HeartFilled /> : <HeartOutlined />}
+                    </button>
+                  </Tooltip>
 
                   {/* ── Notifications dropdown ── */}
                   <Notifications />
@@ -200,9 +179,10 @@ export default function Navbar() {
                     type="button"
                     className="sk-nav-user"
                     onClick={() => handleNavigate("/passport")}
+                    title="My Passport"
                   >
                     <Avatar
-                      size={32}
+                      size={30}
                       src={
                         user?.avatar && user.avatar !== "/default-avatar.png"
                           ? user.avatar
@@ -210,7 +190,7 @@ export default function Navbar() {
                       }
                       style={{
                         backgroundColor: "#7c5cfc",
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: 600,
                         flexShrink: 0,
                       }}
@@ -222,49 +202,29 @@ export default function Navbar() {
                     <span className="sk-nav-username">{displayName}</span>
                   </button>
 
-                  {/* ── Logout ── */}
-                  <Button
-                    className="sk-btn sk-btn-logout"
-                    icon={<LogoutOutlined />}
-                    onClick={handleLogout}
-                  >
-                    Log out
-                  </Button>
+                  {/* ── Logout icon button ── */}
+                  <Tooltip title="Log out">
+                    <button
+                      type="button"
+                      className="sk-icon-btn sk-logout-icon"
+                      onClick={handleLogout}
+                    >
+                      <LogoutOutlined />
+                    </button>
+                  </Tooltip>
 
-                  {/* ── Admin link — only visible to skyrioofficial@gmail.com ── */}
+                  {/* ── Admin link — only visible to admin ── */}
                   {isAdmin && (
                     <button
                       type="button"
+                      className="sk-admin-btn"
                       onClick={() => navigate("/admin/login")}
                       title="Admin Dashboard"
-                      style={{
-                        background: "none",
-                        border: "1px solid rgba(255,138,42,0.25)",
-                        borderRadius: 999,
-                        cursor: "pointer",
-                        fontSize: 11,
-                        color: "rgba(255,138,42,0.6)",
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                        padding: "4px 10px",
-                        transition: "border-color 0.2s, color 0.2s",
-                        whiteSpace: "nowrap",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor =
-                          "rgba(255,138,42,0.6)";
-                        e.currentTarget.style.color = "#ff8a2a";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor =
-                          "rgba(255,138,42,0.25)";
-                        e.currentTarget.style.color = "rgba(255,138,42,0.6)";
-                      }}
                     >
                       ⚙ Admin
                     </button>
                   )}
-                </Space>
+                </div>
               ) : (
                 <Space size={8}>
                   <Button
@@ -359,6 +319,7 @@ export default function Navbar() {
                 <button
                   type="button"
                   className="sk-mobile-link"
+                  data-admin="true"
                   onClick={() => handleNavigate("/admin/login")}
                   style={{
                     display: "flex",

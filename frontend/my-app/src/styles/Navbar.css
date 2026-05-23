@@ -29,7 +29,7 @@
 .sk-navbar {
   height: var(--sk-nav-bar-h);
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 0 12px 0 8px;
   border-radius: 16px;
@@ -80,6 +80,7 @@
   border-radius: 10px;
   flex-shrink: 0;
   transition: background 0.2s;
+  justify-self: start;
 }
 .sk-brand:hover {
   background: rgba(255, 255, 255, 0.06);
@@ -145,12 +146,69 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  justify-self: end;
   gap: 8px;
 }
 
 .sk-nav-actions-desktop {
   display: flex;
   align-items: center;
+}
+
+/* ── AUTHENTICATED ACTIONS ROW ── */
+.sk-authed-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── ICON BUTTONS (heart, bell, logout) ── */
+.sk-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  outline: none;
+  background: transparent;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 16px;
+  transition: color 0.2s, background 0.2s, transform 0.2s;
+  flex-shrink: 0;
+}
+.sk-icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.1);
+}
+
+/* Logout icon gets a subtle warm tint on hover */
+.sk-logout-icon:hover {
+  color: var(--sk-orange);
+  background: rgba(255, 138, 42, 0.1);
+}
+
+/* ── ADMIN BUTTON ── */
+.sk-admin-btn {
+  background: none;
+  border: 1px solid rgba(255, 138, 42, 0.25);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 11px;
+  color: rgba(255, 138, 42, 0.6);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  transition: border-color 0.2s, color 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sk-admin-btn:hover {
+  border-color: rgba(255, 138, 42, 0.6);
+  color: #ff8a2a;
 }
 
 /* ── BUTTONS ── */
@@ -252,7 +310,7 @@
   transform: translateY(-1px);
 }
 
-/* ── LOG OUT BUTTON ✅ matches orange pill ── */
+/* ── LOG OUT BUTTON (mobile only now) ── */
 .sk-btn-logout,
 .sk-btn-logout.ant-btn,
 .sk-btn-logout.ant-btn-default,
@@ -303,9 +361,10 @@
   background: rgba(124, 92, 252, 0.15);
   border: 1px solid rgba(124, 92, 252, 0.3);
   cursor: pointer;
-  padding: 5px 14px 5px 6px;
+  padding: 4px 12px 4px 4px;
   border-radius: 100px;
   transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
 }
 .sk-nav-user:hover {
   background: rgba(124, 92, 252, 0.25);
@@ -313,9 +372,13 @@
 }
 .sk-nav-username {
   color: #fff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   font-family: "DM Sans", sans-serif;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── MOBILE TRIGGER ── */
@@ -428,6 +491,16 @@
   }
 }
 
+/* ── Hide username text on smaller desktops to save space ── */
+@media (max-width: 1100px) and (min-width: 992px) {
+  .sk-nav-username {
+    display: none;
+  }
+  .sk-nav-user {
+    padding: 4px;
+  }
+}
+
 @media (max-width: 575px) {
   .sk-navbar {
     border-radius: 12px;
@@ -440,9 +513,6 @@
   .sk-brand-wordmark {
     font-size: 1.1rem;
   }
-  /* ════════════════════════════════════════════
-   NAVBAR MOBILE POLISH
-════════════════════════════════════════════ */
 
   /* ── Animated slide-in for mobile menu ── */
   @keyframes sk-menuSlideDown {
@@ -475,7 +545,6 @@
       align-items: center;
     }
 
-    /* ── Admin link in mobile menu ── */
     .sk-mobile-link[data-admin] {
       color: rgba(255, 138, 42, 0.8);
       border: 1px solid rgba(255, 138, 42, 0.18);
@@ -486,12 +555,10 @@
       color: #ff8a2a;
     }
 
-    /* ── User pill in mobile — full width ── */
     .sk-mobile-user {
       min-height: 48px;
     }
 
-    /* ── Logout button full width ── */
     .sk-mobile-actions .sk-btn {
       min-height: 48px !important;
       font-size: 0.95rem !important;
