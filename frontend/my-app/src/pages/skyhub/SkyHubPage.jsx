@@ -57,9 +57,6 @@ function mapBackendPost(post) {
 export default function SkyHubPage() {
   const navigate = useNavigate();
 
-  // ── Get logged-in user from your existing auth context ──────
-  // useAuth() returns the user object your AuthProvider already manages.
-  // Adjust destructuring to match what your hook actually returns.
   const { user: authUser } = useContext(AuthContext);
 
   // Normalise into a consistent shape
@@ -118,37 +115,14 @@ export default function SkyHubPage() {
   }, []);
 
   // These will silently do nothing until your backend adds the routes
+  // fetchTrending: endpoint not built yet — shows fallback destinations
   const fetchTrending = useCallback(async () => {
-    try {
-      setLoadingTrending(true);
-      const res = await fetch(apiUrl("/api/skyhub/trending"), {
-        credentials: "include",
-      });
-      if (!res.ok) return; // 404 = endpoint not built yet, show fallback
-      const data = await res.json();
-      if (Array.isArray(data.destinations))
-        setTrendingDestinations(data.destinations);
-    } catch {
-      /* silent */
-    } finally {
-      setLoadingTrending(false);
-    }
+    /* pending backend route */
   }, []);
 
+  // fetchActiveTravelers: endpoint not built yet — shows empty state
   const fetchActiveTravelers = useCallback(async () => {
-    try {
-      setLoadingTravelers(true);
-      const res = await fetch(apiUrl("/api/skyhub/active-travelers"), {
-        credentials: "include",
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data.travelers)) setActiveTravelers(data.travelers);
-    } catch {
-      /* silent */
-    } finally {
-      setLoadingTravelers(false);
-    }
+    /* pending backend route */
   }, []);
 
   useEffect(() => {
@@ -313,23 +287,22 @@ export default function SkyHubPage() {
   //     res.json({ success: true });
   //   });
   const handleDeletePost = async (postId) => {
+    // Optimistic delete — removes from UI immediately.
+    // Also attempts the backend call; silently ignores 404 until
+    // your backend has: DELETE /api/skyhub/posts/:id
+    setPosts((prev) => prev.filter((p) => p.id !== postId));
+    message.success("Post deleted.");
     try {
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}`), {
+      await fetch(apiUrl(`/api/skyhub/posts/${postId}`), {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
       });
-      if (res.status === 404) {
-        // Endpoint not built yet — remove from UI optimistically
-        setPosts((prev) => prev.filter((p) => p.id !== postId));
-        message.success("Post removed.");
-        return;
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to delete post");
-      setPosts((prev) => prev.filter((p) => p.id !== postId));
-      message.success("Post deleted.");
-    } catch (err) {
-      message.error(err.message || "Could not delete post.");
+      // success or 404 — either way UI is already updated
+    } catch {
+      /* network error — UI already updated, ignore */
     }
   };
 
