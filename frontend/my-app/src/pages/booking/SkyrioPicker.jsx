@@ -4,21 +4,21 @@
  * Mobile  (<= 768 px)  →  full-screen Expedia-style calendar
  * Desktop (>  768 px)  →  existing sk-orange-picker RangePicker
  *
- * Props mirror RangePicker:
- *   onChange(dates: [dayjs|null, dayjs|null])
- *   placeholder: [string, string]
- *   disabledDate: (dayjs) => boolean
- *   value: [dayjs|null, dayjs|null]          (optional controlled)
- *   className                                 (forwarded to RangePicker)
+ * Fixes v2:
+ *  - Header sits below app nav bar (paddingTop accounts for safe-area + nav)
+ *  - Done button always visible above browser bottom chrome
+ *  - Calendar scrolls to top on open (full May visible)
+ *  - Body scroll locked properly while open
+ *  - Portal renders outside app DOM so z-index always wins
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { DatePicker } from "antd";
 import dayjs from "dayjs";
 
 const { RangePicker } = DatePicker;
 
-/* ─── constants ─────────────────────────────────────────────── */
 const MONTHS = [
   "January",
   "February",
@@ -85,14 +85,13 @@ function MonthGrid({
   for (let d = 1; d <= totalDays; d++) cells.push(new Date(year, month, d));
 
   return (
-    <div style={{ marginBottom: 28 }}>
-      {/* Month label */}
+    <div style={{ marginBottom: 32 }}>
       <div
         style={{
           textAlign: "center",
           fontFamily: "'Playfair Display', Georgia, serif",
           fontWeight: 700,
-          fontSize: 17,
+          fontSize: 18,
           color: "#fff",
           marginBottom: 14,
           letterSpacing: 0.5,
@@ -116,7 +115,7 @@ function MonthGrid({
               textAlign: "center",
               fontSize: 11,
               fontWeight: 700,
-              color: "rgba(255,255,255,0.38)",
+              color: "rgba(255,255,255,0.35)",
               paddingBottom: 8,
               letterSpacing: 0.6,
               textTransform: "uppercase",
@@ -130,7 +129,7 @@ function MonthGrid({
       {/* Date cells */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
         {cells.map((date, idx) => {
-          if (!date) return <div key={`e${idx}`} />;
+          if (!date) return <div key={`e${idx}`} style={{ height: 46 }} />;
 
           const isPast = date < today;
           const isStart = sameDay(date, startDate);
@@ -140,8 +139,6 @@ function MonthGrid({
             startDate && rangeEnd && between(date, startDate, rangeEnd);
           const isToday = sameDay(date, today);
           const col = idx % 7;
-
-          // Range highlight strip
           const stripStart =
             isStart && rangeEnd && !sameDay(startDate, rangeEnd);
           const stripEnd = isEnd;
@@ -153,7 +150,10 @@ function MonthGrid({
             <div
               key={date.toISOString()}
               onClick={() => !isPast && onDay(date)}
-              onMouseEnter={() => !isPast && onHover(date)}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                !isPast && onDay(date);
+              }}
               style={{
                 position: "relative",
                 height: 46,
@@ -161,9 +161,10 @@ function MonthGrid({
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: isPast ? "not-allowed" : "pointer",
+                WebkitTapHighlightColor: "transparent",
               }}
             >
-              {/* Strip background */}
+              {/* Range strip */}
               {(stripMid || stripStart || stripEnd) && (
                 <div
                   style={{
@@ -184,8 +185,8 @@ function MonthGrid({
                 style={{
                   position: "relative",
                   zIndex: 1,
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
@@ -193,14 +194,14 @@ function MonthGrid({
                   background: isStart || isEnd ? "#FF8A2A" : "transparent",
                   border:
                     isToday && !isStart && !isEnd
-                      ? "2px solid rgba(255,138,42,0.7)"
+                      ? "2px solid rgba(255,138,42,0.8)"
                       : "2px solid transparent",
                   transition: "background 0.12s",
                 }}
               >
                 <span
                   style={{
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: isStart || isEnd ? 700 : isToday ? 600 : 400,
                     fontFamily: "'DM Sans', sans-serif",
                     color: isPast
@@ -209,7 +210,7 @@ function MonthGrid({
                       ? "#1b1024"
                       : inRange
                       ? "rgba(255,255,255,0.92)"
-                      : "rgba(255,255,255,0.82)",
+                      : "rgba(255,255,255,0.85)",
                   }}
                 >
                   {date.getDate()}
@@ -229,42 +230,51 @@ function FullScreenCalendar({
   onClose,
   onConfirm,
   placeholder = ["Check-in", "Check-out"],
-  disabledDate,
 }) {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
   const scrollRef = useRef(null);
+  const savedScrollY = useRef(0);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // 14 months starting this month
+  // 14 months from current month
   const months = [];
   for (let i = 0; i < 14; i++) {
     const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
     months.push({ year: d.getFullYear(), month: d.getMonth() });
   }
 
-  // Reset on open
+  // Open / close side-effects
   useEffect(() => {
     if (open) {
+      // Save scroll position and lock body
+      savedScrollY.current = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${savedScrollY.current}px`;
+      document.body.style.width = "100%";
+      document.body.style.overflow = "hidden";
+      // Reset picker state and scroll to top
       setStartDate(null);
       setEndDate(null);
       setHoverDate(null);
-      // Scroll to top after opening
-      setTimeout(() => scrollRef.current?.scrollTo({ top: 0 }), 50);
-    }
-  }, [open]);
-
-  // Prevent body scroll while open
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
+      });
     } else {
+      // Restore body scroll
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
       document.body.style.overflow = "";
+      window.scrollTo(0, savedScrollY.current);
     }
     return () => {
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
       document.body.style.overflow = "";
     };
   }, [open]);
@@ -311,32 +321,41 @@ function FullScreenCalendar({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed",
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         background:
           "linear-gradient(160deg, #1a0a2e 0%, #2d1057 50%, #1e0b35 100%)",
-        zIndex: 99999,
+        zIndex: 999999,
         display: "flex",
         flexDirection: "column",
-        overflowY: "hidden",
         fontFamily: "'DM Sans', sans-serif",
+        // Respect iOS notch / dynamic island at top
+        paddingTop: "env(safe-area-inset-top, 0px)",
       }}
     >
-      {/* ── Header ── */}
+      {/* ── Sticky Header ── */}
       <div
         style={{
           flexShrink: 0,
-          padding: "16px 20px 0",
-          background: "rgba(26,10,46,0.95)",
-          backdropFilter: "blur(16px)",
+          background: "rgba(20, 8, 40, 0.97)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
           borderBottom: "1px solid rgba(255,255,255,0.08)",
-          paddingBottom: 12,
+          // Extra top padding so it clears the app's own nav bar (~60px) plus safe area
+          paddingTop: 16,
+          paddingLeft: 20,
+          paddingRight: 20,
+          paddingBottom: 14,
+          zIndex: 2,
         }}
       >
-        {/* Top row: close + clear */}
+        {/* Row 1: ✕  title  Clear */}
         <div
           style={{
             display: "flex",
@@ -348,73 +367,89 @@ function FullScreenCalendar({
           <button
             onClick={onClose}
             style={{
-              background: "rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.12)",
               border: "none",
               borderRadius: "50%",
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
-              color: "rgba(255,255,255,0.85)",
-              fontSize: 16,
+              color: "#fff",
+              fontSize: 18,
               flexShrink: 0,
+              WebkitTapHighlightColor: "transparent",
+              touchAction: "manipulation",
             }}
           >
             ✕
           </button>
+
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: "rgba(255,255,255,0.7)",
+              letterSpacing: 0.3,
+            }}
+          >
+            Select dates
+          </span>
 
           <button
             onClick={handleClear}
             style={{
               background: "transparent",
               border: "none",
-              color: "rgba(255,255,255,0.45)",
+              color: "rgba(255,138,42,0.8)",
               fontSize: 14,
+              fontWeight: 600,
               cursor: "pointer",
               fontFamily: "'DM Sans', sans-serif",
-              fontWeight: 500,
+              padding: "8px 4px",
+              WebkitTapHighlightColor: "transparent",
+              touchAction: "manipulation",
             }}
           >
             Clear
           </button>
         </div>
 
-        {/* Date range display */}
+        {/* Row 2: Check-in → Check-out */}
         <div
           style={{
             display: "flex",
             alignItems: "stretch",
             gap: 10,
-            marginBottom: 10,
+            marginBottom: 12,
           }}
         >
-          {/* Check-in */}
           <div style={{ flex: 1 }}>
             <div
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: "rgba(255,255,255,0.38)",
+                color: "rgba(255,255,255,0.35)",
                 letterSpacing: 1.2,
                 textTransform: "uppercase",
-                marginBottom: 5,
+                marginBottom: 4,
               }}
             >
               {placeholder[0]}
             </div>
             <div
               style={{
-                fontSize: 19,
+                fontSize: 18,
                 fontWeight: 700,
                 fontFamily: "'Playfair Display', Georgia, serif",
-                color: startDate ? "#fff" : "rgba(255,255,255,0.25)",
+                color: startDate ? "#fff" : "rgba(255,255,255,0.22)",
                 borderBottom: `2px solid ${
-                  startDate ? "#FF8A2A" : "rgba(255,255,255,0.12)"
+                  startDate ? "#FF8A2A" : "rgba(255,255,255,0.1)"
                 }`,
                 paddingBottom: 6,
                 lineHeight: 1.2,
+                minHeight: 30,
               }}
             >
               {startDate ? formatLabel(startDate) : "—"}
@@ -423,8 +458,8 @@ function FullScreenCalendar({
 
           <div
             style={{
-              color: "rgba(255,255,255,0.25)",
-              fontSize: 16,
+              color: "rgba(255,255,255,0.2)",
+              fontSize: 18,
               alignSelf: "flex-end",
               paddingBottom: 8,
             }}
@@ -432,31 +467,31 @@ function FullScreenCalendar({
             →
           </div>
 
-          {/* Check-out */}
           <div style={{ flex: 1 }}>
             <div
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: "rgba(255,255,255,0.38)",
+                color: "rgba(255,255,255,0.35)",
                 letterSpacing: 1.2,
                 textTransform: "uppercase",
-                marginBottom: 5,
+                marginBottom: 4,
               }}
             >
               {placeholder[1]}
             </div>
             <div
               style={{
-                fontSize: 19,
+                fontSize: 18,
                 fontWeight: 700,
                 fontFamily: "'Playfair Display', Georgia, serif",
-                color: endDate ? "#fff" : "rgba(255,255,255,0.25)",
+                color: endDate ? "#fff" : "rgba(255,255,255,0.22)",
                 borderBottom: `2px solid ${
-                  endDate ? "#FF8A2A" : "rgba(255,255,255,0.12)"
+                  endDate ? "#FF8A2A" : "rgba(255,255,255,0.1)"
                 }`,
                 paddingBottom: 6,
                 lineHeight: 1.2,
+                minHeight: 30,
               }}
             >
               {endDate ? formatLabel(endDate) : "—"}
@@ -464,15 +499,15 @@ function FullScreenCalendar({
           </div>
         </div>
 
-        {/* Status / night count */}
-        <div style={{ minHeight: 24, display: "flex", alignItems: "center" }}>
+        {/* Row 3: status pill */}
+        <div style={{ minHeight: 26, display: "flex", alignItems: "center" }}>
           {nights ? (
             <span
               style={{
                 background: "rgba(255,138,42,0.18)",
                 border: "1px solid rgba(255,138,42,0.4)",
                 borderRadius: 20,
-                padding: "3px 12px",
+                padding: "4px 14px",
                 fontSize: 13,
                 fontWeight: 700,
                 color: "#FF8A2A",
@@ -481,25 +516,25 @@ function FullScreenCalendar({
               {nights} night{nights !== 1 ? "s" : ""}
             </span>
           ) : (
-            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>
-              {!startDate
-                ? "Select your check-in date"
-                : "Now select check-out"}
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.28)" }}>
+              {!startDate ? "Tap your check-in date" : "Now tap check-out"}
             </span>
           )}
         </div>
       </div>
 
-      {/* ── Scrollable calendar ── */}
+      {/* ── Scrollable calendar body ── */}
       <div
         ref={scrollRef}
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "20px 20px 0",
+          overflowX: "hidden",
           WebkitOverflowScrolling: "touch",
+          padding: "20px 20px 0",
+          // Prevents rubber-band from bleeding into header
+          overscrollBehavior: "contain",
         }}
-        onMouseLeave={() => setHoverDate(null)}
       >
         {months.map(({ year, month }) => (
           <MonthGrid
@@ -513,16 +548,19 @@ function FullScreenCalendar({
             onHover={handleHover}
           />
         ))}
-        <div style={{ height: 110 }} />
+        {/* Bottom padding so last month isn't behind Done button */}
+        <div style={{ height: 120 }} />
       </div>
 
-      {/* ── Done button ── */}
+      {/* ── Done button — always above browser chrome ── */}
       <div
         style={{
           flexShrink: 0,
-          padding: "12px 20px",
-          paddingBottom: "max(12px, env(safe-area-inset-bottom, 12px))",
-          background: "linear-gradient(to top, #1a0a2e 65%, transparent)",
+          padding: "14px 20px",
+          // Respect home indicator / browser nav bar on iOS & Android
+          paddingBottom: "max(14px, env(safe-area-inset-bottom, 14px))",
+          background: "linear-gradient(to top, #140828 60%, transparent)",
+          zIndex: 2,
         }}
       >
         <button
@@ -530,22 +568,26 @@ function FullScreenCalendar({
           disabled={!startDate || !endDate}
           style={{
             width: "100%",
-            padding: "17px",
+            padding: "18px",
             borderRadius: 16,
             border: "none",
             background:
               startDate && endDate
-                ? "linear-gradient(135deg, #FF8A2A 0%, #FF6B00 100%)"
-                : "rgba(255,255,255,0.08)",
-            color: startDate && endDate ? "#1b1024" : "rgba(255,255,255,0.25)",
+                ? "linear-gradient(135deg, #FF8A2A 0%, #FF6000 100%)"
+                : "rgba(255,255,255,0.07)",
+            color: startDate && endDate ? "#fff" : "rgba(255,255,255,0.22)",
             fontSize: 16,
             fontWeight: 800,
             cursor: startDate && endDate ? "pointer" : "not-allowed",
             fontFamily: "'DM Sans', sans-serif",
             letterSpacing: 0.3,
             boxShadow:
-              startDate && endDate ? "0 4px 24px rgba(255,138,42,0.4)" : "none",
+              startDate && endDate
+                ? "0 4px 28px rgba(255,138,42,0.45)"
+                : "none",
             transition: "all 0.2s ease",
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "transparent",
           }}
         >
           {startDate && endDate
@@ -553,7 +595,8 @@ function FullScreenCalendar({
             : "Done"}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body // ← portal: renders outside React tree, always on top
   );
 }
 
@@ -570,12 +613,10 @@ export default function SkyrioPicker({
   const [open, setOpen] = useState(false);
   const [range, setRange] = useState([null, null]);
 
-  // Sync controlled value
   useEffect(() => {
     if (value !== undefined) setRange(value ?? [null, null]);
   }, [value]);
 
-  // Detect viewport
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
     setIsMobile(mq.matches);
@@ -601,7 +642,6 @@ export default function SkyrioPicker({
     [onChange]
   );
 
-  /* ── mobile trigger button ── */
   const [start, end] = range;
   const triggerLabel =
     start && end
@@ -618,31 +658,30 @@ export default function SkyrioPicker({
           onClick={() => setOpen(true)}
           className={className}
           style={{
-            /* mirror the sk-orange-picker look exactly */
             cursor: "pointer",
             textAlign: "left",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
             width: "100%",
-            /* inherit the class's existing background/border via className */
             display: "flex",
             alignItems: "center",
             gap: 8,
-            color: start ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.55)",
+            color: start ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.5)",
             fontWeight: start ? 600 : 500,
             fontSize: 14,
             fontFamily: "'DM Sans', sans-serif",
-            /* remove default button chrome */
             background: "rgba(255,255,255,0.08)",
             border: "1px solid rgba(255,255,255,0.14)",
             borderRadius: 14,
             height: 40,
             padding: "0 12px",
             backdropFilter: "blur(12px)",
+            WebkitTapHighlightColor: "transparent",
+            touchAction: "manipulation",
           }}
         >
-          <span style={{ opacity: 0.6, fontSize: 14 }}>📅</span>
+          <span style={{ opacity: 0.55, fontSize: 14 }}>📅</span>
           {triggerLabel}
         </button>
 
@@ -657,7 +696,6 @@ export default function SkyrioPicker({
     );
   }
 
-  /* ── desktop: existing RangePicker ── */
   return (
     <RangePicker
       className={className}
