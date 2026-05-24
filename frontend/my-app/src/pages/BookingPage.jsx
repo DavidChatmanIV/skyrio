@@ -40,6 +40,7 @@ import SaveTripButton from "@/components/trips/SaveTripButton";
 import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
 import SmartFilterBar from "@/pages/booking/SmartFilterBar";
+import SkyrioPicker from "@/pages/booking/SkyrioPicker";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import { createNotification } from "@/services/notificationsService";
 import {
@@ -53,7 +54,6 @@ import {
 } from "lucide-react";
 
 const { Title, Text } = Typography;
-const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -547,11 +547,15 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
           }}
         />
       </div>
-      <RangePicker
+
+      {/* ── SkyrioPicker replaces RangePicker ── */}
+      <SkyrioPicker
         className="sk-orange-picker"
         onChange={handleDatesChange}
+        placeholder={["Depart", "Return"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
+
       <Select
         className="sk-select-cabin"
         value={cabin}
@@ -598,7 +602,8 @@ function StaysForm({ onDestChange, onDatesChange }) {
         placeholder="Where to? City or hotel"
         onChange={(ap) => onDestChange?.(ap.city)}
       />
-      <RangePicker
+      {/* ── SkyrioPicker replaces RangePicker ── */}
+      <SkyrioPicker
         className="sk-orange-picker"
         placeholder={["Check-in", "Check-out"]}
         onChange={handleDatesChange}
@@ -632,7 +637,8 @@ function CarsForm({ onDestChange }) {
         placeholder="Drop-off (same as pick-up)"
         onChange={() => {}}
       />
-      <RangePicker
+      {/* ── SkyrioPicker replaces RangePicker ── */}
+      <SkyrioPicker
         className="sk-orange-picker"
         placeholder={["Pick-up date", "Drop-off date"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
@@ -700,9 +706,11 @@ function PackagesForm({ onDestChange, onDatesChange }) {
           onDestChange?.(ap.city);
         }}
       />
-      <RangePicker
+      {/* ── SkyrioPicker replaces RangePicker ── */}
+      <SkyrioPicker
         className="sk-orange-picker"
         onChange={handleDatesChange}
+        placeholder={["Depart", "Return"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
       />
       <Select
@@ -727,7 +735,8 @@ function ExcursionsForm({ onDestChange }) {
         placeholder="Destination city"
         onChange={(ap) => onDestChange?.(ap.city)}
       />
-      <RangePicker
+      {/* ── SkyrioPicker replaces RangePicker ── */}
+      <SkyrioPicker
         className="sk-orange-picker"
         placeholder={["Activity from", "Activity to"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
@@ -764,7 +773,8 @@ function LastMinuteForm() {
         <Option value="mountains">⛰ Mountains</Option>
         <Option value="theme">🎡 Theme parks</Option>
       </Select>
-      <RangePicker
+      {/* ── SkyrioPicker replaces RangePicker ── */}
+      <SkyrioPicker
         className="sk-orange-picker"
         placeholder={["This weekend", "Next weekend"]}
         disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
@@ -906,7 +916,6 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
 
-  // ✅ f4: departure airport from URL param
   const fromCode = searchParams.get("from") || "EWR";
 
   const prefillData = useMemo(() => {
@@ -960,16 +969,13 @@ export default function BookingPage() {
     tripDays: prefillData?.tripDays ?? null,
   });
 
-  // ✅ n3/n4: price watch state
   const [priceWatchOn, setPriceWatchOn] = useState(false);
   const [priceWatchRoute, setPriceWatchRoute] = useState(null);
   const [watchingId, setWatchingId] = useState(null);
 
-  // ✅ n3/n4: toggle global price watch for the current route
   const handlePriceWatchToggle = useCallback(async () => {
     const next = !priceWatchOn;
     setPriceWatchOn(next);
-
     if (next && priceWatchRoute) {
       try {
         await createNotification({
@@ -992,7 +998,6 @@ export default function BookingPage() {
     }
   }, [priceWatchOn, priceWatchRoute]);
 
-  // ✅ n3/n4: watch price for a specific flight
   const handleWatchFlight = useCallback(
     async (flight) => {
       const alreadyWatching = watchingId === flight.id;
@@ -1082,7 +1087,6 @@ export default function BookingPage() {
         if (!data.ok) throw new Error(data.message || "Search failed");
         setFlightResults(data.flights ?? []);
         setAutoSearchDone(true);
-        // ✅ Set initial price watch route from auto-search
         if (data.flights?.length) {
           const cheapest = [...data.flights].sort(
             (a, b) => parseFloat(a.totalAmount) - parseFloat(b.totalAmount)
@@ -1182,7 +1186,6 @@ export default function BookingPage() {
             onSearch={(f) => {
               setFlightResults(f);
               setSmartFilters(DEFAULT_FILTERS);
-              // ✅ Update price watch route when user manually searches
               if (f.length > 0) {
                 const cheapest = [...f].sort(
                   (a, b) =>
@@ -1411,7 +1414,6 @@ export default function BookingPage() {
                 AI Insight
               </button>
             )}
-            {/* ✅ n3/n4: Price Watch pill now calls real handler */}
             <button
               type="button"
               className={`sk-pill sk-pill-glass sk-pill-toggle${
@@ -1647,7 +1649,6 @@ export default function BookingPage() {
                           }}
                           onSaveError={(msg) => antdMessage.error(msg)}
                         />
-                        {/* ✅ n4: Watch Price button on each flight card */}
                         <button
                           type="button"
                           className={`sk-watch-btn${

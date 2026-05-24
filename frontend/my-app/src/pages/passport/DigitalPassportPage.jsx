@@ -47,7 +47,14 @@ import { io } from "socket.io-client";
 import "../../styles/profile-passport.css";
 import "../../styles/passport-locked.css";
 
-const SPIN_STYLE = `@keyframes spin { to { transform: rotate(360deg); } }`;
+const SPIN_STYLE = `
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ant-input-textarea-show-count::after,
+  .ant-input-data-count,
+  .ant-input-textarea .ant-input-data-count {
+    color: rgba(255,255,255,0.45) !important;
+  }
+`;
 import passportBg from "../../assets/DigitalPassport/worldmap.png";
 
 import ProfileMusicModal, {
@@ -837,15 +844,14 @@ export default function DigitalPassportPage() {
   };
 
   const handleSaveProfile = async () => {
-    if (
-      !editUsername.trim() &&
-      !editBio.trim() &&
-      !editCity.trim() &&
-      editVibes.length === 0
-    )
-      return;
     setEditSaving(true);
     try {
+      const payload = {
+        username: editUsername.trim() || user?.username,
+        bio: editBio.trim(),
+        city: editCity.trim(),
+        travelVibes: editVibes,
+      };
       const res = await fetch(apiUrl("/api/profile/settings"), {
         method: "PATCH",
         headers: {
@@ -853,33 +859,32 @@ export default function DigitalPassportPage() {
           Authorization: `Bearer ${token}`,
         },
         credentials: "include",
-        body: JSON.stringify({
-          username: editUsername.trim() || user?.username,
-          bio: editBio.trim(),
-          city: editCity.trim(),
-          travelVibes: editVibes,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update");
+
+      // Update local user state
       if (setUser) {
         setUser((prev) => ({
           ...prev,
-          username: editUsername.trim() || user?.username,
-          city: editCity.trim(),
-          bio: editBio.trim(),
+          username: payload.username,
+          city: payload.city,
+          bio: payload.bio,
           travelVibes: editVibes,
         }));
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...JSON.parse(localStorage.getItem("user") || "{}"),
-            username: editUsername.trim() || user?.username,
-            city: editCity.trim(),
-            bio: editBio.trim(),
-            travelVibes: editVibes,
-          })
-        );
+        try {
+          localStorage.setItem(
+            "user",
+            JSON.stringify({
+              ...JSON.parse(localStorage.getItem("user") || "{}"),
+              username: payload.username,
+              city: payload.city,
+              bio: payload.bio,
+              travelVibes: editVibes,
+            })
+          );
+        } catch {}
       }
       message.success("Profile updated ✓");
       setEditOpen(false);
