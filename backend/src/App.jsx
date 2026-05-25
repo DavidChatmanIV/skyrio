@@ -32,9 +32,12 @@ import SavedPage from "./pages/skyhub/SavedPage";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 
-// Legal ← NEW
+// Legal
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
+
+// Membership 
+import MembershipPage from "./pages/Membership/MembershipPage";
 
 // ── Analytics tracker ─────────────────────────────────────────────────────────
 function usePageTracking() {
@@ -66,7 +69,7 @@ function AppWithTracking() {
         <Route path="/reset" element={<ForgotPasswordPage />} />
         <Route path="/explore" element={<Explore />} />
 
-        {/* Legal ← NEW */}
+        {/* Legal */}
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsOfServicePage />} />
 
@@ -102,6 +105,17 @@ function AppWithTracking() {
             </PrivateRoute>
           }
         />
+
+        {/* Membership ← NEW */}
+        <Route
+          path="/membership"
+          element={
+            <PrivateRoute>
+              <MembershipPage />
+            </PrivateRoute>
+          }
+        />
+
         <Route
           path="/skyhub"
           element={

@@ -37,13 +37,138 @@ const C = {
   white: "#ffffff",
 };
 
+/* ─── Robot SVG icon (replaces all ✦ emoji) ─────────────────── */
+function RobotIcon({ size = 20 }) {
+  const scale = size / 24;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      style={{ display: "block", flexShrink: 0 }}
+    >
+      {/* Body */}
+      <rect x="5.5" y="10" width="13" height="9.5" rx="2.5" />
+      {/* Head */}
+      <rect x="8" y="5.5" width="8" height="5.5" rx="2" opacity=".9" />
+      {/* Eyes */}
+      <circle cx="10" cy="14" r="1.5" fill="#FFD060" />
+      <circle cx="14" cy="14" r="1.5" fill="#FFD060" />
+      {/* Mouth */}
+      <rect
+        x="10"
+        y="17"
+        width="4"
+        height="1.2"
+        rx=".6"
+        fill="#1a0d04"
+        opacity=".55"
+      />
+      {/* Antenna stem */}
+      <line
+        x1="12"
+        y1="5.5"
+        x2="12"
+        y2="3.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {/* Antenna tip */}
+      <circle cx="12" cy="3" r="1.3" />
+      {/* Left arm */}
+      <line
+        x1="5.5"
+        y1="13"
+        x2="3.5"
+        y2="13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {/* Right arm */}
+      <line
+        x1="18.5"
+        y1="13"
+        x2="20.5"
+        y2="13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/* ─── Small robot for message bubbles ───────────────────────── */
+function RobotIconSm() {
+  return <RobotIcon size={13} />;
+}
+
 /* ─── Styles ─────────────────────────────────────────────────── */
 const S = {
-  trigger: (open) => ({
+  /* Wrapper — handles fixed positioning for FAB stack */
+  fabWrapper: {
     position: "fixed",
     bottom: 28,
     right: 28,
     zIndex: 9999,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: 10,
+  },
+
+  nudge: {
+    position: "relative",
+    background: "#0e0c22",
+    border: "1px solid rgba(255,138,42,0.38)",
+    borderRadius: 14,
+    padding: "12px 30px 12px 14px",
+    maxWidth: 204,
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    boxShadow: "0 8px 32px rgba(0,0,0,0.55), 0 0 24px rgba(255,138,42,0.07)",
+    animation: "atlasNudgeIn 0.42s cubic-bezier(0.34,1.56,0.64,1) both",
+  },
+
+  nudgeTitle: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#ffb830",
+    fontFamily: "'Syne', sans-serif",
+    lineHeight: 1.2,
+  },
+
+  nudgeBody: {
+    display: "block",
+    fontSize: 11.5,
+    color: "rgba(255,255,255,0.58)",
+    lineHeight: 1.45,
+    fontFamily: "'DM Sans', sans-serif",
+  },
+
+  nudgeClose: {
+    position: "absolute",
+    top: 8,
+    right: 10,
+    background: "none",
+    border: "none",
+    color: "rgba(255,255,255,0.25)",
+    fontSize: 10,
+    cursor: "pointer",
+    padding: 0,
+    lineHeight: 1,
+    fontFamily: "inherit",
+  },
+
+  trigger: (open) => ({
+    position: "relative" /* wrapper handles fixed positioning */,
     width: 56,
     height: 56,
     borderRadius: "50%",
@@ -60,13 +185,18 @@ const S = {
       : `0 0 0 4px ${C.orangeGlow}, 0 8px 32px rgba(255,138,42,0.35)`,
     transition: "all 0.25s cubic-bezier(0.34,1.56,0.64,1)",
     flexShrink: 0,
+    color: C.white,
   }),
 
-  triggerIcon: {
-    fontSize: 22,
-    lineHeight: 1,
+  fabHint: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.25)",
+    fontFamily: "'DM Sans', sans-serif",
+    letterSpacing: "0.04em",
+    textAlign: "center",
+    pointerEvents: "none",
+    whiteSpace: "nowrap",
     userSelect: "none",
-    color: C.white,
   },
 
   panel: (open) => ({
@@ -110,15 +240,12 @@ const S = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 16,
     flexShrink: 0,
     boxShadow: `0 0 12px ${C.orangeGlow}`,
     color: C.white,
   },
 
-  headerText: {
-    flex: 1,
-  },
+  headerText: { flex: 1 },
 
   headerTitle: {
     fontSize: 14,
@@ -190,7 +317,6 @@ const S = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 24,
     boxShadow: `0 0 24px ${C.orangeGlow}, 0 0 48px ${C.purpleGlow}`,
     marginBottom: 4,
     color: C.white,
@@ -249,7 +375,6 @@ const S = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 12,
     flexShrink: 0,
     alignSelf: "flex-end",
     color: C.white,
@@ -372,6 +497,10 @@ const KEYFRAMES = `
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+  @keyframes atlasNudgeIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.91); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
   .atlas-msg-enter { animation: atlasFadeIn 0.2s ease forwards; }
   .atlas-suggestion-btn:hover {
     background: rgba(255,138,42,0.22) !important;
@@ -384,15 +513,29 @@ const KEYFRAMES = `
   .atlas-textarea:focus {
     border-color: rgba(255,138,42,0.5) !important;
   }
+  .atlas-nudge::after {
+    content: "";
+    position: absolute;
+    bottom: -7px;
+    right: 22px;
+    width: 13px;
+    height: 13px;
+    background: #0e0c22;
+    border-right: 1px solid rgba(255,138,42,0.38);
+    border-bottom: 1px solid rgba(255,138,42,0.38);
+    transform: rotate(45deg);
+  }
   .atlas-messages-wrap::-webkit-scrollbar { width: 4px; }
   .atlas-messages-wrap::-webkit-scrollbar-track { background: transparent; }
   .atlas-messages-wrap::-webkit-scrollbar-thumb {
     background: rgba(255,255,255,0.08);
     border-radius: 4px;
   }
-
-  /* ── Mobile responsive ── */
   @media (max-width: 480px) {
+    .atlas-fab-wrapper {
+      bottom: 20px !important;
+      right: 16px !important;
+    }
     .atlas-panel {
       width: calc(100vw - 24px) !important;
       right: 12px !important;
@@ -400,12 +543,6 @@ const KEYFRAMES = `
       height: calc(100vh - 110px) !important;
       max-height: calc(100vh - 110px) !important;
       border-radius: 16px !important;
-    }
-    .atlas-trigger {
-      bottom: 20px !important;
-      right: 16px !important;
-      width: 50px !important;
-      height: 50px !important;
     }
   }
 `;
@@ -433,7 +570,9 @@ function getSuggestions(destination) {
 function TypingIndicator() {
   return (
     <div style={S.msgRow("assistant")}>
-      <div style={S.msgAvatar}>✦</div>
+      <div style={S.msgAvatar}>
+        <RobotIconSm />
+      </div>
       <div style={S.typingBubble}>
         {[0, 1, 2].map((i) => (
           <div key={i} style={S.typingDot(i)} />
@@ -448,8 +587,29 @@ function MessageBubble({ message }) {
   const isUser = message.role === "user";
   return (
     <div style={S.msgRow(message.role)} className="atlas-msg-enter">
-      {!isUser && <div style={S.msgAvatar}>✦</div>}
+      {!isUser && (
+        <div style={S.msgAvatar}>
+          <RobotIconSm />
+        </div>
+      )}
       <div style={S.bubble(message.role)}>{message.content}</div>
+    </div>
+  );
+}
+
+/* ─── Nudge tooltip ──────────────────────────────────────────── */
+function AtlasNudge({ visible, onDismiss }) {
+  if (!visible) return null;
+  return (
+    <div style={S.nudge} className="atlas-nudge" role="tooltip">
+      <button style={S.nudgeClose} onClick={onDismiss} aria-label="Dismiss">
+        ✕
+      </button>
+      <strong style={S.nudgeTitle}>👋 I'm Atlas</strong>
+      <span style={S.nudgeBody}>
+        Type your trip idea and I'll handle flights, hotels &amp; budget
+        instantly.
+      </span>
     </div>
   );
 }
@@ -457,6 +617,7 @@ function MessageBubble({ message }) {
 /* ─── Main component ─────────────────────────────────────────── */
 export default function AtlasChat({ destination, initialOpen = false }) {
   const [open, setOpen] = useState(initialOpen);
+  const [showNudge, setShowNudge] = useState(true);
   const { messages, isLoading, error, sendMessage, clearChat } = useAtlas();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef(null);
@@ -466,6 +627,20 @@ export default function AtlasChat({ destination, initialOpen = false }) {
   useEffect(() => {
     injectStyles();
   }, []);
+
+  // Auto-dismiss nudge after 6 seconds
+  useEffect(() => {
+    if (!showNudge) return;
+    const t = setTimeout(() => setShowNudge(false), 6000);
+    return () => clearTimeout(t);
+  }, [showNudge]);
+
+  // Hide nudge when panel opens; re-show on close
+  useEffect(() => {
+    if (open) {
+      setShowNudge(false);
+    }
+  }, [open]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -505,6 +680,10 @@ export default function AtlasChat({ destination, initialOpen = false }) {
     [sendMessage]
   );
 
+  const handleFabClick = useCallback(() => {
+    setOpen((o) => !o);
+  }, []);
+
   const canSend = input.trim().length > 0 && !isLoading;
   const suggestions = getSuggestions(destination);
 
@@ -514,7 +693,9 @@ export default function AtlasChat({ destination, initialOpen = false }) {
       <div style={S.panel(open)} className="atlas-panel">
         {/* Header */}
         <div style={S.header}>
-          <div style={S.avatarWrap}>✦</div>
+          <div style={S.avatarWrap}>
+            <RobotIcon size={20} />
+          </div>
           <div style={S.headerText}>
             <p style={S.headerTitle}>Atlas AI</p>
             <p style={S.headerSub}>Skyrio Travel Assistant</p>
@@ -536,7 +717,9 @@ export default function AtlasChat({ destination, initialOpen = false }) {
         <div style={S.messagesWrap} className="atlas-messages-wrap">
           {messages.length === 0 ? (
             <div style={S.welcome}>
-              <div style={S.welcomeOrb}>✦</div>
+              <div style={S.welcomeOrb}>
+                <RobotIcon size={26} />
+              </div>
               <p style={S.welcomeTitle}>
                 {destination
                   ? `Planning your ${destination} trip?`
@@ -592,23 +775,47 @@ export default function AtlasChat({ destination, initialOpen = false }) {
             disabled={!canSend}
             title="Send"
           >
-            {isLoading ? "⏳" : "➤"}
+            {isLoading ? "⏳" : "↑"}
           </button>
         </div>
 
         <div style={S.footerBrand}>Powered by Skyrio Atlas AI</div>
       </div>
 
-      {/* ── Trigger Bubble ── */}
-      <button
-        style={S.trigger(open)}
-        className="atlas-trigger"
-        onClick={() => setOpen((o) => !o)}
-        title={open ? "Close Atlas" : "Open Atlas AI"}
-        aria-label={open ? "Close Atlas AI chat" : "Open Atlas AI chat"}
-      >
-        <span style={S.triggerIcon}>{open ? "✕" : "✦"}</span>
-      </button>
+      {/* ── FAB wrapper: nudge + button + hint label ── */}
+      <div style={S.fabWrapper} className="atlas-fab-wrapper">
+        {/* Nudge tooltip — auto-dismisses after 6s */}
+        <AtlasNudge
+          visible={showNudge && !open}
+          onDismiss={() => setShowNudge(false)}
+        />
+
+        {/* Trigger button */}
+        <button
+          style={S.trigger(open)}
+          className="atlas-trigger"
+          onClick={handleFabClick}
+          title={open ? "Close Atlas" : "Open Atlas AI"}
+          aria-label={open ? "Close Atlas AI chat" : "Open Atlas AI chat"}
+        >
+          {open ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path
+                d="M2 2l12 12M14 2L2 14"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                fill="none"
+              />
+            </svg>
+          ) : (
+            <RobotIcon size={22} />
+          )}
+        </button>
+
+        {/* Hint label under FAB when closed */}
+        {!open && <span style={S.fabHint}>Open Atlas AI</span>}
+      </div>
     </>
   );
 }

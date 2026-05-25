@@ -21,6 +21,167 @@ import { trackPassportEvent } from "@/utils/passportEvents";
 const { Option } = Select;
 
 // ─────────────────────────────────────────────
+// SVG icon set — replaces all emoji in Atlas section
+// ─────────────────────────────────────────────
+
+function RobotIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      style={{ display: "block", flexShrink: 0 }}
+    >
+      {/* Body */}
+      <rect x="5.5" y="10" width="13" height="9.5" rx="2.5" />
+      {/* Head */}
+      <rect x="8" y="5.5" width="8" height="5.5" rx="2" opacity=".9" />
+      {/* Eyes */}
+      <circle cx="10" cy="14" r="1.5" fill="#FFD060" />
+      <circle cx="14" cy="14" r="1.5" fill="#FFD060" />
+      {/* Mouth */}
+      <rect
+        x="10"
+        y="17"
+        width="4"
+        height="1.2"
+        rx=".6"
+        fill="#1a0d04"
+        opacity=".55"
+      />
+      {/* Antenna stem */}
+      <line
+        x1="12"
+        y1="5.5"
+        x2="12"
+        y2="3.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {/* Antenna tip */}
+      <circle cx="12" cy="3" r="1.3" />
+      {/* Left arm */}
+      <line
+        x1="5.5"
+        y1="13"
+        x2="3.5"
+        y2="13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {/* Right arm */}
+      <line
+        x1="18.5"
+        y1="13"
+        x2="20.5"
+        y2="13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function BrainIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M9.5 2a4.5 4.5 0 0 1 4.5 4.5v.5" />
+      <path d="M14 7a4 4 0 0 1 4 4v.5a3.5 3.5 0 0 1-3.5 3.5H14" />
+      <path d="M9.5 2A3.5 3.5 0 0 0 6 5.5V6a4 4 0 0 0 2 3.46" />
+      <path d="M8 9.5A3.5 3.5 0 0 0 4.5 13v.5A3.5 3.5 0 0 0 8 17h.5" />
+      <path d="M14.5 15H15a3 3 0 0 1 3 3v1" />
+      <path d="M8.5 15A3.5 3.5 0 0 0 5 18.5V20" />
+      <path d="M9 17v4" />
+      <path d="M15 17v4" />
+      <path d="M9 12h6" />
+    </svg>
+  );
+}
+
+function BoltIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <polygon
+        points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"
+        fill="currentColor"
+        opacity=".9"
+        stroke="none"
+      />
+    </svg>
+  );
+}
+
+function TargetIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      <circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Home airport — inlined, persists to localStorage
 // ─────────────────────────────────────────────
 const HOME_AIRPORT_KEY = "skyrio_home_airport";
@@ -169,24 +330,25 @@ function buildAtlasConversation(homeCity) {
   ];
 }
 
+// Icons are SVG components — no emoji
 const ATLAS_FEATURES = [
   {
-    icon: "🧠",
+    Icon: BrainIcon,
     title: "Understands natural language",
     desc: "Just tell Atlas what you want — no dropdowns, no filters. It figures out the rest.",
   },
   {
-    icon: "⚡",
+    Icon: BoltIcon,
     title: "Builds your plan in seconds",
     desc: "Flights, hotels, and budget breakdown — ready before you finish your coffee.",
   },
   {
-    icon: "🎯",
+    Icon: TargetIcon,
     title: "Learns your travel style",
     desc: "The more you travel with Skyrio, the smarter Atlas gets at matching your vibe.",
   },
   {
-    icon: "🔒",
+    Icon: LockIcon,
     title: "Books it too",
     desc: "Atlas doesn't just suggest — it takes you all the way to a confirmed booking.",
   },
@@ -234,9 +396,6 @@ const SUPPORT_FAQS = [
   },
 ];
 
-// ─────────────────────────────────────────────
-// ✅ s3: Social proof bar items
-// ─────────────────────────────────────────────
 const SOCIAL_PROOF = [
   { stat: "8 sec", label: "avg. plan build time" },
   { stat: "30+", label: "destinations covered" },
@@ -244,9 +403,6 @@ const SOCIAL_PROOF = [
   { stat: "Stripe", label: "secure payments" },
 ];
 
-// ─────────────────────────────────────────────
-// ✅ s3: Trust signals below CTA
-// ─────────────────────────────────────────────
 const TRUST_SIGNALS = [
   "✓ No credit card required",
   "✓ Free to search & plan",
@@ -254,7 +410,7 @@ const TRUST_SIGNALS = [
 ];
 
 // ─────────────────────────────────────────────
-// Injected styles — s3 additions + existing
+// Injected styles
 // ─────────────────────────────────────────────
 const INJECTED_CSS = `
 
@@ -289,132 +445,107 @@ const INJECTED_CSS = `
   background: rgba(255,138,42,0.15) !important; color: #ff8a2a !important;
 }
 
-/* ✅ s3: Search row — airport inline with search bar */
 .sk-hero__searchRow {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  max-width: 640px;
+  display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 640px;
 }
 .sk-hero__searchInputRow {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  width: 100%;
+  display: flex; gap: 10px; align-items: center; width: 100%;
 }
 .sk-hero__airportRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: center;
+  display: flex; align-items: center; gap: 8px; justify-content: center;
 }
 
-/* ✅ s3: Social proof bar */
 .sk-social-proof {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  margin: 28px auto 0;
-  max-width: 560px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  overflow: hidden;
+  display: flex; align-items: center; justify-content: center; gap: 0;
+  margin: 28px auto 0; max-width: 560px; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden;
 }
 .sk-social-proof__item {
-  flex: 1;
-  padding: 14px 12px;
-  text-align: center;
+  flex: 1; padding: 14px 12px; text-align: center;
   border-right: 1px solid rgba(255,255,255,0.07);
 }
 .sk-social-proof__item:last-child { border-right: none; }
 .sk-social-proof__stat {
-  font-family: "Syne", sans-serif;
-  font-size: 18px;
-  font-weight: 800;
-  color: #ff8a2a;
-  line-height: 1;
-  margin-bottom: 3px;
+  font-family: "Syne", sans-serif; font-size: 18px; font-weight: 800;
+  color: #ff8a2a; line-height: 1; margin-bottom: 3px;
 }
 .sk-social-proof__label {
-  font-size: 10px;
-  color: rgba(255,255,255,0.4);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  line-height: 1.3;
+  font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase;
+  letter-spacing: 0.06em; line-height: 1.3;
 }
 
-/* ✅ s3: Trust signals */
 .sk-trust-signals {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  flex-wrap: wrap;
-  margin-top: 12px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 20px; flex-wrap: wrap; margin-top: 12px;
 }
-.sk-trust-signals span {
-  font-size: 12px;
-  color: rgba(255,255,255,0.35);
-  font-weight: 500;
-}
+.sk-trust-signals span { font-size: 12px; color: rgba(255,255,255,0.35); font-weight: 500; }
 
-/* ✅ s3: Secondary CTA below hero */
-.sk-hero__secondaryCta {
-  margin-top: 20px;
-  text-align: center;
-}
-.sk-hero__secondaryCta-text {
-  font-size: 13px;
-  color: rgba(255,255,255,0.45);
-  margin-bottom: 8px;
-}
+.sk-hero__secondaryCta { margin-top: 20px; text-align: center; }
+.sk-hero__secondaryCta-text { font-size: 13px; color: rgba(255,255,255,0.45); margin-bottom: 8px; }
 .sk-hero__secondaryCta-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 20px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,138,42,0.35);
-  background: rgba(255,138,42,0.08);
-  color: #ff8a2a;
-  font-family: "DM Sans", sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s;
-  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px;
+  border-radius: 999px; border: 1px solid rgba(255,138,42,0.35);
+  background: rgba(255,138,42,0.08); color: #ff8a2a; font-family: "DM Sans", sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.18s; text-decoration: none;
 }
-.sk-hero__secondaryCta-btn:hover {
-  background: rgba(255,138,42,0.15);
-  border-color: #ff8a2a;
-}
+.sk-hero__secondaryCta-btn:hover { background: rgba(255,138,42,0.15); border-color: #ff8a2a; }
 
-/* ✅ s3: Examples section — tighter, more visual */
 .sk-examples__kicker {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #ff8a2a;
-  margin-bottom: 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #ff8a2a; margin-bottom: 10px;
 }
 
-/* ══════════════════════════════════════════ ATLAS SECTION ══════════════════════════════════════════ */
+/* ══ ATLAS SECTION ══ */
 .sk-atlas { padding: 0 24px 80px; max-width: 1100px; margin: 0 auto; }
 .sk-atlas__head { text-align: center; margin-bottom: 48px; }
-.sk-atlas__eyebrow { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,138,42,0.14); border: 1px solid rgba(255,138,42,0.28); border-radius: 999px; padding: 5px 16px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: #ff8a2a; margin-bottom: 18px; }
+.sk-atlas__eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,138,42,0.14); border: 1px solid rgba(255,138,42,0.28);
+  border-radius: 999px; padding: 5px 16px; font-size: 12px; font-weight: 500;
+  letter-spacing: 0.04em; color: #ff8a2a; margin-bottom: 18px;
+}
 .sk-atlas__eyebrow::before { content: "✦"; font-size: 10px; }
-.sk-atlas__title { font-family: "Syne", sans-serif !important; font-size: clamp(28px, 4.5vw, 42px) !important; font-weight: 800 !important; letter-spacing: -0.02em !important; color: #fff !important; margin: 0 0 14px !important; line-height: 1.1 !important; }
-.sk-atlas__name { background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.sk-atlas__title {
+  font-family: "Syne", sans-serif !important; font-size: clamp(28px, 4.5vw, 42px) !important;
+  font-weight: 800 !important; letter-spacing: -0.02em !important; color: #fff !important;
+  margin: 0 0 14px !important; line-height: 1.1 !important;
+}
+.sk-atlas__name {
+  background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
 .sk-atlas__sub { font-size: 15px; color: rgba(255,255,255,0.6); max-width: 500px; margin: 0 auto; line-height: 1.65; }
 .sk-atlas__body { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
-.sk-atlas__chat { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.22s; }
+
+/* Chat card */
+.sk-atlas__chat {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px; overflow: hidden; display: flex; flex-direction: column;
+  transition: border-color 0.22s;
+}
 .sk-atlas__chat:hover { border-color: rgba(255,255,255,0.22); }
-.sk-atlas__chatHeader { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
-.sk-atlas__avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%); display: flex; align-items: center; justify-content: center; font-size: 14px; color: #1a0d04; flex-shrink: 0; box-shadow: 0 4px 14px rgba(255,138,42,0.4); }
+.sk-atlas__chatHeader {
+  display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
+}
+
+/* ── Atlas avatar — robot replaces ✦ ── */
+.sk-atlas__avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: #1a0d04; flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(255,138,42,0.4);
+}
+
+/* ── Bubble avatar — robot replaces ✦ ── */
+.sk-atlas__bubbleAvatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: #1a0d04; flex-shrink: 0;
+}
+
 .sk-atlas__chatName { font-family: "Syne", sans-serif; font-size: 14px; font-weight: 700; color: #fff; line-height: 1; }
 .sk-atlas__chatStatus { display: flex; align-items: center; gap: 5px; font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 3px; }
 .sk-atlas__statusDot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; animation: sk-pulse 2s infinite; }
@@ -422,7 +553,6 @@ const INJECTED_CSS = `
 .sk-atlas__bubble { display: flex; align-items: flex-end; gap: 8px; animation: sk-bubbleIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
 @keyframes sk-bubbleIn { from { opacity:0; transform:translateY(8px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
 .sk-atlas__bubble--user { flex-direction: row-reverse; }
-.sk-atlas__bubbleAvatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #1a0d04; flex-shrink: 0; }
 .sk-atlas__bubbleText { max-width: 78%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5; }
 .sk-atlas__bubble--atlas .sk-atlas__bubbleText { background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.25); color: rgba(255,255,255,0.9); border-bottom-left-radius: 4px; }
 .sk-atlas__bubble--user .sk-atlas__bubbleText { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); border-bottom-right-radius: 4px; }
@@ -433,19 +563,22 @@ const INJECTED_CSS = `
 @keyframes sk-typing { 0%,60%,100% { transform:translateY(0); opacity:0.4; } 30% { transform:translateY(-5px); opacity:1; } }
 .sk-atlas__chatFooter { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 10px; align-items: center; }
 .sk-atlas__fakeInput { flex: 1; padding: 9px 14px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); font-size: 12px; color: rgba(255,255,255,0.25); }
-.sk-atlas__chatCta { padding: 9px 16px; border-radius: 999px; border: none; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%); color: #1a0d04; font-family: "DM Sans", sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: filter 0.18s, transform 0.18s; }
-.sk-atlas__chatCta:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.sk-atlas__fabHint { font-size: 11px; font-weight: 600; color: rgba(255,138,42,0.7); white-space: nowrap; letter-spacing: 0.03em; flex-shrink: 0; }
+
+/* Features */
 .sk-atlas__features { display: flex; flex-direction: column; gap: 14px; }
 .sk-atlas__feature { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; transition: border-color 0.22s, transform 0.22s; }
 .sk-atlas__feature:hover { border-color: rgba(255,138,42,0.3); transform: translateX(4px); }
-.sk-atlas__featureIcon { width: 40px; height: 40px; border-radius: 10px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.25); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.sk-atlas__featureIcon { width: 40px; height: 40px; border-radius: 10px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.25); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #ff8a2a; }
 .sk-atlas__featureTitle { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
 .sk-atlas__featureDesc { font-size: 12.5px; color: rgba(255,255,255,0.55); line-height: 1.5; }
-.sk-atlas__mainCta { display: flex !important; align-items: center !important; justify-content: center !important; width: 100%; margin-top: 8px; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%) !important; border: none !important; border-radius: 999px !important; color: #1a0d04 !important; font-family: "DM Sans", sans-serif !important; font-size: 15px !important; font-weight: 700 !important; height: 48px !important; padding: 0 28px !important; cursor: pointer; transition: filter 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(255,138,42,0.28); }
-.sk-atlas__mainCta:hover { filter: brightness(1.08) !important; transform: translateY(-2px) !important; }
+
+/* NOTE: .sk-atlas__mainCta intentionally removed —
+   The FAB in the bottom-right is the single Atlas entry point. */
+
 @media (max-width: 820px) { .sk-atlas__body { grid-template-columns: 1fr; } .sk-atlas { padding: 0 16px 64px; } .sk-atlas__head { margin-bottom: 32px; } }
 
-/* ══════════════════════════════════════════ PASSPORT BANNER ══════════════════════════════════════════ */
+/* ══ PASSPORT BANNER ══ */
 .sk-passport-banner { margin: 0 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto; position: relative; border-radius: 24px; overflow: hidden; background: linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(255,138,42,0.25) 50%, rgba(236,72,153,0.25) 100%); border: 1px solid rgba(255,138,42,0.3); padding: 52px 48px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
 .sk-passport-banner::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 80% at 80% 50%, rgba(255,138,42,0.15) 0%, transparent 70%); pointer-events: none; }
 .sk-passport-banner__left { flex: 1; position: relative; z-index: 1; }
@@ -474,7 +607,7 @@ const INJECTED_CSS = `
 @media (max-width: 820px) { .sk-passport-banner { flex-direction: column; padding: 32px 20px; margin: 0 16px 64px; } .sk-passport-banner__right { width: 100%; } .sk-passport-card { width: 100%; } .sk-passport-banner__cta { width: 100% !important; } }
 @media (max-width: 480px) { .sk-passport-banner__perks { grid-template-columns: 1fr; } }
 
-/* ══════════════════════════════════════════ SUPPORT / FAQ ══════════════════════════════════════════ */
+/* ══ SUPPORT / FAQ ══ */
 .sk-support { padding: 0 24px 96px; max-width: 860px; margin: 0 auto; }
 .sk-support__head { text-align: center; margin-bottom: 40px; }
 .sk-support__eyebrow { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.25); border-radius: 999px; padding: 5px 16px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: #ff8a2a; margin-bottom: 16px; }
@@ -680,27 +813,23 @@ export default function LandingPage() {
       </div>
 
       <div className="sk-landing__content">
-        {/* ── ✅ s3: Restructured Hero ── */}
+        {/* ── Hero ── */}
         <header className="sk-hero">
-          {/* ✅ s3: Sharper eyebrow — benefit not category */}
           <div className="sk-hero__eyebrow">
             Your AI travel planner — free to use
           </div>
 
-          {/* ✅ s3: Specific, outcome-driven headline */}
           <h1 className="sk-hero__title">
             Tell us where you want to go.
             <br />
             We'll handle the rest.
           </h1>
 
-          {/* ✅ s3: One concrete proof point, not a vague claim */}
           <p className="sk-hero__sub">
             Type a destination and budget. Skyrio's AI builds a full flight +
             hotel plan in seconds — then you book it directly.
           </p>
 
-          {/* ✅ s3: Search bar is the primary CTA — no airport picker above it */}
           <div className="sk-hero__searchRow">
             <div className="sk-hero__searchInputRow">
               <Input
@@ -724,7 +853,6 @@ export default function LandingPage() {
               </Button>
             </div>
 
-            {/* ✅ s3: Airport picker moves below search — less friction above fold */}
             <div className="sk-hero__airportRow">
               <span className="sk-home-airport__label">
                 <EnvironmentOutlined /> Flying from
@@ -754,7 +882,6 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* ✅ s3: Quick chips — still here, now visually secondary */}
           <div className="sk-hero__quickActions">
             <button
               type="button"
@@ -784,7 +911,6 @@ export default function LandingPage() {
             </button>
           </div>
 
-          {/* AI suggestion card */}
           <section
             className={`sk-suggestion ${showSuggestion ? "is-visible" : ""}`}
           >
@@ -825,7 +951,6 @@ export default function LandingPage() {
             </div>
           </section>
 
-          {/* ✅ s3: Social proof bar — numbers build immediate trust */}
           <div className="sk-social-proof">
             {SOCIAL_PROOF.map((item) => (
               <div key={item.label} className="sk-social-proof__item">
@@ -835,14 +960,12 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* ✅ s3: Trust signals — kill objections early */}
           <div className="sk-trust-signals">
             {TRUST_SIGNALS.map((t) => (
               <span key={t}>{t}</span>
             ))}
           </div>
 
-          {/* ✅ s3: Secondary CTA — signup path for users not ready to search */}
           <div className="sk-hero__secondaryCta">
             <p className="sk-hero__secondaryCta-text">
               Want to track trips, earn XP, and unlock rewards?
@@ -860,7 +983,6 @@ export default function LandingPage() {
         {/* ── Examples ── */}
         <section className="sk-examples">
           <div className="sk-examples__head">
-            {/* ✅ s3: kicker makes it feel more like proof, less like a feature list */}
             <div className="sk-examples__kicker">
               Real plans, built instantly
             </div>
@@ -899,7 +1021,6 @@ export default function LandingPage() {
               </button>
             ))}
           </div>
-          {/* ✅ s3: footline is now a benefit statement, not just a tagline */}
           <p className="sk-footline">
             No account needed to plan. Sign up when you're ready to book.
           </p>
@@ -918,9 +1039,13 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="sk-atlas__body">
+            {/* ── Chat demo ── */}
             <div className="sk-atlas__chat">
               <div className="sk-atlas__chatHeader">
-                <div className="sk-atlas__avatar">✦</div>
+                {/* ✅ Robot SVG replaces ✦ emoji */}
+                <div className="sk-atlas__avatar">
+                  <RobotIcon size={20} />
+                </div>
                 <div>
                   <div className="sk-atlas__chatName">Atlas</div>
                   <div className="sk-atlas__chatStatus">
@@ -929,6 +1054,7 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
+
               <div className="sk-atlas__messages">
                 {atlasConversation.map((bubble, i) => {
                   if (i >= visibleBubbles) return null;
@@ -938,16 +1064,24 @@ export default function LandingPage() {
                       className={`sk-atlas__bubble sk-atlas__bubble--${bubble.from}`}
                     >
                       {bubble.from === "atlas" && (
-                        <div className="sk-atlas__bubbleAvatar">✦</div>
+                        /* ✅ Robot SVG replaces ✦ emoji in message bubbles */
+                        <div className="sk-atlas__bubbleAvatar">
+                          <RobotIcon size={13} />
+                        </div>
                       )}
                       <div className="sk-atlas__bubbleText">{bubble.text}</div>
                     </div>
                   );
                 })}
+
+                {/* Typing indicator */}
                 {visibleBubbles < atlasConversation.length &&
                   atlasConversation[visibleBubbles]?.from === "atlas" && (
                     <div className="sk-atlas__bubble sk-atlas__bubble--atlas">
-                      <div className="sk-atlas__bubbleAvatar">✦</div>
+                      {/* ✅ Robot SVG replaces ✦ emoji in typing indicator */}
+                      <div className="sk-atlas__bubbleAvatar">
+                        <RobotIcon size={13} />
+                      </div>
                       <div className="sk-atlas__typing">
                         <span />
                         <span />
@@ -956,38 +1090,29 @@ export default function LandingPage() {
                     </div>
                   )}
               </div>
+
               <div className="sk-atlas__chatFooter">
                 <div className="sk-atlas__fakeInput">
                   Ask Atlas anything about your trip...
                 </div>
-                <button
-                  type="button"
-                  className="sk-atlas__chatCta"
-                  onClick={goPlan}
-                >
-                  Try Atlas →
-                </button>
+                <div className="sk-atlas__fabHint">Open Atlas AI ↘</div>
               </div>
             </div>
+
+            {/* ── Features ── */}
+            {/* ✅ "Start planning with Atlas" button REMOVED */}
             <div className="sk-atlas__features">
               {ATLAS_FEATURES.map((f) => (
                 <div key={f.title} className="sk-atlas__feature">
-                  <div className="sk-atlas__featureIcon">{f.icon}</div>
+                  <div className="sk-atlas__featureIcon">
+                    <f.Icon />
+                  </div>
                   <div>
                     <div className="sk-atlas__featureTitle">{f.title}</div>
                     <div className="sk-atlas__featureDesc">{f.desc}</div>
                   </div>
                 </div>
               ))}
-              <button
-                type="button"
-                className="sk-atlas__mainCta"
-                onClick={goPlan}
-                disabled={isRouting}
-              >
-                Start planning with Atlas{" "}
-                <ArrowRightOutlined style={{ marginLeft: 8 }} />
-              </button>
             </div>
           </div>
         </section>

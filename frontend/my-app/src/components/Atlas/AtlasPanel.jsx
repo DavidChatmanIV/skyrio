@@ -4,7 +4,7 @@
  * - Starter prompts surface contextually based on what the user is doing
  * - Strong system prompt grounds Atlas in Skyrio's real data
  * - Streams responses from Anthropic via /api/atlas/chat
- * - FAB trigger button (orange ✦)
+ * - FAB trigger button with Robot icon + nudge tooltip
  */
 
 import React, {
@@ -15,7 +15,7 @@ import React, {
   useMemo,
 } from "react";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
-import { Sparkles, Bot, X } from "lucide-react";
+import { Bot, X } from "lucide-react";
 import "@/styles/AtlasPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -109,7 +109,6 @@ function buildStarterPrompts(ctx) {
   const hasFlights = Array.isArray(flights) && flights.length > 0;
   const hasBooking = bookingTotal && Number(bookingTotal) > 0;
 
-  // Context-specific prompts first
   const prompts = [];
 
   if (hasDest && hasBudget) {
@@ -134,7 +133,6 @@ function buildStarterPrompts(ctx) {
     prompts.push(`Build me a ${tripDays}-day itinerary for ${destination}.`);
   }
 
-  // Always-available fallback prompts
   const fallbacks = [
     "Find me a warm destination under $1,500 in the next 6 weeks.",
     "What's the cheapest day to fly to Europe right now?",
@@ -144,7 +142,6 @@ function buildStarterPrompts(ctx) {
     "What travel credit cards are worth getting?",
   ];
 
-  // Merge: context-specific first, pad with fallbacks, cap at 4
   const merged = [...prompts];
   for (const f of fallbacks) {
     if (merged.length >= 4) break;
@@ -152,6 +149,95 @@ function buildStarterPrompts(ctx) {
   }
 
   return merged.slice(0, 4);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Robot SVG icon for Atlas FAB
+// ─────────────────────────────────────────────────────────────
+function RobotIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {/* Body */}
+      <rect x="5.5" y="10" width="13" height="9.5" rx="2.5" />
+      {/* Head */}
+      <rect x="8" y="5.5" width="8" height="5.5" rx="2" opacity=".9" />
+      {/* Eyes */}
+      <circle cx="10" cy="14" r="1.5" fill="#1a0d04" />
+      <circle cx="14" cy="14" r="1.5" fill="#1a0d04" />
+      {/* Mouth */}
+      <rect
+        x="10"
+        y="17"
+        width="4"
+        height="1.2"
+        rx=".6"
+        fill="#1a0d04"
+        opacity=".55"
+      />
+      {/* Antenna stem */}
+      <line
+        x1="12"
+        y1="5.5"
+        x2="12"
+        y2="3.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {/* Antenna tip */}
+      <circle cx="12" cy="3" r="1.3" />
+      {/* Left arm */}
+      <line
+        x1="5.5"
+        y1="13"
+        x2="3.5"
+        y2="13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {/* Right arm */}
+      <line
+        x1="18.5"
+        y1="13"
+        x2="20.5"
+        y2="13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Nudge tooltip — guides user to open Atlas
+// ─────────────────────────────────────────────────────────────
+function AtlasNudge({ visible, onDismiss }) {
+  if (!visible) return null;
+  return (
+    <div className="ap-nudge" role="tooltip" aria-live="polite">
+      <button
+        className="ap-nudge__close"
+        onClick={onDismiss}
+        aria-label="Dismiss Atlas tip"
+      >
+        ✕
+      </button>
+      <strong className="ap-nudge__title">👋 I'm Atlas</strong>
+      <span className="ap-nudge__body">
+        Type your trip idea and I'll handle flights, hotels, and budget —
+        instantly.
+      </span>
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -191,6 +277,7 @@ export default function AtlasPanel() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showNudge, setShowNudge] = useState(true); // ← nudge state
 
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -218,6 +305,18 @@ export default function AtlasPanel() {
   // Cleanup abort on unmount
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  // Auto-dismiss nudge after 7 seconds
+  useEffect(() => {
+    if (!showNudge) return;
+    const t = setTimeout(() => setShowNudge(false), 7000);
+    return () => clearTimeout(t);
+  }, [showNudge]);
+
+  // Hide nudge when panel opens
+  useEffect(() => {
+    if (open) setShowNudge(false);
+  }, [open]);
+
   const sendMessage = useCallback(
     async (text) => {
       const userText = (text || input).trim();
@@ -230,13 +329,11 @@ export default function AtlasPanel() {
       setMessages((prev) => [...prev, userMsg]);
       setLoading(true);
 
-      // Build history for API
       const history = [...messages, userMsg].map((m) => ({
         role: m.role,
         content: m.content,
       }));
 
-      // Placeholder streaming message
       const streamId = Date.now() + 1;
       setMessages((prev) => [
         ...prev,
@@ -300,7 +397,6 @@ export default function AtlasPanel() {
             }
           }
 
-          // Mark streaming done
           setMessages((prev) =>
             prev.map((m) =>
               m.id === streamId ? { ...m, streaming: false } : m
@@ -323,9 +419,7 @@ export default function AtlasPanel() {
         }
       } catch (err) {
         if (err.name === "AbortError") return;
-
         setError(err.message || "Something went wrong. Try again.");
-        // Remove the empty streaming bubble on error
         setMessages((prev) => prev.filter((m) => m.id !== streamId));
       } finally {
         setLoading(false);
@@ -354,33 +448,11 @@ export default function AtlasPanel() {
   const headerLabel = atlasDestination
     ? `Atlas · ${atlasDestination}`
     : "Atlas";
-
   const showStarters = messages.length === 0 && !loading;
 
   return (
     <>
-      {/* ── FAB trigger ── */}
-      <button
-        type="button"
-        className={`ap-fab${open ? " ap-fab--open" : ""}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-label={open ? "Close Atlas" : "Open Atlas"}
-      >
-        {open ? (
-          <span className="ap-fab__icon">
-            <X size={16} />
-          </span>
-        ) : (
-          <>
-            <span className="ap-fab__icon">
-              <Sparkles size={15} />
-            </span>
-            <span className="ap-fab__label">Atlas AI</span>
-          </>
-        )}
-      </button>
-
-      {/* ── Panel ── */}
+      {/* ── Chat Panel ── */}
       {open && (
         <div className="ap-panel" role="dialog" aria-label="Atlas AI chat">
           {/* Header */}
@@ -487,6 +559,39 @@ export default function AtlasPanel() {
           </div>
         </div>
       )}
+
+      {/* ── FAB wrapper (nudge + button stacked) ── */}
+      <div className="ap-fab-wrapper">
+        {/* Nudge tooltip — visible on load, auto-dismissed after 7s */}
+        <AtlasNudge
+          visible={showNudge && !open}
+          onDismiss={() => setShowNudge(false)}
+        />
+
+        {/* FAB button */}
+        <button
+          type="button"
+          className={`ap-fab${open ? " ap-fab--open" : ""}`}
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? "Close Atlas" : "Open Atlas"}
+        >
+          {open ? (
+            <span className="ap-fab__icon">
+              <X size={16} />
+            </span>
+          ) : (
+            <>
+              <span className="ap-fab__icon">
+                <RobotIcon />
+              </span>
+              <span className="ap-fab__label">Atlas AI</span>
+            </>
+          )}
+        </button>
+
+        {/* Subtle hint label under FAB when closed */}
+        {!open && <span className="ap-fab-hint">Open Atlas AI</span>}
+      </div>
     </>
   );
 }

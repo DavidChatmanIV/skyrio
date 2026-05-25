@@ -10,7 +10,7 @@ const SkyHubPage = lazy(() => import("./pages/skyhub/SkyHubPage"));
 const DigitalPassportPage = lazy(() =>
   import("./pages/passport/DigitalPassportPage")
 );
-const MembershipPage = lazy(() => import("./pages/passport/Membership"));
+const MembershipPage = lazy(() => import("./pages/Membership/MembershipPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));

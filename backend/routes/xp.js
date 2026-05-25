@@ -1,111 +1,247 @@
-import { Router } from "express";
-import mongoose from "mongoose";
-import User from "../models/user.js";
+/**
+ * xp.js — backend/routes/
+ * ─────────────────────────────────────────────────────────────
+ * ADD THESE TWO ROUTES to your existing xp.js route file.
+ * They power useXPSystem.js (GET /api/xp/me + POST /api/xp/activity).
+ * ─────────────────────────────────────────────────────────────
+ */
 
-const router = Router();
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth"); // your existing JWT middleware
+const User = require("../models/user");
+const addXP = require("../utils/xpTracker");
 
-/* -----------------------------
-   Tiny auth helper (matches your other routes)
------------------------------ */
-function requireAuth(req, res, next) {
-  const id = req.user?.id || req.user?._id || req.headers["x-user-id"];
-  if (!id) return res.status(401).json({ ok: false, error: "Unauthorized" });
-  req.authUserId = String(id);
-  next();
+const {
+  XP_RULES,
+  XP_PASSIVE,
+  XP_TIERS,
+  XP_DAILY_CAP,
+  XP_MULTIPLIERS,
+  getTier,
+  getNextTier,
+  getTierProgress,
+} = require("../config/xpRules");
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
 }
 
-/* -----------------------------
-   GET /api/xp/me
-   Returns your current XP (and a few optional fields if present)
------------------------------ */
-router.get("/me", requireAuth, async (req, res) => {
-  try {
-    const me = req.authUserId;
-    if (!mongoose.Types.ObjectId.isValid(me)) {
-      return res.status(400).json({ ok: false, error: "Invalid user id" });
-    }
-
-    const u = await User.findById(me)
-      .select("xp level badges xpSeason xpSeasonName")
-      .lean();
-
-    if (!u) return res.status(404).json({ ok: false, error: "User not found" });
-
-    res.json({ ok: true, me: { id: me, ...u } });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+/**
+ * Read + mutate the user's xpDailyMeta field.
+ * xpDailyMeta shape (stored on User model — add these fields):
+ * {
+ *   date:         String,   // "YYYY-MM-DD" — resets counts when date changes
+ *   counts:       Map,      // { actionKey: Number }
+ *   streak:       Number,
+ *   lastStreakDate: String,
+ *   onceDone:     [String], // action keys that are "once: true"
+ * }
+ */
+function getDailyMeta(user) {
+  const today = todayStr();
+  if (!user.xpDailyMeta || user.xpDailyMeta.date !== today) {
+    user.xpDailyMeta = {
+      date: today,
+      counts: {},
+      streak: user.xpDailyMeta?.streak ?? 0,
+      lastStreakDate: user.xpDailyMeta?.lastStreakDate ?? null,
+      onceDone: user.xpDailyMeta?.onceDone ?? [],
+    };
   }
-});
+  return user.xpDailyMeta;
+}
 
-/* -----------------------------
-   POST /api/xp/award
-   Body: { amount: number, reason?: string }
-   Adds XP safely (simple + clean)
------------------------------ */
-router.post("/award", requireAuth, async (req, res) => {
+function canAwardPassive(meta, key, rule) {
+  // Once-ever guard
+  if (rule.once && meta.onceDone.includes(key)) return false;
+  // Daily limit guard
+  if (rule.dailyLimit) {
+    const count = meta.counts[key] ?? 0;
+    if (count >= rule.dailyLimit) return false;
+  }
+  return true;
+}
+
+function canAwardRule(meta, key, rule) {
+  // Once-ever guard
+  if (rule.once && meta.onceDone.includes(key)) return false;
+  return true;
+}
+
+// ─── GET /api/xp/me ──────────────────────────────────────────────────────────
+// Returns full XP state for the current user.
+router.get("/me", auth, async (req, res) => {
   try {
-    const me = req.authUserId;
-    const amount = Number(req.body?.amount || 0);
-    const reason = String(req.body?.reason || "xp_award");
+    const user = await User.findById(req.user.id).lean();
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 5000) {
-      return res.status(400).json({
-        ok: false,
-        error: "Invalid amount (must be 1..5000)",
-      });
-    }
-
-    const r = await User.findByIdAndUpdate(
-      me,
-      {
-        $inc: { xp: amount, xpSeason: amount },
-        $setOnInsert: { xp: 0, xpSeason: 0 },
-      },
-      { new: true, upsert: false }
-    ).select("xp xpSeason xpSeasonName level");
-
-    if (!r) return res.status(404).json({ ok: false, error: "User not found" });
+    const xp = user.xp ?? 0;
+    const plan = user.membershipPlan ?? "free";
+    const meta = user.xpDailyMeta ?? {};
+    const streak = meta.streak ?? 0;
+    const multiplier = XP_MULTIPLIERS[plan] ?? 1;
 
     res.json({
-      ok: true,
-      awarded: amount,
-      reason,
-      xp: r.xp ?? 0,
-      xpSeason: r.xpSeason ?? 0,
-      xpSeasonName: r.xpSeasonName ?? null,
-      level: r.level ?? null,
+      xp,
+      plan,
+      streak,
+      multiplier,
+      tier: getTier(xp),
+      nextTier: getNextTier(xp),
+      progress: getTierProgress(xp),
+      totalEarned: user.xpTotalEarned ?? xp,
+      recentEvents: user.xpRecentEvents ?? [],
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-/* -----------------------------
-   POST /api/xp/season/set
-   Body: { name: string }
-   Sets a season name + resets season XP (optional but useful for “2K seasons”)
------------------------------ */
-router.post("/season/set", requireAuth, async (req, res) => {
-  try {
-    const me = req.authUserId;
-    const name = String(req.body?.name || "").trim();
+// ─── POST /api/xp/activity ───────────────────────────────────────────────────
+// Awards XP for a passive activity OR an active action.
+// Body: { type: "DAILY_SESSION" | "BOOKING_CONFIRMED" | ... }
+router.post("/activity", auth, async (req, res) => {
+  const { type } = req.body;
+  if (!type) return res.status(400).json({ error: "type is required" });
 
-    if (!name || name.length > 40) {
-      return res.status(400).json({ ok: false, error: "Invalid season name" });
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const meta = getDailyMeta(user);
+    const plan = user.membershipPlan ?? "free";
+    const multiplier = XP_MULTIPLIERS[plan] ?? 1;
+
+    // ── Resolve rule (passive or active) ────────────────────────────────────
+    const passiveRule = XP_PASSIVE[type];
+    const activeRule = XP_RULES[type];
+    const rule = passiveRule ?? activeRule;
+
+    if (!rule) {
+      return res.status(400).json({ error: `Unknown XP type: ${type}` });
     }
 
-    const r = await User.findByIdAndUpdate(
-      me,
-      { $set: { xpSeasonName: name, xpSeason: 0 } },
-      { new: true }
-    ).select("xp xpSeason xpSeasonName");
+    // ── Streak logic (runs alongside STREAK_DAY) ─────────────────────────────
+    if (type === "STREAK_DAY") {
+      const today = todayStr();
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yStr = yesterday.toISOString().slice(0, 10);
 
-    if (!r) return res.status(404).json({ ok: false, error: "User not found" });
+      if (meta.lastStreakDate === today) {
+        // Already handled today — still return current state
+        return res.json({ awarded: false, xp: user.xp });
+      }
 
-    res.json({ ok: true, xpSeasonName: r.xpSeasonName, xpSeason: r.xpSeason });
+      meta.streak = meta.lastStreakDate === yStr ? (meta.streak ?? 0) + 1 : 1;
+      meta.lastStreakDate = today;
+
+      // Milestone bonuses
+      if (meta.streak % 30 === 0) {
+        const bonus = XP_PASSIVE.STREAK_MONTH.xp * multiplier;
+        user.xp += bonus;
+        user.xpTotalEarned = (user.xpTotalEarned ?? 0) + bonus;
+        pushEvent(user, {
+          label: XP_PASSIVE.STREAK_MONTH.label,
+          xp: bonus,
+          icon: XP_PASSIVE.STREAK_MONTH.icon,
+        });
+      } else if (meta.streak % 7 === 0) {
+        const bonus = XP_PASSIVE.STREAK_WEEK.xp * multiplier;
+        user.xp += bonus;
+        user.xpTotalEarned = (user.xpTotalEarned ?? 0) + bonus;
+        pushEvent(user, {
+          label: XP_PASSIVE.STREAK_WEEK.label,
+          xp: bonus,
+          icon: XP_PASSIVE.STREAK_WEEK.icon,
+        });
+      }
+    }
+
+    // ── Guard checks ─────────────────────────────────────────────────────────
+    const allowed = passiveRule
+      ? canAwardPassive(meta, type, rule)
+      : canAwardRule(meta, type, rule);
+
+    if (!allowed) {
+      return res.json({ awarded: false, xp: user.xp });
+    }
+
+    // ── Daily cap check ───────────────────────────────────────────────────────
+    const dailyTotal = user.xpDailyTotal ?? 0;
+    if (dailyTotal >= XP_DAILY_CAP) {
+      return res.json({ awarded: false, xp: user.xp, reason: "daily_cap" });
+    }
+
+    // ── Award XP ──────────────────────────────────────────────────────────────
+    const earned = rule.xp * multiplier;
+    user.xp += earned;
+    user.xpTotalEarned = (user.xpTotalEarned ?? 0) + earned;
+    user.xpDailyTotal = dailyTotal + earned;
+
+    // Update daily count
+    if (rule.dailyLimit) {
+      meta.counts[type] = (meta.counts[type] ?? 0) + 1;
+    }
+    if (rule.once) {
+      meta.onceDone.push(type);
+    }
+
+    const event = {
+      label: rule.label,
+      xp: earned,
+      icon: rule.icon,
+      time: Date.now(),
+    };
+    pushEvent(user, event);
+
+    user.xpDailyMeta = meta;
+    user.markModified("xpDailyMeta");
+    user.markModified("xpRecentEvents");
+    await user.save();
+
+    res.json({ awarded: true, xp: user.xp, event });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-export default router;
+// ─── Internal: push to recent events array (max 12) ──────────────────────────
+function pushEvent(user, event) {
+  if (!user.xpRecentEvents) user.xpRecentEvents = [];
+  user.xpRecentEvents.unshift(event);
+  if (user.xpRecentEvents.length > 12) user.xpRecentEvents.length = 12;
+}
+
+module.exports = router;
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * USER MODEL ADDITIONS NEEDED (backend/models/User.js)
+ * Add these fields to your existing User schema:
+ * ─────────────────────────────────────────────────────────────
+ *
+ * membershipPlan:  { type: String, enum: ["free","pro","elite"], default: "free" },
+ * xpTotalEarned:  { type: Number, default: 0 },
+ * xpDailyTotal:   { type: Number, default: 0 },  // resets daily via cron or on-read
+ * xpDailyMeta:    { type: mongoose.Schema.Types.Mixed, default: {} },
+ * xpRecentEvents: { type: Array, default: [] },
+ *
+ * ─────────────────────────────────────────────────────────────
+ * CRON JOB (reset xpDailyTotal nightly — add to your jobs):
+ * ─────────────────────────────────────────────────────────────
+ *
+ * // backend/jobs/resetDailyXP.js
+ * const User = require("../models/User");
+ * async function resetDailyXP() {
+ *   await User.updateMany({}, { $set: { xpDailyTotal: 0 } });
+ *   console.log("✅ Daily XP totals reset");
+ * }
+ * module.exports = resetDailyXP;
+ *
+ * // In your scheduler (e.g. node-cron):
+ * cron.schedule("0 0 * * *", resetDailyXP); // midnight UTC
+ */

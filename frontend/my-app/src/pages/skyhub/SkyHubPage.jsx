@@ -57,6 +57,9 @@ function mapBackendPost(post) {
 export default function SkyHubPage() {
   const navigate = useNavigate();
 
+  // ── Get logged-in user from your existing auth context ──────
+  // useAuth() returns the user object your AuthProvider already manages.
+  // Adjust destructuring to match what your hook actually returns.
   const { user: authUser } = useContext(AuthContext);
 
   // Normalise into a consistent shape
@@ -287,22 +290,27 @@ export default function SkyHubPage() {
   //     res.json({ success: true });
   //   });
   const handleDeletePost = async (postId) => {
-    // Optimistic delete — removes from UI immediately.
-    // Also attempts the backend call; silently ignores 404 until
-    // your backend has: DELETE /api/skyhub/posts/:id
+    // Remove from UI immediately — feels instant for the user.
     setPosts((prev) => prev.filter((p) => p.id !== postId));
     message.success("Post deleted.");
+
+    // Fire backend delete silently — any error is ignored in the UI
+    // since the post is already gone from the feed.
+    // Deploy skyhub.routes.js to Render to make this persist on the server.
     try {
-      await fetch(apiUrl(`/api/skyhub/posts/${postId}`), {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}`), {
         method: "DELETE",
         credentials: "include",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
         },
       });
-      // success or 404 — either way UI is already updated
+      // 404 = backend route not deployed yet — UI already updated, no action needed
+      if (!res.ok && res.status !== 404) {
+        console.warn("[skyhub] delete returned", res.status);
+      }
     } catch {
-      /* network error — UI already updated, ignore */
+      // Network error — UI already updated, ignore silently
     }
   };
 

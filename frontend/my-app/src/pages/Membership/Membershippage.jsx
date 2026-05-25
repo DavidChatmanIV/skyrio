@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Card,
   Button,
@@ -13,10 +13,11 @@ import {
   Progress,
   Modal,
   notification,
-  Badge,
   Tabs,
+  Spin,
+  Alert,
 } from "antd";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   CheckCircleOutlined,
   StarOutlined,
@@ -30,20 +31,56 @@ import {
   ClockCircleOutlined,
   GlobalOutlined,
   InfoCircleOutlined,
+  LoadingOutlined,
+  CompassOutlined,
+  CrownOutlined,
+  SendOutlined,
+  SaveOutlined,
+  UserOutlined,
+  EditOutlined,
+  TeamOutlined,
+  MessageOutlined,
+  CalendarOutlined,
+  FieldTimeOutlined,
+  AimOutlined,
 } from "@ant-design/icons";
 import PageLayout from "../../components/PageLayout";
-import useXPSystem, {
-  XP_TIERS,
-  XP_ACTIONS,
-  getTier,
-  getNextTier,
-} from "../../hooks/useXPSystem";
+import useXPSystem from "../../hooks/useXPSystem";
+import { XP_TIERS, XP_RULES, XP_PASSIVE } from "../../config/xpConfig";
 import "../../styles/Membership.css";
 
 const { Title, Paragraph, Text } = Typography;
-const { TabPane } = Tabs;
 
-// ─── Plan definitions ────────────────────────────────────────────────────────
+// ─── Icon map — replaces all emoji with Ant Design SVG icons ──────────────────
+const XP_ICON_MAP = {
+  // Passive
+  DAILY_SESSION: <HomeOutlined />,
+  ACTIVE_INTERVAL: <FieldTimeOutlined />,
+  PAGE_VISIT: <CompassOutlined />,
+  STREAK_DAY: <FireOutlined />,
+  STREAK_WEEK: <FireOutlined />,
+  STREAK_MONTH: <TrophyOutlined />,
+  // Active
+  BOOKING_CONFIRMED: <SendOutlined />,
+  FIRST_INTERNATIONAL: <GlobalOutlined />,
+  SAVED_TRIP: <SaveOutlined />,
+  PROFILE_COMPLETED: <UserOutlined />,
+  FEEDBACK_SUBMITTED: <EditOutlined />,
+  POST_CREATED: <AimOutlined />,
+  COMMENT_CREATED: <MessageOutlined />,
+  SHARE_SKYSTREAM: <AimOutlined />,
+  REFER_FRIEND: <TeamOutlined />,
+  ELITE_MONTHLY_BONUS: <CrownOutlined />,
+};
+
+// ─── Plan icon components (replaces emoji strings) ────────────────────────────
+const PLAN_ICONS = {
+  free: <CompassOutlined style={{ fontSize: 18 }} />,
+  pro: <ThunderboltOutlined style={{ fontSize: 18 }} />,
+  elite: <CrownOutlined style={{ fontSize: 18 }} />,
+};
+
+// ─── Plan definitions ─────────────────────────────────────────────────────────
 const PLANS = [
   {
     id: "free",
@@ -52,9 +89,8 @@ const PLANS = [
     yearly: 0,
     tag: { text: "Free", color: "green" },
     className: "m-card",
-    icon: "🧭",
     accentColor: "#60a5fa",
-    multiplier: "1×",
+    multiplierLabel: "1×",
     features: [
       { icon: <CheckCircleOutlined />, text: "Access to booking & SkyStream" },
       { icon: <CheckCircleOutlined />, text: "Earn XP & unlock badges" },
@@ -62,19 +98,16 @@ const PLANS = [
       { icon: <CheckCircleOutlined />, text: "Basic travel search" },
       { icon: <CheckCircleOutlined />, text: "1× XP on all activity" },
     ],
-    ctaText: "You're on this plan",
-    disabled: true,
   },
   {
     id: "pro",
     name: "Sky Pro",
     monthly: 9.99,
-    yearly: 7.99, // per month billed annually
+    yearly: 7.99,
     tag: { text: "Most Popular", color: "blue" },
     className: "m-card m-popular",
-    icon: "⚡",
     accentColor: "#f59e0b",
-    multiplier: "2×",
+    multiplierLabel: "2×",
     features: [
       { icon: <StarOutlined />, text: "Everything in Free Explorer" },
       { icon: <StarOutlined />, text: "2× XP on all activity & actions" },
@@ -83,7 +116,6 @@ const PLANS = [
       { icon: <StarOutlined />, text: "Exclusive Pro badges" },
       { icon: <StarOutlined />, text: "Advanced route planner" },
     ],
-    ctaText: "Upgrade to Pro",
   },
   {
     id: "elite",
@@ -92,9 +124,8 @@ const PLANS = [
     yearly: 15.99,
     tag: { text: "Best Value", color: "gold" },
     className: "m-card m-best",
-    icon: "👑",
     accentColor: "#a78bfa",
-    multiplier: "3×",
+    multiplierLabel: "3×",
     features: [
       { icon: <RocketOutlined />, text: "Everything in Sky Pro" },
       { icon: <RocketOutlined />, text: "3× XP on all activity & actions" },
@@ -104,38 +135,35 @@ const PLANS = [
       { icon: <RocketOutlined />, text: "Early feature access" },
       { icon: <RocketOutlined />, text: "Dedicated support" },
     ],
-    ctaText: "Upgrade to Elite",
   },
 ];
 
-// ─── XP Ring SVG ─────────────────────────────────────────────────────────────
+// ─── XP Ring ──────────────────────────────────────────────────────────────────
 function XPRing({ xp, tier, progress }) {
   const r = 70;
-  const stroke = 8;
-  const norm = r - stroke / 2;
+  const sw = 8;
+  const norm = r - sw / 2;
   const circ = 2 * Math.PI * norm;
   const dash = (progress / 100) * circ;
 
   return (
     <div className="xp-ring-wrap">
       <svg width="160" height="160" className="xp-ring-svg">
-        {/* Track */}
         <circle
           cx="80"
           cy="80"
           r={norm}
           fill="none"
           stroke="rgba(255,255,255,0.08)"
-          strokeWidth={stroke}
+          strokeWidth={sw}
         />
-        {/* Progress arc */}
         <circle
           cx="80"
           cy="80"
           r={norm}
           fill="none"
           stroke={tier.color}
-          strokeWidth={stroke}
+          strokeWidth={sw}
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circ}`}
           style={{
@@ -147,7 +175,11 @@ function XPRing({ xp, tier, progress }) {
         />
       </svg>
       <div className="xp-ring-inner">
-        <span className="xp-ring-icon">{tier.icon}</span>
+        <span className="xp-ring-icon" style={{ color: tier.color }}>
+          {XP_ICON_MAP[`TIER_${tier.name.toUpperCase()}`] ?? (
+            <CompassOutlined />
+          )}
+        </span>
         <span className="xp-ring-tier" style={{ color: tier.color }}>
           {tier.name}
         </span>
@@ -159,7 +191,7 @@ function XPRing({ xp, tier, progress }) {
   );
 }
 
-// ─── XP Event Feed item ───────────────────────────────────────────────────────
+// ─── XP event feed row ────────────────────────────────────────────────────────
 function XPEvent({ event }) {
   const age = Math.round((Date.now() - event.time) / 60000);
   const timeLabel =
@@ -170,7 +202,9 @@ function XPEvent({ event }) {
       : `${Math.round(age / 60)}h ago`;
   return (
     <div className="xp-event">
-      <span className="xp-event-icon">{event.icon}</span>
+      <span className="xp-event-icon">
+        {XP_ICON_MAP[event.type] ?? <StarOutlined />}
+      </span>
       <span className="xp-event-label">{event.label}</span>
       <span className="xp-event-xp" style={{ color: "#f59e0b" }}>
         +{event.xp} XP
@@ -183,8 +217,9 @@ function XPEvent({ event }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MembershipPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [period, setPeriod] = useState("monthly");
-  const [confirmPlan, setConfirmPlan] = useState(null); // plan object awaiting confirm
+  const [confirmPlan, setConfirmPlan] = useState(null);
   const [api, contextHolder] = notification.useNotification();
 
   const {
@@ -197,17 +232,15 @@ export default function MembershipPage() {
     multiplier,
     recentEvents,
     totalEarned,
-    onceDone,
-    awardXP,
+    loading,
+    error,
     trackPageVisit,
-    upgradePlan,
-    resetXP,
+    refresh,
   } = useXPSystem();
 
-  // Track this page visit
   useEffect(() => {
-    trackPageVisit("/membership");
-  }, [trackPageVisit]);
+    trackPageVisit(location.pathname);
+  }, [location.pathname, trackPageVisit]);
 
   useEffect(() => {
     const prev = document.title;
@@ -215,7 +248,7 @@ export default function MembershipPage() {
     return () => (document.title = prev);
   }, []);
 
-  // ── Show XP toast when events come in ─────────────────────────────────────
+  // XP toast on new event
   const lastEventRef = React.useRef(null);
   useEffect(() => {
     if (!recentEvents.length) return;
@@ -225,7 +258,8 @@ export default function MembershipPage() {
     api.open({
       message: (
         <span style={{ fontWeight: 700, color: "#fff" }}>
-          {latest.icon} +{latest.xp} XP
+          <ThunderboltOutlined style={{ color: "#f59e0b", marginRight: 6 }} />+
+          {latest.xp} XP
         </span>
       ),
       description: (
@@ -244,7 +278,6 @@ export default function MembershipPage() {
     });
   }, [recentEvents, api]);
 
-  // ── Upgrade flow ──────────────────────────────────────────────────────────
   const handleUpgrade = useCallback(
     (planObj) => {
       if (planObj.id === currentPlan) return;
@@ -255,22 +288,52 @@ export default function MembershipPage() {
 
   const confirmUpgrade = useCallback(() => {
     if (!confirmPlan) return;
-    upgradePlan(confirmPlan.id);
     setConfirmPlan(null);
-    // Navigate to checkout (Stripe stub)
     navigate(`/membership/checkout?plan=${confirmPlan.id}&period=${period}`);
-  }, [confirmPlan, upgradePlan, navigate, period]);
+  }, [confirmPlan, navigate, period]);
 
-  const yearlyMonthlyPrice = (plan) =>
-    period === "yearly" ? plan.yearly : plan.monthly;
+  const priceFor = (plan) => (period === "yearly" ? plan.yearly : plan.monthly);
 
-  const plans = useMemo(() => PLANS, []);
+  if (loading) {
+    return (
+      <PageLayout fullBleed={false} maxWidth={1180} className="m-wrap">
+        <div className="m-loading">
+          <Spin
+            indicator={
+              <LoadingOutlined
+                style={{ fontSize: 32, color: "#a78bfa" }}
+                spin
+              />
+            }
+          />
+          <Text style={{ color: "rgba(255,255,255,0.5)", marginTop: 12 }}>
+            Loading your membership…
+          </Text>
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout fullBleed={false} maxWidth={1180} className="m-wrap">
       {contextHolder}
 
-      {/* ── Top header ─────────────────────────────────────────────────────── */}
+      {error && (
+        <Alert
+          type="warning"
+          message="Couldn't load XP data"
+          description={error}
+          closable
+          style={{ marginBottom: 16, borderRadius: 12 }}
+          action={
+            <Button size="small" onClick={refresh}>
+              Retry
+            </Button>
+          }
+        />
+      )}
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="m-top">
         <div className="m-top-header">
           <div>
@@ -288,8 +351,8 @@ export default function MembershipPage() {
             className="m-xp-pill"
             style={{ borderColor: tier.color + "55", color: tier.color }}
           >
-            {tier.icon}&nbsp;{tier.name}&nbsp;·&nbsp;
-            <strong>{xp}</strong>&nbsp;XP
+            <CompassOutlined style={{ marginRight: 4 }} />
+            {tier.name}&nbsp;·&nbsp;<strong>{xp}</strong>&nbsp;XP
             {streak > 1 && (
               <span className="m-streak-badge">
                 <FireOutlined /> {streak}d
@@ -327,14 +390,10 @@ export default function MembershipPage() {
         </div>
       </div>
 
-      {/* ── Tabs: Plans / XP & Levels ──────────────────────────────────────── */}
-      <Tabs
-        defaultActiveKey="plans"
-        className="m-tabs"
-        tabBarStyle={{ marginBottom: 0 }}
-      >
-        {/* ─ Plans tab ─ */}
-        <TabPane
+      {/* ── Tabs ───────────────────────────────────────────────────────────── */}
+      <Tabs defaultActiveKey="plans" className="m-tabs">
+        {/* ─ Plans ─ */}
+        <Tabs.TabPane
           tab={
             <span>
               <StarOutlined /> Membership Plans
@@ -348,8 +407,8 @@ export default function MembershipPage() {
             </Paragraph>
 
             <Row gutter={[24, 24]} justify="center">
-              {plans.map((p) => {
-                const price = yearlyMonthlyPrice(p);
+              {PLANS.map((p) => {
+                const price = priceFor(p);
                 const label =
                   period === "monthly" ? "month" : "mo (billed yearly)";
                 const isCurrent = p.id === currentPlan;
@@ -358,8 +417,29 @@ export default function MembershipPage() {
                   <Col xs={24} md={12} lg={8} key={p.id}>
                     <Card
                       title={
-                        <span>
-                          {p.icon}&nbsp;{p.name}
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 8,
+                              background: p.accentColor + "22",
+                              border: `1px solid ${p.accentColor}44`,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: p.accentColor,
+                            }}
+                          >
+                            {PLAN_ICONS[p.id]}
+                          </span>
+                          {p.name}
                         </span>
                       }
                       bordered={false}
@@ -397,14 +477,20 @@ export default function MembershipPage() {
                           color: p.accentColor,
                         }}
                       >
-                        <ThunderboltOutlined /> {p.multiplier} XP multiplier
+                        <ThunderboltOutlined /> {p.multiplierLabel} XP
+                        multiplier
                       </div>
 
                       {/* Features */}
                       <ul className="m-feature-list">
                         {p.features.map((f, i) => (
                           <li key={i}>
-                            <span className="m-feat-icon">{f.icon}</span>
+                            <span
+                              className="m-feat-icon"
+                              style={{ color: p.accentColor }}
+                            >
+                              {f.icon}
+                            </span>
                             <span>{f.text}</span>
                           </li>
                         ))}
@@ -431,7 +517,7 @@ export default function MembershipPage() {
                             <CheckCircleOutlined /> You're on this plan
                           </>
                         ) : (
-                          p.ctaText
+                          `Upgrade to ${p.name}`
                         )}
                       </Button>
                     </Card>
@@ -441,25 +527,34 @@ export default function MembershipPage() {
             </Row>
 
             <Divider />
-            <section aria-label="Membership notes">
-              <Space direction="vertical" size={4}>
-                <Text type="secondary">
-                  Prices in USD. Switch plans or cancel anytime.
-                </Text>
-                <Text type="secondary">
-                  Yearly plans billed upfront — ~20% off vs monthly.
-                </Text>
-                <Text type="secondary">
-                  XP multipliers apply to all passive SkyHub activity and
-                  explicit actions.
-                </Text>
-              </Space>
-            </section>
-          </div>
-        </TabPane>
 
-        {/* ─ XP & Levels tab ─ */}
-        <TabPane
+            {/* Footer notes — fixed contrast */}
+            <Space direction="vertical" size={6}>
+              <Text className="m-note">
+                <CheckCircleOutlined
+                  style={{ marginRight: 6, color: "#34d399" }}
+                />
+                Prices in USD. Switch plans or cancel anytime.
+              </Text>
+              <Text className="m-note">
+                <CheckCircleOutlined
+                  style={{ marginRight: 6, color: "#34d399" }}
+                />
+                Yearly plans billed upfront — ~20% off vs monthly.
+              </Text>
+              <Text className="m-note">
+                <ThunderboltOutlined
+                  style={{ marginRight: 6, color: "#f59e0b" }}
+                />
+                XP multipliers apply to all passive SkyHub activity and explicit
+                actions.
+              </Text>
+            </Space>
+          </div>
+        </Tabs.TabPane>
+
+        {/* ─ XP & Levels ─ */}
+        <Tabs.TabPane
           tab={
             <span>
               <TrophyOutlined /> XP &amp; Levels
@@ -469,18 +564,16 @@ export default function MembershipPage() {
         >
           <div className="m-section">
             <Row gutter={[24, 24]}>
-              {/* Left: Ring + progress */}
+              {/* Left: ring + stats */}
               <Col xs={24} md={10}>
                 <Card className="m-card xp-card" bordered={false}>
                   <XPRing xp={xp} tier={tier} progress={progress} />
 
                   <div className="xp-tier-labels">
-                    <span style={{ color: tier.color }}>
-                      {tier.icon} {tier.name}
-                    </span>
+                    <span style={{ color: tier.color }}>{tier.name}</span>
                     {nextTier && (
                       <span style={{ color: nextTier.color }}>
-                        {nextTier.name} {nextTier.icon}
+                        {nextTier.name}
                       </span>
                     )}
                   </div>
@@ -493,7 +586,6 @@ export default function MembershipPage() {
                     strokeWidth={7}
                     style={{ margin: "6px 0 4px" }}
                   />
-
                   {nextTier && (
                     <div className="xp-to-next">
                       {xp} / {tier.max} XP&nbsp;·&nbsp;
@@ -503,12 +595,11 @@ export default function MembershipPage() {
                     </div>
                   )}
 
-                  {/* Stats row */}
                   <div className="xp-stats">
                     <div className="xp-stat">
                       <FireOutlined style={{ color: "#f97316" }} />
                       <span>{streak}</span>
-                      <small>Day Streak</small>
+                      <small>Streak</small>
                     </div>
                     <div className="xp-stat">
                       <ThunderboltOutlined style={{ color: "#f59e0b" }} />
@@ -524,7 +615,7 @@ export default function MembershipPage() {
                 </Card>
               </Col>
 
-              {/* Right: Rank ladder + earn actions */}
+              {/* Right: rank ladder + earn ways */}
               <Col xs={24} md={14}>
                 {/* Rank ladder */}
                 <Card
@@ -543,9 +634,9 @@ export default function MembershipPage() {
                     return (
                       <div
                         key={t.name}
-                        className={`xp-rank-row ${
-                          current ? "xp-rank-current" : ""
-                        } ${!unlocked ? "xp-rank-locked" : ""}`}
+                        className={`xp-rank-row${
+                          current ? " xp-rank-current" : ""
+                        }${!unlocked ? " xp-rank-locked" : ""}`}
                         style={
                           current
                             ? {
@@ -564,9 +655,12 @@ export default function MembershipPage() {
                             border: `1px solid ${
                               unlocked ? t.color + "44" : "transparent"
                             }`,
+                            color: unlocked
+                              ? t.color
+                              : "rgba(255,255,255,0.25)",
                           }}
                         >
-                          {unlocked ? t.icon : <LockOutlined />}
+                          {unlocked ? <CompassOutlined /> : <LockOutlined />}
                         </div>
                         <div className="xp-rank-info">
                           <span
@@ -606,7 +700,7 @@ export default function MembershipPage() {
                       <span style={{ color: "rgba(255,255,255,0.9)" }}>
                         <ThunderboltOutlined /> Ways to Earn XP
                       </span>
-                      <Tooltip title="Multiplied by your plan tier. Passive XP is awarded automatically as you use SkyHub.">
+                      <Tooltip title="All values already reflect your current plan multiplier.">
                         <InfoCircleOutlined
                           style={{ color: "#6b7280", fontSize: 13 }}
                         />
@@ -617,39 +711,28 @@ export default function MembershipPage() {
                   <div className="xp-action-group-label">
                     <ClockCircleOutlined /> Passive · SkyHub Activity
                   </div>
-                  {[
-                    "DAILY_SESSION",
-                    "ACTIVE_INTERVAL",
-                    "PAGE_VISIT",
-                    "STREAK_DAY",
-                    "STREAK_WEEK",
-                    "STREAK_MONTH",
-                  ].map((key) => {
-                    const a = XP_ACTIONS[key];
-                    const effective = a.xp * multiplier;
-                    return (
-                      <div key={key} className="xp-action-row">
-                        <span className="xp-action-icon">{a.icon}</span>
-                        <span className="xp-action-label">{a.label}</span>
-                        {a.dailyCap && (
-                          <Tag style={{ fontSize: 10, marginRight: 4 }}>
-                            cap {a.dailyCap}/day
-                          </Tag>
-                        )}
-                        {a.daily && !a.dailyCap && (
-                          <Tag style={{ fontSize: 10, marginRight: 4 }}>
-                            1/day
-                          </Tag>
-                        )}
-                        <span
-                          className="xp-action-xp"
-                          style={{ color: "#f59e0b" }}
-                        >
-                          +{effective} XP
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {Object.entries(XP_PASSIVE).map(([key, rule]) => (
+                    <div key={key} className="xp-action-row">
+                      <span
+                        className="xp-action-icon"
+                        style={{ color: "rgba(255,255,255,0.6)" }}
+                      >
+                        {XP_ICON_MAP[key] ?? <StarOutlined />}
+                      </span>
+                      <span className="xp-action-label">{rule.label}</span>
+                      {rule.dailyLimit && (
+                        <Tag style={{ fontSize: 10, marginRight: 4 }}>
+                          cap {rule.dailyLimit}/day
+                        </Tag>
+                      )}
+                      <span
+                        className="xp-action-xp"
+                        style={{ color: "#f59e0b" }}
+                      >
+                        +{rule.xp * multiplier} XP
+                      </span>
+                    </div>
+                  ))}
 
                   <div
                     className="xp-action-group-label"
@@ -657,52 +740,36 @@ export default function MembershipPage() {
                   >
                     <GlobalOutlined /> Active · Your Actions
                   </div>
-                  {[
-                    "SAVE_DESTINATION",
-                    "COMPLETE_PROFILE",
-                    "WRITE_REVIEW",
-                    "SHARE_SKYSTREAM",
-                    "BOOK_TRIP",
-                    "FIRST_INTL",
-                    "REFER_FRIEND",
-                  ].map((key) => {
-                    const a = XP_ACTIONS[key];
-                    const effective = a.xp * multiplier;
-                    const done = a.once && onceDone[key];
-                    return (
-                      <div
-                        key={key}
-                        className={`xp-action-row ${
-                          done ? "xp-action-done" : ""
-                        }`}
-                      >
-                        <span className="xp-action-icon">
-                          {done ? "✅" : a.icon}
+                  {Object.entries(XP_RULES)
+                    .filter(([, r]) => r.xp > 0)
+                    .map(([key, rule]) => (
+                      <div key={key} className="xp-action-row">
+                        <span
+                          className="xp-action-icon"
+                          style={{ color: "rgba(255,255,255,0.6)" }}
+                        >
+                          {XP_ICON_MAP[key] ?? <StarOutlined />}
                         </span>
-                        <span className="xp-action-label">{a.label}</span>
-                        {a.once && (
-                          <Tag
-                            color={done ? "green" : "default"}
-                            style={{ fontSize: 10, marginRight: 4 }}
-                          >
-                            {done ? "Earned" : "once"}
+                        <span className="xp-action-label">{rule.label}</span>
+                        {rule.once && (
+                          <Tag style={{ fontSize: 10, marginRight: 4 }}>
+                            once
                           </Tag>
                         )}
                         <span
                           className="xp-action-xp"
-                          style={{ color: done ? "#34d399" : "#f59e0b" }}
+                          style={{ color: "#f59e0b" }}
                         >
-                          {done ? "Done" : `+${effective} XP`}
+                          +{rule.xp * multiplier} XP
                         </span>
                       </div>
-                    );
-                  })}
+                    ))}
 
                   {multiplier > 1 && (
                     <div className="xp-mult-note">
                       <ThunderboltOutlined style={{ color: "#f59e0b" }} />
-                      &nbsp;{multiplier}× multiplier active — all XP values
-                      above already reflect your{" "}
+                      &nbsp;{multiplier}× multiplier active — values above
+                      reflect your{" "}
                       {currentPlan === "pro" ? "Sky Pro" : "Sky Elite"} bonus.
                     </div>
                   )}
@@ -710,7 +777,7 @@ export default function MembershipPage() {
               </Col>
             </Row>
 
-            {/* Recent XP activity feed */}
+            {/* Recent XP feed */}
             {recentEvents.length > 0 && (
               <Card
                 className="m-card"
@@ -728,10 +795,10 @@ export default function MembershipPage() {
               </Card>
             )}
           </div>
-        </TabPane>
+        </Tabs.TabPane>
       </Tabs>
 
-      {/* ── Upgrade confirmation modal ─────────────────────────────────────── */}
+      {/* ── Upgrade confirmation modal ──────────────────────────────────────── */}
       <Modal
         open={!!confirmPlan}
         onCancel={() => setConfirmPlan(null)}
@@ -742,27 +809,35 @@ export default function MembershipPage() {
       >
         {confirmPlan && (
           <div className="m-modal-body">
-            <div className="m-modal-icon">{confirmPlan.icon}</div>
+            <div
+              className="m-modal-plan-icon"
+              style={{
+                color: confirmPlan.accentColor,
+                background: confirmPlan.accentColor + "18",
+                border: `1px solid ${confirmPlan.accentColor}33`,
+              }}
+            >
+              {PLAN_ICONS[confirmPlan.id]}
+            </div>
             <Title level={3} className="m-modal-title">
               Upgrade to {confirmPlan.name}
             </Title>
             <Paragraph className="m-modal-desc">
               You'll be billed{" "}
               <strong style={{ color: confirmPlan.accentColor }}>
-                ${yearlyMonthlyPrice(confirmPlan).toFixed(2)}/
+                ${priceFor(confirmPlan).toFixed(2)}/
                 {period === "yearly" ? "mo (yearly)" : "month"}
               </strong>
               .
             </Paragraph>
 
-            {/* Upgrade bonus callout */}
             {confirmPlan.id === "elite" && (
               <div
                 className="m-modal-bonus"
                 style={{ borderColor: "#a78bfa44", background: "#a78bfa11" }}
               >
-                <RocketOutlined style={{ color: "#a78bfa" }} />
-                &nbsp; Elite bonus: <strong>3× XP</strong> on everything +{" "}
+                <RocketOutlined style={{ color: "#a78bfa", marginRight: 6 }} />
+                Elite: <strong>3× XP</strong> on everything +{" "}
                 <strong>+200 XP/month</strong> automatically.
               </div>
             )}
@@ -771,9 +846,11 @@ export default function MembershipPage() {
                 className="m-modal-bonus"
                 style={{ borderColor: "#f59e0b44", background: "#f59e0b11" }}
               >
-                <ThunderboltOutlined style={{ color: "#f59e0b" }} />
-                &nbsp; Pro bonus: <strong>2× XP</strong> on all SkyHub activity
-                and actions starting now.
+                <ThunderboltOutlined
+                  style={{ color: "#f59e0b", marginRight: 6 }}
+                />
+                Pro: <strong>2× XP</strong> on all SkyHub activity and actions
+                starting now.
               </div>
             )}
 
