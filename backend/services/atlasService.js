@@ -182,8 +182,6 @@ async function _callClaude({ systemPrompt, messages, model, maxTokens }) {
 }
 
 // ─── Atlas default persona ────────────────────────────────────
-// IMPORTANT: This must stay ABOVE the convenience wrappers below
-// so default parameter references resolve correctly at runtime.
 
 export const ATLAS_DEFAULT_SYSTEM_PROMPT = `
 You are Atlas, Skyrio's AI travel assistant.
@@ -201,26 +199,50 @@ Always keep responses concise unless the user asks for detail.
 `.trim();
 
 // ─── Convenience wrappers ─────────────────────────────────────
-// These live BELOW ATLAS_DEFAULT_SYSTEM_PROMPT intentionally.
 
 /**
  * Quick single-turn Atlas query.
- * Use for support ticket triage, short answers, FAQ lookups.
- * Routes to the fast/cheap model automatically.
+ * Use for support ticket triage, short answers, FAQ lookups,
+ * and internal tasks like preference extraction.
  *
- * @param {string} userMessage
- * @param {string} [systemPrompt]
+ * Accepts TWO call signatures (backward compatible):
+ *
+ *   atlasQuery("message")
+ *   atlasQuery("message", "custom system prompt")
+ *   atlasQuery("message", { systemPrompt, maxTokens, task, provider })
+ *
+ * @param {string}        userMessage
+ * @param {string|Object} [optionsOrPrompt]
  * @returns {Promise<string>} Atlas's reply text
  */
-export async function atlasQuery(
-  userMessage,
-  systemPrompt = ATLAS_DEFAULT_SYSTEM_PROMPT
-) {
+export async function atlasQuery(userMessage, optionsOrPrompt) {
+  // ── Resolve arguments ──
+  // String → old-style call:  atlasQuery("msg", "prompt")
+  // Object → new-style call:  atlasQuery("msg", { systemPrompt, maxTokens })
+  // Falsy  → defaults
+
+  let systemPrompt = ATLAS_DEFAULT_SYSTEM_PROMPT;
+  let maxTokens = 512;
+  let task = "fast";
+  let provider; // undefined = use default provider chain
+
+  if (typeof optionsOrPrompt === "string") {
+    // Backward compatible: atlasQuery(message, systemPromptString)
+    systemPrompt = optionsOrPrompt;
+  } else if (optionsOrPrompt && typeof optionsOrPrompt === "object") {
+    // New style: atlasQuery(message, { systemPrompt, maxTokens, task, provider })
+    systemPrompt = optionsOrPrompt.systemPrompt || systemPrompt;
+    maxTokens = optionsOrPrompt.maxTokens || maxTokens;
+    task = optionsOrPrompt.task || task;
+    provider = optionsOrPrompt.provider;
+  }
+
   const result = await atlasChat({
     systemPrompt,
     messages: [{ role: "user", content: userMessage }],
-    task: "fast",
-    maxTokens: 512,
+    task,
+    maxTokens,
+    provider,
   });
   return result.text;
 }
