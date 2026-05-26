@@ -191,7 +191,7 @@ export default function LoginPage() {
                   </div>
 
                   <div className="sk-passTitle">
-                    <div className="sk-kicker">BOARDING PASS</div>
+                    <div className="sk-kicker">SKYRIO ACCESS</div>
                   </div>
 
                   <div className="sk-idGrid">
@@ -283,7 +283,7 @@ export default function LoginPage() {
                           onClick={goToSignup}
                           className="sk-inlineBtnLink"
                         >
-                          Create your boarding pass
+                          Create your Skyrio access
                         </button>
                       </Text>
                       <Button
@@ -295,7 +295,7 @@ export default function LoginPage() {
                         Preview as Guest
                       </Button>
                       <Text className="sk-muted sk-micro">
-                        Some features require an account.
+                        Some features require Skyrio access.
                       </Text>
                       <div className="sk-linksRow">
                         <Link className="sk-linkSmall" to="/reset">
@@ -303,7 +303,7 @@ export default function LoginPage() {
                         </Link>
                         <span className="sk-sep">•</span>
                         <Link className="sk-linkSmall sk-strong" to="/register">
-                          Create a boarding pass
+                          Create Skyrio access
                         </Link>
                       </div>
                     </div>

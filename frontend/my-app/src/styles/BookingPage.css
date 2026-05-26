@@ -65,6 +65,7 @@
   position: relative;
   z-index: 10;
   overflow: visible;
+  flex: 0 0 auto;
 }
 
 .sk-hero-title {
@@ -1795,8 +1796,14 @@
    RESPONSIVE — 640px
 ═══════════════════════════════════════════════ */
 @media (max-width: 640px) {
+  .sk-booking-hero {
+    gap: 8px;
+  }
+  .sk-weatherStrip {
+    margin: 4px auto;
+  }
   .sk-weatherInner {
-    padding: 12px 14px;
+    padding: 10px 14px;
   }
   .sk-weatherTop {
     font-size: 16px;
@@ -1835,6 +1842,20 @@
   }
   .sk-swap-btn {
     display: none;
+  }
+  .sk-search-bar {
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .sk-tripState {
+    padding: 10px 12px;
+  }
+  .sk-hero-pills {
+    margin-top: 4px;
+  }
+  .sk-action-row,
+  .sk-filters {
+    margin-top: 4px;
   }
   .skf-dropdown {
     left: 50%;
@@ -1902,8 +1923,9 @@
 ═══════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .sk-booking-hero {
-    padding: 20px 14px;
-    border-radius: 18px;
+    padding: 16px 12px;
+    border-radius: 16px;
+    gap: 6px;
   }
   .sk-hero-sub {
     font-size: 13px;

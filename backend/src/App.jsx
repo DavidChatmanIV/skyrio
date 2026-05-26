@@ -36,12 +36,19 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 
-// Membership 
+// Membership
 import MembershipPage from "./pages/Membership/MembershipPage";
 
-// ── Analytics tracker ─────────────────────────────────────────────────────────
-function usePageTracking() {
+// ── Analytics + scroll restoration ────────────────────────────────────────────
+function AppWithTracking() {
   const location = useLocation();
+
+  // ── Scroll to top on route change ──
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
+  // ── Analytics ──
   useEffect(() => {
     if (typeof window !== "undefined" && window.mixpanel?.track) {
       window.mixpanel.track("Page View", {
@@ -50,10 +57,7 @@ function usePageTracking() {
       });
     }
   }, [location.pathname, location.search]);
-}
 
-function AppWithTracking() {
-  usePageTracking();
   return (
     <Routes>
       {/* ── Admin — no Layout/navbar ── */}
@@ -106,7 +110,7 @@ function AppWithTracking() {
           }
         />
 
-        {/* Membership ← NEW */}
+        {/* Membership */}
         <Route
           path="/membership"
           element={

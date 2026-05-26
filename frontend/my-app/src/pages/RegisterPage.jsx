@@ -183,7 +183,7 @@ export default function RegisterPage() {
         style: { background: "transparent", boxShadow: "none", padding: 0 },
       });
 
-      message.success(`Boarding pass issued, ${displayName} ✈️`);
+      message.success(`Skyrio access created, ${displayName} ✈️`);
       nav("/passport", { replace: true, state: { fromAuth: true } });
     } catch (err) {
       successHandledRef.current = false;
@@ -235,7 +235,7 @@ export default function RegisterPage() {
             <div className="sk-loginInner">
               <div className="sk-authHero">
                 <Title level={2} className="sk-authTitle">
-                  Issue your boarding pass
+                  Create your Skyrio access
                 </Title>
                 <Text className="sk-authSubtitle">
                   Join Skyrio. Earn XP. See the world.
@@ -273,7 +273,7 @@ export default function RegisterPage() {
 
                   <div className="sk-passTitle">
                     <div className="sk-kicker">
-                      BOARDING PASS — REGISTRATION
+                      SKYRIO ACCESS — REGISTRATION
                     </div>
                   </div>
 
@@ -438,12 +438,12 @@ export default function RegisterPage() {
                         unStatus === UN_TAKEN || unStatus === UN_CHECKING
                       }
                     >
-                      Issue Boarding Pass
+                      Create Skyrio Access
                     </Button>
 
                     <div className="sk-secondary">
                       <Text className="sk-muted">
-                        Already have a pass?{" "}
+                        Already have access?{" "}
                         <Link className="sk-inlineBtnLink" to="/login">
                           Sign in
                         </Link>

@@ -18,7 +18,7 @@ export default function BoardingPassToast({
       <div style={styles.header}>
         <div style={styles.headerLeft}>
           <span style={styles.chip} aria-hidden />
-          <Text style={styles.headerTitle}>Skyrio Boarding Pass</Text>
+          <Text style={styles.headerTitle}>Skyrio Access</Text>
         </div>
         <Text style={styles.headerIcon} aria-hidden>
           ✈️
@@ -74,7 +74,6 @@ const styles = {
     overflow: "hidden",
     padding: 0,
     width: 320,
-    /* ✅ Dark glass — no more light background */
     border: "1px solid rgba(255, 138, 42, 0.30)",
     background: "rgba(9, 7, 26, 0.92)",
     backdropFilter: "blur(20px)",

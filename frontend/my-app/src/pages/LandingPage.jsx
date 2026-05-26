@@ -447,6 +447,7 @@ const INJECTED_CSS = `
 
 .sk-hero__searchRow {
   display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 640px;
+  margin: 0 auto 16px;
 }
 .sk-hero__searchInputRow {
   display: flex; gap: 10px; align-items: center; width: 100%;
