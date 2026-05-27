@@ -75,6 +75,9 @@ const { Title, Text } = Typography;
 
 const API = import.meta.env.VITE_API_URL || "";
 
+// localStorage key for persisting travel vibes across server re-fetches
+const VIBES_STORAGE_KEY = "skyrio_travel_vibes";
+
 function safeEmailPrefix(email) {
   if (!email) return "";
   const idx = email.indexOf("@");
@@ -112,7 +115,6 @@ const PREVIEW_STATS = [
 
 const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
 
-// ── Travel vibe options ──────────────────────────────────────
 const VIBE_OPTIONS = [
   "Beach",
   "Adventure",
@@ -536,6 +538,24 @@ export default function DigitalPassportPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [xpToastShown, setXpToastShown] = useState(false);
 
+  // ── VIBE FIX: persistent display state that survives server re-fetches ──
+  const [localVibes, setLocalVibes] = useState(() => {
+    // Seed from user object first, fall back to localStorage
+    if (user?.travelVibes?.length) return user.travelVibes;
+    try {
+      return JSON.parse(localStorage.getItem(VIBES_STORAGE_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  // Keep localVibes in sync if useAuth eventually populates travelVibes
+  useEffect(() => {
+    if (user?.travelVibes?.length) {
+      setLocalVibes(user.travelVibes);
+    }
+  }, [user?.travelVibes]);
+
   const [deleteStep, setDeleteStep] = useState(0);
   const [deleteInput, setDeleteInput] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -590,7 +610,6 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
-  // ── FIX: dirty check so Save Changes is only active when there are edits ──
   const isProfileDirty = useMemo(() => {
     if (!editOpen) return false;
     return (
@@ -855,7 +874,7 @@ export default function DigitalPassportPage() {
     }
   };
 
-  // ── FIX: handleSaveProfile — guaranteed close on success, static toast ──
+  // ── VIBE FIX: handleSaveProfile writes vibes to localStorage ──
   const handleSaveProfile = async () => {
     setEditSaving(true);
     let saved = false;
@@ -878,7 +897,6 @@ export default function DigitalPassportPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update");
 
-      // Update local user state
       if (setUser) {
         setUser((prev) => ({
           ...prev,
@@ -901,14 +919,18 @@ export default function DigitalPassportPage() {
         } catch {}
       }
 
+      // ── VIBE FIX: persist vibes in their own key + update display state ──
+      try {
+        localStorage.setItem(VIBES_STORAGE_KEY, JSON.stringify(editVibes));
+      } catch {}
+      setLocalVibes(editVibes);
+
       saved = true;
-      // Use static antdMessage — works regardless of App context
       antdMessage.success("Profile updated ✓");
     } catch (err) {
       antdMessage.error(err.message || "Failed to save. Please try again.");
     } finally {
       setEditSaving(false);
-      // Only close if save succeeded; keep open on error so user can fix
       if (saved) setEditOpen(false);
     }
   };
@@ -1192,8 +1214,8 @@ export default function DigitalPassportPage() {
                     <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
-                  {/* ── Travel Vibes display ── */}
-                  {user?.travelVibes?.length > 0 && (
+                  {/* ── VIBE FIX: render from localVibes not user?.travelVibes ── */}
+                  {localVibes.length > 0 && (
                     <div
                       style={{
                         display: "flex",
@@ -1203,7 +1225,7 @@ export default function DigitalPassportPage() {
                         marginBottom: 12,
                       }}
                     >
-                      {user.travelVibes.map((vibe) => (
+                      {localVibes.map((vibe) => (
                         <span
                           key={vibe}
                           style={{
@@ -1353,7 +1375,7 @@ export default function DigitalPassportPage() {
                           setEditUsername(user?.username || "");
                           setEditBio(user?.bio || "");
                           setEditCity(user?.city || user?.homeBase || "");
-                          setEditVibes(user?.travelVibes || []);
+                          setEditVibes(user?.travelVibes || localVibes);
                           setEditOpen(true);
                         }}
                       >
@@ -1460,15 +1482,12 @@ export default function DigitalPassportPage() {
       {/* ── Edit Profile Modal ── */}
       <Modal
         open={editOpen}
-        onCancel={() => {
-          setEditOpen(false);
-        }}
+        onCancel={() => setEditOpen(false)}
         onOk={handleSaveProfile}
         confirmLoading={editSaving}
         title="Edit Profile"
         okText="Save Changes"
         cancelText="Cancel"
-        // FIX: disable Save Changes when nothing has changed
         okButtonProps={{ disabled: !isProfileDirty || editSaving }}
       >
         <div
@@ -1612,7 +1631,6 @@ export default function DigitalPassportPage() {
             )}
           </div>
 
-          {/* FIX: visual hint when there's nothing to save */}
           {!isProfileDirty && (
             <div
               style={{

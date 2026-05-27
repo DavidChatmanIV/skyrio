@@ -8,9 +8,9 @@ import React, {
 import {
   Badge,
   Button,
-  Dropdown,
   Empty,
   List,
+  Modal,
   Tabs,
   Tooltip,
   Typography,
@@ -24,7 +24,7 @@ import {
   GiftOutlined,
   MessageOutlined,
 } from "@ant-design/icons";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { apiUrl } from "@/lib/api";
@@ -58,19 +58,30 @@ const byTab = (items, key) => {
   return items;
 };
 
+// Detect mobile viewports
+const isMobile = () => typeof window !== "undefined" && window.innerWidth < 768;
+
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(false);
   const [activeKey, setActiveKey] = useState("all");
   const [busy, setBusy] = useState(false);
+  const [mobile, setMobile] = useState(isMobile());
   const panelRef = useRef(null);
   const navigate = useNavigate();
+
+  // Track viewport changes
+  useEffect(() => {
+    const handler = () => setMobile(isMobile());
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(apiUrl("/api/notifications?limit=20"), {
+      const res = await fetch(apiUrl("/api/notifications?limit=50"), {
         headers: { ...getAuthHeaders() },
         credentials: "include",
       });
@@ -86,6 +97,20 @@ export default function Notifications() {
     }
   }, []);
 
+  // ── FIX: auto-mark all as read when panel opens ──
+  const silentMarkAllRead = useCallback(async () => {
+    try {
+      await fetch(apiUrl("/api/notifications/read-all"), {
+        method: "PATCH",
+        headers: { ...getAuthHeaders() },
+        credentials: "include",
+      });
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch {
+      // silent — badge will update on next manual open
+    }
+  }, []);
+
   const markAllAsRead = async () => {
     try {
       setBusy(true);
@@ -94,7 +119,7 @@ export default function Notifications() {
         headers: { ...getAuthHeaders() },
         credentials: "include",
       });
-      await fetchNotifications();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       toast.success("Marked all as read");
     } catch (err) {
       console.error("❌ mark all as read:", err);
@@ -122,11 +147,16 @@ export default function Notifications() {
 
   useEffect(() => {
     if (visible) {
-      fetchNotifications();
-      const t = setTimeout(() => panelRef.current?.focus(), 0);
-      return () => clearTimeout(t);
+      fetchNotifications().then(() => {
+        // After items load, silently drain the badge
+        silentMarkAllRead();
+      });
+      if (!mobile) {
+        const t = setTimeout(() => panelRef.current?.focus(), 0);
+        return () => clearTimeout(t);
+      }
     }
-  }, [visible, fetchNotifications]);
+  }, [visible, fetchNotifications, silentMarkAllRead, mobile]);
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -141,9 +171,7 @@ export default function Notifications() {
   const handleItemClick = async (item) => {
     try {
       const notifId = item._id || item.id;
-      const hasId = Boolean(notifId);
-
-      if (hasId && !item.read) {
+      if (notifId && !item.read) {
         setNotifications((prev) =>
           prev.map((n) =>
             n._id === notifId || n.id === notifId ? { ...n, read: true } : n
@@ -161,38 +189,21 @@ export default function Notifications() {
 
       setVisible(false);
 
-      if (item.link) {
-        navigate(item.link);
-      } else if (item.targetType === "booking" && item.targetId) {
+      if (item.link) navigate(item.link);
+      else if (item.targetType === "booking" && item.targetId)
         navigate(`/dashboard/bookings/${item.targetId}`);
-      } else if (item.targetType === "dm" && item.targetId) {
+      else if (item.targetType === "dm" && item.targetId)
         navigate(`/dm/${item.targetId}`);
-      } else if (item.targetType === "trip" && item.targetId) {
+      else if (item.targetType === "trip" && item.targetId)
         navigate(`/saved-trips`);
-      }
     } catch (e) {
       console.warn("onNotificationClick error:", e);
     }
   };
 
-  const dropdownPanel = (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      ref={panelRef}
-      tabIndex={-1}
-      style={{
-        background: "#1a1535",
-        border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: 14,
-        width: 360,
-        maxHeight: "70vh",
-        overflowY: "auto",
-        padding: 12,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-      }}
-    >
+  // ── Shared panel content ──
+  const panelContent = (
+    <>
       <div
         style={{
           display: "flex",
@@ -325,35 +336,115 @@ export default function Notifications() {
           )}
         />
       )}
-    </motion.div>
+    </>
   );
 
-  return (
-    <Dropdown
-      trigger={["click"]}
-      placement="bottomRight"
-      open={visible}
-      onOpenChange={setVisible}
-      popupRender={() => dropdownPanel}
-    >
-      <Badge count={unreadCount} size="small">
-        <button
-          type="button"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            padding: "4px 8px",
-            fontSize: 18,
-            lineHeight: 1,
-            color: "rgba(255,255,255,0.7)",
-            display: "flex",
-            alignItems: "center",
+  const bellButton = (
+    <Badge count={unreadCount} size="small">
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: "4px 8px",
+          fontSize: 18,
+          lineHeight: 1,
+          color: "rgba(255,255,255,0.7)",
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        <BellOutlined />
+      </button>
+    </Badge>
+  );
+
+  // ── Mobile: full-screen Modal ──
+  if (mobile) {
+    return (
+      <>
+        {bellButton}
+        <Modal
+          open={visible}
+          onCancel={() => setVisible(false)}
+          footer={null}
+          title={
+            <span style={{ color: "#fff" }}>
+              Notifications{unreadCount > 0 ? ` (${unreadCount})` : ""}
+            </span>
+          }
+          styles={{
+            content: {
+              background: "#1a1535",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 18,
+              padding: 16,
+            },
+            header: {
+              background: "transparent",
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+              paddingBottom: 8,
+            },
+            mask: { background: "rgba(0,0,0,0.6)" },
           }}
+          style={{ top: 40 }}
+          width="calc(100vw - 32px)"
         >
-          <BellOutlined />
-        </button>
-      </Badge>
-    </Dropdown>
+          <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
+            {panelContent}
+          </div>
+        </Modal>
+      </>
+    );
+  }
+
+  // ── Desktop: floating panel (custom dropdown) ──
+  return (
+    <div style={{ position: "relative" }}>
+      {bellButton}
+
+      <AnimatePresence>
+        {visible && (
+          <>
+            {/* Backdrop to close on outside click */}
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 9998,
+              }}
+              onClick={() => setVisible(false)}
+            />
+            <motion.div
+              key="notif-panel"
+              initial={{ opacity: 0, y: 8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.97 }}
+              transition={{ duration: 0.18 }}
+              ref={panelRef}
+              tabIndex={-1}
+              style={{
+                position: "absolute",
+                top: "calc(100% + 8px)",
+                right: 0,
+                zIndex: 9999,
+                background: "#1a1535",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 14,
+                width: 360,
+                maxHeight: "70vh",
+                overflowY: "auto",
+                padding: 12,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+              }}
+            >
+              {panelContent}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

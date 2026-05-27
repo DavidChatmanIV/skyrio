@@ -153,7 +153,6 @@
 
 /* ═══════════════════════════════════════════════
    BOOKING TAB BAR
-   Flights | Stays | Saved | More ▾
 ═══════════════════════════════════════════════ */
 .sk-tab-bar {
   display: flex;
@@ -1541,9 +1540,9 @@
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
    ANT DESIGN DATE PICKER — SKYRIO ORANGE THEME
-═══════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
 .ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
 .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
@@ -1799,6 +1798,64 @@
     z-index: -1;
     pointer-events: none;
   }
+
+  /* ── MOBILE GAP FIX ── */
+  .sk-booking-hero {
+    gap: 6px !important;
+    padding: 14px 12px !important;
+  }
+  .sk-search-bar {
+    gap: 6px !important;
+    margin-top: 4px !important;
+    flex: 0 0 auto !important;
+    align-self: stretch;
+  }
+  .sk-search-bar > * {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    align-self: stretch;
+  }
+  .sk-search-bar .sk-orange-picker,
+  .sk-search-bar [class*="picker"],
+  .sk-search-bar .ant-picker,
+  .sk-search-bar .ant-picker-range {
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  .sk-search-bar .sk-glass-input,
+  .sk-search-bar input[type="text"],
+  .sk-search-bar .ant-input {
+    height: 50px !important;
+    min-height: 50px !important;
+  }
+  .sk-tripState {
+    padding: 8px 12px !important;
+  }
+  .sk-weatherStrip {
+    margin: 2px auto !important;
+  }
+  .sk-weatherInner {
+    padding: 8px 12px !important;
+  }
+  .sk-tab-bar {
+    padding: 4px !important;
+    gap: 3px !important;
+  }
+  .sk-hero-pills {
+    margin-top: 2px !important;
+    gap: 6px !important;
+  }
+  .sk-action-row,
+  .sk-filters {
+    margin-top: 4px !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════
@@ -1937,13 +1994,16 @@
 ═══════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .sk-booking-hero {
-    padding: 16px 12px;
-    border-radius: 16px;
-    gap: 6px;
+    padding: 12px 10px !important;
+    border-radius: 14px !important;
+    gap: 5px !important;
   }
   .sk-hero-sub {
     font-size: 13px;
     padding: 0 8px;
+  }
+  .sk-search-bar {
+    gap: 5px !important;
   }
 }
 
@@ -1966,7 +2026,7 @@
 }
 
 /* ═══════════════════════════════════════════════
-   n3/n4: WATCH PRICE BUTTON — flight cards
+   WATCH PRICE BUTTON
 ═══════════════════════════════════════════════ */
 .sk-watch-btn {
   display: inline-flex;

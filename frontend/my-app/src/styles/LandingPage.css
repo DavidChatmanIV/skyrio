@@ -17,26 +17,50 @@
   --sk-radius-lg: 20px;
   --sk-radius-xl: 28px;
   --sk-radius-pill: 999px;
+
+  /* FIX 1: Base background color used instantly before image loads.
+     Matches the night overlay so there's zero visible flash. */
+  --sk-base-bg: #090718;
 }
 
-/* ── Base ── */
+/* ══════════════════════════════════════════════
+   LANDING ROOT
+   FIX: background-color set here so the page is
+   never blank/white while JS boots on mobile.
+══════════════════════════════════════════════ */
+.sk-landing {
+  position: relative;
+  min-height: 100vh;
+  /* Instant paint — visible before the image or overlays load */
+  background-color: var(--sk-base-bg);
+  /* Force GPU compositing layer — prevents mobile repaint flicker */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
 
 /* ══════════════════════════════════════════════
    TIME-AWARE BACKGROUND SYSTEM
-   JS sets data-time="night|dawn|morning|afternoon|dusk"
-   on <body> or we use a CSS class on .sk-landing
-   We use a data attribute on .sk-landing itself
-   injected by a small inline script in LandingPage.jsx
+   FIX: Changed from position:fixed to position:absolute.
+   position:fixed on mobile causes browser to repaint the
+   layer separately from the content on scroll/refresh,
+   producing the blank blink. absolute keeps it in the
+   same compositing layer as the content.
 ══════════════════════════════════════════════ */
 
-/* ── Background base layer (hero image) ── */
 .sk-landing__bg {
-  position: fixed;
+  position: absolute; /* was: fixed — this was causing the mobile blink */
   inset: 0;
   background-image: var(--sk-hero-bg);
   background-size: cover;
   background-position: center 30%;
   z-index: 0;
+  /* FIX: contain:paint stops the bg from blocking content paint */
+  contain: paint;
+  /* FIX: GPU layer prevents mobile repaint on scroll */
+  will-change: transform;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  /* Keep the smooth transition for time-of-day changes */
   transition: opacity 1.4s ease;
 }
 
@@ -254,8 +278,17 @@
   font-size: 11px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(12px);
+  /* FIX: backdrop-filter removed on this element — it forces a stacking
+     context that can blank out underlying content on mobile during repaint */
   pointer-events: none;
+}
+
+/* FIX: Only apply backdrop-filter on desktop where GPU handles it cleanly */
+@media (min-width: 601px) {
+  .sk-time-badge {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
 }
 
 .sk-time-dot {
@@ -336,10 +369,17 @@
   border: 1px solid var(--sk-border-hover);
   border-radius: var(--sk-radius-lg);
   padding: 10px 10px 10px 18px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   margin-bottom: 14px;
   transition: border-color 0.2s;
+}
+
+/* FIX: backdrop-filter on mobile causes GPU stacking context issues
+   that blank out content — only apply on desktop */
+@media (min-width: 601px) {
+  .sk-hero__search {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
 }
 
 .sk-hero__search:focus-within {
@@ -430,6 +470,7 @@
   filter: brightness(1.08);
   transform: translateY(-1px);
 }
+
 .sk-quickChip:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -444,14 +485,17 @@
     padding: 12px;
     gap: 10px;
   }
+
   .sk-hero__search .sk-cta,
   .sk-hero__search .sk-cta.ant-btn {
     width: 100% !important;
     justify-content: center;
   }
+
   .sk-hero {
     padding: 48px 16px 40px;
   }
+
   .sk-hero__title {
     font-size: clamp(38px, 11vw, 56px) !important;
   }
@@ -466,12 +510,19 @@
   border-radius: var(--sk-radius-lg);
   padding: 20px 24px;
   text-align: left;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* FIX: backdrop-filter removed from mobile — see desktop rule below */
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
   transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+/* FIX: Only apply backdrop-filter on desktop */
+@media (min-width: 601px) {
+  .sk-suggestion {
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
 }
 
 .sk-suggestion.is-visible {
@@ -621,10 +672,12 @@
     flex-direction: column;
     gap: 16px;
   }
+
   .sk-suggestion__right {
     align-items: flex-start;
     text-align: left;
   }
+
   .sk-suggestion {
     padding: 16px;
   }
@@ -675,6 +728,7 @@
   .sk-examples__grid {
     grid-template-columns: 1fr;
   }
+
   .sk-examples {
     padding: 0 16px 48px;
   }
