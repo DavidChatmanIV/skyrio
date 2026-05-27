@@ -2,16 +2,20 @@
  * atlas.routes.js
  * ─────────────────────────────────────────────────────────────
  * All Atlas AI endpoints for Skyrio.
- * Mounted at /api/atlas via routes/api/index.js
+ * Mounted at /api/atlas
  *
  * Routes:
- *   POST  /api/atlas/chat              — multi-turn booking assistant (with memory)
+ *   POST  /api/atlas/chat              — multi-turn assistant (memory + tools)
  *   POST  /api/atlas/query             — single-turn quick answer
  *   GET   /api/atlas/health            — provider health check
- *   GET   /api/atlas/preferences       — get all stored preferences
+ *   GET   /api/atlas/preferences       — view stored preferences
  *   DELETE /api/atlas/preferences/:id  — delete one preference
  *   DELETE /api/atlas/preferences      — clear all preferences
  *   POST  /api/atlas/trip-history      — add a completed trip
+ *
+ * v2 — Tool execution loop: Atlas can now cancel bookings,
+ *       switch flights, issue refunds, look up FAQs, and
+ *       escalate to human support — all through natural chat.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -21,6 +25,7 @@ import {
   atlasConverse,
   atlasQuery,
   atlasHealthCheck,
+  buildToolResultMessages,
   ATLAS_DEFAULT_SYSTEM_PROMPT,
 } from "../../services/atlasService.js";
 import {
@@ -32,10 +37,14 @@ import {
   addTripToHistory,
   incrementMessageCount,
 } from "../../services/preferenceService.js";
+import { ATLAS_TOOLS, executeAction } from "../../services/atlasActions.js";
 
 const router = Router();
 
-// ─── Dynamic system prompt builder (now with memory) ─────────
+// ── Max tool-call loop iterations (safety valve) ──
+const MAX_TOOL_ROUNDS = 5;
+
+// ─── Dynamic system prompt builder (memory + context) ────────
 
 function buildContextualSystemPrompt(context = {}, memoryBrief = {}) {
   const {
@@ -50,8 +59,6 @@ function buildContextualSystemPrompt(context = {}, memoryBrief = {}) {
   const lines = [ATLAS_DEFAULT_SYSTEM_PROMPT];
 
   // ── MEMORY SECTION ──
-  // Injected BEFORE trip context so Atlas always has the user's
-  // profile front-of-mind, even on a brand-new conversation.
   if (memoryBrief.summary) {
     lines.push("");
     lines.push("── WHAT YOU KNOW ABOUT THIS USER ──");
@@ -75,23 +82,18 @@ function buildContextualSystemPrompt(context = {}, memoryBrief = {}) {
     lines.push("");
     lines.push(
       "Use this knowledge naturally — don't announce that you remember things, " +
-        "just apply the preferences. For example, if you know they prefer window " +
-        "seats, mention window-seat availability without being asked. If they " +
-        "previously said they're vegetarian, factor that into restaurant/food " +
-        "suggestions automatically. If preferences conflict with what they're " +
-        "asking now, follow their current request — people change their minds."
+        "just apply the preferences. If preferences conflict with their current " +
+        "request, follow the current request — people change their minds."
     );
   } else if (memoryBrief.isNewUser) {
     lines.push("");
     lines.push(
-      "── NEW USER ── This is a new user. Be welcoming. As you chat, pay " +
-        "attention to preferences they reveal (seat preference, dietary needs, " +
-        "budget comfort zone, travel style) — the system will remember these " +
-        "for future conversations."
+      "── NEW USER ── This is a new user. Be welcoming. Pay attention to " +
+        "preferences they reveal — the system will remember them for future conversations."
     );
   }
 
-  // ── TRIP CONTEXT SECTION (same as before) ──
+  // ── TRIP CONTEXT SECTION ──
   const hasAnyContext = destination || budget || flights.length > 0;
   if (hasAnyContext) {
     lines.push("");
@@ -119,7 +121,6 @@ function buildContextualSystemPrompt(context = {}, memoryBrief = {}) {
       );
     }
 
-    // Summarise flight results
     if (flights.length > 0) {
       lines.push("");
       lines.push(`── AVAILABLE FLIGHTS (${flights.length} results found) ──`);
@@ -154,22 +155,95 @@ function buildContextualSystemPrompt(context = {}, memoryBrief = {}) {
     lines.push("");
     lines.push(
       "Use this context to give specific, accurate advice. " +
-        "Reference actual flight prices and availability when answering. " +
-        "If the user asks which flight to pick, recommend based on their budget and stops preference. " +
-        "If they are over budget, proactively suggest ways to save."
+        "Reference actual flight prices and availability when answering."
     );
   }
 
   return lines.join("\n");
 }
 
+// ═════════════════════════════════════════════════════════════
+// TOOL EXECUTION LOOP
+// This is the core engine that lets Atlas "do" things.
+//
+// 1. Send messages + tool definitions to the AI
+// 2. If AI returns tool_calls → execute them
+// 3. Feed results back → let AI respond or call more tools
+// 4. Repeat up to MAX_TOOL_ROUNDS
+// 5. Return the final text response
+// ═════════════════════════════════════════════════════════════
+
+async function runAtlasWithTools(messages, systemPrompt, userId) {
+  let currentMessages = [...messages];
+  let finalText = "";
+  const actionsExecuted = [];
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    // ── Call Atlas with tools ──
+    const result = await atlasConverse(
+      currentMessages,
+      systemPrompt,
+      ATLAS_TOOLS
+    );
+
+    // ── No tool calls → Atlas is done, return text ──
+    if (!result.toolCalls || result.toolCalls.length === 0) {
+      finalText = result.text;
+      break;
+    }
+
+    // ── Execute each tool call ──
+    const toolResults = [];
+
+    for (const tc of result.toolCalls) {
+      console.log(
+        `[atlas/chat] Tool call: ${tc.name}(${JSON.stringify(
+          tc.arguments
+        ).slice(0, 100)})`
+      );
+
+      const execResult = await executeAction(tc.name, tc.arguments, userId);
+
+      toolResults.push({
+        id: tc.id,
+        name: tc.name,
+        result: execResult,
+      });
+
+      actionsExecuted.push({
+        tool: tc.name,
+        success: execResult.success,
+        round,
+      });
+    }
+
+    // ── Feed results back to Atlas ──
+    const resultMessages = buildToolResultMessages(
+      result.provider,
+      result,
+      toolResults
+    );
+
+    currentMessages = [...currentMessages, ...resultMessages];
+
+    // If this is the last allowed round, force a text response
+    if (round === MAX_TOOL_ROUNDS - 1) {
+      finalText =
+        result.text ||
+        "I've completed the actions. Let me know if you need anything else.";
+    }
+  }
+
+  return { reply: finalText, actionsExecuted };
+}
+
 // ─── POST /api/atlas/chat ─────────────────────────────────────
-// Full multi-turn conversation with memory + booking context.
+// Full multi-turn conversation with memory + tools.
 
 router.post("/chat", requireAuth, async (req, res) => {
   try {
     const { messages, context } = req.body;
-    const userId = req.auth?.sub || req.user?.sub; // Auth0 user ID
+    const userId = req.auth?.sub || req.user?.sub || req.user?.id;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({
@@ -192,22 +266,25 @@ router.post("/chat", requireAuth, async (req, res) => {
       });
     }
 
-    // ── 1. Fetch user memory (fast — single indexed query) ──
+    // ── 1. Fetch user memory ──
     const memoryBrief = userId
       ? await getMemoryBrief(userId)
       : { summary: "", preferenceCount: 0, isNewUser: true };
 
-    // ── 2. Build context-aware + memory-aware system prompt ──
+    // ── 2. Build system prompt ──
     const systemPrompt = buildContextualSystemPrompt(
       context || {},
       memoryBrief
     );
 
-    // ── 3. Get Atlas response ──
-    const reply = await atlasConverse(messages, systemPrompt);
+    // ── 3. Run Atlas with tool execution loop ──
+    const { reply, actionsExecuted } = await runAtlasWithTools(
+      messages,
+      systemPrompt,
+      userId
+    );
 
-    // ── 4. Fire-and-forget: extract preferences + update stats ──
-    // These run in the background — they don't slow down the response.
+    // ── 4. Background: extract preferences + update stats ──
     if (userId) {
       extractPreferences(userId, messages).catch((err) =>
         console.error("[atlas/chat] Preference extraction failed:", err.message)
@@ -218,11 +295,18 @@ router.post("/chat", requireAuth, async (req, res) => {
     return res.json({
       ok: true,
       reply,
-      // Send memory metadata so frontend can show "Atlas remembers X things"
       memory: {
         preferenceCount: memoryBrief.preferenceCount,
         isNewUser: memoryBrief.isNewUser,
       },
+      // Let the frontend know what Atlas did (for UI indicators)
+      actions:
+        actionsExecuted.length > 0
+          ? actionsExecuted.map((a) => ({
+              tool: a.tool,
+              success: a.success,
+            }))
+          : null,
     });
   } catch (err) {
     console.error("[atlas/chat] Error:", err.message);
@@ -231,7 +315,7 @@ router.post("/chat", requireAuth, async (req, res) => {
 });
 
 // ─── POST /api/atlas/query ────────────────────────────────────
-// Single-turn quick query (no memory — lightweight).
+// Single-turn quick query (no tools, no memory — lightweight).
 
 router.post("/query", requireAuth, async (req, res) => {
   try {
@@ -266,16 +350,13 @@ router.get("/health", async (_req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
 // PREFERENCE MANAGEMENT ENDPOINTS
-// These power the "Atlas Memory" settings page where users can
-// see what Atlas knows about them and control their data.
-// ─────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
 
-// GET /api/atlas/preferences — view everything Atlas has learned
 router.get("/preferences", requireAuth, async (req, res) => {
   try {
-    const userId = req.auth?.sub || req.user?.sub;
+    const userId = req.auth?.sub || req.user?.sub || req.user?.id;
     const data = await getUserPreferences(userId);
     return res.json({ ok: true, ...data });
   } catch (err) {
@@ -284,10 +365,9 @@ router.get("/preferences", requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/atlas/preferences/:id — remove a single preference
 router.delete("/preferences/:id", requireAuth, async (req, res) => {
   try {
-    const userId = req.auth?.sub || req.user?.sub;
+    const userId = req.auth?.sub || req.user?.sub || req.user?.id;
     const deleted = await deletePreference(userId, req.params.id);
     return res.json({ ok: true, deleted });
   } catch (err) {
@@ -296,10 +376,9 @@ router.delete("/preferences/:id", requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/atlas/preferences — clear ALL preferences
 router.delete("/preferences", requireAuth, async (req, res) => {
   try {
-    const userId = req.auth?.sub || req.user?.sub;
+    const userId = req.auth?.sub || req.user?.sub || req.user?.id;
     const cleared = await clearAllPreferences(userId);
     return res.json({ ok: true, cleared });
   } catch (err) {
@@ -308,10 +387,9 @@ router.delete("/preferences", requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/atlas/trip-history — log a completed trip
 router.post("/trip-history", requireAuth, async (req, res) => {
   try {
-    const userId = req.auth?.sub || req.user?.sub;
+    const userId = req.auth?.sub || req.user?.sub || req.user?.id;
     const added = await addTripToHistory(userId, req.body);
     return res.json({ ok: true, added });
   } catch (err) {

@@ -1,16 +1,3 @@
-/**
- * atlasService.js
- * ─────────────────────────────────────────────────────────────
- * Skyrio's AI provider abstraction layer.
- * All Atlas AI calls route through here — NEVER import OpenAI,
- * Anthropic, or any AI SDK directly anywhere else in the codebase.
- *
- * Supported providers: openai | claude
- * Set ATLAS_PROVIDER in your .env to switch providers globally.
- * Set ATLAS_FALLBACK_PROVIDER for automatic failover on outage.
- * ─────────────────────────────────────────────────────────────
- */
-
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -65,18 +52,25 @@ function getAnthropicClient() {
  * @param {Object}   options
  * @param {string}   options.systemPrompt   - Atlas's persona / instructions
  * @param {Array}    options.messages        - Conversation history [{ role, content }]
- * @param {string}   [options.task]          - 'default' | 'fast' (fast uses cheaper model)
+ * @param {string}   [options.task]          - 'default' | 'fast'
  * @param {number}   [options.maxTokens]     - Max tokens in response (default: 1024)
- * @param {string}   [options.provider]      - Override provider for this call only
- * @param {boolean}  [options.useFallback]   - Internal flag — do not set manually
+ * @param {Array}    [options.tools]         - Tool definitions for function calling
+ * @param {string}   [options.provider]      - Override provider for this call
+ * @param {boolean}  [options.useFallback]   - Internal flag
  *
- * @returns {Promise<{ text: string, provider: string, model: string }>}
+ * @returns {Promise<{
+ *   text: string,
+ *   provider: string,
+ *   model: string,
+ *   toolCalls: Array|null
+ * }>}
  */
 export async function atlasChat({
   systemPrompt,
   messages,
   task = "default",
   maxTokens = 1024,
+  tools = null,
   provider,
   useFallback = false,
 }) {
@@ -93,23 +87,37 @@ export async function atlasChat({
   const model = task === "fast" ? config.fastModel : config.defaultModel;
 
   console.log(
-    `[atlasService] Routing to ${config.name} (${model}) | task: ${task}`
+    `[atlasService] Routing to ${
+      config.name
+    } (${model}) | task: ${task} | tools: ${tools ? tools.length : 0}`
   );
 
   try {
     if (resolvedProvider === "openai") {
-      return await _callOpenAI({ systemPrompt, messages, model, maxTokens });
+      return await _callOpenAI({
+        systemPrompt,
+        messages,
+        model,
+        maxTokens,
+        tools,
+      });
     }
 
     if (resolvedProvider === "claude") {
-      return await _callClaude({ systemPrompt, messages, model, maxTokens });
+      return await _callClaude({
+        systemPrompt,
+        messages,
+        model,
+        maxTokens,
+        tools,
+      });
     }
 
     throw new Error(
-      `[atlasService] Provider "${resolvedProvider}" has no handler implemented.`
+      `[atlasService] Provider "${resolvedProvider}" has no handler.`
     );
   } catch (err) {
-    // ── Automatic fallback on provider failure ──────────────────
+    // ── Automatic fallback ──
     if (!useFallback && resolvedProvider !== FALLBACK_PROVIDER) {
       console.warn(
         `[atlasService] ${config.name} failed: ${err.message}. Falling back to ${FALLBACK_PROVIDER}...`
@@ -119,11 +127,11 @@ export async function atlasChat({
         messages,
         task,
         maxTokens,
+        tools,
         useFallback: true,
       });
     }
 
-    // Both primary and fallback failed
     console.error(
       `[atlasService] All providers failed. Last error:`,
       err.message
@@ -136,35 +144,116 @@ export async function atlasChat({
 
 // ─── Provider handlers ────────────────────────────────────────
 
-async function _callOpenAI({ systemPrompt, messages, model, maxTokens }) {
+async function _callOpenAI({
+  systemPrompt,
+  messages,
+  model,
+  maxTokens,
+  tools,
+}) {
   const client = getOpenAIClient();
 
-  const response = await client.chat.completions.create({
+  const params = {
     model,
     max_tokens: maxTokens,
     messages: [{ role: "system", content: systemPrompt }, ...messages],
-  });
+  };
 
-  const text = response.choices[0]?.message?.content?.trim();
+  // Add tools in OpenAI format
+  if (tools && tools.length > 0) {
+    params.tools = tools.map((t) => ({
+      type: "function",
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      },
+    }));
+    params.tool_choice = "auto";
+  }
 
+  const response = await client.chat.completions.create(params);
+  const choice = response.choices[0];
+
+  // ── Check for tool calls ──
+  if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
+    const toolCalls = choice.message.tool_calls.map((tc) => ({
+      id: tc.id,
+      name: tc.function.name,
+      arguments: JSON.parse(tc.function.arguments || "{}"),
+    }));
+
+    return {
+      text: choice.message.content || "",
+      provider: "openai",
+      model,
+      toolCalls,
+      // Include the raw assistant message so we can feed it back
+      _rawAssistantMessage: choice.message,
+    };
+  }
+
+  const text = choice?.message?.content?.trim();
   if (!text) throw new Error("OpenAI returned an empty response.");
 
-  return {
-    text,
-    provider: "openai",
-    model,
-  };
+  return { text, provider: "openai", model, toolCalls: null };
 }
 
-async function _callClaude({ systemPrompt, messages, model, maxTokens }) {
+async function _callClaude({
+  systemPrompt,
+  messages,
+  model,
+  maxTokens,
+  tools,
+}) {
   const client = getAnthropicClient();
 
-  const response = await client.messages.create({
+  const params = {
     model,
     max_tokens: maxTokens,
     system: systemPrompt,
     messages,
-  });
+  };
+
+  // Add tools in Anthropic format
+  if (tools && tools.length > 0) {
+    params.tools = tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.parameters,
+    }));
+  }
+
+  const response = await client.messages.create(params);
+
+  // ── Check for tool use blocks ──
+  const toolUseBlocks = response.content.filter(
+    (block) => block.type === "tool_use"
+  );
+
+  if (toolUseBlocks.length > 0) {
+    const toolCalls = toolUseBlocks.map((block) => ({
+      id: block.id,
+      name: block.name,
+      arguments: block.input || {},
+    }));
+
+    // Also capture any text the model sent alongside the tool call
+    const text = response.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("")
+      .trim();
+
+    return {
+      text,
+      provider: "claude",
+      model,
+      toolCalls,
+      _rawContent: response.content,
+      _stopReason: response.stop_reason,
+    };
+  }
 
   const text = response.content
     .filter((block) => block.type === "text")
@@ -174,11 +263,74 @@ async function _callClaude({ systemPrompt, messages, model, maxTokens }) {
 
   if (!text) throw new Error("Claude returned an empty response.");
 
-  return {
-    text,
-    provider: "claude",
-    model,
-  };
+  return { text, provider: "claude", model, toolCalls: null };
+}
+
+// ═════════════════════════════════════════════════════════════
+// TOOL RESULT FORMATTING
+// After executing a tool, the result needs to be formatted
+// correctly for each provider's message format.
+// ═════════════════════════════════════════════════════════════
+
+/**
+ * Build messages to feed tool results back to the AI.
+ * Each provider has a different format for tool results.
+ *
+ * @param {string}  provider        - "openai" or "claude"
+ * @param {Object}  assistantTurn   - The raw assistant response from atlasChat
+ * @param {Array}   toolResults     - [{ id, name, result }] from executing tools
+ * @returns {Array} Messages to append to conversation
+ */
+export function buildToolResultMessages(provider, assistantTurn, toolResults) {
+  if (provider === "openai") {
+    // OpenAI: assistant message with tool_calls, then tool result messages
+    const msgs = [];
+
+    // Re-add the assistant message that contained tool_calls
+    msgs.push({
+      role: "assistant",
+      content: assistantTurn._rawAssistantMessage?.content || null,
+      tool_calls: assistantTurn._rawAssistantMessage?.tool_calls || [],
+    });
+
+    // Add each tool result
+    for (const tr of toolResults) {
+      msgs.push({
+        role: "tool",
+        tool_call_id: tr.id,
+        content: JSON.stringify(tr.result),
+      });
+    }
+
+    return msgs;
+  }
+
+  if (provider === "claude") {
+    // Claude: assistant content blocks, then user message with tool_result blocks
+    const msgs = [];
+
+    // Re-add assistant turn with its raw content (text + tool_use blocks)
+    msgs.push({
+      role: "assistant",
+      content: assistantTurn._rawContent || [
+        { type: "text", text: assistantTurn.text || "" },
+      ],
+    });
+
+    // Tool results come as a user message with tool_result blocks
+    msgs.push({
+      role: "user",
+      content: toolResults.map((tr) => ({
+        type: "tool_result",
+        tool_use_id: tr.id,
+        content: JSON.stringify(tr.result),
+      })),
+    });
+
+    return msgs;
+  }
+
+  return [];
 }
 
 // ─── Atlas default persona ────────────────────────────────────
@@ -192,45 +344,43 @@ Your role:
 - Help users find flights, hotels, and experiences that match their budget and preferences
 - Answer travel questions clearly and confidently
 - Assist with booking issues, itinerary changes, and trip recommendations
+- Manage cancellations, switches, and refunds using your tools
 - Escalate to a human agent only when the issue requires manual intervention or involves a dispute above $500
+
+IMPORTANT TOOL USAGE RULES:
+1. When a user asks about their bookings, ALWAYS use list_user_bookings first.
+2. Before cancelling anything, ALWAYS call check_cancellation_policy and tell the user the fees/refund amount. Wait for their explicit "yes" before calling cancel_booking.
+3. Before switching a flight, ALWAYS search_alternative_flights first, present options, and wait for user confirmation before calling switch_booking.
+4. After a successful cancellation, ASK if they want a refund — then call request_refund.
+5. For general questions (baggage, visa, policies), try lookup_travel_info before saying you don't know.
+6. Only use escalate_to_human as a LAST RESORT — try every other tool first.
+7. Never fabricate booking details — always look them up.
+8. When presenting multiple options (flights, etc), format them clearly with numbered choices.
 
 Tone: Friendly, knowledgeable, and efficient. Never robotic. Never overly formal.
 Always keep responses concise unless the user asks for detail.
+When handling cancellations or refunds, be empathetic — these are stressful moments for travelers.
 `.trim();
 
 // ─── Convenience wrappers ─────────────────────────────────────
 
 /**
- * Quick single-turn Atlas query.
- * Use for support ticket triage, short answers, FAQ lookups,
- * and internal tasks like preference extraction.
+ * Quick single-turn Atlas query (no tools — lightweight).
  *
- * Accepts TWO call signatures (backward compatible):
- *
+ * Accepts two signatures:
  *   atlasQuery("message")
  *   atlasQuery("message", "custom system prompt")
  *   atlasQuery("message", { systemPrompt, maxTokens, task, provider })
- *
- * @param {string}        userMessage
- * @param {string|Object} [optionsOrPrompt]
- * @returns {Promise<string>} Atlas's reply text
  */
 export async function atlasQuery(userMessage, optionsOrPrompt) {
-  // ── Resolve arguments ──
-  // String → old-style call:  atlasQuery("msg", "prompt")
-  // Object → new-style call:  atlasQuery("msg", { systemPrompt, maxTokens })
-  // Falsy  → defaults
-
   let systemPrompt = ATLAS_DEFAULT_SYSTEM_PROMPT;
   let maxTokens = 512;
   let task = "fast";
-  let provider; // undefined = use default provider chain
+  let provider;
 
   if (typeof optionsOrPrompt === "string") {
-    // Backward compatible: atlasQuery(message, systemPromptString)
     systemPrompt = optionsOrPrompt;
   } else if (optionsOrPrompt && typeof optionsOrPrompt === "object") {
-    // New style: atlasQuery(message, { systemPrompt, maxTokens, task, provider })
     systemPrompt = optionsOrPrompt.systemPrompt || systemPrompt;
     maxTokens = optionsOrPrompt.maxTokens || maxTokens;
     task = optionsOrPrompt.task || task;
@@ -248,34 +398,31 @@ export async function atlasQuery(userMessage, optionsOrPrompt) {
 }
 
 /**
- * Full Atlas conversation — use for itinerary building,
- * trip planning, and multi-turn booking assistant flows.
+ * Full Atlas conversation with tool support.
+ * Returns the full result object (not just text) so the
+ * route can handle tool calls.
  *
- * @param {Array}  conversationHistory  - Full [{ role, content }] array
- * @param {string} [systemPrompt]
- * @returns {Promise<string>} Atlas's reply text
+ * @param {Array}   conversationHistory
+ * @param {string}  [systemPrompt]
+ * @param {Array}   [tools]              - Tool definitions
+ * @returns {Promise<Object>}            - Full result with toolCalls
  */
 export async function atlasConverse(
   conversationHistory,
-  systemPrompt = ATLAS_DEFAULT_SYSTEM_PROMPT
+  systemPrompt = ATLAS_DEFAULT_SYSTEM_PROMPT,
+  tools = null
 ) {
-  const result = await atlasChat({
+  return await atlasChat({
     systemPrompt,
     messages: conversationHistory,
     task: "default",
     maxTokens: 2048,
+    tools,
   });
-  return result.text;
 }
 
 // ─── Health check ─────────────────────────────────────────────
 
-/**
- * Lightweight provider health check.
- * Call this from your /api/health endpoint.
- *
- * @returns {Promise<{ provider: string, status: 'ok' | 'error', latencyMs: number }>}
- */
 export async function atlasHealthCheck() {
   const start = Date.now();
   try {

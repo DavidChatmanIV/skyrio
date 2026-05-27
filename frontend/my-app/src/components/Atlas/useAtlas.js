@@ -2,8 +2,12 @@
  * useAtlas.js
  * ─────────────────────────────────────────────────────────────
  * Custom hook for the Atlas AI chat widget.
- * NOW with memory awareness — tracks preference count so the
- * UI can show "Atlas remembers X things about you".
+ *
+ * Features:
+ *   - Multi-turn chat with context injection
+ *   - Memory awareness (preference count, new user detection)
+ *   - Action tracking (shows when Atlas cancelled, refunded, etc)
+ *   - Preference CRUD for settings page
  *
  * Drop into:  src/components/Atlas/useAtlas.js
  * ─────────────────────────────────────────────────────────────
@@ -13,7 +17,6 @@ import { useState, useCallback, useRef } from "react";
 import { apiUrl } from "@/lib/api";
 import { useAtlasContext } from "./AtlasContext";
 
-// ── Token helper ──────────────────────────────────────────────
 const getToken = () => localStorage.getItem("token");
 
 export function useAtlas() {
@@ -24,11 +27,14 @@ export function useAtlas() {
   const [error, setError] = useState(null);
 
   // ── Memory state ──
-  // Updated after every chat response with data from the backend.
   const [memory, setMemory] = useState({
     preferenceCount: 0,
     isNewUser: true,
   });
+
+  // ── Last actions Atlas performed (for UI indicators) ──
+  // e.g. [{ tool: "cancel_booking", success: true }]
+  const [lastActions, setLastActions] = useState(null);
 
   const isLoadingRef = useRef(false);
   const messagesRef = useRef(messages);
@@ -40,6 +46,7 @@ export function useAtlas() {
       if (!text?.trim() || isLoadingRef.current) return;
 
       setError(null);
+      setLastActions(null);
 
       const userMsg = {
         id: `user-${Date.now()}`,
@@ -58,7 +65,7 @@ export function useAtlas() {
 
         if (!token && import.meta.env.DEV) {
           console.warn(
-            "[useAtlas] No token found in localStorage. Atlas request will likely 401."
+            "[useAtlas] No token found. Atlas request will likely 401."
           );
         }
 
@@ -91,14 +98,15 @@ export function useAtlas() {
           id: `atlas-${Date.now()}`,
           role: "assistant",
           content: data.reply,
+          // Attach actions metadata to the message for rendering
+          actions: data.actions || null,
         };
 
         setMessages((prev) => [...prev, atlasMsg]);
 
-        // ── Update memory state from backend response ──
-        if (data.memory) {
-          setMemory(data.memory);
-        }
+        // ── Update memory + actions state ──
+        if (data.memory) setMemory(data.memory);
+        if (data.actions) setLastActions(data.actions);
       } catch (err) {
         console.error("[Atlas] sendMessage error:", err.message);
         setError(err.message || "Atlas is unavailable. Please try again.");
@@ -111,14 +119,12 @@ export function useAtlas() {
     [atlasContext]
   );
 
-  // ── Fetch stored preferences (for settings page) ───────────
+  // ── Fetch stored preferences (settings page) ───────────────
   const fetchPreferences = useCallback(async () => {
     try {
       const token = getToken();
       const res = await fetch(apiUrl("/api/atlas/preferences"), {
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -137,20 +143,16 @@ export function useAtlas() {
         apiUrl(`/api/atlas/preferences/${preferenceId}`),
         {
           method: "DELETE",
-          headers: {
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
+          headers: { ...(token && { Authorization: `Bearer ${token}` }) },
         }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Update local memory count
       setMemory((prev) => ({
         ...prev,
         preferenceCount: Math.max(0, prev.preferenceCount - 1),
       }));
-
       return true;
     } catch (err) {
       console.error("[Atlas] removePreference error:", err.message);
@@ -164,9 +166,7 @@ export function useAtlas() {
       const token = getToken();
       const res = await fetch(apiUrl("/api/atlas/preferences"), {
         method: "DELETE",
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -179,24 +179,28 @@ export function useAtlas() {
     }
   }, []);
 
-  // ── Clear chat (session only, memory persists) ─────────────
+  // ── Clear chat ─────────────────────────────────────────────
   const clearChat = useCallback(() => {
     setMessages([]);
     setError(null);
+    setLastActions(null);
   }, []);
 
   return {
-    // Existing
+    // Chat
     messages,
     isLoading,
     error,
     sendMessage,
     clearChat,
 
-    // New — memory
+    // Memory
     memory,
     fetchPreferences,
     removePreference,
     clearPreferences,
+
+    // Actions (what Atlas did this turn)
+    lastActions,
   };
 }
