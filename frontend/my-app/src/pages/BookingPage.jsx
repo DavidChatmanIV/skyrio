@@ -51,12 +51,17 @@ import {
   MapPin,
   DollarSign,
   Calendar,
+  ChevronsDown,
+  ArrowRight,
 } from "lucide-react";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 const API = import.meta.env.VITE_API_URL || "";
+
+// ✅ Pagination — results per page
+const RESULTS_PER_PAGE = 5;
 
 const DEFAULT_FILTERS = {
   price: "any",
@@ -458,6 +463,24 @@ function BookingTabBar({ value, onChange }) {
   );
 }
 
+// ── ✅ One-way / Round-trip toggle ────────────────────────────
+function TripTypeToggle({ value, onChange }) {
+  return (
+    <div className="sk-trip-type">
+      {["roundtrip", "oneway"].map((type) => (
+        <button
+          key={type}
+          type="button"
+          className={`sk-trip-type-btn${value === type ? " is-active" : ""}`}
+          onClick={() => onChange(type)}
+        >
+          {type === "roundtrip" ? "Round trip" : "One way"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Search forms ──────────────────────────────────────────────
 function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   const [originAirport, setOriginAirport] = useState(null);
@@ -468,6 +491,8 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   const [cabin, setCabin] = useState("economy");
   const [adults, setAdults] = useState(1);
   const [loading, setLoading] = useState(false);
+  // ✅ One-way / Round-trip
+  const [tripType, setTripType] = useState("roundtrip");
 
   const handleDatesChange = useCallback(
     (v) => {
@@ -491,6 +516,8 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
     if (!destAirport)
       return antdMessage.warning("Select a destination airport");
     if (!dates[0]) return antdMessage.warning("Select a departure date");
+    if (tripType === "roundtrip" && !dates[1])
+      return antdMessage.warning("Select a return date, or switch to One way");
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -500,8 +527,10 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
         adults: String(adults),
         cabin,
       });
-      if (dates[1])
+      // Only send returnDate for round trips
+      if (tripType === "roundtrip" && dates[1]) {
         params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
+      }
       const res = await fetch(`${API}/api/flights/search?${params}`);
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.message || "Search failed");
@@ -525,6 +554,18 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
 
   return (
     <div className="sk-search-bar">
+      {/* ✅ Trip type toggle — above airports */}
+      <div
+        style={{
+          flex: "0 0 100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <TripTypeToggle value={tripType} onChange={setTripType} />
+      </div>
+
       <div className="sk-airport-pair">
         <AirportInput
           value={originDisplay}
@@ -548,13 +589,26 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
         />
       </div>
 
-      {/* ── SkyrioPicker replaces RangePicker ── */}
-      <SkyrioPicker
-        className="sk-orange-picker"
-        onChange={handleDatesChange}
-        placeholder={["Depart", "Return"]}
-        disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
-      />
+      {/* ✅ Show single date picker for one-way, range for round trip */}
+      {tripType === "roundtrip" ? (
+        <SkyrioPicker
+          className="sk-orange-picker"
+          onChange={handleDatesChange}
+          placeholder={["Depart", "Return"]}
+          disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+        />
+      ) : (
+        <DatePicker
+          className="sk-orange-picker"
+          placeholder="Departure date"
+          disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+          onChange={(date) => {
+            const newDates = [date, null];
+            setDates(newDates);
+            onDatesChange?.({ dates: newDates, nights: null });
+          }}
+        />
+      )}
 
       <Select
         className="sk-select-cabin"
@@ -602,7 +656,6 @@ function StaysForm({ onDestChange, onDatesChange }) {
         placeholder="Where to? City or hotel"
         onChange={(ap) => onDestChange?.(ap.city)}
       />
-      {/* ── SkyrioPicker replaces RangePicker ── */}
       <SkyrioPicker
         className="sk-orange-picker"
         placeholder={["Check-in", "Check-out"]}
@@ -637,7 +690,6 @@ function CarsForm({ onDestChange }) {
         placeholder="Drop-off (same as pick-up)"
         onChange={() => {}}
       />
-      {/* ── SkyrioPicker replaces RangePicker ── */}
       <SkyrioPicker
         className="sk-orange-picker"
         placeholder={["Pick-up date", "Drop-off date"]}
@@ -706,7 +758,6 @@ function PackagesForm({ onDestChange, onDatesChange }) {
           onDestChange?.(ap.city);
         }}
       />
-      {/* ── SkyrioPicker replaces RangePicker ── */}
       <SkyrioPicker
         className="sk-orange-picker"
         onChange={handleDatesChange}
@@ -735,7 +786,6 @@ function ExcursionsForm({ onDestChange }) {
         placeholder="Destination city"
         onChange={(ap) => onDestChange?.(ap.city)}
       />
-      {/* ── SkyrioPicker replaces RangePicker ── */}
       <SkyrioPicker
         className="sk-orange-picker"
         placeholder={["Activity from", "Activity to"]}
@@ -773,7 +823,6 @@ function LastMinuteForm() {
         <Option value="mountains">⛰ Mountains</Option>
         <Option value="theme">🎡 Theme parks</Option>
       </Select>
-      {/* ── SkyrioPicker replaces RangePicker ── */}
       <SkyrioPicker
         className="sk-orange-picker"
         placeholder={["This weekend", "Next weekend"]}
@@ -969,6 +1018,12 @@ export default function BookingPage() {
     tripDays: prefillData?.tripDays ?? null,
   });
 
+  // ✅ Pagination state
+  const [visibleCount, setVisibleCount] = useState(RESULTS_PER_PAGE);
+
+  // ✅ Ref for scroll-to-budget
+  const budgetRef = useRef(null);
+
   const [priceWatchOn, setPriceWatchOn] = useState(false);
   const [priceWatchRoute, setPriceWatchRoute] = useState(null);
   const [watchingId, setWatchingId] = useState(null);
@@ -986,7 +1041,7 @@ export default function BookingPage() {
           targetType: "route",
           metadata: priceWatchRoute,
         });
-        antdMessage.success("🔔 Price Watch on — we'll notify you of drops!");
+        antdMessage.success("Price Watch on — we'll notify you of drops!");
       } catch {
         antdMessage.info("Price Watch enabled — alerts coming soon.");
       }
@@ -1030,7 +1085,7 @@ export default function BookingPage() {
           metadata: route,
         });
         antdMessage.success(
-          `🔔 Watching $${price.toFixed(0)} — you'll be notified if it drops!`
+          `Watching $${price.toFixed(0)} — you'll be notified if it drops!`
         );
       } catch {
         antdMessage.info("Price watch set — alerts coming soon.");
@@ -1087,6 +1142,7 @@ export default function BookingPage() {
         if (!data.ok) throw new Error(data.message || "Search failed");
         setFlightResults(data.flights ?? []);
         setAutoSearchDone(true);
+        setVisibleCount(RESULTS_PER_PAGE); // ✅ reset pagination on new results
         if (data.flights?.length) {
           const cheapest = [...data.flights].sort(
             (a, b) => parseFloat(a.totalAmount) - parseFloat(b.totalAmount)
@@ -1098,7 +1154,7 @@ export default function BookingPage() {
             airline: cheapest.owner,
           });
           antdMessage.success(
-            `✈️ Found ${data.flights.length} flights to ${prefillData.destination}`
+            `Found ${data.flights.length} flights to ${prefillData.destination}`
           );
         } else {
           antdMessage.info(
@@ -1131,10 +1187,25 @@ export default function BookingPage() {
     () => applyFilters(flightResults, smartFilters),
     [flightResults, smartFilters]
   );
+
+  // ✅ Paginated slice
+  const paginatedFlights = useMemo(
+    () => visibleFlights.slice(0, visibleCount),
+    [visibleFlights, visibleCount]
+  );
+
+  const hasMore = visibleCount < visibleFlights.length;
+
   const activeFilterCount = useMemo(
     () => Object.values(smartFilters).filter((v) => v !== "any").length,
     [smartFilters]
   );
+
+  // ✅ Reset pagination when filters or results change
+  useEffect(() => {
+    setVisibleCount(RESULTS_PER_PAGE);
+  }, [flightResults, smartFilters]);
+
   const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
   const weatherTitle = weather.label
     ? `${weather.label} Weather${weather.temp ? ` • ${weather.temp}` : ""}`
@@ -1173,6 +1244,11 @@ export default function BookingPage() {
     setBudgetState(state);
   }, []);
 
+  // ✅ Scroll to budget card
+  const scrollToBudget = useCallback(() => {
+    budgetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   const searchFormProps = {
     onDestChange: setDestCity,
     onDatesChange: handleDatesChange,
@@ -1186,6 +1262,7 @@ export default function BookingPage() {
             onSearch={(f) => {
               setFlightResults(f);
               setSmartFilters(DEFAULT_FILTERS);
+              setVisibleCount(RESULTS_PER_PAGE); // ✅ reset pagination
               if (f.length > 0) {
                 const cheapest = [...f].sort(
                   (a, b) =>
@@ -1453,6 +1530,7 @@ export default function BookingPage() {
             setFlightResults([]);
             setSmartFilters(DEFAULT_FILTERS);
             setActiveFilters([]);
+            setVisibleCount(RESULTS_PER_PAGE);
           }}
         />
 
@@ -1482,6 +1560,20 @@ export default function BookingPage() {
               Sync Together
             </Button>
           </Link>
+          {/* ✅ Scroll to budget button — only when results are loaded */}
+          {visibleFlights.length > 0 && (
+            <button
+              type="button"
+              className="sk-scroll-budget-btn"
+              onClick={scrollToBudget}
+            >
+              <ChevronsDown
+                size={13}
+                style={{ marginRight: 5, verticalAlign: "middle" }}
+              />
+              Trip Budget
+            </button>
+          )}
         </Space>
 
         {tab === "Flights" && (
@@ -1568,8 +1660,8 @@ export default function BookingPage() {
           )}
 
           {!autoSearchLoading &&
-            visibleFlights.length > 0 &&
-            visibleFlights.map((flight) => (
+            paginatedFlights.length > 0 &&
+            paginatedFlights.map((flight) => (
               <Card
                 key={flight.id}
                 variant="borderless"
@@ -1734,6 +1826,33 @@ export default function BookingPage() {
               </Card>
             ))}
 
+          {/* ✅ View more button */}
+          {!autoSearchLoading && hasMore && (
+            <div
+              style={{ textAlign: "center", marginTop: 8, marginBottom: 24 }}
+            >
+              <button
+                type="button"
+                className="sk-view-more-btn"
+                onClick={() => setVisibleCount((c) => c + RESULTS_PER_PAGE)}
+              >
+                <ArrowRight
+                  size={14}
+                  style={{ marginRight: 6, verticalAlign: "middle" }}
+                />
+                View{" "}
+                {Math.min(
+                  RESULTS_PER_PAGE,
+                  visibleFlights.length - visibleCount
+                )}{" "}
+                more flights
+                <span style={{ opacity: 0.5, marginLeft: 8, fontSize: 12 }}>
+                  {visibleCount} of {visibleFlights.length} shown
+                </span>
+              </button>
+            </div>
+          )}
+
           {!autoSearchLoading &&
             flightResults.length === 0 &&
             !autoSearchError && (
@@ -1762,13 +1881,16 @@ export default function BookingPage() {
             )}
         </Col>
 
+        {/* ✅ Budget card with ref for scroll-to */}
         <Col xs={24} lg={8}>
-          <TripBudgetCard
-            initialBookingTotal={selectedResult?.total ?? 0}
-            initialTripDays={selectedNights}
-            initialDestination={destCity}
-            onStateChange={handleBudgetChange}
-          />
+          <div ref={budgetRef}>
+            <TripBudgetCard
+              initialBookingTotal={selectedResult?.total ?? 0}
+              initialTripDays={selectedNights}
+              initialDestination={destCity}
+              onStateChange={handleBudgetChange}
+            />
+          </div>
         </Col>
       </Row>
     </div>

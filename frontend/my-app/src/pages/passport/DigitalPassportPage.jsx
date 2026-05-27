@@ -590,6 +590,18 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
+  // ── FIX: dirty check so Save Changes is only active when there are edits ──
+  const isProfileDirty = useMemo(() => {
+    if (!editOpen) return false;
+    return (
+      editUsername !== (user?.username || "") ||
+      editBio !== (user?.bio || "") ||
+      editCity !== (user?.city || user?.homeBase || "") ||
+      JSON.stringify([...editVibes].sort()) !==
+        JSON.stringify([...(user?.travelVibes || [])].sort())
+    );
+  }, [editOpen, editUsername, editBio, editCity, editVibes, user]);
+
   const handleSearchFollowChange = useCallback(() => {
     fetch(apiUrl("/api/passport/stats"), {
       credentials: "include",
@@ -834,17 +846,19 @@ export default function DigitalPassportPage() {
           })
         );
       }
-      message.success("Avatar updated ✓");
+      antdMessage.success("Avatar updated ✓");
     } catch (err) {
-      message.error(err.message);
+      antdMessage.error(err.message);
     } finally {
       setAvatarUploading(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
     }
   };
 
+  // ── FIX: handleSaveProfile — guaranteed close on success, static toast ──
   const handleSaveProfile = async () => {
     setEditSaving(true);
+    let saved = false;
     try {
       const payload = {
         username: editUsername.trim() || user?.username,
@@ -886,12 +900,16 @@ export default function DigitalPassportPage() {
           );
         } catch {}
       }
-      message.success("Profile updated ✓");
-      setEditOpen(false);
+
+      saved = true;
+      // Use static antdMessage — works regardless of App context
+      antdMessage.success("Profile updated ✓");
     } catch (err) {
-      message.error(err.message);
+      antdMessage.error(err.message || "Failed to save. Please try again.");
     } finally {
       setEditSaving(false);
+      // Only close if save succeeded; keep open on error so user can fix
+      if (saved) setEditOpen(false);
     }
   };
 
@@ -1334,7 +1352,7 @@ export default function DigitalPassportPage() {
                         onClick={() => {
                           setEditUsername(user?.username || "");
                           setEditBio(user?.bio || "");
-                          setEditCity(user?.city || "");
+                          setEditCity(user?.city || user?.homeBase || "");
                           setEditVibes(user?.travelVibes || []);
                           setEditOpen(true);
                         }}
@@ -1442,12 +1460,16 @@ export default function DigitalPassportPage() {
       {/* ── Edit Profile Modal ── */}
       <Modal
         open={editOpen}
-        onCancel={() => setEditOpen(false)}
+        onCancel={() => {
+          setEditOpen(false);
+        }}
         onOk={handleSaveProfile}
         confirmLoading={editSaving}
         title="Edit Profile"
         okText="Save Changes"
         cancelText="Cancel"
+        // FIX: disable Save Changes when nothing has changed
+        okButtonProps={{ disabled: !isProfileDirty || editSaving }}
       >
         <div
           style={{
@@ -1541,13 +1563,7 @@ export default function DigitalPassportPage() {
                 (pick up to 5)
               </span>
             </div>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-              }}
-            >
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {VIBE_OPTIONS.map((vibe) => {
                 const selected = editVibes.includes(vibe);
                 return (
@@ -1590,17 +1606,25 @@ export default function DigitalPassportPage() {
               })}
             </div>
             {editVibes.length > 0 && (
-              <div
-                style={{
-                  fontSize: 11,
-                  opacity: 0.4,
-                  marginTop: 6,
-                }}
-              >
+              <div style={{ fontSize: 11, opacity: 0.4, marginTop: 6 }}>
                 {editVibes.length}/5 selected
               </div>
             )}
           </div>
+
+          {/* FIX: visual hint when there's nothing to save */}
+          {!isProfileDirty && (
+            <div
+              style={{
+                fontSize: 12,
+                color: "rgba(255,255,255,0.3)",
+                textAlign: "center",
+                paddingTop: 4,
+              }}
+            >
+              No unsaved changes
+            </div>
+          )}
         </div>
       </Modal>
 
