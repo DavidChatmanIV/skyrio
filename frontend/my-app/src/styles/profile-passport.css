@@ -23,6 +23,7 @@
 
 /* =============================
    PAGE BACKGROUND
+   (shared by both own + public passport)
    ============================= */
 .passport-page {
   min-height: 100vh;
@@ -30,6 +31,7 @@
   overflow-x: hidden;
   color: var(--pp-text);
   background: #080816;
+  font-family: "DM Sans", sans-serif;
 }
 
 .passport-bg {
@@ -65,7 +67,7 @@
 }
 
 /* =============================
-   SHELL
+   SHELL — own passport
    ============================= */
 .pp-page {
   padding: 18px 14px 40px;
@@ -78,7 +80,7 @@
 }
 
 /* =============================
-   HOME BUTTON ✅ orange pill, no Ant Design
+   HOME BUTTON
    ============================= */
 .pp-homeBtnWrap {
   position: absolute;
@@ -111,9 +113,6 @@
   transform: translateY(-1px);
   box-shadow: 0 14px 30px rgba(255, 138, 42, 0.3);
 }
-/* =============================
-   HOME BUTTON ✅ orange pill, no Ant Design
-   ============================= */
 
 /* =============================
    TYPOGRAPHY
@@ -137,6 +136,7 @@
   border: 1px solid var(--pp-stroke);
   box-shadow: var(--pp-shadow-md);
   backdrop-filter: var(--pp-blur);
+  -webkit-backdrop-filter: var(--pp-blur);
 }
 
 .pp-card .ant-card-body {
@@ -144,7 +144,7 @@
 }
 
 /* =============================
-   MOCK GRID
+   MOCK GRID — own passport
    ============================= */
 .pp-mockGrid {
   display: grid;
@@ -161,7 +161,7 @@
 }
 
 /* =============================
-   PROFILE TOP STRIP
+   PROFILE TOP STRIP — own passport
    ============================= */
 .pp-profileCard {
   overflow: hidden;
@@ -317,7 +317,7 @@
 }
 
 /* =============================
-   RIGHT SIDEBAR ACTIONS
+   SIDEBAR ACTIONS — own passport
    ============================= */
 .pp-actionsCard .ant-card-body {
   display: grid;
@@ -456,7 +456,6 @@
   gap: 4px;
   opacity: 0.55;
 }
-
 .pp-audioWave span {
   width: 4px;
   border-radius: 6px;
@@ -490,13 +489,11 @@
   justify-content: space-between;
   margin-bottom: 12px;
 }
-
 .pp-journeysTitle {
   font-size: 20px;
   font-weight: 950;
   color: rgba(244, 246, 251, 0.95);
 }
-
 .pp-journeysEmpty {
   border-radius: 16px;
   border: 1px dashed rgba(255, 255, 255, 0.12);
@@ -521,165 +518,655 @@
   color: rgba(244, 246, 251, 0.88) !important;
 }
 
-/* =============================
-   RESPONSIVE
-   ============================= */
+/* ═══════════════════════════════════════════════════════
+   PUBLIC PASSPORT PAGE  (/u/:username)
+   All classes prefixed .pp-pub-* to avoid collisions
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Top bar ── */
+.pp-pub-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(8, 8, 22, 0.65);
+}
+
+.pp-pub-logo-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+}
+
+.pp-pub-logo-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pp-pub-logo-text {
+  font-family: "Syne", sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: #fff;
+}
+
+.pp-pub-btn-primary {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1b1024;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  transition: filter 0.18s, transform 0.15s;
+}
+
+.pp-pub-btn-primary:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.pp-pub-btn-secondary {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.45);
+  background: rgba(255, 138, 42, 0.1);
+  color: #ff8a2a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  transition: background 0.18s, border-color 0.18s;
+}
+
+.pp-pub-btn-secondary:hover {
+  background: rgba(255, 138, 42, 0.16);
+  border-color: rgba(255, 138, 42, 0.65);
+}
+
+/* ── Scroll container ── */
+.pp-pub-container {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 28px 20px 96px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Fade-up card animation ── */
+@keyframes ppPubFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pp-pub-card {
+  opacity: 0;
+  animation: ppPubFadeUp 0.48s ease forwards;
+}
+
+.pp-pub-card:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.pp-pub-card:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.pp-pub-card:nth-child(3) {
+  animation-delay: 0.19s;
+}
+.pp-pub-card:nth-child(4) {
+  animation-delay: 0.26s;
+}
+.pp-pub-card:nth-child(5) {
+  animation-delay: 0.33s;
+}
+.pp-pub-card:nth-child(6) {
+  animation-delay: 0.4s;
+}
+
+/* ── Hero card (profile + rank) ── */
+.pp-pub-hero {
+  background: linear-gradient(180deg, var(--pp-surface-a), var(--pp-surface-b));
+  border: 1px solid var(--pp-stroke);
+  border-radius: var(--pp-radius-lg);
+  padding: 26px 24px 22px;
+  margin-bottom: 14px;
+  position: relative;
+  backdrop-filter: var(--pp-blur);
+  -webkit-backdrop-filter: var(--pp-blur);
+  box-shadow: var(--pp-shadow-md);
+}
+
+/* ── Generic section card ── */
+.pp-pub-section {
+  background: linear-gradient(180deg, var(--pp-surface-a), var(--pp-surface-b));
+  border: 1px solid var(--pp-stroke);
+  border-radius: 20px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  backdrop-filter: var(--pp-blur);
+  -webkit-backdrop-filter: var(--pp-blur);
+  box-shadow: var(--pp-shadow-md);
+}
+
+/* ── Section label (TRAVEL VIBE, TRAVEL SOUNDTRACK, etc.) ── */
+.pp-pub-section-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(244, 246, 251, 0.38);
+  margin-bottom: 14px;
+}
+
+/* ── Avatar wrapper ── */
+.pp-pub-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ── Display name ── */
+.pp-pub-name {
+  font-family: "Syne", sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.1;
+}
+
+/* ── Handle + location ── */
+.pp-pub-handle {
+  font-size: 13px;
+  color: rgba(244, 246, 251, 0.4);
+  margin-top: 4px;
+}
+
+.pp-pub-location {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.35);
+}
+
+/* ── Follower / following count buttons ── */
+.pp-pub-follow-stat {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.15s;
+}
+
+.pp-pub-follow-stat:hover {
+  opacity: 0.72;
+}
+
+.pp-pub-follow-stat strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.pp-pub-follow-stat span {
+  font-size: 12px;
+  color: rgba(244, 246, 251, 0.4);
+}
+
+/* ── Bio ── */
+.pp-pub-bio {
+  font-size: 13px;
+  color: rgba(244, 246, 251, 0.55);
+  font-style: italic;
+  line-height: 1.65;
+  margin-bottom: 20px;
+}
+
+/* ── Share button ── */
+.pp-pub-share-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--pp-stroke);
+  background: rgba(0, 0, 0, 0.14);
+  color: var(--pp-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  flex-shrink: 0;
+  transition: border-color 0.18s, background 0.18s;
+  backdrop-filter: blur(10px);
+}
+
+.pp-pub-share-btn:hover {
+  border-color: rgba(255, 138, 42, 0.35);
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+}
+
+/* ── Rank box (inside hero card) ── */
+.pp-pub-rank-box {
+  background: var(--pp-surface-b);
+  border: 1px solid; /* border-color set inline via badge.color */
+  border-radius: 16px;
+  padding: 16px 18px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Progress bar ── */
+.pp-pub-progress-track {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.pp-pub-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.8s ease;
+}
+
+.pp-pub-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(244, 246, 251, 0.3);
+  margin-bottom: 4px;
+  margin-top: 12px;
+}
+
+/* ── Travel vibe chips ── */
+.pp-pub-vibe-chip {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 138, 42, 0.08);
+  border: 1px solid rgba(255, 138, 42, 0.22);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pp-orange-2);
+  transition: transform 0.18s;
+  display: inline-block;
+  text-transform: capitalize;
+  cursor: default;
+}
+
+.pp-pub-vibe-chip:hover {
+  transform: translateY(-2px) scale(1.04);
+}
+
+/* ── Passport stamp ── */
+.pp-pub-stamp {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: "Syne", sans-serif;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.18s;
+  color: rgba(244, 246, 251, 0.6);
+}
+
+.pp-pub-stamp:hover {
+  transform: scale(1.05);
+}
+
+/* ── Journey card ── */
+.pp-pub-journey-card {
+  background: var(--pp-surface-b);
+  border: 1px solid var(--pp-stroke-2);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: default;
+}
+
+.pp-pub-journey-card:hover {
+  border-color: rgba(255, 138, 42, 0.28);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Stat box ── */
+.pp-pub-stat-box {
+  background: linear-gradient(180deg, var(--pp-surface-a), var(--pp-surface-b));
+  border: 1px solid var(--pp-stroke);
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+  backdrop-filter: var(--pp-blur);
+  -webkit-backdrop-filter: var(--pp-blur);
+}
+
+/* ── CTA card (logged-out) ── */
+.pp-pub-cta-card {
+  background: linear-gradient(
+    135deg,
+    rgba(124, 92, 252, 0.18),
+    rgba(255, 138, 42, 0.12)
+  );
+  border: 1px solid rgba(255, 138, 42, 0.3);
+  border-radius: 22px;
+  padding: 30px 24px;
+  text-align: center;
+  backdrop-filter: var(--pp-blur);
+  -webkit-backdrop-filter: var(--pp-blur);
+  box-shadow: var(--pp-shadow-md);
+}
+
+/* ── Music card compact row ── */
+.pp-pub-music-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: opacity 0.15s;
+}
+
+.pp-pub-music-row:hover {
+  opacity: 0.88;
+}
+
+.pp-pub-music-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--pp-stroke-2);
+}
+
+/* ── Follow list modal ── */
+.pp-pub-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 200;
+  animation: ppPubFadeIn 0.2s ease forwards;
+}
+
+.pp-pub-modal-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 80vh;
+  background: rgba(12, 10, 26, 0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 20px 20px 0 0;
+  border: 1px solid var(--pp-stroke);
+  border-bottom: none;
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  animation: ppPubSlideUp 0.28s ease forwards;
+}
+
+.pp-pub-modal-tab {
+  flex: 1;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  text-transform: capitalize;
+  transition: color 0.18s;
+  color: rgba(244, 246, 251, 0.4);
+}
+
+.pp-pub-modal-tab.is-active {
+  color: #fff;
+  border-bottom: 2px solid #ff8a2a;
+}
+
+/* ── Share popover ── */
+.pp-pub-share-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background: rgba(14, 10, 28, 0.97);
+  border: 1px solid var(--pp-stroke);
+  border-radius: 14px;
+  padding: 16px;
+  z-index: 100;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: ppPubFadeUp 0.2s ease forwards;
+}
+
+/* ── Skeleton loader ── */
+@keyframes ppPubSkeleton {
+  0% {
+    background-position: -600px 0;
+  }
+  100% {
+    background-position: 600px 0;
+  }
+}
+
+.pp-pub-skeleton {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 75%
+  );
+  background-size: 600px 100%;
+  animation: ppPubSkeleton 1.4s linear infinite;
+}
+
+/* ── Shared keyframes ── */
+@keyframes ppPubFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ppPubSlideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes ppMusicBar {
+  from {
+    height: 4px;
+  }
+  to {
+    height: 18px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE — own passport
+   ═══════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {
   .pp-mockGrid {
     grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .pp-mockSide {
+    grid-row: auto;
+  }
+  .pp-actionsStack {
+    grid-template-columns: 1fr 1fr;
+    display: grid;
+    gap: 10px;
+  }
+  .pp-upgradeBtn.ant-btn {
+    grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 560px) {
+  .pp-page {
+    padding: 14px 12px calc(40px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pp-homeBtnWrap {
+    position: relative;
+    top: 0;
+    left: 0;
+    margin-bottom: 12px;
+  }
+
   .pp-profileRow {
-    grid-template-columns: 1fr;
-    justify-items: start;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    gap: 12px;
   }
+
   .pp-profileRing {
-    justify-self: center;
-    width: 100%;
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    display: flex;
+    justify-content: center;
   }
+
+  .pp-levelRing--mock {
+    width: 180px;
+  }
+
+  .pp-followRow--mock {
+    max-width: 100%;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ppFollowBtn {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  .pp-actionsCard .ant-card-title,
+  .pp-actionsCard h3 {
+    font-size: 18px !important;
+  }
+
+  .pp-actionsStack {
+    grid-template-columns: 1fr;
+  }
+  .pp-upgradeBtn.ant-btn {
+    grid-column: auto;
+  }
+  .pp-actionBtn.ant-btn {
+    height: 46px !important;
+    font-size: 14px !important;
+  }
+
   .pp-soundtrackRow {
     grid-template-columns: 1fr;
   }
   .pp-soundtrackCover {
     width: 100%;
-    height: 140px;
+    height: 160px;
+  }
+  .pp-journeysEmpty {
+    padding: 24px 16px;
+  }
+  .pp-homeBaseRow {
+    font-size: 13px;
+    padding-left: 4px;
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
-  /* ════════════════════════════════════════════
-   PASSPORT PAGE MOBILE POLISH
-════════════════════════════════════════════ */
-
-  /* ── Safe area bottom padding ── */
+  /* safe area */
   .pp-page {
     padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
   }
+}
 
-  /* ── At tablet (below 1100px) side panel stacks below main ── */
-  @media (max-width: 1100px) {
-    .pp-mockGrid {
-      grid-template-columns: 1fr;
-      gap: 16px;
-    }
+@media (max-width: 390px) {
+  .pp-levelRing--mock {
+    width: 160px;
+  }
+  .pp-followRow--mock {
+    grid-template-columns: 1fr;
+  }
+  .ppFollowBtn {
+    width: 100%;
+  }
+}
 
-    /* Side panel full width when stacked */
-    .pp-mockSide {
-      grid-row: auto;
-    }
-
-    /* Action buttons full width */
-    .pp-actionsStack {
-      grid-template-columns: 1fr 1fr;
-      display: grid;
-      gap: 10px;
-    }
-
-    .pp-upgradeBtn.ant-btn {
-      grid-column: 1 / -1;
-    }
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE — public passport
+   ═══════════════════════════════════════════════════════ */
+@media (max-width: 560px) {
+  .pp-pub-container {
+    padding: 20px 16px calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+  .pp-pub-topbar {
+    padding: 12px 16px;
+  }
+  .pp-pub-hero {
+    padding: 20px 16px 18px;
+  }
+  .pp-pub-section {
+    padding: 16px;
   }
 
-  /* ── Mobile (560px and below) ── */
-  @media (max-width: 560px) {
-    .pp-page {
-      padding: 14px 12px calc(40px + env(safe-area-inset-bottom, 0px));
-    }
-
-    /* Home button — push down slightly so it doesn't overlap navbar */
-    .pp-homeBtnWrap {
-      position: relative;
-      top: 0;
-      left: 0;
-      margin-bottom: 12px;
-    }
-
-    /* Profile row — avatar + name side by side, ring below */
-    .pp-profileRow {
-      grid-template-columns: auto 1fr;
-      grid-template-rows: auto auto;
-      gap: 12px;
-    }
-
-    /* Ring spans full width below avatar+name */
-    .pp-profileRing {
-      grid-column: 1 / -1;
-      justify-self: stretch;
-      display: flex;
-      justify-content: center;
-    }
-
-    .pp-levelRing--mock {
-      width: 180px;
-    }
-
-    /* Follow row full width with proper spacing */
-    .pp-followRow--mock {
-      max-width: 100%;
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .ppFollowBtn {
-      min-height: 44px;
-      font-size: 13px;
-    }
-
-    /* Passport card title smaller */
-    .pp-actionsCard .ant-card-title,
-    .pp-actionsCard h3 {
-      font-size: 18px !important;
-    }
-
-    /* Action buttons stack single column on very small screens */
-    .pp-actionsStack {
-      grid-template-columns: 1fr;
-    }
-
-    .pp-upgradeBtn.ant-btn {
-      grid-column: auto;
-    }
-
-    /* Action button touch target */
-    .pp-actionBtn.ant-btn {
-      height: 46px !important;
-      font-size: 14px !important;
-    }
-
-    /* Soundtrack card — cover full width (already in CSS but re-enforce) */
-    .pp-soundtrackRow {
-      grid-template-columns: 1fr;
-    }
-    .pp-soundtrackCover {
-      width: 100%;
-      height: 160px;
-    }
-
-    /* Journeys empty state */
-    .pp-journeysEmpty {
-      padding: 24px 16px;
-    }
-
-    /* Home base row */
-    .pp-homeBaseRow {
-      font-size: 13px;
-      padding-left: 4px;
-      flex-wrap: wrap;
-      gap: 4px;
-    }
+  .pp-pub-name {
+    font-size: 18px;
   }
 
-  /* ── Very small (375px iPhone SE) ── */
-  @media (max-width: 390px) {
-    .pp-levelRing--mock {
-      width: 160px;
-    }
-
-    .pp-followRow--mock {
-      grid-template-columns: 1fr;
-    }
-
-    .ppFollowBtn {
-      width: 100%;
-    }
+  .pp-pub-music-thumb {
+    width: 50px;
+    height: 50px;
   }
 }

@@ -50,6 +50,9 @@ router.get("/me", requireAuth, async (req, res) => {
         city: profile?.city || user.toSafeJSON().city || "",
         homeBase: profile?.homeBase || "",
         avatar: profile?.avatar || user.toSafeJSON().avatar || "",
+        // ── FIX: expose travelVibes so DigitalPassportPage
+        //    can seed localVibes from the server on first load ──
+        travelVibes: profile?.travelVibes || [],
       },
       profile,
       xp: user.xp || 0,
@@ -69,7 +72,7 @@ router.get("/me", requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// ✅ GET /api/profile/music
+// GET /api/profile/music
 // ─────────────────────────────────────────────────────────────
 router.get("/music", requireAuth, async (req, res) => {
   try {
@@ -87,7 +90,7 @@ router.get("/music", requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// ✅ POST /api/profile/music
+// POST /api/profile/music
 // ─────────────────────────────────────────────────────────────
 router.post("/music", requireAuth, async (req, res) => {
   try {
@@ -121,7 +124,7 @@ router.post("/music", requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// ✅ DELETE /api/profile/music
+// DELETE /api/profile/music
 // ─────────────────────────────────────────────────────────────
 router.delete("/music", requireAuth, async (req, res) => {
   try {
@@ -193,7 +196,9 @@ router.patch("/settings", requireAuth, async (req, res) => {
     }
 
     if (Array.isArray(travelVibes)) {
-      profileUpdates.travelVibes = travelVibes.slice(0, 3);
+      // ── FIX: was .slice(0, 3) which silently dropped the 4th and 5th
+      //    vibe. Frontend allows up to 5 — match that limit here. ──
+      profileUpdates.travelVibes = travelVibes.slice(0, 5);
     }
 
     if (homeAirportData && homeAirportData.code) {
@@ -262,8 +267,7 @@ router.patch("/update", requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// ✅ GET /api/profile/public/:username
-// Public passport — enhanced with isFollowing + correct counts
+// GET /api/profile/public/:username
 // ─────────────────────────────────────────────────────────────
 router.get("/public/:username", async (req, res) => {
   try {
@@ -282,7 +286,6 @@ router.get("/public/:username", async (req, res) => {
       return res.status(404).json({ ok: false, message: "Profile not found" });
     }
 
-    // Get User data: XP, badge, avatar, follower counts
     const user = await User.findById(profile.user)
       .select(
         "xp username name avatar followers following followersCount followingCount isOfficial createdAt"
@@ -293,11 +296,9 @@ router.get("/public/:username", async (req, res) => {
       ? getLevel(user.xp || 0)
       : { current: "Explorer", next: "Adventurer", percent: 0 };
 
-    // Real counts from array lengths
     const followersCount = user?.followers?.length ?? user?.followersCount ?? 0;
     const followingCount = user?.following?.length ?? user?.followingCount ?? 0;
 
-    // Check if viewer follows this user
     let isFollowing = false;
     const callerId = getOptionalUserId(req);
     if (callerId && user && String(callerId) !== String(user._id)) {
@@ -309,7 +310,6 @@ router.get("/public/:username", async (req, res) => {
       }
     }
 
-    // Use User avatar if Profile avatar is empty/default
     const avatar =
       profile.avatar &&
       profile.avatar !== "/default-avatar.png" &&
@@ -335,6 +335,7 @@ router.get("/public/:username", async (req, res) => {
       isOfficial: user?.isOfficial || false,
       followersCount,
       followingCount,
+      // ── FIX: was already correct but ensure empty array fallback ──
       travelVibes: profile.travelVibes || [],
       profileMusic: profile.profileMusic?.url
         ? {
@@ -361,7 +362,7 @@ router.get("/public/:username", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// GET /api/profile/:username (catch-all — keep last)
+// GET /api/profile/:username  (catch-all — keep last)
 // ─────────────────────────────────────────────────────────────
 router.get("/:username", async (req, res) => {
   try {

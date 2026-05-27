@@ -33,6 +33,17 @@ Sentry.init({
 // No import needed — Vercel automatically injects analytics for projects
 // deployed on Vercel. Page views appear in your Vercel dashboard instantly.
 
+// ── bfcache fix ───────────────────────────────────────────────────────────────
+// Mobile browsers (Chrome + Safari) restore pages from memory when you reopen
+// the browser app. If the page was mid-load or errored, it restores that broken
+// state — showing a blank screen. This forces a clean reload in that case.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    window.location.reload();
+  }
+});
+
+// ── Mount ─────────────────────────────────────────────────────────────────────
 const rootEl = document.getElementById("root");
 
 createRoot(rootEl).render(

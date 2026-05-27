@@ -58,7 +58,6 @@ const byTab = (items, key) => {
   return items;
 };
 
-// Detect mobile viewports
 const isMobile = () => typeof window !== "undefined" && window.innerWidth < 768;
 
 export default function Notifications() {
@@ -67,11 +66,10 @@ export default function Notifications() {
   const [visible, setVisible] = useState(false);
   const [activeKey, setActiveKey] = useState("all");
   const [busy, setBusy] = useState(false);
-  const [mobile, setMobile] = useState(isMobile());
+  const [mobile, setMobile] = useState(isMobile);
   const panelRef = useRef(null);
   const navigate = useNavigate();
 
-  // Track viewport changes
   useEffect(() => {
     const handler = () => setMobile(isMobile());
     window.addEventListener("resize", handler);
@@ -97,17 +95,21 @@ export default function Notifications() {
     }
   }, []);
 
-  // ── FIX: auto-mark all as read when panel opens ──
+  // ── KEY FIX: optimistic update — drain badge immediately before waiting
+  //    for the server so the count always clears the moment panel opens,
+  //    even on slow connections or if the PATCH returns an error.
   const silentMarkAllRead = useCallback(async () => {
+    // 1. Update local state first (badge drains instantly)
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    // 2. Tell the server in the background
     try {
       await fetch(apiUrl("/api/notifications/read-all"), {
         method: "PATCH",
         headers: { ...getAuthHeaders() },
         credentials: "include",
       });
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch {
-      // silent — badge will update on next manual open
+      // Silent — local state is already drained, server will sync on next load
     }
   }, []);
 
@@ -146,17 +148,16 @@ export default function Notifications() {
   };
 
   useEffect(() => {
-    if (visible) {
-      fetchNotifications().then(() => {
-        // After items load, silently drain the badge
-        silentMarkAllRead();
-      });
-      if (!mobile) {
-        const t = setTimeout(() => panelRef.current?.focus(), 0);
-        return () => clearTimeout(t);
-      }
+    if (!visible) return;
+    // Fetch first, then drain badge optimistically
+    fetchNotifications().then(() => silentMarkAllRead());
+    if (!mobile) {
+      const t = setTimeout(() => panelRef.current?.focus(), 0);
+      return () => clearTimeout(t);
     }
-  }, [visible, fetchNotifications, silentMarkAllRead, mobile]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ↑ Intentionally omitting fetchNotifications/silentMarkAllRead from deps
+  //   to avoid re-fetching on every render when those callbacks change identity.
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -186,9 +187,7 @@ export default function Notifications() {
           }
         ).catch(() => {});
       }
-
       setVisible(false);
-
       if (item.link) navigate(item.link);
       else if (item.targetType === "booking" && item.targetId)
         navigate(`/dashboard/bookings/${item.targetId}`);
@@ -201,7 +200,6 @@ export default function Notifications() {
     }
   };
 
-  // ── Shared panel content ──
   const panelContent = (
     <>
       <div
@@ -313,7 +311,10 @@ export default function Notifications() {
                       {item.message}
                     </Text>
                     <Text
-                      style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}
+                      style={{
+                        color: "rgba(255,255,255,0.3)",
+                        fontSize: 11,
+                      }}
                     >
                       {item.createdAt ? `${timeAgo(item.createdAt)} ago` : ""}
                     </Text>
@@ -400,21 +401,15 @@ export default function Notifications() {
     );
   }
 
-  // ── Desktop: floating panel (custom dropdown) ──
+  // ── Desktop: floating panel ──
   return (
     <div style={{ position: "relative" }}>
       {bellButton}
-
       <AnimatePresence>
         {visible && (
           <>
-            {/* Backdrop to close on outside click */}
             <div
-              style={{
-                position: "fixed",
-                inset: 0,
-                zIndex: 9998,
-              }}
+              style={{ position: "fixed", inset: 0, zIndex: 9998 }}
               onClick={() => setVisible(false)}
             />
             <motion.div
