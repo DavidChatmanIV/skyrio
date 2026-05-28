@@ -60,6 +60,500 @@ const { Option } = Select;
 
 const API = import.meta.env.VITE_API_URL || "";
 
+// ─────────────────────────────────────────────
+// SVG Weather Icons — replace all Apple emoji
+// ─────────────────────────────────────────────
+
+function WeatherSunny({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="12" cy="12" r="5" fill="#FFB347" />
+      <g stroke="#FFB347" strokeWidth="2" strokeLinecap="round">
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </g>
+    </svg>
+  );
+}
+
+function WeatherPartlyCloudy({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="10" cy="8" r="3.5" fill="#FFB347" />
+      <g stroke="#FFB347" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="10" y1="2" x2="10" y2="3.2" />
+        <line x1="5.2" y1="4.8" x2="6" y2="5.6" />
+        <line x1="14.8" y1="4.8" x2="14" y2="5.6" />
+        <line x1="3.5" y1="8" x2="4.7" y2="8" />
+      </g>
+      <path
+        d="M8 17H6.5A3.5 3.5 0 1 1 8.3 11.1a5 5 0 0 1 9.4 1.4h.3A3 3 0 1 1 18 17H8z"
+        fill="rgba(255,255,255,0.7)"
+        stroke="rgba(255,255,255,0.3)"
+        strokeWidth="0.5"
+      />
+    </svg>
+  );
+}
+
+function WeatherMostlySunny({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="11" cy="9" r="4" fill="#FFB347" />
+      <g stroke="#FFB347" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="11" y1="2.5" x2="11" y2="3.8" />
+        <line x1="5.5" y1="5" x2="6.4" y2="5.9" />
+        <line x1="16.5" y1="5" x2="15.6" y2="5.9" />
+        <line x1="4" y1="9" x2="5.3" y2="9" />
+        <line x1="18" y1="9" x2="16.7" y2="9" />
+      </g>
+      <path
+        d="M10 19H8A2.5 2.5 0 1 1 9.5 14.5a3.5 3.5 0 0 1 6.5 1h.5A2 2 0 1 1 16 19H10z"
+        fill="rgba(255,255,255,0.55)"
+        stroke="rgba(255,255,255,0.2)"
+        strokeWidth="0.5"
+      />
+    </svg>
+  );
+}
+
+function WeatherRainSun({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="10" cy="6" r="3" fill="#FFB347" opacity="0.7" />
+      <path
+        d="M7 14H5.5A3.5 3.5 0 1 1 7.3 8.1a5 5 0 0 1 9.4 1.4h.3A3 3 0 1 1 17 14H7z"
+        fill="rgba(255,255,255,0.6)"
+        stroke="rgba(255,255,255,0.25)"
+        strokeWidth="0.5"
+      />
+      <g stroke="#64B5F6" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="9" y1="16" x2="8" y2="19" />
+        <line x1="13" y1="16" x2="12" y2="19" />
+        <line x1="17" y1="16" x2="16" y2="19" />
+      </g>
+    </svg>
+  );
+}
+
+function WeatherRainy({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path
+        d="M7 13H5.5A3.5 3.5 0 1 1 7.3 7.1a5 5 0 0 1 9.4 1.4h.3A3 3 0 1 1 17 13H7z"
+        fill="rgba(255,255,255,0.5)"
+        stroke="rgba(255,255,255,0.2)"
+        strokeWidth="0.5"
+      />
+      <g stroke="#64B5F6" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="8" y1="15" x2="7" y2="18.5" />
+        <line x1="12" y1="15" x2="11" y2="18.5" />
+        <line x1="16" y1="15" x2="15" y2="18.5" />
+        <line x1="10" y1="19" x2="9.5" y2="21" />
+        <line x1="14" y1="19" x2="13.5" y2="21" />
+      </g>
+    </svg>
+  );
+}
+
+function WeatherCherryBlossom({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="12" cy="12" r="3" fill="#F48FB1" opacity="0.5" />
+      {[0, 72, 144, 216, 288].map((angle) => (
+        <ellipse
+          key={angle}
+          cx="12"
+          cy="6.5"
+          rx="2.8"
+          ry="4"
+          fill="#F48FB1"
+          opacity="0.75"
+          transform={`rotate(${angle} 12 12)`}
+        />
+      ))}
+      <circle cx="12" cy="12" r="2.2" fill="#FFD54F" />
+    </svg>
+  );
+}
+
+function WeatherTropical({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <line
+        x1="12"
+        y1="22"
+        x2="12"
+        y2="10"
+        stroke="#8D6E63"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      />
+      <path d="M12 10C12 10 6 4 4 6C2 8 8 12 12 10Z" fill="#66BB6A" />
+      <path d="M12 10C12 10 18 4 20 6C22 8 16 12 12 10Z" fill="#81C784" />
+      <path d="M12 12C12 12 5 8 3.5 10.5C2 13 9 14 12 12Z" fill="#4CAF50" />
+      <path d="M12 12C12 12 19 8 20.5 10.5C22 13 15 14 12 12Z" fill="#66BB6A" />
+    </svg>
+  );
+}
+
+function WeatherWindy({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="rgba(255,255,255,0.7)"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M3 8H16a3 3 0 0 0 0-6 3 3 0 0 0-3 3" />
+      <path d="M3 12h13a3 3 0 1 1-3 3" />
+      <path d="M3 16h7a3 3 0 1 1-3 3" />
+    </svg>
+  );
+}
+
+function WeatherWaves({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#4FC3F7"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M2 10c2-2 4-2 6 0s4 2 6 0 4-2 6 0" />
+      <path d="M2 14c2-2 4-2 6 0s4 2 6 0 4-2 6 0" />
+      <path d="M2 18c2-2 4-2 6 0s4 2 6 0 4-2 6 0" opacity="0.5" />
+    </svg>
+  );
+}
+
+function WeatherHibiscus({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      {[0, 60, 120, 180, 240, 300].map((angle) => (
+        <ellipse
+          key={angle}
+          cx="12"
+          cy="6.5"
+          rx="3"
+          ry="4.5"
+          fill="#EF5350"
+          opacity="0.7"
+          transform={`rotate(${angle} 12 12)`}
+        />
+      ))}
+      <circle cx="12" cy="12" r="3" fill="#FFEE58" />
+    </svg>
+  );
+}
+
+function WeatherGlobe({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="rgba(255,255,255,0.55)"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <ellipse cx="12" cy="12" rx="4" ry="10" />
+      <path d="M2 12h20" />
+      <path d="M4.5 6.5h15" opacity="0.6" />
+      <path d="M4.5 17.5h15" opacity="0.6" />
+    </svg>
+  );
+}
+
+// ─── Form-specific SVG icons (replace emoji in Package/LastMinute forms) ───
+
+function IconHotel({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <path d="M3 21V7a2 2 0 012-2h14a2 2 0 012 2v14" />
+      <rect x="7" y="9" width="4" height="4" rx="0.5" />
+      <rect x="13" y="9" width="4" height="4" rx="0.5" />
+      <rect x="9" y="17" width="6" height="4" rx="0.5" />
+    </svg>
+  );
+}
+
+function IconFlight({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+    </svg>
+  );
+}
+
+function IconCar({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <path d="M5 17h14M5 17a2 2 0 01-2-2V9l2.5-4h9L19 9v6a2 2 0 01-2 2M5 17a2 2 0 100 4 2 2 0 000-4zM17 17a2 2 0 100 4 2 2 0 000-4z" />
+    </svg>
+  );
+}
+
+function IconSparkle({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
+    </svg>
+  );
+}
+
+function IconBeach({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <path
+        d="M2 22c2-2 4-2 6 0s4 2 6 0 4-2 6 0"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle cx="17" cy="5" r="3" fill="#FFB347" />
+      <line
+        x1="10"
+        y1="8"
+        x2="10"
+        y2="20"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 8C10 8 4 4 3 6.5C2 9 8 12 10 8Z"
+        fill="#66BB6A"
+        opacity="0.8"
+      />
+      <path
+        d="M10 8C10 8 16 4 17 6.5C18 9 12 12 10 8Z"
+        fill="#81C784"
+        opacity="0.8"
+      />
+    </svg>
+  );
+}
+
+function IconCity({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      opacity="0.8"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <rect x="2" y="10" width="5" height="12" rx="0.5" />
+      <rect x="9" y="4" width="6" height="18" rx="0.5" />
+      <rect x="17" y="8" width="5" height="14" rx="0.5" />
+      <rect x="10.5" y="6" width="1.2" height="1.2" rx="0.3" fill="#FFB347" />
+      <rect x="12.5" y="6" width="1.2" height="1.2" rx="0.3" fill="#FFB347" />
+      <rect x="10.5" y="9" width="1.2" height="1.2" rx="0.3" fill="#FFB347" />
+      <rect x="12.5" y="9" width="1.2" height="1.2" rx="0.3" fill="#FFB347" />
+    </svg>
+  );
+}
+
+function IconMountain({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <path d="M8 21L1 21L8 6L11.5 12.5" />
+      <path d="M14 21L23 21L16 6L12.5 12.5" />
+      <path
+        d="M14.5 9L16 6L17.5 9"
+        fill="rgba(255,255,255,0.3)"
+        stroke="none"
+      />
+    </svg>
+  );
+}
+
+function IconFerrisWheel({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <circle cx="12" cy="10" r="8" />
+      <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
+      <line x1="12" y1="2" x2="12" y2="4" />
+      <line x1="12" y1="16" x2="12" y2="18" />
+      <line x1="4" y1="10" x2="6" y2="10" />
+      <line x1="18" y1="10" x2="20" y2="10" />
+      <line x1="6.3" y1="4.3" x2="7.8" y2="5.8" />
+      <line x1="16.2" y1="14.2" x2="17.7" y2="15.7" />
+      <line x1="6.3" y1="15.7" x2="7.8" y2="14.2" />
+      <line x1="16.2" y1="5.8" x2="17.7" y2="4.3" />
+      <line x1="8" y1="18" x2="12" y2="23" />
+      <line x1="16" y1="18" x2="12" y2="23" />
+    </svg>
+  );
+}
+
+function IconWarning({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#ff8a2a"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{
+        display: "inline-block",
+        verticalAlign: "middle",
+        marginRight: 4,
+      }}
+    >
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
 // ✅ Pagination — results per page
 const RESULTS_PER_PAGE = 5;
 
@@ -208,136 +702,139 @@ function getAutoSearchDates(tripDays = 10) {
   return { departDate, returnDate };
 }
 
+// ─────────────────────────────────────────────
+// Weather data — SVG components replace emoji
+// ─────────────────────────────────────────────
 const CITY_WEATHER = {
   "new york": {
     label: "New York",
-    icon: "🌥",
+    Icon: WeatherPartlyCloudy,
     temp: "Avg 62° / 48°",
     sub: "Partly cloudy • Light wind",
   },
   newark: {
     label: "Newark",
-    icon: "🌥",
+    Icon: WeatherPartlyCloudy,
     temp: "Avg 58° / 44°",
     sub: "Partly cloudy • Cool winds",
   },
   miami: {
     label: "Miami",
-    icon: "🌤",
+    Icon: WeatherMostlySunny,
     temp: "Avg 78° / 65°",
     sub: "Mostly sunny • Low rain risk",
   },
   paris: {
     label: "Paris",
-    icon: "🌦",
+    Icon: WeatherRainSun,
     temp: "Avg 59° / 46°",
     sub: "Occasional showers • Mild temps",
   },
   london: {
     label: "London",
-    icon: "🌧",
+    Icon: WeatherRainy,
     temp: "Avg 54° / 44°",
     sub: "Overcast • Bring an umbrella",
   },
   barcelona: {
     label: "Barcelona",
-    icon: "⛅",
+    Icon: WeatherPartlyCloudy,
     temp: "Avg 70° / 58°",
     sub: "Warm & breezy • Great for exploring",
   },
   rome: {
     label: "Rome",
-    icon: "☀️",
+    Icon: WeatherSunny,
     temp: "Avg 72° / 56°",
     sub: "Warm & sunny • Low humidity",
   },
   tokyo: {
     label: "Tokyo",
-    icon: "🌸",
+    Icon: WeatherCherryBlossom,
     temp: "Avg 68° / 55°",
     sub: "Mild & clear • Cherry blossom season",
   },
   japan: {
     label: "Japan",
-    icon: "🌸",
+    Icon: WeatherCherryBlossom,
     temp: "Avg 68° / 55°",
     sub: "Mild & clear • Cherry blossom season",
   },
   kyoto: {
     label: "Kyoto",
-    icon: "🌸",
+    Icon: WeatherCherryBlossom,
     temp: "Avg 67° / 54°",
     sub: "Cherry blossoms peak • Stunning season",
   },
   osaka: {
     label: "Osaka",
-    icon: "🌸",
+    Icon: WeatherCherryBlossom,
     temp: "Avg 66° / 53°",
     sub: "Mild & pleasant • Spring conditions",
   },
   seoul: {
     label: "Seoul",
-    icon: "🌤",
+    Icon: WeatherMostlySunny,
     temp: "Avg 60° / 46°",
     sub: "Clear & cool • Low humidity",
   },
   dubai: {
     label: "Dubai",
-    icon: "☀️",
+    Icon: WeatherSunny,
     temp: "Avg 95° / 78°",
     sub: "Hot & dry • Low humidity at night",
   },
   bali: {
     label: "Bali",
-    icon: "🌴",
+    Icon: WeatherTropical,
     temp: "Avg 84° / 72°",
     sub: "Tropical • Some afternoon showers",
   },
   bangkok: {
     label: "Bangkok",
-    icon: "🌤",
+    Icon: WeatherMostlySunny,
     temp: "Avg 92° / 78°",
     sub: "Very hot • Sunny with some clouds",
   },
   singapore: {
     label: "Singapore",
-    icon: "🌦",
+    Icon: WeatherRainSun,
     temp: "Avg 88° / 76°",
     sub: "Hot & humid • Daily showers",
   },
   "los angeles": {
     label: "Los Angeles",
-    icon: "☀️",
+    Icon: WeatherSunny,
     temp: "Avg 75° / 60°",
     sub: "Sunny all week • Low rain risk",
   },
   chicago: {
     label: "Chicago",
-    icon: "💨",
+    Icon: WeatherWindy,
     temp: "Avg 55° / 42°",
     sub: "Windy with clear skies • Cool evenings",
   },
   "las vegas": {
     label: "Las Vegas",
-    icon: "☀️",
+    Icon: WeatherSunny,
     temp: "Avg 85° / 64°",
     sub: "Hot & dry • Clear skies",
   },
   cancun: {
     label: "Cancún",
-    icon: "🌊",
+    Icon: WeatherWaves,
     temp: "Avg 88° / 74°",
     sub: "Hot & humid • Perfect beach weather",
   },
   hawaii: {
     label: "Hawaii",
-    icon: "🌺",
+    Icon: WeatherHibiscus,
     temp: "Avg 82° / 70°",
     sub: "Sunny with trade winds • Ideal conditions",
   },
   sydney: {
     label: "Sydney",
-    icon: "🌤",
+    Icon: WeatherMostlySunny,
     temp: "Avg 72° / 60°",
     sub: "Mostly sunny • Comfortable",
   },
@@ -345,7 +842,7 @@ const CITY_WEATHER = {
 
 const DEFAULT_WEATHER = {
   label: null,
-  icon: "🌍",
+  Icon: WeatherGlobe,
   temp: "",
   sub: "Select a destination to see weather",
 };
@@ -491,7 +988,6 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   const [cabin, setCabin] = useState("economy");
   const [adults, setAdults] = useState(1);
   const [loading, setLoading] = useState(false);
-  // ✅ One-way / Round-trip
   const [tripType, setTripType] = useState("roundtrip");
 
   const handleDatesChange = useCallback(
@@ -527,7 +1023,6 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
         adults: String(adults),
         cabin,
       });
-      // Only send returnDate for round trips
       if (tripType === "roundtrip" && dates[1]) {
         params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
       }
@@ -554,7 +1049,6 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
 
   return (
     <div className="sk-search-bar">
-      {/* ✅ Trip type toggle — above airports */}
       <div
         style={{
           flex: "0 0 100%",
@@ -589,7 +1083,6 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
         />
       </div>
 
-      {/* ✅ Show single date picker for one-way, range for round trip */}
       {tripType === "roundtrip" ? (
         <SkyrioPicker
           className="sk-orange-picker"
@@ -726,21 +1219,24 @@ function PackagesForm({ onDestChange, onDatesChange }) {
     [onDatesChange]
   );
 
+  /* ✅ SVG icons replace emoji in package pills */
+  const PKG_PILLS = [
+    { key: "stay", Icon: IconHotel, label: "Stay" },
+    { key: "flight", Icon: IconFlight, label: "Flight" },
+    { key: "car", Icon: IconCar, label: "Car" },
+  ];
+
   return (
     <div className="sk-search-bar">
       <div className="sk-search-bar-pills">
-        {[
-          ["stay", "🏨", "Stay"],
-          ["flight", "✈", "Flight"],
-          ["car", "🚗", "Car"],
-        ].map(([key, icon, label]) => (
+        {PKG_PILLS.map(({ key, Icon, label }) => (
           <button
             key={key}
             type="button"
             className={`sk-pkg-pill ${pkgOptions[key] ? "is-active" : ""}`}
             onClick={() => toggle(key)}
           >
-            {icon} {label}
+            <Icon size={13} /> {label}
             {pkgOptions[key] ? " added" : ""}
           </button>
         ))}
@@ -808,6 +1304,7 @@ function ExcursionsForm({ onDestChange }) {
   );
 }
 
+/* ✅ SVG icons replace emoji in Last-Minute select options */
 function LastMinuteForm() {
   return (
     <div className="sk-search-bar">
@@ -817,11 +1314,11 @@ function LastMinuteForm() {
         defaultValue="anywhere"
         classNames={{ popup: { root: "sk-select-popup" } }}
       >
-        <Option value="anywhere">✨ Anywhere</Option>
-        <Option value="beach">🏖 Beach</Option>
-        <Option value="city">🏙 City break</Option>
-        <Option value="mountains">⛰ Mountains</Option>
-        <Option value="theme">🎡 Theme parks</Option>
+        <Option value="anywhere">Anywhere</Option>
+        <Option value="beach">Beach</Option>
+        <Option value="city">City break</Option>
+        <Option value="mountains">Mountains</Option>
+        <Option value="theme">Theme parks</Option>
       </Select>
       <SkyrioPicker
         className="sk-orange-picker"
@@ -885,7 +1382,9 @@ function SavedForm() {
   if (error)
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
-        <Text style={{ color: "#ff4d4f", fontSize: 14 }}>⚠️ {error}</Text>
+        <Text style={{ color: "#ff4d4f", fontSize: 14 }}>
+          <IconWarning size={14} /> {error}
+        </Text>
       </div>
     );
   if (!trips.length)
@@ -1018,10 +1517,7 @@ export default function BookingPage() {
     tripDays: prefillData?.tripDays ?? null,
   });
 
-  // ✅ Pagination state
   const [visibleCount, setVisibleCount] = useState(RESULTS_PER_PAGE);
-
-  // ✅ Ref for scroll-to-budget
   const budgetRef = useRef(null);
 
   const [priceWatchOn, setPriceWatchOn] = useState(false);
@@ -1142,7 +1638,7 @@ export default function BookingPage() {
         if (!data.ok) throw new Error(data.message || "Search failed");
         setFlightResults(data.flights ?? []);
         setAutoSearchDone(true);
-        setVisibleCount(RESULTS_PER_PAGE); // ✅ reset pagination on new results
+        setVisibleCount(RESULTS_PER_PAGE);
         if (data.flights?.length) {
           const cheapest = [...data.flights].sort(
             (a, b) => parseFloat(a.totalAmount) - parseFloat(b.totalAmount)
@@ -1188,7 +1684,6 @@ export default function BookingPage() {
     [flightResults, smartFilters]
   );
 
-  // ✅ Paginated slice
   const paginatedFlights = useMemo(
     () => visibleFlights.slice(0, visibleCount),
     [visibleFlights, visibleCount]
@@ -1201,7 +1696,6 @@ export default function BookingPage() {
     [smartFilters]
   );
 
-  // ✅ Reset pagination when filters or results change
   useEffect(() => {
     setVisibleCount(RESULTS_PER_PAGE);
   }, [flightResults, smartFilters]);
@@ -1244,7 +1738,6 @@ export default function BookingPage() {
     setBudgetState(state);
   }, []);
 
-  // ✅ Scroll to budget card
   const scrollToBudget = useCallback(() => {
     budgetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
@@ -1262,7 +1755,7 @@ export default function BookingPage() {
             onSearch={(f) => {
               setFlightResults(f);
               setSmartFilters(DEFAULT_FILTERS);
-              setVisibleCount(RESULTS_PER_PAGE); // ✅ reset pagination
+              setVisibleCount(RESULTS_PER_PAGE);
               if (f.length > 0) {
                 const cheapest = [...f].sort(
                   (a, b) =>
@@ -1534,10 +2027,13 @@ export default function BookingPage() {
           }}
         />
 
+        {/* ✅ Weather strip — SVG Icon component replaces emoji string */}
         <div className="sk-weatherStrip">
           <div className="sk-weatherInner">
             <div className="sk-weatherTop">
-              <span className="sk-weatherIcon">{weather.icon}</span>
+              <span className="sk-weatherIcon">
+                <weather.Icon size={22} />
+              </span>
               <span className="sk-weatherTitle">{weatherTitle}</span>
             </div>
             <div className="sk-weatherSub">{weather.sub}</div>
@@ -1560,7 +2056,6 @@ export default function BookingPage() {
               Sync Together
             </Button>
           </Link>
-          {/* ✅ Scroll to budget button — only when results are loaded */}
           {visibleFlights.length > 0 && (
             <button
               type="button"
@@ -1645,7 +2140,7 @@ export default function BookingPage() {
 
           {!autoSearchLoading && autoSearchError && (
             <div className="sk-search-error">
-              ⚠️ {autoSearchError} —{" "}
+              <IconWarning size={14} /> {autoSearchError} —{" "}
               <button
                 type="button"
                 className="sk-search-retry"
@@ -1826,7 +2321,6 @@ export default function BookingPage() {
               </Card>
             ))}
 
-          {/* ✅ View more button */}
           {!autoSearchLoading && hasMore && (
             <div
               style={{ textAlign: "center", marginTop: 8, marginBottom: 24 }}
@@ -1881,7 +2375,6 @@ export default function BookingPage() {
             )}
         </Col>
 
-        {/* ✅ Budget card with ref for scroll-to */}
         <Col xs={24} lg={8}>
           <div ref={budgetRef}>
             <TripBudgetCard

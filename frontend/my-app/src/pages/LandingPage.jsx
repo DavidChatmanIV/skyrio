@@ -35,14 +35,10 @@ function RobotIcon({ size = 18 }) {
       aria-hidden="true"
       style={{ display: "block", flexShrink: 0 }}
     >
-      {/* Body */}
       <rect x="5.5" y="10" width="13" height="9.5" rx="2.5" />
-      {/* Head */}
       <rect x="8" y="5.5" width="8" height="5.5" rx="2" opacity=".9" />
-      {/* Eyes */}
       <circle cx="10" cy="14" r="1.5" fill="#FFD060" />
       <circle cx="14" cy="14" r="1.5" fill="#FFD060" />
-      {/* Mouth */}
       <rect
         x="10"
         y="17"
@@ -52,7 +48,6 @@ function RobotIcon({ size = 18 }) {
         fill="#1a0d04"
         opacity=".55"
       />
-      {/* Antenna stem */}
       <line
         x1="12"
         y1="5.5"
@@ -62,9 +57,7 @@ function RobotIcon({ size = 18 }) {
         strokeWidth="2"
         strokeLinecap="round"
       />
-      {/* Antenna tip */}
       <circle cx="12" cy="3" r="1.3" />
-      {/* Left arm */}
       <line
         x1="5.5"
         y1="13"
@@ -74,7 +67,6 @@ function RobotIcon({ size = 18 }) {
         strokeWidth="2"
         strokeLinecap="round"
       />
-      {/* Right arm */}
       <line
         x1="18.5"
         y1="13"
@@ -177,6 +169,186 @@ function LockIcon() {
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
       <circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────
+// SVG icon set — Profile banner perks (replaces emoji)
+// ─────────────────────────────────────────────
+
+function XPLevelIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" />
+    </svg>
+  );
+}
+
+function BadgeMedalIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="12" cy="9" r="7" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="9" r="3" fill="currentColor" opacity="0.35" />
+      <path
+        d="M8 15L6 22L12 19L18 22L16 15"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function RewardGiftIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <rect
+        x="3"
+        y="10"
+        width="18"
+        height="11"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M12 6C12 6 8.5 2.5 6.5 4C4.5 5.5 8 10 12 10C16 10 19.5 5.5 17.5 4C15.5 2.5 12 6 12 6Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <line
+        x1="12"
+        y1="10"
+        x2="12"
+        y2="21"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function JourneyMapIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="6" cy="18" r="2.5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="18" cy="6" r="2.5" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M6 15.5V9.5C6 7.84 7.34 6.5 9 6.5H15.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SparkleIcon({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
+    </svg>
+  );
+}
+
+function ChatBubbleIcon({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path
+        d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MailIcon({ size = 15 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+      style={{
+        display: "inline-block",
+        verticalAlign: "middle",
+        marginRight: 4,
+      }}
+    >
+      <rect x="2" y="4" width="20" height="16" rx="3" />
+      <path d="M2 7L12 13L22 7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckmarkIcon({ size = 13 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{
+        display: "inline-block",
+        verticalAlign: "middle",
+        marginRight: 3,
+      }}
+    >
+      <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
@@ -325,7 +497,7 @@ function buildAtlasConversation(homeCity) {
     {
       id: 4,
       from: "atlas",
-      text: "Found 3 beachfront options under $180/night. The top pick has free cancellation and a rooftop pool. Adding it to your plan now ✈️",
+      text: "Found 3 beachfront options under $180/night. The top pick has free cancellation and a rooftop pool. Adding it to your plan now.",
     },
   ];
 }
@@ -354,26 +526,27 @@ const ATLAS_FEATURES = [
   },
 ];
 
-const PASSPORT_PERKS = [
+// ── Profile perks — SVG icons replace all emoji ──
+const PROFILE_PERKS = [
   {
-    icon: "✦",
+    Icon: XPLevelIcon,
     label: "XP & Levels",
     desc: "Earn points every time you search, save, or book. Unlock Explorer → Legend.",
   },
   {
-    icon: "🏅",
+    Icon: BadgeMedalIcon,
     label: "Badges",
     desc: "Collect badges for destinations, trip types, and milestones.",
   },
   {
-    icon: "💰",
+    Icon: RewardGiftIcon,
     label: "Rewards",
     desc: "Redeem XP for travel credits, upgrades, and exclusive deals.",
   },
   {
-    icon: "🗺️",
+    Icon: JourneyMapIcon,
     label: "Journey History",
-    desc: "Every trip you take builds your Skyrio Passport — your travel story.",
+    desc: "Every trip you take builds your Skyrio profile — your travel story.",
   },
 ];
 
@@ -404,9 +577,9 @@ const SOCIAL_PROOF = [
 ];
 
 const TRUST_SIGNALS = [
-  "✓ No credit card required",
-  "✓ Free to search & plan",
-  "✓ Cancel bookings within 24h",
+  "No credit card required",
+  "Free to search & plan",
+  "Cancel bookings within 24h",
 ];
 
 // ─────────────────────────────────────────────
@@ -479,7 +652,10 @@ const INJECTED_CSS = `
   display: flex; align-items: center; justify-content: center;
   gap: 20px; flex-wrap: wrap; margin-top: 12px;
 }
-.sk-trust-signals span { font-size: 12px; color: rgba(255,255,255,0.35); font-weight: 500; }
+.sk-trust-signals span {
+  font-size: 12px; color: rgba(255,255,255,0.35); font-weight: 500;
+  display: inline-flex; align-items: center; gap: 4px;
+}
 
 .sk-hero__secondaryCta { margin-top: 20px; text-align: center; }
 .sk-hero__secondaryCta-text { font-size: 13px; color: rgba(255,255,255,0.45); margin-bottom: 8px; }
@@ -505,7 +681,6 @@ const INJECTED_CSS = `
   border-radius: 999px; padding: 5px 16px; font-size: 12px; font-weight: 500;
   letter-spacing: 0.04em; color: #ff8a2a; margin-bottom: 18px;
 }
-.sk-atlas__eyebrow::before { content: "✦"; font-size: 10px; }
 .sk-atlas__title {
   font-family: "Syne", sans-serif !important; font-size: clamp(28px, 4.5vw, 42px) !important;
   font-weight: 800 !important; letter-spacing: -0.02em !important; color: #fff !important;
@@ -530,7 +705,6 @@ const INJECTED_CSS = `
   border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
 }
 
-/* ── Atlas avatar — robot replaces ✦ ── */
 .sk-atlas__avatar {
   width: 36px; height: 36px; border-radius: 50%;
   background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%);
@@ -539,7 +713,6 @@ const INJECTED_CSS = `
   box-shadow: 0 4px 14px rgba(255,138,42,0.4);
 }
 
-/* ── Bubble avatar — robot replaces ✦ ── */
 .sk-atlas__bubbleAvatar {
   width: 26px; height: 26px; border-radius: 50%;
   background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%);
@@ -574,45 +747,43 @@ const INJECTED_CSS = `
 .sk-atlas__featureTitle { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
 .sk-atlas__featureDesc { font-size: 12.5px; color: rgba(255,255,255,0.55); line-height: 1.5; }
 
-/* NOTE: .sk-atlas__mainCta intentionally removed —
-   The FAB in the bottom-right is the single Atlas entry point. */
-
 @media (max-width: 820px) { .sk-atlas__body { grid-template-columns: 1fr; } .sk-atlas { padding: 0 16px 64px; } .sk-atlas__head { margin-bottom: 32px; } }
 
-/* ══ PASSPORT BANNER ══ */
-.sk-passport-banner { margin: 0 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto; position: relative; border-radius: 24px; overflow: hidden; background: linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(255,138,42,0.25) 50%, rgba(236,72,153,0.25) 100%); border: 1px solid rgba(255,138,42,0.3); padding: 52px 48px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
-.sk-passport-banner::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 80% at 80% 50%, rgba(255,138,42,0.15) 0%, transparent 70%); pointer-events: none; }
-.sk-passport-banner__left { flex: 1; position: relative; z-index: 1; }
-.sk-passport-banner__badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,138,42,0.15); border: 1px solid rgba(255,138,42,0.35); border-radius: 999px; padding: 4px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #ff8a2a; margin-bottom: 18px; }
-.sk-passport-banner__title { font-family: "Syne", sans-serif !important; font-size: clamp(24px, 3.5vw, 36px) !important; font-weight: 800 !important; color: #fff !important; line-height: 1.15 !important; margin: 0 0 12px !important; letter-spacing: -0.02em !important; }
-.sk-passport-banner__title span { background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.sk-passport-banner__sub { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.6; max-width: 440px; margin-bottom: 28px; }
-.sk-passport-banner__perks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.sk-passport-perk { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 12px; }
-.sk-passport-perk__icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; color: #ff8a2a; }
-.sk-passport-perk__label { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 2px; }
-.sk-passport-perk__desc { font-size: 11px; color: rgba(255,255,255,0.45); line-height: 1.4; }
-.sk-passport-banner__right { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 16px; position: relative; z-index: 1; }
-.sk-passport-card { width: 220px; background: linear-gradient(135deg, rgba(124,58,237,0.5) 0%, rgba(255,138,42,0.4) 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: 18px; padding: 22px; backdrop-filter: blur(16px); box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
-.sk-passport-card__top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.sk-passport-card__logo { font-family: "Syne", sans-serif; font-size: 13px; font-weight: 800; color: #fff; }
-.sk-passport-card__chip { width: 28px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #ffb347, #ff8a2a); opacity: 0.8; }
-.sk-passport-card__name { font-size: 11px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
-.sk-passport-card__level { font-family: "Syne", sans-serif; font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 16px; }
-.sk-passport-card__xp-label { font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-.sk-passport-card__bar { height: 5px; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden; }
-.sk-passport-card__fill { height: 100%; width: 35%; background: linear-gradient(90deg, #ff8a2a, #ffb347); border-radius: 999px; }
-.sk-passport-banner__cta { display: flex !important; align-items: center !important; justify-content: center !important; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%) !important; border: none !important; border-radius: 999px !important; color: #1a0d04 !important; font-family: "DM Sans", sans-serif !important; font-size: 14px !important; font-weight: 700 !important; height: 46px !important; padding: 0 28px !important; cursor: pointer; transition: filter 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(255,138,42,0.35); white-space: nowrap; width: 220px; }
-.sk-passport-banner__cta:hover { filter: brightness(1.08) !important; transform: translateY(-2px) !important; }
-.sk-passport-banner__note { font-size: 11px; color: rgba(255,255,255,0.3); text-align: center; }
-@media (max-width: 820px) { .sk-passport-banner { flex-direction: column; padding: 32px 20px; margin: 0 16px 64px; } .sk-passport-banner__right { width: 100%; } .sk-passport-card { width: 100%; } .sk-passport-banner__cta { width: 100% !important; } }
-@media (max-width: 480px) { .sk-passport-banner__perks { grid-template-columns: 1fr; } }
+/* ══ PROFILE BANNER (was Passport Banner) ══ */
+.sk-profile-banner { margin: 0 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto; position: relative; border-radius: 24px; overflow: hidden; background: linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(255,138,42,0.25) 50%, rgba(236,72,153,0.25) 100%); border: 1px solid rgba(255,138,42,0.3); padding: 52px 48px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+.sk-profile-banner::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 80% at 80% 50%, rgba(255,138,42,0.15) 0%, transparent 70%); pointer-events: none; }
+.sk-profile-banner__left { flex: 1; position: relative; z-index: 1; }
+.sk-profile-banner__badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,138,42,0.15); border: 1px solid rgba(255,138,42,0.35); border-radius: 999px; padding: 4px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #ff8a2a; margin-bottom: 18px; }
+.sk-profile-banner__title { font-family: "Syne", sans-serif !important; font-size: clamp(24px, 3.5vw, 36px) !important; font-weight: 800 !important; color: #fff !important; line-height: 1.15 !important; margin: 0 0 12px !important; letter-spacing: -0.02em !important; }
+.sk-profile-banner__title span { background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.sk-profile-banner__sub { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.6; max-width: 440px; margin-bottom: 28px; }
+.sk-profile-banner__perks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sk-profile-perk { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 12px; }
+.sk-profile-perk__icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #ff8a2a; }
+.sk-profile-perk__label { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.sk-profile-perk__desc { font-size: 11px; color: rgba(255,255,255,0.45); line-height: 1.4; }
+.sk-profile-banner__right { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 16px; position: relative; z-index: 1; }
+.sk-profile-card { width: 220px; background: linear-gradient(135deg, rgba(124,58,237,0.5) 0%, rgba(255,138,42,0.4) 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: 18px; padding: 22px; backdrop-filter: blur(16px); box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+.sk-profile-card__top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.sk-profile-card__logo { font-family: "Syne", sans-serif; font-size: 13px; font-weight: 800; color: #fff; }
+.sk-profile-card__chip { width: 28px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #ffb347, #ff8a2a); opacity: 0.8; }
+.sk-profile-card__label { font-size: 11px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+.sk-profile-card__level { font-family: "Syne", sans-serif; font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+.sk-profile-card__xp-label { font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.sk-profile-card__bar { height: 5px; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden; }
+.sk-profile-card__fill { height: 100%; width: 35%; background: linear-gradient(90deg, #ff8a2a, #ffb347); border-radius: 999px; }
+.sk-profile-card__disclaimer { display: flex; align-items: flex-start; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+.sk-profile-card__disclaimer-text { font-size: 10px; color: rgba(255,255,255,0.3); line-height: 1.4; }
+.sk-profile-banner__cta { display: flex !important; align-items: center !important; justify-content: center !important; background: linear-gradient(135deg, #ff8a2a 0%, #ffb347 100%) !important; border: none !important; border-radius: 999px !important; color: #1a0d04 !important; font-family: "DM Sans", sans-serif !important; font-size: 14px !important; font-weight: 700 !important; height: 46px !important; padding: 0 28px !important; cursor: pointer; transition: filter 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(255,138,42,0.35); white-space: nowrap; width: 220px; }
+.sk-profile-banner__cta:hover { filter: brightness(1.08) !important; transform: translateY(-2px) !important; }
+.sk-profile-banner__note { font-size: 11px; color: rgba(255,255,255,0.3); text-align: center; }
+@media (max-width: 820px) { .sk-profile-banner { flex-direction: column; padding: 32px 20px; margin: 0 16px 64px; } .sk-profile-banner__right { width: 100%; } .sk-profile-card { width: 100%; } .sk-profile-banner__cta { width: 100% !important; } }
+@media (max-width: 480px) { .sk-profile-banner__perks { grid-template-columns: 1fr; } }
 
 /* ══ SUPPORT / FAQ ══ */
 .sk-support { padding: 0 24px 96px; max-width: 860px; margin: 0 auto; }
 .sk-support__head { text-align: center; margin-bottom: 40px; }
 .sk-support__eyebrow { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,138,42,0.12); border: 1px solid rgba(255,138,42,0.25); border-radius: 999px; padding: 5px 16px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: #ff8a2a; margin-bottom: 16px; }
-.sk-support__eyebrow::before { content: "💬"; font-size: 12px; }
 .sk-support__title { font-family: "Syne", sans-serif !important; font-size: clamp(24px, 4vw, 36px) !important; font-weight: 800 !important; color: #fff !important; margin: 0 0 10px !important; letter-spacing: -0.02em !important; }
 .sk-support__sub { font-size: 14px; color: rgba(255,255,255,0.55); margin: 0; }
 .sk-support__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 32px; }
@@ -961,9 +1132,12 @@ export default function LandingPage() {
             ))}
           </div>
 
+          {/* ── Trust signals — SVG checkmarks replace ✓ text ── */}
           <div className="sk-trust-signals">
             {TRUST_SIGNALS.map((t) => (
-              <span key={t}>{t}</span>
+              <span key={t}>
+                <CheckmarkIcon /> {t}
+              </span>
             ))}
           </div>
 
@@ -1030,7 +1204,10 @@ export default function LandingPage() {
         {/* ── Meet Atlas ── */}
         <section className="sk-atlas">
           <div className="sk-atlas__head">
-            <div className="sk-atlas__eyebrow">Meet your travel companion</div>
+            {/* ✅ SVG sparkle replaces ✦ emoji via CSS ::before */}
+            <div className="sk-atlas__eyebrow">
+              <SparkleIcon size={11} /> Meet your travel companion
+            </div>
             <h2 className="sk-atlas__title">
               Say hello to <span className="sk-atlas__name">Atlas</span>
             </h2>
@@ -1043,7 +1220,6 @@ export default function LandingPage() {
             {/* ── Chat demo ── */}
             <div className="sk-atlas__chat">
               <div className="sk-atlas__chatHeader">
-                {/* ✅ Robot SVG replaces ✦ emoji */}
                 <div className="sk-atlas__avatar">
                   <RobotIcon size={20} />
                 </div>
@@ -1065,7 +1241,6 @@ export default function LandingPage() {
                       className={`sk-atlas__bubble sk-atlas__bubble--${bubble.from}`}
                     >
                       {bubble.from === "atlas" && (
-                        /* ✅ Robot SVG replaces ✦ emoji in message bubbles */
                         <div className="sk-atlas__bubbleAvatar">
                           <RobotIcon size={13} />
                         </div>
@@ -1075,11 +1250,9 @@ export default function LandingPage() {
                   );
                 })}
 
-                {/* Typing indicator */}
                 {visibleBubbles < atlasConversation.length &&
                   atlasConversation[visibleBubbles]?.from === "atlas" && (
                     <div className="sk-atlas__bubble sk-atlas__bubble--atlas">
-                      {/* ✅ Robot SVG replaces ✦ emoji in typing indicator */}
                       <div className="sk-atlas__bubbleAvatar">
                         <RobotIcon size={13} />
                       </div>
@@ -1096,12 +1269,11 @@ export default function LandingPage() {
                 <div className="sk-atlas__fakeInput">
                   Ask Atlas anything about your trip...
                 </div>
-                <div className="sk-atlas__fabHint">Open Atlas AI ↘</div>
+                <div className="sk-atlas__fabHint">Open Atlas AI</div>
               </div>
             </div>
 
             {/* ── Features ── */}
-            {/* ✅ "Start planning with Atlas" button REMOVED */}
             <div className="sk-atlas__features">
               {ATLAS_FEATURES.map((f) => (
                 <div key={f.title} className="sk-atlas__feature">
@@ -1118,55 +1290,87 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── Passport Banner ── */}
-        <section className="sk-passport-banner">
-          <div className="sk-passport-banner__left">
-            <div className="sk-passport-banner__badge">✦ Skyrio Passport</div>
-            <h2 className="sk-passport-banner__title">
+        {/* ── Profile Banner (was "Passport Banner") ── */}
+        <section className="sk-profile-banner">
+          <div className="sk-profile-banner__left">
+            <div className="sk-profile-banner__badge">
+              <SparkleIcon size={11} /> Your Skyrio Profile
+            </div>
+            <h2 className="sk-profile-banner__title">
               Every trip earns you
               <br />
               <span>rewards, rank, and recognition.</span>
             </h2>
-            <p className="sk-passport-banner__sub">
-              Create a free account and your Skyrio Passport activates
-              instantly. Search, save, and book your way to Explorer,
-              Adventurer, and Legend status — with real travel rewards along the
-              way.
+            <p className="sk-profile-banner__sub">
+              Create a free account to activate your Skyrio profile instantly.
+              Search, save, and book your way to Explorer, Adventurer, and
+              Legend status — with real travel rewards along the way.
             </p>
-            <div className="sk-passport-banner__perks">
-              {PASSPORT_PERKS.map((p) => (
-                <div key={p.label} className="sk-passport-perk">
-                  <div className="sk-passport-perk__icon">{p.icon}</div>
+            <div className="sk-profile-banner__perks">
+              {PROFILE_PERKS.map((p) => (
+                <div key={p.label} className="sk-profile-perk">
+                  <div className="sk-profile-perk__icon">
+                    <p.Icon size={16} />
+                  </div>
                   <div>
-                    <div className="sk-passport-perk__label">{p.label}</div>
-                    <div className="sk-passport-perk__desc">{p.desc}</div>
+                    <div className="sk-profile-perk__label">{p.label}</div>
+                    <div className="sk-profile-perk__desc">{p.desc}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-          <div className="sk-passport-banner__right">
-            <div className="sk-passport-card">
-              <div className="sk-passport-card__top">
-                <div className="sk-passport-card__logo">SKYRIO</div>
-                <div className="sk-passport-card__chip" />
+          <div className="sk-profile-banner__right">
+            <div className="sk-profile-card">
+              <div className="sk-profile-card__top">
+                <div className="sk-profile-card__logo">SKYRIO</div>
+                <div className="sk-profile-card__chip" />
               </div>
-              <div className="sk-passport-card__name">Your Passport</div>
-              <div className="sk-passport-card__level">Explorer ✦</div>
-              <div className="sk-passport-card__xp-label">XP Progress</div>
-              <div className="sk-passport-card__bar">
-                <div className="sk-passport-card__fill" />
+              <div className="sk-profile-card__label">Your Profile Tier</div>
+              <div className="sk-profile-card__level">
+                Explorer <SparkleIcon size={14} />
+              </div>
+              <div className="sk-profile-card__xp-label">XP Progress</div>
+              <div className="sk-profile-card__bar">
+                <div className="sk-profile-card__fill" />
+              </div>
+              {/* ── Disclaimer — makes it clear this isn't a travel document ── */}
+              <div className="sk-profile-card__disclaimer">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  style={{ flexShrink: 0, marginTop: 1 }}
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="rgba(255,255,255,0.25)"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="M12 16V12M12 8H12.01"
+                    stroke="rgba(255,255,255,0.25)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="sk-profile-card__disclaimer-text">
+                  Membership profile only — not an official travel document.
+                </span>
               </div>
             </div>
             <Button
-              className="sk-passport-banner__cta"
+              className="sk-profile-banner__cta"
               onClick={goSignup}
               disabled={isRouting}
             >
               Create free account{" "}
               <ArrowRightOutlined style={{ marginLeft: 6 }} />
             </Button>
-            <div className="sk-passport-banner__note">
+            <div className="sk-profile-banner__note">
               Free forever · No credit card required
             </div>
           </div>
@@ -1175,7 +1379,10 @@ export default function LandingPage() {
         {/* ── Support / FAQ ── */}
         <section className="sk-support">
           <div className="sk-support__head">
-            <div className="sk-support__eyebrow">Got questions?</div>
+            {/* ✅ SVG chat icon replaces 💬 emoji */}
+            <div className="sk-support__eyebrow">
+              <ChatBubbleIcon size={13} /> Got questions?
+            </div>
             <h2 className="sk-support__title">We've got answers</h2>
             <p className="sk-support__sub">
               Everything you need to know before your first booking.
@@ -1193,11 +1400,12 @@ export default function LandingPage() {
             <div className="sk-support__contact-text">
               Still have questions? <strong>Our team is here to help.</strong>
             </div>
+            {/* ✅ SVG mail icon replaces ✉️ emoji */}
             <a
               href="mailto:skyrioofficial@gmail.com"
               className="sk-support__email"
             >
-              ✉️ skyrioofficial@gmail.com
+              <MailIcon /> skyrioofficial@gmail.com
             </a>
           </div>
         </section>
