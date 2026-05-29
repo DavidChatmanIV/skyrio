@@ -10,8 +10,8 @@ const AV_BG = [
 
 const UsersIcon = () => (
   <svg
-    width="14"
-    height="14"
+    width="13"
+    height="13"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -25,7 +25,6 @@ const UsersIcon = () => (
     <path d="M16 3.13a4 4 0 010 7.75" />
   </svg>
 );
-
 const PinIcon = () => (
   <svg
     width="11"
@@ -41,11 +40,10 @@ const PinIcon = () => (
     <circle cx="12" cy="10" r="3" />
   </svg>
 );
-
 const ChevronRight = () => (
   <svg
-    width="14"
-    height="14"
+    width="13"
+    height="13"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -103,9 +101,6 @@ export default function SkyHubActiveTravelers({
   loading,
   onViewAll,
 }) {
-  // Show nothing (no fallback) — only real users from the database
-  const list = travelers;
-
   return (
     <div
       style={{
@@ -116,6 +111,7 @@ export default function SkyHubActiveTravelers({
         overflow: "hidden",
       }}
     >
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -140,13 +136,13 @@ export default function SkyHubActiveTravelers({
                 marginTop: 1,
               }}
             >
-              {list.length > 0
-                ? `${list.length} online now`
+              {travelers.length > 0
+                ? `${travelers.length} online now`
                 : "Join the community"}
             </div>
           </div>
         </div>
-        {onViewAll && (
+        {onViewAll && travelers.length > 0 && (
           <button
             onClick={onViewAll}
             style={{
@@ -166,6 +162,7 @@ export default function SkyHubActiveTravelers({
         )}
       </div>
 
+      {/* Content */}
       {loading ? (
         <div
           style={{
@@ -177,15 +174,16 @@ export default function SkyHubActiveTravelers({
         >
           Loading...
         </div>
-      ) : list.length === 0 ? (
-        <div style={{ padding: "20px 16px", textAlign: "center" }}>
-          <div style={{ marginBottom: 8 }}>
+      ) : travelers.length === 0 ? (
+        /* Clean empty state — no fake traveler names */
+        <div style={{ padding: "24px 16px", textAlign: "center" }}>
+          <div style={{ marginBottom: 8, color: "rgba(240,236,255,0.18)" }}>
             <svg
-              width="32"
-              height="32"
+              width="28"
+              height="28"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="rgba(240,236,255,0.2)"
+              stroke="currentColor"
               strokeWidth="1.5"
             >
               <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
@@ -194,12 +192,20 @@ export default function SkyHubActiveTravelers({
               <path d="M16 3.13a4 4 0 010 7.75" />
             </svg>
           </div>
-          <div style={{ fontSize: 12, color: "rgba(240,236,255,0.35)" }}>
-            No active travelers yet
+          <div
+            style={{
+              fontSize: 12,
+              color: "rgba(240,236,255,0.35)",
+              lineHeight: 1.5,
+            }}
+          >
+            No active travelers yet.
+            <br />
+            Be the first to explore!
           </div>
         </div>
       ) : (
-        list.map((t, i) => {
+        travelers.map((t, i) => {
           const name = t.name || t.authorName || "Traveler";
           const location = t.location || t.destination || "";
           const badge = t.badge || "Explorer";
@@ -212,7 +218,7 @@ export default function SkyHubActiveTravelers({
                 gap: 10,
                 padding: "11px 16px",
                 borderBottom:
-                  i < list.length - 1
+                  i < travelers.length - 1
                     ? "1px solid rgba(255,255,255,0.05)"
                     : "none",
                 cursor: "pointer",
@@ -277,11 +283,11 @@ export default function SkyHubActiveTravelers({
                   fontWeight: 700,
                   padding: "2px 8px",
                   borderRadius: 99,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                   background: "rgba(255,122,53,0.12)",
                   color: "#ff9f6b",
                   border: "1px solid rgba(255,122,53,0.2)",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
                 }}
               >
                 {badge}

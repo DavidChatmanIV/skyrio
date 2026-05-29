@@ -1,29 +1,6 @@
 import React from "react";
 
-const FALLBACK = [
-  { name: "Tokyo, Japan", flag: "JP", posts: 0 },
-  { name: "Lisbon, Portugal", flag: "PT", posts: 0 },
-  { name: "Bangkok, Thailand", flag: "TH", posts: 0 },
-  { name: "Bali, Indonesia", flag: "ID", posts: 0 },
-  { name: "New York, USA", flag: "US", posts: 0 },
-];
-
-const PinIcon = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-    <circle cx="12" cy="10" r="3" />
-  </svg>
-);
-
+// SVG icons
 const TrendIcon = () => (
   <svg
     width="13"
@@ -39,11 +16,25 @@ const TrendIcon = () => (
     <polyline points="17 6 23 6 23 12" />
   </svg>
 );
-
+const PinIcon = () => (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
 const ChevronRight = () => (
   <svg
-    width="14"
-    height="14"
+    width="13"
+    height="13"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -60,8 +51,6 @@ export default function SkyHubTrendingDestinations({
   loading,
   onSeeAll,
 }) {
-  const list = items.length ? items : FALLBACK;
-
   return (
     <div
       style={{
@@ -72,6 +61,7 @@ export default function SkyHubTrendingDestinations({
         overflow: "hidden",
       }}
     >
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -120,96 +110,120 @@ export default function SkyHubTrendingDestinations({
         )}
       </div>
 
-      <div>
-        {loading ? (
+      {/* Content */}
+      {loading ? (
+        <div
+          style={{
+            padding: "20px 16px",
+            textAlign: "center",
+            fontSize: 13,
+            color: "rgba(240,236,255,0.35)",
+          }}
+        >
+          Loading...
+        </div>
+      ) : items.length === 0 ? (
+        /* Empty state — no fake data */
+        <div style={{ padding: "24px 16px", textAlign: "center" }}>
+          <div style={{ marginBottom: 8, color: "rgba(240,236,255,0.18)" }}>
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+          </div>
           <div
             style={{
-              padding: "20px 16px",
-              textAlign: "center",
-              fontSize: 13,
+              fontSize: 12,
               color: "rgba(240,236,255,0.35)",
+              lineHeight: 1.5,
             }}
           >
-            Loading...
+            Destinations appear here as
+            <br />
+            travelers start posting
           </div>
-        ) : (
-          list.map((dest, i) => {
-            const name =
-              dest.name || dest.destination || dest.city || "Unknown";
-            const posts = dest.posts || dest.postCount || 0;
-            return (
+        </div>
+      ) : (
+        items.map((dest, i) => {
+          const name = dest.name || dest.destination || dest.city || "Unknown";
+          const posts = dest.posts || dest.postCount || 0;
+          return (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "11px 16px",
+                borderBottom:
+                  i < items.length - 1
+                    ? "1px solid rgba(255,255,255,0.05)"
+                    : "none",
+                cursor: "pointer",
+                transition: "background 0.12s",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "rgba(255,255,255,0.04)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+            >
               <div
-                key={i}
                 style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  flexShrink: 0,
+                  background: "rgba(255,122,53,0.12)",
+                  border: "1px solid rgba(255,122,53,0.2)",
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
-                  padding: "11px 16px",
-                  borderBottom:
-                    i < list.length - 1
-                      ? "1px solid rgba(255,255,255,0.05)"
-                      : "none",
-                  cursor: "pointer",
-                  transition: "background 0.12s",
+                  justifyContent: "center",
+                  color: "#ff7a35",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(255,255,255,0.04)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "transparent")
-                }
               >
+                <PinIcon />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    flexShrink: 0,
-                    background: "rgba(255,122,53,0.12)",
-                    border: "1px solid rgba(255,122,53,0.2)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ff7a35",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#f0ecff",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  <PinIcon />
+                  {name}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#f0ecff",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {name}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "rgba(240,236,255,0.4)",
-                      marginTop: 1,
-                    }}
-                  >
-                    {posts > 0
-                      ? `${posts.toLocaleString()} posts`
-                      : "Be first to post"}
-                  </div>
-                </div>
-                <span
-                  style={{ color: "rgba(240,236,255,0.25)", flexShrink: 0 }}
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(240,236,255,0.4)",
+                    marginTop: 1,
+                  }}
                 >
-                  <ChevronRight />
-                </span>
+                  {posts > 0
+                    ? `${posts.toLocaleString()} posts`
+                    : "Be first to post"}
+                </div>
               </div>
-            );
-          })
-        )}
-      </div>
+              <span style={{ color: "rgba(240,236,255,0.25)", flexShrink: 0 }}>
+                <ChevronRight />
+              </span>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

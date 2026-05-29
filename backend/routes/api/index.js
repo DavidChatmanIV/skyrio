@@ -44,6 +44,7 @@ await mount("/skyhub", "./skyhub.routes.js");
 await mount("/weather", "./weather.routes.js");
 await mount("/notifications", "./notifications.routes.js");
 await mount("/saved-trips", "./savedTrips.routes.js");
+await mount("/sync-together", "./syncTogether.routes.js");
 
 /* ======================================================
    Extended Modules (outside api folder)
@@ -82,6 +83,7 @@ api.get("/", (_req, res) => {
       "/dm",
       "/notifications",
       "/atlas",
+      "/sync-together",
     ],
   });
 });

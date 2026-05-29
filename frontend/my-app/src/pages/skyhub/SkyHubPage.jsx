@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import { Badge, Button, Input, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
@@ -8,10 +14,11 @@ import {
   EnvironmentOutlined,
   QuestionCircleOutlined,
 } from "@ant-design/icons";
+import { useContext } from "react";
 
 import "@/styles/SkyHubPage.css";
 import heroBeach from "@/assets/skyhub/beach.png";
-import { skyhubFilters, skyhubTabs, skyhubStats } from "./skyhubData";
+import { skyhubFilters, skyhubTabs } from "./skyhubData";
 import SkyHubComposer from "./SkyHubComposer";
 import SkyHubFeedCard from "./SkyHubFeedCard";
 import SkyHubCommentDrawer from "./SkyHubCommentDrawer";
@@ -19,11 +26,9 @@ import SkyHubPassportCard from "./SkyHubPassportCard";
 import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import { apiUrl } from "@/lib/api";
-
-// AuthContext lives in src/context/AuthContext.jsx
-import { useContext } from "react";
 import { AuthContext } from "@/context/AuthContext";
 
+// ── Map backend post shape ─────────────────────────────────────
 function mapBackendPost(post) {
   return {
     id: post._id,
@@ -54,15 +59,45 @@ function mapBackendPost(post) {
   };
 }
 
+// ── Derive trending destinations from feed posts ───────────────
+// No backend endpoint needed — computed from what we already have.
+function deriveTrending(posts) {
+  const counts = {};
+  posts.forEach((p) => {
+    if (!p.destination) return;
+    counts[p.destination] = (counts[p.destination] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name, posts]) => ({ name, posts }));
+}
+
+// ── Derive active travelers from feed posts ────────────────────
+// Uses the most recent posters as a proxy for "active".
+function deriveActiveTravelers(posts) {
+  const seen = new Set();
+  return posts
+    .filter((p) => {
+      const key = p.authorId || p.username;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 6)
+    .map((p) => ({
+      name: p.author,
+      username: p.username?.replace("@", ""),
+      avatar: p.avatar,
+      location: p.destination,
+      badge: "Explorer",
+    }));
+}
+
 export default function SkyHubPage() {
   const navigate = useNavigate();
-
-  // ── Get logged-in user from your existing auth context ──────
-  // useAuth() returns the user object your AuthProvider already manages.
-  // Adjust destructuring to match what your hook actually returns.
   const { user: authUser } = useContext(AuthContext);
 
-  // Normalise into a consistent shape
   const currentUser = authUser
     ? {
         id: authUser._id || authUser.id,
@@ -83,6 +118,7 @@ export default function SkyHubPage() {
   const [activeTab, setActiveTab] = useState("forYou");
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchValue, setSearchValue] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [composerText, setComposerText] = useState("");
   const [destination, setDestination] = useState("");
   const [activePostType, setActivePostType] = useState("Tip");
@@ -93,14 +129,18 @@ export default function SkyHubPage() {
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState(null);
 
-  // These endpoints don't exist yet — kept as state with empty defaults.
-  // Wire them up when your backend adds the routes.
-  const [trendingDestinations, setTrendingDestinations] = useState([]);
-  const [loadingTrending, setLoadingTrending] = useState(false);
-  const [activeTravelers, setActiveTravelers] = useState([]);
-  const [loadingTravelers, setLoadingTravelers] = useState(false);
+  // Search debounce — avoids re-filtering on every keystroke
+  const debounceRef = useRef(null);
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(
+      () => setDebouncedSearch(searchValue),
+      250
+    );
+    return () => clearTimeout(debounceRef.current);
+  }, [searchValue]);
 
-  // ── Fetch feed (only endpoint that exists) ──────────────────
+  // ── Fetch feed ────────────────────────────────────────────────
   const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
@@ -117,54 +157,119 @@ export default function SkyHubPage() {
     }
   }, []);
 
-  // These will silently do nothing until your backend adds the routes
-  // fetchTrending: endpoint not built yet — shows fallback destinations
-  const fetchTrending = useCallback(async () => {
-    /* pending backend route */
-  }, []);
-
-  // fetchActiveTravelers: endpoint not built yet — shows empty state
-  const fetchActiveTravelers = useCallback(async () => {
-    /* pending backend route */
-  }, []);
-
   useEffect(() => {
     fetchFeed();
-    fetchTrending();
-    fetchActiveTravelers();
-  }, [fetchFeed, fetchTrending, fetchActiveTravelers]);
+  }, [fetchFeed]);
 
-  // ── Filtered posts ──────────────────────────────────────────
-  const visiblePosts = useMemo(
-    () =>
-      posts.filter((post) => {
-        const search = searchValue.toLowerCase();
-        const matchesSearch =
-          !search ||
-          (post.text || "").toLowerCase().includes(search) ||
-          (post.destination || "").toLowerCase().includes(search) ||
-          (post.author || "").toLowerCase().includes(search) ||
-          (post.tags || []).join(" ").toLowerCase().includes(search);
-        const matchesFilter =
-          activeFilter === "All" ||
-          (post.tags || []).some(
-            (t) => t.toLowerCase() === activeFilter.toLowerCase()
-          ) ||
-          (post.type || "").toLowerCase() === activeFilter.toLowerCase();
-        const matchesTab =
-          activeTab === "forYou"
-            ? true
-            : activeTab === "questions"
-            ? post.type === "Question"
-            : activeTab === "trips"
-            ? post.type === "Join Trip" || post.type === "Story"
-            : true;
-        return matchesSearch && matchesFilter && matchesTab;
-      }),
-    [posts, searchValue, activeFilter, activeTab]
-  );
+  // ── Derived sidebar data — no extra API calls ─────────────────
+  const trendingDestinations = useMemo(() => deriveTrending(posts), [posts]);
+  const activeTravelers = useMemo(() => deriveActiveTravelers(posts), [posts]);
 
-  // ── Create post ─────────────────────────────────────────────
+  // ── Derived stats — computed from real feed data ───────────────
+  const liveStats = useMemo(() => {
+    if (!posts.length) return null;
+    const uniqueAuthors = new Set(
+      posts.map((p) => p.authorId || p.username).filter(Boolean)
+    );
+    const uniqueCountries = new Set(
+      posts.map((p) => p.destination).filter(Boolean)
+    );
+    return {
+      travelers: uniqueAuthors.size,
+      posts: posts.length,
+      countries: uniqueCountries.size,
+    };
+  }, [posts]);
+
+  // ── Tab-aware filtering ───────────────────────────────────────
+  // "following" → current user's own posts
+  // "nearby"    → posts that have a destination set
+  // "questions" → Question type only
+  // "trips"     → Join Trip or Story
+  // "forYou"    → everything
+  const visiblePosts = useMemo(() => {
+    const myUsername = currentUser?.username?.toLowerCase();
+    const myId = currentUser?.id;
+
+    return posts.filter((post) => {
+      const s = debouncedSearch.toLowerCase();
+      const ms =
+        !s ||
+        (post.text || "").toLowerCase().includes(s) ||
+        (post.destination || "").toLowerCase().includes(s) ||
+        (post.author || "").toLowerCase().includes(s) ||
+        (post.tags || []).join(" ").toLowerCase().includes(s);
+
+      const mf =
+        activeFilter === "All" ||
+        (post.tags || []).some(
+          (t) => t.toLowerCase() === activeFilter.toLowerCase()
+        ) ||
+        (post.type || "").toLowerCase() === activeFilter.toLowerCase();
+
+      let mt = true;
+      switch (activeTab) {
+        case "following":
+          // Show own posts — closest we can do without a follow system
+          mt =
+            (post.username || "").replace("@", "").toLowerCase() ===
+              myUsername ||
+            (post.authorId && String(post.authorId) === String(myId)) ||
+            (post.username || "").replace("@", "").toLowerCase() === "you";
+          break;
+        case "nearby":
+          // Posts that have a destination set
+          mt = !!post.destination?.trim();
+          break;
+        case "questions":
+          mt = post.type === "Question";
+          break;
+        case "trips":
+          mt = post.type === "Join Trip" || post.type === "Story";
+          break;
+        default:
+          mt = true;
+      }
+
+      return ms && mf && mt;
+    });
+  }, [posts, debouncedSearch, activeFilter, activeTab, currentUser]);
+
+  // ── Tab-specific empty state messages ─────────────────────────
+  const emptyMessages = {
+    forYou: {
+      title: "Nothing here yet",
+      body: "Be the first to share a travel tip, question, or story.",
+    },
+    following: {
+      title: "No posts yet",
+      body: "Posts you create will appear here.",
+    },
+    nearby: {
+      title: "No destination posts",
+      body: "Posts tagged with a destination will appear here.",
+    },
+    questions: {
+      title: "No questions yet",
+      body: "Ask the community anything about travel.",
+    },
+    trips: {
+      title: "No trips yet",
+      body: "Share a trip idea or story to get started.",
+    },
+  };
+  const emptyMsg = emptyMessages[activeTab] || emptyMessages.forYou;
+
+  // ── Feed section title by tab ──────────────────────────────────
+  const feedTitles = {
+    forYou: "Community Feed",
+    following: "Your Posts",
+    nearby: "Destination Posts",
+    questions: "Questions",
+    trips: "Trips & Stories",
+  };
+
+  // ── Create post ───────────────────────────────────────────────
   const handleCreatePost = async () => {
     if (!composerText.trim() && composerPhotos.length === 0) {
       message.warning("Write something or add a photo before posting.");
@@ -194,7 +299,7 @@ export default function SkyHubPage() {
           .filter((r) => r.status === "fulfilled")
           .map((r) => r.value);
         const failed = results.filter((r) => r.status === "rejected").length;
-        if (failed > 0)
+        if (failed)
           message.warning(
             `${failed} photo${failed > 1 ? "s" : ""} failed to upload.`
           );
@@ -215,20 +320,18 @@ export default function SkyHubPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to create post");
 
-      const postWithImages = {
+      const enriched = {
         ...data.post,
-        images:
-          uploadedImageUrls.length > 0
-            ? uploadedImageUrls
-            : data.post.images || [],
+        images: uploadedImageUrls.length
+          ? uploadedImageUrls
+          : data.post.images || [],
         image: uploadedImageUrls[0] || data.post.image || "",
-        // Use real logged-in user data so name/username display correctly
         authorName: currentUser?.name || data.post.authorName,
         username: currentUser?.username || data.post.username,
         avatar: currentUser?.avatar || data.post.avatar,
         authorId: currentUser?.id || data.post.authorId,
       };
-      setPosts((prev) => [mapBackendPost(postWithImages), ...prev]);
+      setPosts((prev) => [mapBackendPost(enriched), ...prev]);
       setComposerText("");
       setDestination("");
       setActivePostType("Tip");
@@ -249,11 +352,11 @@ export default function SkyHubPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? { ...p, liked: !!data.liked, likes: data.likesCount ?? p.likes }
-            : p
+      setPosts((p) =>
+        p.map((x) =>
+          x.id === postId
+            ? { ...x, liked: !!data.liked, likes: data.likesCount ?? x.likes }
+            : x
         )
       );
     } catch (err) {
@@ -269,34 +372,23 @@ export default function SkyHubPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? { ...p, saved: !!data.saved, saves: data.savesCount ?? p.saves }
-            : p
+      setPosts((p) =>
+        p.map((x) =>
+          x.id === postId
+            ? { ...x, saved: !!data.saved, saves: data.savesCount ?? x.saves }
+            : x
         )
       );
-      message.success(data.saved ? "Post saved." : "Post removed from saved.");
+      message.success(data.saved ? "Saved." : "Removed from saved.");
     } catch (err) {
       message.error(err.message || "Could not update saved state.");
     }
   };
 
-  // ── Delete own post ─────────────────────────────────────────
-  // NOTE: Your backend needs a DELETE /api/skyhub/posts/:id route.
-  // Add this to your Express router:
-  //   router.delete("/posts/:id", auth, async (req, res) => {
-  //     await Post.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
-  //     res.json({ success: true });
-  //   });
   const handleDeletePost = async (postId) => {
-    // Remove from UI immediately — feels instant for the user.
+    // Optimistic — remove instantly so it feels fast
     setPosts((prev) => prev.filter((p) => p.id !== postId));
     message.success("Post deleted.");
-
-    // Fire backend delete silently — any error is ignored in the UI
-    // since the post is already gone from the feed.
-    // Deploy skyhub.routes.js to Render to make this persist on the server.
     try {
       const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}`), {
         method: "DELETE",
@@ -305,12 +397,10 @@ export default function SkyHubPage() {
           Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
         },
       });
-      // 404 = backend route not deployed yet — UI already updated, no action needed
-      if (!res.ok && res.status !== 404) {
+      if (!res.ok && res.status !== 404)
         console.warn("[skyhub] delete returned", res.status);
-      }
     } catch {
-      // Network error — UI already updated, ignore silently
+      /* network error — UI already updated */
     }
   };
 
@@ -335,36 +425,31 @@ export default function SkyHubPage() {
     }
   };
 
-  const refreshPostComments = (postId, commentCount) => {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? {
-              ...p,
-              comments:
-                typeof commentCount === "number" ? commentCount : p.comments,
-            }
-          : p
+  const refreshPostComments = (postId, count) =>
+    setPosts((p) =>
+      p.map((x) =>
+        x.id === postId
+          ? { ...x, comments: typeof count === "number" ? count : x.comments }
+          : x
       )
     );
-  };
 
-  const handleExploreSearch = () => {
+  const handleExploreSearch = () =>
     document
       .querySelector(".skyhub-feedSection")
       ?.scrollIntoView({ behavior: "smooth" });
-  };
 
-  // currentUserId: pass both mongo ID and username separated by | for matching
   const currentUserId = currentUser
     ? `${currentUser.id || ""}|${currentUser.username || ""}`
     : null;
 
+  // ── Render ────────────────────────────────────────────────────
   return (
     <div
       className="skyhub-page"
       style={{ backgroundImage: `url(${heroBeach})` }}
     >
+      {/* ── HERO ── */}
       <header className="skyhub-topHeader">
         <div className="skyhub-topHeaderOverlay" />
         <div className="skyhub-topHeaderInner">
@@ -449,6 +534,7 @@ export default function SkyHubPage() {
               </div>
             </div>
           </div>
+
           <div className="skyhub-headerActions">
             <Input
               allowClear
@@ -471,25 +557,37 @@ export default function SkyHubPage() {
           </div>
         </div>
 
-        {/* Stats — use skyhubStats from skyhubData (update that file with real numbers) */}
-        <div className="skyhub-topStats">
-          {skyhubStats.map((item) => (
-            <div key={item.id} className="skyhub-statItem">
-              <strong>{item.value}</strong>
-              <span>{item.label}</span>
+        {/* Live stats derived from real feed data */}
+        {liveStats && (
+          <div className="skyhub-topStats">
+            <div className="skyhub-statItem">
+              <strong>{liveStats.travelers.toLocaleString()}</strong>
+              <span>Travelers</span>
             </div>
-          ))}
-          <div className="skyhub-onlinePill">
-            {activeTravelers.length > 0
-              ? `${activeTravelers.length} travelers online`
-              : `${
-                  posts.length > 0 ? Math.min(posts.length, 10) : 0
-                } travelers online`}
+            <div className="skyhub-statItem">
+              <strong>{liveStats.posts.toLocaleString()}</strong>
+              <span>Posts</span>
+            </div>
+            {liveStats.countries > 0 && (
+              <div className="skyhub-statItem">
+                <strong>{liveStats.countries}+</strong>
+                <span>Countries</span>
+              </div>
+            )}
+            <div className="skyhub-onlinePill">
+              {liveStats.travelers > 0
+                ? `${liveStats.travelers} traveler${
+                    liveStats.travelers !== 1 ? "s" : ""
+                  } here`
+                : "Be the first to post"}
+            </div>
           </div>
-        </div>
+        )}
       </header>
 
+      {/* ── MAIN ── */}
       <main className="skyhub-main">
+        {/* Sticky nav */}
         <div className="skyhub-navbar">
           <div className="skyhub-navbar-tabs">
             {skyhubTabs.map((tab) => (
@@ -523,6 +621,7 @@ export default function SkyHubPage() {
           </div>
         </div>
 
+        {/* Content */}
         <section className="skyhub-contentGrid">
           <div className="skyhub-leftRail">
             <SkyHubComposer
@@ -541,9 +640,15 @@ export default function SkyHubPage() {
             <section className="skyhub-feedSection">
               <div className="skyhub-feedSectionHeader">
                 <div>
-                  <h2 className="skyhub-sectionTitle">Community Feed</h2>
+                  <h2 className="skyhub-sectionTitle">
+                    {feedTitles[activeTab] || "Community Feed"}
+                  </h2>
                   <p className="skyhub-sectionSubtext">
-                    Travel-first posts with real community insights.
+                    {debouncedSearch
+                      ? `${visiblePosts.length} result${
+                          visiblePosts.length !== 1 ? "s" : ""
+                        } for "${debouncedSearch}"`
+                      : "Travel-first posts with real community insights."}
                   </p>
                 </div>
                 <Badge
@@ -551,6 +656,7 @@ export default function SkyHubPage() {
                   style={{ backgroundColor: "#ff7a35" }}
                 />
               </div>
+
               <div className="skyhub-feedList">
                 {loadingFeed ? (
                   <div className="skyhub-emptyState">
@@ -572,27 +678,25 @@ export default function SkyHubPage() {
                   ))
                 ) : (
                   <div className="skyhub-emptyState">
-                    <h3>Nothing here yet 👀</h3>
-                    <p>
-                      Be the first to drop a travel tip, ask a question, or
-                      start a trip idea.
-                    </p>
+                    <h3>{emptyMsg.title}</h3>
+                    <p>{emptyMsg.body}</p>
                   </div>
                 )}
               </div>
             </section>
           </div>
 
+          {/* Sidebar — all data derived from feed, no extra API calls */}
           <aside className="skyhub-rightRail">
             <SkyHubPassportCard currentUser={currentUser} />
             <SkyHubTrendingDestinations
               items={trendingDestinations}
-              loading={loadingTrending}
+              loading={loadingFeed}
               onSeeAll={() => navigate("/skyhub/destinations")}
             />
             <SkyHubActiveTravelers
               travelers={activeTravelers}
-              loading={loadingTravelers}
+              loading={loadingFeed}
               onViewAll={() => navigate("/skyhub/travelers")}
             />
           </aside>

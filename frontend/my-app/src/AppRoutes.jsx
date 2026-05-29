@@ -17,6 +17,7 @@ const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SyncTogether = lazy(() => import("./pages/SyncTogether"));
+const SyncGroupPage = lazy(() => import("./pages/SyncGroupPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 
@@ -106,6 +107,7 @@ function TrackedRoutes() {
         />
         <Route path="membership" element={<MembershipPage />} />
         <Route path="sync-together" element={<SyncTogether />} />
+        <Route path="sync-together/:id" element={<SyncGroupPage />} />
         <Route
           path="team-travel"
           element={<Navigate to="/sync-together" replace />}

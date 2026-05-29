@@ -263,6 +263,188 @@
   margin: 0;
 }
 
+/* ═══════════════════════════════════════════
+   Search Dropdown
+   ═══════════════════════════════════════════ */
+
+.sk-sync-search-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.sk-sync-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #1e1530;
+  border: 1px solid rgba(255, 138, 42, 0.25);
+  border-radius: 12px;
+  padding: 6px;
+  z-index: 100;
+  max-height: 280px;
+  overflow-y: auto;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.sk-sync-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.sk-sync-search-item:hover {
+  background: rgba(255, 138, 42, 0.12);
+}
+
+.sk-sync-search-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sk-sync-search-item-name {
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sk-sync-search-item-handle {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.sk-sync-search-empty {
+  padding: 14px 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════
+   Ant Design dark-theme overrides for
+   SyncGroupPage form fields
+   ═══════════════════════════════════════════ */
+
+/* DatePicker */
+.sk-sync-group-builder .ant-picker {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 138, 42, 0.25) !important;
+  border-radius: 12px !important;
+  height: 44px !important;
+}
+.sk-sync-group-builder .ant-picker input,
+.sk-sync-group-builder .ant-picker .ant-picker-input input,
+.sk-sync-group-builder .ant-picker .ant-picker-suffix,
+.sk-sync-group-builder .ant-picker .ant-picker-separator {
+  color: #fff !important;
+}
+.sk-sync-group-builder .ant-picker input::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+.sk-sync-group-builder .ant-picker:hover,
+.sk-sync-group-builder .ant-picker-focused {
+  border-color: rgba(255, 138, 42, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.1) !important;
+}
+
+/* InputNumber */
+.sk-sync-group-builder .ant-input-number {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 138, 42, 0.25) !important;
+  border-radius: 12px !important;
+  height: 44px !important;
+  color: #fff !important;
+}
+.sk-sync-group-builder .ant-input-number input,
+.sk-sync-group-builder .ant-input-number .ant-input-number-input,
+.sk-sync-group-builder .ant-input-number .ant-input-number-prefix,
+.sk-sync-group-builder .ant-input-number .ant-input-number-input-wrap,
+.sk-sync-group-builder .ant-input-number-affix-wrapper,
+.sk-sync-group-builder .ant-input-number-affix-wrapper .ant-input-number-prefix,
+.sk-sync-group-builder .ant-input-number span {
+  color: #fff !important;
+}
+.sk-sync-group-builder .ant-input-number input::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+.sk-sync-group-builder .ant-input-number-affix-wrapper {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 138, 42, 0.25) !important;
+  border-radius: 12px !important;
+  height: 44px !important;
+}
+.sk-sync-group-builder .ant-input-number-affix-wrapper:hover,
+.sk-sync-group-builder .ant-input-number-affix-wrapper-focused {
+  border-color: rgba(255, 138, 42, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.1) !important;
+}
+.sk-sync-group-builder .ant-input-number:hover,
+.sk-sync-group-builder .ant-input-number-focused {
+  border-color: rgba(255, 138, 42, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.1) !important;
+}
+.sk-sync-group-builder .ant-input-number .ant-input-number-handler-wrap {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 138, 42, 0.2) !important;
+}
+.sk-sync-group-builder
+  .ant-input-number
+  .ant-input-number-handler
+  .ant-input-number-handler-up-inner,
+.sk-sync-group-builder
+  .ant-input-number
+  .ant-input-number-handler
+  .ant-input-number-handler-down-inner {
+  color: #ff8a2a !important;
+}
+
+/* Standard Input inside group builder (destination field) */
+.sk-sync-group-builder .sk-sync-input.ant-input {
+  border-color: rgba(255, 138, 42, 0.25) !important;
+}
+
+/* DatePicker dropdown panel (the popup calendar) */
+.ant-picker-dropdown .ant-picker-panel-container {
+  background: #1e1530 !important;
+  border: 1px solid rgba(255, 138, 42, 0.2) !important;
+  border-radius: 12px !important;
+}
+.ant-picker-dropdown .ant-picker-header,
+.ant-picker-dropdown .ant-picker-header button {
+  color: #fff !important;
+}
+.ant-picker-dropdown .ant-picker-cell .ant-picker-cell-inner {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+.ant-picker-dropdown .ant-picker-cell-in-view .ant-picker-cell-inner {
+  color: #fff !important;
+}
+.ant-picker-dropdown .ant-picker-cell-selected .ant-picker-cell-inner,
+.ant-picker-dropdown .ant-picker-cell-range-start .ant-picker-cell-inner,
+.ant-picker-dropdown .ant-picker-cell-range-end .ant-picker-cell-inner {
+  background: #ff8a2a !important;
+  color: #1b1024 !important;
+}
+.ant-picker-dropdown .ant-picker-cell-in-range::before {
+  background: rgba(255, 138, 42, 0.15) !important;
+}
+.ant-picker-dropdown .ant-picker-content th {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+.ant-picker-dropdown .ant-picker-cell-disabled .ant-picker-cell-inner {
+  color: rgba(255, 255, 255, 0.15) !important;
+}
+.ant-picker-dropdown .ant-picker-today-btn {
+  color: #ff8a2a !important;
+}
+
 /* ── Mobile ── */
 @media (max-width: 600px) {
   .sk-sync-section {

@@ -1,4 +1,4 @@
-const User = require("../models/User");
+import User from "../models/user.js";
 
 /**
  * 🔼 Add XP to a user
@@ -24,4 +24,4 @@ async function addXP(userId, amount) {
   }
 }
 
-module.exports = addXP;
+export default addXP;

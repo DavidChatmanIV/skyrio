@@ -333,4 +333,32 @@ router.post("/posts/:id/report", async (req, res) => {
   }
 });
 
+/* ─────────────────────────────────────────────────────────────
+   GET /api/skyhub/stats  ✅ NEW
+   Returns real counts from the database.
+   Frontend shows these numbers in the hero stats bar.
+───────────────────────────────────────────────────────────── */
+router.get("/stats", async (req, res) => {
+  try {
+    const [postCount, uniqueDestinations] = await Promise.all([
+      SkyHubPost.countDocuments(),
+      SkyHubPost.distinct("destination").then((d) => d.filter(Boolean)),
+    ]);
+
+    // Count unique authors as "travelers"
+    const uniqueAuthors = await SkyHubPost.distinct("author").then((a) =>
+      a.filter(Boolean)
+    );
+
+    return res.json({
+      travelers: uniqueAuthors.length,
+      posts: postCount,
+      countries: uniqueDestinations.length,
+    });
+  } catch (err) {
+    console.error("[skyhub] stats error:", err);
+    return res.status(500).json({ message: "Failed to load stats." });
+  }
+});
+
 export default router;

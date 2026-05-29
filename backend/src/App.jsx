@@ -39,6 +39,10 @@ import TermsOfServicePage from "./pages/TermsOfServicePage";
 // Membership
 import MembershipPage from "./pages/Membership/MembershipPage";
 
+// Sync Together (Group Travel)
+import SyncTogether from "./pages/SyncTogether";
+import SyncGroupPage from "./pages/SyncGroupPage";
+
 // ── Analytics + scroll restoration ────────────────────────────────────────────
 function AppWithTracking() {
   const location = useLocation();
@@ -116,6 +120,24 @@ function AppWithTracking() {
           element={
             <PrivateRoute>
               <MembershipPage />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Sync Together (Group Travel) */}
+        <Route
+          path="/sync-together"
+          element={
+            <PrivateRoute>
+              <SyncTogether />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/sync-together/:id"
+          element={
+            <PrivateRoute>
+              <SyncGroupPage />
             </PrivateRoute>
           }
         />

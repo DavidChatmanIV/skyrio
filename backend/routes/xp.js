@@ -1,18 +1,15 @@
 /**
- * xp.js — backend/routes/
  * ─────────────────────────────────────────────────────────────
- * ADD THESE TWO ROUTES to your existing xp.js route file.
- * They power useXPSystem.js (GET /api/xp/me + POST /api/xp/activity).
+ * XP system routes: GET /api/xp/me + POST /api/xp/activity
  * ─────────────────────────────────────────────────────────────
  */
 
-const express = require("express");
-const router = express.Router();
-const auth = require("../middleware/auth"); // your existing JWT middleware
-const User = require("../models/user");
-const addXP = require("../utils/xpTracker");
+import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth.js";
+import User from "../models/user.js";
+import addXP from "../utils/xpTracker.js";
 
-const {
+import {
   XP_RULES,
   XP_PASSIVE,
   XP_TIERS,
@@ -21,7 +18,9 @@ const {
   getTier,
   getNextTier,
   getTierProgress,
-} = require("../config/xpRules");
+} from "../config/xpRules.js";
+
+const router = Router();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -31,7 +30,7 @@ function todayStr() {
 
 /**
  * Read + mutate the user's xpDailyMeta field.
- * xpDailyMeta shape (stored on User model — add these fields):
+ * xpDailyMeta shape (stored on User model):
  * {
  *   date:         String,   // "YYYY-MM-DD" — resets counts when date changes
  *   counts:       Map,      // { actionKey: Number }
@@ -55,9 +54,7 @@ function getDailyMeta(user) {
 }
 
 function canAwardPassive(meta, key, rule) {
-  // Once-ever guard
   if (rule.once && meta.onceDone.includes(key)) return false;
-  // Daily limit guard
   if (rule.dailyLimit) {
     const count = meta.counts[key] ?? 0;
     if (count >= rule.dailyLimit) return false;
@@ -66,14 +63,20 @@ function canAwardPassive(meta, key, rule) {
 }
 
 function canAwardRule(meta, key, rule) {
-  // Once-ever guard
   if (rule.once && meta.onceDone.includes(key)) return false;
   return true;
 }
 
+// ─── Internal: push to recent events array (max 12) ──────────────────────────
+function pushEvent(user, event) {
+  if (!user.xpRecentEvents) user.xpRecentEvents = [];
+  user.xpRecentEvents.unshift(event);
+  if (user.xpRecentEvents.length > 12) user.xpRecentEvents.length = 12;
+}
+
 // ─── GET /api/xp/me ──────────────────────────────────────────────────────────
 // Returns full XP state for the current user.
-router.get("/me", auth, async (req, res) => {
+router.get("/me", requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).lean();
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -103,7 +106,7 @@ router.get("/me", auth, async (req, res) => {
 // ─── POST /api/xp/activity ───────────────────────────────────────────────────
 // Awards XP for a passive activity OR an active action.
 // Body: { type: "DAILY_SESSION" | "BOOKING_CONFIRMED" | ... }
-router.post("/activity", auth, async (req, res) => {
+router.post("/activity", requireAuth, async (req, res) => {
   const { type } = req.body;
   if (!type) return res.status(400).json({ error: "type is required" });
 
@@ -132,7 +135,6 @@ router.post("/activity", auth, async (req, res) => {
       const yStr = yesterday.toISOString().slice(0, 10);
 
       if (meta.lastStreakDate === today) {
-        // Already handled today — still return current state
         return res.json({ awarded: false, xp: user.xp });
       }
 
@@ -209,14 +211,7 @@ router.post("/activity", auth, async (req, res) => {
   }
 });
 
-// ─── Internal: push to recent events array (max 12) ──────────────────────────
-function pushEvent(user, event) {
-  if (!user.xpRecentEvents) user.xpRecentEvents = [];
-  user.xpRecentEvents.unshift(event);
-  if (user.xpRecentEvents.length > 12) user.xpRecentEvents.length = 12;
-}
-
-module.exports = router;
+export default router;
 
 /**
  * ─────────────────────────────────────────────────────────────
@@ -226,7 +221,7 @@ module.exports = router;
  *
  * membershipPlan:  { type: String, enum: ["free","pro","elite"], default: "free" },
  * xpTotalEarned:  { type: Number, default: 0 },
- * xpDailyTotal:   { type: Number, default: 0 },  // resets daily via cron or on-read
+ * xpDailyTotal:   { type: Number, default: 0 },
  * xpDailyMeta:    { type: mongoose.Schema.Types.Mixed, default: {} },
  * xpRecentEvents: { type: Array, default: [] },
  *
@@ -235,12 +230,12 @@ module.exports = router;
  * ─────────────────────────────────────────────────────────────
  *
  * // backend/jobs/resetDailyXP.js
- * const User = require("../models/User");
+ * import User from "../models/user.js";
  * async function resetDailyXP() {
  *   await User.updateMany({}, { $set: { xpDailyTotal: 0 } });
  *   console.log("✅ Daily XP totals reset");
  * }
- * module.exports = resetDailyXP;
+ * export default resetDailyXP;
  *
  * // In your scheduler (e.g. node-cron):
  * cron.schedule("0 0 * * *", resetDailyXP); // midnight UTC

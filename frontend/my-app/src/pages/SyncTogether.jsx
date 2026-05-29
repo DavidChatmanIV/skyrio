@@ -1,6 +1,12 @@
-import React, { useState } from "react";
-import { Button, Input, Avatar, message as antdMessage } from "antd";
-import { UserAddOutlined, SyncOutlined, TeamOutlined } from "@ant-design/icons";
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { Button, Input, Avatar, message as antdMessage, Spin } from "antd";
+import {
+  UserAddOutlined,
+  SyncOutlined,
+  TeamOutlined,
+  SearchOutlined,
+  LoadingOutlined,
+} from "@ant-design/icons";
 import {
   Brain,
   SplitSquareHorizontal,
@@ -9,7 +15,20 @@ import {
   Plane,
   Users,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import "@/styles/SyncTogether.css";
+
+const API_BASE = "/api";
+
+/** Grab the JWT from localStorage and build auth headers */
+function authHeaders(extra = {}) {
+  const token = localStorage.getItem("token");
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
 
 const FEATURES = [
   {
@@ -35,22 +54,177 @@ const FEATURES = [
 ];
 
 export default function SyncTogether() {
-  const [emails, setEmails] = useState([]);
-  const [inputVal, setInputVal] = useState("");
+  const navigate = useNavigate();
 
-  const addTraveler = () => {
+  // ── Travelers already added ──
+  const [travelers, setTravelers] = useState([]);
+
+  // ── Search state ──
+  const [inputVal, setInputVal] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const debounceRef = useRef(null);
+  const wrapperRef = useRef(null);
+
+  // ── CTA state ──
+  const [creating, setCreating] = useState(false);
+
+  /* ────────────────────────────────────
+     Debounced user search (300ms)
+  ──────────────────────────────────── */
+  const searchUsers = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/sync-together/search?q=${encodeURIComponent(
+          query.trim()
+        )}`,
+        { headers: authHeaders() }
+      );
+      const data = await res.json();
+      if (data.ok) {
+        setResults(data.users || []);
+        setShowDropdown(true);
+      }
+    } catch (err) {
+      console.error("Search failed:", err);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInputVal(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => searchUsers(val), 300);
+  };
+
+  /* ────────────────────────────────────
+     Add traveler from search results
+  ──────────────────────────────────── */
+  const addFromSearch = (user) => {
+    const already = travelers.some((t) => t.id === (user._id || user.id));
+    if (already) {
+      antdMessage.warning("Already added");
+    } else {
+      setTravelers((prev) => [
+        ...prev,
+        {
+          id: user._id || user.id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          avatar: user.avatar,
+        },
+      ]);
+      antdMessage.success(`${user.name || user.username} added`);
+    }
+    setInputVal("");
+    setResults([]);
+    setShowDropdown(false);
+  };
+
+  /* ────────────────────────────────────
+     Add by raw email (Enter or Add btn)
+  ──────────────────────────────────── */
+  const addByEmail = () => {
     const val = inputVal.trim();
     if (!val) return;
-    if (emails.includes(val)) {
+
+    // If dropdown is showing and has results, pick the first
+    if (showDropdown && results.length > 0) {
+      addFromSearch(results[0]);
+      return;
+    }
+
+    // Otherwise treat as an email invite
+    const already = travelers.some(
+      (t) => t.email === val || t.username === val
+    );
+    if (already) {
       antdMessage.warning("Already added");
       return;
     }
-    setEmails((prev) => [...prev, val]);
+
+    setTravelers((prev) => [
+      ...prev,
+      { id: null, email: val, name: val, username: null, avatar: null },
+    ]);
     setInputVal("");
+    setResults([]);
+    setShowDropdown(false);
   };
 
-  const removeTraveler = (email) =>
-    setEmails((prev) => prev.filter((e) => e !== email));
+  /* ────────────────────────────────────
+     Remove traveler
+  ──────────────────────────────────── */
+  const removeTraveler = (traveler) =>
+    setTravelers((prev) =>
+      prev.filter(
+        (t) =>
+          (t.id && t.id !== traveler.id) ||
+          (!t.id && t.email !== traveler.email)
+      )
+    );
+
+  /* ────────────────────────────────────
+     Start Planning Together (CTA)
+  ──────────────────────────────────── */
+  const handleStartPlanning = async () => {
+    if (travelers.length === 0) {
+      antdMessage.warning("Add at least one traveler to get started");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const members = travelers.map((t) => ({
+        userId: t.id || undefined,
+        email: t.email || undefined,
+        name: t.name || undefined,
+      }));
+
+      const res = await fetch(`${API_BASE}/sync-together`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ members }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        antdMessage.success("Group created! Invitations sent.");
+        navigate(`/sync-together/${data.group.id}`);
+      } else {
+        antdMessage.error(data.error || "Something went wrong");
+      }
+    } catch (err) {
+      console.error("Create group failed:", err);
+      antdMessage.error("Failed to create group. Please try again.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  /* ────────────────────────────────────
+     Close dropdown on outside click
+  ──────────────────────────────────── */
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <section className="sk-sync-section">
@@ -101,29 +275,102 @@ export default function SyncTogether() {
         <p className="sk-sync-group-hint">
           Add names or emails — we'll send them a link to join the plan.
         </p>
-        <div className="sk-sync-group-input-row">
-          <Input
-            className="sk-sync-input"
-            value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            onPressEnter={addTraveler}
-            placeholder="Name or email address"
-          />
+
+        {/* Search input + dropdown */}
+        <div className="sk-sync-group-input-row" ref={wrapperRef}>
+          <div className="sk-sync-search-wrapper">
+            <Input
+              className="sk-sync-input"
+              value={inputVal}
+              onChange={handleInputChange}
+              onPressEnter={addByEmail}
+              placeholder="Search by name, username, or email"
+              prefix={<SearchOutlined style={{ color: "#ff8a2a" }} />}
+              suffix={
+                searching ? (
+                  <Spin
+                    indicator={
+                      <LoadingOutlined
+                        style={{ fontSize: 14, color: "#ff8a2a" }}
+                      />
+                    }
+                  />
+                ) : null
+              }
+            />
+
+            {/* Search results dropdown */}
+            {showDropdown && results.length > 0 && (
+              <div className="sk-sync-search-dropdown">
+                {results.map((user) => (
+                  <div
+                    key={user._id || user.id}
+                    className="sk-sync-search-item"
+                    onClick={() => addFromSearch(user)}
+                  >
+                    <Avatar
+                      size={32}
+                      src={
+                        user.avatar && user.avatar !== "/default-avatar.png"
+                          ? user.avatar
+                          : undefined
+                      }
+                      style={{
+                        background: "#ff8a2a",
+                        color: "#1b1024",
+                        fontSize: 13,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {(user.name || user.username || "?")[0].toUpperCase()}
+                    </Avatar>
+                    <div className="sk-sync-search-item-info">
+                      <span className="sk-sync-search-item-name">
+                        {user.name || user.username}
+                      </span>
+                      <span className="sk-sync-search-item-handle">
+                        @{user.username}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* No results message */}
+            {showDropdown &&
+              results.length === 0 &&
+              !searching &&
+              inputVal.trim().length >= 2 && (
+                <div className="sk-sync-search-dropdown">
+                  <div className="sk-sync-search-empty">
+                    No users found — press Enter to invite by email
+                  </div>
+                </div>
+              )}
+          </div>
+
           <Button
             className="sk-sync-add-btn"
             icon={<UserAddOutlined />}
-            onClick={addTraveler}
+            onClick={addByEmail}
           >
             Add
           </Button>
         </div>
 
-        {emails.length > 0 && (
+        {/* Added travelers */}
+        {travelers.length > 0 && (
           <div className="sk-sync-travelers">
-            {emails.map((email) => (
-              <div key={email} className="sk-sync-traveler-pill">
+            {travelers.map((t, i) => (
+              <div key={t.id || t.email || i} className="sk-sync-traveler-pill">
                 <Avatar
                   size={24}
+                  src={
+                    t.avatar && t.avatar !== "/default-avatar.png"
+                      ? t.avatar
+                      : undefined
+                  }
                   style={{
                     background: "#ff8a2a",
                     color: "#1b1024",
@@ -131,13 +378,18 @@ export default function SyncTogether() {
                     fontWeight: 800,
                   }}
                 >
-                  {email[0].toUpperCase()}
+                  {(t.name || t.email || "?")[0].toUpperCase()}
                 </Avatar>
-                <span>{email}</span>
+                <span>{t.name || t.username || t.email}</span>
+                {t.username && (
+                  <span style={{ opacity: 0.5, fontSize: 12 }}>
+                    @{t.username}
+                  </span>
+                )}
                 <button
                   type="button"
                   className="sk-sync-remove"
-                  onClick={() => removeTraveler(email)}
+                  onClick={() => removeTraveler(t)}
                 >
                   ×
                 </button>
@@ -146,10 +398,10 @@ export default function SyncTogether() {
           </div>
         )}
 
-        {emails.length > 0 && (
+        {travelers.length > 0 && (
           <p className="sk-sync-count">
-            {emails.length} traveler{emails.length !== 1 ? "s" : ""} added —
-            ready to sync
+            {travelers.length} traveler{travelers.length !== 1 ? "s" : ""} added
+            — ready to sync
           </p>
         )}
       </div>
@@ -158,8 +410,11 @@ export default function SyncTogether() {
       <div className="sk-sync-cta">
         <Button
           className="sk-sync-cta-btn"
-          icon={<SyncOutlined />}
+          icon={<SyncOutlined spin={creating} />}
           size="large"
+          onClick={handleStartPlanning}
+          loading={creating}
+          disabled={travelers.length === 0}
         >
           Start planning together
         </Button>
