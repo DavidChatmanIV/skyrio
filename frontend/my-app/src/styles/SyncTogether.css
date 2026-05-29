@@ -461,8 +461,19 @@
     flex-direction: column;
     align-items: stretch;
   }
+  .sk-sync-search-wrapper {
+    z-index: 10;
+  }
+  .sk-sync-search-dropdown {
+    z-index: 200;
+    position: absolute;
+    left: 0;
+    right: 0;
+  }
   .sk-sync-add-btn.ant-btn {
     width: 100% !important;
+    position: relative;
+    z-index: 1;
   }
   .sk-sync-title {
     font-size: clamp(26px, 7vw, 36px);
