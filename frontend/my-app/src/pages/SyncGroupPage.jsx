@@ -12,7 +12,6 @@ import {
 import {
   ArrowLeftOutlined,
   SyncOutlined,
-  CopyOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   SendOutlined,
@@ -31,6 +30,8 @@ import {
   Car,
   Compass,
   Package,
+  CheckCircle,
+  Info,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
@@ -53,7 +54,179 @@ function getHomeAirport() {
     return null;
   }
 }
+// ─── Atlas Plan Renderer ──────────────────────────────────────────────────────
+function formatNumbers(text) {
+  // Format bare numbers >= 1000 that aren't already formatted (no comma)
+  return text.replace(/\$(\d{4,})(\.\d+)?/g, (_, int, dec) => {
+    const formatted = parseInt(int).toLocaleString("en-US");
+    return `$${formatted}${dec || ""}`;
+  });
+}
 
+function AtlasPlanRenderer({ plan }) {
+  if (!plan) return null;
+
+  const lines = plan.split("\n");
+  const sections = [];
+  let current = null;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    // Detect ### headers — strip leading "1." "2." numbering
+    const h3Match = line.match(/^###\s+(?:\d+\.\s+)?(.+)/);
+    const boldHeader = line.match(/^\*\*([^*]+)\*\*\s*:?\s*$/);
+
+    if (h3Match || boldHeader) {
+      if (current) sections.push(current);
+      current = {
+        title: (h3Match?.[1] || boldHeader?.[1] || "")
+          .replace(/[*_]/g, "")
+          .trim(),
+        lines: [],
+      };
+    } else if (current) {
+      current.lines.push(line);
+    } else {
+      if (!sections.length) {
+        current = { title: "", lines: [line] };
+      }
+    }
+  }
+  if (current) sections.push(current);
+
+  const sectionIcon = (title) => {
+    const t = title.toLowerCase();
+    if (t.includes("flight")) return <Plane size={15} />;
+    if (t.includes("hotel") || t.includes("accommodat") || t.includes("stay"))
+      return <Hotel size={15} />;
+    if (t.includes("itinerary") || t.includes("day"))
+      return <Calendar size={15} />;
+    if (t.includes("budget") || t.includes("cost") || t.includes("price"))
+      return <DollarSign size={15} />;
+    if (t.includes("tip") || t.includes("coord") || t.includes("group"))
+      return <Users size={15} />;
+    if (t.includes("excursion") || t.includes("activit") || t.includes("tour"))
+      return <Compass size={15} />;
+    return <Info size={15} />;
+  };
+
+  const renderLine = (rawLine, idx) => {
+    const line = formatNumbers(rawLine);
+    const bulletMatch = line.match(/^[-•*]\s+(.+)/);
+    const numberedMatch = line.match(/^\d+\.\s+(.+)/);
+    const content = bulletMatch?.[1] || numberedMatch?.[1] || line;
+
+    // Render inline bold **text**
+    const parts = content.split(/\*\*(.+?)\*\*/g);
+    const formatted = parts.map((p, i) =>
+      i % 2 === 1 ? (
+        <strong key={i} style={{ color: "#fff", fontWeight: 700 }}>
+          {p}
+        </strong>
+      ) : (
+        p
+      )
+    );
+
+    if (bulletMatch || numberedMatch) {
+      return (
+        <div
+          key={idx}
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            marginBottom: 6,
+          }}
+        >
+          <span
+            style={{
+              color: "#ff8a2a",
+              marginTop: 3,
+              flexShrink: 0,
+              fontSize: 12,
+            }}
+          >
+            {numberedMatch ? `${rawLine.match(/^(\d+)\./)[1]}.` : "•"}
+          </span>
+          <span
+            style={{
+              color: "rgba(255,255,255,0.8)",
+              fontSize: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            {formatted}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <p
+        key={idx}
+        style={{
+          color: "rgba(255,255,255,0.75)",
+          fontSize: 14,
+          lineHeight: 1.65,
+          margin: "0 0 6px 0",
+        }}
+      >
+        {formatted}
+      </p>
+    );
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        marginTop: 4,
+      }}
+    >
+      {sections.map((section, si) => (
+        <div
+          key={si}
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 12,
+            overflow: "hidden",
+          }}
+        >
+          {section.title && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 16px",
+                background: "rgba(255,138,42,0.07)",
+                borderBottom: "1px solid rgba(255,138,42,0.12)",
+              }}
+            >
+              <span style={{ color: "#ff8a2a", flexShrink: 0 }}>
+                {sectionIcon(section.title)}
+              </span>
+              <span style={{ color: "#ff8a2a", fontWeight: 700, fontSize: 13 }}>
+                {section.title}
+              </span>
+            </div>
+          )}
+          <div style={{ padding: "14px 16px" }}>
+            {section.lines.map((line, li) => renderLine(line, li))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function SyncGroupPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -62,7 +235,6 @@ export default function SyncGroupPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  // Planning form
   const [editing, setEditing] = useState(false);
   const [destination, setDestination] = useState("");
   const [departureAirport, setDepartureAirport] = useState("");
@@ -70,18 +242,17 @@ export default function SyncGroupPage() {
   const [budget, setBudget] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Atlas
   const [atlasPlan, setAtlasPlan] = useState("");
   const [planLoading, setPlanLoading] = useState(false);
   const [atlasMessages, setAtlasMessages] = useState([]);
+  const [followUp, setFollowUp] = useState("");
+  const [followUpLoading, setFollowUpLoading] = useState(false);
 
-  /* ── Load home airport from localStorage ── */
   useEffect(() => {
     const home = getHomeAirport();
     if (home?.code) setDepartureAirport(home.code);
   }, []);
 
-  /* ── Fetch group ── */
   useEffect(() => {
     async function fetchGroup() {
       try {
@@ -112,7 +283,6 @@ export default function SyncGroupPage() {
     fetchGroup();
   }, [id]);
 
-  /* ── Share ── */
   const shareGroup = async () => {
     const link = `${window.location.origin}/sync-together/join/${group?.inviteCode}`;
     const shareData = {
@@ -142,7 +312,6 @@ export default function SyncGroupPage() {
     });
   };
 
-  /* ── Save trip details ── */
   const saveDetails = async () => {
     setSaving(true);
     try {
@@ -173,7 +342,6 @@ export default function SyncGroupPage() {
     }
   };
 
-  /* ── Ask Atlas to plan ── */
   const askAtlasToPlan = async () => {
     if (!destination) {
       antdMessage.warning("Set a destination first");
@@ -188,7 +356,7 @@ export default function SyncGroupPage() {
       .filter(Boolean)
       .join(", ");
 
-    const travelerCount = (group.members?.length || 0) + 1; // +1 for organizer
+    const travelerCount = (group.members?.length || 0) + 1;
     const tripDays =
       dateRange[0] && dateRange[1]
         ? dateRange[1].diff(dateRange[0], "day")
@@ -224,7 +392,7 @@ Please use your tools to:
 5. Provide a budget breakdown per person
 6. Share group coordination tips
 
-Format the plan clearly with sections. Use real data from your flight search.`;
+Format the plan clearly with sections using ### headings. Use real data from your flight search.`;
 
     const newMessages = [...atlasMessages, { role: "user", content: prompt }];
 
@@ -234,11 +402,7 @@ Format the plan clearly with sections. Use real data from your flight search.`;
         headers: authHeaders(),
         body: JSON.stringify({
           messages: newMessages,
-          context: {
-            destination,
-            budget,
-            tripDays,
-          },
+          context: { destination, budget, tripDays },
         }),
       });
 
@@ -259,10 +423,6 @@ Format the plan clearly with sections. Use real data from your flight search.`;
       setPlanLoading(false);
     }
   };
-
-  /* ── Follow-up with Atlas ── */
-  const [followUp, setFollowUp] = useState("");
-  const [followUpLoading, setFollowUpLoading] = useState(false);
 
   const askFollowUp = async () => {
     if (!followUp.trim()) return;
@@ -298,7 +458,6 @@ Format the plan clearly with sections. Use real data from your flight search.`;
     }
   };
 
-  /* ── Loading / not found ── */
   if (loading) {
     return (
       <section className="sk-sync-section">
@@ -362,15 +521,29 @@ Format the plan clearly with sections. Use real data from your flight search.`;
             gap: 12,
           }}
         >
-          <div>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div className="sk-sync-group-title" style={{ marginBottom: 4 }}>
               <Plane
                 size={16}
-                style={{ marginRight: 8, verticalAlign: "middle" }}
+                style={{
+                  marginRight: 8,
+                  verticalAlign: "middle",
+                  flexShrink: 0,
+                }}
               />
-              {group.title || "Untitled Trip"}
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {group.title || "Untitled Trip"}
+              </span>
               {group.destination && (
-                <span style={{ color: "#ff8a2a", marginLeft: 8 }}>
+                <span
+                  style={{ color: "#ff8a2a", marginLeft: 8, flexShrink: 0 }}
+                >
                   → {group.destination}
                 </span>
               )}
@@ -381,6 +554,7 @@ Format the plan clearly with sections. Use real data from your flight search.`;
                 alignItems: "center",
                 gap: 8,
                 marginTop: 8,
+                flexWrap: "wrap",
               }}
             >
               <span
@@ -391,13 +565,20 @@ Format the plan clearly with sections. Use real data from your flight search.`;
                   borderRadius: 20,
                   fontSize: 12,
                   fontWeight: 600,
+                  whiteSpace: "nowrap",
                 }}
               >
                 <SyncOutlined style={{ marginRight: 4 }} />
                 {statusLabel[group.status] || group.status}
               </span>
               {group.inviteCode && (
-                <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+                <span
+                  style={{
+                    color: "rgba(255,255,255,0.4)",
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   Code: {group.inviteCode}
                 </span>
               )}
@@ -407,8 +588,9 @@ Format the plan clearly with sections. Use real data from your flight search.`;
             icon={copied ? <CheckCircleOutlined /> : <Share2 size={14} />}
             onClick={shareGroup}
             className="sk-sync-add-btn"
+            style={{ flexShrink: 0 }}
           >
-            {copied ? "Copied!" : "Share with group"}
+            {copied ? "Copied!" : "Share"}
           </Button>
         </div>
       </div>
@@ -453,22 +635,46 @@ Format the plan clearly with sections. Use real data from your flight search.`;
                   background: "#ff8a2a",
                   color: "#1b1024",
                   fontWeight: 800,
+                  flexShrink: 0,
                 }}
               >
                 {(group.owner.name ||
                   group.owner.username ||
                   "?")[0].toUpperCase()}
               </Avatar>
-              <div>
-                <div style={{ color: "#fff", fontWeight: 600 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    color: "#fff",
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
                   {group.owner.name || group.owner.username}
                 </div>
                 <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
                   Organizer
                 </div>
               </div>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "3px 10px",
+                  borderRadius: 12,
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
+                  background: "rgba(255,138,42,0.15)",
+                  color: "#ff8a2a",
+                }}
+              >
+                Host
+              </span>
             </div>
           )}
+
           {group.members?.map((m, i) => (
             <div
               key={m._id || i}
@@ -493,12 +699,21 @@ Format the plan clearly with sections. Use real data from your flight search.`;
                   background: "#2a1f3d",
                   color: "#ff8a2a",
                   fontWeight: 800,
+                  flexShrink: 0,
                 }}
               >
                 {(m.name || m.email || m.user?.name || "?")[0].toUpperCase()}
               </Avatar>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: "#fff", fontWeight: 500 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    color: "#fff",
+                    fontWeight: 500,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
                   {m.user?.name || m.name || m.email}
                 </div>
                 {m.user?.username && (
@@ -515,6 +730,8 @@ Format the plan clearly with sections. Use real data from your flight search.`;
                   fontWeight: 600,
                   padding: "3px 10px",
                   borderRadius: 12,
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
                   background:
                     m.status === "accepted"
                       ? "rgba(82,196,26,0.15)"
@@ -728,7 +945,7 @@ Format the plan clearly with sections. Use real data from your flight search.`;
         )}
       </div>
 
-      {/* ── What's Included (future APIs) ── */}
+      {/* ── Trip Package ── */}
       <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
         <div className="sk-sync-group-title">
           <Package
@@ -806,6 +1023,7 @@ Format the plan clearly with sections. Use real data from your flight search.`;
                       item.status === "active"
                         ? "#ff8a2a"
                         : "rgba(255,255,255,0.3)",
+                    flexShrink: 0,
                   }}
                 >
                   {item.icon}
@@ -821,6 +1039,7 @@ Format the plan clearly with sections. Use real data from your flight search.`;
                       background: "rgba(255,255,255,0.06)",
                       padding: "2px 8px",
                       borderRadius: 10,
+                      whiteSpace: "nowrap",
                     }}
                   >
                     Soon
@@ -866,57 +1085,52 @@ Format the plan clearly with sections. Use real data from your flight search.`;
 
         {atlasPlan && (
           <>
-            <div
-              style={{
-                marginTop: 20,
-                padding: 20,
-                background: "rgba(255,138,42,0.06)",
-                border: "1px solid rgba(255,138,42,0.2)",
-                borderRadius: 12,
-              }}
-            >
+            {/* ── Rendered Plan ── */}
+            <div style={{ marginTop: 20 }}>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  marginBottom: 12,
+                  marginBottom: 14,
                 }}
               >
-                <Sparkles size={16} style={{ color: "#ff8a2a" }} />
+                <Sparkles
+                  size={16}
+                  style={{ color: "#ff8a2a", flexShrink: 0 }}
+                />
                 <span
                   style={{ color: "#ff8a2a", fontWeight: 700, fontSize: 14 }}
                 >
                   Atlas's Plan
                 </span>
               </div>
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.85)",
-                  fontSize: 14,
-                  lineHeight: 1.7,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {atlasPlan}
-              </div>
+              <AtlasPlanRenderer plan={atlasPlan} />
             </div>
 
-            {/* Follow-up */}
-            <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+            {/* ── Follow-up ── */}
+            <div
+              style={{
+                marginTop: 16,
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+              }}
+            >
               <Input
                 className="sk-sync-input"
                 value={followUp}
                 onChange={(e) => setFollowUp(e.target.value)}
                 onPressEnter={askFollowUp}
                 placeholder="Ask Atlas to adjust the plan..."
-                style={{ flex: 1 }}
+                style={{ flex: 1, minWidth: 0 }}
               />
               <Button
                 className="sk-sync-add-btn"
                 icon={<SendOutlined />}
                 onClick={askFollowUp}
                 loading={followUpLoading}
+                style={{ flexShrink: 0 }}
               >
                 Send
               </Button>
