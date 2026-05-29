@@ -61,7 +61,7 @@ const { Option } = Select;
 const API = import.meta.env.VITE_API_URL || "";
 
 // ─────────────────────────────────────────────
-// SVG Weather Icons — replace all Apple emoji
+// SVG Weather Icons
 // ─────────────────────────────────────────────
 
 function WeatherSunny({ size = 22 }) {
@@ -326,7 +326,7 @@ function WeatherGlobe({ size = 22 }) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="rgba(255,255,255,0.55)"
+      stroke="rgba(255,255,255,0.5)"
       strokeWidth="1.8"
       aria-hidden="true"
       style={{ display: "block" }}
@@ -340,8 +340,7 @@ function WeatherGlobe({ size = 22 }) {
   );
 }
 
-// ─── Form-specific SVG icons (replace emoji in Package/LastMinute forms) ───
-
+// ── Form-specific icons ──────────────────────────────────────
 function IconHotel({ size = 14 }) {
   return (
     <svg
@@ -398,137 +397,6 @@ function IconCar({ size = 14 }) {
   );
 }
 
-function IconSparkle({ size = 14 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-      style={{ display: "inline-block", verticalAlign: "middle" }}
-    >
-      <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
-    </svg>
-  );
-}
-
-function IconBeach({ size = 14 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "inline-block", verticalAlign: "middle" }}
-    >
-      <path
-        d="M2 22c2-2 4-2 6 0s4 2 6 0 4-2 6 0"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx="17" cy="5" r="3" fill="#FFB347" />
-      <line
-        x1="10"
-        y1="8"
-        x2="10"
-        y2="20"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M10 8C10 8 4 4 3 6.5C2 9 8 12 10 8Z"
-        fill="#66BB6A"
-        opacity="0.8"
-      />
-      <path
-        d="M10 8C10 8 16 4 17 6.5C18 9 12 12 10 8Z"
-        fill="#81C784"
-        opacity="0.8"
-      />
-    </svg>
-  );
-}
-
-function IconCity({ size = 14 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      opacity="0.8"
-      aria-hidden="true"
-      style={{ display: "inline-block", verticalAlign: "middle" }}
-    >
-      <rect x="2" y="10" width="5" height="12" rx="0.5" />
-      <rect x="9" y="4" width="6" height="18" rx="0.5" />
-      <rect x="17" y="8" width="5" height="14" rx="0.5" />
-      <rect x="10.5" y="6" width="1.2" height="1.2" rx="0.3" fill="#FFB347" />
-      <rect x="12.5" y="6" width="1.2" height="1.2" rx="0.3" fill="#FFB347" />
-      <rect x="10.5" y="9" width="1.2" height="1.2" rx="0.3" fill="#FFB347" />
-      <rect x="12.5" y="9" width="1.2" height="1.2" rx="0.3" fill="#FFB347" />
-    </svg>
-  );
-}
-
-function IconMountain({ size = 14 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "inline-block", verticalAlign: "middle" }}
-    >
-      <path d="M8 21L1 21L8 6L11.5 12.5" />
-      <path d="M14 21L23 21L16 6L12.5 12.5" />
-      <path
-        d="M14.5 9L16 6L17.5 9"
-        fill="rgba(255,255,255,0.3)"
-        stroke="none"
-      />
-    </svg>
-  );
-}
-
-function IconFerrisWheel({ size = 14 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      aria-hidden="true"
-      style={{ display: "inline-block", verticalAlign: "middle" }}
-    >
-      <circle cx="12" cy="10" r="8" />
-      <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
-      <line x1="12" y1="2" x2="12" y2="4" />
-      <line x1="12" y1="16" x2="12" y2="18" />
-      <line x1="4" y1="10" x2="6" y2="10" />
-      <line x1="18" y1="10" x2="20" y2="10" />
-      <line x1="6.3" y1="4.3" x2="7.8" y2="5.8" />
-      <line x1="16.2" y1="14.2" x2="17.7" y2="15.7" />
-      <line x1="6.3" y1="15.7" x2="7.8" y2="14.2" />
-      <line x1="16.2" y1="5.8" x2="17.7" y2="4.3" />
-      <line x1="8" y1="18" x2="12" y2="23" />
-      <line x1="16" y1="18" x2="12" y2="23" />
-    </svg>
-  );
-}
-
 function IconWarning({ size = 14 }) {
   return (
     <svg
@@ -554,7 +422,9 @@ function IconWarning({ size = 14 }) {
   );
 }
 
-// ✅ Pagination — results per page
+// ─────────────────────────────────────────────
+// Constants & Helpers
+// ─────────────────────────────────────────────
 const RESULTS_PER_PAGE = 5;
 
 const DEFAULT_FILTERS = {
@@ -695,15 +565,16 @@ function extractDestFromPrompt(prompt) {
 }
 
 function getAutoSearchDates(tripDays = 10) {
-  const departDate = dayjs().add(14, "day").format("YYYY-MM-DD");
-  const returnDate = dayjs()
-    .add(14 + tripDays, "day")
-    .format("YYYY-MM-DD");
-  return { departDate, returnDate };
+  return {
+    departDate: dayjs().add(14, "day").format("YYYY-MM-DD"),
+    returnDate: dayjs()
+      .add(14 + tripDays, "day")
+      .format("YYYY-MM-DD"),
+  };
 }
 
 // ─────────────────────────────────────────────
-// Weather data — SVG components replace emoji
+// Weather data
 // ─────────────────────────────────────────────
 const CITY_WEATHER = {
   "new york": {
@@ -858,6 +729,10 @@ function getWeatherForCity(cityStr) {
   return DEFAULT_WEATHER;
 }
 
+// ─────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────
+
 function SearchBtn({ onClick, loading }) {
   return (
     <Button
@@ -871,12 +746,13 @@ function SearchBtn({ onClick, loading }) {
   );
 }
 
-// ── Tab bar ───────────────────────────────────────────────────
+// ── Tab bar ──────────────────────────────────
 const PRIMARY_TABS = [
   { key: "Flights", label: "Flights" },
   { key: "Stays", label: "Stays" },
   { key: "Saved", label: "Saved" },
 ];
+
 const MORE_TABS = [
   { key: "Cars", label: "Cars" },
   { key: "Excursions", label: "Excursions" },
@@ -929,8 +805,8 @@ function BookingTabBar({ value, onChange }) {
             : "More"}
           <span
             style={{
-              fontSize: 10,
-              opacity: 0.7,
+              fontSize: 9,
+              opacity: 0.6,
               display: "inline-block",
               transition: "transform 0.18s",
               transform: moreOpen ? "rotate(180deg)" : "none",
@@ -960,7 +836,7 @@ function BookingTabBar({ value, onChange }) {
   );
 }
 
-// ── ✅ One-way / Round-trip toggle ────────────────────────────
+// ── Trip type toggle ──────────────────────────
 function TripTypeToggle({ value, onChange }) {
   return (
     <div className="sk-trip-type">
@@ -978,7 +854,7 @@ function TripTypeToggle({ value, onChange }) {
   );
 }
 
-// ── Search forms ──────────────────────────────────────────────
+// ── Search forms ──────────────────────────────
 function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
@@ -1014,6 +890,7 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
     if (!dates[0]) return antdMessage.warning("Select a departure date");
     if (tripType === "roundtrip" && !dates[1])
       return antdMessage.warning("Select a return date, or switch to One way");
+
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -1069,7 +946,12 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
             setOriginDisplay(`${ap.city} (${ap.code})`);
           }}
         />
-        <button type="button" className="sk-swap-btn" onClick={handleSwap}>
+        <button
+          type="button"
+          className="sk-swap-btn"
+          onClick={handleSwap}
+          aria-label="Swap airports"
+        >
           <SwapOutlined />
         </button>
         <AirportInput
@@ -1096,9 +978,9 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
           placeholder="Departure date"
           disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
           onChange={(date) => {
-            const newDates = [date, null];
-            setDates(newDates);
-            onDatesChange?.({ dates: newDates, nights: null });
+            const nd = [date, null];
+            setDates(nd);
+            onDatesChange?.({ dates: nd, nights: null });
           }}
         />
       )}
@@ -1114,6 +996,7 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
         <Option value="business">Business</Option>
         <Option value="first">First Class</Option>
       </Select>
+
       <InputNumber
         className="sk-input-travelers"
         min={1}
@@ -1122,6 +1005,7 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
         onChange={(v) => setAdults(v ?? 1)}
         placeholder="Travelers"
       />
+
       <SearchBtn onClick={handleSearch} loading={loading} />
     </div>
   );
@@ -1130,18 +1014,14 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
 function StaysForm({ onDestChange, onDatesChange }) {
   const handleDatesChange = useCallback(
     (v) => {
-      const newDates = v ?? [null, null];
-      if (newDates[0] && newDates[1]) {
-        onDatesChange?.({
-          dates: newDates,
-          nights: newDates[1].diff(newDates[0], "day"),
-        });
-      } else {
-        onDatesChange?.({ dates: newDates, nights: null });
-      }
+      const nd = v ?? [null, null];
+      if (nd[0] && nd[1])
+        onDatesChange?.({ dates: nd, nights: nd[1].diff(nd[0], "day") });
+      else onDatesChange?.({ dates: nd, nights: null });
     },
     [onDatesChange]
   );
+
   return (
     <div className="sk-search-bar">
       <AirportInput
@@ -1206,20 +1086,14 @@ function PackagesForm({ onDestChange, onDatesChange }) {
 
   const handleDatesChange = useCallback(
     (v) => {
-      const newDates = v ?? [null, null];
-      if (newDates[0] && newDates[1]) {
-        onDatesChange?.({
-          dates: newDates,
-          nights: newDates[1].diff(newDates[0], "day"),
-        });
-      } else {
-        onDatesChange?.({ dates: newDates, nights: null });
-      }
+      const nd = v ?? [null, null];
+      if (nd[0] && nd[1])
+        onDatesChange?.({ dates: nd, nights: nd[1].diff(nd[0], "day") });
+      else onDatesChange?.({ dates: nd, nights: null });
     },
     [onDatesChange]
   );
 
-  /* ✅ SVG icons replace emoji in package pills */
   const PKG_PILLS = [
     { key: "stay", Icon: IconHotel, label: "Stay" },
     { key: "flight", Icon: IconFlight, label: "Flight" },
@@ -1304,7 +1178,6 @@ function ExcursionsForm({ onDestChange }) {
   );
 }
 
-/* ✅ SVG icons replace emoji in Last-Minute select options */
 function LastMinuteForm() {
   return (
     <div className="sk-search-bar">
@@ -1390,7 +1263,7 @@ function SavedForm() {
   if (!trips.length)
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
-        <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
+        <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 14 }}>
           No saved trips yet — hit Save on any result to add one
         </Text>
       </div>
@@ -1433,6 +1306,7 @@ function SavedForm() {
   );
 }
 
+// ── Skeleton ──────────────────────────────────
 function FlightSkeleton() {
   return (
     <div className="sk-flight-skeleton">
@@ -1442,15 +1316,15 @@ function FlightSkeleton() {
           <div className="sk-skeleton-body">
             <div
               className="sk-skeleton-line sk-shimmer"
-              style={{ width: "55%" }}
+              style={{ width: "52%" }}
             />
             <div
               className="sk-skeleton-line sk-shimmer"
-              style={{ width: "40%", marginTop: 8 }}
+              style={{ width: "38%", marginTop: 8 }}
             />
             <div
               className="sk-skeleton-line sk-shimmer"
-              style={{ width: "30%", marginTop: 8 }}
+              style={{ width: "28%", marginTop: 8 }}
             />
           </div>
           <div className="sk-skeleton-price sk-shimmer" />
@@ -1460,6 +1334,9 @@ function FlightSkeleton() {
   );
 }
 
+// ─────────────────────────────────────────────
+// Main Page
+// ─────────────────────────────────────────────
 export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
@@ -1551,8 +1428,7 @@ export default function BookingPage() {
 
   const handleWatchFlight = useCallback(
     async (flight) => {
-      const alreadyWatching = watchingId === flight.id;
-      if (alreadyWatching) {
+      if (watchingId === flight.id) {
         setWatchingId(null);
         antdMessage.info("Stopped watching this flight.");
         return;
@@ -1617,6 +1493,7 @@ export default function BookingPage() {
   const budgetSeed = prefillData?.budget ?? null;
   const tripDaySeed = prefillData?.tripDays ?? null;
 
+  // Auto-search on mount when prefillData has an IATA code
   useEffect(() => {
     if (!prefillData?.iata || autoSearchDone) return;
     const { iata, tripDays: days = 10 } = prefillData;
@@ -1683,12 +1560,10 @@ export default function BookingPage() {
     () => applyFilters(flightResults, smartFilters),
     [flightResults, smartFilters]
   );
-
   const paginatedFlights = useMemo(
     () => visibleFlights.slice(0, visibleCount),
     [visibleFlights, visibleCount]
   );
-
   const hasMore = visibleCount < visibleFlights.length;
 
   const activeFilterCount = useMemo(
@@ -1702,12 +1577,10 @@ export default function BookingPage() {
 
   const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
   const weatherTitle = weather.label
-    ? `${weather.label} Weather${weather.temp ? ` • ${weather.temp}` : ""}`
+    ? `${weather.label}${weather.temp ? `  ·  ${weather.temp}` : ""}`
     : "Select a destination";
 
-  const heroRoute = destCity
-    ? `${fromCode} → ${destCity}`
-    : "Search for your next trip";
+  const heroRoute = destCity ? `${fromCode} → ${destCity}` : "Where to next?";
   const heroNights = selectedNights
     ? `${selectedNights} night${selectedNights !== 1 ? "s" : ""}`
     : "";
@@ -1737,7 +1610,6 @@ export default function BookingPage() {
   const handleBudgetChange = useCallback((state) => {
     setBudgetState(state);
   }, []);
-
   const scrollToBudget = useCallback(() => {
     budgetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
@@ -1815,16 +1687,19 @@ export default function BookingPage() {
   return (
     <div className="sk-booking" style={{ "--sk-bg-image": `url(${heroImg})` }}>
       <div className="sk-booking-hero">
+        {/* ── Hero headline ── */}
         <Title className="sk-hero-title">
-          Let's lock in your next adventure
+          Lock in your{" "}
+          <span className="sk-hero-title-accent">next adventure.</span>
         </Title>
 
+        {/* ── Trip state card ── */}
         <div className="sk-tripState">
           <div className="sk-tripRoute">{heroRoute}</div>
           <div className="sk-tripMeta">
-            {heroNights && `${heroNights} • `}
+            {heroNights && `${heroNights}  ·  `}
             {weather.sub}
-            {destCity && " • Best value window"}
+            {destCity && "  ·  Best value window"}
           </div>
           <div className="sk-tripAssist">
             {autoSearchLoading
@@ -1836,6 +1711,7 @@ export default function BookingPage() {
               : "Enter your destination to get started"}
           </div>
 
+          {/* Prefill strip */}
           {prefillData && !prefillDismissed && (
             <div className="sk-prefill-strip">
               {!prefillEditing ? (
@@ -1946,18 +1822,20 @@ export default function BookingPage() {
             </div>
           )}
 
-          <Space size="middle" className="sk-hero-pills">
+          {/* Pills row */}
+          <Space size={8} className="sk-hero-pills">
             <div className="sk-pill sk-pill-orange">
               <Zap
-                size={13}
+                size={12}
                 style={{ marginRight: 4, verticalAlign: "middle" }}
-              />{" "}
+              />
               XP 60
             </div>
+
             {!aiInsightDismissed ? (
               <div className="sk-ai-insight-pill">
                 <span className="sk-ai-insight-icon">
-                  <Zap size={14} />
+                  <Zap size={13} />
                 </span>
                 <span className="sk-ai-insight-text">
                   <strong>AI Insight:</strong> Prices expected to rise +$40
@@ -1978,12 +1856,13 @@ export default function BookingPage() {
                 onClick={() => setAiInsightDismissed(false)}
               >
                 <Zap
-                  size={13}
+                  size={12}
                   style={{ marginRight: 4, verticalAlign: "middle" }}
                 />{" "}
                 AI Insight
               </button>
             )}
+
             <button
               type="button"
               className={`sk-pill sk-pill-glass sk-pill-toggle${
@@ -1994,7 +1873,7 @@ export default function BookingPage() {
               {priceWatchOn ? (
                 <>
                   <Bell
-                    size={13}
+                    size={12}
                     style={{ marginRight: 4, verticalAlign: "middle" }}
                   />{" "}
                   Price Watch On
@@ -2002,7 +1881,7 @@ export default function BookingPage() {
               ) : (
                 <>
                   <BellOff
-                    size={13}
+                    size={12}
                     style={{ marginRight: 4, verticalAlign: "middle" }}
                   />{" "}
                   Price Watch Off
@@ -2016,6 +1895,7 @@ export default function BookingPage() {
           Smart Plan AI helps balance budget, comfort, and XP.
         </Text>
 
+        {/* ── Tab bar ── */}
         <BookingTabBar
           value={tab}
           onChange={(val) => {
@@ -2027,21 +1907,23 @@ export default function BookingPage() {
           }}
         />
 
-        {/* ✅ Weather strip — SVG Icon component replaces emoji string */}
+        {/* ── Weather strip ── */}
         <div className="sk-weatherStrip">
           <div className="sk-weatherInner">
             <div className="sk-weatherTop">
               <span className="sk-weatherIcon">
-                <weather.Icon size={22} />
+                <weather.Icon size={20} />
               </span>
-              <span className="sk-weatherTitle">{weatherTitle}</span>
+              <span>{weatherTitle}</span>
             </div>
             <div className="sk-weatherSub">{weather.sub}</div>
           </div>
         </div>
 
+        {/* ── Search form ── */}
         {searchForm}
 
+        {/* ── Smart filter bar ── */}
         <SmartFilterBar
           filters={smartFilters}
           onChange={setSmartFilters}
@@ -2049,6 +1931,7 @@ export default function BookingPage() {
           visible={tab === "Flights"}
         />
 
+        {/* ── Action row ── */}
         <Space className="sk-action-row" wrap>
           <Button className="sk-btn-orange">Sort: Recommended</Button>
           <Link to="/sync-together">
@@ -2064,13 +1947,14 @@ export default function BookingPage() {
             >
               <ChevronsDown
                 size={13}
-                style={{ marginRight: 5, verticalAlign: "middle" }}
+                style={{ marginRight: 4, verticalAlign: "middle" }}
               />
               Trip Budget
             </button>
           )}
         </Space>
 
+        {/* ── Quick filters ── */}
         {tab === "Flights" && (
           <Space className="sk-filters" wrap>
             {quickFilters.map((f) => (
@@ -2098,8 +1982,12 @@ export default function BookingPage() {
         )}
       </div>
 
+      {/* ═══════════════════════════════════
+          RESULTS + BUDGET
+      ═══════════════════════════════════ */}
       <Row gutter={[24, 24]} className="sk-results-wrap">
         <Col xs={24} lg={16}>
+          {/* Results header */}
           <div className="sk-resultsHeader">
             <Title level={4} className="sk-section-title">
               {resultsTitle}
@@ -2108,13 +1996,13 @@ export default function BookingPage() {
               {autoSearchLoading
                 ? `Searching ${fromCode} → ${
                     prefillData?.iata ?? destCity
-                  } • today +14 days`
+                  } · today +14 days`
                 : visibleFlights.length > 0
-                ? `Sorted by price • ${fromCode} → ${
+                ? `Sorted by price · ${fromCode} → ${
                     prefillData?.iata ?? destCity
                   }${
                     activeFilterCount > 0
-                      ? ` • ${activeFilterCount} filter${
+                      ? ` · ${activeFilterCount} filter${
                           activeFilterCount > 1 ? "s" : ""
                         } active`
                       : ""
@@ -2136,8 +2024,10 @@ export default function BookingPage() {
               )}
           </div>
 
+          {/* Loading skeleton */}
           {autoSearchLoading && <FlightSkeleton />}
 
+          {/* Error state */}
           {!autoSearchLoading && autoSearchError && (
             <div className="sk-search-error">
               <IconWarning size={14} /> {autoSearchError} —{" "}
@@ -2154,6 +2044,7 @@ export default function BookingPage() {
             </div>
           )}
 
+          {/* Flight results */}
           {!autoSearchLoading &&
             paginatedFlights.length > 0 &&
             paginatedFlights.map((flight) => (
@@ -2170,7 +2061,7 @@ export default function BookingPage() {
                     total: parseFloat(flight.totalAmount),
                   })
                 }
-                style={{ cursor: "pointer", marginBottom: 16 }}
+                style={{ cursor: "pointer", marginBottom: 14 }}
               >
                 <div className="sk-resultRow">
                   <div className="sk-thumb" />
@@ -2183,7 +2074,7 @@ export default function BookingPage() {
                             <EnvironmentOutlined /> {flight.origin} →{" "}
                             {flight.destination}
                           </span>
-                          <span className="sk-metaDot">•</span>
+                          <span className="sk-metaDot">·</span>
                           <span className="sk-metaItem">
                             {flight.stops === 0
                               ? "Nonstop"
@@ -2193,10 +2084,10 @@ export default function BookingPage() {
                           </span>
                           {flight.departingAt && (
                             <>
-                              <span className="sk-metaDot">•</span>
+                              <span className="sk-metaDot">·</span>
                               <span className="sk-metaItem">
                                 {dayjs(flight.departingAt).format(
-                                  "MMM D • h:mm A"
+                                  "MMM D · h:mm A"
                                 )}{" "}
                                 → {dayjs(flight.arrivingAt).format("h:mm A")}
                               </span>
@@ -2204,7 +2095,7 @@ export default function BookingPage() {
                           )}
                         </div>
                         <div className="sk-pickedWhy">
-                          Why Skyrio picked this: best price + comfort score
+                          Best price + comfort score
                         </div>
                       </div>
                       <div className="sk-resultRight">
@@ -2254,9 +2145,9 @@ export default function BookingPage() {
                           {watchingId === flight.id ? (
                             <>
                               <Bell
-                                size={12}
+                                size={11}
                                 style={{
-                                  marginRight: 4,
+                                  marginRight: 3,
                                   verticalAlign: "middle",
                                 }}
                               />{" "}
@@ -2265,9 +2156,9 @@ export default function BookingPage() {
                           ) : (
                             <>
                               <BellOff
-                                size={12}
+                                size={11}
                                 style={{
-                                  marginRight: 4,
+                                  marginRight: 3,
                                   verticalAlign: "middle",
                                 }}
                               />{" "}
@@ -2321,9 +2212,10 @@ export default function BookingPage() {
               </Card>
             ))}
 
+          {/* Load more */}
           {!autoSearchLoading && hasMore && (
             <div
-              style={{ textAlign: "center", marginTop: 8, marginBottom: 24 }}
+              style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
             >
               <button
                 type="button"
@@ -2340,41 +2232,58 @@ export default function BookingPage() {
                   visibleFlights.length - visibleCount
                 )}{" "}
                 more flights
-                <span style={{ opacity: 0.5, marginLeft: 8, fontSize: 12 }}>
-                  {visibleCount} of {visibleFlights.length} shown
+                <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
+                  {visibleCount} of {visibleFlights.length}
                 </span>
               </button>
             </div>
           )}
 
+          {/* Empty state */}
           {!autoSearchLoading &&
             flightResults.length === 0 &&
             !autoSearchError && (
               <div
                 style={{
                   textAlign: "center",
-                  padding: "48px 24px",
-                  color: "rgba(255,255,255,0.45)",
-                  fontSize: 15,
+                  padding: "52px 24px",
+                  color: "rgba(255,255,255,0.38)",
+                  fontSize: 14,
                 }}
               >
-                <div style={{ fontSize: 40, marginBottom: 12 }}>
+                <div style={{ marginBottom: 14 }}>
                   <PlaneIcon
                     size={40}
-                    strokeWidth={1.5}
-                    color="rgba(255,255,255,0.45)"
+                    strokeWidth={1.25}
+                    color="rgba(255,255,255,0.28)"
                   />
                 </div>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                <div
+                  style={{
+                    fontFamily: "var(--sk-font-display)",
+                    fontWeight: 700,
+                    fontSize: 17,
+                    color: "rgba(255,255,255,0.75)",
+                    letterSpacing: "-0.01em",
+                    marginBottom: 7,
+                  }}
+                >
                   Ready when you are
                 </div>
-                <div style={{ fontSize: 13 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 300,
+                    color: "rgba(255,255,255,0.38)",
+                  }}
+                >
                   Select airports and dates above to search live flights
                 </div>
               </div>
             )}
         </Col>
 
+        {/* Budget sidebar */}
         <Col xs={24} lg={8}>
           <div ref={budgetRef}>
             <TripBudgetCard
