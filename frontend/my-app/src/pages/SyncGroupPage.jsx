@@ -1,4 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Button,
@@ -17,6 +23,11 @@ import {
   SendOutlined,
   EditOutlined,
   SaveOutlined,
+  CheckOutlined,
+  ExclamationCircleOutlined,
+  LockOutlined,
+  SearchOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons";
 import {
   Users,
@@ -30,7 +41,8 @@ import {
   Car,
   Compass,
   Package,
-  CheckCircle,
+  MessageSquare,
+  ThumbsUp,
   Info,
 } from "lucide-react";
 import dayjs from "dayjs";
@@ -54,9 +66,144 @@ function getHomeAirport() {
     return null;
   }
 }
+
+function getCurrentUserId() {
+  try {
+    const data = localStorage.getItem("user");
+    return data ? JSON.parse(data).id : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Airport Search Input ─────────────────────────────────────────────────────
+function AirportSearchInput({ value, onChange, placeholder }) {
+  const [query, setQuery] = useState(value || "");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showDrop, setShowDrop] = useState(false);
+  const debounceRef = useRef(null);
+  const wrapperRef = useRef(null);
+
+  const searchAirports = useCallback(async (q) => {
+    if (!q || q.trim().length < 2) {
+      setResults([]);
+      setShowDrop(false);
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/airports?q=${encodeURIComponent(q.trim())}`,
+        {
+          headers: authHeaders(),
+        }
+      );
+      const data = await res.json();
+      setResults(Array.isArray(data) ? data.slice(0, 8) : []);
+      setShowDrop(true);
+    } catch {
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => searchAirports(val), 250);
+  };
+
+  const selectAirport = (airport) => {
+    const code = airport.code || airport.iata || airport.iata_code || "";
+    const city = airport.city || airport.municipality || "";
+    const display = `${code} — ${airport.name || city}`;
+    setQuery(display);
+    setShowDrop(false);
+    setResults([]);
+    onChange(code, airport);
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target))
+        setShowDrop(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Sync external value
+  useEffect(() => {
+    if (value && !query) setQuery(value);
+  }, [value]);
+
+  return (
+    <div ref={wrapperRef} style={{ position: "relative" }}>
+      <Input
+        className="sk-sync-input"
+        value={query}
+        onChange={handleChange}
+        placeholder={placeholder || "Search airport (e.g. EWR, Newark)"}
+        prefix={<SearchOutlined style={{ color: "#ff8a2a" }} />}
+        suffix={
+          searching ? (
+            <Spin
+              indicator={
+                <LoadingOutlined style={{ fontSize: 14, color: "#ff8a2a" }} />
+              }
+            />
+          ) : null
+        }
+      />
+      {showDrop && results.length > 0 && (
+        <div className="sk-sync-search-dropdown">
+          {results.map((ap, i) => {
+            const code = ap.code || ap.iata || ap.iata_code || "";
+            const city = ap.city || ap.municipality || "";
+            const country = ap.country || ap.country_name || "";
+            return (
+              <div
+                key={`${code}-${i}`}
+                className="sk-sync-search-item"
+                onClick={() => selectAirport(ap)}
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    background: "rgba(255,138,42,0.12)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Plane size={16} style={{ color: "#ff8a2a" }} />
+                </div>
+                <div className="sk-sync-search-item-info">
+                  <span className="sk-sync-search-item-name">
+                    {code} — {ap.name || city}
+                  </span>
+                  <span className="sk-sync-search-item-handle">
+                    {city}
+                    {country ? `, ${country}` : ""}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Atlas Plan Renderer ──────────────────────────────────────────────────────
 function formatNumbers(text) {
-  // Format bare numbers >= 1000 that aren't already formatted (no comma)
   return text.replace(/\$(\d{4,})(\.\d+)?/g, (_, int, dec) => {
     const formatted = parseInt(int).toLocaleString("en-US");
     return `$${formatted}${dec || ""}`;
@@ -74,7 +221,6 @@ function AtlasPlanRenderer({ plan }) {
     const line = raw.trim();
     if (!line) continue;
 
-    // Detect ### headers — strip leading "1." "2." numbering
     const h3Match = line.match(/^###\s+(?:\d+\.\s+)?(.+)/);
     const boldHeader = line.match(/^\*\*([^*]+)\*\*\s*:?\s*$/);
 
@@ -89,9 +235,7 @@ function AtlasPlanRenderer({ plan }) {
     } else if (current) {
       current.lines.push(line);
     } else {
-      if (!sections.length) {
-        current = { title: "", lines: [line] };
-      }
+      if (!sections.length) current = { title: "", lines: [line] };
     }
   }
   if (current) sections.push(current);
@@ -118,7 +262,6 @@ function AtlasPlanRenderer({ plan }) {
     const numberedMatch = line.match(/^\d+\.\s+(.+)/);
     const content = bulletMatch?.[1] || numberedMatch?.[1] || line;
 
-    // Render inline bold **text**
     const parts = content.split(/\*\*(.+?)\*\*/g);
     const formatted = parts.map((p, i) =>
       i % 2 === 1 ? (
@@ -149,7 +292,7 @@ function AtlasPlanRenderer({ plan }) {
               fontSize: 12,
             }}
           >
-            {numberedMatch ? `${rawLine.match(/^(\d+)\./)[1]}.` : "•"}
+            {numberedMatch ? `${rawLine.match(/^(\d+)\./)?.[1]}.` : "•"}
           </span>
           <span
             style={{
@@ -230,6 +373,7 @@ function AtlasPlanRenderer({ plan }) {
 export default function SyncGroupPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const currentUserId = useMemo(() => getCurrentUserId(), []);
 
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -238,6 +382,7 @@ export default function SyncGroupPage() {
   const [editing, setEditing] = useState(false);
   const [destination, setDestination] = useState("");
   const [departureAirport, setDepartureAirport] = useState("");
+  const [departureDisplay, setDepartureDisplay] = useState("");
   const [dateRange, setDateRange] = useState([null, null]);
   const [budget, setBudget] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -248,80 +393,104 @@ export default function SyncGroupPage() {
   const [followUp, setFollowUp] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
 
+  const [changeMsg, setChangeMsg] = useState("");
+  const [changeSending, setChangeSending] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
   useEffect(() => {
     const home = getHomeAirport();
-    if (home?.code) setDepartureAirport(home.code);
+    if (home?.code) {
+      setDepartureAirport(home.code);
+      setDepartureDisplay(
+        home.city ? `${home.code} — ${home.city}` : home.code
+      );
+    }
   }, []);
 
-  useEffect(() => {
-    async function fetchGroup() {
-      try {
-        const res = await fetch(`${API_BASE}/sync-together/${id}`, {
-          headers: authHeaders(),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          setGroup(data.group);
-          setDestination(data.group.destination || "");
-          setBudget(data.group.members?.[0]?.budget || null);
-          if (data.group.dateRangeStart && data.group.dateRangeEnd) {
-            setDateRange([
-              dayjs(data.group.dateRangeStart),
-              dayjs(data.group.dateRangeEnd),
-            ]);
-          }
-        } else {
-          antdMessage.error(data.error || "Group not found");
+  const fetchGroup = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}`, {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        setDestination(data.group.destination || "");
+        if (data.group.departureAirport) {
+          setDepartureAirport(data.group.departureAirport);
+          if (!departureDisplay)
+            setDepartureDisplay(data.group.departureAirport);
         }
-      } catch (err) {
-        console.error("Failed to load group:", err);
-        antdMessage.error("Failed to load group");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchGroup();
-  }, [id]);
-
-  const shareGroup = async () => {
-    const link = `${window.location.origin}/sync-together/join/${group?.inviteCode}`;
-    const shareData = {
-      title: `Join my trip: ${group?.title || "Untitled Trip"}`,
-      text: "You're invited to plan a group trip on Skyrio!",
-      url: link,
-    };
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        if (err.name !== "AbortError") copyLink(link);
-      }
-    } else {
-      copyLink(link);
+        setBudget(data.group.members?.[0]?.budget || null);
+        if (data.group.plan) {
+          setAtlasPlan(data.group.plan);
+          setAtlasMessages(data.group.atlasMessages || []);
+        }
+        if (data.group.dateRangeStart && data.group.dateRangeEnd) {
+          setDateRange([
+            dayjs(data.group.dateRangeStart),
+            dayjs(data.group.dateRangeEnd),
+          ]);
+        }
+      } else antdMessage.error(data.error || "Group not found");
+    } catch {
+      antdMessage.error("Failed to load group");
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchGroup();
+  }, [id]);
+
+  const isOwner =
+    currentUserId &&
+    group &&
+    String(group.owner?._id || group.owner) === String(currentUserId);
+  const myMember = group?.members?.find(
+    (m) => m.user && String(m.user._id || m.user) === String(currentUserId)
+  );
+  const isMember = isOwner || !!myMember;
+  const hasPlan = !!group?.plan;
+  const isBooked = group?.status === "booked";
+  const openChangeRequests =
+    group?.changeRequests?.filter((cr) => cr.status === "open") || [];
+  const approvedCount = group?.members?.filter((m) => m.approved).length || 0;
+  const totalMembers = group?.members?.length || 0;
+  const allApproved = totalMembers > 0 && approvedCount === totalMembers;
+  const myApproval = myMember?.approved || false;
+
+  const shareGroup = async () => {
+    const link = `${window.location.origin}/sync-together/join/${group?.inviteCode}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `Join: ${group?.title}`, url: link });
+      } catch (err) {
+        if (err.name !== "AbortError") copyLink(link);
+      }
+    } else copyLink(link);
+  };
   const copyLink = (link) => {
-    const url =
+    navigator.clipboard.writeText(
       link ||
-      `${window.location.origin}/sync-together/join/${group?.inviteCode}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true);
-      antdMessage.success("Invite link copied!");
-      setTimeout(() => setCopied(false), 2000);
-    });
+        `${window.location.origin}/sync-together/join/${group?.inviteCode}`
+    );
+    setCopied(true);
+    antdMessage.success("Invite link copied!");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const saveDetails = async () => {
     setSaving(true);
     try {
-      const body = { destination };
+      const body = { destination, departureAirport };
       if (dateRange[0] && dateRange[1]) {
         body.dateRangeStart = dateRange[0].toISOString();
         body.dateRangeEnd = dateRange[1].toISOString();
       }
       if (budget) body.budget = budget;
-
       const res = await fetch(`${API_BASE}/sync-together/${id}`, {
         method: "PATCH",
         headers: authHeaders(),
@@ -332,10 +501,8 @@ export default function SyncGroupPage() {
         setGroup(data.group);
         setEditing(false);
         antdMessage.success("Trip details saved");
-      } else {
-        antdMessage.error(data.error || "Save failed");
-      }
-    } catch (err) {
+      } else antdMessage.error(data.error || "Save failed");
+    } catch {
       antdMessage.error("Failed to save");
     } finally {
       setSaving(false);
@@ -347,7 +514,6 @@ export default function SyncGroupPage() {
       antdMessage.warning("Set a destination first");
       return;
     }
-
     setPlanLoading(true);
     setAtlasPlan("");
 
@@ -355,30 +521,40 @@ export default function SyncGroupPage() {
       ?.map((m) => m.user?.name || m.name || m.email)
       .filter(Boolean)
       .join(", ");
-
     const travelerCount = (group.members?.length || 0) + 1;
     const tripDays =
       dateRange[0] && dateRange[1]
         ? dateRange[1].diff(dateRange[0], "day")
         : null;
-
     const homeAirport = departureAirport || "EWR";
+
+    let changeContext = "";
+    if (openChangeRequests.length > 0) {
+      changeContext =
+        "\n\nGROUP CHANGE REQUESTS TO ADDRESS:\n" +
+        openChangeRequests
+          .map((cr) => `- ${cr.user?.name || "A member"}: "${cr.message}"`)
+          .join("\n");
+    }
 
     const prompt = `I'm planning a group trip to ${destination} with ${travelerCount} travelers (me + ${memberNames}).
 
-IMPORTANT DETAILS:
+DETAILS:
 - Departure airport: ${homeAirport}
 - Destination: ${destination}
 ${tripDays ? `- Trip length: ${tripDays} days` : ""}
 ${
   dateRange[0]
-    ? `- Travel dates: ${dateRange[0].format(
+    ? `- Dates: ${dateRange[0].format("YYYY-MM-DD")} to ${dateRange[1].format(
         "YYYY-MM-DD"
-      )} to ${dateRange[1].format("YYYY-MM-DD")}`
+      )}`
     : ""
 }
 ${budget ? `- Budget per person: $${budget}` : ""}
-- Number of travelers: ${travelerCount}
+- Travelers: ${travelerCount}
+${changeContext}
+
+IMPORTANT FORMATTING: Always format prices with commas for thousands (e.g. $1,234.56 not $1234.56). Use markdown headers (###) for sections.
 
 Please use your tools to:
 1. Search for real flights from ${homeAirport} to ${destination}${
@@ -386,16 +562,15 @@ Please use your tools to:
     }${
       dateRange[1] ? ` returning ${dateRange[1].format("YYYY-MM-DD")}` : ""
     } for ${travelerCount} adults
-2. Recommend the best flight options for the group with actual prices
-3. Suggest accommodation options (hotels or rentals) for the group
-4. Create a day-by-day itinerary with activities and excursions
-5. Provide a budget breakdown per person
-6. Share group coordination tips
+2. Recommend the best flight options with actual prices
+3. Suggest accommodation for the group
+4. Create a day-by-day itinerary with activities
+5. Budget breakdown per person
+6. Group coordination tips
 
-Format the plan clearly with sections using ### headings. Use real data from your flight search.`;
+Format clearly with ### sections.`;
 
-    const newMessages = [...atlasMessages, { role: "user", content: prompt }];
-
+    const newMessages = [{ role: "user", content: prompt }];
     try {
       const res = await fetch(`${API_BASE}/atlas/chat`, {
         method: "POST",
@@ -405,19 +580,22 @@ Format the plan clearly with sections using ### headings. Use real data from you
           context: { destination, budget, tripDays },
         }),
       });
-
       const data = await res.json();
       if (data.ok) {
         setAtlasPlan(data.reply);
-        setAtlasMessages([
+        const msgs = [
           ...newMessages,
           { role: "assistant", content: data.reply },
-        ]);
-      } else {
-        antdMessage.error(data.error || "Atlas couldn't generate a plan");
-      }
-    } catch (err) {
-      console.error("Atlas error:", err);
+        ];
+        setAtlasMessages(msgs);
+        await fetch(`${API_BASE}/sync-together/${id}/plan`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ plan: data.reply, atlasMessages: msgs }),
+        });
+        await fetchGroup();
+      } else antdMessage.error("Atlas couldn't generate a plan");
+    } catch {
       antdMessage.error("Failed to reach Atlas");
     } finally {
       setPlanLoading(false);
@@ -427,12 +605,15 @@ Format the plan clearly with sections using ### headings. Use real data from you
   const askFollowUp = async () => {
     if (!followUp.trim()) return;
     setFollowUpLoading(true);
-
     const newMessages = [
       ...atlasMessages,
-      { role: "user", content: followUp.trim() },
+      {
+        role: "user",
+        content:
+          followUp.trim() +
+          "\n\nIMPORTANT: Format prices with commas (e.g. $1,234.56). Use ### for section headers.",
+      },
     ];
-
     try {
       const res = await fetch(`${API_BASE}/atlas/chat`, {
         method: "POST",
@@ -445,20 +626,92 @@ Format the plan clearly with sections using ### headings. Use real data from you
       const data = await res.json();
       if (data.ok) {
         setAtlasPlan(data.reply);
-        setAtlasMessages([
+        const msgs = [
           ...newMessages,
           { role: "assistant", content: data.reply },
-        ]);
+        ];
+        setAtlasMessages(msgs);
         setFollowUp("");
+        await fetch(`${API_BASE}/sync-together/${id}/plan`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ plan: data.reply, atlasMessages: msgs }),
+        });
+        await fetchGroup();
       }
-    } catch (err) {
+    } catch {
       antdMessage.error("Failed to reach Atlas");
     } finally {
       setFollowUpLoading(false);
     }
   };
 
-  if (loading) {
+  const approvePlan = async () => {
+    setApproving(true);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/approve`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        antdMessage.success(
+          data.allApproved ? "Everyone approved!" : "Your approval recorded"
+        );
+      } else antdMessage.error(data.error);
+    } catch {
+      antdMessage.error("Approval failed");
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const submitChangeRequest = async () => {
+    if (!changeMsg.trim()) return;
+    setChangeSending(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/sync-together/${id}/change-request`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ message: changeMsg.trim() }),
+        }
+      );
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        setChangeMsg("");
+        antdMessage.success("Change request submitted");
+      } else antdMessage.error(data.error);
+    } catch {
+      antdMessage.error("Failed to submit");
+    } finally {
+      setChangeSending(false);
+    }
+  };
+
+  const confirmTrip = async () => {
+    setConfirming(true);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/confirm`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        antdMessage.success("Trip confirmed!");
+      } else antdMessage.error(data.error);
+    } catch {
+      antdMessage.error("Confirmation failed");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  if (loading)
     return (
       <section className="sk-sync-section">
         <div style={{ textAlign: "center", padding: "80px 0" }}>
@@ -469,9 +722,8 @@ Format the plan clearly with sections using ### headings. Use real data from you
         </div>
       </section>
     );
-  }
 
-  if (!group) {
+  if (!group)
     return (
       <section className="sk-sync-section">
         <div style={{ textAlign: "center", padding: "80px 0" }}>
@@ -486,17 +738,18 @@ Format the plan clearly with sections using ### headings. Use real data from you
         </div>
       </section>
     );
-  }
 
-  const statusLabel = {
-    draft: "Draft",
-    inviting: "Invitations Sent",
-    planning: "Planning",
-    booked: "Booked",
-    completed: "Completed",
-    cancelled: "Cancelled",
+  const statusConfig = {
+    draft: { label: "Draft", color: "rgba(255,255,255,0.45)" },
+    inviting: { label: "Invitations Sent", color: "#ff8a2a" },
+    planning: { label: "Planning", color: "#ff8a2a" },
+    reviewing: { label: "Reviewing Plan", color: "#1890ff" },
+    confirmed: { label: "All Approved", color: "#52c41a" },
+    booked: { label: "Booked", color: "#52c41a" },
+    completed: { label: "Completed", color: "rgba(255,255,255,0.45)" },
+    cancelled: { label: "Cancelled", color: "#ff4d4f" },
   };
-
+  const sc = statusConfig[group.status] || statusConfig.draft;
   const hasTripDetails = group.destination || group.dateRangeStart;
 
   return (
@@ -510,7 +763,7 @@ Format the plan clearly with sections using ### headings. Use real data from you
         Back to Sync Together
       </Button>
 
-      {/* ── Group header ── */}
+      {/* ── Header ── */}
       <div className="sk-sync-group-builder" style={{ marginTop: 8 }}>
         <div
           style={{
@@ -521,29 +774,12 @@ Format the plan clearly with sections using ### headings. Use real data from you
             gap: 12,
           }}
         >
-          <div style={{ minWidth: 0, flex: 1 }}>
+          <div>
             <div className="sk-sync-group-title" style={{ marginBottom: 4 }}>
-              <Plane
-                size={16}
-                style={{
-                  marginRight: 8,
-                  verticalAlign: "middle",
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {group.title || "Untitled Trip"}
-              </span>
+              <Plane size={16} style={{ marginRight: 8 }} />
+              {group.title || "Untitled Trip"}
               {group.destination && (
-                <span
-                  style={{ color: "#ff8a2a", marginLeft: 8, flexShrink: 0 }}
-                >
+                <span style={{ color: "#ff8a2a", marginLeft: 8 }}>
                   → {group.destination}
                 </span>
               )}
@@ -559,26 +795,24 @@ Format the plan clearly with sections using ### headings. Use real data from you
             >
               <span
                 style={{
-                  background: "rgba(255,138,42,0.15)",
-                  color: "#ff8a2a",
+                  background: `${sc.color}20`,
+                  color: sc.color,
                   padding: "4px 12px",
                   borderRadius: 20,
                   fontSize: 12,
                   fontWeight: 600,
-                  whiteSpace: "nowrap",
                 }}
               >
                 <SyncOutlined style={{ marginRight: 4 }} />
-                {statusLabel[group.status] || group.status}
+                {sc.label}
               </span>
+              {group.planVersion > 0 && (
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+                  v{group.planVersion}
+                </span>
+              )}
               {group.inviteCode && (
-                <span
-                  style={{
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: 12,
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
                   Code: {group.inviteCode}
                 </span>
               )}
@@ -588,7 +822,6 @@ Format the plan clearly with sections using ### headings. Use real data from you
             icon={copied ? <CheckCircleOutlined /> : <Share2 size={14} />}
             onClick={shareGroup}
             className="sk-sync-add-btn"
-            style={{ flexShrink: 0 }}
           >
             {copied ? "Copied!" : "Share"}
           </Button>
@@ -598,18 +831,26 @@ Format the plan clearly with sections using ### headings. Use real data from you
       {/* ── Travelers ── */}
       <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
         <div className="sk-sync-group-title">
-          <Users
-            size={16}
-            style={{ marginRight: 8, verticalAlign: "middle" }}
-          />
-          Travelers ({(group.members?.length || 0) + 1})
+          <Users size={16} style={{ marginRight: 8 }} />
+          Travelers ({totalMembers + 1})
+          {hasPlan && (
+            <span
+              style={{
+                marginLeft: "auto",
+                fontSize: 12,
+                color: "rgba(255,255,255,0.4)",
+              }}
+            >
+              {approvedCount}/{totalMembers} approved
+            </span>
+          )}
         </div>
         <div
           style={{
-            marginTop: 16,
+            marginTop: 12,
             display: "flex",
             flexDirection: "column",
-            gap: 10,
+            gap: 8,
           }}
         >
           {group.owner && (
@@ -635,46 +876,22 @@ Format the plan clearly with sections using ### headings. Use real data from you
                   background: "#ff8a2a",
                   color: "#1b1024",
                   fontWeight: 800,
-                  flexShrink: 0,
                 }}
               >
                 {(group.owner.name ||
                   group.owner.username ||
                   "?")[0].toUpperCase()}
               </Avatar>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    color: "#fff",
-                    fontWeight: 600,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
+              <div style={{ flex: 1 }}>
+                <div style={{ color: "#fff", fontWeight: 600 }}>
                   {group.owner.name || group.owner.username}
                 </div>
                 <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
                   Organizer
                 </div>
               </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: "3px 10px",
-                  borderRadius: 12,
-                  flexShrink: 0,
-                  whiteSpace: "nowrap",
-                  background: "rgba(255,138,42,0.15)",
-                  color: "#ff8a2a",
-                }}
-              >
-                Host
-              </span>
             </div>
           )}
-
           {group.members?.map((m, i) => (
             <div
               key={m._id || i}
@@ -685,7 +902,9 @@ Format the plan clearly with sections using ### headings. Use real data from you
                 padding: "10px 14px",
                 background: "rgba(255,255,255,0.04)",
                 borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: `1px solid ${
+                  m.approved ? "rgba(82,196,26,0.25)" : "rgba(255,255,255,0.08)"
+                }`,
               }}
             >
               <Avatar
@@ -699,21 +918,12 @@ Format the plan clearly with sections using ### headings. Use real data from you
                   background: "#2a1f3d",
                   color: "#ff8a2a",
                   fontWeight: 800,
-                  flexShrink: 0,
                 }}
               >
                 {(m.name || m.email || m.user?.name || "?")[0].toUpperCase()}
               </Avatar>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    color: "#fff",
-                    fontWeight: 500,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
+              <div style={{ flex: 1 }}>
+                <div style={{ color: "#fff", fontWeight: 500 }}>
                   {m.user?.name || m.name || m.email}
                 </div>
                 {m.user?.username && (
@@ -724,31 +934,43 @@ Format the plan clearly with sections using ### headings. Use real data from you
                   </div>
                 )}
               </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: "3px 10px",
-                  borderRadius: 12,
-                  flexShrink: 0,
-                  whiteSpace: "nowrap",
-                  background:
-                    m.status === "accepted"
+              {hasPlan ? (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: "3px 10px",
+                    borderRadius: 12,
+                    background: m.approved
                       ? "rgba(82,196,26,0.15)"
-                      : m.status === "declined"
-                      ? "rgba(255,77,79,0.15)"
                       : "rgba(255,255,255,0.08)",
-                  color:
-                    m.status === "accepted"
-                      ? "#52c41a"
-                      : m.status === "declined"
-                      ? "#ff4d4f"
-                      : "rgba(255,255,255,0.45)",
-                }}
-              >
-                <ClockCircleOutlined style={{ marginRight: 4 }} />
-                {m.status}
-              </span>
+                    color: m.approved ? "#52c41a" : "rgba(255,255,255,0.45)",
+                  }}
+                >
+                  {m.approved ? (
+                    <>
+                      <CheckOutlined style={{ marginRight: 3 }} />
+                      Approved
+                    </>
+                  ) : (
+                    "Pending review"
+                  )}
+                </span>
+              ) : (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: "3px 10px",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,0.08)",
+                    color: "rgba(255,255,255,0.45)",
+                  }}
+                >
+                  <ClockCircleOutlined style={{ marginRight: 4 }} />
+                  {m.status}
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -764,13 +986,10 @@ Format the plan clearly with sections using ### headings. Use real data from you
           }}
         >
           <div className="sk-sync-group-title">
-            <MapPin
-              size={16}
-              style={{ marginRight: 8, verticalAlign: "middle" }}
-            />
+            <MapPin size={16} style={{ marginRight: 8 }} />
             Trip Details
           </div>
-          {!editing && (
+          {!editing && !isBooked && isMember && (
             <Button
               type="text"
               icon={<EditOutlined />}
@@ -781,7 +1000,6 @@ Format the plan clearly with sections using ### headings. Use real data from you
             </Button>
           )}
         </div>
-
         {editing ? (
           <div
             style={{
@@ -802,14 +1020,16 @@ Format the plan clearly with sections using ### headings. Use real data from you
               >
                 <Plane size={12} style={{ marginRight: 4 }} /> Departure Airport
               </label>
-              <Input
-                className="sk-sync-input"
-                value={departureAirport}
-                onChange={(e) =>
-                  setDepartureAirport(e.target.value.toUpperCase())
-                }
-                placeholder="e.g. EWR, JFK, LAX"
-                maxLength={4}
+              <AirportSearchInput
+                value={departureDisplay}
+                onChange={(code, airport) => {
+                  setDepartureAirport(code);
+                  const city = airport?.city || airport?.municipality || "";
+                  setDepartureDisplay(
+                    city ? `${code} — ${airport.name || city}` : code
+                  );
+                }}
+                placeholder="Search airport (e.g. EWR, Newark, JFK)"
               />
             </div>
             <div>
@@ -844,11 +1064,7 @@ Format the plan clearly with sections using ### headings. Use real data from you
               <DatePicker.RangePicker
                 value={dateRange[0] ? dateRange : undefined}
                 onChange={(dates) => setDateRange(dates || [null, null])}
-                style={{
-                  width: "100%",
-                  background: "rgba(255,255,255,0.06)",
-                  borderColor: "rgba(255,138,42,0.25)",
-                }}
+                style={{ width: "100%" }}
               />
             </div>
             <div>
@@ -869,11 +1085,7 @@ Format the plan clearly with sections using ### headings. Use real data from you
                 placeholder="e.g. 1500"
                 prefix="$"
                 min={0}
-                style={{
-                  width: "100%",
-                  background: "rgba(255,255,255,0.06)",
-                  borderColor: "rgba(255,138,42,0.25)",
-                }}
+                style={{ width: "100%" }}
               />
             </div>
             <div style={{ display: "flex", gap: 10 }}>
@@ -904,7 +1116,7 @@ Format the plan clearly with sections using ### headings. Use real data from you
                       size={14}
                       style={{ marginRight: 6, color: "#ff8a2a" }}
                     />
-                    Departing from {departureAirport}
+                    Departing from {departureDisplay || departureAirport}
                   </div>
                 )}
                 {group.destination && (
@@ -932,7 +1144,8 @@ Format the plan clearly with sections using ### headings. Use real data from you
                       size={14}
                       style={{ marginRight: 6, color: "#ff8a2a" }}
                     />
-                    ${group.members[0].budget} per person
+                    ${Number(group.members[0].budget).toLocaleString("en-US")}{" "}
+                    per person
                   </div>
                 )}
               </div>
@@ -948,16 +1161,9 @@ Format the plan clearly with sections using ### headings. Use real data from you
       {/* ── Trip Package ── */}
       <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
         <div className="sk-sync-group-title">
-          <Package
-            size={16}
-            style={{ marginRight: 8, verticalAlign: "middle" }}
-          />
+          <Package size={16} style={{ marginRight: 8 }} />
           Trip Package
         </div>
-        <p className="sk-sync-group-hint" style={{ marginTop: 4 }}>
-          Atlas will find the best options for your group. More services coming
-          soon.
-        </p>
         <div
           style={{
             display: "grid",
@@ -1023,7 +1229,6 @@ Format the plan clearly with sections using ### headings. Use real data from you
                       item.status === "active"
                         ? "#ff8a2a"
                         : "rgba(255,255,255,0.3)",
-                    flexShrink: 0,
                   }}
                 >
                   {item.icon}
@@ -1039,7 +1244,6 @@ Format the plan clearly with sections using ### headings. Use real data from you
                       background: "rgba(255,255,255,0.06)",
                       padding: "2px 8px",
                       borderRadius: 10,
-                      whiteSpace: "nowrap",
                     }}
                   >
                     Soon
@@ -1057,36 +1261,50 @@ Format the plan clearly with sections using ### headings. Use real data from you
       {/* ── Atlas Trip Planner ── */}
       <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
         <div className="sk-sync-group-title">
-          <Sparkles
-            size={16}
-            style={{
-              marginRight: 8,
-              verticalAlign: "middle",
-              color: "#ff8a2a",
-            }}
-          />
+          <Sparkles size={16} style={{ marginRight: 8, color: "#ff8a2a" }} />
           Atlas Trip Planner
+          {group.planVersion > 0 && (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 12,
+                color: "rgba(255,255,255,0.3)",
+              }}
+            >
+              v{group.planVersion}
+            </span>
+          )}
         </div>
-        <p className="sk-sync-group-hint" style={{ marginTop: 4 }}>
-          Set your trip details above, then let Atlas search for real flights
-          and build your group plan.
-        </p>
 
-        <Button
-          className="sk-sync-cta-btn"
-          icon={<Sparkles size={14} />}
-          onClick={askAtlasToPlan}
-          loading={planLoading}
-          disabled={!destination}
-          style={{ marginTop: 16 }}
-        >
-          {planLoading ? "Atlas is searching flights..." : "Ask Atlas to Plan"}
-        </Button>
-
-        {atlasPlan && (
+        {!hasPlan && (
           <>
-            {/* ── Rendered Plan ── */}
-            <div style={{ marginTop: 20 }}>
+            <p className="sk-sync-group-hint" style={{ marginTop: 4 }}>
+              Set your trip details, then let Atlas build the plan.
+            </p>
+            <Button
+              className="sk-sync-cta-btn"
+              icon={<Sparkles size={14} />}
+              onClick={askAtlasToPlan}
+              loading={planLoading}
+              disabled={!destination}
+              style={{ marginTop: 16 }}
+            >
+              {planLoading ? "Atlas is searching..." : "Ask Atlas to Plan"}
+            </Button>
+          </>
+        )}
+
+        {hasPlan && (
+          <>
+            <div
+              style={{
+                marginTop: 16,
+                padding: 20,
+                background: "rgba(255,138,42,0.04)",
+                border: "1px solid rgba(255,138,42,0.15)",
+                borderRadius: 14,
+              }}
+            >
               <div
                 style={{
                   display: "flex",
@@ -1095,49 +1313,321 @@ Format the plan clearly with sections using ### headings. Use real data from you
                   marginBottom: 14,
                 }}
               >
-                <Sparkles
-                  size={16}
-                  style={{ color: "#ff8a2a", flexShrink: 0 }}
-                />
+                <Sparkles size={16} style={{ color: "#ff8a2a" }} />
                 <span
                   style={{ color: "#ff8a2a", fontWeight: 700, fontSize: 14 }}
                 >
                   Atlas's Plan
                 </span>
+                {group.planGeneratedAt && (
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontSize: 11,
+                      color: "rgba(255,255,255,0.3)",
+                    }}
+                  >
+                    {dayjs(group.planGeneratedAt).format("MMM D, h:mm A")}
+                  </span>
+                )}
               </div>
               <AtlasPlanRenderer plan={atlasPlan} />
             </div>
 
-            {/* ── Follow-up ── */}
+            {!isBooked && isMember && (
+              <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+                <Input
+                  className="sk-sync-input"
+                  value={followUp}
+                  onChange={(e) => setFollowUp(e.target.value)}
+                  onPressEnter={askFollowUp}
+                  placeholder="Ask Atlas to adjust the plan..."
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  className="sk-sync-add-btn"
+                  icon={<SendOutlined />}
+                  onClick={askFollowUp}
+                  loading={followUpLoading}
+                >
+                  Send
+                </Button>
+              </div>
+            )}
+            {!isBooked && isMember && (
+              <Button
+                type="text"
+                icon={<SyncOutlined />}
+                onClick={askAtlasToPlan}
+                loading={planLoading}
+                style={{
+                  color: "rgba(255,255,255,0.4)",
+                  marginTop: 8,
+                  fontSize: 13,
+                }}
+              >
+                Regenerate entire plan
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Review & Approve ── */}
+      {hasPlan && !isBooked && isMember && (
+        <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
+          <div className="sk-sync-group-title">
+            <ThumbsUp size={16} style={{ marginRight: 8 }} />
+            Review & Approve
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              padding: "12px 16px",
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
             <div
               style={{
-                marginTop: 16,
                 display: "flex",
-                gap: 10,
+                justifyContent: "space-between",
                 alignItems: "center",
+                marginBottom: 8,
               }}
             >
+              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>
+                Approval progress
+              </span>
+              <span
+                style={{
+                  color: allApproved ? "#52c41a" : "#ff8a2a",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {approvedCount}/{totalMembers}
+              </span>
+            </div>
+            <div
+              style={{
+                height: 6,
+                background: "rgba(255,255,255,0.08)",
+                borderRadius: 3,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  borderRadius: 3,
+                  transition: "width 0.3s",
+                  width:
+                    totalMembers > 0
+                      ? `${(approvedCount / totalMembers) * 100}%`
+                      : "0%",
+                  background: allApproved
+                    ? "#52c41a"
+                    : "linear-gradient(90deg, #ff8a2a, #ffb347)",
+                }}
+              />
+            </div>
+          </div>
+
+          {myMember && (
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 14,
+                flexWrap: "wrap",
+              }}
+            >
+              {!myApproval ? (
+                <>
+                  <Button
+                    className="sk-sync-cta-btn"
+                    icon={<CheckOutlined />}
+                    onClick={approvePlan}
+                    loading={approving}
+                    style={{ flex: 1 }}
+                  >
+                    Approve Plan
+                  </Button>
+                  <Button
+                    className="sk-sync-add-btn"
+                    icon={<MessageSquare size={14} />}
+                    onClick={() =>
+                      document.getElementById("change-input")?.focus()
+                    }
+                    style={{ flex: 1 }}
+                  >
+                    Request Change
+                  </Button>
+                </>
+              ) : (
+                <div
+                  style={{
+                    color: "#52c41a",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <CheckCircleOutlined /> You've approved this plan
+                </div>
+              )}
+            </div>
+          )}
+
+          {myMember && !myApproval && (
+            <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
               <Input
+                id="change-input"
                 className="sk-sync-input"
-                value={followUp}
-                onChange={(e) => setFollowUp(e.target.value)}
-                onPressEnter={askFollowUp}
-                placeholder="Ask Atlas to adjust the plan..."
-                style={{ flex: 1, minWidth: 0 }}
+                value={changeMsg}
+                onChange={(e) => setChangeMsg(e.target.value)}
+                onPressEnter={submitChangeRequest}
+                placeholder="What would you like changed?"
+                style={{ flex: 1 }}
               />
               <Button
                 className="sk-sync-add-btn"
                 icon={<SendOutlined />}
-                onClick={askFollowUp}
-                loading={followUpLoading}
-                style={{ flexShrink: 0 }}
+                onClick={submitChangeRequest}
+                loading={changeSending}
               >
-                Send
+                Submit
               </Button>
             </div>
-          </>
-        )}
-      </div>
+          )}
+
+          {openChangeRequests.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  marginBottom: 8,
+                }}
+              >
+                <ExclamationCircleOutlined style={{ marginRight: 4 }} />
+                {openChangeRequests.length} open change request
+                {openChangeRequests.length !== 1 ? "s" : ""}
+              </div>
+              {openChangeRequests.map((cr, i) => (
+                <div
+                  key={cr._id || i}
+                  style={{
+                    padding: "10px 14px",
+                    background: "rgba(255,183,71,0.06)",
+                    border: "1px solid rgba(255,183,71,0.15)",
+                    borderRadius: 10,
+                    marginBottom: 8,
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <Avatar
+                    size={28}
+                    style={{
+                      background: "#2a1f3d",
+                      color: "#ff8a2a",
+                      fontWeight: 800,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {(cr.user?.name || "?")[0].toUpperCase()}
+                  </Avatar>
+                  <div>
+                    <div
+                      style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}
+                    >
+                      {cr.user?.name || "Member"}
+                    </div>
+                    <div
+                      style={{
+                        color: "rgba(255,255,255,0.6)",
+                        fontSize: 13,
+                        marginTop: 2,
+                      }}
+                    >
+                      {cr.message}
+                    </div>
+                    <div
+                      style={{
+                        color: "rgba(255,255,255,0.25)",
+                        fontSize: 11,
+                        marginTop: 4,
+                      }}
+                    >
+                      {dayjs(cr.createdAt).format("MMM D, h:mm A")}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <p className="sk-sync-group-hint" style={{ marginTop: 8 }}>
+                Use the Atlas follow-up to address these, then ask members to
+                re-approve.
+              </p>
+            </div>
+          )}
+
+          {isOwner && allApproved && openChangeRequests.length === 0 && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: 16,
+                background: "rgba(82,196,26,0.08)",
+                border: "1px solid rgba(82,196,26,0.2)",
+                borderRadius: 12,
+                textAlign: "center",
+              }}
+            >
+              <p
+                style={{
+                  color: "#52c41a",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  marginBottom: 12,
+                }}
+              >
+                <CheckCircleOutlined style={{ marginRight: 6 }} />
+                Everyone has approved!
+              </p>
+              <Button
+                className="sk-sync-cta-btn"
+                icon={<LockOutlined />}
+                onClick={confirmTrip}
+                loading={confirming}
+              >
+                Confirm & Lock Trip
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isBooked && (
+        <div
+          className="sk-sync-group-builder"
+          style={{ marginTop: 20, textAlign: "center", padding: "32px 24px" }}
+        >
+          <CheckCircleOutlined style={{ fontSize: 48, color: "#52c41a" }} />
+          <h3 style={{ color: "#fff", marginTop: 16, fontSize: 20 }}>
+            Trip Confirmed!
+          </h3>
+          <p style={{ color: "rgba(255,255,255,0.5)", marginTop: 8 }}>
+            The plan is locked in. Everyone's on the same page.
+          </p>
+        </div>
+      )}
     </section>
   );
 }

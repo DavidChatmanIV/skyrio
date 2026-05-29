@@ -460,20 +460,24 @@
   .sk-sync-group-input-row {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
   }
   .sk-sync-search-wrapper {
-    z-index: 10;
+    position: relative;
+    z-index: 50;
+    overflow: visible; /* critical — don't clip the dropdown */
   }
   .sk-sync-search-dropdown {
-    z-index: 200;
     position: absolute;
+    z-index: 200;
     left: 0;
     right: 0;
+    top: calc(100% + 4px);
   }
   .sk-sync-add-btn.ant-btn {
     width: 100% !important;
     position: relative;
-    z-index: 1;
+    z-index: 1; /* lower than dropdown */
   }
   .sk-sync-title {
     font-size: clamp(26px, 7vw, 36px);
