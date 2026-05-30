@@ -20,17 +20,10 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 
-// SkyHub
-import SkyHubLayout from "./pages/skyhub/SkyHubLayout";
-import MomentsFeed from "./pages/skyhub/MomentsFeed";
-import CirclesPage from "./pages/skyhub/CirclesPage";
-import DmPage from "./pages/skyhub/DmPage";
-import SkyHubInsights from "./pages/skyhub/SkyHubInsights";
-import SavedPage from "./pages/skyhub/SavedPage";
-
 // Admin
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import SupportInbox from "./pages/admin/SupportInbox";
 
 // Legal
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
@@ -67,6 +60,7 @@ function AppWithTracking() {
       {/* ── Admin — no Layout/navbar ── */}
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/admin/support" element={<SupportInbox />} />
 
       {/* ── Main app with Layout ── */}
       <Route element={<Layout />}>
@@ -141,22 +135,6 @@ function AppWithTracking() {
             </PrivateRoute>
           }
         />
-
-        <Route
-          path="/skyhub"
-          element={
-            <PrivateRoute>
-              <SkyHubLayout />
-            </PrivateRoute>
-          }
-        >
-          <Route index element={<Navigate to="moments" replace />} />
-          <Route path="moments" element={<MomentsFeed />} />
-          <Route path="circles" element={<CirclesPage />} />
-          <Route path="dms" element={<DmPage />} />
-          <Route path="insights" element={<SkyHubInsights />} />
-          <Route path="saved" element={<SavedPage />} />
-        </Route>
       </Route>
     </Routes>
   );

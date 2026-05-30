@@ -74,6 +74,29 @@ const INJECTED_CSS = `
   .sk-admin__empty { padding: 32px; text-align: center; font-size: 13px; color: ${C.muted}; }
   .sk-admin__topbtn { background: none; border: 1px solid ${C.border}; color: ${C.muted}; padding: 6px 14px; border-radius: 999px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color .2s, color .2s; }
   .sk-admin__topbtn:hover { border-color: ${C.orange}; color: ${C.orange}; }
+
+  /* ── Support Inbox banner ── */
+  .sk-admin__support-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 18px 24px;
+    background: rgba(255,138,42,0.08);
+    border: 1px solid rgba(255,138,42,0.28);
+    border-radius: 14px; margin-bottom: 28px;
+    cursor: pointer; transition: background .2s, border-color .2s;
+  }
+  .sk-admin__support-banner:hover {
+    background: rgba(255,138,42,0.14);
+    border-color: rgba(255,138,42,0.5);
+  }
+  .sk-admin__support-banner-left { display: flex; align-items: center; gap: 14px; }
+  .sk-admin__support-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: rgba(255,138,42,0.15); border: 1px solid rgba(255,138,42,0.3);
+    display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+  }
+  .sk-admin__support-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+  .sk-admin__support-sub { font-size: 12px; color: rgba(255,255,255,0.45); }
+  .sk-admin__support-arrow { font-size: 20px; font-weight: 700; color: #ff8a2a; flex-shrink: 0; }
 `;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -155,6 +178,22 @@ function StatCard({ icon, label, value, color, dim }) {
   );
 }
 
+// ─── Support inbox ticket count from localStorage ─────────────────────────────
+function useSupportCount() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    try {
+      const tickets = JSON.parse(
+        localStorage.getItem("skyrio_support_tickets") || "[]"
+      );
+      setCount(tickets.filter((t) => t.status === "open").length);
+    } catch {
+      setCount(0);
+    }
+  }, []);
+  return count;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -162,6 +201,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastRefresh, setLastRefresh] = useState(null);
+  const openTickets = useSupportCount();
 
   // ── Guard: redirect if not logged in ──
   useEffect(() => {
@@ -170,17 +210,13 @@ const AdminDashboard = () => {
   }, [navigate]);
 
   // ── Fetch dashboard data ──
-  // Sends x-admin-email header as fallback for localhost (cookie doesn't
-  // cross ports in dev — cookie works fine on Vercel/production)
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const res = await fetch(apiUrl("/api/admin/dashboard"), {
         credentials: "include",
-        headers: {
-          "x-admin-email": localStorage.getItem("admin_email") || "",
-        },
+        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
       });
       if (res.status === 401) {
         localStorage.removeItem("admin");
@@ -265,6 +301,44 @@ const AdminDashboard = () => {
             ⚠️ {error}
           </div>
         )}
+
+        {/* ── Support Inbox Banner ── */}
+        <div
+          className="sk-admin__support-banner"
+          onClick={() => navigate("/admin/support")}
+        >
+          <div className="sk-admin__support-banner-left">
+            <div className="sk-admin__support-icon">📬</div>
+            <div>
+              <div className="sk-admin__support-title">
+                Support Inbox
+                {openTickets > 0 && (
+                  <span
+                    style={{
+                      marginLeft: 10,
+                      background: "#ff8a2a",
+                      color: "#fff",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      padding: "2px 9px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {openTickets} open
+                  </span>
+                )}
+              </div>
+              <div className="sk-admin__support-sub">
+                {openTickets > 0
+                  ? `${openTickets} customer ticket${
+                      openTickets > 1 ? "s" : ""
+                    } waiting for your reply`
+                  : "No open tickets — all caught up!"}
+              </div>
+            </div>
+          </div>
+          <div className="sk-admin__support-arrow">→</div>
+        </div>
 
         {/* ── Stats row 1 ── */}
         <div className="sk-admin__section-title">Overview</div>

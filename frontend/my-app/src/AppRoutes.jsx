@@ -29,6 +29,7 @@ const PublicPassportPage = lazy(() =>
 // ── Admin (standalone — no AppLayout/navbar) ──
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const SupportInbox = lazy(() => import("./pages/admin/SupportInbox"));
 
 // ── Legal ──
 const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
@@ -84,6 +85,7 @@ function TrackedRoutes() {
       {/* ── Admin — standalone, no navbar ── */}
       <Route path="admin/login" element={<AdminLogin />} />
       <Route path="admin" element={<AdminDashboard />} />
+      <Route path="admin/support" element={<SupportInbox />} />
 
       {/* ✅ s2: Public passport — outside AppLayout so it has its own nav/CTA bar */}
       <Route path="u/:username" element={<PublicPassportPage />} />

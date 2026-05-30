@@ -1,10 +1,12 @@
 import React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import Footer from "../components/Footer"; // ← NEW
+import Footer from "../components/Footer";
 import AtlasChat from "../components/Atlas/AtlasChat";
 import { useAtlasContext } from "../components/Atlas/AtlasContext";
 import CookieBanner from "../components/CookieBanner";
+import SkyrioDTour from "../components/SkyrioDTour";
+import SupportWidget from "../pages/SupportWidget";
 import "../styles/AppLayout.css";
 import "../styles/skyrio-theme.css";
 
@@ -39,10 +41,16 @@ export default function AppLayout() {
       </main>
 
       {/* ── Footer — hidden on SkyHub (full-bleed layout) ── */}
-      {!isSkyHub && <Footer />}
+      {!isLanding && !isSkyHub && <Footer />}
 
       <AtlasChat destination={atlasDestination} />
       <CookieBanner />
+
+      {/* ── Onboarding tour — shows once for new users ── */}
+      <SkyrioDTour />
+
+      {/* ── Floating support button — always visible ── */}
+      <SupportWidget />
     </div>
   );
 }
