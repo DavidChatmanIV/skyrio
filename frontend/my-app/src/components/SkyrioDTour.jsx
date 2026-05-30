@@ -2,8 +2,7 @@
  * SkyrioDTour.jsx
  * ───────────────
  * Onboarding tour for Skyrio users.
- * Uses ReactDOM.createPortal to render directly on document.body —
- * this fixes mobile and transparency issues caused by parent CSS transforms.
+ * Uses ReactDOM.createPortal + body scroll lock for iOS Safari fix.
  *
  * Save to: src/components/SkyrioDTour.jsx
  *
@@ -253,6 +252,30 @@ const ORANGE = "#ff8a2a";
 const ORANGE2 = "#ffb066";
 const PURPLE = "#7c5cfc";
 
+// ─── Body scroll lock helpers (iOS Safari fix) ────────────────────────────────
+let _scrollY = 0;
+
+function lockScroll() {
+  _scrollY = window.scrollY;
+  document.body.style.position = "fixed";
+  document.body.style.top = `-${_scrollY}px`;
+  document.body.style.left = "0";
+  document.body.style.right = "0";
+  document.body.style.overflow = "hidden";
+  document.body.style.width = "100%";
+}
+
+function unlockScroll() {
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.left = "";
+  document.body.style.right = "";
+  document.body.style.overflow = "";
+  document.body.style.width = "";
+  window.scrollTo(0, _scrollY);
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function SkyrioDTour() {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
@@ -261,12 +284,23 @@ export default function SkyrioDTour() {
   useEffect(() => {
     const dismissed = localStorage.getItem("skyrio_tour_done");
     if (!dismissed) {
-      const t = setTimeout(() => setVisible(true), 800);
+      const t = setTimeout(() => {
+        setVisible(true);
+        lockScroll(); // iOS Safari: prevent background scroll
+      }, 800);
       return () => clearTimeout(t);
     }
   }, []);
 
+  // Cleanup on unmount just in case
+  useEffect(() => {
+    return () => {
+      unlockScroll();
+    };
+  }, []);
+
   function skipForNow() {
+    unlockScroll();
     setExiting(true);
     setTimeout(() => {
       setVisible(false);
@@ -276,6 +310,7 @@ export default function SkyrioDTour() {
   }
 
   function neverShow() {
+    unlockScroll();
     setExiting(true);
     setTimeout(() => {
       localStorage.setItem("skyrio_tour_done", "1");
@@ -300,9 +335,6 @@ export default function SkyrioDTour() {
   const progress = ((step + 1) / STEPS.length) * 100;
   const StepIcon = current.Icon;
 
-  // ── Portal renders directly on document.body ──
-  // This bypasses any parent CSS transform/overflow/will-change
-  // that would otherwise break position:fixed on mobile
   return createPortal(
     <>
       <style>{`
@@ -317,16 +349,20 @@ export default function SkyrioDTour() {
         onClick={skipForNow}
         style={{
           position: "fixed",
-          inset: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           zIndex: 2147483640,
           background: "rgba(0,0,0,0.88)",
+          WebkitTapHighlightColor: "transparent",
           animation: exiting
             ? "dtFadeOut .3s ease forwards"
             : "dtFadeIn .3s ease",
         }}
       />
 
-      {/* Card — fully opaque, portaled to body */}
+      {/* Card */}
       <div
         style={{
           position: "fixed",
@@ -335,8 +371,9 @@ export default function SkyrioDTour() {
           transform: "translate(-50%,-50%)",
           zIndex: 2147483647,
           width: "min(480px, 92vw)",
-          maxHeight: "90vh",
+          maxHeight: "85dvh",
           overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
           background: "#120f2a",
           border: "1px solid rgba(255,255,255,0.15)",
           borderRadius: 20,
@@ -346,6 +383,9 @@ export default function SkyrioDTour() {
             : "dtSlideIn .35s cubic-bezier(.22,1,.36,1)",
           fontFamily: "'DM Sans', sans-serif",
           color: "#f0edff",
+          // Critical for iOS: create new stacking context
+          willChange: "transform",
+          isolation: "isolate",
         }}
       >
         {/* Progress bar */}
@@ -356,6 +396,7 @@ export default function SkyrioDTour() {
             width: `${progress}%`,
             transition: "width .4s ease",
             borderRadius: "20px 20px 0 0",
+            flexShrink: 0,
           }}
         />
 
@@ -396,7 +437,13 @@ export default function SkyrioDTour() {
               fontSize: 22,
               cursor: "pointer",
               lineHeight: 1,
-              padding: 4,
+              padding: "4px 8px",
+              WebkitTapHighlightColor: "transparent",
+              minWidth: 44,
+              minHeight: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             ×
@@ -404,8 +451,8 @@ export default function SkyrioDTour() {
         </div>
 
         {/* Body */}
-        <div style={{ padding: "24px 28px 28px" }}>
-          {/* Icon box */}
+        <div style={{ padding: "24px 28px 32px" }}>
+          {/* Icon */}
           <div
             style={{
               width: 56,
@@ -418,6 +465,7 @@ export default function SkyrioDTour() {
               justifyContent: "center",
               color: ORANGE,
               marginBottom: 20,
+              flexShrink: 0,
             }}
           >
             <StepIcon size={28} />
@@ -486,7 +534,7 @@ export default function SkyrioDTour() {
               <button
                 onClick={prev}
                 style={{
-                  padding: "10px 18px",
+                  padding: "12px 18px",
                   borderRadius: 10,
                   border: "1px solid rgba(255,255,255,0.12)",
                   background: "none",
@@ -494,6 +542,8 @@ export default function SkyrioDTour() {
                   fontSize: 14,
                   cursor: "pointer",
                   fontFamily: "inherit",
+                  minHeight: 44,
+                  WebkitTapHighlightColor: "transparent",
                 }}
               >
                 ← Back
@@ -502,7 +552,7 @@ export default function SkyrioDTour() {
             <button
               onClick={skipForNow}
               style={{
-                padding: "10px 16px",
+                padding: "12px 16px",
                 borderRadius: 10,
                 border: "none",
                 background: "rgba(255,255,255,0.08)",
@@ -510,6 +560,8 @@ export default function SkyrioDTour() {
                 fontSize: 14,
                 cursor: "pointer",
                 fontFamily: "inherit",
+                minHeight: 44,
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               Skip for now
@@ -517,7 +569,7 @@ export default function SkyrioDTour() {
             <button
               onClick={next}
               style={{
-                padding: "10px 24px",
+                padding: "12px 24px",
                 borderRadius: 10,
                 border: "none",
                 background: current.isLast
@@ -529,6 +581,8 @@ export default function SkyrioDTour() {
                 cursor: "pointer",
                 fontFamily: "inherit",
                 boxShadow: "0 4px 14px rgba(255,138,42,0.35)",
+                minHeight: 44,
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               {current.isLast ? "Let's go →" : "Next →"}
@@ -536,18 +590,21 @@ export default function SkyrioDTour() {
           </div>
 
           {/* Don't show again */}
-          <div style={{ textAlign: "center", marginTop: 16 }}>
+          <div style={{ textAlign: "center", marginTop: 20 }}>
             <button
               onClick={neverShow}
               style={{
                 background: "none",
                 border: "none",
                 color: "rgba(240,237,255,0.28)",
-                fontSize: 12,
+                fontSize: 13,
                 cursor: "pointer",
                 fontFamily: "inherit",
                 textDecoration: "underline",
                 textUnderlineOffset: 3,
+                padding: "8px 16px",
+                minHeight: 44,
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               Don't show again
