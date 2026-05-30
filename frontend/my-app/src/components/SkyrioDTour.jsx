@@ -1,20 +1,19 @@
 /**
  * SkyrioDTour.jsx
  * ───────────────
- * Onboarding tour for Skyrio users.
- * Uses ReactDOM.createPortal + body scroll lock for iOS Safari fix.
+ * Onboarding tour — works on iOS Safari, Android Chrome, and Desktop.
+ *
+ * iOS Safari fix: instead of locking body scroll (which breaks fixed),
+ * we use a fullscreen overlay div that handles its own scroll prevention.
  *
  * Save to: src/components/SkyrioDTour.jsx
- *
- * To reset for testing:
- *   localStorage.removeItem("skyrio_tour_done") then refresh.
+ * Reset: localStorage.removeItem("skyrio_tour_done") then refresh.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
-
 function PlaneIcon({ size = 28 }) {
   return (
     <svg
@@ -32,7 +31,6 @@ function PlaneIcon({ size = 28 }) {
     </svg>
   );
 }
-
 function SearchIcon({ size = 28 }) {
   return (
     <svg
@@ -50,7 +48,6 @@ function SearchIcon({ size = 28 }) {
     </svg>
   );
 }
-
 function SkyHubIcon({ size = 28 }) {
   return (
     <svg
@@ -69,7 +66,6 @@ function SkyHubIcon({ size = 28 }) {
     </svg>
   );
 }
-
 function BookmarkIcon({ size = 28 }) {
   return (
     <svg
@@ -86,7 +82,6 @@ function BookmarkIcon({ size = 28 }) {
     </svg>
   );
 }
-
 function PassportIcon({ size = 28 }) {
   return (
     <svg
@@ -106,7 +101,6 @@ function PassportIcon({ size = 28 }) {
     </svg>
   );
 }
-
 function GroupIcon({ size = 28 }) {
   return (
     <svg
@@ -126,7 +120,6 @@ function GroupIcon({ size = 28 }) {
     </svg>
   );
 }
-
 function RobotIcon({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -174,7 +167,6 @@ function RobotIcon({ size = 28 }) {
     </svg>
   );
 }
-
 function RocketIcon({ size = 28 }) {
   return (
     <svg
@@ -195,7 +187,6 @@ function RocketIcon({ size = 28 }) {
   );
 }
 
-// ─── Tour steps ───────────────────────────────────────────────────────────────
 const STEPS = [
   {
     Icon: PlaneIcon,
@@ -252,72 +243,72 @@ const ORANGE = "#ff8a2a";
 const ORANGE2 = "#ffb066";
 const PURPLE = "#7c5cfc";
 
-// ─── Body scroll lock helpers (iOS Safari fix) ────────────────────────────────
-let _scrollY = 0;
-
-function lockScroll() {
-  _scrollY = window.scrollY;
-  document.body.style.position = "fixed";
-  document.body.style.top = `-${_scrollY}px`;
-  document.body.style.left = "0";
-  document.body.style.right = "0";
-  document.body.style.overflow = "hidden";
-  document.body.style.width = "100%";
+// ─── Detect iOS Safari ────────────────────────────────────────────────────────
+function isIOSSafari() {
+  if (typeof window === "undefined") return false;
+  const ua = window.navigator.userAgent;
+  const isIOS = /iP(ad|hone|od)/.test(ua);
+  const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua) && !/CriOS/.test(ua);
+  return isIOS && isSafari;
 }
 
-function unlockScroll() {
-  document.body.style.position = "";
-  document.body.style.top = "";
-  document.body.style.left = "";
-  document.body.style.right = "";
-  document.body.style.overflow = "";
-  document.body.style.width = "";
-  window.scrollTo(0, _scrollY);
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function SkyrioDTour() {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
-  const [exiting, setExiting] = useState(false);
+  const overlayRef = useRef(null);
+  const scrollYRef = useRef(0);
+  const isSafariRef = useRef(false);
 
   useEffect(() => {
+    isSafariRef.current = isIOSSafari();
+
     const dismissed = localStorage.getItem("skyrio_tour_done");
-    if (!dismissed) {
-      const t = setTimeout(() => {
-        setVisible(true);
-        lockScroll(); 
-      }, 2000);
-      return () => clearTimeout(t);
-    }
+    if (dismissed) return;
+
+    const t = setTimeout(() => {
+      setVisible(true);
+
+      if (isSafariRef.current) {
+        // iOS Safari: DO NOT lock body — it breaks position:fixed
+        // The overlay itself handles scroll prevention via touch events
+      } else {
+        // Android Chrome + Desktop: standard body lock
+        scrollYRef.current = window.scrollY || window.pageYOffset;
+        document.body.style.overflow = "hidden";
+        document.body.style.position = "fixed";
+        document.body.style.top = `-${scrollYRef.current}px`;
+        document.body.style.left = "0";
+        document.body.style.right = "0";
+        document.body.style.width = "100%";
+      }
+    }, 2000);
+
+    return () => clearTimeout(t);
   }, []);
 
-  // Cleanup on unmount just in case
-  useEffect(() => {
-    return () => {
-      unlockScroll();
-    };
-  }, []);
+  function unlock() {
+    if (!isSafariRef.current) {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      document.body.style.width = "";
+      window.scrollTo(0, scrollYRef.current);
+    }
+  }
 
   function skipForNow() {
-    unlockScroll();
-    setExiting(true);
-    setTimeout(() => {
-      setVisible(false);
-      setExiting(false);
-      setStep(0);
-    }, 300);
+    unlock();
+    setVisible(false);
+    setStep(0);
   }
 
   function neverShow() {
-    unlockScroll();
-    setExiting(true);
-    setTimeout(() => {
-      localStorage.setItem("skyrio_tour_done", "1");
-      setVisible(false);
-      setExiting(false);
-      setStep(0);
-    }, 300);
+    unlock();
+    localStorage.setItem("skyrio_tour_done", "1");
+    setVisible(false);
+    setStep(0);
   }
 
   function next() {
@@ -329,6 +320,14 @@ export default function SkyrioDTour() {
     if (step > 0) setStep((s) => s - 1);
   }
 
+  // Prevent background scroll on iOS Safari via touch events
+  function handleOverlayTouch(e) {
+    // Allow scrolling inside the card itself
+    if (overlayRef.current && !overlayRef.current.contains(e.target)) {
+      e.preventDefault();
+    }
+  }
+
   if (!visible) return null;
 
   const current = STEPS[step];
@@ -336,67 +335,57 @@ export default function SkyrioDTour() {
   const StepIcon = current.Icon;
 
   return createPortal(
-    <>
-      <style>{`
-        @keyframes dtFadeIn   { from { opacity:0 } to { opacity:1 } }
-        @keyframes dtFadeOut  { from { opacity:1 } to { opacity:0 } }
-        @keyframes dtSlideIn  { from { opacity:0; transform:translate(-50%,-48%) scale(.96) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
-        @keyframes dtSlideOut { from { opacity:1; transform:translate(-50%,-50%) scale(1) } to { opacity:0; transform:translate(-50%,-52%) scale(.96) } }
-      `}</style>
-
-      {/* Backdrop */}
-      <div
-        onClick={skipForNow}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 2147483640,
-          background: "rgba(0,0,0,0.88)",
-          WebkitTapHighlightColor: "transparent",
-          animation: exiting
-            ? "dtFadeOut .3s ease forwards"
-            : "dtFadeIn .3s ease",
-        }}
-      />
-
+    <div
+      onTouchMove={handleOverlayTouch}
+      onClick={skipForNow}
+      style={{
+        // iOS Safari: use position absolute with full page coverage
+        // so it doesn't depend on body scroll state
+        position: isSafariRef.current ? "absolute" : "fixed",
+        top: isSafariRef.current
+          ? `${scrollYRef.current || window.scrollY}px`
+          : 0,
+        left: 0,
+        width: "100vw",
+        height: isSafariRef.current ? "100vh" : "100vh",
+        zIndex: 2147483647,
+        background: "rgba(0,0,0,0.88)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+        boxSizing: "border-box",
+        overflowY: "hidden",
+      }}
+    >
       {/* Card */}
       <div
+        ref={overlayRef}
+        onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
         style={{
-          position: "fixed",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%,-50%)",
-          zIndex: 2147483647,
-          width: "min(480px, 92vw)",
-          maxHeight: "85dvh",
+          width: "100%",
+          maxWidth: 480,
+          maxHeight: "85vh",
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
           background: "#120f2a",
           border: "1px solid rgba(255,255,255,0.15)",
           borderRadius: 20,
           boxShadow: "0 40px 100px rgba(0,0,0,0.95)",
-          animation: exiting
-            ? "dtSlideOut .3s ease forwards"
-            : "dtSlideIn .35s cubic-bezier(.22,1,.36,1)",
           fontFamily: "'DM Sans', sans-serif",
           color: "#f0edff",
-          // Critical for iOS: create new stacking context
-          willChange: "transform",
-          isolation: "isolate",
+          overscrollBehavior: "contain",
         }}
       >
         {/* Progress bar */}
         <div
           style={{
             height: 4,
+            borderRadius: "20px 20px 0 0",
             background: `linear-gradient(90deg, ${ORANGE}, ${PURPLE})`,
             width: `${progress}%`,
             transition: "width .4s ease",
-            borderRadius: "20px 20px 0 0",
-            flexShrink: 0,
           }}
         />
 
@@ -406,15 +395,15 @@ export default function SkyrioDTour() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            padding: "20px 24px 0",
+            padding: "18px 20px 0",
           }}
         >
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
             {STEPS.map((_, i) => (
               <div
                 key={i}
                 style={{
-                  width: i === step ? 18 : 6,
+                  width: i === step ? 16 : 6,
                   height: 6,
                   borderRadius: 3,
                   background:
@@ -434,16 +423,17 @@ export default function SkyrioDTour() {
               background: "none",
               border: "none",
               color: "rgba(240,237,255,0.5)",
-              fontSize: 22,
+              fontSize: 24,
               cursor: "pointer",
               lineHeight: 1,
               padding: "4px 8px",
-              WebkitTapHighlightColor: "transparent",
               minWidth: 44,
               minHeight: 44,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              WebkitTapHighlightColor: "transparent",
+              touchAction: "manipulation",
             }}
           >
             ×
@@ -451,33 +441,31 @@ export default function SkyrioDTour() {
         </div>
 
         {/* Body */}
-        <div style={{ padding: "24px 28px 32px" }}>
-          {/* Icon */}
+        <div style={{ padding: "20px 24px 28px" }}>
           <div
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 16,
+              width: 52,
+              height: 52,
+              borderRadius: 14,
               background: "rgba(255,138,42,0.15)",
               border: "1px solid rgba(255,138,42,0.35)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               color: ORANGE,
-              marginBottom: 20,
-              flexShrink: 0,
+              marginBottom: 16,
             }}
           >
-            <StepIcon size={28} />
+            <StepIcon size={26} />
           </div>
 
           <h2
             style={{
-              margin: "0 0 12px",
-              fontSize: 22,
+              margin: "0 0 10px",
+              fontSize: 20,
               fontWeight: 700,
-              color: "#ffffff",
-              letterSpacing: "-0.5px",
+              color: "#fff",
+              letterSpacing: "-0.4px",
             }}
           >
             {current.title}
@@ -485,8 +473,8 @@ export default function SkyrioDTour() {
 
           <p
             style={{
-              margin: "0 0 16px",
-              fontSize: 15,
+              margin: "0 0 14px",
+              fontSize: 14,
               color: "rgba(240,237,255,0.80)",
               lineHeight: 1.65,
             }}
@@ -512,20 +500,19 @@ export default function SkyrioDTour() {
 
           <p
             style={{
-              fontSize: 12,
-              color: "rgba(255,255,255,0.25)",
-              margin: "14px 0 20px",
+              fontSize: 11,
+              color: "rgba(255,255,255,0.22)",
+              margin: "12px 0 18px",
               textAlign: "right",
             }}
           >
             {step + 1} / {STEPS.length}
           </p>
 
-          {/* Buttons */}
           <div
             style={{
               display: "flex",
-              gap: 10,
+              gap: 8,
               justifyContent: "flex-end",
               flexWrap: "wrap",
             }}
@@ -534,16 +521,17 @@ export default function SkyrioDTour() {
               <button
                 onClick={prev}
                 style={{
-                  padding: "12px 18px",
+                  padding: "0 16px",
                   borderRadius: 10,
+                  minHeight: 48,
                   border: "1px solid rgba(255,255,255,0.12)",
                   background: "none",
                   color: "rgba(240,237,255,0.6)",
                   fontSize: 14,
                   cursor: "pointer",
                   fontFamily: "inherit",
-                  minHeight: 44,
                   WebkitTapHighlightColor: "transparent",
+                  touchAction: "manipulation",
                 }}
               >
                 ← Back
@@ -552,16 +540,17 @@ export default function SkyrioDTour() {
             <button
               onClick={skipForNow}
               style={{
-                padding: "12px 16px",
+                padding: "0 14px",
                 borderRadius: 10,
+                minHeight: 48,
                 border: "none",
                 background: "rgba(255,255,255,0.08)",
                 color: "rgba(240,237,255,0.6)",
                 fontSize: 14,
                 cursor: "pointer",
                 fontFamily: "inherit",
-                minHeight: 44,
                 WebkitTapHighlightColor: "transparent",
+                touchAction: "manipulation",
               }}
             >
               Skip for now
@@ -569,8 +558,9 @@ export default function SkyrioDTour() {
             <button
               onClick={next}
               style={{
-                padding: "12px 24px",
+                padding: "0 22px",
                 borderRadius: 10,
+                minHeight: 48,
                 border: "none",
                 background: current.isLast
                   ? `linear-gradient(135deg, ${ORANGE}, ${ORANGE2})`
@@ -581,16 +571,15 @@ export default function SkyrioDTour() {
                 cursor: "pointer",
                 fontFamily: "inherit",
                 boxShadow: "0 4px 14px rgba(255,138,42,0.35)",
-                minHeight: 44,
                 WebkitTapHighlightColor: "transparent",
+                touchAction: "manipulation",
               }}
             >
               {current.isLast ? "Let's go →" : "Next →"}
             </button>
           </div>
 
-          {/* Don't show again */}
-          <div style={{ textAlign: "center", marginTop: 20 }}>
+          <div style={{ textAlign: "center", marginTop: 18 }}>
             <button
               onClick={neverShow}
               style={{
@@ -602,9 +591,10 @@ export default function SkyrioDTour() {
                 fontFamily: "inherit",
                 textDecoration: "underline",
                 textUnderlineOffset: 3,
-                padding: "8px 16px",
+                padding: "8px 12px",
                 minHeight: 44,
                 WebkitTapHighlightColor: "transparent",
+                touchAction: "manipulation",
               }}
             >
               Don't show again
@@ -612,7 +602,7 @@ export default function SkyrioDTour() {
           </div>
         </div>
       </div>
-    </>,
+    </div>,
     document.body
   );
 }
