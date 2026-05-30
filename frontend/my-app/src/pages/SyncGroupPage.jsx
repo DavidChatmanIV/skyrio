@@ -385,6 +385,7 @@ export default function SyncGroupPage() {
   const [destination, setDestination] = useState("");
   const [departureAirport, setDepartureAirport] = useState("");
   const [departureDisplay, setDepartureDisplay] = useState("");
+  const [cabinClass, setCabinClass] = useState("economy");
   const [dateRange, setDateRange] = useState([null, null]);
   const [budget, setBudget] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -433,6 +434,7 @@ export default function SyncGroupPage() {
           if (!departureDisplay)
             setDepartureDisplay(data.group.departureAirport);
         }
+        setCabinClass(data.group.cabinClass || "economy");
         setBudget(data.group.members?.[0]?.budget || null);
         if (data.group.plan) {
           setAtlasPlan(data.group.plan);
@@ -496,7 +498,7 @@ export default function SyncGroupPage() {
   const saveDetails = async () => {
     setSaving(true);
     try {
-      const body = { destination, departureAirport };
+      const body = { destination, departureAirport, cabinClass };
       if (dateRange[0] && dateRange[1]) {
         body.dateRangeStart = dateRange[0].toISOString();
         body.dateRangeEnd = dateRange[1].toISOString();
@@ -538,6 +540,13 @@ export default function SyncGroupPage() {
         ? dateRange[1].diff(dateRange[0], "day")
         : null;
     const homeAirport = departureAirport || "EWR";
+    const cabinLabel =
+      {
+        economy: "economy",
+        premium_economy: "premium economy",
+        business: "business",
+        first: "first class",
+      }[cabinClass] || "economy";
 
     let changeContext = "";
     if (openChangeRequests.length > 0) {
@@ -553,6 +562,7 @@ export default function SyncGroupPage() {
 DETAILS:
 - Departure airport: ${homeAirport}
 - Destination: ${destination}
+- Cabin class: ${cabinLabel}
 ${tripDays ? `- Trip length: ${tripDays} days` : ""}
 ${
   dateRange[0]
@@ -568,11 +578,11 @@ ${changeContext}
 IMPORTANT FORMATTING: Always format prices with commas for thousands (e.g. $1,234.56 not $1234.56). Use markdown headers (###) for sections.
 
 Please use your tools to:
-1. Search for real flights from ${homeAirport} to ${destination}${
+1. Search for real ${cabinLabel} flights from ${homeAirport} to ${destination}${
       dateRange[0] ? ` departing ${dateRange[0].format("YYYY-MM-DD")}` : ""
     }${
       dateRange[1] ? ` returning ${dateRange[1].format("YYYY-MM-DD")}` : ""
-    } for ${travelerCount} adults
+    } for ${travelerCount} adults in ${cabinLabel} cabin
 2. Recommend the best flight options with actual prices
 3. Suggest accommodation for the group
 4. Create a day-by-day itinerary with activities
@@ -1325,6 +1335,56 @@ Format clearly with ### sections.`;
                   display: "block",
                 }}
               >
+                <Plane size={12} style={{ marginRight: 4 }} /> Cabin Class
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { value: "economy", label: "Economy" },
+                  { value: "premium_economy", label: "Premium Economy" },
+                  { value: "business", label: "Business" },
+                  { value: "first", label: "First Class" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setCabinClass(opt.value)}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: 10,
+                      border: `1px solid ${
+                        cabinClass === opt.value
+                          ? "#ff8a2a"
+                          : "rgba(255,255,255,0.12)"
+                      }`,
+                      background:
+                        cabinClass === opt.value
+                          ? "rgba(255,138,42,0.15)"
+                          : "rgba(255,255,255,0.04)",
+                      color:
+                        cabinClass === opt.value
+                          ? "#ff8a2a"
+                          : "rgba(255,255,255,0.6)",
+                      fontWeight: cabinClass === opt.value ? 700 : 500,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 12,
+                  marginBottom: 4,
+                  display: "block",
+                }}
+              >
                 <DollarSign size={12} style={{ marginRight: 4 }} /> Budget per
                 person
               </label>
@@ -1385,6 +1445,20 @@ Format clearly with ### sections.`;
                     />
                     {dayjs(group.dateRangeStart).format("MMM D")} —{" "}
                     {dayjs(group.dateRangeEnd).format("MMM D, YYYY")}
+                  </div>
+                )}
+                {group.cabinClass && (
+                  <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
+                    <Plane
+                      size={14}
+                      style={{ marginRight: 6, color: "#ff8a2a" }}
+                    />
+                    {{
+                      economy: "Economy",
+                      premium_economy: "Premium Economy",
+                      business: "Business",
+                      first: "First Class",
+                    }[group.cabinClass] || group.cabinClass}
                   </div>
                 )}
                 {group.members?.[0]?.budget && (

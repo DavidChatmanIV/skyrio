@@ -65,6 +65,11 @@ const SyncGroupSchema = new Schema(
     inviteCode: { type: String, unique: true, sparse: true },
     destination: { type: String, trim: true, default: null },
     departureAirport: { type: String, trim: true, default: null },
+    cabinClass: {
+      type: String,
+      enum: ["economy", "premium_economy", "business", "first"],
+      default: "economy",
+    },
     dateRangeStart: { type: Date, default: null },
     dateRangeEnd: { type: Date, default: null },
 
@@ -97,6 +102,7 @@ SyncGroupSchema.methods.toSafeJSON = function () {
     inviteCode: this.inviteCode,
     destination: this.destination,
     departureAirport: this.departureAirport,
+    cabinClass: this.cabinClass,
     dateRangeStart: this.dateRangeStart,
     dateRangeEnd: this.dateRangeEnd,
     plan: this.plan,

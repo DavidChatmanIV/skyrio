@@ -122,6 +122,7 @@ router.patch("/:id", async (req, res) => {
       title,
       destination,
       departureAirport,
+      cabinClass,
       dateRangeStart,
       dateRangeEnd,
       budget,
@@ -132,6 +133,7 @@ router.patch("/:id", async (req, res) => {
     if (destination !== undefined) group.destination = destination;
     if (departureAirport !== undefined)
       group.departureAirport = departureAirport;
+    if (cabinClass !== undefined) group.cabinClass = cabinClass;
     if (dateRangeStart !== undefined) group.dateRangeStart = dateRangeStart;
     if (dateRangeEnd !== undefined) group.dateRangeEnd = dateRangeEnd;
     if (status !== undefined) group.status = status;
