@@ -254,11 +254,10 @@ const C = {
   orange: "#ff8a2a",
   orange2: "#ffb066",
   purple: "#7c5cfc",
-  dark2: "#120f2a",
-  stroke: "rgba(255,255,255,0.12)",
   text: "#f0edff",
   sub: "rgba(240,237,255,0.60)",
   muted: "rgba(240,237,255,0.30)",
+  stroke: "rgba(255,255,255,0.12)",
 };
 
 export default function SkyrioDTour() {
@@ -267,7 +266,6 @@ export default function SkyrioDTour() {
   const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
-    // Only skip if user explicitly chose "Don't show again"
     const dismissed = localStorage.getItem("skyrio_tour_done");
     if (!dismissed) {
       const t = setTimeout(() => setVisible(true), 800);
@@ -275,7 +273,6 @@ export default function SkyrioDTour() {
     }
   }, []);
 
-  // Close for this session only — will show again next visit
   function skipForNow() {
     setExiting(true);
     setTimeout(() => {
@@ -285,7 +282,6 @@ export default function SkyrioDTour() {
     }, 300);
   }
 
-  // Permanently dismiss — never show again
   function neverShow() {
     setExiting(true);
     setTimeout(() => {
@@ -313,22 +309,21 @@ export default function SkyrioDTour() {
 
   return (
     <>
-      {/* Backdrop — clicking skips for now, not permanently */}
+      {/* Backdrop — solid, no blur so card stays readable */}
       <div
         onClick={skipForNow}
         style={{
           position: "fixed",
           inset: 0,
           zIndex: 99998,
-          background: "rgba(9,7,26,0.75)",
-          backdropFilter: "blur(4px)",
+          background: "rgba(0,0,0,0.85)",
           animation: exiting
             ? "dtFadeOut .3s ease forwards"
             : "dtFadeIn .3s ease",
         }}
       />
 
-      {/* Card */}
+      {/* Card — fully solid background, no transparency */}
       <div
         style={{
           position: "fixed",
@@ -337,12 +332,15 @@ export default function SkyrioDTour() {
           transform: "translate(-50%,-50%)",
           zIndex: 99999,
           width: "min(480px, 92vw)",
-          background: C.dark2,
-          border: `1px solid ${C.stroke}`,
+          background: "#120f2a",
+          border: "1px solid rgba(255,255,255,0.14)",
           borderRadius: 20,
           boxShadow:
-            "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,138,42,0.08)",
+            "0 32px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,138,42,0.15)",
           overflow: "hidden",
+          isolation: "isolate",
+          WebkitBackdropFilter: "none",
+          backdropFilter: "none",
           animation: exiting
             ? "dtSlideOut .3s ease forwards"
             : "dtSlideIn .35s cubic-bezier(.22,1,.36,1)",
@@ -413,8 +411,8 @@ export default function SkyrioDTour() {
               width: 56,
               height: 56,
               borderRadius: 16,
-              background: "rgba(255,138,42,0.12)",
-              border: "1px solid rgba(255,138,42,0.25)",
+              background: "rgba(255,138,42,0.15)",
+              border: "1px solid rgba(255,138,42,0.3)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -430,7 +428,7 @@ export default function SkyrioDTour() {
               margin: "0 0 12px",
               fontSize: 22,
               fontWeight: 700,
-              color: C.text,
+              color: "#ffffff",
               letterSpacing: "-0.5px",
             }}
           >
@@ -441,7 +439,7 @@ export default function SkyrioDTour() {
             style={{
               margin: "0 0 16px",
               fontSize: 15,
-              color: C.sub,
+              color: "rgba(240,237,255,0.75)",
               lineHeight: 1.6,
             }}
           >
@@ -451,8 +449,8 @@ export default function SkyrioDTour() {
           {current.tip && (
             <div
               style={{
-                background: "rgba(255,138,42,0.10)",
-                border: "1px solid rgba(255,138,42,0.25)",
+                background: "rgba(255,138,42,0.12)",
+                border: "1px solid rgba(255,138,42,0.3)",
                 borderRadius: 10,
                 padding: "10px 14px",
                 fontSize: 13,
@@ -507,7 +505,7 @@ export default function SkyrioDTour() {
                 padding: "10px 16px",
                 borderRadius: 10,
                 border: "none",
-                background: "rgba(255,255,255,0.07)",
+                background: "rgba(255,255,255,0.08)",
                 color: C.sub,
                 fontSize: 14,
                 cursor: "pointer",
@@ -537,7 +535,7 @@ export default function SkyrioDTour() {
             </button>
           </div>
 
-          {/* Don't show again — permanent dismiss */}
+          {/* Don't show again */}
           <div style={{ textAlign: "center", marginTop: 16 }}>
             <button
               onClick={neverShow}

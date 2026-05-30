@@ -33,24 +33,24 @@ export default function AppLayout() {
     .join(" ");
 
   return (
-    <div className={shellClass}>
-      <Navbar />
+    <>
+      <div className={shellClass}>
+        <Navbar />
 
-      <main className={`osq-main ${isSkyHub ? "osq-main--flush" : ""}`}>
-        <Outlet />
-      </main>
+        <main className={`osq-main ${isSkyHub ? "osq-main--flush" : ""}`}>
+          <Outlet />
+        </main>
 
-      {/* ── Footer — hidden on SkyHub (full-bleed layout) ── */}
-      {!isLanding && !isSkyHub && <Footer />}
+        {/* ── Footer — hidden on landing and SkyHub ── */}
+        {!isLanding && !isSkyHub && <Footer />}
 
-      <AtlasChat destination={atlasDestination} />
-      <CookieBanner />
+        <AtlasChat destination={atlasDestination} />
+        <CookieBanner />
+      </div>
 
-      {/* ── Onboarding tour — shows once for new users ── */}
+      {/* ── Outside shell so position:fixed works correctly on mobile ── */}
       <SkyrioDTour />
-
-      {/* ── Floating support button — always visible ── */}
       <SupportWidget />
-    </div>
+    </>
   );
 }
