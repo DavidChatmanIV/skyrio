@@ -1,10 +1,14 @@
 /**
  * SkyrioDTour.jsx
  * ───────────────
- * Drop-in onboarding tour for first-time Skyrio users.
- * Fires once per user (stored in localStorage).
+ * Onboarding tour for Skyrio users.
+ * - Shows every visit UNLESS the user clicks "Don't show again"
+ * - "Skip for now" closes for this session only (shows again next visit)
+ * - "Don't show again" sets localStorage and never shows again
  *
- * To re-trigger for testing:
+ * Save to: src/components/SkyrioDTour.jsx
+ *
+ * To reset for testing:
  *   localStorage.removeItem("skyrio_tour_done") then refresh.
  */
 
@@ -44,6 +48,25 @@ function SearchIcon({ size = 28 }) {
     >
       <circle cx="11" cy="11" r="8" />
       <path d="M21 21L16.65 16.65" />
+    </svg>
+  );
+}
+
+function SkyHubIcon({ size = 28 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   );
 }
@@ -188,6 +211,12 @@ const STEPS = [
     tip: "Tip: Atlas, your AI travel assistant, can search for you in plain English.",
   },
   {
+    Icon: SkyHubIcon,
+    title: "SkyHub — Your Travel Feed",
+    body: "SkyHub is Skyrio's social space. Share travel moments, follow other explorers, and discover trips through your community's eyes.",
+    tip: "Tip: Post a moment from any trip to earn XP and inspire other travelers.",
+  },
+  {
     Icon: BookmarkIcon,
     title: "Save & plan your trips",
     body: "Hit the bookmark icon on any result to save it. Your saved trips live in the Saved Trips section — organised, shareable, and ready to book.",
@@ -229,6 +258,7 @@ const C = {
   stroke: "rgba(255,255,255,0.12)",
   text: "#f0edff",
   sub: "rgba(240,237,255,0.60)",
+  muted: "rgba(240,237,255,0.30)",
 };
 
 export default function SkyrioDTour() {
@@ -237,25 +267,38 @@ export default function SkyrioDTour() {
   const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
-    const done = localStorage.getItem("skyrio_tour_done");
-    if (!done) {
+    // Only skip if user explicitly chose "Don't show again"
+    const dismissed = localStorage.getItem("skyrio_tour_done");
+    if (!dismissed) {
       const t = setTimeout(() => setVisible(true), 800);
       return () => clearTimeout(t);
     }
   }, []);
 
-  function dismiss() {
+  // Close for this session only — will show again next visit
+  function skipForNow() {
+    setExiting(true);
+    setTimeout(() => {
+      setVisible(false);
+      setExiting(false);
+      setStep(0);
+    }, 300);
+  }
+
+  // Permanently dismiss — never show again
+  function neverShow() {
     setExiting(true);
     setTimeout(() => {
       localStorage.setItem("skyrio_tour_done", "1");
       setVisible(false);
       setExiting(false);
+      setStep(0);
     }, 300);
   }
 
   function next() {
     if (step < STEPS.length - 1) setStep((s) => s + 1);
-    else dismiss();
+    else skipForNow();
   }
 
   function prev() {
@@ -270,9 +313,9 @@ export default function SkyrioDTour() {
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — clicking skips for now, not permanently */}
       <div
-        onClick={dismiss}
+        onClick={skipForNow}
         style={{
           position: "fixed",
           inset: 0,
@@ -346,7 +389,8 @@ export default function SkyrioDTour() {
             ))}
           </div>
           <button
-            onClick={dismiss}
+            onClick={skipForNow}
+            title="Close for now"
             style={{
               background: "none",
               border: "none",
@@ -363,7 +407,7 @@ export default function SkyrioDTour() {
 
         {/* Body */}
         <div style={{ padding: "24px 28px 28px" }}>
-          {/* SVG icon in orange box */}
+          {/* SVG icon */}
           <div
             style={{
               width: 56,
@@ -432,7 +476,14 @@ export default function SkyrioDTour() {
           </p>
 
           {/* Actions */}
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              justifyContent: "flex-end",
+              flexWrap: "wrap",
+            }}
+          >
             {step > 0 && (
               <button
                 onClick={prev}
@@ -451,7 +502,7 @@ export default function SkyrioDTour() {
               </button>
             )}
             <button
-              onClick={dismiss}
+              onClick={skipForNow}
               style={{
                 padding: "10px 16px",
                 borderRadius: 10,
@@ -463,7 +514,7 @@ export default function SkyrioDTour() {
                 fontFamily: "inherit",
               }}
             >
-              Skip tour
+              Skip for now
             </button>
             <button
               onClick={next}
@@ -483,6 +534,25 @@ export default function SkyrioDTour() {
               }}
             >
               {current.isLast ? "Let's go →" : "Next →"}
+            </button>
+          </div>
+
+          {/* Don't show again — permanent dismiss */}
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <button
+              onClick={neverShow}
+              style={{
+                background: "none",
+                border: "none",
+                color: C.muted,
+                fontSize: 12,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+              }}
+            >
+              Don't show again
             </button>
           </div>
         </div>

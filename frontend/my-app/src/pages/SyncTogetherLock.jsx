@@ -2,27 +2,15 @@
  * SyncTogetherLock.jsx
  * ─────────────────────
  * Login wall for Sync Together — shown to logged-out users.
- * Same two-column pattern as your PassportLocked page.
+ * Mobile-first responsive layout.
  *
- * INSTALL:
- *   1. Save to: src/pages/SyncTogetherLock.jsx
- *   2. In AppRoutes.jsx, update the sync-together route:
- *
- *      import SyncTogetherLock from "./pages/SyncTogetherLock";
- *
- *      // Replace the current sync-together route with:
- *      <Route path="sync-together" element={
- *        user ? <SyncTogether /> : <SyncTogetherLock />
- *      } />
- *
- *      // Get `user` from your auth context, e.g.:
- *      const { user } = useAuth();
+ * Save to: src/pages/SyncTogetherLock.jsx
  */
 
 import { useNavigate } from "react-router-dom";
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
-function LockIcon({ size = 48 }) {
+function LockIcon({ size = 36 }) {
   return (
     <svg
       width={size}
@@ -135,7 +123,6 @@ function PlaneIcon() {
   );
 }
 
-// ─── Features list ────────────────────────────────────────────────────────────
 const FEATURES = [
   { Icon: UsersIcon, text: "Invite friends and family to your trip group" },
   { Icon: MapIcon, text: "Build a shared itinerary everyone can see and edit" },
@@ -144,170 +131,132 @@ const FEATURES = [
   { Icon: PlaneIcon, text: "Book flights and hotels as a group in one place" },
 ];
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const s = {
-  root: {
-    minHeight: "100vh",
-    background: "#09071a",
-    color: "#f0edff",
-    fontFamily: "'DM Sans', sans-serif",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "40px 20px",
-  },
-  inner: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 24,
-    width: "100%",
-    maxWidth: 900,
-  },
-  // Left card — lock + headline
-  leftCard: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.09)",
-    borderRadius: 20,
-    padding: "48px 40px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    minHeight: 320,
-    position: "relative",
-    overflow: "hidden",
-  },
-  leftGlow: {
-    position: "absolute",
-    top: "30%",
-    left: "50%",
-    transform: "translate(-50%,-50%)",
-    width: 260,
-    height: 260,
-    borderRadius: "50%",
-    background:
-      "radial-gradient(circle, rgba(255,138,42,0.12) 0%, transparent 70%)",
-    pointerEvents: "none",
-  },
-  lockWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    background: "rgba(255,138,42,0.10)",
-    border: "1px solid rgba(255,138,42,0.25)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#ff8a2a",
-    marginBottom: 24,
-    position: "relative",
-    zIndex: 1,
-  },
-  leftTitle: {
-    fontSize: 28,
-    fontWeight: 800,
-    fontFamily: "'Syne', sans-serif",
-    letterSpacing: "-0.5px",
-    color: "#f0edff",
-    margin: "0 0 12px",
-    position: "relative",
-    zIndex: 1,
-  },
-  leftSub: {
-    fontSize: 15,
-    color: "rgba(240,237,255,0.5)",
-    lineHeight: 1.6,
-    maxWidth: 300,
-    margin: 0,
-    position: "relative",
-    zIndex: 1,
-  },
-
-  // Right card — features + CTA
-  rightCard: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.09)",
-    borderRadius: 20,
-    padding: "32px 28px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  featureRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 14,
-    padding: "13px 16px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderRadius: 12,
-    color: "rgba(240,237,255,0.75)",
-    fontSize: 14,
-    lineHeight: 1.4,
-  },
-  featureIcon: {
-    color: "#ff8a2a",
-    flexShrink: 0,
-  },
-  cta: {
-    width: "100%",
-    padding: "16px",
-    borderRadius: 14,
-    border: "none",
-    background: "linear-gradient(135deg, #ff8a2a, #ffb066)",
-    color: "#1a0d04",
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: 16,
-    fontWeight: 800,
-    cursor: "pointer",
-    marginTop: 4,
-    boxShadow: "0 8px 24px rgba(255,138,42,0.35)",
-    transition: "filter .2s, transform .2s",
-  },
-  signin: {
-    textAlign: "center",
-    fontSize: 14,
-    color: "rgba(240,237,255,0.4)",
-    marginTop: 4,
-  },
-  signinLink: {
-    color: "#ff8a2a",
-    fontWeight: 700,
-    cursor: "pointer",
-    textDecoration: "none",
-    marginLeft: 4,
-  },
-};
-
 export default function SyncTogetherLock() {
   const navigate = useNavigate();
 
   return (
-    <div style={s.root}>
-      <div style={s.inner}>
-        {/* ── Left: lock + headline ── */}
-        <div style={s.leftCard}>
-          <div style={s.leftGlow} />
-          <div style={s.lockWrap}>
-            <LockIcon size={36} />
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#09071a",
+        color: "#f0edff",
+        fontFamily: "'DM Sans', sans-serif",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px 16px",
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 860 }}>
+        {/* ── Top: lock icon + headline (always full width on mobile) ── */}
+        <div
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.09)",
+            borderRadius: 20,
+            padding: "36px 24px",
+            textAlign: "center",
+            marginBottom: 16,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          {/* Glow */}
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%,-50%)",
+              width: 300,
+              height: 300,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(255,138,42,0.10) 0%, transparent 70%)",
+              pointerEvents: "none",
+            }}
+          />
+
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 18,
+              background: "rgba(255,138,42,0.10)",
+              border: "1px solid rgba(255,138,42,0.25)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#ff8a2a",
+              margin: "0 auto 20px",
+              position: "relative",
+              zIndex: 1,
+            }}
+          >
+            <LockIcon size={32} />
           </div>
-          <h2 style={s.leftTitle}>
-            Plan your next
-            <br />
-            group trip together.
+
+          <h2
+            style={{
+              margin: "0 0 10px",
+              fontSize: "clamp(22px, 5vw, 32px)",
+              fontWeight: 800,
+              fontFamily: "'Syne', sans-serif",
+              letterSpacing: "-0.5px",
+              color: "#f0edff",
+              position: "relative",
+              zIndex: 1,
+            }}
+          >
+            Plan your next group trip together.
           </h2>
-          <p style={s.leftSub}>
+
+          <p
+            style={{
+              fontSize: 15,
+              color: "rgba(240,237,255,0.5)",
+              lineHeight: 1.6,
+              margin: "0 auto",
+              maxWidth: 420,
+              position: "relative",
+              zIndex: 1,
+            }}
+          >
             Create a free account to start a group trip, invite your crew, and
             coordinate everything in one place.
           </p>
         </div>
 
-        {/* ── Right: features + CTA ── */}
-        <div style={s.rightCard}>
+        {/* ── Bottom: features + CTA ── */}
+        <div
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.09)",
+            borderRadius: 20,
+            padding: "24px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
           {FEATURES.map(({ Icon, text }) => (
-            <div key={text} style={s.featureRow}>
-              <span style={s.featureIcon}>
+            <div
+              key={text}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "12px 16px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 12,
+                color: "rgba(240,237,255,0.75)",
+                fontSize: 14,
+                lineHeight: 1.4,
+              }}
+            >
+              <span style={{ color: "#ff8a2a", flexShrink: 0 }}>
                 <Icon />
               </span>
               {text}
@@ -315,8 +264,21 @@ export default function SyncTogetherLock() {
           ))}
 
           <button
-            style={s.cta}
             onClick={() => navigate("/register?next=/sync-together")}
+            style={{
+              width: "100%",
+              padding: "16px",
+              borderRadius: 14,
+              border: "none",
+              background: "linear-gradient(135deg, #ff8a2a, #ffb066)",
+              color: "#1a0d04",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 16,
+              fontWeight: 800,
+              cursor: "pointer",
+              marginTop: 6,
+              boxShadow: "0 8px 24px rgba(255,138,42,0.35)",
+            }}
             onMouseEnter={(e) => {
               e.currentTarget.style.filter = "brightness(1.08)";
               e.currentTarget.style.transform = "translateY(-2px)";
@@ -329,24 +291,24 @@ export default function SyncTogetherLock() {
             Create a free account — it's free
           </button>
 
-          <div style={s.signin}>
-            Already a member?
+          <div
+            style={{
+              textAlign: "center",
+              fontSize: 14,
+              color: "rgba(240,237,255,0.4)",
+              marginTop: 2,
+            }}
+          >
+            Already a member?{" "}
             <span
-              style={s.signinLink}
               onClick={() => navigate("/login?next=/sync-together")}
+              style={{ color: "#ff8a2a", fontWeight: 700, cursor: "pointer" }}
             >
               Sign in
             </span>
           </div>
         </div>
       </div>
-
-      {/* Responsive */}
-      <style>{`
-        @media (max-width: 700px) {
-          .stlock-inner { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
     </div>
   );
 }
