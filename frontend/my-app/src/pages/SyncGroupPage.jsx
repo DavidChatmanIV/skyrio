@@ -28,6 +28,8 @@ import {
   LockOutlined,
   SearchOutlined,
   LoadingOutlined,
+  UserAddOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import {
   Users,
@@ -398,6 +400,15 @@ export default function SyncGroupPage() {
   const [approving, setApproving] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  // Add/remove members
+  const [addInput, setAddInput] = useState("");
+  const [addResults, setAddResults] = useState([]);
+  const [addSearching, setAddSearching] = useState(false);
+  const [showAddDrop, setShowAddDrop] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const addDebounceRef = useRef(null);
+  const addWrapperRef = useRef(null);
+
   useEffect(() => {
     const home = getHomeAirport();
     if (home?.code) {
@@ -711,6 +722,102 @@ Format clearly with ### sections.`;
     }
   };
 
+  /* ── Search users to add ── */
+  const searchUsersToAdd = useCallback(async (q) => {
+    if (!q || q.trim().length < 2) {
+      setAddResults([]);
+      setShowAddDrop(false);
+      return;
+    }
+    setAddSearching(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/sync-together/search?q=${encodeURIComponent(q.trim())}`,
+        { headers: authHeaders() }
+      );
+      const data = await res.json();
+      if (data.ok) {
+        setAddResults(data.users || []);
+        setShowAddDrop(true);
+      }
+    } catch {
+      setAddResults([]);
+    } finally {
+      setAddSearching(false);
+    }
+  }, []);
+
+  const handleAddInputChange = (e) => {
+    const val = e.target.value;
+    setAddInput(val);
+    clearTimeout(addDebounceRef.current);
+    addDebounceRef.current = setTimeout(() => searchUsersToAdd(val), 300);
+  };
+
+  const addMemberToGroup = async (user) => {
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/member`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          userId: user._id || user.id || null,
+          email: user.email || null,
+          name: user.name || user.username || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        antdMessage.success(
+          `${user.name || user.username || user.email} added`
+        );
+      } else antdMessage.error(data.error || "Failed to add");
+    } catch {
+      antdMessage.error("Failed to add member");
+    }
+    setAddInput("");
+    setAddResults([]);
+    setShowAddDrop(false);
+  };
+
+  const addByEmailDirect = () => {
+    const val = addInput.trim();
+    if (!val) return;
+    if (showAddDrop && addResults.length > 0) {
+      addMemberToGroup(addResults[0]);
+      return;
+    }
+    addMemberToGroup({ email: val, name: val });
+  };
+
+  const removeMember = async (memberId, memberName) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/sync-together/${id}/member/${memberId}`,
+        {
+          method: "DELETE",
+          headers: authHeaders(),
+        }
+      );
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        antdMessage.success(`${memberName} removed`);
+      } else antdMessage.error(data.error || "Failed to remove");
+    } catch {
+      antdMessage.error("Failed to remove member");
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (addWrapperRef.current && !addWrapperRef.current.contains(e.target))
+        setShowAddDrop(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   if (loading)
     return (
       <section className="sk-sync-section">
@@ -971,9 +1078,151 @@ Format clearly with ### sections.`;
                   {m.status}
                 </span>
               )}
+              {!isBooked && isMember && (
+                <button
+                  onClick={() =>
+                    removeMember(m._id, m.user?.name || m.name || m.email)
+                  }
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 4,
+                    color: "rgba(255,255,255,0.2)",
+                    transition: "color 0.15s",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = "#ff4d4f")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "rgba(255,255,255,0.2)")
+                  }
+                  title="Remove from trip"
+                >
+                  <CloseCircleOutlined style={{ fontSize: 16 }} />
+                </button>
+              )}
             </div>
           ))}
         </div>
+
+        {/* Add member */}
+        {!isBooked && isMember && (
+          <div style={{ marginTop: 12 }}>
+            {!showAddForm ? (
+              <Button
+                type="text"
+                icon={<UserAddOutlined />}
+                onClick={() => setShowAddForm(true)}
+                style={{ color: "#ff8a2a", fontSize: 13, padding: 0 }}
+              >
+                Add traveler
+              </Button>
+            ) : (
+              <div ref={addWrapperRef} style={{ position: "relative" }}>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <div className="sk-sync-search-wrapper">
+                    <Input
+                      className="sk-sync-input"
+                      value={addInput}
+                      onChange={handleAddInputChange}
+                      onPressEnter={addByEmailDirect}
+                      placeholder="Search by name, username, or email"
+                      prefix={<SearchOutlined style={{ color: "#ff8a2a" }} />}
+                      suffix={
+                        addSearching ? (
+                          <Spin
+                            indicator={
+                              <LoadingOutlined
+                                style={{ fontSize: 14, color: "#ff8a2a" }}
+                              />
+                            }
+                          />
+                        ) : null
+                      }
+                      autoFocus
+                    />
+                    {showAddDrop && addResults.length > 0 && (
+                      <div className="sk-sync-search-dropdown">
+                        {addResults.map((user) => (
+                          <div
+                            key={user._id || user.id}
+                            className="sk-sync-search-item"
+                            onClick={() => addMemberToGroup(user)}
+                          >
+                            <Avatar
+                              size={32}
+                              src={
+                                user.avatar &&
+                                user.avatar !== "/default-avatar.png"
+                                  ? user.avatar
+                                  : undefined
+                              }
+                              style={{
+                                background: "#ff8a2a",
+                                color: "#1b1024",
+                                fontSize: 13,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {(user.name ||
+                                user.username ||
+                                "?")[0].toUpperCase()}
+                            </Avatar>
+                            <div className="sk-sync-search-item-info">
+                              <span className="sk-sync-search-item-name">
+                                {user.name || user.username}
+                              </span>
+                              <span className="sk-sync-search-item-handle">
+                                @{user.username}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {showAddDrop &&
+                      addResults.length === 0 &&
+                      !addSearching &&
+                      addInput.trim().length >= 2 && (
+                        <div className="sk-sync-search-dropdown">
+                          <div className="sk-sync-search-empty">
+                            No users found — press Enter to invite by email
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                  <Button
+                    className="sk-sync-add-btn"
+                    icon={<UserAddOutlined />}
+                    onClick={addByEmailDirect}
+                  >
+                    Add
+                  </Button>
+                </div>
+                <Button
+                  type="text"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setAddInput("");
+                    setAddResults([]);
+                    setShowAddDrop(false);
+                  }}
+                  style={{
+                    color: "rgba(255,255,255,0.4)",
+                    fontSize: 12,
+                    marginTop: 6,
+                    padding: 0,
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Trip Details ── */}

@@ -361,4 +361,97 @@ router.post("/:id/confirm", async (req, res) => {
   }
 });
 
+/* ──────────────────────────────────────────────
+   DELETE /api/sync-together/:id/member/:memberId
+   Remove a member from the group.
+   ────────────────────────────────────────────── */
+router.delete("/:id/member/:memberId", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+
+    if (!isGroupMember(group, userId)) {
+      return res.status(403).json({ ok: false, error: "Not a group member" });
+    }
+
+    const memberIndex = group.members.findIndex(
+      (m) => String(m._id) === String(req.params.memberId)
+    );
+
+    if (memberIndex === -1) {
+      return res.status(404).json({ ok: false, error: "Member not found" });
+    }
+
+    group.members.splice(memberIndex, 1);
+    await group.save();
+
+    const populated = await SyncGroup.findById(group._id)
+      .populate("owner", "username name avatar")
+      .populate("members.user", "username name avatar")
+      .populate("changeRequests.user", "username name avatar")
+      .lean();
+
+    return res.json({ ok: true, group: populated });
+  } catch (err) {
+    console.error("[sync-together] remove member error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, error: "Failed to remove member" });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   POST /api/sync-together/:id/member
+   Add a member to the group.
+   Body: { userId?, email?, name? }
+   ────────────────────────────────────────────── */
+router.post("/:id/member", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+
+    if (!isGroupMember(group, userId)) {
+      return res.status(403).json({ ok: false, error: "Not a group member" });
+    }
+
+    const { userId: newUserId, email, name } = req.body;
+
+    // Check for duplicates
+    const alreadyExists = group.members.some((m) => {
+      if (newUserId && m.user && String(m.user) === String(newUserId))
+        return true;
+      if (email && m.email === email) return true;
+      return false;
+    });
+
+    if (alreadyExists) {
+      return res.status(400).json({ ok: false, error: "Already in the group" });
+    }
+
+    group.members.push({
+      user: newUserId || null,
+      email: email || null,
+      name: name || null,
+      status: "pending",
+    });
+
+    await group.save();
+
+    const populated = await SyncGroup.findById(group._id)
+      .populate("owner", "username name avatar")
+      .populate("members.user", "username name avatar")
+      .populate("changeRequests.user", "username name avatar")
+      .lean();
+
+    return res.json({ ok: true, group: populated });
+  } catch (err) {
+    console.error("[sync-together] add member error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to add member" });
+  }
+});
+
 export default router;

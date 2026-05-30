@@ -837,19 +837,238 @@ function BookingTabBar({ value, onChange }) {
 }
 
 // ── Trip type toggle ──────────────────────────
+const TRIP_TYPES = [
+  { key: "roundtrip", label: "Round trip" },
+  { key: "oneway", label: "One way" },
+  { key: "multi-city", label: "Multi-city" },
+];
+
 function TripTypeToggle({ value, onChange }) {
   return (
     <div className="sk-trip-type">
-      {["roundtrip", "oneway"].map((type) => (
+      {TRIP_TYPES.map(({ key, label }) => (
         <button
-          key={type}
+          key={key}
           type="button"
-          className={`sk-trip-type-btn${value === type ? " is-active" : ""}`}
-          onClick={() => onChange(type)}
+          className={`sk-trip-type-btn${value === key ? " is-active" : ""}`}
+          onClick={() => onChange(key)}
         >
-          {type === "roundtrip" ? "Round trip" : "One way"}
+          {label}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ── Multi-city form ───────────────────────────
+const EMPTY_LEG = () => ({
+  id: Date.now() + Math.random(),
+  origin: null,
+  originDisplay: "",
+  dest: null,
+  destDisplay: "",
+  date: null,
+});
+
+function MultiCityForm({ onDestChange, onDatesChange }) {
+  const [legs, setLegs] = useState([EMPTY_LEG(), EMPTY_LEG()]);
+  const [cabin, setCabin] = useState("economy");
+  const [adults, setAdults] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  const updateLeg = (index, patch) => {
+    setLegs((prev) =>
+      prev.map((l, i) => (i === index ? { ...l, ...patch } : l))
+    );
+  };
+
+  const addLeg = () => {
+    if (legs.length >= 6)
+      return antdMessage.info("Maximum 6 flights for multi-city");
+    setLegs((prev) => [...prev, EMPTY_LEG()]);
+  };
+
+  const removeLeg = (index) => {
+    if (legs.length <= 2)
+      return antdMessage.info("At least 2 flights required");
+    setLegs((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Propagate last destination for weather strip
+  useEffect(() => {
+    const lastDest = [...legs].reverse().find((l) => l.dest?.city);
+    if (lastDest) onDestChange?.(lastDest.dest.city);
+  }, [legs, onDestChange]);
+
+  const handleSearch = async () => {
+    const incomplete = legs.find((l) => !l.origin || !l.dest || !l.date);
+    if (incomplete)
+      return antdMessage.warning("Please fill in all flights before searching");
+    setLoading(true);
+    try {
+      // Build params for each leg individually and collect results
+      const results = await Promise.all(
+        legs.map((leg) => {
+          const params = new URLSearchParams({
+            from: leg.origin.code,
+            to: leg.dest.code,
+            departDate: dayjs(leg.date.toDate()).format("YYYY-MM-DD"),
+            adults: String(adults),
+            cabin,
+          });
+          return fetch(`${API}/api/flights/search?${params}`)
+            .then((r) => r.json())
+            .then((data) => {
+              if (!data.ok) throw new Error(data.message || "Search failed");
+              return data.flights ?? [];
+            });
+        })
+      );
+      const combined = results.flat();
+      antdMessage.success(
+        `Found ${combined.length} options across ${legs.length} flights`
+      );
+    } catch (err) {
+      antdMessage.error(err.message || "Multi-city search failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="sk-search-bar sk-multicity-bar">
+      {/* Legs */}
+      <div className="sk-mc-legs">
+        {legs.map((leg, index) => (
+          <div key={leg.id} className="sk-mc-leg">
+            {/* Leg number badge */}
+            <div className="sk-mc-leg-badge">
+              <span className="sk-mc-leg-num">{index + 1}</span>
+              {index < legs.length - 1 && <div className="sk-mc-leg-line" />}
+            </div>
+
+            {/* Leg fields */}
+            <div className="sk-mc-leg-fields">
+              <div className="sk-mc-field-row">
+                <div className="sk-mc-field">
+                  <span className="sk-mc-field-label">From</span>
+                  <AirportInput
+                    value={leg.originDisplay}
+                    placeholder="City or airport"
+                    onChange={(ap) =>
+                      updateLeg(index, {
+                        origin: ap,
+                        originDisplay: `${ap.city} (${ap.code})`,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="sk-mc-arrow" aria-hidden="true">
+                  →
+                </div>
+
+                <div className="sk-mc-field">
+                  <span className="sk-mc-field-label">To</span>
+                  <AirportInput
+                    value={leg.destDisplay}
+                    placeholder="City or airport"
+                    onChange={(ap) => {
+                      updateLeg(index, {
+                        dest: ap,
+                        destDisplay: `${ap.city} (${ap.code})`,
+                      });
+                      // Auto-fill next leg's origin
+                      if (index < legs.length - 1) {
+                        setLegs((prev) =>
+                          prev.map((l, i) =>
+                            i === index + 1 && !l.origin
+                              ? {
+                                  ...l,
+                                  origin: ap,
+                                  originDisplay: `${ap.city} (${ap.code})`,
+                                }
+                              : l
+                          )
+                        );
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className="sk-mc-field sk-mc-field--date">
+                  <span className="sk-mc-field-label">Date</span>
+                  <DatePicker
+                    className="sk-orange-picker sk-mc-datepicker"
+                    placeholder="Depart"
+                    value={leg.date}
+                    disabledDate={(d) => {
+                      if (!d) return false;
+                      if (d.isBefore(dayjs(), "day")) return true;
+                      // Must be after previous leg's date
+                      if (index > 0 && legs[index - 1].date) {
+                        return d.isBefore(legs[index - 1].date, "day");
+                      }
+                      return false;
+                    }}
+                    onChange={(date) => updateLeg(index, { date })}
+                  />
+                </div>
+
+                {/* Remove leg button — only show when > 2 legs */}
+                {legs.length > 2 && (
+                  <button
+                    type="button"
+                    className="sk-mc-remove-btn"
+                    onClick={() => removeLeg(index)}
+                    aria-label={`Remove flight ${index + 1}`}
+                  >
+                    <CloseOutlined />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom controls row */}
+      <div className="sk-mc-controls">
+        <button
+          type="button"
+          className="sk-mc-add-btn"
+          onClick={addLeg}
+          disabled={legs.length >= 6}
+        >
+          <span className="sk-mc-add-icon">+</span>
+          Add flight
+        </button>
+
+        <div className="sk-mc-right">
+          <Select
+            className="sk-select-cabin"
+            value={cabin}
+            onChange={setCabin}
+            classNames={{ popup: { root: "sk-select-popup" } }}
+          >
+            <Option value="economy">Economy</Option>
+            <Option value="premium_economy">Premium Economy</Option>
+            <Option value="business">Business</Option>
+            <Option value="first">First Class</Option>
+          </Select>
+
+          <InputNumber
+            className="sk-input-travelers"
+            min={1}
+            max={9}
+            value={adults}
+            onChange={(v) => setAdults(v ?? 1)}
+            placeholder="Travelers"
+          />
+
+          <SearchBtn onClick={handleSearch} loading={loading} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -923,6 +1142,28 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
     setDestDisplay(originDisplay);
     if (newDestCity) onDestChange?.(newDestCity);
   };
+
+  // Multi-city mode — hand off entirely to MultiCityForm
+  if (tripType === "multi-city") {
+    return (
+      <div className="sk-search-bar">
+        <div
+          style={{
+            flex: "0 0 100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <TripTypeToggle value={tripType} onChange={setTripType} />
+        </div>
+        <MultiCityForm
+          onDestChange={onDestChange}
+          onDatesChange={onDatesChange}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="sk-search-bar">
@@ -2260,7 +2501,6 @@ export default function BookingPage() {
                 </div>
                 <div
                   style={{
-                    fontFamily: "var(--sk-font-display)",
                     fontWeight: 700,
                     fontSize: 17,
                     color: "rgba(255,255,255,0.75)",

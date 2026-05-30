@@ -1,7 +1,6 @@
 /* =================
    DESIGN TOKENS
 ================== */
-@import url("https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap");
 
 .sk-booking {
   --sk-orange: #ff8a2a;
@@ -24,8 +23,10 @@
   --sk-radius-lg: 22px;
   --sk-radius-pill: 999px;
   --sk-blur: blur(18px);
-  --sk-font-display: "Syne", sans-serif;
-  --sk-font-body: "DM Sans", sans-serif;
+  --sk-font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Inter, sans-serif;
+  --sk-font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Inter, sans-serif;
 
   --ant-color-primary: #ff8a2a !important;
   --ant-color-primary-hover: #ffb347 !important;
@@ -123,8 +124,8 @@
   font-size: clamp(26px, 3.2vw, 44px) !important;
   font-weight: 800 !important;
   color: #fff !important;
-  letter-spacing: -0.03em !important;
-  line-height: 1.08 !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.12 !important;
   margin: 0 !important;
   text-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
 }
@@ -139,7 +140,7 @@
 .sk-hero-sub {
   color: var(--sk-muted) !important;
   font-size: 14px;
-  font-weight: 300;
+  font-weight: 400;
   letter-spacing: 0.01em;
   max-width: 460px;
 }
@@ -170,7 +171,7 @@
   font-weight: 800;
   font-size: 20px;
   color: rgba(255, 255, 255, 0.97);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.2;
   grid-column: 1;
 }
@@ -944,7 +945,7 @@
 .sk-weatherSub {
   margin-top: 4px;
   font-size: 12.5px;
-  font-weight: 300;
+  font-weight: 400;
   color: rgba(244, 246, 251, 0.6);
   letter-spacing: 0.01em;
 }
@@ -1041,7 +1042,7 @@
   font-size: 18px !important;
   font-weight: 700 !important;
   color: #fff !important;
-  letter-spacing: -0.02em !important;
+  letter-spacing: -0.01em !important;
   margin: 0 !important;
 }
 
@@ -1055,7 +1056,7 @@
 
 .sk-resultsSub {
   font-size: 12.5px;
-  font-weight: 300;
+  font-weight: 400;
   color: rgba(244, 246, 251, 0.58);
 }
 
@@ -1215,7 +1216,7 @@
   font-weight: 800;
   font-size: 22px;
   color: rgba(255, 255, 255, 0.97);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .sk-priceSub {
@@ -2388,5 +2389,281 @@
   }
   .sk-result-card .ant-card-body {
     padding: 14px 12px !important;
+  }
+}
+
+/* ======================================
+   MULTI-CITY FORM
+====================================== */
+.sk-multicity-bar {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  padding: 0;
+}
+
+/* Legs container */
+.sk-mc-legs {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+/* Single leg row */
+.sk-mc-leg {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  animation: sk-mc-leg-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sk-mc-leg-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Left column: number badge + connector line */
+.sk-mc-leg-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 30px; /* align with input mid-line */
+  width: 28px;
+}
+
+.sk-mc-leg-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 138, 42, 0.14);
+  border: 1.5px solid rgba(255, 138, 42, 0.38);
+  color: var(--sk-orange);
+  font-family: var(--sk-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Vertical connector between legs */
+.sk-mc-leg-line {
+  width: 1.5px;
+  flex: 1;
+  min-height: 20px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 138, 42, 0.32),
+    rgba(255, 138, 42, 0.08)
+  );
+  margin-top: 4px;
+}
+
+/* Fields wrapper */
+.sk-mc-leg-fields {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 14px;
+}
+
+/* Row of fields inside a leg */
+.sk-mc-field-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto auto;
+  align-items: end;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Remove button only visible when present */
+.sk-mc-field-row:has(.sk-mc-remove-btn) {
+  grid-template-columns: 1fr auto 1fr auto auto auto;
+}
+
+/* Individual field wrapper */
+.sk-mc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.sk-mc-field--date {
+  flex-shrink: 0;
+  min-width: 130px;
+}
+
+.sk-mc-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sk-muted-2);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding-left: 2px;
+  line-height: 1;
+}
+
+/* Arrow between From → To */
+.sk-mc-arrow {
+  color: rgba(255, 138, 42, 0.5);
+  font-size: 16px;
+  font-weight: 400;
+  padding-bottom: 10px;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+/* Date picker width in multi-city context */
+.sk-mc-datepicker.ant-picker {
+  width: 100% !important;
+  height: 42px !important;
+}
+
+/* Remove leg button */
+.sk-mc-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.32);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+
+.sk-mc-remove-btn:hover {
+  background: rgba(255, 77, 79, 0.12);
+  border-color: rgba(255, 77, 79, 0.36);
+  color: #ff6b6b;
+}
+
+/* Bottom controls row */
+.sk-mc-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 4px;
+  flex-wrap: wrap;
+}
+
+.sk-mc-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Add flight button */
+.sk-mc-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: var(--sk-radius-pill);
+  border: 1.5px dashed rgba(255, 138, 42, 0.36);
+  background: rgba(255, 138, 42, 0.06);
+  color: var(--sk-orange);
+  font-family: var(--sk-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, opacity 0.18s;
+  letter-spacing: 0.01em;
+}
+
+.sk-mc-add-btn:hover:not(:disabled) {
+  background: rgba(255, 138, 42, 0.12);
+  border-color: var(--sk-orange);
+}
+
+.sk-mc-add-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.sk-mc-add-icon {
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 400;
+  color: var(--sk-orange);
+}
+
+/* ── RESPONSIVE: multi-city on mobile ── */
+@media (max-width: 768px) {
+  .sk-mc-field-row {
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: auto auto;
+  }
+
+  .sk-mc-arrow {
+    display: none;
+  }
+
+  .sk-mc-field--date {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .sk-mc-remove-btn {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    align-self: end;
+    margin-bottom: 0;
+  }
+
+  .sk-mc-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sk-mc-right {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sk-mc-right .sk-select-cabin,
+  .sk-mc-right .sk-input-travelers {
+    width: 100% !important;
+  }
+
+  .sk-mc-add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .sk-mc-leg-badge {
+    display: none;
+  }
+  .sk-mc-leg {
+    gap: 0;
+  }
+  .sk-mc-leg-fields {
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .sk-mc-legs .sk-mc-leg:last-child .sk-mc-leg-fields {
+    border-bottom: none;
   }
 }
