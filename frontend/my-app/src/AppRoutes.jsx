@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import { useAuth } from "./auth/useAuth";
 
 // ── Core pages ──
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -17,6 +18,7 @@ const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SyncTogether = lazy(() => import("./pages/SyncTogether"));
+const SyncTogetherLock = lazy(() => import("./pages/SyncTogetherLock"));
 const SyncGroupPage = lazy(() => import("./pages/SyncGroupPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
@@ -79,6 +81,7 @@ function usePageTracking() {
 // ─── Inner component ──────────────────────────────────────────────────────────
 function TrackedRoutes() {
   usePageTracking();
+  const { isAuthed, loading } = useAuth();
 
   return (
     <Routes>
@@ -108,12 +111,20 @@ function TrackedRoutes() {
           element={<Navigate to="/passport" replace />}
         />
         <Route path="membership" element={<MembershipPage />} />
-        <Route path="sync-together" element={<SyncTogether />} />
+
+        {/* ── Sync Together — login wall for guests, full page for authed users ── */}
+        <Route
+          path="sync-together"
+          element={
+            loading ? null : isAuthed ? <SyncTogether /> : <SyncTogetherLock />
+          }
+        />
         <Route path="sync-together/:id" element={<SyncGroupPage />} />
         <Route
           path="team-travel"
           element={<Navigate to="/sync-together" replace />}
         />
+
         <Route path="saved-trips" element={<SavedTripsPage />} />
 
         {/* ── Legal ── */}
