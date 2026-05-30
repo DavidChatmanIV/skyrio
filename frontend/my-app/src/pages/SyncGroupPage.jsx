@@ -50,7 +50,7 @@ import {
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
 
-const API_BASE = "/api";
+const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
 function authHeaders() {
   const token = localStorage.getItem("token");

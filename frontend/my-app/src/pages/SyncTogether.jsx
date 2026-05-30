@@ -18,8 +18,9 @@ import {
 import { useNavigate } from "react-router-dom";
 import "@/styles/SyncTogether.css";
 
-const API_BASE = "/api";
+const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
+/** Grab the JWT from localStorage and build auth headers */
 function authHeaders(extra = {}) {
   const token = localStorage.getItem("token");
   return {
@@ -55,16 +56,23 @@ const FEATURES = [
 export default function SyncTogether() {
   const navigate = useNavigate();
 
+  // ── Travelers already added ──
   const [travelers, setTravelers] = useState([]);
+
+  // ── Search state ──
   const [inputVal, setInputVal] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [creating, setCreating] = useState(false);
-
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
 
+  // ── CTA state ──
+  const [creating, setCreating] = useState(false);
+
+  /* ────────────────────────────────────
+     Debounced user search (300ms)
+  ──────────────────────────────────── */
   const searchUsers = useCallback(async (query) => {
     if (!query || query.trim().length < 2) {
       setResults([]);
@@ -98,6 +106,9 @@ export default function SyncTogether() {
     debounceRef.current = setTimeout(() => searchUsers(val), 300);
   };
 
+  /* ────────────────────────────────────
+     Add traveler from search results
+  ──────────────────────────────────── */
   const addFromSearch = (user) => {
     const already = travelers.some((t) => t.id === (user._id || user.id));
     if (already) {
@@ -120,15 +131,20 @@ export default function SyncTogether() {
     setShowDropdown(false);
   };
 
+  /* ────────────────────────────────────
+     Add by raw email (Enter or Add btn)
+  ──────────────────────────────────── */
   const addByEmail = () => {
     const val = inputVal.trim();
     if (!val) return;
 
+    // If dropdown is showing and has results, pick the first
     if (showDropdown && results.length > 0) {
       addFromSearch(results[0]);
       return;
     }
 
+    // Otherwise treat as an email invite
     const already = travelers.some(
       (t) => t.email === val || t.username === val
     );
@@ -146,6 +162,9 @@ export default function SyncTogether() {
     setShowDropdown(false);
   };
 
+  /* ────────────────────────────────────
+     Remove traveler
+  ──────────────────────────────────── */
   const removeTraveler = (traveler) =>
     setTravelers((prev) =>
       prev.filter(
@@ -155,6 +174,9 @@ export default function SyncTogether() {
       )
     );
 
+  /* ────────────────────────────────────
+     Start Planning Together (CTA)
+  ──────────────────────────────────── */
   const handleStartPlanning = async () => {
     if (travelers.length === 0) {
       antdMessage.warning("Add at least one traveler to get started");
@@ -191,19 +213,17 @@ export default function SyncTogether() {
     }
   };
 
-  // Close dropdown on outside click OR touch (mobile fix)
+  /* ────────────────────────────────────
+     Close dropdown on outside click
+  ──────────────────────────────────── */
   useEffect(() => {
-    const handleOutside = (e) => {
+    const handleClickOutside = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
         setShowDropdown(false);
       }
     };
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("touchstart", handleOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("touchstart", handleOutside);
-    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
@@ -256,9 +276,9 @@ export default function SyncTogether() {
           Add names or emails — we'll send them a link to join the plan.
         </p>
 
-        {/* Search row — wrapperRef is on the search wrapper only, NOT the whole row */}
-        <div className="sk-sync-group-input-row">
-          <div className="sk-sync-search-wrapper" ref={wrapperRef}>
+        {/* Search input + dropdown */}
+        <div className="sk-sync-group-input-row" ref={wrapperRef}>
+          <div className="sk-sync-search-wrapper">
             <Input
               className="sk-sync-input"
               value={inputVal}
@@ -279,14 +299,13 @@ export default function SyncTogether() {
               }
             />
 
-            {/* Results dropdown */}
+            {/* Search results dropdown */}
             {showDropdown && results.length > 0 && (
               <div className="sk-sync-search-dropdown">
                 {results.map((user) => (
                   <div
                     key={user._id || user.id}
                     className="sk-sync-search-item"
-                    onMouseDown={(e) => e.preventDefault()} // prevents blur-before-click
                     onClick={() => addFromSearch(user)}
                   >
                     <Avatar
@@ -301,7 +320,6 @@ export default function SyncTogether() {
                         color: "#1b1024",
                         fontSize: 13,
                         fontWeight: 800,
-                        flexShrink: 0,
                       }}
                     >
                       {(user.name || user.username || "?")[0].toUpperCase()}
@@ -319,7 +337,7 @@ export default function SyncTogether() {
               </div>
             )}
 
-            {/* Empty state */}
+            {/* No results message */}
             {showDropdown &&
               results.length === 0 &&
               !searching &&
