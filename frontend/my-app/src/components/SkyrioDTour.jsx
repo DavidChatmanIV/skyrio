@@ -2,9 +2,8 @@
  * SkyrioDTour.jsx
  * ───────────────
  * Onboarding tour for Skyrio users.
- * - Shows every visit UNLESS the user clicks "Don't show again"
- * - "Skip for now" closes for this session only (shows again next visit)
- * - "Don't show again" sets localStorage and never shows again
+ * Uses ReactDOM.createPortal to render directly on document.body —
+ * this fixes mobile and transparency issues caused by parent CSS transforms.
  *
  * Save to: src/components/SkyrioDTour.jsx
  *
@@ -13,6 +12,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
 
@@ -249,16 +249,9 @@ const STEPS = [
   },
 ];
 
-// ─── Skyrio design tokens ─────────────────────────────────────────────────────
-const C = {
-  orange: "#ff8a2a",
-  orange2: "#ffb066",
-  purple: "#7c5cfc",
-  text: "#f0edff",
-  sub: "rgba(240,237,255,0.60)",
-  muted: "rgba(240,237,255,0.30)",
-  stroke: "rgba(255,255,255,0.12)",
-};
+const ORANGE = "#ff8a2a";
+const ORANGE2 = "#ffb066";
+const PURPLE = "#7c5cfc";
 
 export default function SkyrioDTour() {
   const [visible, setVisible] = useState(false);
@@ -307,58 +300,66 @@ export default function SkyrioDTour() {
   const progress = ((step + 1) / STEPS.length) * 100;
   const StepIcon = current.Icon;
 
-  return (
+  // ── Portal renders directly on document.body ──
+  // This bypasses any parent CSS transform/overflow/will-change
+  // that would otherwise break position:fixed on mobile
+  return createPortal(
     <>
-      {/* Backdrop — solid, no blur so card stays readable */}
+      <style>{`
+        @keyframes dtFadeIn   { from { opacity:0 } to { opacity:1 } }
+        @keyframes dtFadeOut  { from { opacity:1 } to { opacity:0 } }
+        @keyframes dtSlideIn  { from { opacity:0; transform:translate(-50%,-48%) scale(.96) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
+        @keyframes dtSlideOut { from { opacity:1; transform:translate(-50%,-50%) scale(1) } to { opacity:0; transform:translate(-50%,-52%) scale(.96) } }
+      `}</style>
+
+      {/* Backdrop */}
       <div
         onClick={skipForNow}
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 99998,
-          background: "rgba(0,0,0,0.85)",
+          zIndex: 2147483640,
+          background: "rgba(0,0,0,0.88)",
           animation: exiting
             ? "dtFadeOut .3s ease forwards"
             : "dtFadeIn .3s ease",
         }}
       />
 
-      {/* Card — fully solid background, no transparency */}
+      {/* Card — fully opaque, portaled to body */}
       <div
         style={{
           position: "fixed",
           top: "50%",
           left: "50%",
           transform: "translate(-50%,-50%)",
-          zIndex: 99999,
+          zIndex: 2147483647,
           width: "min(480px, 92vw)",
+          maxHeight: "90vh",
+          overflowY: "auto",
           background: "#120f2a",
-          border: "1px solid rgba(255,255,255,0.14)",
+          border: "1px solid rgba(255,255,255,0.15)",
           borderRadius: 20,
-          boxShadow:
-            "0 32px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,138,42,0.15)",
-          overflow: "hidden",
-          isolation: "isolate",
-          WebkitBackdropFilter: "none",
-          backdropFilter: "none",
+          boxShadow: "0 40px 100px rgba(0,0,0,0.95)",
           animation: exiting
             ? "dtSlideOut .3s ease forwards"
             : "dtSlideIn .35s cubic-bezier(.22,1,.36,1)",
-          fontFamily: "'DM Sans', 'Syne', sans-serif",
+          fontFamily: "'DM Sans', sans-serif",
+          color: "#f0edff",
         }}
       >
         {/* Progress bar */}
         <div
           style={{
             height: 4,
-            background: `linear-gradient(90deg, ${C.orange}, ${C.purple})`,
+            background: `linear-gradient(90deg, ${ORANGE}, ${PURPLE})`,
             width: `${progress}%`,
             transition: "width .4s ease",
-            borderRadius: "4px 4px 0 0",
+            borderRadius: "20px 20px 0 0",
           }}
         />
 
-        {/* Step dots + close */}
+        {/* Dots + close */}
         <div
           style={{
             display: "flex",
@@ -377,9 +378,9 @@ export default function SkyrioDTour() {
                   borderRadius: 3,
                   background:
                     i === step
-                      ? C.orange
+                      ? ORANGE
                       : i < step
-                      ? C.purple
+                      ? PURPLE
                       : "rgba(255,255,255,0.15)",
                   transition: "all .3s ease",
                 }}
@@ -388,12 +389,11 @@ export default function SkyrioDTour() {
           </div>
           <button
             onClick={skipForNow}
-            title="Close for now"
             style={{
               background: "none",
               border: "none",
-              color: C.sub,
-              fontSize: 20,
+              color: "rgba(240,237,255,0.5)",
+              fontSize: 22,
               cursor: "pointer",
               lineHeight: 1,
               padding: 4,
@@ -405,19 +405,19 @@ export default function SkyrioDTour() {
 
         {/* Body */}
         <div style={{ padding: "24px 28px 28px" }}>
-          {/* SVG icon */}
+          {/* Icon box */}
           <div
             style={{
               width: 56,
               height: 56,
               borderRadius: 16,
               background: "rgba(255,138,42,0.15)",
-              border: "1px solid rgba(255,138,42,0.3)",
+              border: "1px solid rgba(255,138,42,0.35)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: C.orange,
-              marginBottom: 18,
+              color: ORANGE,
+              marginBottom: 20,
             }}
           >
             <StepIcon size={28} />
@@ -439,8 +439,8 @@ export default function SkyrioDTour() {
             style={{
               margin: "0 0 16px",
               fontSize: 15,
-              color: "rgba(240,237,255,0.75)",
-              lineHeight: 1.6,
+              color: "rgba(240,237,255,0.80)",
+              lineHeight: 1.65,
             }}
           >
             {current.body}
@@ -450,11 +450,11 @@ export default function SkyrioDTour() {
             <div
               style={{
                 background: "rgba(255,138,42,0.12)",
-                border: "1px solid rgba(255,138,42,0.3)",
+                border: "1px solid rgba(255,138,42,0.30)",
                 borderRadius: 10,
                 padding: "10px 14px",
                 fontSize: 13,
-                color: C.orange2,
+                color: ORANGE2,
                 marginBottom: 8,
               }}
             >
@@ -466,14 +466,14 @@ export default function SkyrioDTour() {
             style={{
               fontSize: 12,
               color: "rgba(255,255,255,0.25)",
-              margin: "12px 0 20px",
+              margin: "14px 0 20px",
               textAlign: "right",
             }}
           >
             {step + 1} / {STEPS.length}
           </p>
 
-          {/* Actions */}
+          {/* Buttons */}
           <div
             style={{
               display: "flex",
@@ -488,9 +488,9 @@ export default function SkyrioDTour() {
                 style={{
                   padding: "10px 18px",
                   borderRadius: 10,
-                  border: `1px solid ${C.stroke}`,
+                  border: "1px solid rgba(255,255,255,0.12)",
                   background: "none",
-                  color: C.sub,
+                  color: "rgba(240,237,255,0.6)",
                   fontSize: 14,
                   cursor: "pointer",
                   fontFamily: "inherit",
@@ -506,7 +506,7 @@ export default function SkyrioDTour() {
                 borderRadius: 10,
                 border: "none",
                 background: "rgba(255,255,255,0.08)",
-                color: C.sub,
+                color: "rgba(240,237,255,0.6)",
                 fontSize: 14,
                 cursor: "pointer",
                 fontFamily: "inherit",
@@ -521,14 +521,14 @@ export default function SkyrioDTour() {
                 borderRadius: 10,
                 border: "none",
                 background: current.isLast
-                  ? `linear-gradient(135deg, ${C.orange}, ${C.orange2})`
-                  : `linear-gradient(135deg, ${C.orange} 0%, ${C.purple} 100%)`,
+                  ? `linear-gradient(135deg, ${ORANGE}, ${ORANGE2})`
+                  : `linear-gradient(135deg, ${ORANGE}, ${PURPLE})`,
                 color: "#fff",
                 fontSize: 14,
                 fontWeight: 700,
                 cursor: "pointer",
                 fontFamily: "inherit",
-                boxShadow: "0 4px 14px rgba(255,138,42,0.3)",
+                boxShadow: "0 4px 14px rgba(255,138,42,0.35)",
               }}
             >
               {current.isLast ? "Let's go →" : "Next →"}
@@ -542,7 +542,7 @@ export default function SkyrioDTour() {
               style={{
                 background: "none",
                 border: "none",
-                color: C.muted,
+                color: "rgba(240,237,255,0.28)",
                 fontSize: 12,
                 cursor: "pointer",
                 fontFamily: "inherit",
@@ -555,13 +555,7 @@ export default function SkyrioDTour() {
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes dtFadeIn   { from { opacity:0 } to { opacity:1 } }
-        @keyframes dtFadeOut  { from { opacity:1 } to { opacity:0 } }
-        @keyframes dtSlideIn  { from { opacity:0; transform:translate(-50%,-48%) scale(.96) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
-        @keyframes dtSlideOut { from { opacity:1; transform:translate(-50%,-50%) scale(1) } to { opacity:0; transform:translate(-50%,-52%) scale(.96) } }
-      `}</style>
-    </>
+    </>,
+    document.body
   );
 }
