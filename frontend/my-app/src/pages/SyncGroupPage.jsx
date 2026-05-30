@@ -11,10 +11,10 @@ import {
   Avatar,
   Spin,
   Input,
-  DatePicker,
   InputNumber,
   message as antdMessage,
 } from "antd";
+import SkyrioPicker from "./booking/SkyrioPicker";
 import {
   ArrowLeftOutlined,
   SyncOutlined,
@@ -1320,10 +1320,10 @@ Format clearly with ### sections.`;
               >
                 <Calendar size={12} style={{ marginRight: 4 }} /> Travel Dates
               </label>
-              <DatePicker.RangePicker
-                value={dateRange[0] ? dateRange : undefined}
+              <SkyrioPicker
+                value={dateRange[0] ? dateRange : [null, null]}
                 onChange={(dates) => setDateRange(dates || [null, null])}
-                style={{ width: "100%" }}
+                placeholder={["Depart", "Return"]}
               />
             </div>
             <div>
