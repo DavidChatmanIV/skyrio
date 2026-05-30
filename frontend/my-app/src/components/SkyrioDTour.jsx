@@ -286,8 +286,8 @@ export default function SkyrioDTour() {
     if (!dismissed) {
       const t = setTimeout(() => {
         setVisible(true);
-        lockScroll(); // iOS Safari: prevent background scroll
-      }, 800);
+        lockScroll(); 
+      }, 2000);
       return () => clearTimeout(t);
     }
   }, []);
