@@ -46,6 +46,12 @@ import {
   MessageSquare,
   ThumbsUp,
   Info,
+  Sun,
+  CloudRain,
+  Clock,
+  MessageCircle,
+  Sunrise,
+  Moon,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
@@ -386,6 +392,7 @@ export default function SyncGroupPage() {
   const [departureAirport, setDepartureAirport] = useState("");
   const [departureDisplay, setDepartureDisplay] = useState("");
   const [cabinClass, setCabinClass] = useState("economy");
+  const [departureTime, setDepartureTime] = useState("any");
   const [dateRange, setDateRange] = useState([null, null]);
   const [budget, setBudget] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -395,6 +402,19 @@ export default function SyncGroupPage() {
   const [atlasMessages, setAtlasMessages] = useState([]);
   const [followUp, setFollowUp] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
+
+  // Weather
+  const [weather, setWeather] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+
+  // Chat
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const chatEndRef = useRef(null);
+
+  // Member airport
+  const [editingMyAirport, setEditingMyAirport] = useState(false);
 
   const [changeMsg, setChangeMsg] = useState("");
   const [changeSending, setChangeSending] = useState(false);
@@ -435,6 +455,8 @@ export default function SyncGroupPage() {
             setDepartureDisplay(data.group.departureAirport);
         }
         setCabinClass(data.group.cabinClass || "economy");
+        setDepartureTime(data.group.departureTime || "any");
+        setChatMessages(data.group.chatMessages || []);
         setBudget(data.group.members?.[0]?.budget || null);
         if (data.group.plan) {
           setAtlasPlan(data.group.plan);
@@ -498,7 +520,7 @@ export default function SyncGroupPage() {
   const saveDetails = async () => {
     setSaving(true);
     try {
-      const body = { destination, departureAirport, cabinClass };
+      const body = { destination, departureAirport, cabinClass, departureTime };
       if (dateRange[0] && dateRange[1]) {
         body.dateRangeStart = dateRange[0].toISOString();
         body.dateRangeEnd = dateRange[1].toISOString();
@@ -540,6 +562,16 @@ export default function SyncGroupPage() {
         ? dateRange[1].diff(dateRange[0], "day")
         : null;
     const homeAirport = departureAirport || "EWR";
+
+    const memberAirports =
+      group.members
+        ?.map((m) => {
+          const name = m.user?.name || m.name || m.email;
+          const airport = m.departureAirport || homeAirport;
+          return `  - ${name}: ${airport}`;
+        })
+        .join("\n") || "";
+
     const cabinLabel =
       {
         economy: "economy",
@@ -547,6 +579,13 @@ export default function SyncGroupPage() {
         business: "business",
         first: "first class",
       }[cabinClass] || "economy";
+    const timeLabel =
+      {
+        morning: "morning (5am-12pm)",
+        afternoon: "afternoon (12pm-5pm)",
+        night: "evening/night (5pm-12am)",
+        any: "any time",
+      }[departureTime] || "any time";
 
     let changeContext = "";
     if (openChangeRequests.length > 0) {
@@ -560,9 +599,13 @@ export default function SyncGroupPage() {
     const prompt = `I'm planning a group trip to ${destination} with ${travelerCount} travelers (me + ${memberNames}).
 
 DETAILS:
-- Departure airport: ${homeAirport}
+- Organizer departure: ${homeAirport}
 - Destination: ${destination}
 - Cabin class: ${cabinLabel}
+- Preferred departure time: ${timeLabel}
+- Departure airports:
+  - Me (organizer): ${homeAirport}
+${memberAirports}
 ${tripDays ? `- Trip length: ${tripDays} days` : ""}
 ${
   dateRange[0]
@@ -575,19 +618,20 @@ ${budget ? `- Budget per person: $${budget}` : ""}
 - Travelers: ${travelerCount}
 ${changeContext}
 
-IMPORTANT FORMATTING: Always format prices with commas for thousands (e.g. $1,234.56 not $1234.56). Use markdown headers (###) for sections.
+IMPORTANT: Some travelers may depart from different airports — search flights per airport if they differ. Format prices with commas (e.g. $1,234.56). Use ### for sections.
 
-Please use your tools to:
-1. Search for real ${cabinLabel} flights from ${homeAirport} to ${destination}${
+Please:
+1. Search for real ${cabinLabel} flights to ${destination}${
       dateRange[0] ? ` departing ${dateRange[0].format("YYYY-MM-DD")}` : ""
     }${
       dateRange[1] ? ` returning ${dateRange[1].format("YYYY-MM-DD")}` : ""
-    } for ${travelerCount} adults in ${cabinLabel} cabin
-2. Recommend the best flight options with actual prices
+    } — prefer ${timeLabel} departures. Note flight options per departure airport if they differ.
+2. Recommend the best options with actual prices
 3. Suggest accommodation for the group
-4. Create a day-by-day itinerary with activities
+4. Create a day-by-day itinerary
 5. Budget breakdown per person
-6. Group coordination tips
+6. Weather expectations for ${destination}
+7. Group coordination tips
 
 Format clearly with ### sections.`;
 
@@ -828,6 +872,78 @@ Format clearly with ### sections.`;
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  /* ── Update my departure airport ── */
+  const updateMyAirport = async (code) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/sync-together/${id}/member-airport`,
+        {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ departureAirport: code }),
+        }
+      );
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        setEditingMyAirport(false);
+        antdMessage.success(`Airport set to ${code}`);
+      } else antdMessage.error(data.error);
+    } catch {
+      antdMessage.error("Failed to update airport");
+    }
+  };
+
+  /* ── Fetch weather for destination ── */
+  const fetchWeather = async (city) => {
+    if (!city) return;
+    setWeatherLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/weather?city=${encodeURIComponent(city)}&days=14`,
+        { headers: authHeaders() }
+      );
+      const data = await res.json();
+      if (data.success) setWeather(data);
+      else setWeather(null);
+    } catch {
+      setWeather(null);
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
+  // Fetch weather when destination or dates change
+  useEffect(() => {
+    if (group?.destination) fetchWeather(group.destination);
+  }, [group?.destination]);
+
+  /* ── Send chat message ── */
+  const sendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+    setChatSending(true);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/chat`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ message: chatInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setChatMessages((prev) => [...prev, data.message]);
+        setChatInput("");
+        setTimeout(
+          () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+          100
+        );
+      } else antdMessage.error(data.error);
+    } catch {
+      antdMessage.error("Failed to send");
+    } finally {
+      setChatSending(false);
+    }
+  };
+
   if (loading)
     return (
       <section className="sk-sync-section">
@@ -1009,113 +1125,208 @@ Format clearly with ### sections.`;
               </div>
             </div>
           )}
-          {group.members?.map((m, i) => (
-            <div
-              key={m._id || i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 14px",
-                background: "rgba(255,255,255,0.04)",
-                borderRadius: 10,
-                border: `1px solid ${
-                  m.approved ? "rgba(82,196,26,0.25)" : "rgba(255,255,255,0.08)"
-                }`,
-              }}
-            >
-              <Avatar
-                size={36}
-                src={
-                  m.user?.avatar !== "/default-avatar.png"
-                    ? m.user?.avatar
-                    : undefined
-                }
+          {group.members?.map((m, i) => {
+            const isMyRow =
+              currentUserId &&
+              String(m.user?._id || m.user) === String(currentUserId);
+            return (
+              <div
+                key={m._id || i}
                 style={{
-                  background: "#2a1f3d",
-                  color: "#ff8a2a",
-                  fontWeight: 800,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  padding: "10px 14px",
+                  background: "rgba(255,255,255,0.04)",
+                  borderRadius: 10,
+                  border: `1px solid ${
+                    m.approved
+                      ? "rgba(82,196,26,0.25)"
+                      : "rgba(255,255,255,0.08)"
+                  }`,
                 }}
               >
-                {(m.name || m.email || m.user?.name || "?")[0].toUpperCase()}
-              </Avatar>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: "#fff", fontWeight: 500 }}>
-                  {m.user?.name || m.name || m.email}
-                </div>
-                {m.user?.username && (
-                  <div
-                    style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Avatar
+                    size={36}
+                    src={
+                      m.user?.avatar !== "/default-avatar.png"
+                        ? m.user?.avatar
+                        : undefined
+                    }
+                    style={{
+                      background: "#2a1f3d",
+                      color: "#ff8a2a",
+                      fontWeight: 800,
+                    }}
                   >
-                    @{m.user.username}
+                    {(m.name ||
+                      m.email ||
+                      m.user?.name ||
+                      "?")[0].toUpperCase()}
+                  </Avatar>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: "#fff", fontWeight: 500 }}>
+                      {m.user?.name || m.name || m.email}
+                    </div>
+                    {m.user?.username && (
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,0.35)",
+                          fontSize: 12,
+                        }}
+                      >
+                        @{m.user.username}
+                      </div>
+                    )}
+                    {m.departureAirport && (
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,0.3)",
+                          fontSize: 11,
+                          marginTop: 2,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Plane size={10} /> Flying from {m.departureAirport}
+                      </div>
+                    )}
+                  </div>
+                  {hasPlan ? (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "3px 10px",
+                        borderRadius: 12,
+                        background: m.approved
+                          ? "rgba(82,196,26,0.15)"
+                          : "rgba(255,255,255,0.08)",
+                        color: m.approved
+                          ? "#52c41a"
+                          : "rgba(255,255,255,0.45)",
+                      }}
+                    >
+                      {m.approved ? (
+                        <>
+                          <CheckOutlined style={{ marginRight: 3 }} />
+                          Approved
+                        </>
+                      ) : (
+                        "Pending review"
+                      )}
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "3px 10px",
+                        borderRadius: 12,
+                        background: "rgba(255,255,255,0.08)",
+                        color: "rgba(255,255,255,0.45)",
+                      }}
+                    >
+                      <ClockCircleOutlined style={{ marginRight: 4 }} />
+                      {m.status}
+                    </span>
+                  )}
+                  {!isBooked && isMember && (
+                    <button
+                      onClick={() =>
+                        removeMember(m._id, m.user?.name || m.name || m.email)
+                      }
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 4,
+                        color: "rgba(255,255,255,0.2)",
+                        transition: "color 0.15s",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.color = "#ff4d4f")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.color = "rgba(255,255,255,0.2)")
+                      }
+                      title="Remove from trip"
+                    >
+                      <CloseCircleOutlined style={{ fontSize: 16 }} />
+                    </button>
+                  )}
+                </div>
+                {/* Let user set their own airport */}
+                {isMyRow && !isBooked && (
+                  <div style={{ marginLeft: 48 }}>
+                    {!editingMyAirport && !m.departureAirport && (
+                      <button
+                        onClick={() => setEditingMyAirport(true)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#ff8a2a",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          padding: 0,
+                          fontFamily: "'DM Sans', sans-serif",
+                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Plane size={12} /> Set your departure airport
+                      </button>
+                    )}
+                    {!editingMyAirport && m.departureAirport && (
+                      <button
+                        onClick={() => setEditingMyAirport(true)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "rgba(255,255,255,0.3)",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          padding: 0,
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}
+                      >
+                        Change airport
+                      </button>
+                    )}
+                    {editingMyAirport && (
+                      <div style={{ maxWidth: 300 }}>
+                        <AirportSearchInput
+                          value={m.departureAirport || ""}
+                          onChange={(code) => updateMyAirport(code)}
+                          placeholder="Search your airport"
+                        />
+                        <button
+                          onClick={() => setEditingMyAirport(false)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "rgba(255,255,255,0.3)",
+                            fontSize: 11,
+                            cursor: "pointer",
+                            marginTop: 4,
+                            padding: 0,
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-              {hasPlan ? (
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    padding: "3px 10px",
-                    borderRadius: 12,
-                    background: m.approved
-                      ? "rgba(82,196,26,0.15)"
-                      : "rgba(255,255,255,0.08)",
-                    color: m.approved ? "#52c41a" : "rgba(255,255,255,0.45)",
-                  }}
-                >
-                  {m.approved ? (
-                    <>
-                      <CheckOutlined style={{ marginRight: 3 }} />
-                      Approved
-                    </>
-                  ) : (
-                    "Pending review"
-                  )}
-                </span>
-              ) : (
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    padding: "3px 10px",
-                    borderRadius: 12,
-                    background: "rgba(255,255,255,0.08)",
-                    color: "rgba(255,255,255,0.45)",
-                  }}
-                >
-                  <ClockCircleOutlined style={{ marginRight: 4 }} />
-                  {m.status}
-                </span>
-              )}
-              {!isBooked && isMember && (
-                <button
-                  onClick={() =>
-                    removeMember(m._id, m.user?.name || m.name || m.email)
-                  }
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 4,
-                    color: "rgba(255,255,255,0.2)",
-                    transition: "color 0.15s",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.color = "#ff4d4f")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = "rgba(255,255,255,0.2)")
-                  }
-                  title="Remove from trip"
-                >
-                  <CloseCircleOutlined style={{ fontSize: 16 }} />
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Add member */}
@@ -1385,6 +1596,90 @@ Format clearly with ### sections.`;
                   display: "block",
                 }}
               >
+                <Clock size={12} style={{ marginRight: 4 }} /> Preferred
+                Departure Time
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  {
+                    value: "any",
+                    label: "Any Time",
+                    icon: <Clock size={16} />,
+                  },
+                  {
+                    value: "morning",
+                    label: "Morning",
+                    sub: "5am–12pm",
+                    icon: <Sunrise size={16} />,
+                  },
+                  {
+                    value: "afternoon",
+                    label: "Afternoon",
+                    sub: "12–5pm",
+                    icon: <Sun size={16} />,
+                  },
+                  {
+                    value: "night",
+                    label: "Night",
+                    sub: "5pm–12am",
+                    icon: <Moon size={16} />,
+                  },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setDepartureTime(opt.value)}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: 10,
+                      border: `1px solid ${
+                        departureTime === opt.value
+                          ? "#ff8a2a"
+                          : "rgba(255,255,255,0.12)"
+                      }`,
+                      background:
+                        departureTime === opt.value
+                          ? "rgba(255,138,42,0.15)"
+                          : "rgba(255,255,255,0.04)",
+                      color:
+                        departureTime === opt.value
+                          ? "#ff8a2a"
+                          : "rgba(255,255,255,0.6)",
+                      fontWeight: departureTime === opt.value ? 700 : 500,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                      fontFamily: "'DM Sans', sans-serif",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <span
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      {opt.icon}
+                      {opt.label}
+                    </span>
+                    {opt.sub && (
+                      <span style={{ fontSize: 10, opacity: 0.6 }}>
+                        {opt.sub}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 12,
+                  marginBottom: 4,
+                  display: "block",
+                }}
+              >
                 <DollarSign size={12} style={{ marginRight: 4 }} /> Budget per
                 person
               </label>
@@ -1459,6 +1754,37 @@ Format clearly with ### sections.`;
                       business: "Business",
                       first: "First Class",
                     }[group.cabinClass] || group.cabinClass}
+                  </div>
+                )}
+                {group.departureTime && group.departureTime !== "any" && (
+                  <div
+                    style={{
+                      color: "rgba(255,255,255,0.6)",
+                      fontSize: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Clock size={14} style={{ color: "#ff8a2a" }} />
+                    {group.departureTime === "morning" && (
+                      <>
+                        <Sunrise size={14} style={{ color: "#ff8a2a" }} />{" "}
+                        Morning (5am–12pm)
+                      </>
+                    )}
+                    {group.departureTime === "afternoon" && (
+                      <>
+                        <Sun size={14} style={{ color: "#ff8a2a" }} /> Afternoon
+                        (12–5pm)
+                      </>
+                    )}
+                    {group.departureTime === "night" && (
+                      <>
+                        <Moon size={14} style={{ color: "#ff8a2a" }} /> Night
+                        (5pm–12am)
+                      </>
+                    )}
                   </div>
                 )}
                 {group.members?.[0]?.budget && (
@@ -1949,6 +2275,297 @@ Format clearly with ### sections.`;
           <p style={{ color: "rgba(255,255,255,0.5)", marginTop: 8 }}>
             The plan is locked in. Everyone's on the same page.
           </p>
+        </div>
+      )}
+
+      {/* ── Weather Forecast ── */}
+      {group?.destination && (
+        <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
+          <div className="sk-sync-group-title">
+            <Sun size={16} style={{ marginRight: 8, color: "#ff8a2a" }} />
+            Weather in {group.destination}
+          </div>
+          {weatherLoading && (
+            <p className="sk-sync-group-hint" style={{ marginTop: 8 }}>
+              Loading forecast...
+            </p>
+          )}
+          {weather && weather.forecast && (
+            <div
+              style={{
+                marginTop: 14,
+                overflowX: "auto",
+                WebkitOverflowScrolling: "touch",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  minWidth: "fit-content",
+                  paddingBottom: 8,
+                }}
+              >
+                {weather.forecast.slice(0, 10).map((day, i) => {
+                  const isRainy = day.rainChance > 50;
+                  const dateObj = new Date(day.date + "T12:00:00");
+                  const dayName = dateObj.toLocaleDateString("en-US", {
+                    weekday: "short",
+                  });
+                  const monthDay = dateObj.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  });
+
+                  // Highlight days within travel range
+                  const inRange =
+                    dateRange[0] &&
+                    dateRange[1] &&
+                    dateObj >= dateRange[0].toDate() &&
+                    dateObj <= dateRange[1].toDate();
+
+                  return (
+                    <div
+                      key={day.date}
+                      style={{
+                        minWidth: 80,
+                        padding: "12px 10px",
+                        borderRadius: 14,
+                        textAlign: "center",
+                        background: inRange
+                          ? "rgba(255,138,42,0.1)"
+                          : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${
+                          inRange
+                            ? "rgba(255,138,42,0.25)"
+                            : "rgba(255,255,255,0.06)"
+                        }`,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "rgba(255,255,255,0.5)",
+                          marginBottom: 6,
+                        }}
+                      >
+                        {dayName}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "rgba(255,255,255,0.3)",
+                          marginBottom: 8,
+                        }}
+                      >
+                        {monthDay}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 22,
+                          marginBottom: 6,
+                          display: "flex",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {day.code <= 3 ? (
+                          <Sun size={22} style={{ color: "#ffb347" }} />
+                        ) : day.code <= 55 ? (
+                          <CloudRain size={22} style={{ color: "#5b9cf5" }} />
+                        ) : (
+                          <CloudRain size={22} style={{ color: "#aaa" }} />
+                        )}
+                      </div>
+                      <div
+                        style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}
+                      >
+                        {day.high}°
+                      </div>
+                      <div
+                        style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}
+                      >
+                        {day.low}°
+                      </div>
+                      {day.rainChance > 0 && (
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: isRainy
+                              ? "#5b9cf5"
+                              : "rgba(255,255,255,0.3)",
+                            marginTop: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 2,
+                          }}
+                        >
+                          <CloudRain size={10} /> {day.rainChance}%
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {!weatherLoading && !weather && (
+            <p className="sk-sync-group-hint" style={{ marginTop: 8 }}>
+              Weather data unavailable for this destination.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── Group Chat ── */}
+      {isMember && (
+        <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
+          <div className="sk-sync-group-title">
+            <MessageCircle size={16} style={{ marginRight: 8 }} />
+            Group Chat
+            {chatMessages.length > 0 && (
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.3)",
+                }}
+              >
+                {chatMessages.length} message
+                {chatMessages.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div
+            style={{
+              marginTop: 12,
+              maxHeight: 400,
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              overscrollBehavior: "contain",
+            }}
+          >
+            {chatMessages.length === 0 && (
+              <p className="sk-sync-group-hint">
+                No messages yet. Start the conversation!
+              </p>
+            )}
+            {chatMessages.map((msg, i) => {
+              const isMe =
+                currentUserId &&
+                String(msg.user?._id || msg.user) === String(currentUserId);
+              return (
+                <div
+                  key={msg._id || i}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                    flexDirection: isMe ? "row-reverse" : "row",
+                  }}
+                >
+                  <Avatar
+                    size={32}
+                    src={
+                      msg.user?.avatar &&
+                      msg.user.avatar !== "/default-avatar.png"
+                        ? msg.user.avatar
+                        : undefined
+                    }
+                    style={{
+                      background: isMe ? "#ff8a2a" : "#2a1f3d",
+                      color: isMe ? "#1b1024" : "#ff8a2a",
+                      fontWeight: 800,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {(msg.user?.name ||
+                      msg.user?.username ||
+                      "?")[0].toUpperCase()}
+                  </Avatar>
+                  <div style={{ maxWidth: "75%" }}>
+                    <div
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 14,
+                        background: isMe
+                          ? "rgba(255,138,42,0.15)"
+                          : "rgba(255,255,255,0.06)",
+                        border: `1px solid ${
+                          isMe
+                            ? "rgba(255,138,42,0.25)"
+                            : "rgba(255,255,255,0.08)"
+                        }`,
+                        borderTopRightRadius: isMe ? 4 : 14,
+                        borderTopLeftRadius: isMe ? 14 : 4,
+                      }}
+                    >
+                      {!isMe && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "#ff8a2a",
+                            marginBottom: 4,
+                          }}
+                        >
+                          {msg.user?.name || msg.user?.username}
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,0.85)",
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {msg.message}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: "rgba(255,255,255,0.2)",
+                        marginTop: 4,
+                        textAlign: isMe ? "right" : "left",
+                      }}
+                    >
+                      {msg.createdAt
+                        ? dayjs(msg.createdAt).format("h:mm A")
+                        : ""}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+            <Input
+              className="sk-sync-input"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onPressEnter={sendChatMessage}
+              placeholder="Type a message..."
+              style={{ flex: 1 }}
+            />
+            <Button
+              className="sk-sync-add-btn"
+              icon={<SendOutlined />}
+              onClick={sendChatMessage}
+              loading={chatSending}
+            >
+              Send
+            </Button>
+          </div>
         </div>
       )}
     </section>

@@ -16,7 +16,7 @@ const MemberSchema = new Schema(
     availableFrom: { type: Date, default: null },
     availableTo: { type: Date, default: null },
     joinedAt: { type: Date, default: null },
-    // Review flow
+    departureAirport: { type: String, trim: true, default: null },
     approved: { type: Boolean, default: false },
     approvedAt: { type: Date, default: null },
   },
@@ -33,6 +33,14 @@ const ChangeRequestSchema = new Schema(
       default: "open",
     },
     resolvedAt: { type: Date, default: null },
+  },
+  { timestamps: true }
+);
+
+const ChatMessageSchema = new Schema(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    message: { type: String, trim: true, required: true },
   },
   { timestamps: true }
 );
@@ -70,6 +78,11 @@ const SyncGroupSchema = new Schema(
       enum: ["economy", "premium_economy", "business", "first"],
       default: "economy",
     },
+    departureTime: {
+      type: String,
+      enum: ["morning", "afternoon", "night", "any"],
+      default: "any",
+    },
     dateRangeStart: { type: Date, default: null },
     dateRangeEnd: { type: Date, default: null },
 
@@ -79,8 +92,11 @@ const SyncGroupSchema = new Schema(
     planVersion: { type: Number, default: 0 },
     atlasMessages: { type: Array, default: [] },
 
-    // Change requests from members
+    // Change requests
     changeRequests: [ChangeRequestSchema],
+
+    // Group chat
+    chatMessages: [ChatMessageSchema],
   },
   { timestamps: true }
 );
@@ -103,6 +119,7 @@ SyncGroupSchema.methods.toSafeJSON = function () {
     destination: this.destination,
     departureAirport: this.departureAirport,
     cabinClass: this.cabinClass,
+    departureTime: this.departureTime,
     dateRangeStart: this.dateRangeStart,
     dateRangeEnd: this.dateRangeEnd,
     plan: this.plan,
@@ -110,6 +127,7 @@ SyncGroupSchema.methods.toSafeJSON = function () {
     planVersion: this.planVersion,
     atlasMessages: this.atlasMessages,
     changeRequests: this.changeRequests,
+    chatMessages: this.chatMessages,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

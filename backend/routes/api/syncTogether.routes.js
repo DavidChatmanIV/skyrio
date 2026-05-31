@@ -89,6 +89,7 @@ router.get("/:id", async (req, res) => {
       .populate("owner", "username name avatar")
       .populate("members.user", "username name avatar")
       .populate("changeRequests.user", "username name avatar")
+      .populate("chatMessages.user", "username name avatar")
       .lean();
 
     if (!group)
@@ -123,6 +124,7 @@ router.patch("/:id", async (req, res) => {
       destination,
       departureAirport,
       cabinClass,
+      departureTime,
       dateRangeStart,
       dateRangeEnd,
       budget,
@@ -134,6 +136,7 @@ router.patch("/:id", async (req, res) => {
     if (departureAirport !== undefined)
       group.departureAirport = departureAirport;
     if (cabinClass !== undefined) group.cabinClass = cabinClass;
+    if (departureTime !== undefined) group.departureTime = departureTime;
     if (dateRangeStart !== undefined) group.dateRangeStart = dateRangeStart;
     if (dateRangeEnd !== undefined) group.dateRangeEnd = dateRangeEnd;
     if (status !== undefined) group.status = status;
@@ -453,6 +456,120 @@ router.post("/:id/member", async (req, res) => {
   } catch (err) {
     console.error("[sync-together] add member error:", err);
     return res.status(500).json({ ok: false, error: "Failed to add member" });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   PATCH /api/sync-together/:id/member-airport
+   Update your own departure airport.
+   Body: { departureAirport: "JFK" }
+   ────────────────────────────────────────────── */
+router.patch("/:id/member-airport", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+
+    const { departureAirport } = req.body;
+
+    // Check if user is owner — update group-level airport
+    if (String(group.owner) === String(userId)) {
+      group.departureAirport = departureAirport;
+    }
+
+    // Also update member-level airport if they're in the members array
+    const member = group.members.find(
+      (m) => m.user && String(m.user) === String(userId)
+    );
+    if (member) {
+      member.departureAirport = departureAirport;
+    }
+
+    if (!member && String(group.owner) !== String(userId)) {
+      return res.status(403).json({ ok: false, error: "Not a group member" });
+    }
+
+    await group.save();
+
+    const populated = await SyncGroup.findById(group._id)
+      .populate("owner", "username name avatar")
+      .populate("members.user", "username name avatar")
+      .populate("changeRequests.user", "username name avatar")
+      .populate("chatMessages.user", "username name avatar")
+      .lean();
+
+    return res.json({ ok: true, group: populated });
+  } catch (err) {
+    console.error("[sync-together] member-airport error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, error: "Failed to update airport" });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   POST /api/sync-together/:id/chat
+   Send a chat message.
+   ────────────────────────────────────────────── */
+router.post("/:id/chat", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+    if (!isGroupMember(group, userId)) {
+      return res.status(403).json({ ok: false, error: "Not a group member" });
+    }
+
+    const { message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ ok: false, error: "Message is required" });
+    }
+
+    group.chatMessages.push({
+      user: userId,
+      message: message.trim(),
+    });
+
+    await group.save();
+
+    // Return just the new message populated
+    const populated = await SyncGroup.findById(group._id)
+      .select("chatMessages")
+      .populate("chatMessages.user", "username name avatar")
+      .lean();
+
+    const newMsg = populated.chatMessages[populated.chatMessages.length - 1];
+
+    return res.json({ ok: true, message: newMsg });
+  } catch (err) {
+    console.error("[sync-together] chat error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to send message" });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   GET /api/sync-together/:id/chat
+   Fetch chat messages.
+   ────────────────────────────────────────────── */
+router.get("/:id/chat", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id)
+      .select("chatMessages owner members")
+      .populate("chatMessages.user", "username name avatar")
+      .lean();
+
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+
+    return res.json({ ok: true, messages: group.chatMessages || [] });
+  } catch (err) {
+    console.error("[sync-together] chat fetch error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, error: "Failed to fetch messages" });
   }
 });
 
