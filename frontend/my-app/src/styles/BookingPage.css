@@ -118,7 +118,6 @@
   border-color: rgba(255, 138, 42, 0.45) !important;
 }
 
-/* Mobile — prevent iOS zoom on focus (font-size must be >= 16px) */
 @media (max-width: 768px) {
   .sk-glass-input {
     font-size: 16px !important;
@@ -160,24 +159,24 @@
   position: relative;
   z-index: 10;
   animation: sk-page-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
-  /* Subtle top-edge highlight */
-  &::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 20%;
-    right: 20%;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.12),
-      transparent
-    );
-    border-radius: 1px;
-    pointer-events: none;
-  }
+/* Subtle top-edge highlight — flattened for PostCSS compatibility */
+.sk-booking-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.12),
+    transparent
+  );
+  border-radius: 1px;
+  pointer-events: none;
 }
 
 /* ── HERO TITLE ── */
@@ -330,7 +329,7 @@
 }
 
 /* ======================================
-   AI INSIGHT PILL — improved
+   AI INSIGHT PILL
 ====================================== */
 .sk-ai-insight-pill {
   display: inline-flex;
@@ -551,7 +550,6 @@
   color: #fff !important;
 }
 
-/* ── SAVE TRIP BUTTON ── */
 .sk-save-btn {
   background: rgba(20, 12, 40, 0.5) !important;
   border: 1px solid rgba(255, 255, 255, 0.13) !important;
@@ -602,7 +600,6 @@
   cursor: default !important;
 }
 
-/* ── SYNC TOGETHER ── */
 .sk-btn-sync.ant-btn {
   background: var(--sk-orange-grad) !important;
   border: none !important;
@@ -623,7 +620,6 @@
   transform: translateY(-1px);
 }
 
-/* ── SEARCH BUTTON ── */
 .sk-btn-search-pill.ant-btn {
   background: var(--sk-orange-grad) !important;
   border: none !important;
@@ -1063,7 +1059,6 @@
   box-shadow: 0 6px 22px rgba(255, 138, 42, 0.5) !important;
 }
 
-/* ── SCROLL TO BUDGET ── */
 .sk-scroll-budget-btn {
   display: inline-flex;
   align-items: center;
@@ -1358,7 +1353,6 @@
   border-color: var(--sk-orange);
 }
 
-/* ── SEARCH ERROR ── */
 .sk-search-error {
   background: rgba(255, 80, 80, 0.07);
   border: 1px solid rgba(255, 80, 80, 0.2);
@@ -1380,7 +1374,6 @@
   font-family: var(--sk-font-body);
 }
 
-/* ── VIEW MORE ── */
 .sk-view-more-btn {
   display: inline-flex;
   align-items: center;
@@ -1403,7 +1396,6 @@
   transform: translateY(-1px);
 }
 
-/* ── PRICE WATCH ── */
 .sk-watch-btn {
   display: inline-flex;
   align-items: center;
@@ -2542,7 +2534,7 @@
   width: 100%;
 }
 
-.sk-mc-field-row:has(.sk-mc-remove-btn) {
+.sk-mc-field-row-with-remove {
   grid-template-columns: 1fr auto 1fr auto auto auto;
 }
 
@@ -2660,16 +2652,13 @@
     grid-template-columns: 1fr 1fr !important;
     grid-template-rows: auto auto;
   }
-
   .sk-mc-arrow {
     display: none;
   }
-
   .sk-mc-field--date {
     grid-column: 1 / -1;
     min-width: 0;
   }
-
   .sk-mc-remove-btn {
     grid-column: 2;
     grid-row: 1;
@@ -2677,22 +2666,18 @@
     align-self: end;
     margin-bottom: 0;
   }
-
   .sk-mc-controls {
     flex-direction: column;
     align-items: stretch;
   }
-
   .sk-mc-right {
     flex-direction: column;
     align-items: stretch;
   }
-
   .sk-mc-right .sk-select-cabin,
   .sk-mc-right .sk-input-travelers {
     width: 100% !important;
   }
-
   .sk-mc-add-btn {
     width: 100%;
     justify-content: center;

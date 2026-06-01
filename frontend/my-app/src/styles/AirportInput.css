@@ -1,38 +1,111 @@
-/* Wrapper — position:relative anchors the dropdown */
+/* ======================================
+   AIRPORT INPUT WRAPPER
+====================================== */
+
 .sk-airport-wrap {
   position: relative;
   flex: 1;
   min-width: 180px;
-  /* ✅ isolation:isolate creates a new stacking context so z-index
-     works correctly even if parent has overflow or transform */
   isolation: isolate;
 }
 
-/* Input inherits sk-glass-input — just make it full width */
 .sk-airport-input {
   width: 100%;
 }
 
-/* ── Dropdown ── */
+/* ======================================
+   GLASS INPUT — dark themed, visible text
+====================================== */
+
+.sk-glass-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+  font-size: 14px;
+  font-weight: 400;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Inter, sans-serif;
+  outline: none;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+  -webkit-appearance: none;
+  appearance: none;
+  caret-color: #ff8a2a;
+}
+
+.sk-glass-input::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.38);
+  font-weight: 400;
+}
+
+.sk-glass-input:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.sk-glass-input:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 138, 42, 0.65);
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.15);
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+}
+
+/* Autofill — stops Chrome/Safari injecting white background */
+.sk-glass-input:-webkit-autofill,
+.sk-glass-input:-webkit-autofill:hover,
+.sk-glass-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(18, 10, 38, 0.95) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ff8a2a;
+  border-color: rgba(255, 138, 42, 0.45) !important;
+}
+
+/* ======================================
+   DROPDOWN PORTAL
+====================================== */
+
 .sk-airport-dropdown {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   min-width: 320px;
-  background: #1a1530;
+  background: rgba(10, 6, 24, 0.98);
   border: 1px solid rgba(255, 138, 42, 0.25);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  /* ✅ High z-index — must beat .sk-search-bar, filters bar, and any
-     Ant Design components (Segmented, DatePicker) which sit at ~1000 */
-  z-index: 2000;
+  border-radius: 14px;
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.65),
+    0 0 0 0.5px rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  z-index: 9999;
   overflow: hidden;
   padding: 6px 0;
-  /* ✅ Prevents dropdown from being clipped by parent overflow */
-  contain: layout;
+  animation: sk-airport-drop-in 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* City header — only rendered when a city has 2+ airports */
+@keyframes sk-airport-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ======================================
+   CITY GROUP HEADER
+====================================== */
+
 .sk-airport-city-header {
   display: flex;
   align-items: center;
@@ -42,10 +115,13 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.35);
 }
 
-/* Individual airport row */
+/* ======================================
+   AIRPORT OPTION ROW
+====================================== */
+
 .sk-airport-option {
   width: 100%;
   display: flex;
@@ -57,30 +133,39 @@
   border: none;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s;
+  transition: background 0.13s;
 }
 
 .sk-airport-option:hover {
   background: rgba(255, 138, 42, 0.1);
 }
 
-/* Sub-airports (multi-airport city) get a left indent */
+.sk-airport-option:active {
+  background: rgba(255, 138, 42, 0.16);
+}
+
+/* Indent sub-airports in multi-airport cities */
 .sk-airport-option.is-sub {
   padding-left: 24px;
 }
 
-/* Left side: arrow + name/distance */
+/* ======================================
+   OPTION INTERNALS
+====================================== */
+
 .sk-airport-left {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  min-width: 0;
 }
 
 .sk-airport-arrow {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.35);
   margin-top: 2px;
   flex-shrink: 0;
+  line-height: 1;
 }
 
 .sk-airport-name {
@@ -88,33 +173,85 @@
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sk-airport-dist {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.38);
   margin-top: 2px;
+  line-height: 1.2;
 }
 
-/* IATA code badge on the right */
+/* IATA code badge — right side */
 .sk-airport-code {
   font-size: 13px;
   font-weight: 700;
   color: #ff8a2a;
   flex-shrink: 0;
+  letter-spacing: 0.04em;
 }
 
-/* Thin divider between city groups */
+/* ======================================
+   GROUP DIVIDER
+====================================== */
+
 .sk-airport-group + .sk-airport-group {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   margin-top: 4px;
   padding-top: 4px;
 }
 
-/* ── Mobile responsive ── */
+/* ======================================
+   NEARBY AIRPORTS SECTION
+====================================== */
+
+.sk-airport-nearby {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.sk-airport-nearby-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.sk-airport-option--nearby .sk-airport-name {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sk-airport-arrow--nearby {
+  color: rgba(255, 255, 255, 0.22);
+  font-size: 15px;
+}
+
+.sk-airport-code--nearby {
+  color: rgba(255, 138, 42, 0.55);
+}
+
+/* ======================================
+   MOBILE RESPONSIVE
+====================================== */
+
+@media (max-width: 768px) {
+  .sk-glass-input {
+    font-size: 16px;
+    height: 50px;
+  }
+}
+
 @media (max-width: 640px) {
   .sk-airport-dropdown {
-    min-width: 100%;
+    min-width: calc(100vw - 32px);
     left: 0;
     right: 0;
   }
@@ -122,5 +259,11 @@
   .sk-airport-wrap {
     min-width: 0;
     width: 100%;
+  }
+
+  .sk-glass-input {
+    font-size: 16px !important;
+    height: 50px !important;
+    border-radius: 14px !important;
   }
 }
