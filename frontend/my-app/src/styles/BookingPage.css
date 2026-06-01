@@ -65,6 +65,68 @@
 }
 
 /* ======================================
+   GLASS INPUT — fixes white box / invisible text
+====================================== */
+
+.sk-glass-input {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.13) !important;
+  border-radius: 14px !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-family: var(--sk-font-body) !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  height: 42px !important;
+  padding: 0 14px !important;
+  outline: none !important;
+  width: 100%;
+  box-sizing: border-box;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sk-glass-input::placeholder {
+  color: rgba(255, 255, 255, 0.38) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.38) !important;
+  font-weight: 400;
+}
+
+.sk-glass-input:hover {
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+}
+
+.sk-glass-input:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 138, 42, 0.65) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.15) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Autofill override — browsers inject white bg on autofill */
+.sk-glass-input:-webkit-autofill,
+.sk-glass-input:-webkit-autofill:hover,
+.sk-glass-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(18, 10, 38, 0.95) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+  border-color: rgba(255, 138, 42, 0.45) !important;
+}
+
+/* Mobile — prevent iOS zoom on focus (font-size must be >= 16px) */
+@media (max-width: 768px) {
+  .sk-glass-input {
+    font-size: 16px !important;
+    height: 50px !important;
+  }
+}
+
+/* ======================================
    PAGE WRAPPER — fade-in on load
 ====================================== */
 @keyframes sk-page-in {
@@ -1115,7 +1177,6 @@
   position: relative;
 }
 
-/* Subtle shimmer on thumb */
 .sk-thumb::after {
   content: "";
   position: absolute;
@@ -2402,7 +2463,6 @@
   padding: 0;
 }
 
-/* Legs container */
 .sk-mc-legs {
   display: flex;
   flex-direction: column;
@@ -2410,7 +2470,6 @@
   width: 100%;
 }
 
-/* Single leg row */
 .sk-mc-leg {
   display: flex;
   align-items: flex-start;
@@ -2430,13 +2489,12 @@
   }
 }
 
-/* Left column: number badge + connector line */
 .sk-mc-leg-badge {
   display: flex;
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
-  padding-top: 30px; /* align with input mid-line */
+  padding-top: 30px;
   width: 28px;
 }
 
@@ -2458,7 +2516,6 @@
   z-index: 1;
 }
 
-/* Vertical connector between legs */
 .sk-mc-leg-line {
   width: 1.5px;
   flex: 1;
@@ -2471,14 +2528,12 @@
   margin-top: 4px;
 }
 
-/* Fields wrapper */
 .sk-mc-leg-fields {
   flex: 1;
   min-width: 0;
   padding-bottom: 14px;
 }
 
-/* Row of fields inside a leg */
 .sk-mc-field-row {
   display: grid;
   grid-template-columns: 1fr auto 1fr auto auto;
@@ -2487,12 +2542,10 @@
   width: 100%;
 }
 
-/* Remove button only visible when present */
 .sk-mc-field-row:has(.sk-mc-remove-btn) {
   grid-template-columns: 1fr auto 1fr auto auto auto;
 }
 
-/* Individual field wrapper */
 .sk-mc-field {
   display: flex;
   flex-direction: column;
@@ -2515,7 +2568,6 @@
   line-height: 1;
 }
 
-/* Arrow between From → To */
 .sk-mc-arrow {
   color: rgba(255, 138, 42, 0.5);
   font-size: 16px;
@@ -2525,13 +2577,11 @@
   align-self: flex-end;
 }
 
-/* Date picker width in multi-city context */
 .sk-mc-datepicker.ant-picker {
   width: 100% !important;
   height: 42px !important;
 }
 
-/* Remove leg button */
 .sk-mc-remove-btn {
   display: flex;
   align-items: center;
@@ -2555,7 +2605,6 @@
   color: #ff6b6b;
 }
 
-/* Bottom controls row */
 .sk-mc-controls {
   display: flex;
   align-items: center;
@@ -2572,7 +2621,6 @@
   flex-wrap: wrap;
 }
 
-/* Add flight button */
 .sk-mc-add-btn {
   display: inline-flex;
   align-items: center;
@@ -2607,7 +2655,6 @@
   color: var(--sk-orange);
 }
 
-/* ── RESPONSIVE: multi-city on mobile ── */
 @media (max-width: 768px) {
   .sk-mc-field-row {
     grid-template-columns: 1fr 1fr !important;

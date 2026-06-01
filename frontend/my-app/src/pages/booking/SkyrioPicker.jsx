@@ -2,13 +2,14 @@
  * SkyrioPicker — Skyrio-branded date range picker
  *
  * Mobile  (<= 768 px)  →  full-screen scrollable calendar
- * Desktop (>  768 px)  →  inline dropdown with 2 months side-by-side + nav arrows (Expedia-style)
+ * Desktop (>  768 px)  →  centered modal with 2 months side-by-side + nav arrows
  *
  * Both use the purple/orange Skyrio theme.
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { Calendar as CalendarIcon } from "lucide-react";
 import dayjs from "dayjs";
 
 const MONTHS = [
@@ -54,6 +55,31 @@ function formatLabel(d) {
 function nightsBetween(a, b) {
   if (!a || !b) return null;
   return Math.round(Math.abs(b - a) / 864e5);
+}
+
+/** Hide/show third-party chat widgets (Intercom, Crisp, HubSpot, Tidio, etc.) */
+function toggleChatWidgets(hide) {
+  const selectors = [
+    ".intercom-lightweight-app",
+    ".intercom-app",
+    '[class*="intercom"]',
+    ".crisp-client",
+    "#crisp-chatbox",
+    "#hubspot-messages-iframe-container",
+    "#tidio-chat",
+    "#tidio-chat-iframe",
+    ".drift-frame-controller",
+    ".drift-widget-container",
+    '[class*="helpdesk"]',
+    '[class*="chat-widget"]',
+    'iframe[title*="chat"]',
+    'iframe[title*="Help"]',
+  ];
+  selectors.forEach((sel) => {
+    document.querySelectorAll(sel).forEach((el) => {
+      el.style.display = hide ? "none" : "";
+    });
+  });
 }
 
 /* ─── single month grid ─────────────────────────────────────── */
@@ -218,8 +244,8 @@ function MonthGrid({
   );
 }
 
-/* ─── Desktop: inline dropdown with 2 months + nav arrows ───── */
-function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
+/* ─── Desktop: centered modal with 2 months + nav arrows ───── */
+function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
@@ -228,13 +254,16 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
     return { year: now.getFullYear(), month: now.getMonth() };
   });
 
-  // Reset on open
   useEffect(() => {
     if (open) {
       setStartDate(null);
       setEndDate(null);
       setHoverDate(null);
+      toggleChatWidgets(true);
+    } else {
+      toggleChatWidgets(false);
     }
+    return () => toggleChatWidgets(false);
   }, [open]);
 
   const handleDay = useCallback(
@@ -286,7 +315,6 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
   const month2 = new Date(viewMonth.year, viewMonth.month + 1, 1);
   const nights = nightsBetween(startDate, endDate);
 
-  // Can't go before current month
   const now = new Date();
   const canGoPrev =
     viewMonth.year > now.getFullYear() ||
@@ -324,7 +352,7 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
           fontFamily: "'DM Sans', sans-serif",
         }}
       >
-        {/* Header row: Depart → Return */}
+        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -418,9 +446,8 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
           )}
         </div>
 
-        {/* Nav arrows + two month grids */}
+        {/* Nav + months */}
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-          {/* Prev arrow */}
           <button
             onClick={prevMonth}
             disabled={!canGoPrev}
@@ -435,13 +462,10 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
               padding: "4px 6px",
               marginTop: 2,
               flexShrink: 0,
-              transition: "color 0.15s",
             }}
           >
             ‹
           </button>
-
-          {/* Month 1 */}
           <MonthGrid
             year={viewMonth.year}
             month={viewMonth.month}
@@ -452,8 +476,6 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
             onHover={handleHover}
             compact
           />
-
-          {/* Month 2 */}
           <MonthGrid
             year={month2.getFullYear()}
             month={month2.getMonth()}
@@ -464,8 +486,6 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
             onHover={handleHover}
             compact
           />
-
-          {/* Next arrow */}
           <button
             onClick={nextMonth}
             style={{
@@ -477,14 +497,13 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder, anchorRef }) {
               padding: "4px 6px",
               marginTop: 2,
               flexShrink: 0,
-              transition: "color 0.15s",
             }}
           >
             ›
           </button>
         </div>
 
-        {/* Done button */}
+        {/* Footer */}
         <div
           style={{
             marginTop: 16,
@@ -572,6 +591,7 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
       setStartDate(null);
       setEndDate(null);
       setHoverDate(null);
+      toggleChatWidgets(true);
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
       });
@@ -581,12 +601,14 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
       document.body.style.width = "";
       document.body.style.overflow = "";
       window.scrollTo(0, savedScrollY.current);
+      toggleChatWidgets(false);
     }
     return () => {
       document.body.style.position = "";
       document.body.style.top = "";
       document.body.style.width = "";
       document.body.style.overflow = "";
+      toggleChatWidgets(false);
     };
   }, [open]);
 
@@ -643,6 +665,7 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
         paddingTop: "env(safe-area-inset-top, 0px)",
       }}
     >
+      {/* Header */}
       <div
         style={{
           flexShrink: 0,
@@ -676,6 +699,8 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
               cursor: "pointer",
               color: "#fff",
               fontSize: 18,
+              WebkitTapHighlightColor: "transparent",
+              touchAction: "manipulation",
             }}
           >
             ✕
@@ -704,6 +729,8 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
               cursor: "pointer",
               fontFamily: "'DM Sans', sans-serif",
               padding: "8px 4px",
+              WebkitTapHighlightColor: "transparent",
+              touchAction: "manipulation",
             }}
           >
             Clear
@@ -811,6 +838,7 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
         </div>
       </div>
 
+      {/* Scrollable calendar */}
       <div
         ref={scrollRef}
         style={{
@@ -837,6 +865,7 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
         <div style={{ height: 120 }} />
       </div>
 
+      {/* Done button */}
       <div
         style={{
           flexShrink: 0,
@@ -867,6 +896,8 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
               startDate && endDate
                 ? "0 4px 28px rgba(255,138,42,0.45)"
                 : "none",
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "transparent",
           }}
         >
           {startDate && endDate
@@ -957,9 +988,7 @@ export default function SkyrioPicker({
           (e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)")
         }
       >
-        <span style={{ color: "#ff8a2a", fontSize: 16, flexShrink: 0 }}>
-          📅
-        </span>
+        <CalendarIcon size={16} style={{ color: "#ff8a2a", flexShrink: 0 }} />
         {triggerLabel}
       </button>
 
