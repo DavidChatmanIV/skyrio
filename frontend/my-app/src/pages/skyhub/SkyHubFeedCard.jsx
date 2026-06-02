@@ -7,6 +7,7 @@ import {
   EnvironmentOutlined,
 } from "@ant-design/icons";
 
+// ── Post type config ──────────────────────────────────────────
 const TYPE_META = {
   Tip: { e: "💡", c: "#fbbf24", bg: "rgba(251,191,36,0.1)" },
   Question: { e: "❓", c: "#38bdf8", bg: "rgba(56,189,248,0.1)" },
@@ -23,13 +24,17 @@ const AV_COLORS = [
   "linear-gradient(135deg,#f59e0b,#b45309)",
 ];
 
+// ── Avatar ─────────────────────────────────────────────────────
 function Avatar({ name, avatarUrl, size = 44 }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const init = (name || "T").slice(0, 2).toUpperCase();
   const color = AV_COLORS[(name || "T").charCodeAt(0) % AV_COLORS.length];
+
   if (
     avatarUrl &&
     typeof avatarUrl === "string" &&
-    avatarUrl.startsWith("http")
+    avatarUrl.startsWith("http") &&
+    !imgFailed
   ) {
     return (
       <img
@@ -43,9 +48,7 @@ function Avatar({ name, avatarUrl, size = 44 }) {
           flexShrink: 0,
           border: "2px solid rgba(255,255,255,0.15)",
         }}
-        onError={(e) => {
-          e.target.style.display = "none";
-        }}
+        onError={() => setImgFailed(true)}
       />
     );
   }
@@ -61,7 +64,7 @@ function Avatar({ name, avatarUrl, size = 44 }) {
         alignItems: "center",
         justifyContent: "center",
         fontWeight: 800,
-        fontSize: size * 0.34,
+        fontSize: Math.round(size * 0.34),
         color: "#fff",
         userSelect: "none",
       }}
@@ -71,14 +74,15 @@ function Avatar({ name, avatarUrl, size = 44 }) {
   );
 }
 
-// ── Twitter-style image grid ───────────────────────────────
+// ── Image grid (1–4 photos, Twitter layout) ───────────────────
 function ImageGrid({ images }) {
   const [failed, setFailed] = useState({});
   if (!images?.length) return null;
   const vis = images.filter((_, i) => !failed[i]);
   if (!vis.length) return null;
   const fail = (i) => setFailed((f) => ({ ...f, [i]: true }));
-  const img = (src, i, style = {}) => (
+
+  const Img = ({ src, i, xStyle = {} }) => (
     <img
       key={i}
       src={src}
@@ -90,56 +94,87 @@ function ImageGrid({ images }) {
         height: "100%",
         objectFit: "cover",
         display: "block",
-        ...style,
+        ...xStyle,
       }}
     />
   );
-  const wrap = (children, gridStyle = {}) => (
+
+  if (vis.length === 1)
+    return (
+      <div style={{ marginTop: 10, borderRadius: 12, overflow: "hidden" }}>
+        <Img src={vis[0]} i={0} xStyle={{ height: 280, borderRadius: 12 }} />
+      </div>
+    );
+  if (vis.length === 2)
+    return (
+      <div
+        style={{
+          marginTop: 10,
+          borderRadius: 12,
+          overflow: "hidden",
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 3,
+          height: 210,
+        }}
+      >
+        {vis.map((s, i) => (
+          <Img key={i} src={s} i={i} />
+        ))}
+      </div>
+    );
+  if (vis.length === 3)
+    return (
+      <div
+        style={{
+          marginTop: 10,
+          borderRadius: 12,
+          overflow: "hidden",
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gridTemplateRows: "1fr 1fr",
+          gap: 3,
+          height: 230,
+        }}
+      >
+        {vis.map((s, i) => (
+          <Img
+            key={i}
+            src={s}
+            i={i}
+            xStyle={i === 0 ? { gridRow: "1/3" } : {}}
+          />
+        ))}
+      </div>
+    );
+  return (
     <div
       style={{
         marginTop: 10,
         borderRadius: 12,
         overflow: "hidden",
-        ...gridStyle,
-      }}
-    >
-      {children}
-    </div>
-  );
-  if (vis.length === 1)
-    return wrap(img(vis[0], 0, { height: 280, borderRadius: 12 }));
-  if (vis.length === 2)
-    return wrap(
-      vis.map((s, i) => img(s, i)),
-      { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3, height: 210 }
-    );
-  if (vis.length === 3)
-    return wrap(
-      vis.map((s, i) => img(s, i, i === 0 ? { gridRow: "1/3" } : {})),
-      {
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
         gridTemplateRows: "1fr 1fr",
         gap: 3,
         height: 230,
-      }
-    );
-  return wrap(
-    vis.slice(0, 4).map((s, i) => img(s, i)),
-    {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gridTemplateRows: "1fr 1fr",
-      gap: 3,
-      height: 230,
-    }
+      }}
+    >
+      {vis.slice(0, 4).map((s, i) => (
+        <Img key={i} src={s} i={i} />
+      ))}
+    </div>
   );
 }
 
+// ── Number formatter ───────────────────────────────────────────
 function fmt(n) {
-  return n >= 1000 ? (n / 1000).toFixed(1) + "k" : n;
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "m";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "k";
+  return String(n);
 }
 
+// ── Feed Card ──────────────────────────────────────────────────
 export default function SkyHubFeedCard({
   post,
   currentUserId,
@@ -150,8 +185,8 @@ export default function SkyHubFeedCard({
   onDeletePost,
 }) {
   const tm = TYPE_META[post.type] || TYPE_META.Story;
-  // The backend returns username:"you" or "@you" ONLY for the logged-in user's own posts.
-  // That is the single reliable signal — no ID matching needed.
+
+  // Ownership check — backend returns "you" for logged-in user's posts
   const rawUsername = (post.username || "").replace(/^@/, "").toLowerCase();
   const isOwner =
     rawUsername === "you" ||
@@ -159,10 +194,10 @@ export default function SkyHubFeedCard({
       if (!currentUserId) return false;
       const parts = String(currentUserId).split("|");
       const myMongoId = parts[0] || "";
-      const myUsername = (parts[1] || parts[0] || "").toLowerCase();
+      const myUsername = (parts[1] || "").toLowerCase();
       return (
         (post.authorId && String(post.authorId) === myMongoId) ||
-        (myUsername && rawUsername && rawUsername === myUsername)
+        (myUsername && rawUsername === myUsername)
       );
     })();
 
@@ -192,27 +227,25 @@ export default function SkyHubFeedCard({
         <Avatar name={post.author} avatarUrl={post.avatar} size={44} />
 
         <div className="skyhub-feedCard__head">
+          {/* Name row */}
           <div className="skyhub-feedCard__line1">
             <span className="skyhub-feedCard__name">{post.author}</span>
             <span className="skyhub-feedCard__handle">{post.username}</span>
-            {post.badge && (
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  background: "rgba(255,122,53,0.12)",
-                  color: "#ff7a35",
-                  border: "1px solid rgba(255,122,53,0.22)",
-                }}
+            {post.verified && (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="#38bdf8"
+                style={{ flexShrink: 0 }}
               >
-                {post.badge}
-              </span>
+                <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+              </svg>
             )}
             <span className="skyhub-feedCard__time">{post.timeAgo}</span>
           </div>
 
+          {/* Location + type pill */}
           {(post.destination || post.type) && (
             <div className="skyhub-feedCard__location">
               {post.destination && (
@@ -231,10 +264,10 @@ export default function SkyHubFeedCard({
                   fontWeight: 700,
                   borderRadius: 999,
                   padding: "2px 8px",
+                  marginLeft: post.destination ? 4 : 0,
                   background: tm.bg,
                   color: tm.c,
                   border: `1px solid ${tm.c}30`,
-                  marginLeft: 4,
                 }}
               >
                 {tm.e} {post.type}
@@ -248,14 +281,18 @@ export default function SkyHubFeedCard({
           placement="bottomRight"
           menu={{ items: menuItems }}
         >
-          <button className="skyhub-feedCard__menu">
+          <button
+            className="skyhub-feedCard__menu"
+            onClick={(e) => e.stopPropagation()}
+          >
             <MoreOutlined />
           </button>
         </Dropdown>
       </div>
 
+      {/* Body */}
       <div className="skyhub-feedCard__body">
-        <p className="skyhub-feedCard__text">{post.text}</p>
+        {post.text && <p className="skyhub-feedCard__text">{post.text}</p>}
 
         {post.tags?.length > 0 && (
           <div className="skyhub-feedCard__tags">
@@ -267,23 +304,23 @@ export default function SkyHubFeedCard({
           </div>
         )}
 
-        {/* Image grid — uses images[] array */}
-        <ImageGrid images={post.images} />
-
-        {/* Legacy single image fallback */}
-        {!post.images?.length && post.image && (
+        {/* Images — array takes priority, single image as fallback */}
+        {post.images?.length > 0 ? (
+          <ImageGrid images={post.images} />
+        ) : post.image ? (
           <div className="skyhub-feedCard__media">
             <img
               src={post.image}
-              alt="post"
+              alt=""
               onError={(e) => {
                 e.target.parentElement.style.display = "none";
               }}
             />
           </div>
-        )}
+        ) : null}
       </div>
 
+      {/* Footer actions */}
       <div className="skyhub-feedCard__footer">
         <div className="skyhub-feedCard__actions">
           <button

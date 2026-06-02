@@ -3,7 +3,6 @@ import { Button, Input, Avatar, message as antdMessage, Spin } from "antd";
 import {
   UserAddOutlined,
   SyncOutlined,
-  TeamOutlined,
   SearchOutlined,
   LoadingOutlined,
 } from "@ant-design/icons";
@@ -14,19 +13,21 @@ import {
   Zap,
   Plane,
   Users,
+  MapPin,
+  Calendar,
+  ArrowRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
-/** Grab the JWT from localStorage and build auth headers */
-function authHeaders(extra = {}) {
+function authHeaders() {
   const token = localStorage.getItem("token");
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra,
   };
 }
 
@@ -53,26 +54,62 @@ const FEATURES = [
   },
 ];
 
+const HOW_IT_WORKS = [
+  {
+    icon: <Users size={20} />,
+    title: "Add Your Crew",
+    desc: "Search and add friends by name or email",
+  },
+  {
+    icon: <MapPin size={20} />,
+    title: "Set Details",
+    desc: "Destination, dates, budget, cabin class",
+  },
+  {
+    icon: <Brain size={20} />,
+    title: "Atlas Plans",
+    desc: "AI finds flights, hotels, and builds your itinerary",
+  },
+  {
+    icon: <Plane size={20} />,
+    title: "Book Together",
+    desc: "Everyone reviews, approves, and you're set",
+  },
+];
+
 export default function SyncTogether() {
   const navigate = useNavigate();
 
-  // ── Travelers already added ──
   const [travelers, setTravelers] = useState([]);
-
-  // ── Search state ──
   const [inputVal, setInputVal] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
-
-  // ── CTA state ──
   const [creating, setCreating] = useState(false);
 
-  /* ────────────────────────────────────
-     Debounced user search (300ms)
-  ──────────────────────────────────── */
+  const [myTrips, setMyTrips] = useState([]);
+  const [tripsLoading, setTripsLoading] = useState(true);
+  const [tripCount, setTripCount] = useState(0);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/sync-together/my-trips`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok) setMyTrips(data.groups || []);
+      })
+      .catch(() => {})
+      .finally(() => setTripsLoading(false));
+
+    fetch(`${API_BASE}/sync-together/count`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok) setTripCount(data.count || 0);
+      })
+      .catch(() => {});
+  }, []);
+
   const searchUsers = useCallback(async (query) => {
     if (!query || query.trim().length < 2) {
       setResults([]);
@@ -93,7 +130,7 @@ export default function SyncTogether() {
         setShowDropdown(true);
       }
     } catch (err) {
-      console.error("Search failed:", err);
+      console.error(err);
     } finally {
       setSearching(false);
     }
@@ -106,12 +143,8 @@ export default function SyncTogether() {
     debounceRef.current = setTimeout(() => searchUsers(val), 300);
   };
 
-  /* ────────────────────────────────────
-     Add traveler from search results
-  ──────────────────────────────────── */
   const addFromSearch = (user) => {
-    const already = travelers.some((t) => t.id === (user._id || user.id));
-    if (already) {
+    if (travelers.some((t) => t.id === (user._id || user.id))) {
       antdMessage.warning("Already added");
     } else {
       setTravelers((prev) => [
@@ -131,28 +164,17 @@ export default function SyncTogether() {
     setShowDropdown(false);
   };
 
-  /* ────────────────────────────────────
-     Add by raw email (Enter or Add btn)
-  ──────────────────────────────────── */
   const addByEmail = () => {
     const val = inputVal.trim();
     if (!val) return;
-
-    // If dropdown is showing and has results, pick the first
     if (showDropdown && results.length > 0) {
       addFromSearch(results[0]);
       return;
     }
-
-    // Otherwise treat as an email invite
-    const already = travelers.some(
-      (t) => t.email === val || t.username === val
-    );
-    if (already) {
+    if (travelers.some((t) => t.email === val || t.username === val)) {
       antdMessage.warning("Already added");
       return;
     }
-
     setTravelers((prev) => [
       ...prev,
       { id: null, email: val, name: val, username: null, avatar: null },
@@ -162,9 +184,6 @@ export default function SyncTogether() {
     setShowDropdown(false);
   };
 
-  /* ────────────────────────────────────
-     Remove traveler
-  ──────────────────────────────────── */
   const removeTraveler = (traveler) =>
     setTravelers((prev) =>
       prev.filter(
@@ -174,15 +193,11 @@ export default function SyncTogether() {
       )
     );
 
-  /* ────────────────────────────────────
-     Start Planning Together (CTA)
-  ──────────────────────────────────── */
   const handleStartPlanning = async () => {
     if (travelers.length === 0) {
       antdMessage.warning("Add at least one traveler to get started");
       return;
     }
-
     setCreating(true);
     try {
       const members = travelers.map((t) => ({
@@ -190,41 +205,54 @@ export default function SyncTogether() {
         email: t.email || undefined,
         name: t.name || undefined,
       }));
-
       const res = await fetch(`${API_BASE}/sync-together`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ members }),
       });
-
       const data = await res.json();
-
       if (data.ok) {
-        antdMessage.success("Group created! Invitations sent.");
+        antdMessage.success("Group created!");
         navigate(`/sync-together/${data.group.id}`);
       } else {
         antdMessage.error(data.error || "Something went wrong");
       }
     } catch (err) {
-      console.error("Create group failed:", err);
-      antdMessage.error("Failed to create group. Please try again.");
+      antdMessage.error("Failed to create group.");
     } finally {
       setCreating(false);
     }
   };
 
-  /* ────────────────────────────────────
-     Close dropdown on outside click
-  ──────────────────────────────────── */
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target))
         setShowDropdown(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const statusColors = {
+    draft: "rgba(255,255,255,0.45)",
+    inviting: "#ff8a2a",
+    planning: "#ff8a2a",
+    reviewing: "#1890ff",
+    confirmed: "#52c41a",
+    booked: "#52c41a",
+    completed: "rgba(255,255,255,0.45)",
+    cancelled: "#ff4d4f",
+  };
+  const statusLabels = {
+    draft: "Draft",
+    inviting: "Inviting",
+    planning: "Planning",
+    reviewing: "Reviewing",
+    confirmed: "Confirmed",
+    booked: "Booked",
+    completed: "Completed",
+    cancelled: "Cancelled",
+  };
 
   return (
     <section className="sk-sync-section">
@@ -235,21 +263,109 @@ export default function SyncTogether() {
           Group Travel
         </div>
         <h2 className="sk-sync-title">
-          Tell us who's coming.
+          Tell us who&apos;s coming.
           <br />
-          <span className="sk-sync-highlight">We'll handle the rest.</span>
+          <span className="sk-sync-highlight">We&apos;ll handle the rest.</span>
         </h2>
         <p className="sk-sync-sub">
-          Add your travel crew, set everyone's budget and Atlas builds a plan
-          that works for the whole group flights, hotels and splits included.
+          Add your travel crew, set everyone&apos;s budget and Atlas builds a
+          plan that works for the whole group — flights, hotels and splits
+          included.
         </p>
         <div className="sk-sync-trust">
+          <span>No account required to plan</span>
           <span className="sk-sync-trust-dot">·</span>
           <span>Free to use</span>
           <span className="sk-sync-trust-dot">·</span>
           <span>Everyone earns XP</span>
         </div>
       </div>
+
+      {/* ── How it works ── */}
+      <div
+        style={{
+          display: "flex",
+          gap: 0,
+          justifyContent: "center",
+          flexWrap: "wrap",
+          maxWidth: 700,
+          margin: "0 auto",
+        }}
+      >
+        {HOW_IT_WORKS.map((s, i) => (
+          <div key={s.title} style={{ display: "flex", alignItems: "center" }}>
+            <div style={{ textAlign: "center", width: 140, padding: "0 8px" }}>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  margin: "0 auto 10px",
+                  background: "rgba(255,138,42,0.12)",
+                  border: "1px solid rgba(255,138,42,0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ff8a2a",
+                }}
+              >
+                {s.icon}
+              </div>
+              <div
+                style={{
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  marginBottom: 4,
+                }}
+              >
+                {s.title}
+              </div>
+              <div
+                style={{
+                  color: "rgba(255,255,255,0.4)",
+                  fontSize: 11,
+                  lineHeight: 1.4,
+                }}
+              >
+                {s.desc}
+              </div>
+            </div>
+            {i < 3 && (
+              <div
+                style={{
+                  color: "rgba(255,138,42,0.3)",
+                  fontSize: 18,
+                  margin: "0 2px",
+                  paddingBottom: 30,
+                }}
+              >
+                →
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Social proof ── */}
+      {tripCount > 0 && (
+        <div style={{ textAlign: "center" }}>
+          <span
+            style={{
+              background: "rgba(255,138,42,0.1)",
+              border: "1px solid rgba(255,138,42,0.2)",
+              borderRadius: 20,
+              padding: "6px 18px",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#ff8a2a",
+            }}
+          >
+            {tripCount.toLocaleString()} group trip{tripCount !== 1 ? "s" : ""}{" "}
+            planned on Skyrio
+          </span>
+        </div>
+      )}
 
       {/* ── Feature grid ── */}
       <div className="sk-sync-grid">
@@ -262,6 +378,251 @@ export default function SyncTogether() {
         ))}
       </div>
 
+      {/* ── My Group Trips ── */}
+      {!tripsLoading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: 18,
+                fontWeight: 700,
+                color: "#fff",
+                margin: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Plane size={18} style={{ color: "#ff8a2a" }} />
+              My Group Trips
+            </h3>
+            {myTrips.length > 0 && (
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+                {myTrips.length} trip{myTrips.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+
+          {myTrips.length === 0 && (
+            <div
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px dashed rgba(255,255,255,0.1)",
+                borderRadius: 16,
+                padding: "32px 24px",
+                textAlign: "center",
+              }}
+            >
+              <Plane
+                size={32}
+                style={{ color: "rgba(255,138,42,0.3)", marginBottom: 12 }}
+              />
+              <div
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 14,
+                  fontWeight: 500,
+                }}
+              >
+                No group trips yet
+              </div>
+              <div
+                style={{
+                  color: "rgba(255,255,255,0.3)",
+                  fontSize: 13,
+                  marginTop: 4,
+                }}
+              >
+                Add your crew below and start your first group adventure
+              </div>
+            </div>
+          )}
+
+          {myTrips.map((trip) => {
+            const sc = statusColors[trip.status] || "#ff8a2a";
+            const memberCount = (trip.members?.length || 0) + 1;
+            return (
+              <div
+                key={trip._id}
+                onClick={() => navigate(`/sync-together/${trip._id}`)}
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 16,
+                  padding: "18px 20px",
+                  cursor: "pointer",
+                  transition: "border-color 0.2s, transform 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,138,42,0.3)";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 6,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span
+                      style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}
+                    >
+                      {trip.title || "Untitled Trip"}
+                    </span>
+                    {trip.destination && (
+                      <span
+                        style={{
+                          color: "#ff8a2a",
+                          fontSize: 13,
+                          fontWeight: 600,
+                        }}
+                      >
+                        → {trip.destination}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span
+                      style={{
+                        background: `${sc}20`,
+                        color: sc,
+                        padding: "2px 10px",
+                        borderRadius: 12,
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {statusLabels[trip.status] || trip.status}
+                    </span>
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.4)",
+                        fontSize: 12,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Users size={12} /> {memberCount} traveler
+                      {memberCount !== 1 ? "s" : ""}
+                    </span>
+                    {trip.dateRangeStart && trip.dateRangeEnd && (
+                      <span
+                        style={{
+                          color: "rgba(255,255,255,0.35)",
+                          fontSize: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Calendar size={12} />{" "}
+                        {dayjs(trip.dateRangeStart).format("MMM D")} –{" "}
+                        {dayjs(trip.dateRangeEnd).format("MMM D")}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", marginTop: 10 }}>
+                    {trip.owner && (
+                      <Avatar
+                        size={28}
+                        src={
+                          trip.owner.avatar !== "/default-avatar.png"
+                            ? trip.owner.avatar
+                            : undefined
+                        }
+                        style={{
+                          background: "#ff8a2a",
+                          color: "#1b1024",
+                          fontWeight: 800,
+                          border: "2px solid rgba(26,10,46,0.8)",
+                        }}
+                      >
+                        {(trip.owner.name ||
+                          trip.owner.username ||
+                          "?")[0].toUpperCase()}
+                      </Avatar>
+                    )}
+                    {trip.members?.slice(0, 4).map((m, idx) => (
+                      <Avatar
+                        key={m._id || idx}
+                        size={28}
+                        src={
+                          m.user?.avatar !== "/default-avatar.png"
+                            ? m.user?.avatar
+                            : undefined
+                        }
+                        style={{
+                          background: "#2a1f3d",
+                          color: "#ff8a2a",
+                          fontWeight: 800,
+                          marginLeft: -8,
+                          border: "2px solid rgba(26,10,46,0.8)",
+                        }}
+                      >
+                        {(m.name ||
+                          m.user?.name ||
+                          m.email ||
+                          "?")[0].toUpperCase()}
+                      </Avatar>
+                    ))}
+                    {(trip.members?.length || 0) > 4 && (
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: "50%",
+                          marginLeft: -8,
+                          background: "rgba(255,138,42,0.15)",
+                          border: "2px solid rgba(26,10,46,0.8)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: "#ff8a2a",
+                        }}
+                      >
+                        +{trip.members.length - 4}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <ArrowRight
+                  size={18}
+                  style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* ── Group builder ── */}
       <div className="sk-sync-group-builder">
         <div className="sk-sync-group-title">
@@ -269,13 +630,12 @@ export default function SyncTogether() {
             size={16}
             style={{ marginRight: 8, verticalAlign: "middle" }}
           />
-          Who's joining you?
+          Who&apos;s joining you?
         </div>
         <p className="sk-sync-group-hint">
-          Add names or emails — we'll send them a link to join the plan.
+          Add names or emails — we&apos;ll send them a link to join the plan.
         </p>
 
-        {/* Search input + dropdown */}
         <div className="sk-sync-group-input-row" ref={wrapperRef}>
           <div className="sk-sync-search-wrapper">
             <Input
@@ -297,8 +657,6 @@ export default function SyncTogether() {
                 ) : null
               }
             />
-
-            {/* Search results dropdown */}
             {showDropdown && results.length > 0 && (
               <div className="sk-sync-search-dropdown">
                 {results.map((user) => (
@@ -335,8 +693,6 @@ export default function SyncTogether() {
                 ))}
               </div>
             )}
-
-            {/* No results message */}
             {showDropdown &&
               results.length === 0 &&
               !searching &&
@@ -348,7 +704,6 @@ export default function SyncTogether() {
                 </div>
               )}
           </div>
-
           <Button
             className="sk-sync-add-btn"
             icon={<UserAddOutlined />}
@@ -358,7 +713,6 @@ export default function SyncTogether() {
           </Button>
         </div>
 
-        {/* Added travelers */}
         {travelers.length > 0 && (
           <div className="sk-sync-travelers">
             {travelers.map((t, i) => (

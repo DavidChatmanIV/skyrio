@@ -1,6 +1,5 @@
 import React from "react";
 
-// XP levels matching the Skyrio Passport page
 const LEVELS = [
   { name: "Explorer", min: 0, next: 3000 },
   { name: "Voyager", min: 3000, next: 7500 },
@@ -11,19 +10,16 @@ const LEVELS = [
 
 function getLevel(xp = 0) {
   for (let i = LEVELS.length - 1; i >= 0; i--) {
-    if (xp >= LEVELS[i].min) return LEVELS[i];
+    if (xp >= LEVELS[i].min) return { level: LEVELS[i], index: i };
   }
-  return LEVELS[0];
+  return { level: LEVELS[0], index: 0 };
 }
 
 export default function SkyHubPassportCard({ currentUser }) {
-  // Use data already in the AuthContext — no extra API call needed.
-  // currentUser comes from AuthProvider which already called /api/profile/me.
   const xp = currentUser?.xp || currentUser?.passport || 0;
-  const name = currentUser?.name || "Traveler";
-  const badge = currentUser?.badge || getLevel(xp).name;
-  const level = getLevel(xp);
-  const nextLevel = LEVELS[LEVELS.findIndex((l) => l.name === level.name) + 1];
+  const { level, index } = getLevel(xp);
+  const nextLevel = LEVELS[index + 1] || null;
+
   const pct = level.next
     ? Math.min(
         100,
@@ -32,18 +28,58 @@ export default function SkyHubPassportCard({ currentUser }) {
     : 100;
   const xpToNext = level.next ? level.next - xp : 0;
 
+  // Show skeleton if no user yet
+  if (!currentUser)
+    return (
+      <div
+        style={{
+          background: "rgba(20,12,42,0.85)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: 16,
+          padding: "18px 16px",
+          backdropFilter: "blur(16px)",
+        }}
+      >
+        <div
+          style={{
+            height: 12,
+            width: "60%",
+            borderRadius: 6,
+            background: "rgba(255,255,255,0.06)",
+            marginBottom: 16,
+          }}
+        />
+        <div
+          style={{
+            height: 40,
+            width: "40%",
+            borderRadius: 8,
+            background: "rgba(255,255,255,0.06)",
+            marginBottom: 12,
+          }}
+        />
+        <div
+          style={{
+            height: 5,
+            borderRadius: 99,
+            background: "rgba(255,255,255,0.06)",
+          }}
+        />
+      </div>
+    );
+
   return (
     <div
       style={{
         background:
-          "linear-gradient(135deg, rgba(30,16,60,0.92) 0%, rgba(20,10,40,0.92) 100%)",
+          "linear-gradient(135deg,rgba(30,16,60,0.92),rgba(20,10,40,0.92))",
         border: "1px solid rgba(255,255,255,0.11)",
         borderRadius: 16,
         padding: "18px 16px",
         backdropFilter: "blur(16px)",
       }}
     >
-      {/* Label */}
+      {/* Header */}
       <div
         style={{
           fontSize: 11,
@@ -73,16 +109,16 @@ export default function SkyHubPassportCard({ currentUser }) {
         Your Digital Passport
       </div>
 
-      {/* XP number */}
+      {/* XP */}
       <div
         style={{
-          fontSize: 42,
+          fontSize: 44,
           fontWeight: 900,
           color: "#fff",
           lineHeight: 1,
           letterSpacing: "-2px",
           marginBottom: 10,
-          fontFamily: "'Sora', 'Outfit', sans-serif",
+          fontFamily: "'Sora','Outfit',sans-serif",
         }}
       >
         {xp.toLocaleString()}
@@ -119,7 +155,7 @@ export default function SkyHubPassportCard({ currentUser }) {
       </div>
 
       {/* Progress bar */}
-      {level.next ? (
+      {nextLevel ? (
         <>
           <div
             style={{
@@ -135,13 +171,13 @@ export default function SkyHubPassportCard({ currentUser }) {
                 height: "100%",
                 width: `${pct}%`,
                 borderRadius: 99,
-                background: "linear-gradient(90deg, #ff7a35, #8b5cf6)",
+                background: "linear-gradient(90deg,#ff7a35,#8b5cf6)",
                 transition: "width 0.8s ease",
               }}
             />
           </div>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-            {xpToNext.toLocaleString()} XP to {nextLevel?.name} — keep sharing ✦
+            {xpToNext.toLocaleString()} XP to {nextLevel.name} — keep sharing ✦
           </div>
         </>
       ) : (

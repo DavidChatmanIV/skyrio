@@ -41,13 +41,6 @@ import {
   Circle,
   Search,
   X,
-  ChevronDown,
-  Compass,
-  Music,
-  Link2,
-  Share2,
-  ArrowUpRight,
-  Sparkles,
 } from "lucide-react";
 import { io } from "socket.io-client";
 
@@ -82,149 +75,10 @@ const { Title, Text } = Typography;
 
 const API = import.meta.env.VITE_API_URL || "";
 
-const VIBES_STORAGE_KEY = "skyrio_travel_vibes";
-
 function safeEmailPrefix(email) {
   if (!email) return "";
   const idx = email.indexOf("@");
   return idx > 0 ? email.slice(0, idx) : email;
-}
-
-// ── SVG icons for locked preview badges (no Apple emoji) ──
-function BadgeIconBeach() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <circle cx="17" cy="5" r="3" fill="#FFB347" />
-      <path
-        d="M2 20c2-2 4-2 6 0s4 2 6 0 4-2 6 0"
-        stroke="#4FC3F7"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <line
-        x1="10"
-        y1="8"
-        x2="10"
-        y2="18"
-        stroke="#8D6E63"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M10 8C10 8 4 4 3 6.5C2 9 8 12 10 8Z"
-        fill="#66BB6A"
-        opacity="0.8"
-      />
-      <path
-        d="M10 8C10 8 16 4 17 6.5C18 9 12 12 10 8Z"
-        fill="#81C784"
-        opacity="0.8"
-      />
-    </svg>
-  );
-}
-function BadgeIconTower() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <path d="M12 2L12 22" />
-      <path d="M8 22H16" />
-      <path d="M10 10H14" />
-      <path d="M9 14H15" />
-      <path d="M8 18H16" />
-    </svg>
-  );
-}
-function BadgeIconMountain() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M8 21L1 21L8 6L11.5 12.5" />
-      <path d="M14 21L23 21L16 6L12.5 12.5" />
-    </svg>
-  );
-}
-function BadgeIconGlobe() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <ellipse cx="12" cy="12" rx="4" ry="10" />
-      <path d="M2 12h20" />
-    </svg>
-  );
-}
-function BadgeIconPlane() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-    </svg>
-  );
-}
-function BadgeIconFlag() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <line
-        x1="5"
-        y1="4"
-        x2="5"
-        y2="22"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M5 4H18L15 9L18 14H5"
-        fill="currentColor"
-        opacity="0.25"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 const LOCK_PERKS = [
@@ -256,15 +110,9 @@ const PREVIEW_STATS = [
   { val: "15%", label: "Discount" },
 ];
 
-const PREVIEW_BADGES_ICONS = [
-  BadgeIconBeach,
-  BadgeIconTower,
-  BadgeIconMountain,
-  BadgeIconGlobe,
-  BadgeIconPlane,
-  BadgeIconFlag,
-];
+const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
 
+// ── Travel vibe options ──────────────────────────────────────
 const VIBE_OPTIONS = [
   "Beach",
   "Adventure",
@@ -312,10 +160,18 @@ function InlineTravelerSearch({ token, onFollowChange }) {
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
 
+  // FIX 7: clear debounce timer on unmount to prevent setState on unmounted component
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     function handleClick(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target))
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
         setFocused(false);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -422,6 +278,7 @@ function InlineTravelerSearch({ token, onFollowChange }) {
           </button>
         )}
       </div>
+
       {showDropdown && (
         <div
           style={{
@@ -540,9 +397,12 @@ function InlineTravelerSearch({ token, onFollowChange }) {
                       fontSize: 12,
                       color: "rgba(255,255,255,0.4)",
                       marginTop: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
                     }}
                   >
-                    @{u.username}
+                    <span>@{u.username}</span>
                   </div>
                 </div>
                 <div
@@ -584,7 +444,7 @@ function PassportLocked() {
         <div className="plk-page">
           <div className="plk-inner">
             <div className="plk-hero">
-              <h1 className="plk-title">Your Travel Profile</h1>
+              <h1 className="plk-title">Digital Passport</h1>
               <p className="plk-sub">
                 Your travel identity — XP, badges, and exclusive rewards.
               </p>
@@ -593,8 +453,8 @@ function PassportLocked() {
               <div className="plk-preview" aria-hidden="true">
                 <div className="plk-blur">
                   <div className="plk-blur-topbar">
-                    <span className="plk-blur-name">Explorer's Profile</span>
-                    <span className="plk-blur-level">Level 7</span>
+                    <span className="plk-blur-name">Explorer's Passport</span>
+                    <span className="plk-blur-level">Level 7 ✦</span>
                   </div>
                   <div className="plk-blur-stats">
                     {PREVIEW_STATS.map((s) => (
@@ -605,9 +465,9 @@ function PassportLocked() {
                     ))}
                   </div>
                   <div className="plk-blur-badges">
-                    {PREVIEW_BADGES_ICONS.map((Icon, i) => (
+                    {PREVIEW_BADGES.map((b, i) => (
                       <div key={i} className="plk-blur-badge">
-                        <Icon />
+                        {b}
                       </div>
                     ))}
                   </div>
@@ -616,7 +476,7 @@ function PassportLocked() {
                   <div className="plk-lock-icon">
                     <Lock size={32} strokeWidth={1.5} />
                   </div>
-                  <h2 className="plk-lock-title">Your profile awaits</h2>
+                  <h2 className="plk-lock-title">Your passport awaits</h2>
                   <p className="plk-lock-sub">
                     Create a free account to unlock your stats, badges, and
                     travel history.
@@ -682,20 +542,6 @@ export default function DigitalPassportPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [xpToastShown, setXpToastShown] = useState(false);
-  const [dangerOpen, setDangerOpen] = useState(false);
-
-  const [localVibes, setLocalVibes] = useState(() => {
-    if (user?.travelVibes?.length) return user.travelVibes;
-    try {
-      return JSON.parse(localStorage.getItem(VIBES_STORAGE_KEY) || "[]");
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    if (user?.travelVibes?.length) setLocalVibes(user.travelVibes);
-  }, [user?.travelVibes]);
 
   const [deleteStep, setDeleteStep] = useState(0);
   const [deleteInput, setDeleteInput] = useState("");
@@ -751,6 +597,7 @@ export default function DigitalPassportPage() {
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [xp, xpGoal]);
 
+  // ── FIX: dirty check so Save Changes is only active when there are edits ──
   const isProfileDirty = useMemo(() => {
     if (!editOpen) return false;
     return (
@@ -769,18 +616,21 @@ export default function DigitalPassportPage() {
     })
       .then((r) => r.json())
       .then((data) => {
-        if (data?.ok)
+        if (data?.ok) {
           setPassportStats({
             followers: Number(data?.stats?.followers ?? 0),
             following: Number(data?.stats?.following ?? 0),
           });
+        }
       })
       .catch(() => {});
   }, [token]);
 
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
-    antdMessage.success(`Welcome aboard${user?.name ? `, ${user.name}` : ""}`);
+    antdMessage.success(
+      `Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`
+    );
     try {
       window.history.replaceState({}, document.title);
     } catch {}
@@ -799,8 +649,10 @@ export default function DigitalPassportPage() {
       }
     } catch {}
     if (!token) return;
-    fetch(`${API}/api/profile/music`, {
+    // FIX 4: use apiUrl() consistently — avoids mismatches if apiUrl transforms the base URL
+    fetch(apiUrl("/api/profile/music"), {
       headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -822,9 +674,11 @@ export default function DigitalPassportPage() {
   }, [token]);
 
   const handleMusicSave = useCallback((payload) => {
-    if (payload && !payload.provider && isYouTubeUrl(payload.url))
-      payload.provider = "youtube";
-    setProfileMusic(payload);
+    // FIX 5: clone before mutating so callers aren't surprised by side-effects
+    const safe = payload ? { ...payload } : null;
+    if (safe && !safe.provider && isYouTubeUrl(safe.url))
+      safe.provider = "youtube";
+    setProfileMusic(safe);
   }, []);
 
   useEffect(() => {
@@ -867,10 +721,16 @@ export default function DigitalPassportPage() {
   }, [isAuthed, token]);
 
   useEffect(() => {
-    if (xp > 0 && !xpToastShown && !xpLoading) {
+    // FIX 2: use sessionStorage so toast only fires once per browser session,
+    // not on every React mount/unmount cycle
+    const alreadyShown = sessionStorage.getItem("xp_toast_shown") === "1";
+    if (xp > 0 && !xpToastShown && !xpLoading && !alreadyShown) {
       const timer = setTimeout(() => {
-        antdMessage.success(`${xp} XP earned — keep exploring!`);
+        antdMessage.success(`✦ ${xp} XP earned — keep exploring!`);
         setXpToastShown(true);
+        try {
+          sessionStorage.setItem("xp_toast_shown", "1");
+        } catch {}
       }, 1000);
       return () => clearTimeout(timer);
     }
@@ -890,12 +750,14 @@ export default function DigitalPassportPage() {
         });
         const data = await res.json();
         if (!mounted) return;
-        if (data?.ok)
+        if (data?.ok) {
           setPassportStats({
             followers: Number(data?.stats?.followers ?? 0),
             following: Number(data?.stats?.following ?? 0),
           });
-        else setPassportStats({ followers: 0, following: 0 });
+        } else {
+          setPassportStats({ followers: 0, following: 0 });
+        }
       } catch {
         if (!mounted) return;
         setPassportStats({ followers: 0, following: 0 });
@@ -932,37 +794,43 @@ export default function DigitalPassportPage() {
       }));
     };
     s.on("social:counts:update", handler);
-    return () => s.off("social:counts:update", handler);
+    // FIX 1: disconnect socket on unmount to prevent memory leak
+    return () => {
+      s.off("social:counts:update", handler);
+      s.disconnect();
+      socketRef.current = null;
+    };
   }, [myId, isAuthed]);
 
-  const shareProfile = useCallback(async () => {
+  const sharePassport = useCallback(async () => {
     const username = user?.username || safeEmailPrefix(user?.email);
     if (!username) {
-      message.info("Set a username first to share your profile.");
+      // FIX 3: use antdMessage (static) — guaranteed to work outside App context
+      antdMessage.info("Set a username first to share your passport.");
       return;
     }
     const url = `${window.location.origin}/u/${username}`;
     try {
-      if (navigator.share)
+      if (navigator.share) {
         await navigator.share({
-          title: `${displayName}'s Skyrio Profile`,
+          title: `${displayName}'s Skyrio Passport`,
           url,
         });
-      else {
+      } else {
         await navigator.clipboard.writeText(url);
-        message.success("Profile link copied!");
+        antdMessage.success("Passport link copied!");
       }
     } catch {}
-  }, [user, displayName, message]);
+  }, [user, displayName]);
 
-  const copyProfileLink = useCallback(async () => {
+  const copyPassportLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      message.success("Profile link copied");
+      antdMessage.success("Passport link copied");
     } catch {
-      message.error("Copy failed");
+      antdMessage.error("Copy failed");
     }
-  }, [message]);
+  }, []);
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -1001,7 +869,7 @@ export default function DigitalPassportPage() {
           })
         );
       }
-      antdMessage.success("Avatar updated");
+      antdMessage.success("Avatar updated ✓");
     } catch (err) {
       antdMessage.error(err.message);
     } finally {
@@ -1010,7 +878,13 @@ export default function DigitalPassportPage() {
     }
   };
 
+  // ── FIX 6: client-side validation before hitting the API ──
   const handleSaveProfile = async () => {
+    const trimmedUsername = editUsername.trim();
+    if (trimmedUsername && trimmedUsername.length < 3) {
+      antdMessage.error("Username must be at least 3 characters.");
+      return;
+    }
     setEditSaving(true);
     let saved = false;
     try {
@@ -1031,6 +905,8 @@ export default function DigitalPassportPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update");
+
+      // Update local user state
       if (setUser) {
         setUser((prev) => ({
           ...prev,
@@ -1052,16 +928,15 @@ export default function DigitalPassportPage() {
           );
         } catch {}
       }
-      try {
-        localStorage.setItem(VIBES_STORAGE_KEY, JSON.stringify(editVibes));
-      } catch {}
-      setLocalVibes(editVibes);
+
       saved = true;
-      antdMessage.success("Profile updated");
+      // Use static antdMessage — works regardless of App context
+      antdMessage.success("Profile updated ✓");
     } catch (err) {
       antdMessage.error(err.message || "Failed to save. Please try again.");
     } finally {
       setEditSaving(false);
+      // Only close if save succeeded; keep open on error so user can fix
       if (saved) setEditOpen(false);
     }
   };
@@ -1140,11 +1015,7 @@ export default function DigitalPassportPage() {
           <div className="pp-page">
             <div className="pp-shell">
               <div className="pp-mockGrid">
-                {/* ═══════════════════════════════════════
-                    MAIN COLUMN — redesigned
-                    ═══════════════════════════════════════ */}
                 <div className="pp-mockMain">
-                  {/* ── Profile Hero Card ── */}
                   <Card variant="borderless" className="pp-card pp-profileCard">
                     <div className="pp-profileRow">
                       <div
@@ -1210,22 +1081,15 @@ export default function DigitalPassportPage() {
                           )}
                         </div>
                       </div>
-
                       <div className="pp-profileMeta">
-                        {/* ✅ Bigger display name — clear hierarchy */}
                         <Title
                           level={2}
                           className="pp-title"
-                          style={{
-                            margin: 0,
-                            fontSize: 26,
-                            fontFamily: "'Syne', sans-serif",
-                            letterSpacing: "-0.02em",
-                          }}
+                          style={{ margin: 0 }}
                         >
                           {displayName}
                         </Title>
-                        <Text className="pp-muted" style={{ fontSize: 13 }}>
+                        <Text className="pp-muted">
                           {handle} · {currentBadge}
                         </Text>
                         {user?.bio && (
@@ -1234,7 +1098,7 @@ export default function DigitalPassportPage() {
                               display: "block",
                               marginTop: 6,
                               fontSize: 13,
-                              color: "rgba(255,255,255,0.65)",
+                              color: "rgba(255,255,255,0.75)",
                               lineHeight: 1.5,
                               fontStyle: "italic",
                             }}
@@ -1245,12 +1109,15 @@ export default function DigitalPassportPage() {
                         <div style={{ marginTop: 10 }}>
                           <span className="pp-pill pp-pill--active">
                             <Circle
-                              size={8}
+                              size={10}
                               fill="#ff8a2a"
                               stroke="none"
-                              style={{ marginRight: 4 }}
+                              style={{
+                                marginRight: 5,
+                                verticalAlign: "middle",
+                              }}
                             />
-                            Profile Active
+                            Passport Active
                           </span>
                         </div>
                         <FollowStats
@@ -1267,7 +1134,6 @@ export default function DigitalPassportPage() {
                           }}
                         />
                       </div>
-
                       <div className="pp-profileRing">
                         {xpLoading ? (
                           <div style={{ width: 190 }}>
@@ -1308,7 +1174,7 @@ export default function DigitalPassportPage() {
                                   }}
                                 >
                                   <span>{currentBadge}</span>
-                                  <span>{nextBadgeName}</span>
+                                  <span>{nextBadgeName} ✦</span>
                                 </div>
                                 <div
                                   style={{
@@ -1347,15 +1213,15 @@ export default function DigitalPassportPage() {
                     </div>
                   </Card>
 
-                  {/* ── Home Base + Vibes row ── */}
                   <div className="pp-homeBaseRow">
-                    <MapPin size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
+                    <span className="pp-homeBaseDot" />
                     <span className="pp-homeBaseLabel">Home Base</span>
                     <span className="pp-homeBaseSep">·</span>
                     <span className="pp-homeBaseValue">{homeBaseLabel}</span>
                   </div>
 
-                  {localVibes.length > 0 && (
+                  {/* ── Travel Vibes display ── */}
+                  {user?.travelVibes?.length > 0 && (
                     <div
                       style={{
                         display: "flex",
@@ -1365,7 +1231,7 @@ export default function DigitalPassportPage() {
                         marginBottom: 12,
                       }}
                     >
-                      {localVibes.map((vibe) => (
+                      {user.travelVibes.map((vibe) => (
                         <span
                           key={vibe}
                           style={{
@@ -1385,95 +1251,68 @@ export default function DigitalPassportPage() {
                     </div>
                   )}
 
-                  {/* ── Travel Soundtrack — redesigned with better YouTube integration ── */}
                   {profileMusic && (
                     <Card
                       variant="borderless"
                       className="pp-card pp-soundtrackCard"
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 7,
-                          marginBottom: 14,
-                        }}
-                      >
-                        <Music
-                          size={13}
-                          style={{ color: "rgba(255,255,255,0.35)" }}
-                        />
-                        <span
+                      <div className="pp-soundtrackRow">
+                        <div
+                          className="pp-soundtrackCover"
                           style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            letterSpacing: "0.08em",
-                            textTransform: "uppercase",
-                            color: "rgba(255,255,255,0.35)",
+                            backgroundImage: profileMusic?.artworkUrl
+                              ? `url(${profileMusic.artworkUrl})`
+                              : "url(https://images.unsplash.com/photo-1504805572947-34fad45aed93?auto=format&fit=crop&w=1200&q=70)",
                           }}
-                        >
-                          Travel Soundtrack
-                        </span>
+                        />
+                        <div className="pp-soundtrackMeta">
+                          <div className="pp-soundtrackTitle">
+                            Travel Soundtrack
+                          </div>
+                          <div className="pp-soundtrackSub">
+                            {profileMusic?.name || "My Playlist"}
+                          </div>
+                        </div>
                       </div>
                       {youtubeEmbedUrl ? (
                         <div
                           style={{
-                            borderRadius: 14,
+                            marginTop: 12,
+                            borderRadius: 10,
                             overflow: "hidden",
-                            border: "1px solid rgba(255,255,255,0.08)",
-                            background: "#000",
+                            border: "1px solid rgba(255,138,42,0.2)",
                           }}
                         >
                           <iframe
                             width="100%"
-                            height="220"
+                            height="200"
                             src={youtubeEmbedUrl}
                             title="Travel Soundtrack"
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
-                            style={{ display: "block", borderRadius: 14 }}
+                            style={{ display: "block" }}
                           />
                         </div>
                       ) : (
-                        <div className="pp-soundtrackRow">
-                          <div
-                            className="pp-soundtrackCover"
-                            style={{
-                              backgroundImage: profileMusic?.artworkUrl
-                                ? `url(${profileMusic.artworkUrl})`
-                                : "url(https://images.unsplash.com/photo-1504805572947-34fad45aed93?auto=format&fit=crop&w=1200&q=70)",
-                            }}
-                          />
-                          <div className="pp-soundtrackMeta">
-                            <div className="pp-soundtrackTitle">
-                              {profileMusic?.name || "My Playlist"}
-                            </div>
-                            <div
-                              className="pp-soundtrackSub"
-                              style={{ marginTop: 6 }}
-                            >
-                              Tap "Profile Music" to update your song
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {youtubeEmbedUrl && profileMusic?.name && (
                         <div
                           style={{
-                            marginTop: 10,
+                            marginTop: 12,
+                            padding: "12px 16px",
+                            borderRadius: 10,
+                            background: "rgba(255,138,42,0.08)",
+                            border: "1px solid rgba(255,138,42,0.2)",
                             fontSize: 13,
-                            fontWeight: 600,
-                            color: "rgba(255,255,255,0.7)",
+                            color: "rgba(255,255,255,0.5)",
+                            textAlign: "center",
                           }}
                         >
-                          {profileMusic.name}
+                          Tap "Profile Music" to update your song
                         </div>
                       )}
                     </Card>
                   )}
 
-                  {/* ── Travel Journeys — redesigned empty state ── */}
                   <Card
                     variant="borderless"
                     className="pp-card pp-journeysCard"
@@ -1483,79 +1322,21 @@ export default function DigitalPassportPage() {
                     </div>
                     <div className="pp-journeysEmpty">
                       <div
-                        style={{ padding: "36px 24px", textAlign: "center" }}
+                        style={{
+                          padding: "32px 16px",
+                          textAlign: "center",
+                          opacity: 0.5,
+                          fontSize: 14,
+                        }}
                       >
-                        <div style={{ marginBottom: 14 }}>
-                          <Compass
-                            size={36}
-                            strokeWidth={1.2}
-                            color="rgba(255,138,42,0.4)"
-                          />
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: "rgba(255,255,255,0.65)",
-                            marginBottom: 6,
-                          }}
-                        >
-                          No journeys yet
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 13,
-                            color: "rgba(255,255,255,0.35)",
-                            lineHeight: 1.6,
-                            maxWidth: 280,
-                            margin: "0 auto 18px",
-                          }}
-                        >
-                          Book your first trip and it'll appear here — building
-                          your travel story one destination at a time.
-                        </div>
-                        <button
-                          onClick={() => navigate("/booking")}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "10px 22px",
-                            borderRadius: 999,
-                            border: "1px solid rgba(255,138,42,0.35)",
-                            background: "rgba(255,138,42,0.1)",
-                            color: "#ff8a2a",
-                            fontSize: 13,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            transition: "all 0.18s",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background =
-                              "rgba(255,138,42,0.18)";
-                            e.currentTarget.style.borderColor = "#ff8a2a";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background =
-                              "rgba(255,138,42,0.1)";
-                            e.currentTarget.style.borderColor =
-                              "rgba(255,138,42,0.35)";
-                          }}
-                        >
-                          <Plane size={14} /> Start planning a trip
-                          <ArrowUpRight size={13} style={{ opacity: 0.6 }} />
-                        </button>
+                        Your journeys will appear here after your first booking
                       </div>
                     </div>
                   </Card>
                 </div>
 
-                {/* ═══════════════════════════════════════
-                    SIDEBAR — restructured
-                    ═══════════════════════════════════════ */}
+                {/* ── Sidebar ── */}
                 <div className="pp-mockSide">
-                  {/* ── Find Travelers ── */}
                   <Card
                     variant="borderless"
                     className="pp-card"
@@ -1584,20 +1365,14 @@ export default function DigitalPassportPage() {
                     />
                   </Card>
 
-                  {/* ── Quick Actions — contextual, not a dump ── */}
                   <Card variant="borderless" className="pp-card pp-actionsCard">
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.35)",
-                        marginBottom: 4,
-                      }}
+                    <Title
+                      level={3}
+                      className="pp-title"
+                      style={{ marginBottom: 4 }}
                     >
-                      Quick Actions
-                    </div>
+                      Digital Passport
+                    </Title>
                     <div className="pp-actionsStack">
                       <Button
                         className="pp-actionBtn"
@@ -1606,7 +1381,7 @@ export default function DigitalPassportPage() {
                           setEditUsername(user?.username || "");
                           setEditBio(user?.bio || "");
                           setEditCity(user?.city || user?.homeBase || "");
-                          setEditVibes(user?.travelVibes || localVibes);
+                          setEditVibes(user?.travelVibes || []);
                           setEditOpen(true);
                         }}
                       >
@@ -1628,140 +1403,65 @@ export default function DigitalPassportPage() {
                       <Button
                         className="pp-actionBtn"
                         icon={<CopyOutlined />}
-                        onClick={copyProfileLink}
+                        onClick={copyPassportLink}
                       >
                         Copy Link
                       </Button>
                       <Button
                         className="pp-actionBtn"
                         icon={<ShareAltOutlined />}
-                        onClick={shareProfile}
+                        onClick={sharePassport}
                       >
-                        Share Profile
+                        Share Passport
                       </Button>
                     </div>
-                  </Card>
-
-                  {/* ── Membership Card — separated from actions ── */}
-                  <Card
-                    variant="borderless"
-                    className="pp-card"
-                    style={{ textAlign: "center" }}
-                  >
-                    <div style={{ marginBottom: 10 }}>
-                      <Sparkles
-                        size={20}
-                        color="#ff8a2a"
-                        style={{ marginBottom: 6 }}
-                      />
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 800,
-                          color: "rgba(255,255,255,0.85)",
-                        }}
-                      >
-                        Unlock more with Skyrio+
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.4)",
-                          lineHeight: 1.5,
-                          marginTop: 4,
-                        }}
-                      >
-                        Stamps, custom borders, priority support, and exclusive
-                        rewards.
-                      </div>
-                    </div>
+                    <Text className="pp-credentialHint">
+                      This passport unlocks stamps, borders, and rewards.
+                    </Text>
                     <Button
                       className="pp-upgradeBtn"
                       onClick={() => navigate("/membership")}
-                      style={{ width: "100%" }}
                     >
-                      Upgrade Membership
+                      Upgrade your Passport
                     </Button>
-                  </Card>
-
-                  {/* ── Danger Zone — collapsed by default ── */}
-                  <div style={{ marginTop: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => setDangerOpen(!dangerOpen)}
+                    <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: 12,
-                        color: "rgba(255,255,255,0.25)",
-                        fontFamily: "inherit",
-                        padding: "6px 4px",
-                        width: "100%",
-                        transition: "color 0.18s",
+                        marginTop: 24,
+                        paddingTop: 16,
+                        borderTop: "1px solid rgba(255,255,255,0.07)",
                       }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "rgba(255,100,100,0.5)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "rgba(255,255,255,0.25)")
-                      }
                     >
-                      <ChevronDown
-                        size={12}
+                      <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => setDeleteStep(1)}
                         style={{
-                          transition: "transform 0.18s",
-                          transform: dangerOpen
-                            ? "rotate(180deg)"
-                            : "rotate(0)",
+                          width: "100%",
+                          background: "transparent",
+                          borderColor: "rgba(255,77,79,0.3)",
+                          color: "rgba(255,100,100,0.7)",
+                          borderRadius: 10,
+                          height: 40,
+                          fontSize: 13,
+                          transition: "all 0.2s",
                         }}
-                      />
-                      Account settings
-                    </button>
-                    {dangerOpen && (
-                      <div
-                        style={{
-                          marginTop: 6,
-                          animation: "ppPubFadeUp 0.2s ease forwards",
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "#ff4d4f";
+                          e.currentTarget.style.color = "#ff4d4f";
+                          e.currentTarget.style.background =
+                            "rgba(255,77,79,0.08)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor =
+                            "rgba(255,77,79,0.3)";
+                          e.currentTarget.style.color = "rgba(255,100,100,0.7)";
+                          e.currentTarget.style.background = "transparent";
                         }}
                       >
-                        <Button
-                          danger
-                          icon={<DeleteOutlined />}
-                          onClick={() => setDeleteStep(1)}
-                          style={{
-                            width: "100%",
-                            background: "transparent",
-                            borderColor: "rgba(255,77,79,0.25)",
-                            color: "rgba(255,100,100,0.6)",
-                            borderRadius: 10,
-                            height: 38,
-                            fontSize: 12,
-                            transition: "all 0.2s",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = "#ff4d4f";
-                            e.currentTarget.style.color = "#ff4d4f";
-                            e.currentTarget.style.background =
-                              "rgba(255,77,79,0.06)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor =
-                              "rgba(255,77,79,0.25)";
-                            e.currentTarget.style.color =
-                              "rgba(255,100,100,0.6)";
-                            e.currentTarget.style.background = "transparent";
-                          }}
-                        >
-                          Delete Account
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
+                        Delete Account
+                      </Button>
+                    </div>
+                  </Card>
                   <div style={{ marginTop: 10, opacity: 0.95 }}>
                     <Tag className="pp-tag ppTagDark">Soft Launch</Tag>
                   </div>
@@ -1788,12 +1488,15 @@ export default function DigitalPassportPage() {
       {/* ── Edit Profile Modal ── */}
       <Modal
         open={editOpen}
-        onCancel={() => setEditOpen(false)}
+        onCancel={() => {
+          setEditOpen(false);
+        }}
         onOk={handleSaveProfile}
         confirmLoading={editSaving}
         title="Edit Profile"
         okText="Save Changes"
         cancelText="Cancel"
+        // FIX: disable Save Changes when nothing has changed
         okButtonProps={{ disabled: !isProfileDirty || editSaving }}
       >
         <div
@@ -1871,6 +1574,8 @@ export default function DigitalPassportPage() {
               showCount
             />
           </div>
+
+          {/* ── Travel Vibe picker ── */}
           <div>
             <div
               style={{
@@ -1893,15 +1598,15 @@ export default function DigitalPassportPage() {
                   <button
                     key={vibe}
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       setEditVibes((prev) =>
                         selected
                           ? prev.filter((v) => v !== vibe)
                           : prev.length < 5
                           ? [...prev, vibe]
                           : prev
-                      )
-                    }
+                      );
+                    }}
                     style={{
                       padding: "6px 14px",
                       borderRadius: 999,
@@ -1934,6 +1639,8 @@ export default function DigitalPassportPage() {
               </div>
             )}
           </div>
+
+          {/* FIX: visual hint when there's nothing to save */}
           {!isProfileDirty && (
             <div
               style={{
@@ -2008,7 +1715,7 @@ export default function DigitalPassportPage() {
               }}
             >
               <li>Your profile, username, and bio</li>
-              <li>All XP, badges, and progress</li>
+              <li>All XP, badges, and Passport progress</li>
               <li>Your saved trips and bookings history</li>
               <li>All SkyHub posts and community activity</li>
             </ul>

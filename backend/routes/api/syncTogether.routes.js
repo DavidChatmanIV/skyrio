@@ -14,6 +14,42 @@ function isGroupMember(group, userId) {
   );
 }
 
+/* ── Helper: push activity log entry ── */
+function logActivity(group, type, userId, message) {
+  if (!group.activityLog) group.activityLog = [];
+  group.activityLog.push({
+    type,
+    user: userId,
+    message,
+    createdAt: new Date(),
+  });
+}
+
+/* ── Helper: full populate chain ── */
+function fullPopulate(query) {
+  return query
+    .populate("owner", "username name avatar")
+    .populate("members.user", "username name avatar")
+    .populate("changeRequests.user", "username name avatar")
+    .populate("chatMessages.user", "username name avatar")
+    .populate("activityLog.user", "username name avatar");
+}
+
+/* ──────────────────────────────────────────────
+   GET /api/sync-together/count
+   Total trip count (for social proof).
+   ────────────────────────────────────────────── */
+router.get("/count", async (_req, res) => {
+  try {
+    const count = await SyncGroup.countDocuments({
+      status: { $ne: "cancelled" },
+    });
+    return res.json({ ok: true, count });
+  } catch (err) {
+    return res.json({ ok: true, count: 0 });
+  }
+});
+
 /* ──────────────────────────────────────────────
    GET /api/sync-together/search?q=john
    ────────────────────────────────────────────── */
@@ -40,6 +76,29 @@ router.get("/search", async (req, res) => {
   } catch (err) {
     console.error("[sync-together] search error:", err);
     return res.status(500).json({ ok: false, error: "Search failed" });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   GET /api/sync-together/my-trips
+   Get all groups where user is owner or member.
+   ────────────────────────────────────────────── */
+router.get("/my-trips", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+
+    const groups = await SyncGroup.find({
+      $or: [{ owner: userId }, { "members.user": userId }],
+    })
+      .sort({ updatedAt: -1 })
+      .populate("owner", "username name avatar")
+      .populate("members.user", "username name avatar")
+      .lean();
+
+    return res.json({ ok: true, groups });
+  } catch (err) {
+    console.error("[sync-together] my-trips error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to fetch trips" });
   }
 });
 
@@ -71,6 +130,14 @@ router.post("/", async (req, res) => {
       title: title || "Untitled Trip",
       members: memberDocs,
       status: "inviting",
+      activityLog: [
+        {
+          type: "created",
+          user: ownerId,
+          message: "Trip created",
+          createdAt: new Date(),
+        },
+      ],
     });
 
     return res.status(201).json({ ok: true, group: group.toSafeJSON() });
@@ -85,12 +152,7 @@ router.post("/", async (req, res) => {
    ────────────────────────────────────────────── */
 router.get("/:id", async (req, res) => {
   try {
-    const group = await SyncGroup.findById(req.params.id)
-      .populate("owner", "username name avatar")
-      .populate("members.user", "username name avatar")
-      .populate("changeRequests.user", "username name avatar")
-      .populate("chatMessages.user", "username name avatar")
-      .lean();
+    const group = await fullPopulate(SyncGroup.findById(req.params.id)).lean();
 
     if (!group)
       return res.status(404).json({ ok: false, error: "Group not found" });
@@ -191,6 +253,13 @@ router.post("/:id/plan", async (req, res) => {
       m.approvedAt = null;
     });
 
+    logActivity(
+      group,
+      group.planVersion <= 1 ? "plan_generated" : "plan_updated",
+      userId,
+      `Plan v${group.planVersion} generated`
+    );
+
     await group.save();
 
     const populated = await SyncGroup.findById(group._id)
@@ -242,6 +311,13 @@ router.post("/:id/approve", async (req, res) => {
     if (allApproved) {
       group.status = "confirmed";
     }
+
+    logActivity(
+      group,
+      "approved",
+      userId,
+      allApproved ? "Everyone approved" : "Approved the plan"
+    );
 
     await group.save();
 
@@ -301,6 +377,8 @@ router.post("/:id/change-request", async (req, res) => {
       group.status = "reviewing";
     }
 
+    logActivity(group, "change_requested", userId, message.trim());
+
     await group.save();
 
     const populated = await SyncGroup.findById(group._id)
@@ -346,10 +424,11 @@ router.post("/:id/confirm", async (req, res) => {
     }
 
     group.status = "booked";
-    // Resolve all change requests
     group.changeRequests.forEach((cr) => {
       if (cr.status === "open") cr.status = "resolved";
     });
+
+    logActivity(group, "booked", userId, "Trip confirmed and locked");
 
     await group.save();
 
@@ -390,6 +469,7 @@ router.delete("/:id/member/:memberId", async (req, res) => {
     }
 
     group.members.splice(memberIndex, 1);
+    logActivity(group, "member_removed", userId, "A member was removed");
     await group.save();
 
     const populated = await SyncGroup.findById(group._id)
@@ -444,6 +524,12 @@ router.post("/:id/member", async (req, res) => {
       status: "pending",
     });
 
+    logActivity(
+      group,
+      "member_added",
+      userId,
+      `${name || email || "A traveler"} was added`
+    );
     await group.save();
 
     const populated = await SyncGroup.findById(group._id)

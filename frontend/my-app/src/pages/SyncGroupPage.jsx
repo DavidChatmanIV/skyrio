@@ -52,6 +52,7 @@ import {
   MessageCircle,
   Sunrise,
   Moon,
+  History,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
@@ -415,6 +416,10 @@ export default function SyncGroupPage() {
 
   // Member airport
   const [editingMyAirport, setEditingMyAirport] = useState(false);
+
+  // Editable title
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
 
   const [changeMsg, setChangeMsg] = useState("");
   const [changeSending, setChangeSending] = useState(false);
@@ -872,6 +877,28 @@ Format clearly with ### sections.`;
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  /* ── Rename trip ── */
+  const renameTrip = async () => {
+    if (!titleInput.trim()) {
+      setEditingTitle(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ title: titleInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        setEditingTitle(false);
+      } else antdMessage.error(data.error);
+    } catch {
+      antdMessage.error("Failed to rename");
+    }
+  };
+
   /* ── Update my departure airport ── */
   const updateMyAirport = async (code) => {
     try {
@@ -996,6 +1023,111 @@ Format clearly with ### sections.`;
         Back to Sync Together
       </Button>
 
+      {/* ── Progress Stepper ── */}
+      {(() => {
+        const steps = [
+          { key: "inviting", label: "Invite" },
+          { key: "planning", label: "Details" },
+          { key: "reviewing", label: "Plan" },
+          { key: "confirmed", label: "Review" },
+          { key: "booked", label: "Booked" },
+        ];
+        const statusOrder = [
+          "draft",
+          "inviting",
+          "planning",
+          "reviewing",
+          "confirmed",
+          "booked",
+          "completed",
+        ];
+        const currentIdx = statusOrder.indexOf(group.status);
+        return (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0,
+              marginBottom: 8,
+              overflowX: "auto",
+              paddingBottom: 4,
+            }}
+          >
+            {steps.map((step, i) => {
+              const stepIdx = statusOrder.indexOf(step.key);
+              const isActive = currentIdx >= stepIdx;
+              const isCurrent = group.status === step.key;
+              return (
+                <div
+                  key={step.key}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  <div style={{ textAlign: "center", flex: 1 }}>
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        margin: "0 auto 4px",
+                        background: isActive
+                          ? "#ff8a2a"
+                          : "rgba(255,255,255,0.08)",
+                        border: isCurrent
+                          ? "2px solid #ffb347"
+                          : "2px solid transparent",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: isActive ? "#1b1024" : "rgba(255,255,255,0.3)",
+                        transition: "all 0.3s",
+                      }}
+                    >
+                      {isActive ? "✓" : i + 1}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: isCurrent
+                          ? "#ff8a2a"
+                          : isActive
+                          ? "rgba(255,255,255,0.6)"
+                          : "rgba(255,255,255,0.25)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {step.label}
+                    </div>
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div
+                      style={{
+                        height: 2,
+                        flex: 1,
+                        minWidth: 12,
+                        background:
+                          currentIdx > stepIdx
+                            ? "#ff8a2a"
+                            : "rgba(255,255,255,0.08)",
+                        borderRadius: 1,
+                        transition: "background 0.3s",
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* ── Header ── */}
       <div className="sk-sync-group-builder" style={{ marginTop: 8 }}>
         <div
@@ -1010,7 +1142,54 @@ Format clearly with ### sections.`;
           <div>
             <div className="sk-sync-group-title" style={{ marginBottom: 4 }}>
               <Plane size={16} style={{ marginRight: 8 }} />
-              {group.title || "Untitled Trip"}
+              {editingTitle ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Input
+                    className="sk-sync-input"
+                    value={titleInput}
+                    onChange={(e) => setTitleInput(e.target.value)}
+                    onPressEnter={renameTrip}
+                    onBlur={renameTrip}
+                    autoFocus
+                    style={{
+                      width: 200,
+                      height: 32,
+                      fontSize: 16,
+                      fontWeight: 700,
+                    }}
+                  />
+                </span>
+              ) : (
+                <span
+                  onClick={() => {
+                    if (!isBooked && isMember) {
+                      setTitleInput(group.title || "");
+                      setEditingTitle(true);
+                    }
+                  }}
+                  style={{
+                    cursor: !isBooked && isMember ? "pointer" : "default",
+                  }}
+                  title={!isBooked && isMember ? "Click to rename" : ""}
+                >
+                  {group.title || "Untitled Trip"}
+                  {!isBooked && isMember && (
+                    <EditOutlined
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 12,
+                        color: "rgba(255,255,255,0.3)",
+                      }}
+                    />
+                  )}
+                </span>
+              )}
               {group.destination && (
                 <span style={{ color: "#ff8a2a", marginLeft: 8 }}>
                   → {group.destination}
@@ -2548,23 +2727,128 @@ Format clearly with ### sections.`;
           </div>
 
           {/* Input */}
-          <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-            <Input
-              className="sk-sync-input"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onPressEnter={sendChatMessage}
-              placeholder="Type a message..."
-              style={{ flex: 1 }}
-            />
+          <div
+            style={{
+              marginTop: 12,
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Input
+                className="sk-sync-input"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onPressEnter={sendChatMessage}
+                placeholder="Type a message..."
+                style={{ width: "100%" }}
+              />
+            </div>
             <Button
               className="sk-sync-add-btn"
               icon={<SendOutlined />}
               onClick={sendChatMessage}
               loading={chatSending}
+              style={{ flexShrink: 0 }}
             >
               Send
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Activity Feed ── */}
+      {group?.activityLog?.length > 0 && (
+        <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
+          <div className="sk-sync-group-title">
+            <History size={16} style={{ marginRight: 8 }} />
+            Activity
+          </div>
+          <div style={{ marginTop: 12, position: "relative", paddingLeft: 20 }}>
+            {/* Vertical line */}
+            <div
+              style={{
+                position: "absolute",
+                left: 7,
+                top: 4,
+                bottom: 4,
+                width: 2,
+                background: "rgba(255,138,42,0.15)",
+                borderRadius: 1,
+              }}
+            />
+            {[...group.activityLog]
+              .reverse()
+              .slice(0, 15)
+              .map((entry, i) => {
+                const iconMap = {
+                  created: <Plane size={12} />,
+                  member_added: <Users size={12} />,
+                  member_removed: <Users size={12} />,
+                  plan_generated: <Sparkles size={12} />,
+                  plan_updated: <Sparkles size={12} />,
+                  approved: <ThumbsUp size={12} />,
+                  change_requested: <MessageSquare size={12} />,
+                  booked: <CheckCircleOutlined style={{ fontSize: 12 }} />,
+                };
+                return (
+                  <div
+                    key={entry._id || i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      marginBottom: 14,
+                      position: "relative",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: "50%",
+                        flexShrink: 0,
+                        background: "rgba(255,138,42,0.15)",
+                        border: "2px solid #1e0b35",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#ff8a2a",
+                        position: "relative",
+                        zIndex: 1,
+                        marginLeft: -7,
+                      }}
+                    >
+                      {iconMap[entry.type] || <Clock size={10} />}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,0.75)",
+                          fontSize: 13,
+                        }}
+                      >
+                        {entry.user?.name && (
+                          <strong style={{ color: "#fff" }}>
+                            {entry.user.name}{" "}
+                          </strong>
+                        )}
+                        {entry.message}
+                      </div>
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,0.2)",
+                          fontSize: 11,
+                          marginTop: 2,
+                        }}
+                      >
+                        {dayjs(entry.createdAt).format("MMM D, h:mm A")}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

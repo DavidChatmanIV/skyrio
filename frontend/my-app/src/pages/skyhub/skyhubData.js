@@ -1,3 +1,9 @@
+// ─────────────────────────────────────────────────────────────
+// skyhubData.js
+// All static config for SkyHub — NO hardcoded stats or counts.
+// Stats come from the backend at runtime.
+// ─────────────────────────────────────────────────────────────
+
 export const skyhubTabs = [
   { value: "forYou", label: "For You" },
   { value: "following", label: "Following" },
@@ -6,6 +12,7 @@ export const skyhubTabs = [
   { value: "questions", label: "Questions" },
 ];
 
+// "Team Travel" excluded from display (kept here for data mapping)
 export const skyhubFilters = [
   "All",
   "Budget",
@@ -18,6 +25,4 @@ export const skyhubFilters = [
   "Weekend Trips",
 ];
 
-// ── NO skyhubStats export — stats fetched live from /api/skyhub/stats ──
-// If that endpoint doesn't exist yet, SkyHubPage shows nothing rather
-// than fake numbers. Update skyhub.routes.js to add the endpoint.
+// Stats are computed live from feed data in SkyHubPage.jsx — no static export needed.

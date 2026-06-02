@@ -45,6 +45,31 @@ const ChatMessageSchema = new Schema(
   { timestamps: true }
 );
 
+const ActivityLogSchema = new Schema(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User" },
+    action: {
+      type: String,
+      enum: [
+        "created",
+        "member_added",
+        "member_removed",
+        "details_updated",
+        "plan_generated",
+        "plan_updated",
+        "approved",
+        "change_requested",
+        "confirmed",
+        "booked",
+        "message_sent",
+        "airport_set",
+      ],
+    },
+    detail: { type: String, trim: true },
+  },
+  { timestamps: true }
+);
+
 const SyncGroupSchema = new Schema(
   {
     owner: {
@@ -97,6 +122,16 @@ const SyncGroupSchema = new Schema(
 
     // Group chat
     chatMessages: [ChatMessageSchema],
+
+    // Activity log
+    activityLog: [
+      {
+        type: { type: String, trim: true },
+        user: { type: Schema.Types.ObjectId, ref: "User", default: null },
+        message: { type: String, trim: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -128,6 +163,7 @@ SyncGroupSchema.methods.toSafeJSON = function () {
     atlasMessages: this.atlasMessages,
     changeRequests: this.changeRequests,
     chatMessages: this.chatMessages,
+    activityLog: this.activityLog,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };
