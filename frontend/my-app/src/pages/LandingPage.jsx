@@ -872,6 +872,19 @@ const INJECTED_CSS = `
 /* ── Scroll progress bar ── */
 /* (rendered via component — no extra CSS needed) */
 
+/* ── Time badge — sits below navbar, not fixed ── */
+.sk-time-badge-wrap {
+  display:flex; justify-content:flex-end;
+  padding: 10px 24px 0;
+  position:relative; z-index:2;
+}
+/* Override LandingPage.css which sets position:fixed on .sk-time-badge */
+.sk-time-badge-wrap .sk-time-badge {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+}
+
 /* ── Hero title word reveal ── */
 @keyframes sk-wordIn {
   from { opacity:0; transform:translateY(22px) skewY(2deg); }
@@ -955,7 +968,15 @@ const INJECTED_CSS = `
 .sk-hero__secondaryCta-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 20px; border-radius:999px; border:1px solid rgba(255,138,42,0.35); background:rgba(255,138,42,0.08); color:#ff8a2a; font-family:"DM Sans",sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.18s; text-decoration:none; }
 .sk-hero__secondaryCta-btn:hover { background:rgba(255,138,42,0.15); border-color:#ff8a2a; transform:translateY(-2px); }
 
-/* ── Suggestion card ── */
+/* ── Suggestion card — remove box/border, keep transparent ── */
+.sk-suggestion {
+  background: transparent !important;
+  border: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
 .sk-suggestion__loading { display:flex; align-items:center; gap:8px; padding:10px 0; font-size:12px; color:rgba(255,138,42,0.7); }
 .sk-suggestion__error   { font-size:11px; color:rgba(255,80,80,0.7); padding:4px 0; }
 
@@ -1328,10 +1349,12 @@ export default function LandingPage() {
       <ScrollProgressBar />
       <div className="sk-landing__bg" />
 
-      {/* ── Time badge ── */}
-      <div className="sk-time-badge">
-        <span className="sk-time-dot" />
-        {timeMeta.label} mode
+      {/* ── Time badge — inline below navbar ── */}
+      <div className="sk-time-badge-wrap">
+        <div className="sk-time-badge">
+          <span className="sk-time-dot" />
+          {timeMeta.label} mode
+        </div>
       </div>
 
       <div className="sk-landing__content">

@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
 import {
   Button,
   Avatar,
@@ -53,6 +54,7 @@ import {
   Sunrise,
   Moon,
   History,
+  Trash2,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
@@ -66,7 +68,6 @@ function authHeaders() {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
-
 function getHomeAirport() {
   try {
     const data = localStorage.getItem("skyrio_home_airport");
@@ -75,7 +76,6 @@ function getHomeAirport() {
     return null;
   }
 }
-
 function getCurrentUserId() {
   try {
     const data = localStorage.getItem("user");
@@ -104,9 +104,7 @@ function AirportSearchInput({ value, onChange, placeholder }) {
     try {
       const res = await fetch(
         `${API_BASE}/airports?q=${encodeURIComponent(q.trim())}`,
-        {
-          headers: authHeaders(),
-        }
+        { headers: authHeaders() }
       );
       const data = await res.json();
       setResults(Array.isArray(data) ? data.slice(0, 8) : []);
@@ -128,8 +126,7 @@ function AirportSearchInput({ value, onChange, placeholder }) {
   const selectAirport = (airport) => {
     const code = airport.code || airport.iata || airport.iata_code || "";
     const city = airport.city || airport.municipality || "";
-    const display = `${code} — ${airport.name || city}`;
-    setQuery(display);
+    setQuery(`${code} — ${airport.name || city}`);
     setShowDrop(false);
     setResults([]);
     onChange(code, airport);
@@ -143,8 +140,6 @@ function AirportSearchInput({ value, onChange, placeholder }) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  // Sync external value
   useEffect(() => {
     if (value && !query) setQuery(value);
   }, [value]);
@@ -213,26 +208,22 @@ function AirportSearchInput({ value, onChange, placeholder }) {
 
 // ─── Atlas Plan Renderer ──────────────────────────────────────────────────────
 function formatNumbers(text) {
-  return text.replace(/\$(\d{4,})(\.\d+)?/g, (_, int, dec) => {
-    const formatted = parseInt(int).toLocaleString("en-US");
-    return `$${formatted}${dec || ""}`;
-  });
+  return text.replace(
+    /\$(\d{4,})(\.\d+)?/g,
+    (_, int, dec) => `$${parseInt(int).toLocaleString("en-US")}${dec || ""}`
+  );
 }
 
 function AtlasPlanRenderer({ plan }) {
   if (!plan) return null;
-
   const lines = plan.split("\n");
   const sections = [];
   let current = null;
-
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
-
     const h3Match = line.match(/^###\s+(?:\d+\.\s+)?(.+)/);
     const boldHeader = line.match(/^\*\*([^*]+)\*\*\s*:?\s*$/);
-
     if (h3Match || boldHeader) {
       if (current) sections.push(current);
       current = {
@@ -270,7 +261,6 @@ function AtlasPlanRenderer({ plan }) {
     const bulletMatch = line.match(/^[-•*]\s+(.+)/);
     const numberedMatch = line.match(/^\d+\.\s+(.+)/);
     const content = bulletMatch?.[1] || numberedMatch?.[1] || line;
-
     const parts = content.split(/\*\*(.+?)\*\*/g);
     const formatted = parts.map((p, i) =>
       i % 2 === 1 ? (
@@ -281,7 +271,6 @@ function AtlasPlanRenderer({ plan }) {
         p
       )
     );
-
     if (bulletMatch || numberedMatch) {
       return (
         <div
@@ -315,7 +304,6 @@ function AtlasPlanRenderer({ plan }) {
         </div>
       );
     }
-
     return (
       <p
         key={idx}
@@ -387,7 +375,6 @@ export default function SyncGroupPage() {
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-
   const [editing, setEditing] = useState(false);
   const [destination, setDestination] = useState("");
   const [departureAirport, setDepartureAirport] = useState("");
@@ -397,36 +384,25 @@ export default function SyncGroupPage() {
   const [dateRange, setDateRange] = useState([null, null]);
   const [budget, setBudget] = useState(null);
   const [saving, setSaving] = useState(false);
-
   const [atlasPlan, setAtlasPlan] = useState("");
   const [planLoading, setPlanLoading] = useState(false);
   const [atlasMessages, setAtlasMessages] = useState([]);
   const [followUp, setFollowUp] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
-
-  // Weather
   const [weather, setWeather] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
-
-  // Chat
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const chatEndRef = useRef(null);
-
-  // Member airport
   const [editingMyAirport, setEditingMyAirport] = useState(false);
-
-  // Editable title
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
-
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [changeMsg, setChangeMsg] = useState("");
   const [changeSending, setChangeSending] = useState(false);
   const [approving, setApproving] = useState(false);
   const [confirming, setConfirming] = useState(false);
-
-  // Add/remove members
   const [addInput, setAddInput] = useState("");
   const [addResults, setAddResults] = useState([]);
   const [addSearching, setAddSearching] = useState(false);
@@ -480,7 +456,6 @@ export default function SyncGroupPage() {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     fetchGroup();
   }, [id]);
@@ -556,7 +531,6 @@ export default function SyncGroupPage() {
     }
     setPlanLoading(true);
     setAtlasPlan("");
-
     const memberNames = group.members
       ?.map((m) => m.user?.name || m.name || m.email)
       .filter(Boolean)
@@ -567,7 +541,6 @@ export default function SyncGroupPage() {
         ? dateRange[1].diff(dateRange[0], "day")
         : null;
     const homeAirport = departureAirport || "EWR";
-
     const memberAirports =
       group.members
         ?.map((m) => {
@@ -576,7 +549,6 @@ export default function SyncGroupPage() {
           return `  - ${name}: ${airport}`;
         })
         .join("\n") || "";
-
     const cabinLabel =
       {
         economy: "economy",
@@ -591,7 +563,6 @@ export default function SyncGroupPage() {
         night: "evening/night (5pm-12am)",
         any: "any time",
       }[departureTime] || "any time";
-
     let changeContext = "";
     if (openChangeRequests.length > 0) {
       changeContext =
@@ -600,46 +571,21 @@ export default function SyncGroupPage() {
           .map((cr) => `- ${cr.user?.name || "A member"}: "${cr.message}"`)
           .join("\n");
     }
-
-    const prompt = `I'm planning a group trip to ${destination} with ${travelerCount} travelers (me + ${memberNames}).
-
-DETAILS:
-- Organizer departure: ${homeAirport}
-- Destination: ${destination}
-- Cabin class: ${cabinLabel}
-- Preferred departure time: ${timeLabel}
-- Departure airports:
-  - Me (organizer): ${homeAirport}
-${memberAirports}
-${tripDays ? `- Trip length: ${tripDays} days` : ""}
-${
-  dateRange[0]
-    ? `- Dates: ${dateRange[0].format("YYYY-MM-DD")} to ${dateRange[1].format(
-        "YYYY-MM-DD"
-      )}`
-    : ""
-}
-${budget ? `- Budget per person: $${budget}` : ""}
-- Travelers: ${travelerCount}
-${changeContext}
-
-IMPORTANT: Some travelers may depart from different airports — search flights per airport if they differ. Format prices with commas (e.g. $1,234.56). Use ### for sections.
-
-Please:
-1. Search for real ${cabinLabel} flights to ${destination}${
+    const prompt = `I'm planning a group trip to ${destination} with ${travelerCount} travelers (me + ${memberNames}).\n\nDETAILS:\n- Organizer departure: ${homeAirport}\n- Destination: ${destination}\n- Cabin class: ${cabinLabel}\n- Preferred departure time: ${timeLabel}\n- Departure airports:\n  - Me (organizer): ${homeAirport}\n${memberAirports}\n${
+      tripDays ? `- Trip length: ${tripDays} days` : ""
+    }\n${
+      dateRange[0]
+        ? `- Dates: ${dateRange[0].format(
+            "YYYY-MM-DD"
+          )} to ${dateRange[1].format("YYYY-MM-DD")}`
+        : ""
+    }\n${
+      budget ? `- Budget per person: $${budget}` : ""
+    }\n- Travelers: ${travelerCount}\n${changeContext}\n\nIMPORTANT: Some travelers may depart from different airports — search flights per airport if they differ. Format prices with commas (e.g. $1,234.56). Use ### for sections.\n\nPlease:\n1. Search for real ${cabinLabel} flights to ${destination}${
       dateRange[0] ? ` departing ${dateRange[0].format("YYYY-MM-DD")}` : ""
     }${
       dateRange[1] ? ` returning ${dateRange[1].format("YYYY-MM-DD")}` : ""
-    } — prefer ${timeLabel} departures. Note flight options per departure airport if they differ.
-2. Recommend the best options with actual prices
-3. Suggest accommodation for the group
-4. Create a day-by-day itinerary
-5. Budget breakdown per person
-6. Weather expectations for ${destination}
-7. Group coordination tips
-
-Format clearly with ### sections.`;
-
+    } — prefer ${timeLabel} departures. Note flight options per departure airport if they differ.\n2. Recommend the best options with actual prices\n3. Suggest accommodation for the group\n4. Create a day-by-day itinerary\n5. Budget breakdown per person\n6. Weather expectations for ${destination}\n7. Group coordination tips\n\nFormat clearly with ### sections.`;
     const newMessages = [{ role: "user", content: prompt }];
     try {
       const res = await fetch(`${API_BASE}/atlas/chat`, {
@@ -736,7 +682,6 @@ Format clearly with ### sections.`;
       setApproving(false);
     }
   };
-
   const submitChangeRequest = async () => {
     if (!changeMsg.trim()) return;
     setChangeSending(true);
@@ -761,7 +706,6 @@ Format clearly with ### sections.`;
       setChangeSending(false);
     }
   };
-
   const confirmTrip = async () => {
     setConfirming(true);
     try {
@@ -781,7 +725,6 @@ Format clearly with ### sections.`;
     }
   };
 
-  /* ── Search users to add ── */
   const searchUsersToAdd = useCallback(async (q) => {
     if (!q || q.trim().length < 2) {
       setAddResults([]);
@@ -805,14 +748,12 @@ Format clearly with ### sections.`;
       setAddSearching(false);
     }
   }, []);
-
   const handleAddInputChange = (e) => {
     const val = e.target.value;
     setAddInput(val);
     clearTimeout(addDebounceRef.current);
     addDebounceRef.current = setTimeout(() => searchUsersToAdd(val), 300);
   };
-
   const addMemberToGroup = async (user) => {
     try {
       const res = await fetch(`${API_BASE}/sync-together/${id}/member`, {
@@ -838,7 +779,6 @@ Format clearly with ### sections.`;
     setAddResults([]);
     setShowAddDrop(false);
   };
-
   const addByEmailDirect = () => {
     const val = addInput.trim();
     if (!val) return;
@@ -848,15 +788,11 @@ Format clearly with ### sections.`;
     }
     addMemberToGroup({ email: val, name: val });
   };
-
   const removeMember = async (memberId, memberName) => {
     try {
       const res = await fetch(
         `${API_BASE}/sync-together/${id}/member/${memberId}`,
-        {
-          method: "DELETE",
-          headers: authHeaders(),
-        }
+        { method: "DELETE", headers: authHeaders() }
       );
       const data = await res.json();
       if (data.ok) {
@@ -867,7 +803,6 @@ Format clearly with ### sections.`;
       antdMessage.error("Failed to remove member");
     }
   };
-
   useEffect(() => {
     const handler = (e) => {
       if (addWrapperRef.current && !addWrapperRef.current.contains(e.target))
@@ -877,7 +812,6 @@ Format clearly with ### sections.`;
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  /* ── Rename trip ── */
   const renameTrip = async () => {
     if (!titleInput.trim()) {
       setEditingTitle(false);
@@ -899,7 +833,23 @@ Format clearly with ### sections.`;
     }
   };
 
-  /* ── Update my departure airport ── */
+  const deleteGroup = async () => {
+    setShowDeleteConfirm(false);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        antdMessage.success("Trip deleted");
+        navigate("/sync-together");
+      } else antdMessage.error(data.error);
+    } catch (err) {
+      antdMessage.error("Failed to delete");
+    }
+  };
+
   const updateMyAirport = async (code) => {
     try {
       const res = await fetch(
@@ -921,7 +871,6 @@ Format clearly with ### sections.`;
     }
   };
 
-  /* ── Fetch weather for destination ── */
   const fetchWeather = async (city) => {
     if (!city) return;
     setWeatherLoading(true);
@@ -939,13 +888,10 @@ Format clearly with ### sections.`;
       setWeatherLoading(false);
     }
   };
-
-  // Fetch weather when destination or dates change
   useEffect(() => {
     if (group?.destination) fetchWeather(group.destination);
   }, [group?.destination]);
 
-  /* ── Send chat message ── */
   const sendChatMessage = async () => {
     if (!chatInput.trim()) return;
     setChatSending(true);
@@ -982,7 +928,6 @@ Format clearly with ### sections.`;
         </div>
       </section>
     );
-
   if (!group)
     return (
       <section className="sk-sync-section">
@@ -1230,13 +1175,25 @@ Format clearly with ### sections.`;
               )}
             </div>
           </div>
-          <Button
-            icon={copied ? <CheckCircleOutlined /> : <Share2 size={14} />}
-            onClick={shareGroup}
-            className="sk-sync-add-btn"
-          >
-            {copied ? "Copied!" : "Share"}
-          </Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              icon={copied ? <CheckCircleOutlined /> : <Share2 size={14} />}
+              onClick={shareGroup}
+              className="sk-sync-add-btn"
+            >
+              {copied ? "Copied!" : "Share"}
+            </Button>
+            {isOwner && !isBooked && (
+              <Button
+                icon={<Trash2 size={14} />}
+                onClick={() => setShowDeleteConfirm(true)}
+                className="sk-sync-add-btn"
+                style={{ color: "#ff4d4f", borderColor: "rgba(255,77,79,0.3)" }}
+              >
+                Delete
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1439,7 +1396,6 @@ Format clearly with ### sections.`;
                     </button>
                   )}
                 </div>
-                {/* Let user set their own airport */}
                 {isMyRow && !isBooked && (
                   <div style={{ marginLeft: 48 }}>
                     {!editingMyAirport && !m.departureAirport && (
@@ -1507,8 +1463,6 @@ Format clearly with ### sections.`;
             );
           })}
         </div>
-
-        {/* Add member */}
         {!isBooked && isMember && (
           <div style={{ marginTop: 12 }}>
             {!showAddForm ? (
@@ -2103,7 +2057,6 @@ Format clearly with ### sections.`;
             </span>
           )}
         </div>
-
         {!hasPlan && (
           <>
             <p className="sk-sync-group-hint" style={{ marginTop: 4 }}>
@@ -2121,7 +2074,6 @@ Format clearly with ### sections.`;
             </Button>
           </>
         )}
-
         {hasPlan && (
           <>
             <div
@@ -2161,7 +2113,6 @@ Format clearly with ### sections.`;
               </div>
               <AtlasPlanRenderer plan={atlasPlan} />
             </div>
-
             {!isBooked && isMember && (
               <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
                 <Input
@@ -2208,7 +2159,6 @@ Format clearly with ### sections.`;
             <ThumbsUp size={16} style={{ marginRight: 8 }} />
             Review & Approve
           </div>
-
           <div
             style={{
               marginTop: 12,
@@ -2263,7 +2213,6 @@ Format clearly with ### sections.`;
               />
             </div>
           </div>
-
           {myMember && (
             <div
               style={{
@@ -2311,7 +2260,6 @@ Format clearly with ### sections.`;
               )}
             </div>
           )}
-
           {myMember && !myApproval && (
             <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
               <Input
@@ -2333,7 +2281,6 @@ Format clearly with ### sections.`;
               </Button>
             </div>
           )}
-
           {openChangeRequests.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div
@@ -2406,7 +2353,6 @@ Format clearly with ### sections.`;
               </p>
             </div>
           )}
-
           {isOwner && allApproved && openChangeRequests.length === 0 && (
             <div
               style={{
@@ -2457,7 +2403,7 @@ Format clearly with ### sections.`;
         </div>
       )}
 
-      {/* ── Weather Forecast ── */}
+      {/* ── Weather ── */}
       {group?.destination && (
         <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
           <div className="sk-sync-group-title">
@@ -2485,7 +2431,7 @@ Format clearly with ### sections.`;
                   paddingBottom: 8,
                 }}
               >
-                {weather.forecast.slice(0, 10).map((day, i) => {
+                {weather.forecast.slice(0, 10).map((day) => {
                   const isRainy = day.rainChance > 50;
                   const dateObj = new Date(day.date + "T12:00:00");
                   const dayName = dateObj.toLocaleDateString("en-US", {
@@ -2495,14 +2441,11 @@ Format clearly with ### sections.`;
                     month: "short",
                     day: "numeric",
                   });
-
-                  // Highlight days within travel range
                   const inRange =
                     dateRange[0] &&
                     dateRange[1] &&
                     dateObj >= dateRange[0].toDate() &&
                     dateObj <= dateRange[1].toDate();
-
                   return (
                     <div
                       key={day.date}
@@ -2551,10 +2494,13 @@ Format clearly with ### sections.`;
                       >
                         {day.code <= 3 ? (
                           <Sun size={22} style={{ color: "#ffb347" }} />
-                        ) : day.code <= 55 ? (
-                          <CloudRain size={22} style={{ color: "#5b9cf5" }} />
                         ) : (
-                          <CloudRain size={22} style={{ color: "#aaa" }} />
+                          <CloudRain
+                            size={22}
+                            style={{
+                              color: day.code <= 55 ? "#5b9cf5" : "#aaa",
+                            }}
+                          />
                         )}
                       </div>
                       <div
@@ -2617,8 +2563,6 @@ Format clearly with ### sections.`;
               </span>
             )}
           </div>
-
-          {/* Messages */}
           <div
             style={{
               marginTop: 12,
@@ -2725,8 +2669,6 @@ Format clearly with ### sections.`;
             })}
             <div ref={chatEndRef} />
           </div>
-
-          {/* Input */}
           <div
             style={{
               marginTop: 12,
@@ -2735,16 +2677,30 @@ Format clearly with ### sections.`;
               alignItems: "center",
             }}
           >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <Input
-                className="sk-sync-input"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onPressEnter={sendChatMessage}
-                placeholder="Type a message..."
-                style={{ width: "100%" }}
-              />
-            </div>
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") sendChatMessage();
+              }}
+              placeholder="Type a message..."
+              style={{
+                flex: 1,
+                minWidth: 0,
+                width: "100%",
+                height: 40,
+                padding: "0 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.9)",
+                fontSize: 14,
+                fontFamily: "'DM Sans', sans-serif",
+                outline: "none",
+                WebkitAppearance: "none",
+              }}
+            />
             <Button
               className="sk-sync-add-btn"
               icon={<SendOutlined />}
@@ -2766,7 +2722,6 @@ Format clearly with ### sections.`;
             Activity
           </div>
           <div style={{ marginTop: 12, position: "relative", paddingLeft: 20 }}>
-            {/* Vertical line */}
             <div
               style={{
                 position: "absolute",
@@ -2852,6 +2807,123 @@ Format clearly with ### sections.`;
           </div>
         </div>
       )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {showDeleteConfirm &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0,0,0,0.6)",
+              zIndex: 999999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background:
+                  "linear-gradient(160deg, #1a0a2e 0%, #2d1057 50%, #1e0b35 100%)",
+                borderRadius: 20,
+                padding: "32px 28px",
+                width: 380,
+                maxWidth: "90vw",
+                boxShadow:
+                  "0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,138,42,0.15)",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  margin: "0 auto 16px",
+                  background: "rgba(255,77,79,0.12)",
+                  border: "1px solid rgba(255,77,79,0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Trash2 size={24} style={{ color: "#ff4d4f" }} />
+              </div>
+              <h3
+                style={{
+                  color: "#fff",
+                  fontSize: 18,
+                  fontWeight: 700,
+                  margin: "0 0 8px",
+                }}
+              >
+                Delete this trip?
+              </h3>
+              <p
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 14,
+                  margin: "0 0 24px",
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong style={{ color: "rgba(255,255,255,0.8)" }}>
+                  {group.title || "Untitled Trip"}
+                </strong>
+                {group.destination && <span> → {group.destination}</span>}
+                <br />
+                This will remove the trip for all travelers and cannot be
+                undone.
+              </p>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  style={{
+                    flex: 1,
+                    padding: "14px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.06)",
+                    color: "rgba(255,255,255,0.7)",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={deleteGroup}
+                  style={{
+                    flex: 1,
+                    padding: "14px",
+                    borderRadius: 14,
+                    border: "none",
+                    background:
+                      "linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%)",
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    boxShadow: "0 4px 20px rgba(255,77,79,0.35)",
+                  }}
+                >
+                  Delete Trip
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </section>
   );
 }
