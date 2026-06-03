@@ -1,23 +1,3 @@
-/**
- * LandingPage.jsx — Skyrio  ★ 9/10 upgrade
- *
- * What changed vs 7/10:
- *  1. IntersectionObserver scroll-reveal on every section (staggered children)
- *  2. Hero title word-by-word entrance animation on mount
- *  3. Ambient floating orbs in hero background (CSS only, no JS perf hit)
- *  4. Time-of-day actually changes hero gradient palette via CSS vars
- *  5. Suggestion card animates in with spring (opacity + translateY + scale)
- *  6. Quick chips have shimmer hover + icon prefix
- *  7. Primary CTA has a breathing glow pulse
- *  8. Section dividers: alternating layout rhythm (left/right eyebrows)
- *  9. Example cards have parallax tilt on mouse-move (pointer events)
- * 10. Mobile: search row never wraps awkwardly — stacks cleanly at 540px
- * 11. Micro-detail: stat counter animate up on scroll-reveal
- * 12. FAQ accordion — click to expand answer (was always-open)
- * 13. Noise texture overlay on hero for depth
- * 14. Scroll-progress bar at top of page
- */
-
 import React, {
   useMemo,
   useState,
@@ -33,8 +13,6 @@ import {
   ThunderboltOutlined,
   EnvironmentOutlined,
   LoadingOutlined,
-  PlusOutlined,
-  MinusOutlined,
 } from "@ant-design/icons";
 
 import "@/styles/LandingPage.css";
@@ -81,53 +59,37 @@ const AIRPORTS = [
 ];
 const DEFAULT_AIRPORT = AIRPORTS[0];
 
-// Time period definitions + matching hero palette overrides
 const TIME_PERIODS = {
   dawn: {
     hours: [5, 6, 7],
     label: "Dawn",
     tip: "Early birds get the best deals — prices are freshest between 6–8 AM.",
-    orb1: "rgba(255,160,80,0.28)",
-    orb2: "rgba(180,100,255,0.18)",
-    accent: "#ffb347",
   },
   morning: {
     hours: [8, 9, 10, 11],
     label: "Morning",
     tip: "Booking 6–8 weeks ahead hits the sweet spot for domestic flights.",
-    orb1: "rgba(255,138,42,0.22)",
-    orb2: "rgba(100,180,255,0.14)",
-    accent: "#ff8a2a",
   },
   afternoon: {
     hours: [12, 13, 14, 15, 16],
     label: "Afternoon",
     tip: "Mid-week departures (Tues/Wed) save up to $80 per ticket.",
-    orb1: "rgba(255,200,60,0.20)",
-    orb2: "rgba(255,80,120,0.14)",
-    accent: "#ffc43d",
   },
   dusk: {
     hours: [17, 18, 19],
     label: "Sunset",
     tip: "Last-minute deals often drop after 5 PM for next-week travel.",
-    orb1: "rgba(255,80,80,0.22)",
-    orb2: "rgba(255,138,42,0.20)",
-    accent: "#ff6b35",
   },
   night: {
     hours: [20, 21, 22, 23, 0, 1, 2, 3, 4],
     label: "Night",
     tip: "Best time to book is Tuesday nights — prices are 15–20% lower than weekends.",
-    orb1: "rgba(120,80,255,0.24)",
-    orb2: "rgba(40,120,255,0.16)",
-    accent: "#a78bfa",
   },
 };
 
 const HERO_COPY = {
   eyebrow: "Your AI travel planner — free to use",
-  title: ["Tell us where", "you want to go.", "We'll handle the rest."],
+  title: "Tell us where you want to go.\nWe'll handle the rest.",
   subtitle:
     "Type a destination and budget. Skyrio's AI builds a full flight + hotel plan in seconds — then you book it directly.",
   placeholder: 'e.g. "Tokyo in April under $2,500"',
@@ -142,28 +104,17 @@ const QUICK_CHIPS = [
   {
     label: "Tokyo in April",
     prompt: "Tokyo in April with food spots and a $2,000 budget",
-    icon: "✈",
   },
-  {
-    label: "Miami under $600",
-    prompt: "Miami weekend for two under $600",
-    icon: "🌊",
-  },
+  { label: "Miami under $600", prompt: "Miami weekend for two under $600" },
   {
     label: "Paris honeymoon",
     prompt: "Paris honeymoon with premium stay ideas",
-    icon: "🗼",
-  },
-  {
-    label: "Bali 10 nights",
-    prompt: "Bali 10-night trip under $3,000 with villas",
-    icon: "🌴",
   },
 ];
 
 const SOCIAL_PROOF = [
-  { stat: "8s", label: "avg. plan build" },
-  { stat: "30+", label: "destinations" },
+  { stat: "8 sec", label: "avg. plan build time" },
+  { stat: "30+", label: "destinations covered" },
   { stat: "Free", label: "to search & plan" },
   { stat: "Stripe", label: "secure payments" },
 ];
@@ -171,7 +122,7 @@ const SOCIAL_PROOF = [
 const TRUST_SIGNALS = [
   "No credit card required",
   "Free to search & plan",
-  "Cancel within 24h",
+  "Cancel bookings within 24h",
 ];
 
 const EXAMPLES = [
@@ -283,53 +234,15 @@ const ATLAS_CHAT_INTRO = (homeCity) => [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI SUGGESTION
+// AI SUGGESTION — calls /api/atlas/suggest on your Express backend
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function fetchAISuggestion(prompt, homeCity, homeCode, promptHistory) {
-  const systemPrompt = `You are Atlas, Skyrio's AI travel planner.
-Given a user's travel prompt and their home airport, return ONE suggested trip as a JSON object.
-
-Rules:
-- Be specific: real destinations, realistic pricing.
-- Infer budget from the prompt (look for dollar amounts, words like "budget", "cheap", "luxury").
-- If no budget is stated, pick a mid-range option appropriate to the destination.
-- The "total" is a realistic all-in estimate (flights + hotel) in USD as an integer.
-- "planKey" is a URL-safe slug like "tokyo-kyoto" or "tulum-5night".
-- "fit" is a 2-5 word quality signal, e.g. "Excellent budget match" or "Slightly over budget".
-- "summary" is 1 sentence, max 18 words, describing the vibe and value.
-- "dates" is a plausible 2-week window, e.g. "Apr 5-15".
-- Consider the user's prompt history to refine suggestions.
-
-Respond ONLY with raw JSON — no markdown, no backticks, no preamble.
-
-Schema:
-{
-  "trip": "string",
-  "dates": "string",
-  "total": number,
-  "fit": "string",
-  "summary": "string",
-  "planKey": "string"
-}`;
-
-  const userMessage = `Home airport: ${homeCity} (${homeCode})
-Current prompt: "${prompt}"
-${
-  promptHistory.length > 1
-    ? `Previous prompts this session:\n${promptHistory
-        .slice(0, -1)
-        .map((p, i) => `  ${i + 1}. "${p}"`)
-        .join("\n")}`
-    : ""
-}`;
-
   const response = await fetch("/api/atlas/suggest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt, homeCity, homeCode, promptHistory }),
   });
-
   if (!response.ok) throw new Error(`API ${response.status}`);
   return response.json();
 }
@@ -353,7 +266,6 @@ function readStoredAirport() {
 
 function useHomeAirport() {
   const [homeAirport, setHomeAirportState] = useState(readStoredAirport);
-
   const setHomeAirport = useCallback((airport) => {
     if (!airport?.code) return;
     const next = {
@@ -368,7 +280,6 @@ function useHomeAirport() {
       /* noop */
     }
   }, []);
-
   return {
     homeAirport,
     setHomeAirport,
@@ -381,10 +292,9 @@ function useHomeAirport() {
 // SCROLL REVEAL HOOK
 // ─────────────────────────────────────────────────────────────────────────────
 
-function useScrollReveal(threshold = 0.15) {
+function useScrollReveal(threshold = 0.12) {
   const ref = useRef(null);
   const [vis, setVis] = useState(false);
-
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -400,157 +310,7 @@ function useScrollReveal(threshold = 0.15) {
     obs.observe(el);
     return () => obs.disconnect();
   }, [threshold]);
-
   return [ref, vis];
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TILT CARD HOOK  (mouse-move parallax for example cards)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function useTilt() {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const handleMove = (e) => {
-      const rect = el.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      el.style.transform = `perspective(600px) rotateY(${x * 12}deg) rotateX(${
-        -y * 8
-      }deg) scale(1.03)`;
-    };
-    const handleLeave = () => {
-      el.style.transform = "";
-    };
-
-    el.addEventListener("mousemove", handleMove);
-    el.addEventListener("mouseleave", handleLeave);
-    return () => {
-      el.removeEventListener("mousemove", handleMove);
-      el.removeEventListener("mouseleave", handleLeave);
-    };
-  }, []);
-
-  return ref;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCROLL PROGRESS BAR
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ScrollProgressBar() {
-  const [pct, setPct] = useState(0);
-
-  useEffect(() => {
-    const onScroll = () => {
-      const doc = document.documentElement;
-      const total = doc.scrollHeight - doc.clientHeight;
-      setPct(total > 0 ? (window.scrollY / total) * 100 : 0);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 3,
-        zIndex: 9999,
-        background: "rgba(255,255,255,0.06)",
-      }}
-    >
-      <div
-        style={{
-          height: "100%",
-          width: `${pct}%`,
-          background: "linear-gradient(90deg,#ff8a2a,#ffb347)",
-          transition: "width 0.1s linear",
-          boxShadow: "0 0 8px rgba(255,138,42,0.6)",
-        }}
-      />
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FAQ ITEM (accordion)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function FaqItem({ q, a }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div
-      className={`sk-faq${open ? " sk-faq--open" : ""}`}
-      onClick={() => setOpen((v) => !v)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && setOpen((v) => !v)}
-    >
-      <div className="sk-faq__row">
-        <div className="sk-faq__q">{q}</div>
-        <div className="sk-faq__chevron">
-          {open ? <MinusOutlined /> : <PlusOutlined />}
-        </div>
-      </div>
-      <div
-        className="sk-faq__a"
-        style={{
-          maxHeight: open ? "200px" : "0",
-          opacity: open ? 1 : 0,
-          overflow: "hidden",
-          transition: "max-height 0.32s ease, opacity 0.25s ease",
-          marginTop: open ? 10 : 0,
-        }}
-      >
-        {a}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TILT EXAMPLE CARD
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ExampleCard({ card, onClick, disabled }) {
-  const tiltRef = useTilt();
-  return (
-    <button
-      ref={tiltRef}
-      key={card.key}
-      className="sk-card"
-      onClick={onClick}
-      type="button"
-      disabled={disabled}
-      style={{
-        transition: "transform 0.2s ease, box-shadow 0.2s ease",
-        willChange: "transform",
-      }}
-    >
-      <div
-        className="sk-card__media"
-        style={{ backgroundImage: `url(${card.img})` }}
-      />
-      <div className="sk-card__overlay" />
-      <div className="sk-card__content">
-        <div className="sk-card__title">{card.title}</div>
-        <div className="sk-card__subtitle">{card.subtitle}</div>
-        {card.meta && <div className="sk-card__meta">{card.meta}</div>}
-        <div className="sk-card__footer">
-          <span>View Plan</span>
-          <ArrowRightOutlined />
-        </div>
-      </div>
-    </button>
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -865,68 +625,11 @@ function Icon({ name, size }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CSS
+// INJECTED CSS — additive only, never fights LandingPage.css
 // ─────────────────────────────────────────────────────────────────────────────
 
 const INJECTED_CSS = `
-/* ── Scroll progress bar ── */
-/* (rendered via component — no extra CSS needed) */
-
-/* ── Time badge — sits below navbar, not fixed ── */
-.sk-time-badge-wrap {
-  display:flex; justify-content:flex-end;
-  padding: 10px 24px 0;
-  position:relative; z-index:2;
-}
-/* Override LandingPage.css which sets position:fixed on .sk-time-badge */
-.sk-time-badge-wrap .sk-time-badge {
-  position: relative !important;
-  top: auto !important;
-  right: auto !important;
-}
-
-/* ── Hero title word reveal ── */
-@keyframes sk-wordIn {
-  from { opacity:0; transform:translateY(22px) skewY(2deg); }
-  to   { opacity:1; transform:translateY(0) skewY(0); }
-}
-.sk-hero__word {
-  display:inline-block;
-  vertical-align:bottom;
-  opacity:0;
-  animation:sk-wordIn 0.55s cubic-bezier(0.22,1,0.36,1) forwards;
-}
-
-/* ── Ambient orbs ── */
-.sk-orb {
-  position:absolute; border-radius:50%;
-  filter:blur(80px); pointer-events:none; z-index:0;
-  animation:sk-orbFloat 14s ease-in-out infinite alternate;
-}
-.sk-orb--1 { width:500px; height:500px; top:-120px; right:-80px; animation-duration:16s; }
-.sk-orb--2 { width:360px; height:360px; bottom:60px; left:-60px; animation-duration:20s; animation-delay:-6s; }
-.sk-orb--3 { width:220px; height:220px; top:40%; left:45%; animation-duration:11s; animation-delay:-3s; }
-@keyframes sk-orbFloat {
-  from { transform:translate(0,0) scale(1); }
-  to   { transform:translate(30px,-40px) scale(1.08); }
-}
-
-/* ── Noise texture overlay ── */
-.sk-hero::after {
-  content:""; position:absolute; inset:0; z-index:1; pointer-events:none; opacity:0.035;
-  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-repeat:repeat; background-size:128px 128px;
-}
-
-/* ── Scroll reveal ── */
-.sk-reveal { opacity:0; transform:translateY(32px); transition:opacity 0.6s ease, transform 0.6s cubic-bezier(0.22,1,0.36,1); }
-.sk-reveal.is-visible { opacity:1; transform:translateY(0); }
-.sk-reveal--delay-1 { transition-delay:0.1s; }
-.sk-reveal--delay-2 { transition-delay:0.2s; }
-.sk-reveal--delay-3 { transition-delay:0.3s; }
-.sk-reveal--delay-4 { transition-delay:0.4s; }
-
-/* ── Airport selector — below search box ── */
+/* ── Airport row ── */
 .sk-hero__airportRow { display:flex; align-items:center; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
 .sk-home-airport { display:inline-flex; align-items:center; gap:8px; }
 .sk-home-airport__label { font-size:12px; color:rgba(255,255,255,0.45); font-weight:500; white-space:nowrap; display:flex; align-items:center; gap:5px; }
@@ -935,21 +638,39 @@ const INJECTED_CSS = `
 .sk-home-airport .ant-select-selector:hover { border-color:rgba(255,138,42,0.5)!important; }
 .sk-home-airport-popup { background:rgba(14,8,30,0.97)!important; border:1px solid rgba(255,138,42,0.22)!important; border-radius:12px!important; backdrop-filter:blur(20px)!important; box-shadow:0 12px 40px rgba(0,0,0,0.6)!important; }
 .sk-home-airport-popup .ant-select-item { color:rgba(255,255,255,0.8)!important; background:transparent!important; font-family:"DM Sans",sans-serif!important; font-size:13px!important; }
-.sk-home-airport-popup .ant-select-item-option-active, .sk-home-airport-popup .ant-select-item-option-selected { background:rgba(255,138,42,0.15)!important; color:#ff8a2a!important; }
+.sk-home-airport-popup .ant-select-item-option-active,.sk-home-airport-popup .ant-select-item-option-selected { background:rgba(255,138,42,0.15)!important; color:#ff8a2a!important; }
 
-/* ── CTA pulse — scoped to search box so it doesn't bleed onto other buttons ── */
-@keyframes sk-ctaPulse {
-  0%,100% { box-shadow:0 0 0 0 rgba(255,138,42,0.45); }
-  50%     { box-shadow:0 0 0 7px rgba(255,138,42,0); }
+/* ── Time badge — inline below navbar, not fixed ── */
+.sk-time-badge-wrap { display:flex; justify-content:flex-end; padding:10px 24px 0; position:relative; z-index:2; }
+.sk-time-badge-wrap .sk-time-badge { position:relative!important; top:auto!important; right:auto!important; }
+
+/* ── Suggestion card — remove rectangle box ── */
+.sk-suggestion {
+  background: transparent!important;
+  border: none!important;
+  backdrop-filter: none!important;
+  -webkit-backdrop-filter: none!important;
+  padding-left: 0!important;
+  padding-right: 0!important;
 }
-.sk-hero__search .sk-cta { animation:sk-ctaPulse 2.8s ease-in-out infinite !important; }
-.sk-hero__search .sk-cta:hover { animation:none !important; }
+.sk-suggestion__loading { display:flex; align-items:center; gap:8px; padding:10px 0; font-size:12px; color:rgba(255,138,42,0.7); }
+.sk-suggestion__error { font-size:11px; color:rgba(255,80,80,0.7); padding:4px 0; }
 
-/* ── Quick chips — additive only (LandingPage.css owns bg/color/radius) ── */
-.sk-quickChip { position:relative !important; overflow:hidden !important; display:inline-flex !important; align-items:center !important; gap:6px !important; }
-.sk-quickChip::before { content:""; position:absolute; top:0; left:-100%; width:100%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent); transition:left 0.4s ease; pointer-events:none; }
-.sk-quickChip:hover::before { left:100%; }
-.sk-quickChip__icon { font-size:13px; line-height:1; flex-shrink:0; }
+/* ── Scroll reveal ── */
+@keyframes sk-revealUp {
+  from { opacity:0; transform:translateY(28px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.sk-reveal {
+  opacity:0;
+  animation:none;
+}
+.sk-reveal.is-visible {
+  animation:sk-revealUp 0.6s cubic-bezier(0.22,1,0.36,1) forwards;
+}
+.sk-reveal.is-visible.sk-d1 { animation-delay:0.08s; }
+.sk-reveal.is-visible.sk-d2 { animation-delay:0.16s; }
+.sk-reveal.is-visible.sk-d3 { animation-delay:0.24s; }
 
 /* ── Social proof ── */
 .sk-social-proof { display:flex; align-items:center; justify-content:center; gap:0; margin:28px auto 0; max-width:560px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:16px; overflow:hidden; }
@@ -963,38 +684,12 @@ const INJECTED_CSS = `
 .sk-trust-signals span { font-size:12px; color:rgba(255,255,255,0.35); font-weight:500; display:inline-flex; align-items:center; gap:4px; }
 
 /* ── Secondary CTA ── */
-.sk-hero__secondaryCta { margin-top:24px; text-align:center; }
+.sk-hero__secondaryCta { margin-top:20px; text-align:center; }
 .sk-hero__secondaryCta-text { font-size:13px; color:rgba(255,255,255,0.45); margin-bottom:8px; }
 .sk-hero__secondaryCta-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 20px; border-radius:999px; border:1px solid rgba(255,138,42,0.35); background:rgba(255,138,42,0.08); color:#ff8a2a; font-family:"DM Sans",sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.18s; text-decoration:none; }
-.sk-hero__secondaryCta-btn:hover { background:rgba(255,138,42,0.15); border-color:#ff8a2a; transform:translateY(-2px); }
+.sk-hero__secondaryCta-btn:hover { background:rgba(255,138,42,0.15); border-color:#ff8a2a; }
 
-/* ── Suggestion card — remove box/border, keep transparent ── */
-.sk-suggestion {
-  background: transparent !important;
-  border: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-}
-.sk-suggestion__loading { display:flex; align-items:center; gap:8px; padding:10px 0; font-size:12px; color:rgba(255,138,42,0.7); }
-.sk-suggestion__error   { font-size:11px; color:rgba(255,80,80,0.7); padding:4px 0; }
-
-/* Spring-in animation for suggestion body */
-@keyframes sk-suggIn {
-  from { opacity:0; transform:translateY(6px) scale(0.98); }
-  to   { opacity:1; transform:translateY(0) scale(1); }
-}
-.sk-suggestion__body { animation:sk-suggIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
-
-/* ── Examples kicker ── */
 .sk-examples__kicker { font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#ff8a2a; margin-bottom:10px; }
-
-/* ── Section divider line ── */
-.sk-divider {
-  width:100%; max-width:1100px; margin:0 auto 64px;
-  height:1px; background:linear-gradient(90deg,transparent,rgba(255,138,42,0.2),transparent);
-}
 
 /* ══ ATLAS ══ */
 .sk-atlas { padding:0 24px 80px; max-width:1100px; margin:0 auto; }
@@ -1004,8 +699,8 @@ const INJECTED_CSS = `
 .sk-atlas__name { background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
 .sk-atlas__sub { font-size:15px; color:rgba(255,255,255,0.6); max-width:500px; margin:0 auto; line-height:1.65; }
 .sk-atlas__body { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
-.sk-atlas__chat { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:20px; overflow:hidden; display:flex; flex-direction:column; transition:border-color 0.22s, box-shadow 0.22s; }
-.sk-atlas__chat:hover { border-color:rgba(255,255,255,0.22); box-shadow:0 12px 40px rgba(0,0,0,0.25); }
+.sk-atlas__chat { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:20px; overflow:hidden; display:flex; flex-direction:column; transition:border-color 0.22s; }
+.sk-atlas__chat:hover { border-color:rgba(255,255,255,0.22); }
 .sk-atlas__chatHeader { display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03); }
 .sk-atlas__avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%); display:flex; align-items:center; justify-content:center; color:#1a0d04; flex-shrink:0; box-shadow:0 4px 14px rgba(255,138,42,0.4); }
 .sk-atlas__bubbleAvatar { width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%); display:flex; align-items:center; justify-content:center; color:#1a0d04; flex-shrink:0; }
@@ -1027,8 +722,8 @@ const INJECTED_CSS = `
 .sk-atlas__fakeInput { flex:1; padding:9px 14px; border-radius:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); font-size:12px; color:rgba(255,255,255,0.25); }
 .sk-atlas__fabHint { font-size:11px; font-weight:600; color:rgba(255,138,42,0.7); white-space:nowrap; letter-spacing:0.03em; flex-shrink:0; }
 .sk-atlas__features { display:flex; flex-direction:column; gap:14px; }
-.sk-atlas__feature { display:flex; gap:14px; align-items:flex-start; padding:16px 18px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:14px; transition:border-color 0.22s, transform 0.22s, box-shadow 0.22s; }
-.sk-atlas__feature:hover { border-color:rgba(255,138,42,0.3); transform:translateX(4px); box-shadow:0 4px 20px rgba(0,0,0,0.2); }
+.sk-atlas__feature { display:flex; gap:14px; align-items:flex-start; padding:16px 18px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:14px; transition:border-color 0.22s,transform 0.22s; }
+.sk-atlas__feature:hover { border-color:rgba(255,138,42,0.3); transform:translateX(4px); }
 .sk-atlas__featureIcon { width:40px; height:40px; border-radius:10px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.25); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#ff8a2a; }
 .sk-atlas__featureTitle { font-size:14px; font-weight:700; color:#fff; margin-bottom:4px; }
 .sk-atlas__featureDesc { font-size:12.5px; color:rgba(255,255,255,0.55); line-height:1.5; }
@@ -1043,8 +738,7 @@ const INJECTED_CSS = `
 .sk-profile-banner__title span { background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
 .sk-profile-banner__sub { font-size:14px; color:rgba(255,255,255,0.6); line-height:1.6; max-width:440px; margin-bottom:28px; }
 .sk-profile-banner__perks { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.sk-profile-perk { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:12px; transition:border-color 0.2s; }
-.sk-profile-perk:hover { border-color:rgba(255,138,42,0.3); }
+.sk-profile-perk { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:12px; }
 .sk-profile-perk__icon { width:32px; height:32px; border-radius:8px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.22); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#ff8a2a; }
 .sk-profile-perk__label { font-size:12px; font-weight:700; color:#fff; margin-bottom:2px; }
 .sk-profile-perk__desc { font-size:11px; color:rgba(255,255,255,0.45); line-height:1.4; }
@@ -1057,11 +751,10 @@ const INJECTED_CSS = `
 .sk-profile-card__level { font-family:"Syne",sans-serif; font-size:18px; font-weight:800; color:#fff; margin-bottom:16px; display:flex; align-items:center; gap:6px; }
 .sk-profile-card__xp-label { font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
 .sk-profile-card__bar { height:5px; background:rgba(255,255,255,0.12); border-radius:999px; overflow:hidden; }
-.sk-profile-card__fill { height:100%; width:0%; background:linear-gradient(90deg,#ff8a2a,#ffb347); border-radius:999px; transition:width 1.2s cubic-bezier(0.22,1,0.36,1); }
-.sk-profile-card__fill.animated { width:35%; }
+.sk-profile-card__fill { height:100%; width:35%; background:linear-gradient(90deg,#ff8a2a,#ffb347); border-radius:999px; }
 .sk-profile-card__disclaimer { display:flex; align-items:flex-start; gap:6px; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08); }
 .sk-profile-card__disclaimer-text { font-size:10px; color:rgba(255,255,255,0.3); line-height:1.4; }
-.sk-profile-banner__cta { display:flex!important; align-items:center!important; justify-content:center!important; background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%)!important; border:none!important; border-radius:999px!important; color:#1a0d04!important; font-family:"DM Sans",sans-serif!important; font-size:14px!important; font-weight:700!important; height:46px!important; padding:0 28px!important; cursor:pointer; transition:filter 0.18s, transform 0.18s!important; box-shadow:0 8px 24px rgba(255,138,42,0.35); white-space:nowrap; width:220px; }
+.sk-profile-banner__cta { display:flex!important; align-items:center!important; justify-content:center!important; background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%)!important; border:none!important; border-radius:999px!important; color:#1a0d04!important; font-family:"DM Sans",sans-serif!important; font-size:14px!important; font-weight:700!important; height:46px!important; padding:0 28px!important; cursor:pointer; transition:filter 0.18s,transform 0.18s; box-shadow:0 8px 24px rgba(255,138,42,0.35); white-space:nowrap; width:220px; }
 .sk-profile-banner__cta:hover { filter:brightness(1.08)!important; transform:translateY(-2px)!important; }
 .sk-profile-banner__note { font-size:11px; color:rgba(255,255,255,0.3); text-align:center; }
 @media(max-width:820px){.sk-profile-banner{flex-direction:column;padding:32px 20px;margin:0 16px 64px} .sk-profile-banner__right{width:100%} .sk-profile-card{width:100%} .sk-profile-banner__cta{width:100%!important}}
@@ -1073,93 +766,51 @@ const INJECTED_CSS = `
 .sk-support__eyebrow { display:inline-flex; align-items:center; gap:6px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.25); border-radius:999px; padding:5px 16px; font-size:12px; font-weight:500; letter-spacing:0.04em; color:#ff8a2a; margin-bottom:16px; }
 .sk-support__title { font-family:"Syne",sans-serif!important; font-size:clamp(24px,4vw,36px)!important; font-weight:800!important; color:#fff!important; margin:0 0 10px!important; letter-spacing:-0.02em!important; }
 .sk-support__sub { font-size:14px; color:rgba(255,255,255,0.55); margin:0; }
-.sk-support__grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:32px; }
-.sk-faq { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:14px; padding:16px 20px; cursor:pointer; transition:border-color 0.22s, background 0.22s; user-select:none; }
-.sk-faq:hover, .sk-faq--open { border-color:rgba(255,138,42,0.28); background:rgba(255,138,42,0.05); }
-.sk-faq__row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.sk-faq__q { font-size:13.5px; font-weight:700; color:#fff; line-height:1.4; }
-.sk-faq__chevron { color:rgba(255,138,42,0.7); flex-shrink:0; font-size:12px; }
+.sk-support__grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:32px; }
+.sk-faq { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:14px; padding:18px 20px; transition:border-color 0.22s; }
+.sk-faq:hover { border-color:rgba(255,138,42,0.25); }
+.sk-faq__q { font-size:13.5px; font-weight:700; color:#fff; margin-bottom:8px; line-height:1.4; }
 .sk-faq__a { font-size:13px; color:rgba(255,255,255,0.5); line-height:1.6; }
 .sk-support__contact { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; padding:28px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:16px; text-align:center; }
 .sk-support__contact-text { font-size:14px; color:rgba(255,255,255,0.6); }
 .sk-support__contact-text strong { color:#fff; }
-.sk-support__email { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border-radius:999px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.3); color:#ff8a2a; font-size:13px; font-weight:600; text-decoration:none; transition:background 0.2s, transform 0.2s; }
+.sk-support__email { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border-radius:999px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.3); color:#ff8a2a; font-size:13px; font-weight:600; text-decoration:none; transition:background 0.2s,transform 0.2s; }
 .sk-support__email:hover { background:rgba(255,138,42,0.2); transform:translateY(-1px); }
 
-/* ══ RESPONSIVE ══ */
-@media(max-width:540px){
-  .sk-hero__searchInputRow { flex-direction:column; }
-  .sk-hero__searchInputRow .sk-cta { width:100%!important; }
-  .sk-hero__airportRow { flex-direction:column; align-items:flex-start; }
-  .sk-home-airport { width:100%; }
-  .sk-home-airport .ant-select { width:100%!important; }
+/* ══ MOBILE ══ */
+@media(max-width:640px){
   .sk-support__grid { grid-template-columns:1fr; }
   .sk-support { padding:0 16px 72px; }
   .sk-support__contact { flex-direction:column; padding:20px 16px; }
   .sk-support__email { width:100%; justify-content:center; }
+  .sk-hero__airportRow { flex-direction:column; align-items:center; gap:6px; margin-top:8px; }
+  .sk-home-airport { width:100%; max-width:360px; }
+  .sk-home-airport .ant-select { width:100%!important; }
+  .sk-home-airport .ant-select-selector { min-width:unset!important; width:100%!important; }
   .sk-social-proof { border-radius:12px; }
   .sk-social-proof__stat { font-size:15px; }
   .sk-trust-signals { gap:12px; }
   .sk-trust-signals span { font-size:11px; }
-  .sk-orb--1 { width:280px; height:280px; }
-  .sk-orb--2 { width:200px; height:200px; }
-  .sk-orb--3 { display:none; }
+  .sk-time-badge-wrap { padding:6px 16px 0; }
 }
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REVEAL SECTION WRAPPER
+// REVEAL WRAPPER
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RevealSection({
-  children,
-  className = "",
-  delay = 0,
-  tag: Tag = "div",
-}) {
-  const [ref, vis] = useScrollReveal(0.1);
+function Reveal({ children, className = "", delay = 0, tag: Tag = "div" }) {
+  const [ref, vis] = useScrollReveal();
+  const delayClass = delay ? `sk-d${delay}` : "";
   return (
     <Tag
       ref={ref}
-      className={`sk-reveal${vis ? " is-visible" : ""}${
-        delay ? ` sk-reveal--delay-${delay}` : ""
-      }${className ? ` ${className}` : ""}`}
+      className={`sk-reveal${
+        vis ? " is-visible" : ""
+      } ${delayClass} ${className}`.trim()}
     >
       {children}
     </Tag>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ANIMATED HERO TITLE
-// ─────────────────────────────────────────────────────────────────────────────
-
-function AnimatedHeroTitle({ lines }) {
-  // Space must live OUTSIDE the inline-block span or it collapses
-  let wordIndex = 0;
-  return (
-    <h1 className="sk-hero__title">
-      {lines.map((line, li) => (
-        <React.Fragment key={li}>
-          {line.split(" ").map((word, wi) => {
-            const delay = wordIndex++ * 80 + 100;
-            const isLast = wi === line.split(" ").length - 1;
-            return (
-              <React.Fragment key={`${li}-${wi}`}>
-                <span
-                  className="sk-hero__word"
-                  style={{ animationDelay: `${delay}ms` }}
-                >
-                  {word}
-                </span>
-                {!isLast && " "}
-              </React.Fragment>
-            );
-          })}
-          {li < lines.length - 1 && <br />}
-        </React.Fragment>
-      ))}
-    </h1>
   );
 }
 
@@ -1173,7 +824,6 @@ export default function LandingPage() {
 
   const { homeAirport, setHomeAirport, homeCode, homeCity } = useHomeAirport();
 
-  // ── Time period ──
   const [timePeriod, setTimePeriod] = useState(() =>
     getTimePeriod(new Date().getHours())
   );
@@ -1190,25 +840,17 @@ export default function LandingPage() {
   }, [timePeriod]);
   const timeMeta = TIME_PERIODS[timePeriod];
 
-  // ── Profile card XP bar animate-in ──
-  const [profileRef, profileVis] = useScrollReveal(0.3);
-
-  // ── Search query ──
   const [q, setQ] = useState(
     "10-day Japan trip under $2,500 with cherry blossoms"
   );
   const promptHistoryRef = useRef([]);
-
-  // ── AI suggestion state ──
   const [suggestion, setSuggestion] = useState(null);
   const [suggLoading, setSuggLoading] = useState(false);
   const [suggError, setSuggError] = useState(null);
   const [showSuggestion, setShowSuggestion] = useState(false);
   const debounceRef = useRef(null);
-
   const [isRouting, setIsRouting] = useState(false);
 
-  // ── Atlas chat ──
   const [visibleBubbles, setVisibleBubbles] = useState(1);
   const atlasConversation = useMemo(
     () => ATLAS_CHAT_INTRO(homeCity),
@@ -1221,7 +863,6 @@ export default function LandingPage() {
     return () => clearTimeout(t);
   }, [visibleBubbles, atlasConversation.length]);
 
-  // ── AI suggestion fetcher ──
   const triggerSuggestion = useCallback(
     (prompt) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -1259,7 +900,6 @@ export default function LandingPage() {
     [homeCity, homeCode]
   );
 
-  // Re-trigger when airport changes
   useEffect(() => {
     if (normalizePrompt(q).length >= 8) triggerSuggestion(q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1335,9 +975,6 @@ export default function LandingPage() {
 
   const goSignup = useCallback(() => nav("/register"), [nav]);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div
       className="sk-landing"
@@ -1346,10 +983,9 @@ export default function LandingPage() {
       style={{ "--sk-hero-bg": `url(${heroBg})` }}
     >
       <style>{INJECTED_CSS}</style>
-      <ScrollProgressBar />
       <div className="sk-landing__bg" />
 
-      {/* ── Time badge — inline below navbar ── */}
+      {/* ── Time badge — inline, just below navbar ── */}
       <div className="sk-time-badge-wrap">
         <div className="sk-time-badge">
           <span className="sk-time-dot" />
@@ -1359,205 +995,176 @@ export default function LandingPage() {
 
       <div className="sk-landing__content">
         {/* ══ HERO ══ */}
-        <header
-          className="sk-hero"
-          style={{ position: "relative", overflow: "hidden" }}
-        >
-          {/* Ambient orbs — colour-keyed to time of day */}
-          <div
-            className="sk-orb sk-orb--1"
-            style={{ background: timeMeta.orb1 }}
-          />
-          <div
-            className="sk-orb sk-orb--2"
-            style={{ background: timeMeta.orb2 }}
-          />
-          <div
-            className="sk-orb sk-orb--3"
-            style={{ background: timeMeta.orb1, opacity: 0.5 }}
-          />
+        <header className="sk-hero">
+          <div className="sk-hero__eyebrow">{HERO_COPY.eyebrow}</div>
+          <h1 className="sk-hero__title">
+            {HERO_COPY.title.split("\n").map((line, i, arr) => (
+              <React.Fragment key={i}>
+                {line}
+                {i < arr.length - 1 && <br />}
+              </React.Fragment>
+            ))}
+          </h1>
+          <p className="sk-hero__sub">{HERO_COPY.subtitle}</p>
 
-          <div style={{ position: "relative", zIndex: 2 }}>
-            <div className="sk-hero__eyebrow">{HERO_COPY.eyebrow}</div>
+          <div className="sk-hero__search" style={{ marginBottom: 0 }}>
+            <Input
+              size="large"
+              prefix={<SearchOutlined />}
+              value={q}
+              onChange={handleQueryChange}
+              onPressEnter={goPlan}
+              placeholder={HERO_COPY.placeholder}
+              className="sk-searchInput"
+              disabled={isRouting}
+            />
+            <Button
+              size="large"
+              type="primary"
+              className="sk-cta"
+              onClick={goPlan}
+              loading={isRouting}
+            >
+              {HERO_COPY.ctaLabel}
+            </Button>
+          </div>
 
-            <AnimatedHeroTitle lines={HERO_COPY.title} />
-
-            <p
-              className="sk-hero__sub"
-              style={{
-                opacity: 0,
-                animation: "sk-wordIn 0.6s ease 0.8s forwards",
+          <div className="sk-hero__airportRow">
+            <span className="sk-home-airport__label">
+              <EnvironmentOutlined /> Flying from
+            </span>
+            <Select
+              value={homeCode}
+              onChange={(code) => {
+                const ap = AIRPORTS.find((a) => a.code === code);
+                if (ap) setHomeAirport(ap);
               }}
+              classNames={{ popup: { root: "sk-home-airport-popup" } }}
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children || "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              className="sk-home-airport"
             >
-              {HERO_COPY.subtitle}
-            </p>
-
-            {/* Search box — uses sk-hero__search wrapper from LandingPage.css */}
-            <div className="sk-hero__search" style={{ marginBottom: 0 }}>
-              <Input
-                size="large"
-                prefix={<SearchOutlined />}
-                value={q}
-                onChange={handleQueryChange}
-                onPressEnter={goPlan}
-                placeholder={HERO_COPY.placeholder}
-                className="sk-searchInput"
-                disabled={isRouting}
-              />
-              <Button
-                size="large"
-                type="primary"
-                className="sk-cta"
-                onClick={goPlan}
-                loading={isRouting}
-              >
-                {HERO_COPY.ctaLabel}
-              </Button>
-            </div>
-
-            {/* Airport picker — sits below the search box */}
-            <div className="sk-hero__airportRow">
-              <span className="sk-home-airport__label">
-                <EnvironmentOutlined /> Flying from
-              </span>
-              <Select
-                value={homeCode}
-                onChange={(code) => {
-                  const ap = AIRPORTS.find((a) => a.code === code);
-                  if (ap) setHomeAirport(ap);
-                }}
-                classNames={{ popup: { root: "sk-home-airport-popup" } }}
-                showSearch
-                optionFilterProp="children"
-                filterOption={(input, option) =>
-                  String(option?.children || "")
-                    .toLowerCase()
-                    .includes(input.toLowerCase())
-                }
-                className="sk-home-airport"
-              >
-                {AIRPORTS.map((ap) => (
-                  <Option key={ap.code} value={ap.code}>
-                    {ap.city} ({ap.code}) — {ap.name}
-                  </Option>
-                ))}
-              </Select>
-            </div>
-
-            {/* Quick chips */}
-            <div className="sk-hero__quickActions">
-              {QUICK_CHIPS.map((chip) => (
-                <button
-                  key={chip.label}
-                  type="button"
-                  className="sk-quickChip"
-                  disabled={isRouting}
-                  onClick={() => {
-                    setQ(chip.prompt);
-                    triggerSuggestion(chip.prompt);
-                  }}
-                >
-                  <span className="sk-quickChip__icon">{chip.icon}</span>
-                  {chip.label}
-                </button>
+              {AIRPORTS.map((ap) => (
+                <Option key={ap.code} value={ap.code}>
+                  {ap.city} ({ap.code}) — {ap.name}
+                </Option>
               ))}
-            </div>
+            </Select>
+          </div>
 
-            {/* AI suggestion */}
-            <section
-              className={`sk-suggestion ${showSuggestion ? "is-visible" : ""}`}
-            >
-              <div className="sk-suggestion__bar">
-                <span className="sk-suggestion__bolt">
-                  {suggLoading ? (
-                    <LoadingOutlined spin />
-                  ) : (
-                    <ThunderboltOutlined />
-                  )}
-                </span>
-                <span className="sk-suggestion__label">
-                  {suggLoading ? "Atlas is thinking…" : "Skyrio AI Suggestion"}
-                </span>
-              </div>
-
-              {suggLoading && (
-                <div className="sk-suggestion__loading">
-                  <LoadingOutlined spin /> Personalising your suggestion from{" "}
-                  {homeCity}…
-                </div>
-              )}
-              {suggError && !suggLoading && (
-                <div className="sk-suggestion__error">{suggError}</div>
-              )}
-              {suggestion && !suggLoading && !suggError && (
-                <div className="sk-suggestion__body">
-                  <div className="sk-suggestion__left">
-                    <div className="sk-suggestion__trip">
-                      <span className="sk-suggestion__tripName">
-                        {suggestion.trip}
-                      </span>
-                      <span className="sk-suggestion__dates">
-                        {" "}
-                        — {suggestion.dates}
-                      </span>
-                    </div>
-                    <div className="sk-suggestion__fit">{suggestion.fit}</div>
-                    <div className="sk-suggestion__summary">
-                      {suggestion.summary}
-                    </div>
-                  </div>
-                  <div className="sk-suggestion__right">
-                    <div className="sk-suggestion__total">
-                      ${suggestion.total?.toLocaleString()} <span>total</span>
-                    </div>
-                    <Button
-                      className="sk-viewBtn"
-                      onClick={viewPlan}
-                      disabled={isRouting}
-                    >
-                      View plan <ArrowRightOutlined />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            {/* Social proof */}
-            <div className="sk-social-proof">
-              {SOCIAL_PROOF.map((item) => (
-                <div key={item.label} className="sk-social-proof__item">
-                  <div className="sk-social-proof__stat">{item.stat}</div>
-                  <div className="sk-social-proof__label">{item.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="sk-trust-signals">
-              {TRUST_SIGNALS.map((t) => (
-                <span key={t}>
-                  <Icon name="check" /> {t}
-                </span>
-              ))}
-            </div>
-
-            <div className="sk-hero__secondaryCta">
-              <p className="sk-hero__secondaryCta-text">
-                {HERO_COPY.secondaryCta.prompt}
-              </p>
+          <div className="sk-hero__quickActions">
+            {QUICK_CHIPS.map((chip) => (
               <button
+                key={chip.label}
                 type="button"
-                className="sk-hero__secondaryCta-btn"
-                onClick={goSignup}
+                className="sk-quickChip"
+                disabled={isRouting}
+                onClick={() => {
+                  setQ(chip.prompt);
+                  triggerSuggestion(chip.prompt);
+                }}
               >
-                {HERO_COPY.secondaryCta.label} <ArrowRightOutlined />
+                {chip.label}
               </button>
+            ))}
+          </div>
+
+          {/* AI suggestion — no box border */}
+          <section
+            className={`sk-suggestion ${showSuggestion ? "is-visible" : ""}`}
+          >
+            <div className="sk-suggestion__bar">
+              <span className="sk-suggestion__bolt">
+                {suggLoading ? (
+                  <LoadingOutlined spin />
+                ) : (
+                  <ThunderboltOutlined />
+                )}
+              </span>
+              <span className="sk-suggestion__label">
+                {suggLoading ? "Atlas is thinking…" : "Skyrio AI Suggestion"}
+              </span>
             </div>
+            {suggLoading && (
+              <div className="sk-suggestion__loading">
+                <LoadingOutlined spin /> Personalising your suggestion from{" "}
+                {homeCity}…
+              </div>
+            )}
+            {suggError && !suggLoading && (
+              <div className="sk-suggestion__error">{suggError}</div>
+            )}
+            {suggestion && !suggLoading && !suggError && (
+              <div className="sk-suggestion__body">
+                <div className="sk-suggestion__left">
+                  <div className="sk-suggestion__trip">
+                    <span className="sk-suggestion__tripName">
+                      {suggestion.trip}
+                    </span>
+                    <span className="sk-suggestion__dates">
+                      {" "}
+                      — {suggestion.dates}
+                    </span>
+                  </div>
+                  <div className="sk-suggestion__fit">{suggestion.fit}</div>
+                  <div className="sk-suggestion__summary">
+                    {suggestion.summary}
+                  </div>
+                </div>
+                <div className="sk-suggestion__right">
+                  <div className="sk-suggestion__total">
+                    ${suggestion.total?.toLocaleString()} <span>total</span>
+                  </div>
+                  <Button
+                    className="sk-viewBtn"
+                    onClick={viewPlan}
+                    disabled={isRouting}
+                  >
+                    View plan <ArrowRightOutlined />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <div className="sk-social-proof">
+            {SOCIAL_PROOF.map((item) => (
+              <div key={item.label} className="sk-social-proof__item">
+                <div className="sk-social-proof__stat">{item.stat}</div>
+                <div className="sk-social-proof__label">{item.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="sk-trust-signals">
+            {TRUST_SIGNALS.map((t) => (
+              <span key={t}>
+                <Icon name="check" /> {t}
+              </span>
+            ))}
+          </div>
+
+          <div className="sk-hero__secondaryCta">
+            <p className="sk-hero__secondaryCta-text">
+              {HERO_COPY.secondaryCta.prompt}
+            </p>
+            <button
+              type="button"
+              className="sk-hero__secondaryCta-btn"
+              onClick={goSignup}
+            >
+              {HERO_COPY.secondaryCta.label} <ArrowRightOutlined />
+            </button>
           </div>
         </header>
 
         {/* ══ EXAMPLES ══ */}
-        <div className="sk-divider" />
-        <RevealSection tag="section" className=" sk-examples">
+        <Reveal tag="section" className="sk-examples">
           <div className="sk-examples__head">
             <div className="sk-examples__kicker">
               Real plans, built instantly
@@ -1571,23 +1178,41 @@ export default function LandingPage() {
           </div>
           <div className="sk-examples__grid">
             {EXAMPLES.map((card, i) => (
-              <RevealSection key={card.key} delay={i + 1}>
-                <ExampleCard
-                  card={card}
+              <Reveal key={card.key} delay={i + 1}>
+                <button
+                  className="sk-card"
                   onClick={() => openExamplePlan(card)}
+                  type="button"
                   disabled={isRouting}
-                />
-              </RevealSection>
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <div
+                    className="sk-card__media"
+                    style={{ backgroundImage: `url(${card.img})` }}
+                  />
+                  <div className="sk-card__overlay" />
+                  <div className="sk-card__content">
+                    <div className="sk-card__title">{card.title}</div>
+                    <div className="sk-card__subtitle">{card.subtitle}</div>
+                    {card.meta && (
+                      <div className="sk-card__meta">{card.meta}</div>
+                    )}
+                    <div className="sk-card__footer">
+                      <span>View Plan</span>
+                      <ArrowRightOutlined />
+                    </div>
+                  </div>
+                </button>
+              </Reveal>
             ))}
           </div>
           <p className="sk-footline">
             No account needed to plan. Sign up when you're ready to book.
           </p>
-        </RevealSection>
+        </Reveal>
 
         {/* ══ MEET ATLAS ══ */}
-        <div className="sk-divider" />
-        <RevealSection tag="section" className=" sk-atlas">
+        <Reveal tag="section" className="sk-atlas">
           <div className="sk-atlas__head">
             <div className="sk-atlas__eyebrow">
               <Icon name="sparkle" size={11} /> Meet your travel companion
@@ -1600,10 +1225,8 @@ export default function LandingPage() {
               matters to you — it handles everything else.
             </p>
           </div>
-
           <div className="sk-atlas__body">
-            {/* Chat demo */}
-            <RevealSection delay={1}>
+            <Reveal delay={1}>
               <div className="sk-atlas__chat">
                 <div className="sk-atlas__chatHeader">
                   <div className="sk-atlas__avatar">
@@ -1656,12 +1279,10 @@ export default function LandingPage() {
                   <div className="sk-atlas__fabHint">Open Atlas AI</div>
                 </div>
               </div>
-            </RevealSection>
-
-            {/* Feature list */}
+            </Reveal>
             <div className="sk-atlas__features">
               {ATLAS_FEATURES.map((f, i) => (
-                <RevealSection key={f.title} delay={i + 1}>
+                <Reveal key={f.title} delay={i + 1}>
                   <div className="sk-atlas__feature">
                     <div className="sk-atlas__featureIcon">
                       <Icon name={f.iconKey} />
@@ -1671,15 +1292,14 @@ export default function LandingPage() {
                       <div className="sk-atlas__featureDesc">{f.desc}</div>
                     </div>
                   </div>
-                </RevealSection>
+                </Reveal>
               ))}
             </div>
           </div>
-        </RevealSection>
+        </Reveal>
 
         {/* ══ PROFILE BANNER ══ */}
-        <div className="sk-divider" />
-        <RevealSection tag="section" className=" sk-profile-banner">
+        <Reveal tag="section" className="sk-profile-banner">
           <div className="sk-profile-banner__left">
             <div className="sk-profile-banner__badge">
               <Icon name="sparkle" size={11} /> Your Skyrio Profile
@@ -1708,8 +1328,7 @@ export default function LandingPage() {
               ))}
             </div>
           </div>
-
-          <div className="sk-profile-banner__right" ref={profileRef}>
+          <div className="sk-profile-banner__right">
             <div className="sk-profile-card">
               <div className="sk-profile-card__top">
                 <div className="sk-profile-card__logo">SKYRIO</div>
@@ -1721,12 +1340,7 @@ export default function LandingPage() {
               </div>
               <div className="sk-profile-card__xp-label">XP Progress</div>
               <div className="sk-profile-card__bar">
-                {/* XP bar animates in when the section scrolls into view */}
-                <div
-                  className={`sk-profile-card__fill${
-                    profileVis ? " animated" : ""
-                  }`}
-                />
+                <div className="sk-profile-card__fill" />
               </div>
               <div className="sk-profile-card__disclaimer">
                 <svg
@@ -1767,11 +1381,10 @@ export default function LandingPage() {
               Free forever · No credit card required
             </div>
           </div>
-        </RevealSection>
+        </Reveal>
 
         {/* ══ SUPPORT / FAQ ══ */}
-        <div className="sk-divider" />
-        <RevealSection tag="section" className=" sk-support">
+        <Reveal tag="section" className="sk-support">
           <div className="sk-support__head">
             <div className="sk-support__eyebrow">
               <Icon name="chat" size={13} /> Got questions?
@@ -1783,9 +1396,12 @@ export default function LandingPage() {
           </div>
           <div className="sk-support__grid">
             {FAQS.map((faq, i) => (
-              <RevealSection key={faq.q} delay={(i % 2) + 1}>
-                <FaqItem q={faq.q} a={faq.a} />
-              </RevealSection>
+              <Reveal key={faq.q} delay={(i % 2) + 1}>
+                <div className="sk-faq">
+                  <div className="sk-faq__q">{faq.q}</div>
+                  <div className="sk-faq__a">{faq.a}</div>
+                </div>
+              </Reveal>
             ))}
           </div>
           <div className="sk-support__contact">
@@ -1799,7 +1415,7 @@ export default function LandingPage() {
               <Icon name="mail" /> skyrioofficial@gmail.com
             </a>
           </div>
-        </RevealSection>
+        </Reveal>
       </div>
     </div>
   );
