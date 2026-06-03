@@ -16,6 +16,7 @@ import {
   MapPin,
   Calendar,
   ArrowRight,
+  Trash2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
@@ -221,6 +222,31 @@ export default function SyncTogether() {
       antdMessage.error("Failed to create group.");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const deleteTrip = async (tripId, tripTitle, e) => {
+    e.stopPropagation();
+    if (
+      !window.confirm(
+        `Delete "${tripTitle || "Untitled Trip"}"? This cannot be undone.`
+      )
+    )
+      return;
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${tripId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setMyTrips((prev) => prev.filter((t) => t._id !== tripId));
+        antdMessage.success("Trip deleted");
+      } else {
+        antdMessage.error(data.error || "Failed to delete");
+      }
+    } catch (err) {
+      antdMessage.error("Failed to delete trip");
     }
   };
 
@@ -613,10 +639,42 @@ export default function SyncTogether() {
                     )}
                   </div>
                 </div>
-                <ArrowRight
-                  size={18}
-                  style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }}
-                />
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                    flexShrink: 0,
+                  }}
+                >
+                  <ArrowRight
+                    size={18}
+                    style={{ color: "rgba(255,255,255,0.25)" }}
+                  />
+                  <button
+                    onClick={(e) => deleteTrip(trip._id, trip.title, e)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 4,
+                      color: "rgba(255,255,255,0.15)",
+                      transition: "color 0.15s",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.color = "#ff4d4f")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.color = "rgba(255,255,255,0.15)")
+                    }
+                    title="Delete trip"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             );
           })}

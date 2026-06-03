@@ -546,6 +546,29 @@ router.post("/:id/member", async (req, res) => {
 });
 
 /* ──────────────────────────────────────────────
+   DELETE /api/sync-together/:id
+   Delete a group (owner only).
+   ────────────────────────────────────────────── */
+router.delete("/:id", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+    if (String(group.owner) !== String(userId)) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can delete this trip" });
+    }
+    await SyncGroup.findByIdAndDelete(req.params.id);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[sync-together] delete error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to delete" });
+  }
+});
+
+/* ──────────────────────────────────────────────
    PATCH /api/sync-together/:id/member-airport
    Update your own departure airport.
    Body: { departureAirport: "JFK" }
@@ -656,6 +679,31 @@ router.get("/:id/chat", async (req, res) => {
     return res
       .status(500)
       .json({ ok: false, error: "Failed to fetch messages" });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   DELETE /api/sync-together/:id
+   Delete a group (owner only).
+   ────────────────────────────────────────────── */
+router.delete("/:id", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+
+    if (String(group.owner) !== String(userId)) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can delete this trip" });
+    }
+
+    await SyncGroup.findByIdAndDelete(req.params.id);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[sync-together] delete error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to delete group" });
   }
 });
 
