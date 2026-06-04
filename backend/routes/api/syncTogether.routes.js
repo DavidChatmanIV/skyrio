@@ -2,6 +2,7 @@ import { Router } from "express";
 import User from "../../models/user.js";
 import SyncGroup from "../../models/SyncGroup.js";
 import { auth as authRequired } from "../../middleware/auth.js";
+import { sendTripInvite, sendPlanReady } from "../../services/email.js";
 
 const router = Router();
 router.use(authRequired);
@@ -139,6 +140,38 @@ router.post("/", async (req, res) => {
         },
       ],
     });
+
+    // Send invite emails (non-blocking — don't fail the request if email fails)
+    try {
+      const owner = await User.findById(ownerId)
+        .select("name username email")
+        .lean();
+      const inviterName = owner?.name || owner?.username || "Someone";
+      const memberNames = memberDocs
+        .map((m) => m.name || m.email)
+        .filter(Boolean)
+        .join(", ");
+
+      for (const m of memberDocs) {
+        let email = m.email;
+        if (!email && m.user) {
+          const u = await User.findById(m.user).select("email").lean();
+          email = u?.email;
+        }
+        if (email) {
+          sendTripInvite({
+            to: email,
+            inviterName,
+            tripTitle: group.title,
+            destination: null,
+            inviteCode: group.inviteCode,
+            memberNames,
+          }).catch((err) => console.error("[email] invite error:", err));
+        }
+      }
+    } catch (emailErr) {
+      console.error("[email] Failed to send invites:", emailErr.message);
+    }
 
     return res.status(201).json({ ok: true, group: group.toSafeJSON() });
   } catch (err) {
@@ -531,6 +564,29 @@ router.post("/:id/member", async (req, res) => {
       `${name || email || "A traveler"} was added`
     );
     await group.save();
+
+    // Send invite email to new member (non-blocking)
+    try {
+      const owner = await User.findById(userId).select("name username").lean();
+      const inviterName = owner?.name || owner?.username || "Someone";
+      let memberEmail = email;
+      if (!memberEmail && newUserId) {
+        const u = await User.findById(newUserId).select("email").lean();
+        memberEmail = u?.email;
+      }
+      if (memberEmail) {
+        sendTripInvite({
+          to: memberEmail,
+          inviterName,
+          tripTitle: group.title,
+          destination: group.destination,
+          inviteCode: group.inviteCode,
+          memberNames: null,
+        }).catch((err) => console.error("[email] invite error:", err));
+      }
+    } catch (emailErr) {
+      console.error("[email] Failed to send invite:", emailErr.message);
+    }
 
     const populated = await SyncGroup.findById(group._id)
       .populate("owner", "username name avatar")
