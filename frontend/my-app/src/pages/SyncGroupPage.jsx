@@ -60,7 +60,6 @@ import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
-
 function authHeaders() {
   const token = localStorage.getItem("token");
   return {
@@ -70,22 +69,20 @@ function authHeaders() {
 }
 function getHomeAirport() {
   try {
-    const data = localStorage.getItem("skyrio_home_airport");
-    return data ? JSON.parse(data) : null;
+    return JSON.parse(localStorage.getItem("skyrio_home_airport"));
   } catch {
     return null;
   }
 }
 function getCurrentUserId() {
   try {
-    const data = localStorage.getItem("user");
-    return data ? JSON.parse(data).id : null;
+    return JSON.parse(localStorage.getItem("user")).id;
   } catch {
     return null;
   }
 }
 
-// ─── Airport Search Input ─────────────────────────────────────────────────────
+/* ═══ Airport Search ═══ */
 function AirportSearchInput({ value, onChange, placeholder }) {
   const [query, setQuery] = useState(value || "");
   const [results, setResults] = useState([]);
@@ -93,7 +90,6 @@ function AirportSearchInput({ value, onChange, placeholder }) {
   const [showDrop, setShowDrop] = useState(false);
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
-
   const searchAirports = useCallback(async (q) => {
     if (!q || q.trim().length < 2) {
       setResults([]);
@@ -115,42 +111,37 @@ function AirportSearchInput({ value, onChange, placeholder }) {
       setSearching(false);
     }
   }, []);
-
   const handleChange = (e) => {
     const val = e.target.value;
     setQuery(val);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => searchAirports(val), 250);
   };
-
-  const selectAirport = (airport) => {
-    const code = airport.code || airport.iata || airport.iata_code || "";
-    const city = airport.city || airport.municipality || "";
-    setQuery(`${code} — ${airport.name || city}`);
+  const selectAirport = (ap) => {
+    const code = ap.code || ap.iata || ap.iata_code || "";
+    setQuery(`${code} — ${ap.name || ap.city || ""}`);
     setShowDrop(false);
     setResults([]);
-    onChange(code, airport);
+    onChange(code, ap);
   };
-
   useEffect(() => {
-    const handler = (e) => {
+    const h = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target))
         setShowDrop(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
   useEffect(() => {
     if (value && !query) setQuery(value);
   }, [value]);
-
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
       <Input
         className="sk-sync-input"
         value={query}
         onChange={handleChange}
-        placeholder={placeholder || "Search airport (e.g. EWR, Newark)"}
+        placeholder={placeholder || "Search airport"}
         prefix={<SearchOutlined style={{ color: "#ff8a2a" }} />}
         suffix={
           searching ? (
@@ -166,8 +157,6 @@ function AirportSearchInput({ value, onChange, placeholder }) {
         <div className="sk-sync-search-dropdown">
           {results.map((ap, i) => {
             const code = ap.code || ap.iata || ap.iata_code || "";
-            const city = ap.city || ap.municipality || "";
-            const country = ap.country || ap.country_name || "";
             return (
               <div
                 key={`${code}-${i}`}
@@ -190,11 +179,11 @@ function AirportSearchInput({ value, onChange, placeholder }) {
                 </div>
                 <div className="sk-sync-search-item-info">
                   <span className="sk-sync-search-item-name">
-                    {code} — {ap.name || city}
+                    {code} — {ap.name || ap.city || ""}
                   </span>
                   <span className="sk-sync-search-item-handle">
-                    {city}
-                    {country ? `, ${country}` : ""}
+                    {ap.city || ""}
+                    {ap.country ? `, ${ap.country}` : ""}
                   </span>
                 </div>
               </div>
@@ -206,82 +195,63 @@ function AirportSearchInput({ value, onChange, placeholder }) {
   );
 }
 
-// ─── Atlas Plan Renderer ──────────────────────────────────────────────────────
-function formatNumbers(text) {
-  return text.replace(
+/* ═══ Atlas Plan Renderer ═══ */
+function formatNumbers(t) {
+  return t.replace(
     /\$(\d{4,})(\.\d+)?/g,
-    (_, int, dec) => `$${parseInt(int).toLocaleString("en-US")}${dec || ""}`
+    (_, i, d) => `$${parseInt(i).toLocaleString("en-US")}${d || ""}`
   );
 }
-
 function AtlasPlanRenderer({ plan }) {
   if (!plan) return null;
-  const lines = plan.split("\n");
-  const sections = [];
-  let current = null;
+  const lines = plan.split("\n"),
+    sections = [];
+  let cur = null;
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
-    const h3Match = line.match(/^###\s+(?:\d+\.\s+)?(.+)/);
-    const boldHeader = line.match(/^\*\*([^*]+)\*\*\s*:?\s*$/);
-    if (h3Match || boldHeader) {
-      if (current) sections.push(current);
-      current = {
-        title: (h3Match?.[1] || boldHeader?.[1] || "")
-          .replace(/[*_]/g, "")
-          .trim(),
+    const h3 = line.match(/^###\s+(?:\d+\.\s+)?(.+)/);
+    const bold = line.match(/^\*\*([^*]+)\*\*\s*:?\s*$/);
+    if (h3 || bold) {
+      if (cur) sections.push(cur);
+      cur = {
+        title: (h3?.[1] || bold?.[1] || "").replace(/[*_]/g, "").trim(),
         lines: [],
       };
-    } else if (current) {
-      current.lines.push(line);
-    } else {
-      if (!sections.length) current = { title: "", lines: [line] };
-    }
+    } else if (cur) cur.lines.push(line);
+    else if (!sections.length) cur = { title: "", lines: [line] };
   }
-  if (current) sections.push(current);
-
-  const sectionIcon = (title) => {
-    const t = title.toLowerCase();
-    if (t.includes("flight")) return <Plane size={15} />;
-    if (t.includes("hotel") || t.includes("accommodat") || t.includes("stay"))
+  if (cur) sections.push(cur);
+  const icon = (t) => {
+    const l = t.toLowerCase();
+    if (l.includes("flight")) return <Plane size={15} />;
+    if (l.includes("hotel") || l.includes("accommodat"))
       return <Hotel size={15} />;
-    if (t.includes("itinerary") || t.includes("day"))
+    if (l.includes("itinerary") || l.includes("day"))
       return <Calendar size={15} />;
-    if (t.includes("budget") || t.includes("cost") || t.includes("price"))
+    if (l.includes("budget") || l.includes("cost"))
       return <DollarSign size={15} />;
-    if (t.includes("tip") || t.includes("coord") || t.includes("group"))
-      return <Users size={15} />;
-    if (t.includes("excursion") || t.includes("activit") || t.includes("tour"))
-      return <Compass size={15} />;
+    if (l.includes("tip") || l.includes("coord")) return <Users size={15} />;
     return <Info size={15} />;
   };
-
-  const renderLine = (rawLine, idx) => {
-    const line = formatNumbers(rawLine);
-    const bulletMatch = line.match(/^[-•*]\s+(.+)/);
-    const numberedMatch = line.match(/^\d+\.\s+(.+)/);
-    const content = bulletMatch?.[1] || numberedMatch?.[1] || line;
+  const renderLine = (raw, idx) => {
+    const line = formatNumbers(raw);
+    const bullet = line.match(/^[-•*]\s+(.+)/);
+    const num = line.match(/^\d+\.\s+(.+)/);
+    const content = bullet?.[1] || num?.[1] || line;
     const parts = content.split(/\*\*(.+?)\*\*/g);
-    const formatted = parts.map((p, i) =>
+    const fmt = parts.map((p, i) =>
       i % 2 === 1 ? (
-        <strong key={i} style={{ color: "#fff", fontWeight: 700 }}>
+        <strong key={i} style={{ color: "#fff" }}>
           {p}
         </strong>
       ) : (
         p
       )
     );
-    if (bulletMatch || numberedMatch) {
+    if (bullet || num)
       return (
-        <div
-          key={idx}
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 8,
-            marginBottom: 6,
-          }}
-        >
+        <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
           <span
             style={{
               color: "#ff8a2a",
@@ -290,7 +260,7 @@ function AtlasPlanRenderer({ plan }) {
               fontSize: 12,
             }}
           >
-            {numberedMatch ? `${rawLine.match(/^(\d+)\./)?.[1]}.` : "•"}
+            {num ? `${raw.match(/^(\d+)\./)?.[1]}.` : "•"}
           </span>
           <span
             style={{
@@ -299,11 +269,10 @@ function AtlasPlanRenderer({ plan }) {
               lineHeight: 1.6,
             }}
           >
-            {formatted}
+            {fmt}
           </span>
         </div>
       );
-    }
     return (
       <p
         key={idx}
@@ -311,14 +280,13 @@ function AtlasPlanRenderer({ plan }) {
           color: "rgba(255,255,255,0.75)",
           fontSize: 14,
           lineHeight: 1.65,
-          margin: "0 0 6px 0",
+          margin: "0 0 6px",
         }}
       >
-        {formatted}
+        {fmt}
       </p>
     );
   };
-
   return (
     <div
       style={{
@@ -328,9 +296,9 @@ function AtlasPlanRenderer({ plan }) {
         marginTop: 4,
       }}
     >
-      {sections.map((section, si) => (
+      {sections.map((s, i) => (
         <div
-          key={si}
+          key={i}
           style={{
             background: "rgba(255,255,255,0.03)",
             border: "1px solid rgba(255,255,255,0.08)",
@@ -338,7 +306,7 @@ function AtlasPlanRenderer({ plan }) {
             overflow: "hidden",
           }}
         >
-          {section.title && (
+          {s.title && (
             <div
               style={{
                 display: "flex",
@@ -350,15 +318,15 @@ function AtlasPlanRenderer({ plan }) {
               }}
             >
               <span style={{ color: "#ff8a2a", flexShrink: 0 }}>
-                {sectionIcon(section.title)}
+                {icon(s.title)}
               </span>
               <span style={{ color: "#ff8a2a", fontWeight: 700, fontSize: 13 }}>
-                {section.title}
+                {s.title}
               </span>
             </div>
           )}
           <div style={{ padding: "14px 16px" }}>
-            {section.lines.map((line, li) => renderLine(line, li))}
+            {s.lines.map((l, li) => renderLine(l, li))}
           </div>
         </div>
       ))}
@@ -366,7 +334,48 @@ function AtlasPlanRenderer({ plan }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+/* ═══ SECTION WRAPPER — consistent card style ═══ */
+const Section = ({ children, mt = 20 }) => (
+  <div
+    style={{
+      marginTop: mt,
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      padding: "20px 18px",
+      backdropFilter: "blur(8px)",
+    }}
+  >
+    {children}
+  </div>
+);
+const SectionTitle = ({ icon, children, right }) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 14,
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        fontSize: 15,
+        fontWeight: 700,
+        color: "#fff",
+      }}
+    >
+      {icon}
+      {children}
+    </div>
+    {right}
+  </div>
+);
+
+/* ═══ MAIN COMPONENT ═══ */
 export default function SyncGroupPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -412,12 +421,10 @@ export default function SyncGroupPage() {
   const addWrapperRef = useRef(null);
 
   useEffect(() => {
-    const home = getHomeAirport();
-    if (home?.code) {
-      setDepartureAirport(home.code);
-      setDepartureDisplay(
-        home.city ? `${home.code} — ${home.city}` : home.code
-      );
+    const h = getHomeAirport();
+    if (h?.code) {
+      setDepartureAirport(h.code);
+      setDepartureDisplay(h.city ? `${h.code} — ${h.city}` : h.code);
     }
   }, []);
 
@@ -443,14 +450,13 @@ export default function SyncGroupPage() {
           setAtlasPlan(data.group.plan);
           setAtlasMessages(data.group.atlasMessages || []);
         }
-        if (data.group.dateRangeStart && data.group.dateRangeEnd) {
+        if (data.group.dateRangeStart && data.group.dateRangeEnd)
           setDateRange([
             dayjs(data.group.dateRangeStart),
             dayjs(data.group.dateRangeEnd),
           ]);
-        }
       } else antdMessage.error(data.error || "Group not found");
-    } catch {
+    } catch (err) {
       antdMessage.error("Failed to load group");
     } finally {
       setLoading(false);
@@ -470,20 +476,21 @@ export default function SyncGroupPage() {
   const isMember = isOwner || !!myMember;
   const hasPlan = !!group?.plan;
   const isBooked = group?.status === "booked";
-  const openChangeRequests =
+  const openCRs =
     group?.changeRequests?.filter((cr) => cr.status === "open") || [];
   const approvedCount = group?.members?.filter((m) => m.approved).length || 0;
   const totalMembers = group?.members?.length || 0;
   const allApproved = totalMembers > 0 && approvedCount === totalMembers;
   const myApproval = myMember?.approved || false;
 
+  /* ── Actions ── */
   const shareGroup = async () => {
     const link = `${window.location.origin}/sync-together/join/${group?.inviteCode}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: `Join: ${group?.title}`, url: link });
-      } catch (err) {
-        if (err.name !== "AbortError") copyLink(link);
+      } catch (e) {
+        if (e.name !== "AbortError") copyLink(link);
       }
     } else copyLink(link);
   };
@@ -516,8 +523,8 @@ export default function SyncGroupPage() {
         setGroup(data.group);
         setEditing(false);
         antdMessage.success("Trip details saved");
-      } else antdMessage.error(data.error || "Save failed");
-    } catch {
+      } else antdMessage.error(data.error);
+    } catch (err) {
       antdMessage.error("Failed to save");
     } finally {
       setSaving(false);
@@ -531,76 +538,71 @@ export default function SyncGroupPage() {
     }
     setPlanLoading(true);
     setAtlasPlan("");
-    const memberNames = group.members
+    const names = group.members
       ?.map((m) => m.user?.name || m.name || m.email)
       .filter(Boolean)
       .join(", ");
-    const travelerCount = (group.members?.length || 0) + 1;
-    const tripDays =
+    const count = (group.members?.length || 0) + 1;
+    const days =
       dateRange[0] && dateRange[1]
         ? dateRange[1].diff(dateRange[0], "day")
         : null;
-    const homeAirport = departureAirport || "EWR";
-    const memberAirports =
+    const home = departureAirport || "EWR";
+    const airports =
       group.members
-        ?.map((m) => {
-          const name = m.user?.name || m.name || m.email;
-          const airport = m.departureAirport || homeAirport;
-          return `  - ${name}: ${airport}`;
-        })
+        ?.map(
+          (m) =>
+            `  - ${m.user?.name || m.name || m.email}: ${
+              m.departureAirport || home
+            }`
+        )
         .join("\n") || "";
-    const cabinLabel =
+    const cabin =
       {
         economy: "economy",
         premium_economy: "premium economy",
         business: "business",
         first: "first class",
       }[cabinClass] || "economy";
-    const timeLabel =
+    const time =
       {
         morning: "morning (5am-12pm)",
         afternoon: "afternoon (12pm-5pm)",
         night: "evening/night (5pm-12am)",
         any: "any time",
       }[departureTime] || "any time";
-    let changeContext = "";
-    if (openChangeRequests.length > 0) {
-      changeContext =
-        "\n\nGROUP CHANGE REQUESTS TO ADDRESS:\n" +
-        openChangeRequests
-          .map((cr) => `- ${cr.user?.name || "A member"}: "${cr.message}"`)
+    let crCtx = "";
+    if (openCRs.length > 0)
+      crCtx =
+        "\n\nCHANGE REQUESTS:\n" +
+        openCRs
+          .map((cr) => `- ${cr.user?.name || "Member"}: "${cr.message}"`)
           .join("\n");
-    }
-    const prompt = `I'm planning a group trip to ${destination} with ${travelerCount} travelers (me + ${memberNames}).\n\nDETAILS:\n- Organizer departure: ${homeAirport}\n- Destination: ${destination}\n- Cabin class: ${cabinLabel}\n- Preferred departure time: ${timeLabel}\n- Departure airports:\n  - Me (organizer): ${homeAirport}\n${memberAirports}\n${
-      tripDays ? `- Trip length: ${tripDays} days` : ""
-    }\n${
-      dateRange[0]
-        ? `- Dates: ${dateRange[0].format(
-            "YYYY-MM-DD"
-          )} to ${dateRange[1].format("YYYY-MM-DD")}`
-        : ""
-    }\n${
-      budget ? `- Budget per person: $${budget}` : ""
-    }\n- Travelers: ${travelerCount}\n${changeContext}\n\nIMPORTANT: Some travelers may depart from different airports — search flights per airport if they differ. Format prices with commas (e.g. $1,234.56). Use ### for sections.\n\nPlease:\n1. Search for real ${cabinLabel} flights to ${destination}${
-      dateRange[0] ? ` departing ${dateRange[0].format("YYYY-MM-DD")}` : ""
+    const prompt = `Plan a group trip to ${destination} with ${count} travelers (me + ${names}).\n\nDETAILS:\n- Organizer: ${home}\n- Destination: ${destination}\n- Cabin: ${cabin}\n- Time: ${time}\n- Airports:\n  - Me: ${home}\n${airports}\n${
+      days ? `- ${days} days` : ""
     }${
-      dateRange[1] ? ` returning ${dateRange[1].format("YYYY-MM-DD")}` : ""
-    } — prefer ${timeLabel} departures. Note flight options per departure airport if they differ.\n2. Recommend the best options with actual prices\n3. Suggest accommodation for the group\n4. Create a day-by-day itinerary\n5. Budget breakdown per person\n6. Weather expectations for ${destination}\n7. Group coordination tips\n\nFormat clearly with ### sections.`;
-    const newMessages = [{ role: "user", content: prompt }];
+      dateRange[0]
+        ? `\n- ${dateRange[0].format("YYYY-MM-DD")} to ${dateRange[1].format(
+            "YYYY-MM-DD"
+          )}`
+        : ""
+    }${
+      budget ? `\n- Budget: $${budget}/person` : ""
+    }\n- ${count} travelers${crCtx}\n\nSearch different airports if they differ. Use commas in prices. Use ### headers.\n\n1. Real ${cabin} flights — prefer ${time}\n2. Best options with prices\n3. Accommodation\n4. Day-by-day itinerary\n5. Budget breakdown\n6. Weather\n7. Group tips`;
     try {
       const res = await fetch(`${API_BASE}/atlas/chat`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({
-          messages: newMessages,
-          context: { destination, budget, tripDays },
+          messages: [{ role: "user", content: prompt }],
+          context: { destination, budget, tripDays: days },
         }),
       });
       const data = await res.json();
       if (data.ok) {
         setAtlasPlan(data.reply);
         const msgs = [
-          ...newMessages,
+          { role: "user", content: prompt },
           { role: "assistant", content: data.reply },
         ];
         setAtlasMessages(msgs);
@@ -611,7 +613,7 @@ export default function SyncGroupPage() {
         });
         await fetchGroup();
       } else antdMessage.error("Atlas couldn't generate a plan");
-    } catch {
+    } catch (err) {
       antdMessage.error("Failed to reach Atlas");
     } finally {
       setPlanLoading(false);
@@ -621,13 +623,12 @@ export default function SyncGroupPage() {
   const askFollowUp = async () => {
     if (!followUp.trim()) return;
     setFollowUpLoading(true);
-    const newMessages = [
+    const msgs = [
       ...atlasMessages,
       {
         role: "user",
         content:
-          followUp.trim() +
-          "\n\nIMPORTANT: Format prices with commas (e.g. $1,234.56). Use ### for section headers.",
+          followUp.trim() + "\n\nFormat prices with commas. Use ### headers.",
       },
     ];
     try {
@@ -635,33 +636,29 @@ export default function SyncGroupPage() {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({
-          messages: newMessages,
+          messages: msgs,
           context: { destination, budget },
         }),
       });
       const data = await res.json();
       if (data.ok) {
         setAtlasPlan(data.reply);
-        const msgs = [
-          ...newMessages,
-          { role: "assistant", content: data.reply },
-        ];
-        setAtlasMessages(msgs);
+        const all = [...msgs, { role: "assistant", content: data.reply }];
+        setAtlasMessages(all);
         setFollowUp("");
         await fetch(`${API_BASE}/sync-together/${id}/plan`, {
           method: "POST",
           headers: authHeaders(),
-          body: JSON.stringify({ plan: data.reply, atlasMessages: msgs }),
+          body: JSON.stringify({ plan: data.reply, atlasMessages: all }),
         });
         await fetchGroup();
       }
-    } catch {
+    } catch (err) {
       antdMessage.error("Failed to reach Atlas");
     } finally {
       setFollowUpLoading(false);
     }
   };
-
   const approvePlan = async () => {
     setApproving(true);
     try {
@@ -673,16 +670,16 @@ export default function SyncGroupPage() {
       if (data.ok) {
         setGroup(data.group);
         antdMessage.success(
-          data.allApproved ? "Everyone approved!" : "Your approval recorded"
+          data.allApproved ? "Everyone approved!" : "Approval recorded"
         );
       } else antdMessage.error(data.error);
-    } catch {
+    } catch (err) {
       antdMessage.error("Approval failed");
     } finally {
       setApproving(false);
     }
   };
-  const submitChangeRequest = async () => {
+  const submitCR = async () => {
     if (!changeMsg.trim()) return;
     setChangeSending(true);
     try {
@@ -700,7 +697,7 @@ export default function SyncGroupPage() {
         setChangeMsg("");
         antdMessage.success("Change request submitted");
       } else antdMessage.error(data.error);
-    } catch {
+    } catch (err) {
       antdMessage.error("Failed to submit");
     } finally {
       setChangeSending(false);
@@ -718,13 +715,70 @@ export default function SyncGroupPage() {
         setGroup(data.group);
         antdMessage.success("Trip confirmed!");
       } else antdMessage.error(data.error);
-    } catch {
+    } catch (err) {
       antdMessage.error("Confirmation failed");
     } finally {
       setConfirming(false);
     }
   };
+  const deleteGroup = async () => {
+    setShowDeleteConfirm(false);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        antdMessage.success("Trip deleted");
+        navigate("/sync-together");
+      } else antdMessage.error(data.error);
+    } catch (err) {
+      antdMessage.error("Failed to delete");
+    }
+  };
+  const renameTrip = async () => {
+    if (!titleInput.trim()) {
+      setEditingTitle(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ title: titleInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        setEditingTitle(false);
+      } else antdMessage.error(data.error);
+    } catch (err) {
+      antdMessage.error("Failed to rename");
+    }
+  };
+  const updateMyAirport = async (code) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/sync-together/${id}/member-airport`,
+        {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ departureAirport: code }),
+        }
+      );
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        setEditingMyAirport(false);
+        antdMessage.success(`Airport set to ${code}`);
+      } else antdMessage.error(data.error);
+    } catch (err) {
+      antdMessage.error("Failed to update airport");
+    }
+  };
 
+  /* ── Member management ── */
   const searchUsersToAdd = useCallback(async (q) => {
     if (!q || q.trim().length < 2) {
       setAddResults([]);
@@ -742,17 +796,19 @@ export default function SyncGroupPage() {
         setAddResults(data.users || []);
         setShowAddDrop(true);
       }
-    } catch {
+    } catch (err) {
       setAddResults([]);
     } finally {
       setAddSearching(false);
     }
   }, []);
   const handleAddInputChange = (e) => {
-    const val = e.target.value;
-    setAddInput(val);
+    setAddInput(e.target.value);
     clearTimeout(addDebounceRef.current);
-    addDebounceRef.current = setTimeout(() => searchUsersToAdd(val), 300);
+    addDebounceRef.current = setTimeout(
+      () => searchUsersToAdd(e.target.value),
+      300
+    );
   };
   const addMemberToGroup = async (user) => {
     try {
@@ -771,106 +827,48 @@ export default function SyncGroupPage() {
         antdMessage.success(
           `${user.name || user.username || user.email} added`
         );
-      } else antdMessage.error(data.error || "Failed to add");
-    } catch {
-      antdMessage.error("Failed to add member");
+      } else antdMessage.error(data.error);
+    } catch (err) {
+      antdMessage.error("Failed to add");
     }
     setAddInput("");
     setAddResults([]);
     setShowAddDrop(false);
   };
-  const addByEmailDirect = () => {
-    const val = addInput.trim();
-    if (!val) return;
+  const addByEmail = () => {
+    const v = addInput.trim();
+    if (!v) return;
     if (showAddDrop && addResults.length > 0) {
       addMemberToGroup(addResults[0]);
       return;
     }
-    addMemberToGroup({ email: val, name: val });
+    addMemberToGroup({ email: v, name: v });
   };
-  const removeMember = async (memberId, memberName) => {
+  const removeMember = async (mid, name) => {
     try {
-      const res = await fetch(
-        `${API_BASE}/sync-together/${id}/member/${memberId}`,
-        { method: "DELETE", headers: authHeaders() }
-      );
-      const data = await res.json();
-      if (data.ok) {
-        setGroup(data.group);
-        antdMessage.success(`${memberName} removed`);
-      } else antdMessage.error(data.error || "Failed to remove");
-    } catch {
-      antdMessage.error("Failed to remove member");
-    }
-  };
-  useEffect(() => {
-    const handler = (e) => {
-      if (addWrapperRef.current && !addWrapperRef.current.contains(e.target))
-        setShowAddDrop(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const renameTrip = async () => {
-    if (!titleInput.trim()) {
-      setEditingTitle(false);
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE}/sync-together/${id}`, {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify({ title: titleInput.trim() }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setGroup(data.group);
-        setEditingTitle(false);
-      } else antdMessage.error(data.error);
-    } catch {
-      antdMessage.error("Failed to rename");
-    }
-  };
-
-  const deleteGroup = async () => {
-    setShowDeleteConfirm(false);
-    try {
-      const res = await fetch(`${API_BASE}/sync-together/${id}`, {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/member/${mid}`, {
         method: "DELETE",
         headers: authHeaders(),
       });
       const data = await res.json();
       if (data.ok) {
-        antdMessage.success("Trip deleted");
-        navigate("/sync-together");
+        setGroup(data.group);
+        antdMessage.success(`${name} removed`);
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to delete");
+      antdMessage.error("Failed to remove");
     }
   };
+  useEffect(() => {
+    const h = (e) => {
+      if (addWrapperRef.current && !addWrapperRef.current.contains(e.target))
+        setShowAddDrop(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
 
-  const updateMyAirport = async (code) => {
-    try {
-      const res = await fetch(
-        `${API_BASE}/sync-together/${id}/member-airport`,
-        {
-          method: "PATCH",
-          headers: authHeaders(),
-          body: JSON.stringify({ departureAirport: code }),
-        }
-      );
-      const data = await res.json();
-      if (data.ok) {
-        setGroup(data.group);
-        setEditingMyAirport(false);
-        antdMessage.success(`Airport set to ${code}`);
-      } else antdMessage.error(data.error);
-    } catch {
-      antdMessage.error("Failed to update airport");
-    }
-  };
-
+  /* ── Weather & Chat ── */
   const fetchWeather = async (city) => {
     if (!city) return;
     setWeatherLoading(true);
@@ -882,7 +880,7 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (data.success) setWeather(data);
       else setWeather(null);
-    } catch {
+    } catch (err) {
       setWeather(null);
     } finally {
       setWeatherLoading(false);
@@ -891,8 +889,7 @@ export default function SyncGroupPage() {
   useEffect(() => {
     if (group?.destination) fetchWeather(group.destination);
   }, [group?.destination]);
-
-  const sendChatMessage = async () => {
+  const sendChat = async () => {
     if (!chatInput.trim()) return;
     setChatSending(true);
     try {
@@ -903,20 +900,21 @@ export default function SyncGroupPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        setChatMessages((prev) => [...prev, data.message]);
+        setChatMessages((p) => [...p, data.message]);
         setChatInput("");
         setTimeout(
           () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }),
           100
         );
       } else antdMessage.error(data.error);
-    } catch {
+    } catch (err) {
       antdMessage.error("Failed to send");
     } finally {
       setChatSending(false);
     }
   };
 
+  /* ── Loading / Not Found ── */
   if (loading)
     return (
       <section className="sk-sync-section">
@@ -944,18 +942,15 @@ export default function SyncGroupPage() {
       </section>
     );
 
-  const statusConfig = {
-    draft: { label: "Draft", color: "rgba(255,255,255,0.45)" },
-    inviting: { label: "Invitations Sent", color: "#ff8a2a" },
-    planning: { label: "Planning", color: "#ff8a2a" },
-    reviewing: { label: "Reviewing Plan", color: "#1890ff" },
-    confirmed: { label: "All Approved", color: "#52c41a" },
-    booked: { label: "Booked", color: "#52c41a" },
-    completed: { label: "Completed", color: "rgba(255,255,255,0.45)" },
-    cancelled: { label: "Cancelled", color: "#ff4d4f" },
-  };
-  const sc = statusConfig[group.status] || statusConfig.draft;
-  const hasTripDetails = group.destination || group.dateRangeStart;
+  const sc = {
+    draft: { l: "Draft", c: "rgba(255,255,255,0.45)" },
+    inviting: { l: "Invitations Sent", c: "#ff8a2a" },
+    planning: { l: "Planning", c: "#ff8a2a" },
+    reviewing: { l: "Reviewing Plan", c: "#1890ff" },
+    confirmed: { l: "All Approved", c: "#52c41a" },
+    booked: { l: "Booked", c: "#52c41a" },
+    cancelled: { l: "Cancelled", c: "#ff4d4f" },
+  }[group.status] || { l: "Draft", c: "rgba(255,255,255,0.45)" };
 
   return (
     <section className="sk-sync-section">
@@ -963,21 +958,21 @@ export default function SyncGroupPage() {
         type="text"
         icon={<ArrowLeftOutlined />}
         onClick={() => navigate("/sync-together")}
-        style={{ color: "#ff8a2a", marginBottom: 16, padding: 0 }}
+        style={{ color: "#ff8a2a", marginBottom: 12, padding: 0 }}
       >
         Back to Sync Together
       </Button>
 
-      {/* ── Progress Stepper ── */}
+      {/* ═══ PROGRESS STEPPER ═══ */}
       {(() => {
         const steps = [
-          { key: "inviting", label: "Invite" },
-          { key: "planning", label: "Details" },
-          { key: "reviewing", label: "Plan" },
-          { key: "confirmed", label: "Review" },
-          { key: "booked", label: "Booked" },
+          { k: "inviting", l: "Invite" },
+          { k: "planning", l: "Details" },
+          { k: "reviewing", l: "Plan" },
+          { k: "confirmed", l: "Review" },
+          { k: "booked", l: "Booked" },
         ];
-        const statusOrder = [
+        const order = [
           "draft",
           "inviting",
           "planning",
@@ -986,25 +981,23 @@ export default function SyncGroupPage() {
           "booked",
           "completed",
         ];
-        const currentIdx = statusOrder.indexOf(group.status);
+        const ci = order.indexOf(group.status);
         return (
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 0,
-              marginBottom: 8,
-              overflowX: "auto",
-              paddingBottom: 4,
+              marginBottom: 12,
+              padding: "12px 0",
             }}
           >
-            {steps.map((step, i) => {
-              const stepIdx = statusOrder.indexOf(step.key);
-              const isActive = currentIdx >= stepIdx;
-              const isCurrent = group.status === step.key;
+            {steps.map((s, i) => {
+              const si = order.indexOf(s.k);
+              const active = ci >= si;
+              const curr = group.status === s.k;
               return (
                 <div
-                  key={step.key}
+                  key={s.k}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -1015,14 +1008,14 @@ export default function SyncGroupPage() {
                   <div style={{ textAlign: "center", flex: 1 }}>
                     <div
                       style={{
-                        width: 28,
-                        height: 28,
+                        width: 30,
+                        height: 30,
                         borderRadius: "50%",
                         margin: "0 auto 4px",
-                        background: isActive
+                        background: active
                           ? "#ff8a2a"
-                          : "rgba(255,255,255,0.08)",
-                        border: isCurrent
+                          : "rgba(255,255,255,0.06)",
+                        border: curr
                           ? "2px solid #ffb347"
                           : "2px solid transparent",
                         display: "flex",
@@ -1030,39 +1023,35 @@ export default function SyncGroupPage() {
                         justifyContent: "center",
                         fontSize: 12,
                         fontWeight: 700,
-                        color: isActive ? "#1b1024" : "rgba(255,255,255,0.3)",
+                        color: active ? "#1b1024" : "rgba(255,255,255,0.25)",
                         transition: "all 0.3s",
                       }}
                     >
-                      {isActive ? "✓" : i + 1}
+                      {active ? "✓" : i + 1}
                     </div>
                     <div
                       style={{
                         fontSize: 10,
                         fontWeight: 600,
-                        color: isCurrent
+                        color: curr
                           ? "#ff8a2a"
-                          : isActive
-                          ? "rgba(255,255,255,0.6)"
-                          : "rgba(255,255,255,0.25)",
-                        whiteSpace: "nowrap",
+                          : active
+                          ? "rgba(255,255,255,0.55)"
+                          : "rgba(255,255,255,0.2)",
                       }}
                     >
-                      {step.label}
+                      {s.l}
                     </div>
                   </div>
-                  {i < steps.length - 1 && (
+                  {i < 4 && (
                     <div
                       style={{
                         height: 2,
                         flex: 1,
-                        minWidth: 12,
+                        minWidth: 10,
                         background:
-                          currentIdx > stepIdx
-                            ? "#ff8a2a"
-                            : "rgba(255,255,255,0.08)",
+                          ci > si ? "#ff8a2a" : "rgba(255,255,255,0.06)",
                         borderRadius: 1,
-                        transition: "background 0.3s",
                       }}
                     />
                   )}
@@ -1073,43 +1062,45 @@ export default function SyncGroupPage() {
         );
       })()}
 
-      {/* ── Header ── */}
-      <div className="sk-sync-group-builder" style={{ marginTop: 8 }}>
+      {/* ═══ HEADER ═══ */}
+      <Section mt={0}>
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "space-between",
             flexWrap: "wrap",
             gap: 12,
           }}
         >
-          <div>
-            <div className="sk-sync-group-title" style={{ marginBottom: 4 }}>
-              <Plane size={16} style={{ marginRight: 8 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 18,
+                fontWeight: 700,
+                color: "#fff",
+                marginBottom: 6,
+              }}
+            >
+              <Plane size={18} style={{ color: "#ff8a2a", flexShrink: 0 }} />
               {editingTitle ? (
-                <span
+                <Input
+                  className="sk-sync-input"
+                  value={titleInput}
+                  onChange={(e) => setTitleInput(e.target.value)}
+                  onPressEnter={renameTrip}
+                  onBlur={renameTrip}
+                  autoFocus
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
+                    width: 200,
+                    height: 32,
+                    fontSize: 16,
+                    fontWeight: 700,
                   }}
-                >
-                  <Input
-                    className="sk-sync-input"
-                    value={titleInput}
-                    onChange={(e) => setTitleInput(e.target.value)}
-                    onPressEnter={renameTrip}
-                    onBlur={renameTrip}
-                    autoFocus
-                    style={{
-                      width: 200,
-                      height: 32,
-                      fontSize: 16,
-                      fontWeight: 700,
-                    }}
-                  />
-                </span>
+                />
               ) : (
                 <span
                   onClick={() => {
@@ -1121,22 +1112,23 @@ export default function SyncGroupPage() {
                   style={{
                     cursor: !isBooked && isMember ? "pointer" : "default",
                   }}
-                  title={!isBooked && isMember ? "Click to rename" : ""}
                 >
                   {group.title || "Untitled Trip"}
                   {!isBooked && isMember && (
                     <EditOutlined
                       style={{
-                        marginLeft: 8,
-                        fontSize: 12,
-                        color: "rgba(255,255,255,0.3)",
+                        marginLeft: 6,
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.25)",
                       }}
                     />
                   )}
                 </span>
               )}
               {group.destination && (
-                <span style={{ color: "#ff8a2a", marginLeft: 8 }}>
+                <span
+                  style={{ color: "#ff8a2a", fontSize: 14, fontWeight: 600 }}
+                >
                   → {group.destination}
                 </span>
               )}
@@ -1146,30 +1138,29 @@ export default function SyncGroupPage() {
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                marginTop: 8,
                 flexWrap: "wrap",
               }}
             >
               <span
                 style={{
-                  background: `${sc.color}20`,
-                  color: sc.color,
-                  padding: "4px 12px",
+                  background: `${sc.c}18`,
+                  color: sc.c,
+                  padding: "3px 12px",
                   borderRadius: 20,
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: 600,
                 }}
               >
                 <SyncOutlined style={{ marginRight: 4 }} />
-                {sc.label}
+                {sc.l}
               </span>
               {group.planVersion > 0 && (
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+                <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>
                   v{group.planVersion}
                 </span>
               )}
               {group.inviteCode && (
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+                <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>
                   Code: {group.inviteCode}
                 </span>
               )}
@@ -1188,40 +1179,33 @@ export default function SyncGroupPage() {
                 icon={<Trash2 size={14} />}
                 onClick={() => setShowDeleteConfirm(true)}
                 className="sk-sync-add-btn"
-                style={{ color: "#ff4d4f", borderColor: "rgba(255,77,79,0.3)" }}
+                style={{
+                  color: "#ff4d4f",
+                  borderColor: "rgba(255,77,79,0.25)",
+                }}
               >
                 Delete
               </Button>
             )}
           </div>
         </div>
-      </div>
+      </Section>
 
-      {/* ── Travelers ── */}
-      <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
-        <div className="sk-sync-group-title">
-          <Users size={16} style={{ marginRight: 8 }} />
-          Travelers ({totalMembers + 1})
-          {hasPlan && (
-            <span
-              style={{
-                marginLeft: "auto",
-                fontSize: 12,
-                color: "rgba(255,255,255,0.4)",
-              }}
-            >
-              {approvedCount}/{totalMembers} approved
-            </span>
-          )}
-        </div>
-        <div
-          style={{
-            marginTop: 12,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
+      {/* ═══ TRAVELERS ═══ */}
+      <Section>
+        <SectionTitle
+          icon={<Users size={16} style={{ color: "#ff8a2a" }} />}
+          right={
+            hasPlan && (
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
+                {approvedCount}/{totalMembers} approved
+              </span>
+            )
+          }
         >
+          Travelers ({totalMembers + 1})
+        </SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {group.owner && (
             <div
               style={{
@@ -1229,9 +1213,9 @@ export default function SyncGroupPage() {
                 alignItems: "center",
                 gap: 12,
                 padding: "10px 14px",
-                background: "rgba(255,138,42,0.08)",
-                borderRadius: 10,
-                border: "1px solid rgba(255,138,42,0.2)",
+                background: "rgba(255,138,42,0.06)",
+                borderRadius: 12,
+                border: "1px solid rgba(255,138,42,0.15)",
               }}
             >
               <Avatar
@@ -1255,7 +1239,7 @@ export default function SyncGroupPage() {
                 <div style={{ color: "#fff", fontWeight: 600 }}>
                   {group.owner.name || group.owner.username}
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
                   Organizer
                 </div>
               </div>
@@ -1273,12 +1257,12 @@ export default function SyncGroupPage() {
                   flexDirection: "column",
                   gap: 8,
                   padding: "10px 14px",
-                  background: "rgba(255,255,255,0.04)",
-                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.02)",
+                  borderRadius: 12,
                   border: `1px solid ${
                     m.approved
-                      ? "rgba(82,196,26,0.25)"
-                      : "rgba(255,255,255,0.08)"
+                      ? "rgba(82,196,26,0.2)"
+                      : "rgba(255,255,255,0.06)"
                   }`,
                 }}
               >
@@ -1301,16 +1285,13 @@ export default function SyncGroupPage() {
                       m.user?.name ||
                       "?")[0].toUpperCase()}
                   </Avatar>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: "#fff", fontWeight: 500 }}>
                       {m.user?.name || m.name || m.email}
                     </div>
                     {m.user?.username && (
                       <div
-                        style={{
-                          color: "rgba(255,255,255,0.35)",
-                          fontSize: 12,
-                        }}
+                        style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}
                       >
                         @{m.user.username}
                       </div>
@@ -1318,7 +1299,7 @@ export default function SyncGroupPage() {
                     {m.departureAirport && (
                       <div
                         style={{
-                          color: "rgba(255,255,255,0.3)",
+                          color: "rgba(255,255,255,0.25)",
                           fontSize: 11,
                           marginTop: 2,
                           display: "flex",
@@ -1326,7 +1307,7 @@ export default function SyncGroupPage() {
                           gap: 4,
                         }}
                       >
-                        <Plane size={10} /> Flying from {m.departureAirport}
+                        <Plane size={10} /> {m.departureAirport}
                       </div>
                     )}
                   </div>
@@ -1338,11 +1319,12 @@ export default function SyncGroupPage() {
                         padding: "3px 10px",
                         borderRadius: 12,
                         background: m.approved
-                          ? "rgba(82,196,26,0.15)"
-                          : "rgba(255,255,255,0.08)",
+                          ? "rgba(82,196,26,0.12)"
+                          : "rgba(255,255,255,0.05)",
                         color: m.approved
                           ? "#52c41a"
-                          : "rgba(255,255,255,0.45)",
+                          : "rgba(255,255,255,0.35)",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       {m.approved ? (
@@ -1351,7 +1333,7 @@ export default function SyncGroupPage() {
                           Approved
                         </>
                       ) : (
-                        "Pending review"
+                        "Pending"
                       )}
                     </span>
                   ) : (
@@ -1361,8 +1343,9 @@ export default function SyncGroupPage() {
                         fontWeight: 600,
                         padding: "3px 10px",
                         borderRadius: 12,
-                        background: "rgba(255,255,255,0.08)",
-                        color: "rgba(255,255,255,0.45)",
+                        background: "rgba(255,255,255,0.05)",
+                        color: "rgba(255,255,255,0.35)",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       <ClockCircleOutlined style={{ marginRight: 4 }} />
@@ -1379,20 +1362,17 @@ export default function SyncGroupPage() {
                         border: "none",
                         cursor: "pointer",
                         padding: 4,
-                        color: "rgba(255,255,255,0.2)",
-                        transition: "color 0.15s",
+                        color: "rgba(255,255,255,0.15)",
                         display: "flex",
-                        alignItems: "center",
                       }}
                       onMouseEnter={(e) =>
                         (e.currentTarget.style.color = "#ff4d4f")
                       }
                       onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "rgba(255,255,255,0.2)")
+                        (e.currentTarget.style.color = "rgba(255,255,255,0.15)")
                       }
-                      title="Remove from trip"
                     >
-                      <CloseCircleOutlined style={{ fontSize: 16 }} />
+                      <CloseCircleOutlined style={{ fontSize: 14 }} />
                     </button>
                   )}
                 </div>
@@ -1408,7 +1388,6 @@ export default function SyncGroupPage() {
                           fontSize: 12,
                           cursor: "pointer",
                           padding: 0,
-                          fontFamily: "'DM Sans', sans-serif",
                           fontWeight: 600,
                           display: "flex",
                           alignItems: "center",
@@ -1424,11 +1403,10 @@ export default function SyncGroupPage() {
                         style={{
                           background: "none",
                           border: "none",
-                          color: "rgba(255,255,255,0.3)",
+                          color: "rgba(255,255,255,0.25)",
                           fontSize: 11,
                           cursor: "pointer",
                           padding: 0,
-                          fontFamily: "'DM Sans', sans-serif",
                         }}
                       >
                         Change airport
@@ -1446,7 +1424,7 @@ export default function SyncGroupPage() {
                           style={{
                             background: "none",
                             border: "none",
-                            color: "rgba(255,255,255,0.3)",
+                            color: "rgba(255,255,255,0.25)",
                             fontSize: 11,
                             cursor: "pointer",
                             marginTop: 4,
@@ -1482,8 +1460,8 @@ export default function SyncGroupPage() {
                       className="sk-sync-input"
                       value={addInput}
                       onChange={handleAddInputChange}
-                      onPressEnter={addByEmailDirect}
-                      placeholder="Search by name, username, or email"
+                      onPressEnter={addByEmail}
+                      placeholder="Search name, username, or email"
                       prefix={<SearchOutlined style={{ color: "#ff8a2a" }} />}
                       suffix={
                         addSearching ? (
@@ -1500,37 +1478,33 @@ export default function SyncGroupPage() {
                     />
                     {showAddDrop && addResults.length > 0 && (
                       <div className="sk-sync-search-dropdown">
-                        {addResults.map((user) => (
+                        {addResults.map((u) => (
                           <div
-                            key={user._id || user.id}
+                            key={u._id || u.id}
                             className="sk-sync-search-item"
-                            onClick={() => addMemberToGroup(user)}
+                            onClick={() => addMemberToGroup(u)}
                           >
                             <Avatar
                               size={32}
                               src={
-                                user.avatar &&
-                                user.avatar !== "/default-avatar.png"
-                                  ? user.avatar
+                                u.avatar && u.avatar !== "/default-avatar.png"
+                                  ? u.avatar
                                   : undefined
                               }
                               style={{
                                 background: "#ff8a2a",
                                 color: "#1b1024",
-                                fontSize: 13,
                                 fontWeight: 800,
                               }}
                             >
-                              {(user.name ||
-                                user.username ||
-                                "?")[0].toUpperCase()}
+                              {(u.name || u.username || "?")[0].toUpperCase()}
                             </Avatar>
                             <div className="sk-sync-search-item-info">
                               <span className="sk-sync-search-item-name">
-                                {user.name || user.username}
+                                {u.name || u.username}
                               </span>
                               <span className="sk-sync-search-item-handle">
-                                @{user.username}
+                                @{u.username}
                               </span>
                             </div>
                           </div>
@@ -1538,7 +1512,7 @@ export default function SyncGroupPage() {
                       </div>
                     )}
                     {showAddDrop &&
-                      addResults.length === 0 &&
+                      !addResults.length &&
                       !addSearching &&
                       addInput.trim().length >= 2 && (
                         <div className="sk-sync-search-dropdown">
@@ -1551,7 +1525,7 @@ export default function SyncGroupPage() {
                   <Button
                     className="sk-sync-add-btn"
                     icon={<UserAddOutlined />}
-                    onClick={addByEmailDirect}
+                    onClick={addByEmail}
                   >
                     Add
                   </Button>
@@ -1565,7 +1539,7 @@ export default function SyncGroupPage() {
                     setShowAddDrop(false);
                   }}
                   style={{
-                    color: "rgba(255,255,255,0.4)",
+                    color: "rgba(255,255,255,0.3)",
                     fontSize: 12,
                     marginTop: 6,
                     padding: 0,
@@ -1577,45 +1551,35 @@ export default function SyncGroupPage() {
             )}
           </div>
         )}
-      </div>
+      </Section>
 
-      {/* ── Trip Details ── */}
-      <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
+      {/* ═══ TRIP DETAILS ═══ */}
+      <Section>
+        <SectionTitle
+          icon={<MapPin size={16} style={{ color: "#ff8a2a" }} />}
+          right={
+            !editing &&
+            !isBooked &&
+            isMember && (
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => setEditing(true)}
+                style={{ color: "#ff8a2a", fontSize: 13, padding: 0 }}
+              >
+                Edit
+              </Button>
+            )
+          }
         >
-          <div className="sk-sync-group-title">
-            <MapPin size={16} style={{ marginRight: 8 }} />
-            Trip Details
-          </div>
-          {!editing && !isBooked && isMember && (
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => setEditing(true)}
-              style={{ color: "#ff8a2a", fontSize: 13 }}
-            >
-              Edit
-            </Button>
-          )}
-        </div>
+          Trip Details
+        </SectionTitle>
         {editing ? (
-          <div
-            style={{
-              marginTop: 16,
-              display: "flex",
-              flexDirection: "column",
-              gap: 14,
-            }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <label
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.4)",
                   fontSize: 12,
                   marginBottom: 4,
                   display: "block",
@@ -1625,20 +1589,19 @@ export default function SyncGroupPage() {
               </label>
               <AirportSearchInput
                 value={departureDisplay}
-                onChange={(code, airport) => {
+                onChange={(code, ap) => {
                   setDepartureAirport(code);
-                  const city = airport?.city || airport?.municipality || "";
                   setDepartureDisplay(
-                    city ? `${code} — ${airport.name || city}` : code
+                    ap?.city ? `${code} — ${ap.name || ap.city}` : code
                   );
                 }}
-                placeholder="Search airport (e.g. EWR, Newark, JFK)"
+                placeholder="Search airport"
               />
             </div>
             <div>
               <label
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.4)",
                   fontSize: 12,
                   marginBottom: 4,
                   display: "block",
@@ -1656,7 +1619,7 @@ export default function SyncGroupPage() {
             <div>
               <label
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.4)",
                   fontSize: 12,
                   marginBottom: 4,
                   display: "block",
@@ -1666,14 +1629,14 @@ export default function SyncGroupPage() {
               </label>
               <SkyrioPicker
                 value={dateRange[0] ? dateRange : [null, null]}
-                onChange={(dates) => setDateRange(dates || [null, null])}
+                onChange={(d) => setDateRange(d || [null, null])}
                 placeholder={["Depart", "Return"]}
               />
             </div>
             <div>
               <label
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.4)",
                   fontSize: 12,
                   marginBottom: 4,
                   display: "block",
@@ -1683,39 +1646,38 @@ export default function SyncGroupPage() {
               </label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {[
-                  { value: "economy", label: "Economy" },
-                  { value: "premium_economy", label: "Premium Economy" },
-                  { value: "business", label: "Business" },
-                  { value: "first", label: "First Class" },
-                ].map((opt) => (
+                  { v: "economy", l: "Economy" },
+                  { v: "premium_economy", l: "Premium Economy" },
+                  { v: "business", l: "Business" },
+                  { v: "first", l: "First Class" },
+                ].map((o) => (
                   <button
-                    key={opt.value}
+                    key={o.v}
                     type="button"
-                    onClick={() => setCabinClass(opt.value)}
+                    onClick={() => setCabinClass(o.v)}
                     style={{
                       padding: "8px 16px",
                       borderRadius: 10,
                       border: `1px solid ${
-                        cabinClass === opt.value
+                        cabinClass === o.v
                           ? "#ff8a2a"
-                          : "rgba(255,255,255,0.12)"
+                          : "rgba(255,255,255,0.08)"
                       }`,
                       background:
-                        cabinClass === opt.value
-                          ? "rgba(255,138,42,0.15)"
-                          : "rgba(255,255,255,0.04)",
+                        cabinClass === o.v
+                          ? "rgba(255,138,42,0.12)"
+                          : "transparent",
                       color:
-                        cabinClass === opt.value
+                        cabinClass === o.v
                           ? "#ff8a2a"
-                          : "rgba(255,255,255,0.6)",
-                      fontWeight: cabinClass === opt.value ? 700 : 500,
+                          : "rgba(255,255,255,0.5)",
+                      fontWeight: cabinClass === o.v ? 700 : 500,
                       fontSize: 13,
                       cursor: "pointer",
-                      transition: "all 0.15s",
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "inherit",
                     }}
                   >
-                    {opt.label}
+                    {o.l}
                   </button>
                 ))}
               </div>
@@ -1723,82 +1685,74 @@ export default function SyncGroupPage() {
             <div>
               <label
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.4)",
                   fontSize: 12,
                   marginBottom: 4,
                   display: "block",
                 }}
               >
-                <Clock size={12} style={{ marginRight: 4 }} /> Preferred
-                Departure Time
+                <Clock size={12} style={{ marginRight: 4 }} /> Departure Time
               </label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {[
+                  { v: "any", l: "Any", i: <Clock size={14} /> },
                   {
-                    value: "any",
-                    label: "Any Time",
-                    icon: <Clock size={16} />,
+                    v: "morning",
+                    l: "Morning",
+                    s: "5am–12pm",
+                    i: <Sunrise size={14} />,
                   },
                   {
-                    value: "morning",
-                    label: "Morning",
-                    sub: "5am–12pm",
-                    icon: <Sunrise size={16} />,
+                    v: "afternoon",
+                    l: "Afternoon",
+                    s: "12–5pm",
+                    i: <Sun size={14} />,
                   },
                   {
-                    value: "afternoon",
-                    label: "Afternoon",
-                    sub: "12–5pm",
-                    icon: <Sun size={16} />,
+                    v: "night",
+                    l: "Night",
+                    s: "5pm–12am",
+                    i: <Moon size={14} />,
                   },
-                  {
-                    value: "night",
-                    label: "Night",
-                    sub: "5pm–12am",
-                    icon: <Moon size={16} />,
-                  },
-                ].map((opt) => (
+                ].map((o) => (
                   <button
-                    key={opt.value}
+                    key={o.v}
                     type="button"
-                    onClick={() => setDepartureTime(opt.value)}
+                    onClick={() => setDepartureTime(o.v)}
                     style={{
-                      padding: "8px 16px",
+                      padding: "8px 14px",
                       borderRadius: 10,
                       border: `1px solid ${
-                        departureTime === opt.value
+                        departureTime === o.v
                           ? "#ff8a2a"
-                          : "rgba(255,255,255,0.12)"
+                          : "rgba(255,255,255,0.08)"
                       }`,
                       background:
-                        departureTime === opt.value
-                          ? "rgba(255,138,42,0.15)"
-                          : "rgba(255,255,255,0.04)",
+                        departureTime === o.v
+                          ? "rgba(255,138,42,0.12)"
+                          : "transparent",
                       color:
-                        departureTime === opt.value
+                        departureTime === o.v
                           ? "#ff8a2a"
-                          : "rgba(255,255,255,0.6)",
-                      fontWeight: departureTime === opt.value ? 700 : 500,
+                          : "rgba(255,255,255,0.5)",
+                      fontWeight: departureTime === o.v ? 700 : 500,
                       fontSize: 13,
                       cursor: "pointer",
-                      transition: "all 0.15s",
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "inherit",
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      gap: 4,
+                      gap: 3,
                     }}
                   >
                     <span
-                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                      style={{ display: "flex", alignItems: "center", gap: 5 }}
                     >
-                      {opt.icon}
-                      {opt.label}
+                      {o.i}
+                      {o.l}
                     </span>
-                    {opt.sub && (
-                      <span style={{ fontSize: 10, opacity: 0.6 }}>
-                        {opt.sub}
-                      </span>
+                    {o.s && (
+                      <span style={{ fontSize: 10, opacity: 0.5 }}>{o.s}</span>
                     )}
                   </button>
                 ))}
@@ -1807,7 +1761,7 @@ export default function SyncGroupPage() {
             <div>
               <label
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.4)",
                   fontSize: 12,
                   marginBottom: 4,
                   display: "block",
@@ -1832,67 +1786,89 @@ export default function SyncGroupPage() {
                 onClick={saveDetails}
                 loading={saving}
               >
-                Save Details
+                Save
               </Button>
               <Button
                 type="text"
                 onClick={() => setEditing(false)}
-                style={{ color: "rgba(255,255,255,0.5)" }}
+                style={{ color: "rgba(255,255,255,0.4)" }}
               >
                 Cancel
               </Button>
             </div>
           </div>
         ) : (
-          <div style={{ marginTop: 12 }}>
-            {hasTripDetails || departureAirport ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>
+            {group.destination || group.dateRangeStart || departureAirport ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {departureAirport && (
-                  <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
-                    <Plane
-                      size={14}
-                      style={{ marginRight: 6, color: "#ff8a2a" }}
-                    />
-                    Departing from {departureDisplay || departureAirport}
+                  <div
+                    style={{
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Plane size={14} style={{ color: "#ff8a2a" }} />{" "}
+                    {departureDisplay || departureAirport}
                   </div>
                 )}
                 {group.destination && (
-                  <div style={{ color: "#fff", fontSize: 15 }}>
-                    <MapPin
-                      size={14}
-                      style={{ marginRight: 6, color: "#ff8a2a" }}
-                    />
+                  <div
+                    style={{
+                      color: "#fff",
+                      fontSize: 15,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <MapPin size={14} style={{ color: "#ff8a2a" }} />{" "}
                     {group.destination}
                   </div>
                 )}
-                {group.dateRangeStart && group.dateRangeEnd && (
-                  <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
-                    <Calendar
-                      size={14}
-                      style={{ marginRight: 6, color: "#ff8a2a" }}
-                    />
+                {group.dateRangeStart && (
+                  <div
+                    style={{
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Calendar size={14} style={{ color: "#ff8a2a" }} />{" "}
                     {dayjs(group.dateRangeStart).format("MMM D")} —{" "}
                     {dayjs(group.dateRangeEnd).format("MMM D, YYYY")}
                   </div>
                 )}
                 {group.cabinClass && (
-                  <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
-                    <Plane
-                      size={14}
-                      style={{ marginRight: 6, color: "#ff8a2a" }}
-                    />
-                    {{
-                      economy: "Economy",
-                      premium_economy: "Premium Economy",
-                      business: "Business",
-                      first: "First Class",
-                    }[group.cabinClass] || group.cabinClass}
+                  <div
+                    style={{
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Plane size={14} style={{ color: "#ff8a2a" }} />{" "}
+                    {
+                      {
+                        economy: "Economy",
+                        premium_economy: "Premium Economy",
+                        business: "Business",
+                        first: "First Class",
+                      }[group.cabinClass]
+                    }
                   </div>
                 )}
                 {group.departureTime && group.departureTime !== "any" && (
                   <div
                     style={{
-                      color: "rgba(255,255,255,0.6)",
+                      color: "rgba(255,255,255,0.5)",
                       fontSize: 14,
                       display: "flex",
                       alignItems: "center",
@@ -1902,164 +1878,138 @@ export default function SyncGroupPage() {
                     <Clock size={14} style={{ color: "#ff8a2a" }} />
                     {group.departureTime === "morning" && (
                       <>
-                        <Sunrise size={14} style={{ color: "#ff8a2a" }} />{" "}
-                        Morning (5am–12pm)
+                        <Sunrise size={14} /> Morning
                       </>
                     )}
                     {group.departureTime === "afternoon" && (
                       <>
-                        <Sun size={14} style={{ color: "#ff8a2a" }} /> Afternoon
-                        (12–5pm)
+                        <Sun size={14} /> Afternoon
                       </>
                     )}
                     {group.departureTime === "night" && (
                       <>
-                        <Moon size={14} style={{ color: "#ff8a2a" }} /> Night
-                        (5pm–12am)
+                        <Moon size={14} /> Night
                       </>
                     )}
                   </div>
                 )}
                 {group.members?.[0]?.budget && (
-                  <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
-                    <DollarSign
-                      size={14}
-                      style={{ marginRight: 6, color: "#ff8a2a" }}
-                    />
-                    ${Number(group.members[0].budget).toLocaleString("en-US")}{" "}
-                    per person
+                  <div
+                    style={{
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <DollarSign size={14} style={{ color: "#ff8a2a" }} /> $
+                    {Number(group.members[0].budget).toLocaleString("en-US")}
+                    /person
                   </div>
                 )}
               </div>
             ) : (
-              <p className="sk-sync-group-hint">
-                No details yet — click Edit to set your trip info.
+              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
+                No details yet — tap Edit to set your trip info.
               </p>
             )}
           </div>
         )}
-      </div>
+      </Section>
 
-      {/* ── Trip Package ── */}
-      <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
-        <div className="sk-sync-group-title">
-          <Package size={16} style={{ marginRight: 8 }} />
+      {/* ═══ TRIP PACKAGE ═══ */}
+      <Section>
+        <SectionTitle icon={<Package size={16} style={{ color: "#ff8a2a" }} />}>
           Trip Package
-        </div>
+        </SectionTitle>
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: 10,
-            marginTop: 14,
-          }}
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
         >
           {[
             {
-              icon: <Plane size={18} />,
-              label: "Flights",
-              status: "active",
-              desc: "Search & book group flights",
+              i: <Plane size={16} />,
+              l: "Flights",
+              a: true,
+              d: "Search & book",
             },
-            {
-              icon: <Hotel size={18} />,
-              label: "Hotels",
-              status: "coming",
-              desc: "Group stays & rentals",
-            },
-            {
-              icon: <Car size={18} />,
-              label: "Car Rentals",
-              status: "coming",
-              desc: "Shared transport",
-            },
-            {
-              icon: <Compass size={18} />,
-              label: "Excursions",
-              status: "coming",
-              desc: "Activities & tours",
-            },
-          ].map((item) => (
+            { i: <Hotel size={16} />, l: "Hotels", d: "Group stays" },
+            { i: <Car size={16} />, l: "Car Rentals", d: "Shared transport" },
+            { i: <Compass size={16} />, l: "Excursions", d: "Activities" },
+          ].map((x) => (
             <div
-              key={item.label}
+              key={x.l}
               style={{
-                padding: "14px 16px",
-                borderRadius: 14,
-                background:
-                  item.status === "active"
-                    ? "rgba(255,138,42,0.08)"
-                    : "rgba(255,255,255,0.03)",
+                padding: "12px 14px",
+                borderRadius: 12,
+                background: x.a ? "rgba(255,138,42,0.06)" : "transparent",
                 border: `1px solid ${
-                  item.status === "active"
-                    ? "rgba(255,138,42,0.25)"
-                    : "rgba(255,255,255,0.06)"
+                  x.a ? "rgba(255,138,42,0.15)" : "rgba(255,255,255,0.05)"
                 }`,
-                opacity: item.status === "coming" ? 0.5 : 1,
+                opacity: x.a ? 1 : 0.45,
               }}
             >
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  marginBottom: 6,
+                  gap: 6,
+                  marginBottom: 4,
                 }}
               >
                 <span
-                  style={{
-                    color:
-                      item.status === "active"
-                        ? "#ff8a2a"
-                        : "rgba(255,255,255,0.3)",
-                  }}
+                  style={{ color: x.a ? "#ff8a2a" : "rgba(255,255,255,0.3)" }}
                 >
-                  {item.icon}
+                  {x.i}
                 </span>
-                <span style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
-                  {item.label}
+                <span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>
+                  {x.l}
                 </span>
-                {item.status === "coming" && (
+                {!x.a && (
                   <span
                     style={{
-                      fontSize: 10,
-                      color: "rgba(255,255,255,0.3)",
-                      background: "rgba(255,255,255,0.06)",
-                      padding: "2px 8px",
-                      borderRadius: 10,
+                      fontSize: 9,
+                      color: "rgba(255,255,255,0.25)",
+                      background: "rgba(255,255,255,0.05)",
+                      padding: "1px 6px",
+                      borderRadius: 8,
                     }}
                   >
                     Soon
                   </span>
                 )}
               </div>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
-                {item.desc}
+              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
+                {x.d}
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </Section>
 
-      {/* ── Atlas Trip Planner ── */}
-      <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
-        <div className="sk-sync-group-title">
-          <Sparkles size={16} style={{ marginRight: 8, color: "#ff8a2a" }} />
+      {/* ═══ ATLAS ═══ */}
+      <Section>
+        <SectionTitle
+          icon={<Sparkles size={16} style={{ color: "#ff8a2a" }} />}
+          right={
+            group.planVersion > 0 && (
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>
+                v{group.planVersion}
+              </span>
+            )
+          }
+        >
           Atlas Trip Planner
-          {group.planVersion > 0 && (
-            <span
-              style={{
-                marginLeft: 8,
-                fontSize: 12,
-                color: "rgba(255,255,255,0.3)",
-              }}
-            >
-              v{group.planVersion}
-            </span>
-          )}
-        </div>
+        </SectionTitle>
         {!hasPlan && (
           <>
-            <p className="sk-sync-group-hint" style={{ marginTop: 4 }}>
+            <p
+              style={{
+                color: "rgba(255,255,255,0.3)",
+                fontSize: 14,
+                marginBottom: 16,
+              }}
+            >
               Set your trip details, then let Atlas build the plan.
             </p>
             <Button
@@ -2068,7 +2018,6 @@ export default function SyncGroupPage() {
               onClick={askAtlasToPlan}
               loading={planLoading}
               disabled={!destination}
-              style={{ marginTop: 16 }}
             >
               {planLoading ? "Atlas is searching..." : "Ask Atlas to Plan"}
             </Button>
@@ -2078,10 +2027,9 @@ export default function SyncGroupPage() {
           <>
             <div
               style={{
-                marginTop: 16,
-                padding: 20,
-                background: "rgba(255,138,42,0.04)",
-                border: "1px solid rgba(255,138,42,0.15)",
+                padding: 18,
+                background: "rgba(255,138,42,0.03)",
+                border: "1px solid rgba(255,138,42,0.1)",
                 borderRadius: 14,
               }}
             >
@@ -2104,7 +2052,7 @@ export default function SyncGroupPage() {
                     style={{
                       marginLeft: "auto",
                       fontSize: 11,
-                      color: "rgba(255,255,255,0.3)",
+                      color: "rgba(255,255,255,0.25)",
                     }}
                   >
                     {dayjs(group.planGeneratedAt).format("MMM D, h:mm A")}
@@ -2120,7 +2068,7 @@ export default function SyncGroupPage() {
                   value={followUp}
                   onChange={(e) => setFollowUp(e.target.value)}
                   onPressEnter={askFollowUp}
-                  placeholder="Ask Atlas to adjust the plan..."
+                  placeholder="Ask Atlas to adjust..."
                   style={{ flex: 1 }}
                 />
                 <Button
@@ -2140,44 +2088,44 @@ export default function SyncGroupPage() {
                 onClick={askAtlasToPlan}
                 loading={planLoading}
                 style={{
-                  color: "rgba(255,255,255,0.4)",
+                  color: "rgba(255,255,255,0.3)",
                   marginTop: 8,
-                  fontSize: 13,
+                  fontSize: 12,
                 }}
               >
-                Regenerate entire plan
+                Regenerate plan
               </Button>
             )}
           </>
         )}
-      </div>
+      </Section>
 
-      {/* ── Review & Approve ── */}
+      {/* ═══ REVIEW & APPROVE ═══ */}
       {hasPlan && !isBooked && isMember && (
-        <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
-          <div className="sk-sync-group-title">
-            <ThumbsUp size={16} style={{ marginRight: 8 }} />
+        <Section>
+          <SectionTitle
+            icon={<ThumbsUp size={16} style={{ color: "#ff8a2a" }} />}
+          >
             Review & Approve
-          </div>
+          </SectionTitle>
           <div
             style={{
-              marginTop: 12,
-              padding: "12px 16px",
-              background: "rgba(255,255,255,0.04)",
+              padding: "10px 14px",
+              background: "rgba(255,255,255,0.02)",
               borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              marginBottom: 14,
             }}
           >
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
+                marginBottom: 6,
               }}
             >
-              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>
-                Approval progress
+              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>
+                Progress
               </span>
               <span
                 style={{
@@ -2191,17 +2139,15 @@ export default function SyncGroupPage() {
             </div>
             <div
               style={{
-                height: 6,
-                background: "rgba(255,255,255,0.08)",
+                height: 5,
+                background: "rgba(255,255,255,0.06)",
                 borderRadius: 3,
-                overflow: "hidden",
               }}
             >
               <div
                 style={{
                   height: "100%",
                   borderRadius: 3,
-                  transition: "width 0.3s",
                   width:
                     totalMembers > 0
                       ? `${(approvedCount / totalMembers) * 100}%`
@@ -2209,19 +2155,13 @@ export default function SyncGroupPage() {
                   background: allApproved
                     ? "#52c41a"
                     : "linear-gradient(90deg, #ff8a2a, #ffb347)",
+                  transition: "width 0.3s",
                 }}
               />
             </div>
           </div>
           {myMember && (
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                marginTop: 14,
-                flexWrap: "wrap",
-              }}
-            >
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {!myApproval ? (
                 <>
                   <Button
@@ -2231,14 +2171,12 @@ export default function SyncGroupPage() {
                     loading={approving}
                     style={{ flex: 1 }}
                   >
-                    Approve Plan
+                    Approve
                   </Button>
                   <Button
                     className="sk-sync-add-btn"
                     icon={<MessageSquare size={14} />}
-                    onClick={() =>
-                      document.getElementById("change-input")?.focus()
-                    }
+                    onClick={() => document.getElementById("cr-input")?.focus()}
                     style={{ flex: 1 }}
                   >
                     Request Change
@@ -2255,7 +2193,7 @@ export default function SyncGroupPage() {
                     gap: 6,
                   }}
                 >
-                  <CheckCircleOutlined /> You've approved this plan
+                  <CheckCircleOutlined /> Approved
                 </div>
               )}
             </div>
@@ -2263,50 +2201,48 @@ export default function SyncGroupPage() {
           {myMember && !myApproval && (
             <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
               <Input
-                id="change-input"
+                id="cr-input"
                 className="sk-sync-input"
                 value={changeMsg}
                 onChange={(e) => setChangeMsg(e.target.value)}
-                onPressEnter={submitChangeRequest}
-                placeholder="What would you like changed?"
+                onPressEnter={submitCR}
+                placeholder="What should change?"
                 style={{ flex: 1 }}
               />
               <Button
                 className="sk-sync-add-btn"
                 icon={<SendOutlined />}
-                onClick={submitChangeRequest}
+                onClick={submitCR}
                 loading={changeSending}
               >
                 Submit
               </Button>
             </div>
           )}
-          {openChangeRequests.length > 0 && (
+          {openCRs.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.4)",
                   fontSize: 12,
                   fontWeight: 600,
                   marginBottom: 8,
                 }}
               >
                 <ExclamationCircleOutlined style={{ marginRight: 4 }} />
-                {openChangeRequests.length} open change request
-                {openChangeRequests.length !== 1 ? "s" : ""}
+                {openCRs.length} open request{openCRs.length !== 1 ? "s" : ""}
               </div>
-              {openChangeRequests.map((cr, i) => (
+              {openCRs.map((cr, i) => (
                 <div
                   key={cr._id || i}
                   style={{
                     padding: "10px 14px",
-                    background: "rgba(255,183,71,0.06)",
-                    border: "1px solid rgba(255,183,71,0.15)",
+                    background: "rgba(255,183,71,0.04)",
+                    border: "1px solid rgba(255,183,71,0.1)",
                     borderRadius: 10,
                     marginBottom: 8,
                     display: "flex",
                     gap: 10,
-                    alignItems: "flex-start",
                   }}
                 >
                   <Avatar
@@ -2328,7 +2264,7 @@ export default function SyncGroupPage() {
                     </div>
                     <div
                       style={{
-                        color: "rgba(255,255,255,0.6)",
+                        color: "rgba(255,255,255,0.5)",
                         fontSize: 13,
                         marginTop: 2,
                       }}
@@ -2337,7 +2273,7 @@ export default function SyncGroupPage() {
                     </div>
                     <div
                       style={{
-                        color: "rgba(255,255,255,0.25)",
+                        color: "rgba(255,255,255,0.2)",
                         fontSize: 11,
                         marginTop: 4,
                       }}
@@ -2347,19 +2283,15 @@ export default function SyncGroupPage() {
                   </div>
                 </div>
               ))}
-              <p className="sk-sync-group-hint" style={{ marginTop: 8 }}>
-                Use the Atlas follow-up to address these, then ask members to
-                re-approve.
-              </p>
             </div>
           )}
-          {isOwner && allApproved && openChangeRequests.length === 0 && (
+          {isOwner && allApproved && !openCRs.length && (
             <div
               style={{
                 marginTop: 16,
                 padding: 16,
-                background: "rgba(82,196,26,0.08)",
-                border: "1px solid rgba(82,196,26,0.2)",
+                background: "rgba(82,196,26,0.06)",
+                border: "1px solid rgba(82,196,26,0.15)",
                 borderRadius: 12,
                 textAlign: "center",
               }}
@@ -2373,7 +2305,7 @@ export default function SyncGroupPage() {
                 }}
               >
                 <CheckCircleOutlined style={{ marginRight: 6 }} />
-                Everyone has approved!
+                Everyone approved!
               </p>
               <Button
                 className="sk-sync-cta-btn"
@@ -2385,42 +2317,40 @@ export default function SyncGroupPage() {
               </Button>
             </div>
           )}
-        </div>
+        </Section>
       )}
 
       {isBooked && (
-        <div
-          className="sk-sync-group-builder"
-          style={{ marginTop: 20, textAlign: "center", padding: "32px 24px" }}
-        >
-          <CheckCircleOutlined style={{ fontSize: 48, color: "#52c41a" }} />
-          <h3 style={{ color: "#fff", marginTop: 16, fontSize: 20 }}>
-            Trip Confirmed!
-          </h3>
-          <p style={{ color: "rgba(255,255,255,0.5)", marginTop: 8 }}>
-            The plan is locked in. Everyone's on the same page.
-          </p>
-        </div>
+        <Section>
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <CheckCircleOutlined style={{ fontSize: 48, color: "#52c41a" }} />
+            <h3 style={{ color: "#fff", marginTop: 16, fontSize: 20 }}>
+              Trip Confirmed!
+            </h3>
+            <p style={{ color: "rgba(255,255,255,0.4)", marginTop: 8 }}>
+              The plan is locked in.
+            </p>
+          </div>
+        </Section>
       )}
 
-      {/* ── Weather ── */}
+      {/* ═══ WEATHER ═══ */}
       {group?.destination && (
-        <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
-          <div className="sk-sync-group-title">
-            <Sun size={16} style={{ marginRight: 8, color: "#ff8a2a" }} />
+        <Section>
+          <SectionTitle icon={<Sun size={16} style={{ color: "#ff8a2a" }} />}>
             Weather in {group.destination}
-          </div>
+          </SectionTitle>
           {weatherLoading && (
-            <p className="sk-sync-group-hint" style={{ marginTop: 8 }}>
+            <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
               Loading forecast...
             </p>
           )}
-          {weather && weather.forecast && (
+          {weather?.forecast && (
             <div
               style={{
-                marginTop: 14,
                 overflowX: "auto",
                 WebkitOverflowScrolling: "touch",
+                margin: "0 -4px",
               }}
             >
               <div
@@ -2428,39 +2358,32 @@ export default function SyncGroupPage() {
                   display: "flex",
                   gap: 8,
                   minWidth: "fit-content",
-                  paddingBottom: 8,
+                  padding: "0 4px 8px",
                 }}
               >
-                {weather.forecast.slice(0, 10).map((day) => {
-                  const isRainy = day.rainChance > 50;
-                  const dateObj = new Date(day.date + "T12:00:00");
-                  const dayName = dateObj.toLocaleDateString("en-US", {
-                    weekday: "short",
-                  });
-                  const monthDay = dateObj.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  });
-                  const inRange =
+                {weather.forecast.slice(0, 10).map((d) => {
+                  const rainy = d.rainChance > 50;
+                  const dt = new Date(d.date + "T12:00:00");
+                  const inR =
                     dateRange[0] &&
                     dateRange[1] &&
-                    dateObj >= dateRange[0].toDate() &&
-                    dateObj <= dateRange[1].toDate();
+                    dt >= dateRange[0].toDate() &&
+                    dt <= dateRange[1].toDate();
                   return (
                     <div
-                      key={day.date}
+                      key={d.date}
                       style={{
-                        minWidth: 80,
-                        padding: "12px 10px",
-                        borderRadius: 14,
+                        minWidth: 72,
+                        padding: "10px 8px",
+                        borderRadius: 12,
                         textAlign: "center",
-                        background: inRange
-                          ? "rgba(255,138,42,0.1)"
-                          : "rgba(255,255,255,0.03)",
+                        background: inR
+                          ? "rgba(255,138,42,0.08)"
+                          : "transparent",
                         border: `1px solid ${
-                          inRange
-                            ? "rgba(255,138,42,0.25)"
-                            : "rgba(255,255,255,0.06)"
+                          inR
+                            ? "rgba(255,138,42,0.2)"
+                            : "rgba(255,255,255,0.04)"
                         }`,
                         flexShrink: 0,
                       }}
@@ -2469,65 +2392,66 @@ export default function SyncGroupPage() {
                         style={{
                           fontSize: 11,
                           fontWeight: 600,
-                          color: "rgba(255,255,255,0.5)",
-                          marginBottom: 6,
+                          color: "rgba(255,255,255,0.45)",
+                          marginBottom: 4,
                         }}
                       >
-                        {dayName}
+                        {dt.toLocaleDateString("en-US", { weekday: "short" })}
                       </div>
                       <div
                         style={{
                           fontSize: 10,
-                          color: "rgba(255,255,255,0.3)",
-                          marginBottom: 8,
+                          color: "rgba(255,255,255,0.25)",
+                          marginBottom: 6,
                         }}
                       >
-                        {monthDay}
+                        {dt.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })}
                       </div>
                       <div
                         style={{
-                          fontSize: 22,
-                          marginBottom: 6,
+                          marginBottom: 4,
                           display: "flex",
                           justifyContent: "center",
                         }}
                       >
-                        {day.code <= 3 ? (
-                          <Sun size={22} style={{ color: "#ffb347" }} />
+                        {d.code <= 3 ? (
+                          <Sun size={20} style={{ color: "#ffb347" }} />
                         ) : (
                           <CloudRain
-                            size={22}
-                            style={{
-                              color: day.code <= 55 ? "#5b9cf5" : "#aaa",
-                            }}
+                            size={20}
+                            style={{ color: d.code <= 55 ? "#5b9cf5" : "#888" }}
                           />
                         )}
                       </div>
                       <div
                         style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}
                       >
-                        {day.high}°
+                        {d.high}°
                       </div>
                       <div
-                        style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}
+                        style={{
+                          fontSize: 11,
+                          color: "rgba(255,255,255,0.35)",
+                        }}
                       >
-                        {day.low}°
+                        {d.low}°
                       </div>
-                      {day.rainChance > 0 && (
+                      {d.rainChance > 0 && (
                         <div
                           style={{
                             fontSize: 10,
-                            color: isRainy
-                              ? "#5b9cf5"
-                              : "rgba(255,255,255,0.3)",
-                            marginTop: 4,
+                            color: rainy ? "#5b9cf5" : "rgba(255,255,255,0.25)",
+                            marginTop: 3,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             gap: 2,
                           }}
                         >
-                          <CloudRain size={10} /> {day.rainChance}%
+                          <CloudRain size={9} /> {d.rainChance}%
                         </div>
                       )}
                     </div>
@@ -2537,36 +2461,31 @@ export default function SyncGroupPage() {
             </div>
           )}
           {!weatherLoading && !weather && (
-            <p className="sk-sync-group-hint" style={{ marginTop: 8 }}>
-              Weather data unavailable for this destination.
+            <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
+              Weather unavailable.
             </p>
           )}
-        </div>
+        </Section>
       )}
 
-      {/* ── Group Chat ── */}
+      {/* ═══ GROUP CHAT ═══ */}
       {isMember && (
-        <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
-          <div className="sk-sync-group-title">
-            <MessageCircle size={16} style={{ marginRight: 8 }} />
+        <Section>
+          <SectionTitle
+            icon={<MessageCircle size={16} style={{ color: "#ff8a2a" }} />}
+            right={
+              chatMessages.length > 0 && (
+                <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>
+                  {chatMessages.length}
+                </span>
+              )
+            }
+          >
             Group Chat
-            {chatMessages.length > 0 && (
-              <span
-                style={{
-                  marginLeft: 8,
-                  fontSize: 12,
-                  color: "rgba(255,255,255,0.3)",
-                }}
-              >
-                {chatMessages.length} message
-                {chatMessages.length !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
+          </SectionTitle>
           <div
             style={{
-              marginTop: 12,
-              maxHeight: 400,
+              maxHeight: 360,
               overflowY: "auto",
               display: "flex",
               flexDirection: "column",
@@ -2574,13 +2493,13 @@ export default function SyncGroupPage() {
               overscrollBehavior: "contain",
             }}
           >
-            {chatMessages.length === 0 && (
-              <p className="sk-sync-group-hint">
+            {!chatMessages.length && (
+              <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
                 No messages yet. Start the conversation!
               </p>
             )}
             {chatMessages.map((msg, i) => {
-              const isMe =
+              const me =
                 currentUserId &&
                 String(msg.user?._id || msg.user) === String(currentUserId);
               return (
@@ -2590,11 +2509,11 @@ export default function SyncGroupPage() {
                     display: "flex",
                     gap: 10,
                     alignItems: "flex-start",
-                    flexDirection: isMe ? "row-reverse" : "row",
+                    flexDirection: me ? "row-reverse" : "row",
                   }}
                 >
                   <Avatar
-                    size={32}
+                    size={30}
                     src={
                       msg.user?.avatar &&
                       msg.user.avatar !== "/default-avatar.png"
@@ -2602,10 +2521,11 @@ export default function SyncGroupPage() {
                         : undefined
                     }
                     style={{
-                      background: isMe ? "#ff8a2a" : "#2a1f3d",
-                      color: isMe ? "#1b1024" : "#ff8a2a",
+                      background: me ? "#ff8a2a" : "#2a1f3d",
+                      color: me ? "#1b1024" : "#ff8a2a",
                       fontWeight: 800,
                       flexShrink: 0,
+                      fontSize: 12,
                     }}
                   >
                     {(msg.user?.name ||
@@ -2615,27 +2535,25 @@ export default function SyncGroupPage() {
                   <div style={{ maxWidth: "75%" }}>
                     <div
                       style={{
-                        padding: "10px 14px",
+                        padding: "9px 13px",
                         borderRadius: 14,
-                        background: isMe
-                          ? "rgba(255,138,42,0.15)"
-                          : "rgba(255,255,255,0.06)",
+                        background: me
+                          ? "rgba(255,138,42,0.12)"
+                          : "rgba(255,255,255,0.04)",
                         border: `1px solid ${
-                          isMe
-                            ? "rgba(255,138,42,0.25)"
-                            : "rgba(255,255,255,0.08)"
+                          me ? "rgba(255,138,42,0.2)" : "rgba(255,255,255,0.06)"
                         }`,
-                        borderTopRightRadius: isMe ? 4 : 14,
-                        borderTopLeftRadius: isMe ? 14 : 4,
+                        borderTopRightRadius: me ? 4 : 14,
+                        borderTopLeftRadius: me ? 14 : 4,
                       }}
                     >
-                      {!isMe && (
+                      {!me && (
                         <div
                           style={{
                             fontSize: 11,
                             fontWeight: 700,
                             color: "#ff8a2a",
-                            marginBottom: 4,
+                            marginBottom: 3,
                           }}
                         >
                           {msg.user?.name || msg.user?.username}
@@ -2643,7 +2561,7 @@ export default function SyncGroupPage() {
                       )}
                       <div
                         style={{
-                          color: "rgba(255,255,255,0.85)",
+                          color: "rgba(255,255,255,0.8)",
                           fontSize: 14,
                           lineHeight: 1.5,
                         }}
@@ -2654,9 +2572,9 @@ export default function SyncGroupPage() {
                     <div
                       style={{
                         fontSize: 10,
-                        color: "rgba(255,255,255,0.2)",
-                        marginTop: 4,
-                        textAlign: isMe ? "right" : "left",
+                        color: "rgba(255,255,255,0.18)",
+                        marginTop: 3,
+                        textAlign: me ? "right" : "left",
                       }}
                     >
                       {msg.createdAt
@@ -2682,7 +2600,7 @@ export default function SyncGroupPage() {
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") sendChatMessage();
+                if (e.key === "Enter") sendChat();
               }}
               placeholder="Type a message..."
               style={{
@@ -2692,11 +2610,11 @@ export default function SyncGroupPage() {
                 height: 40,
                 padding: "0 14px",
                 borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.05)",
                 color: "rgba(255,255,255,0.9)",
                 fontSize: 14,
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "inherit",
                 outline: "none",
                 WebkitAppearance: "none",
               }}
@@ -2704,24 +2622,25 @@ export default function SyncGroupPage() {
             <Button
               className="sk-sync-add-btn"
               icon={<SendOutlined />}
-              onClick={sendChatMessage}
+              onClick={sendChat}
               loading={chatSending}
               style={{ flexShrink: 0 }}
             >
               Send
             </Button>
           </div>
-        </div>
+        </Section>
       )}
 
-      {/* ── Activity Feed ── */}
+      {/* ═══ ACTIVITY FEED ═══ */}
       {group?.activityLog?.length > 0 && (
-        <div className="sk-sync-group-builder" style={{ marginTop: 20 }}>
-          <div className="sk-sync-group-title">
-            <History size={16} style={{ marginRight: 8 }} />
+        <Section>
+          <SectionTitle
+            icon={<History size={16} style={{ color: "#ff8a2a" }} />}
+          >
             Activity
-          </div>
-          <div style={{ marginTop: 12, position: "relative", paddingLeft: 20 }}>
+          </SectionTitle>
+          <div style={{ position: "relative", paddingLeft: 20 }}>
             <div
               style={{
                 position: "absolute",
@@ -2729,32 +2648,31 @@ export default function SyncGroupPage() {
                 top: 4,
                 bottom: 4,
                 width: 2,
-                background: "rgba(255,138,42,0.15)",
+                background: "rgba(255,138,42,0.1)",
                 borderRadius: 1,
               }}
             />
             {[...group.activityLog]
               .reverse()
               .slice(0, 15)
-              .map((entry, i) => {
-                const iconMap = {
-                  created: <Plane size={12} />,
-                  member_added: <Users size={12} />,
-                  member_removed: <Users size={12} />,
-                  plan_generated: <Sparkles size={12} />,
-                  plan_updated: <Sparkles size={12} />,
-                  approved: <ThumbsUp size={12} />,
-                  change_requested: <MessageSquare size={12} />,
-                  booked: <CheckCircleOutlined style={{ fontSize: 12 }} />,
+              .map((e, i) => {
+                const icons = {
+                  created: <Plane size={10} />,
+                  member_added: <Users size={10} />,
+                  member_removed: <Users size={10} />,
+                  plan_generated: <Sparkles size={10} />,
+                  plan_updated: <Sparkles size={10} />,
+                  approved: <ThumbsUp size={10} />,
+                  change_requested: <MessageSquare size={10} />,
+                  booked: <CheckCircleOutlined style={{ fontSize: 10 }} />,
                 };
                 return (
                   <div
-                    key={entry._id || i}
+                    key={e._id || i}
                     style={{
                       display: "flex",
-                      alignItems: "flex-start",
                       gap: 12,
-                      marginBottom: 14,
+                      marginBottom: 12,
                       position: "relative",
                     }}
                   >
@@ -2764,51 +2682,50 @@ export default function SyncGroupPage() {
                         height: 16,
                         borderRadius: "50%",
                         flexShrink: 0,
-                        background: "rgba(255,138,42,0.15)",
+                        background: "rgba(255,138,42,0.12)",
                         border: "2px solid #1e0b35",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         color: "#ff8a2a",
-                        position: "relative",
                         zIndex: 1,
                         marginLeft: -7,
                       }}
                     >
-                      {iconMap[entry.type] || <Clock size={10} />}
+                      {icons[e.type] || <Clock size={8} />}
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div>
                       <div
                         style={{
-                          color: "rgba(255,255,255,0.75)",
+                          color: "rgba(255,255,255,0.65)",
                           fontSize: 13,
                         }}
                       >
-                        {entry.user?.name && (
+                        {e.user?.name && (
                           <strong style={{ color: "#fff" }}>
-                            {entry.user.name}{" "}
+                            {e.user.name}{" "}
                           </strong>
                         )}
-                        {entry.message}
+                        {e.message}
                       </div>
                       <div
                         style={{
-                          color: "rgba(255,255,255,0.2)",
+                          color: "rgba(255,255,255,0.18)",
                           fontSize: 11,
-                          marginTop: 2,
+                          marginTop: 1,
                         }}
                       >
-                        {dayjs(entry.createdAt).format("MMM D, h:mm A")}
+                        {dayjs(e.createdAt).format("MMM D, h:mm A")}
                       </div>
                     </div>
                   </div>
                 );
               })}
           </div>
-        </div>
+        </Section>
       )}
 
-      {/* ── Delete Confirmation Modal ── */}
+      {/* ═══ DELETE MODAL ═══ */}
       {showDeleteConfirm &&
         createPortal(
           <div
@@ -2847,8 +2764,8 @@ export default function SyncGroupPage() {
                   height: 56,
                   borderRadius: "50%",
                   margin: "0 auto 16px",
-                  background: "rgba(255,77,79,0.12)",
-                  border: "1px solid rgba(255,77,79,0.25)",
+                  background: "rgba(255,77,79,0.1)",
+                  border: "1px solid rgba(255,77,79,0.2)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -2868,34 +2785,33 @@ export default function SyncGroupPage() {
               </h3>
               <p
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.45)",
                   fontSize: 14,
                   margin: "0 0 24px",
                   lineHeight: 1.5,
                 }}
               >
-                <strong style={{ color: "rgba(255,255,255,0.8)" }}>
+                <strong style={{ color: "rgba(255,255,255,0.75)" }}>
                   {group.title || "Untitled Trip"}
                 </strong>
                 {group.destination && <span> → {group.destination}</span>}
                 <br />
-                This will remove the trip for all travelers and cannot be
-                undone.
+                This cannot be undone.
               </p>
               <div style={{ display: "flex", gap: 10 }}>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   style={{
                     flex: 1,
-                    padding: "14px",
+                    padding: 14,
                     borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.06)",
-                    color: "rgba(255,255,255,0.7)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "rgba(255,255,255,0.6)",
                     fontSize: 14,
                     fontWeight: 600,
                     cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "inherit",
                   }}
                 >
                   Cancel
@@ -2904,7 +2820,7 @@ export default function SyncGroupPage() {
                   onClick={deleteGroup}
                   style={{
                     flex: 1,
-                    padding: "14px",
+                    padding: 14,
                     borderRadius: 14,
                     border: "none",
                     background:
@@ -2913,8 +2829,8 @@ export default function SyncGroupPage() {
                     fontSize: 14,
                     fontWeight: 700,
                     cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif",
-                    boxShadow: "0 4px 20px rgba(255,77,79,0.35)",
+                    fontFamily: "inherit",
+                    boxShadow: "0 4px 20px rgba(255,77,79,0.3)",
                   }}
                 >
                   Delete Trip

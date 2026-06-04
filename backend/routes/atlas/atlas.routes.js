@@ -1,11 +1,8 @@
 /**
  * atlas.routes.js  —  backend/routes/atlas/atlas.routes.js
  *
- * Already mounted at /api/atlas in your index.js.
- * This adds POST /api/atlas/suggest which proxies to OpenAI.
- *
- * Your backend .env needs:
- *   OPENAI_API_KEY=sk-proj-xxxxxxxx
+ * POST /api/atlas/suggest
+ * Returns up to 3 ranked trip suggestions based on prompt + filters.
  */
 
 import { Router } from "express";
@@ -14,29 +11,55 @@ const router = Router();
 
 router.post("/suggest", async (req, res) => {
   try {
-    const { prompt, homeCity, homeCode, promptHistory = [] } = req.body ?? {};
+    const {
+      prompt,
+      homeCity,
+      homeCode,
+      promptHistory = [],
+      filters = {}, // { budget, type, duration }
+      count = 3, // how many suggestions to return
+    } = req.body ?? {};
 
-    if (!prompt) {
-      return res.status(400).json({ error: "prompt is required" });
-    }
+    if (!prompt) return res.status(400).json({ error: "prompt is required" });
+
+    // Build a filter context string for the AI
+    const filterContext = Object.entries(filters)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ");
 
     const systemPrompt = `You are Atlas, Skyrio's AI travel planner.
-Given a user's travel prompt and their home airport, return ONE suggested trip as a JSON object.
+Given a user's travel prompt, their home airport, and optional filters, return ${count} ranked trip suggestions.
 
 Rules:
-- Be specific: real destinations, realistic pricing.
-- Infer budget from the prompt (look for dollar amounts, words like "budget", "cheap", "luxury").
-- If no budget is stated, pick a mid-range option appropriate to the destination.
-- The "total" is a realistic all-in estimate (flights + hotel) in USD as an integer.
-- "planKey" is a URL-safe slug like "tokyo-kyoto" or "tulum-5night".
-- "fit" is a 2-5 word quality signal e.g. "Excellent budget match" or "Slightly over budget".
+- Each suggestion must be a distinct destination or route — not just minor variations.
+- Rank by best fit first (budget match, filter match, value for money).
+- Infer budget from the prompt AND the budget filter if set.
+- "total" is a realistic all-in USD estimate (flights from the home airport + hotel) as an integer.
+- "planKey" is a URL-safe slug e.g. "tokyo-kyoto-10d" or "tulum-5night".
+- "fit" is 2-5 words e.g. "Excellent budget match", "Great adventure pick".
 - "summary" is 1 sentence max 18 words describing the vibe and value.
 - "dates" is a plausible window e.g. "Apr 5-15".
-- Consider the user's prompt history to refine suggestions.
+- "score" is 1-100 representing how well this matches the prompt + filters.
+- Consider prompt history to understand the user's preferences.
+${filterContext ? `\nActive filters the user set: ${filterContext}` : ""}
 
 Respond ONLY with raw JSON — no markdown, no backticks, no preamble.
 
-Schema: { "trip":"string", "dates":"string", "total":number, "fit":"string", "summary":"string", "planKey":"string" }`;
+Schema:
+{
+  "suggestions": [
+    {
+      "trip": "string",
+      "dates": "string",
+      "total": number,
+      "fit": "string",
+      "summary": "string",
+      "planKey": "string",
+      "score": number
+    }
+  ]
+}`;
 
     const userMessage = `Home airport: ${homeCity ?? "Unknown"} (${
       homeCode ?? "?"
@@ -44,7 +67,7 @@ Schema: { "trip":"string", "dates":"string", "total":number, "fit":"string", "su
 Current prompt: "${prompt}"
 ${
   promptHistory.length > 1
-    ? `Previous prompts this session:\n${promptHistory
+    ? `Session history:\n${promptHistory
         .slice(0, -1)
         .map((p, i) => `  ${i + 1}. "${p}"`)
         .join("\n")}`
@@ -61,7 +84,7 @@ ${
         },
         body: JSON.stringify({
           model: "gpt-4o-mini",
-          temperature: 0.7,
+          temperature: 0.75,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage },
@@ -86,7 +109,12 @@ ${
       .trim();
     const result = JSON.parse(clean);
 
-    res.json(result);
+    // Ensure we always return the { suggestions: [...] } shape
+    if (Array.isArray(result?.suggestions)) {
+      return res.json(result);
+    }
+    // Fallback: if model returned a single object, wrap it
+    return res.json({ suggestions: [result] });
   } catch (err) {
     console.error("[Atlas suggest] error:", err.message);
     res.status(500).json({ error: err.message });
