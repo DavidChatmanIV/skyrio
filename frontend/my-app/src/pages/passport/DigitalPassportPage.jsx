@@ -1462,9 +1462,6 @@ export default function DigitalPassportPage() {
                       </Button>
                     </div>
                   </Card>
-                  <div style={{ marginTop: 10, opacity: 0.95 }}>
-                    <Tag className="pp-tag ppTagDark">Soft Launch</Tag>
-                  </div>
                 </div>
               </div>
             </div>

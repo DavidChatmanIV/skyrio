@@ -55,10 +55,6 @@ export default function Footer() {
           <a href={`mailto:${SUPPORT_EMAIL}`} className="sk-footer__email">
             {SUPPORT_EMAIL}
           </a>
-          <div className="sk-footer__badge">
-            <span className="sk-footer__badge-dot" />
-            Soft Launch — July 2026
-          </div>
         </div>
 
         {/* ── Nav columns ── */}

@@ -1065,6 +1065,7 @@ export default function SyncGroupPage() {
       {/* ═══ HEADER ═══ */}
       <Section mt={0}>
         <div
+          className="sk-sync-header-row"
           style={{
             display: "flex",
             alignItems: "flex-start",
@@ -2606,21 +2607,21 @@ export default function SyncGroupPage() {
               style={{
                 flex: 1,
                 minWidth: 0,
-                width: "100%",
-                height: 40,
+                width: "200%",
+                height: window.innerWidth <= 600 ? 48 : 40,
                 padding: "0 14px",
                 borderRadius: 14,
                 border: "1px solid rgba(255,255,255,0.1)",
                 background: "rgba(255,255,255,0.05)",
                 color: "rgba(255,255,255,0.9)",
-                fontSize: 14,
+                fontSize: 16,
                 fontFamily: "inherit",
                 outline: "none",
                 WebkitAppearance: "none",
               }}
             />
             <Button
-              className="sk-sync-add-btn"
+              className="group-chat-input-row"
               icon={<SendOutlined />}
               onClick={sendChat}
               loading={chatSending}
