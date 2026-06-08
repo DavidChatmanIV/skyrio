@@ -299,7 +299,6 @@ export default function SyncTogether() {
           included.
         </p>
         <div className="sk-sync-trust">
-          <span>No account required to plan</span>
           <span className="sk-sync-trust-dot">·</span>
           <span>Free to use</span>
           <span className="sk-sync-trust-dot">·</span>
