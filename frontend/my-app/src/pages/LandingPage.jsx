@@ -280,7 +280,9 @@ async function fetchAISuggestion(
   filters = {},
   count = 3
 ) {
-  const response = await fetch("/api/atlas/suggest", {
+  const url = "/api/atlas/suggest";
+  console.log("[Atlas] fetching", url, { prompt, homeCity, homeCode, count });
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -292,8 +294,14 @@ async function fetchAISuggestion(
       count,
     }),
   });
-  if (!response.ok) throw new Error(`API ${response.status}`);
+  console.log("[Atlas] response status:", response.status, response.url);
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    console.error("[Atlas] error body:", text);
+    throw new Error(`API ${response.status}: ${text.slice(0, 200)}`);
+  }
   const data = await response.json();
+  console.log("[Atlas] success:", data);
   return Array.isArray(data?.suggestions)
     ? data.suggestions
     : data
