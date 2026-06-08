@@ -295,7 +295,7 @@ export default function SyncTogether() {
         </h2>
         <p className="sk-sync-sub">
           Add your travel crew, set everyone&apos;s budget and Atlas builds a
-          plan that works for the whole group — flights, hotels and splits
+          plan that works for the whole group flights, hotels and splits
           included.
         </p>
         <div className="sk-sync-trust">
