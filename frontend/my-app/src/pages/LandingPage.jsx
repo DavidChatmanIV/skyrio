@@ -1087,6 +1087,24 @@ const INJECTED_CSS = `
 .sk-support__email { display:inline-flex; align-items:center; gap:8px; padding:10px 22px; border-radius:999px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.3); color:#ff8a2a; font-size:13px; font-weight:600; text-decoration:none; transition:background 0.2s, transform 0.2s; }
 .sk-support__email:hover { background:rgba(255,138,42,0.2); transform:translateY(-1px); }
 
+/* ══ EXAMPLES ERROR STATE ══ */
+.sk-examples__error {
+  text-align: center;
+  padding: 32px 16px;
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+}
+.sk-examples__retry {
+  margin-top: 12px;
+  display: inline-flex; align-items: center;
+  padding: 8px 24px; border-radius: 999px;
+  background: rgba(255,138,42,0.15); border: 1px solid rgba(255,138,42,0.4);
+  color: #ff8a2a; font-family: "DM Sans", sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 0.2s;
+}
+.sk-examples__retry:hover { background: rgba(255,138,42,0.25); }
+
 /* ══ MOBILE ══ */
 @media(max-width:640px){
   .sk-support__grid{grid-template-columns:1fr} .sk-support{padding:0 16px 72px}
@@ -1098,6 +1116,9 @@ const INJECTED_CSS = `
   .sk-time-badge-wrap{padding:6px 16px 0}
   .sk-filter-groups{padding:14px} .sk-filter-pill{padding:5px 12px;font-size:11px}
   .sk-sugg-tabs{display:none}
+  /* Shorter card images on mobile so content doesn't get cut off */
+  .sk-card__media { height:160px !important; }
+  .sk-card--skeleton .sk-card__media { height:160px !important; }
 }
 `;
 
@@ -1138,6 +1159,8 @@ export default function LandingPage() {
   const [isRouting, setIsRouting] = useState(false);
   const [examplePlans, setExamplePlans] = useState([]);
   const [examplesLoading, setExamplesLoading] = useState(true);
+  const [examplesFailed, setExamplesFailed] = useState(false);
+  const [examplesKey, setExamplesKey] = useState(0); // increment to retry
   const [activeFilters, setActiveFilters] = useState({
     budget: null,
     type: null,
@@ -1240,15 +1263,24 @@ export default function LandingPage() {
     let cancelled = false;
     async function load() {
       setExamplesLoading(true);
+      setExamplesFailed(false);
       try {
-        const results = await Promise.all(
+        const results = await Promise.allSettled(
           EXAMPLE_SEEDS.map((seed) =>
             fetchAISuggestion(seed, homeCity, homeCode, [], {}, 1)
               .then((r) => r[0])
               .catch(() => null)
           )
         );
-        if (!cancelled) setExamplePlans(results.filter(Boolean));
+        const plans = results
+          .filter((r) => r.status === "fulfilled" && r.value)
+          .map((r) => r.value);
+        if (!cancelled) {
+          if (plans.length === 0) setExamplesFailed(true);
+          setExamplePlans(plans);
+        }
+      } catch {
+        if (!cancelled) setExamplesFailed(true);
       } finally {
         if (!cancelled) setExamplesLoading(false);
       }
@@ -1258,7 +1290,7 @@ export default function LandingPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [homeCity, homeCode]);
+  }, [homeCity, homeCode, examplesKey]);
 
   const handleQueryChange = useCallback(
     (e) => {
@@ -1627,6 +1659,8 @@ export default function LandingPage() {
               <p className="sk-examples__sub">
                 {examplesLoading
                   ? "Atlas is generating live plans…"
+                  : examplesFailed || examplePlans.length === 0
+                  ? "Live AI-generated plans — tap retry to load."
                   : "Live AI-generated plans — click any to go straight to booking."}
               </p>
             </div>
@@ -1642,8 +1676,21 @@ export default function LandingPage() {
                       disabled={isRouting}
                     />
                   ))
-                : [0, 1, 2].map((i) => <SkeletonCard key={i} />)}
+                : null}
             </div>
+            {!examplesLoading &&
+              (examplesFailed || examplePlans.length === 0) && (
+                <div className="sk-examples__error">
+                  <p>Atlas couldn't load live plans right now.</p>
+                  <button
+                    type="button"
+                    className="sk-examples__retry"
+                    onClick={() => setExamplesKey((k) => k + 1)}
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
             <p className="sk-footline">
               No account needed to plan. Sign up when you're ready to book.
             </p>
