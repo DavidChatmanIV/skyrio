@@ -65,7 +65,7 @@
 }
 
 /* ======================================
-   GLASS INPUT — fixes white box / invisible text
+   GLASS INPUT
 ====================================== */
 
 .sk-glass-input {
@@ -108,7 +108,6 @@
   -webkit-text-fill-color: #ffffff !important;
 }
 
-/* Autofill override — browsers inject white bg on autofill */
 .sk-glass-input:-webkit-autofill,
 .sk-glass-input:-webkit-autofill:hover,
 .sk-glass-input:-webkit-autofill:focus {
@@ -126,7 +125,7 @@
 }
 
 /* ======================================
-   PAGE WRAPPER — fade-in on load
+   PAGE WRAPPER
 ====================================== */
 @keyframes sk-page-in {
   from {
@@ -161,7 +160,6 @@
   animation: sk-page-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Subtle top-edge highlight — flattened for PostCSS compatibility */
 .sk-booking-hero::before {
   content: "";
   position: absolute;
@@ -2459,6 +2457,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  padding-bottom: 8px;
   width: 100%;
 }
 
@@ -2486,7 +2485,7 @@
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
-  padding-top: 30px;
+  padding-top: 22px;
   width: 28px;
 }
 
@@ -2523,7 +2522,7 @@
 .sk-mc-leg-fields {
   flex: 1;
   min-width: 0;
-  padding-bottom: 14px;
+  padding-bottom: 6px;
 }
 
 .sk-mc-field-row {
@@ -2659,6 +2658,11 @@
     grid-column: 1 / -1;
     min-width: 0;
   }
+  .sk-mc-datepicker.ant-picker {
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+  }
   .sk-mc-remove-btn {
     grid-column: 2;
     grid-row: 1;
@@ -2692,7 +2696,7 @@
     gap: 0;
   }
   .sk-mc-leg-fields {
-    padding-bottom: 12px;
+    padding-bottom: 10px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
   .sk-mc-legs .sk-mc-leg:last-child .sk-mc-leg-fields {
