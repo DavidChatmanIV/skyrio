@@ -171,6 +171,34 @@ const EXAMPLE_SEEDS = [
   "an adventure trip for one week any destination",
 ];
 
+// Static fallback plans — shown instantly if API is unavailable (mobile/CORS)
+const FALLBACK_PLANS = [
+  {
+    trip: "Tulum, Mexico",
+    dates: "Any 5 nights",
+    total: 1640,
+    fit: "Excellent beach pick",
+    summary: "Turquoise water, cenotes, and great food within budget.",
+    planKey: "tulum-5night",
+  },
+  {
+    trip: "Barcelona, Spain",
+    dates: "Any 7 nights",
+    total: 2400,
+    fit: "Great city break",
+    summary: "Architecture, tapas, beaches — Europe's most vibrant city.",
+    planKey: "barcelona-7night",
+  },
+  {
+    trip: "Bali, Indonesia",
+    dates: "Any 10 nights",
+    total: 1900,
+    fit: "Top adventure pick",
+    summary: "Rice terraces, temples, surf — incredible value for 10 days.",
+    planKey: "bali-10night",
+  },
+];
+
 const SOCIAL_PROOF = [
   { stat: "8 sec", label: "avg. plan build" },
   { stat: "30+", label: "destinations" },
@@ -986,8 +1014,12 @@ const INJECTED_CSS = `
 .sk-live-card__media { transition:transform 0.4s ease !important; }
 .sk-live-card__price { font-family:"Syne",sans-serif; font-size:22px; font-weight:800; color:#fff; line-height:1; margin-bottom:6px; }
 .sk-live-card__price span { font-family:"DM Sans",sans-serif; font-size:12px; font-weight:400; color:rgba(255,255,255,0.5); margin-left:3px; }
-.sk-live-card__footer { opacity:0; transform:translateY(6px); transition:all 0.2s ease; }
-.sk-live-card:hover .sk-live-card__footer { opacity:1; transform:translateY(0); }
+/* Footer always visible — hover effect only on desktop */
+.sk-live-card__footer { opacity:1; transform:none; transition:all 0.2s ease; }
+@media(min-width:641px) {
+  .sk-live-card__footer { opacity:0; transform:translateY(6px); }
+  .sk-live-card:hover .sk-live-card__footer { opacity:1; transform:translateY(0); }
+}
 
 /* ══ SKELETON ══ */
 @keyframes sk-shimmer {
@@ -1272,6 +1304,16 @@ export default function LandingPage() {
     async function load() {
       setExamplesLoading(true);
       setExamplesFailed(false);
+
+      // 8 second timeout — if API hasn't responded, use fallback
+      const timeout = setTimeout(() => {
+        if (!cancelled) {
+          setExamplePlans(FALLBACK_PLANS);
+          setExamplesLoading(false);
+          setExamplesFailed(false);
+        }
+      }, 8000);
+
       try {
         const results = await Promise.allSettled(
           EXAMPLE_SEEDS.map((seed) =>
@@ -1280,15 +1322,21 @@ export default function LandingPage() {
               .catch(() => null)
           )
         );
+        clearTimeout(timeout);
         const plans = results
           .filter((r) => r.status === "fulfilled" && r.value)
           .map((r) => r.value);
         if (!cancelled) {
-          if (plans.length === 0) setExamplesFailed(true);
-          setExamplePlans(plans);
+          // Use live plans if we got them, otherwise fallback
+          setExamplePlans(plans.length > 0 ? plans : FALLBACK_PLANS);
+          setExamplesFailed(false);
         }
       } catch {
-        if (!cancelled) setExamplesFailed(true);
+        clearTimeout(timeout);
+        if (!cancelled) {
+          setExamplePlans(FALLBACK_PLANS);
+          setExamplesFailed(false);
+        }
       } finally {
         if (!cancelled) setExamplesLoading(false);
       }
@@ -1666,10 +1714,8 @@ export default function LandingPage() {
               </h2>
               <p className="sk-examples__sub">
                 {examplesLoading
-                  ? "Atlas is generating live plans…"
-                  : examplesFailed || examplePlans.length === 0
-                  ? "Live AI-generated plans — tap retry to load."
-                  : "Live AI-generated plans — click any to go straight to booking."}
+                  ? "Atlas is building plans for you…"
+                  : "Click any plan to go straight to booking."}
               </p>
             </div>
             <div className="sk-examples__grid">
@@ -1686,19 +1732,7 @@ export default function LandingPage() {
                   ))
                 : null}
             </div>
-            {!examplesLoading &&
-              (examplesFailed || examplePlans.length === 0) && (
-                <div className="sk-examples__error">
-                  <p>Atlas couldn't load live plans right now.</p>
-                  <button
-                    type="button"
-                    className="sk-examples__retry"
-                    onClick={() => setExamplesKey((k) => k + 1)}
-                  >
-                    Try again
-                  </button>
-                </div>
-              )}
+
             <p className="sk-footline">
               No account needed to plan. Sign up when you're ready to book.
             </p>

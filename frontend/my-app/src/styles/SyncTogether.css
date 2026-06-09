@@ -459,7 +459,7 @@
 @media (max-width: 768px) {
   .sk-sync-section {
     padding: 20px 12px 72px;
-    gap: 16px; /* tighter gap between sections */
+    gap: 16px;
   }
 
   .sk-sync-header {
@@ -534,9 +534,7 @@
     font-size: 14px !important;
   }
 
-  /* ── SyncGroupPage Section wrapper overrides ──
-     The <Section> component uses inline styles,
-     so we override via the parent .sk-sync-section */
+  /* Section wrapper overrides */
   .sk-sync-section > div {
     border-radius: 14px !important;
     padding: 16px 14px !important;
@@ -548,24 +546,22 @@
     font-size: 13px;
   }
 
-  /* Header card — stack title & buttons on mobile */
-  .sk-sync-section > div:first-of-type > div {
+  /* Header — stack title & buttons on ALL mobile */
+  .sk-sync-header-row {
     flex-direction: column !important;
-    align-items: flex-start !important;
+    align-items: stretch !important;
+    gap: 12px !important;
   }
-
-  /* Share & Delete button row — full width on mobile */
-  .sk-sync-section > div:first-of-type > div > div:last-child {
-    width: 100%;
+  .sk-sync-header-row > div:last-child {
     display: flex !important;
-    gap: 8px !important;
+    width: 100%;
   }
-  .sk-sync-section > div:first-of-type > div > div:last-child .ant-btn {
+  .sk-sync-header-row > div:last-child .ant-btn {
     flex: 1 !important;
-    height: 40px !important;
+    height: 42px !important;
   }
 
-  /* Trip Package grid — 2 columns even on mobile */
+  /* Trip Package grid — 2 columns on mobile */
   .sk-sync-section div[style*="grid-template-columns"] {
     grid-template-columns: 1fr 1fr !important;
     gap: 8px !important;
@@ -586,12 +582,10 @@
     padding: 16px 8px 64px;
     gap: 12px;
   }
-
   .sk-sync-section > div {
     padding: 14px 12px !important;
     border-radius: 12px !important;
   }
-
   .sk-sync-title {
     font-size: 20px;
   }
@@ -602,28 +596,13 @@
   .sk-sync-group-title {
     font-size: 13px;
   }
-
   .sk-sync-cta-btn.ant-btn {
     height: 44px !important;
     font-size: 13px !important;
   }
 
-  /* Trip package — stack to 1 column on very small screens */
+  /* Trip package — 1 column on tiny screens */
   .sk-sync-section div[style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
-  }
-  /* Header — stack title & buttons */
-  .sk-sync-header-row {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 12px !important;
-  }
-  .sk-sync-header-row > div:last-child {
-    display: flex !important;
-    width: 100%;
-  }
-  .sk-sync-header-row > div:last-child .ant-btn {
-    flex: 1 !important;
-    height: 42px !important;
   }
 }
