@@ -198,7 +198,7 @@ export default function TravelAssistant() {
           >
             <Select
               placeholder="Select flight class"
-              popupClassName="ta-select-dark"
+              classNames={{ popup: { root: "ta-select-dark" } }}
             >
               {FLIGHT_CLASSES.map((c) => (
                 <Option key={c} value={c}>
@@ -224,7 +224,7 @@ export default function TravelAssistant() {
                 <Select
                   placeholder="Select food plan"
                   options={FOOD_PLAN_OPTIONS}
-                  popupClassName="ta-select-dark"
+                  classNames={{ popup: { root: "ta-select-dark" } }}
                 />
               </Form.Item>
               <Form.Item

@@ -529,7 +529,7 @@ export default function TripBudgetCard({
               onChange={setNewCategory}
               className="tb-category-select"
               style={{ flex: 1 }}
-              popupClassName="tb-select-popup"
+              classNames={{ popup: { root: "tb-select-popup" } }}
             >
               {EXPENSE_CATEGORIES.map((c) => (
                 <Option key={c.key} value={c.key}>
