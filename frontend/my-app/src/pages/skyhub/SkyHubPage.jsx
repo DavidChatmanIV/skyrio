@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useRef,
+  useContext,
 } from "react";
 import { Badge, Button, Input, message } from "antd";
 import { useNavigate } from "react-router-dom";
@@ -14,7 +15,6 @@ import {
   EnvironmentOutlined,
   QuestionCircleOutlined,
 } from "@ant-design/icons";
-import { useContext } from "react";
 
 import "@/styles/SkyHubPage.css";
 import heroBeach from "@/assets/skyhub/beach.png";
@@ -28,7 +28,9 @@ import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import { apiUrl } from "@/lib/api";
 import { AuthContext } from "@/context/AuthContext";
 
-// ── Map backend post shape ─────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
+   Helpers
+───────────────────────────────────────────────────────────── */
 function mapBackendPost(post) {
   return {
     id: post._id,
@@ -59,22 +61,25 @@ function mapBackendPost(post) {
   };
 }
 
-// ── Derive trending destinations from feed posts ───────────────
-// No backend endpoint needed — computed from what we already have.
+// Trending destinations from feed posts
 function deriveTrending(posts) {
   const counts = {};
   posts.forEach((p) => {
-    if (!p.destination) return;
+    if (!p.destination?.trim()) return;
     counts[p.destination] = (counts[p.destination] || 0) + 1;
   });
+  const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
-    .map(([name, posts]) => ({ name, posts }));
+    .map(([name, cnt]) => ({
+      name,
+      posts: cnt,
+      pct: Math.round((cnt / total) * 100),
+    }));
 }
 
-// ── Derive active travelers from feed posts ────────────────────
-// Uses the most recent posters as a proxy for "active".
+// Active travelers (unique recent posters)
 function deriveActiveTravelers(posts) {
   const seen = new Set();
   return posts
@@ -92,6 +97,380 @@ function deriveActiveTravelers(posts) {
       location: p.destination,
       badge: "Explorer",
     }));
+}
+
+// Trending hashtags from post tags
+function deriveTrendingTags(posts) {
+  const counts = {};
+  posts.forEach((p) => {
+    (p.tags || []).forEach((t) => {
+      const tag = t.startsWith("#") ? t : `#${t}`;
+      counts[tag] = (counts[tag] || 0) + 1;
+    });
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([tag, cnt]) => ({ tag, cnt }));
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Featured Destination Card (Image 2 inspiration)
+   Shows the top trending destination with live stats
+───────────────────────────────────────────────────────────── */
+function FeaturedCard({ destination, postCount, onExplore }) {
+  if (!destination) return null;
+  return (
+    <div
+      style={{
+        background:
+          "linear-gradient(135deg,rgba(255,107,43,0.18),rgba(147,51,234,0.14))",
+        border: "1px solid rgba(255,107,43,0.25)",
+        borderRadius: 18,
+        padding: "16px 18px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        marginBottom: 0,
+        cursor: "pointer",
+        transition: "transform 0.15s, box-shadow 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 8px 32px rgba(255,107,43,0.2)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+      onClick={onExplore}
+    >
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          flexShrink: 0,
+          background: "linear-gradient(135deg,#ff6b2b,#9333ea)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 22,
+        }}
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#ff9555"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 01-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" />
+        </svg>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "rgba(255,149,85,0.9)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: 2,
+          }}
+        >
+          Trending Now
+        </div>
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: "#fff",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontFamily: "'Sora',sans-serif",
+          }}
+        >
+          {destination}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: "rgba(240,236,255,0.55)",
+            marginTop: 2,
+          }}
+        >
+          {postCount} post{postCount !== 1 ? "s" : ""} · Active community
+        </div>
+      </div>
+      <div
+        style={{
+          padding: "6px 14px",
+          borderRadius: 99,
+          flexShrink: 0,
+          background: "rgba(255,107,43,0.2)",
+          border: "1px solid rgba(255,107,43,0.35)",
+          fontSize: 12,
+          fontWeight: 700,
+          color: "#ff9555",
+        }}
+      >
+        Explore →
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Today's Hotspots Widget (Image 1 inspiration)
+   Shows top destinations with percentage bars
+───────────────────────────────────────────────────────────── */
+function HotspotsWidget({ trending }) {
+  if (!trending?.length) return null;
+  return (
+    <div
+      style={{
+        background: "rgba(20,16,40,0.85)",
+        border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: 16,
+        overflow: "hidden",
+        backdropFilter: "blur(16px)",
+      }}
+    >
+      <div
+        style={{
+          padding: "13px 16px 10px",
+          borderBottom: "1px solid rgba(255,255,255,0.07)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#ff6b2b"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+          <polyline points="16 7 22 7 22 13" />
+        </svg>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#f0ecff" }}>
+          Today's Hotspots
+        </span>
+      </div>
+      {trending.map((d, i) => (
+        <div
+          key={i}
+          style={{
+            padding: "10px 16px",
+            borderBottom:
+              i < trending.length - 1
+                ? "1px solid rgba(255,255,255,0.05)"
+                : "none",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 5,
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#f0ecff" }}>
+              {d.name}
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#ff9555",
+                background: "rgba(255,107,43,0.12)",
+                padding: "1px 7px",
+                borderRadius: 99,
+              }}
+            >
+              +{d.pct}%
+            </span>
+          </div>
+          <div
+            style={{
+              height: 4,
+              background: "rgba(255,255,255,0.07)",
+              borderRadius: 99,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${d.pct}%`,
+                background: "linear-gradient(90deg,#ff6b2b,#9333ea)",
+                borderRadius: 99,
+                transition: "width 0.8s ease",
+              }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Trending Tags Widget (Image 1 inspiration)
+───────────────────────────────────────────────────────────── */
+function TrendingTagsWidget({ tags }) {
+  if (!tags?.length) return null;
+  return (
+    <div
+      style={{
+        background: "rgba(20,16,40,0.85)",
+        border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: 16,
+        padding: "13px 16px",
+        backdropFilter: "blur(16px)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#ff6b2b"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 01-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" />
+          </svg>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#f0ecff" }}>
+            Trending
+          </span>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+        {tags.map(({ tag, cnt }) => (
+          <div
+            key={tag}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "5px 11px",
+              borderRadius: 99,
+              cursor: "pointer",
+              background: "rgba(147,51,234,0.13)",
+              border: "1px solid rgba(147,51,234,0.25)",
+              transition: "all 0.14s",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "rgba(147,51,234,0.24)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "rgba(147,51,234,0.13)")
+            }
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#c084fc" }}>
+              {tag}
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                color: "rgba(240,236,255,0.4)",
+                background: "rgba(255,255,255,0.06)",
+                padding: "0 5px",
+                borderRadius: 99,
+              }}
+            >
+              {cnt}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Main Page
+───────────────────────────────────────────────────────────── */
+
+/* ── Empty state icon by type ─────────────────────────────── */
+function EmptyIcon({ type }) {
+  const props = {
+    width: 40,
+    height: 40,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.5,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  switch (type) {
+    case "globe":
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="10" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+          <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+        </svg>
+      );
+    case "edit":
+      return (
+        <svg {...props}>
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg>
+      );
+    case "pin":
+      return (
+        <svg {...props}>
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+      );
+    case "chat":
+      return (
+        <svg {...props}>
+          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+        </svg>
+      );
+    case "plane":
+      return (
+        <svg {...props}>
+          <path d="M22 2L11 13" />
+          <path d="M22 2L15 22 11 13 2 9l20-7z" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      );
+  }
 }
 
 export default function SkyHubPage() {
@@ -129,7 +508,7 @@ export default function SkyHubPage() {
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState(null);
 
-  // Search debounce — avoids re-filtering on every keystroke
+  // Debounce search
   const debounceRef = useRef(null);
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -140,7 +519,6 @@ export default function SkyHubPage() {
     return () => clearTimeout(debounceRef.current);
   }, [searchValue]);
 
-  // ── Fetch feed ────────────────────────────────────────────────
   const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
@@ -161,11 +539,11 @@ export default function SkyHubPage() {
     fetchFeed();
   }, [fetchFeed]);
 
-  // ── Derived sidebar data — no extra API calls ─────────────────
+  // All derived from feed — zero extra API calls
   const trendingDestinations = useMemo(() => deriveTrending(posts), [posts]);
   const activeTravelers = useMemo(() => deriveActiveTravelers(posts), [posts]);
+  const trendingTags = useMemo(() => deriveTrendingTags(posts), [posts]);
 
-  // ── Derived stats — computed from real feed data ───────────────
   const liveStats = useMemo(() => {
     if (!posts.length) return null;
     const uniqueAuthors = new Set(
@@ -181,16 +559,10 @@ export default function SkyHubPage() {
     };
   }, [posts]);
 
-  // ── Tab-aware filtering ───────────────────────────────────────
-  // "following" → current user's own posts
-  // "nearby"    → posts that have a destination set
-  // "questions" → Question type only
-  // "trips"     → Join Trip or Story
-  // "forYou"    → everything
+  // Tab-aware filtering
   const visiblePosts = useMemo(() => {
     const myUsername = currentUser?.username?.toLowerCase();
     const myId = currentUser?.id;
-
     return posts.filter((post) => {
       const s = debouncedSearch.toLowerCase();
       const ms =
@@ -199,18 +571,15 @@ export default function SkyHubPage() {
         (post.destination || "").toLowerCase().includes(s) ||
         (post.author || "").toLowerCase().includes(s) ||
         (post.tags || []).join(" ").toLowerCase().includes(s);
-
       const mf =
         activeFilter === "All" ||
         (post.tags || []).some(
           (t) => t.toLowerCase() === activeFilter.toLowerCase()
         ) ||
         (post.type || "").toLowerCase() === activeFilter.toLowerCase();
-
       let mt = true;
       switch (activeTab) {
         case "following":
-          // Show own posts — closest we can do without a follow system
           mt =
             (post.username || "").replace("@", "").toLowerCase() ===
               myUsername ||
@@ -218,7 +587,6 @@ export default function SkyHubPage() {
             (post.username || "").replace("@", "").toLowerCase() === "you";
           break;
         case "nearby":
-          // Posts that have a destination set
           mt = !!post.destination?.trim();
           break;
         case "questions":
@@ -230,37 +598,39 @@ export default function SkyHubPage() {
         default:
           mt = true;
       }
-
       return ms && mf && mt;
     });
   }, [posts, debouncedSearch, activeFilter, activeTab, currentUser]);
 
-  // ── Tab-specific empty state messages ─────────────────────────
   const emptyMessages = {
     forYou: {
+      icon: "globe",
       title: "Nothing here yet",
-      body: "Be the first to share a travel tip, question, or story.",
+      body: "Be the first to share a tip, question, or story.",
     },
     following: {
+      icon: "edit",
       title: "No posts yet",
       body: "Posts you create will appear here.",
     },
     nearby: {
+      icon: "pin",
       title: "No destination posts",
       body: "Posts tagged with a destination will appear here.",
     },
     questions: {
+      icon: "chat",
       title: "No questions yet",
       body: "Ask the community anything about travel.",
     },
     trips: {
+      icon: "plane",
       title: "No trips yet",
       body: "Share a trip idea or story to get started.",
     },
   };
   const emptyMsg = emptyMessages[activeTab] || emptyMessages.forYou;
 
-  // ── Feed section title by tab ──────────────────────────────────
   const feedTitles = {
     forYou: "Community Feed",
     following: "Your Posts",
@@ -269,7 +639,7 @@ export default function SkyHubPage() {
     trips: "Trips & Stories",
   };
 
-  // ── Create post ───────────────────────────────────────────────
+  // Handlers
   const handleCreatePost = async () => {
     if (!composerText.trim() && composerPhotos.length === 0) {
       message.warning("Write something or add a photo before posting.");
@@ -304,7 +674,6 @@ export default function SkyHubPage() {
             `${failed} photo${failed > 1 ? "s" : ""} failed to upload.`
           );
       }
-
       const res = await fetch(apiUrl("/api/skyhub/posts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -319,7 +688,6 @@ export default function SkyHubPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to create post");
-
       const enriched = {
         ...data.post,
         images: uploadedImageUrls.length
@@ -336,7 +704,7 @@ export default function SkyHubPage() {
       setDestination("");
       setActivePostType("Tip");
       setComposerPhotos([]);
-      message.success("Posted to SkyHub! ✈️");
+      message.success("Posted to SkyHub!");
     } catch (err) {
       message.error(err.message || "Could not create post.");
     } finally {
@@ -386,7 +754,6 @@ export default function SkyHubPage() {
   };
 
   const handleDeletePost = async (postId) => {
-    // Optimistic — remove instantly so it feels fast
     setPosts((prev) => prev.filter((p) => p.id !== postId));
     message.success("Post deleted.");
     try {
@@ -400,7 +767,7 @@ export default function SkyHubPage() {
       if (!res.ok && res.status !== 404)
         console.warn("[skyhub] delete returned", res.status);
     } catch {
-      /* network error — UI already updated */
+      /* UI already updated */
     }
   };
 
@@ -443,13 +810,15 @@ export default function SkyHubPage() {
     ? `${currentUser.id || ""}|${currentUser.username || ""}`
     : null;
 
-  // ── Render ────────────────────────────────────────────────────
+  const topTrending = trendingDestinations[0] || null;
+
+  /* ── Render ──────────────────────────────────────────────── */
   return (
     <div
       className="skyhub-page"
       style={{ backgroundImage: `url(${heroBeach})` }}
     >
-      {/* ── HERO ── */}
+      {/* ══ HERO ══ */}
       <header className="skyhub-topHeader">
         <div className="skyhub-topHeaderOverlay" />
         <div className="skyhub-topHeaderInner">
@@ -473,6 +842,7 @@ export default function SkyHubPage() {
                       borderRadius: "50%",
                       objectFit: "cover",
                       border: "2px solid rgba(255,255,255,0.5)",
+                      flexShrink: 0,
                     }}
                   />
                 ) : (
@@ -481,7 +851,8 @@ export default function SkyHubPage() {
                       width: 40,
                       height: 40,
                       borderRadius: "50%",
-                      background: "linear-gradient(135deg,#ff7a35,#8b5cf6)",
+                      flexShrink: 0,
+                      background: "linear-gradient(135deg,#ff6b2b,#9333ea)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -502,12 +873,12 @@ export default function SkyHubPage() {
                       lineHeight: 1.2,
                     }}
                   >
-                    Hey, {currentUser.name.split(" ")[0]} 👋
+                    Hey, {currentUser.name.split(" ")[0]}
                   </div>
                   <div
                     style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}
                   >
-                    @{currentUser.username} · {currentUser.badge} · ✈️{" "}
+                    @{currentUser.username} · {currentUser.badge} ·{" "}
                     {(currentUser.xp || 0).toLocaleString()} XP
                   </div>
                 </div>
@@ -557,7 +928,7 @@ export default function SkyHubPage() {
           </div>
         </div>
 
-        {/* Live stats derived from real feed data */}
+        {/* Live stats */}
         {liveStats && (
           <div className="skyhub-topStats">
             <div className="skyhub-statItem">
@@ -585,10 +956,11 @@ export default function SkyHubPage() {
         )}
       </header>
 
-      {/* ── MAIN ── */}
+      {/* ══ MAIN ══ */}
       <main className="skyhub-main">
         {/* Sticky nav */}
         <div className="skyhub-navbar">
+          {/* Tabs — single scrolling row */}
           <div className="skyhub-navbar-tabs">
             {skyhubTabs.map((tab) => (
               <button
@@ -603,7 +975,8 @@ export default function SkyHubPage() {
               </button>
             ))}
           </div>
-          <div className="skyhub-navbar-vibes">
+          {/* Vibe chips — SINGLE scrolling row, no wrap */}
+          <div className="skyhub-navbar-vibes" style={{ flexWrap: "nowrap" }}>
             {skyhubFilters
               .filter((f) => f !== "Team Travel")
               .map((filter) => (
@@ -621,9 +994,22 @@ export default function SkyHubPage() {
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content grid */}
         <section className="skyhub-contentGrid">
           <div className="skyhub-leftRail">
+            {/* Featured destination card (Image 2 inspiration) */}
+            {topTrending && (
+              <FeaturedCard
+                destination={topTrending.name}
+                postCount={topTrending.posts}
+                onExplore={() => {
+                  setActiveFilter("All");
+                  setActiveTab("nearby");
+                  handleExploreSearch();
+                }}
+              />
+            )}
+
             <SkyHubComposer
               composerText={composerText}
               setComposerText={setComposerText}
@@ -653,13 +1039,21 @@ export default function SkyHubPage() {
                 </div>
                 <Badge
                   count={visiblePosts.length}
-                  style={{ backgroundColor: "#ff7a35" }}
+                  style={{ backgroundColor: "#ff6b2b" }}
                 />
               </div>
 
               <div className="skyhub-feedList">
                 {loadingFeed ? (
                   <div className="skyhub-emptyState">
+                    <div
+                      style={{
+                        marginBottom: 10,
+                        color: "rgba(240,236,255,0.3)",
+                      }}
+                    >
+                      <EmptyIcon type="plane" />
+                    </div>
                     <h3>Loading SkyHub...</h3>
                     <p>Pulling in the latest travel conversations.</p>
                   </div>
@@ -678,6 +1072,14 @@ export default function SkyHubPage() {
                   ))
                 ) : (
                   <div className="skyhub-emptyState">
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        color: "rgba(240,236,255,0.25)",
+                      }}
+                    >
+                      <EmptyIcon type={emptyMsg.icon} />
+                    </div>
                     <h3>{emptyMsg.title}</h3>
                     <p>{emptyMsg.body}</p>
                   </div>
@@ -686,14 +1088,26 @@ export default function SkyHubPage() {
             </section>
           </div>
 
-          {/* Sidebar — all data derived from feed, no extra API calls */}
+          {/* Sidebar — all data from feed, no extra API calls */}
           <aside className="skyhub-rightRail">
             <SkyHubPassportCard currentUser={currentUser} />
+
+            {/* Trending tags (Image 1 inspiration) */}
+            {trendingTags.length > 0 && (
+              <TrendingTagsWidget tags={trendingTags} />
+            )}
+
             <SkyHubTrendingDestinations
               items={trendingDestinations}
               loading={loadingFeed}
               onSeeAll={() => navigate("/skyhub/destinations")}
             />
+
+            {/* Today's hotspots with % bars (Image 1 inspiration) */}
+            {trendingDestinations.length > 0 && (
+              <HotspotsWidget trending={trendingDestinations} />
+            )}
+
             <SkyHubActiveTravelers
               travelers={activeTravelers}
               loading={loadingFeed}

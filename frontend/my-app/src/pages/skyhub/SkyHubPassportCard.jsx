@@ -177,12 +177,36 @@ export default function SkyHubPassportCard({ currentUser }) {
             />
           </div>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-            {xpToNext.toLocaleString()} XP to {nextLevel.name} — keep sharing ✦
+            {xpToNext.toLocaleString()} XP to {nextLevel.name} — keep sharing
           </div>
         </>
       ) : (
-        <div style={{ fontSize: 12, color: "#fbbf24", fontWeight: 600 }}>
-          🏆 Legend — you've reached the top!
+        <div
+          style={{
+            fontSize: 12,
+            color: "#fbbf24",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#fbbf24"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="8 21 12 17 16 21" />
+            <path d="M5 3H19" />
+            <path d="M5 3C5 3 4 13 12 13C20 13 19 3 19 3" />
+            <line x1="12" y1="13" x2="12" y2="17" />
+          </svg>
+          Legend — you've reached the top!
         </div>
       )}
     </div>
