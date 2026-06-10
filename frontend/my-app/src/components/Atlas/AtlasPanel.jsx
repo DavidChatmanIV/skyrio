@@ -1,10 +1,7 @@
 /**
- * Floating chat panel for Atlas AI.
- * - Reads booking context from AtlasContext (destination, budget, flights, spend)
- * - Starter prompts surface contextually based on what the user is doing
- * - Strong system prompt grounds Atlas in Skyrio's real data
- * - Streams responses from Anthropic via /api/atlas/chat
- * - FAB trigger button with Robot icon + nudge tooltip
+ * AtlasPanel.jsx
+ * Floating Atlas AI chat — hides FAB when date picker is open.
+ * Positioned bottom-right.
  */
 
 import React, {
@@ -20,13 +17,9 @@ import "@/styles/AtlasPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
 
-// ─────────────────────────────────────────────────────────────
-// System prompt — grounds Atlas in real booking context
-// ─────────────────────────────────────────────────────────────
 function buildSystemPrompt(ctx) {
   const { destination, budget, tripDays, bookingTotal, spent, flights } =
     ctx || {};
-
   const hasDest = destination && destination.trim().length > 0;
   const hasBudget = budget && Number(budget) > 0;
   const hasFlights = Array.isArray(flights) && flights.length > 0;
@@ -99,9 +92,6 @@ WHAT YOU DO NOT DO:
 Keep responses under 120 words unless the user asks for a detailed breakdown. Use short paragraphs or bullet points when listing options. Always end with a clear next step or question if more info would help.`;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Starter prompts — context-aware
-// ─────────────────────────────────────────────────────────────
 function buildStarterPrompts(ctx) {
   const { destination, budget, tripDays, bookingTotal, flights } = ctx || {};
   const hasDest = destination && destination.trim().length > 0;
@@ -110,17 +100,13 @@ function buildStarterPrompts(ctx) {
   const hasBooking = bookingTotal && Number(bookingTotal) > 0;
 
   const prompts = [];
-
-  if (hasDest && hasBudget) {
+  if (hasDest && hasBudget)
     prompts.push(
       `How should I split my $${Number(
         budget
       ).toLocaleString()} budget for ${destination}?`
     );
-  }
-  if (hasFlights) {
-    prompts.push("Which flight option gives the best value?");
-  }
+  if (hasFlights) prompts.push("Which flight option gives the best value?");
   if (hasDest) {
     prompts.push(`What's the best time of year to visit ${destination}?`);
     prompts.push(`What are the must-do experiences in ${destination}?`);
@@ -129,9 +115,8 @@ function buildStarterPrompts(ctx) {
     const left = Number(budget) - Number(bookingTotal);
     prompts.push(`I have $${left.toLocaleString()} left — where should it go?`);
   }
-  if (tripDays && hasDest) {
+  if (tripDays && hasDest)
     prompts.push(`Build me a ${tripDays}-day itinerary for ${destination}.`);
-  }
 
   const fallbacks = [
     "Find me a warm destination under $1,500 in the next 6 weeks.",
@@ -147,13 +132,9 @@ function buildStarterPrompts(ctx) {
     if (merged.length >= 4) break;
     if (!merged.includes(f)) merged.push(f);
   }
-
   return merged.slice(0, 4);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Robot SVG icon for Atlas FAB
-// ─────────────────────────────────────────────────────────────
 function RobotIcon() {
   return (
     <svg
@@ -164,14 +145,10 @@ function RobotIcon() {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      {/* Body */}
       <rect x="5.5" y="10" width="13" height="9.5" rx="2.5" />
-      {/* Head */}
       <rect x="8" y="5.5" width="8" height="5.5" rx="2" opacity=".9" />
-      {/* Eyes */}
       <circle cx="10" cy="14" r="1.5" fill="#1a0d04" />
       <circle cx="14" cy="14" r="1.5" fill="#1a0d04" />
-      {/* Mouth */}
       <rect
         x="10"
         y="17"
@@ -181,7 +158,6 @@ function RobotIcon() {
         fill="#1a0d04"
         opacity=".55"
       />
-      {/* Antenna stem */}
       <line
         x1="12"
         y1="5.5"
@@ -191,9 +167,7 @@ function RobotIcon() {
         strokeWidth="2"
         strokeLinecap="round"
       />
-      {/* Antenna tip */}
       <circle cx="12" cy="3" r="1.3" />
-      {/* Left arm */}
       <line
         x1="5.5"
         y1="13"
@@ -203,7 +177,6 @@ function RobotIcon() {
         strokeWidth="2"
         strokeLinecap="round"
       />
-      {/* Right arm */}
       <line
         x1="18.5"
         y1="13"
@@ -217,9 +190,6 @@ function RobotIcon() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Nudge tooltip — guides user to open Atlas
-// ─────────────────────────────────────────────────────────────
 function AtlasNudge({ visible, onDismiss }) {
   if (!visible) return null;
   return (
@@ -240,13 +210,9 @@ function AtlasNudge({ visible, onDismiss }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Message bubble
-// ─────────────────────────────────────────────────────────────
 function Bubble({ msg }) {
   const isUser = msg.role === "user";
   const isStream = msg.streaming;
-
   return (
     <div
       className={`ap-bubble ap-bubble--${isUser ? "user" : "atlas"}${
@@ -266,9 +232,6 @@ function Bubble({ msg }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Main component
-// ─────────────────────────────────────────────────────────────
 export default function AtlasPanel() {
   const { atlasContext, atlasDestination } = useAtlasContext();
 
@@ -277,7 +240,9 @@ export default function AtlasPanel() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showNudge, setShowNudge] = useState(true); // ← nudge state
+  const [showNudge, setShowNudge] = useState(true);
+  // ── Hide FAB when any Ant Design date picker is open ──
+  const [pickerActive, setPickerActive] = useState(false);
 
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -292,27 +257,30 @@ export default function AtlasPanel() {
     [atlasContext]
   );
 
-  // Scroll to bottom on new messages
+  // ── Observe DOM for open date picker ──
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const hasOpenPicker = !!document.querySelector(
+        ".ant-picker-dropdown:not(.ant-picker-dropdown-hidden)"
+      );
+      setPickerActive(hasOpenPicker);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  // Focus input when panel opens
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 120);
   }, [open]);
-
-  // Cleanup abort on unmount
   useEffect(() => () => abortRef.current?.abort(), []);
-
-  // Auto-dismiss nudge after 7 seconds
   useEffect(() => {
     if (!showNudge) return;
     const t = setTimeout(() => setShowNudge(false), 7000);
     return () => clearTimeout(t);
   }, [showNudge]);
-
-  // Hide nudge when panel opens
   useEffect(() => {
     if (open) setShowNudge(false);
   }, [open]);
@@ -333,7 +301,6 @@ export default function AtlasPanel() {
         role: m.role,
         content: m.content,
       }));
-
       const streamId = Date.now() + 1;
       setMessages((prev) => [
         ...prev,
@@ -359,20 +326,15 @@ export default function AtlasPanel() {
           throw new Error(errData.message || `Error ${res.status}`);
         }
 
-        // ── Streaming response ──
         if (res.headers.get("content-type")?.includes("text/event-stream")) {
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let accumulated = "";
-
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-
             const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n");
-
-            for (const line of lines) {
+            for (const line of chunk.split("\n")) {
               if (line.startsWith("data: ")) {
                 const data = line.slice(6).trim();
                 if (data === "[DONE]") break;
@@ -391,26 +353,23 @@ export default function AtlasPanel() {
                     );
                   }
                 } catch {
-                  /* skip malformed */
+                  /* skip */
                 }
               }
             }
           }
-
           setMessages((prev) =>
             prev.map((m) =>
               m.id === streamId ? { ...m, streaming: false } : m
             )
           );
         } else {
-          // ── Non-streaming fallback ──
           const data = await res.json();
           const content =
             data.content?.[0]?.text ||
             data.message ||
             data.reply ||
             "I couldn't generate a response. Please try again.";
-
           setMessages((prev) =>
             prev.map((m) =>
               m.id === streamId ? { ...m, content, streaming: false } : m
@@ -455,7 +414,6 @@ export default function AtlasPanel() {
       {/* ── Chat Panel ── */}
       {open && (
         <div className="ap-panel" role="dialog" aria-label="Atlas AI chat">
-          {/* Header */}
           <div className="ap-header">
             <div className="ap-header__left">
               <div className="ap-header__avatar">
@@ -491,7 +449,6 @@ export default function AtlasPanel() {
             </div>
           </div>
 
-          {/* Messages */}
           <div className="ap-messages">
             {showStarters && (
               <div className="ap-starters">
@@ -508,11 +465,9 @@ export default function AtlasPanel() {
                 ))}
               </div>
             )}
-
             {messages.map((msg) => (
               <Bubble key={msg.id} msg={msg} />
             ))}
-
             {error && (
               <div className="ap-error">
                 ⚠️ {error}
@@ -525,11 +480,9 @@ export default function AtlasPanel() {
                 </button>
               </div>
             )}
-
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
           <div className="ap-input-wrap">
             <textarea
               ref={inputRef}
@@ -560,38 +513,35 @@ export default function AtlasPanel() {
         </div>
       )}
 
-      {/* ── FAB wrapper (nudge + button stacked) ── */}
-      <div className="ap-fab-wrapper">
-        {/* Nudge tooltip — visible on load, auto-dismissed after 7s */}
-        <AtlasNudge
-          visible={showNudge && !open}
-          onDismiss={() => setShowNudge(false)}
-        />
-
-        {/* FAB button */}
-        <button
-          type="button"
-          className={`ap-fab${open ? " ap-fab--open" : ""}`}
-          onClick={() => setOpen((v) => !v)}
-          aria-label={open ? "Close Atlas" : "Open Atlas"}
-        >
-          {open ? (
-            <span className="ap-fab__icon">
-              <X size={16} />
-            </span>
-          ) : (
-            <>
+      {/* ── FAB — hidden when date picker is open ── */}
+      {!pickerActive && (
+        <div className="ap-fab-wrapper">
+          <AtlasNudge
+            visible={showNudge && !open}
+            onDismiss={() => setShowNudge(false)}
+          />
+          <button
+            type="button"
+            className={`ap-fab${open ? " ap-fab--open" : ""}`}
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? "Close Atlas" : "Open Atlas"}
+          >
+            {open ? (
               <span className="ap-fab__icon">
-                <RobotIcon />
+                <X size={16} />
               </span>
-              <span className="ap-fab__label">Atlas AI</span>
-            </>
-          )}
-        </button>
-
-        {/* Subtle hint label under FAB when closed */}
-        {!open && <span className="ap-fab-hint">Open Atlas AI</span>}
-      </div>
+            ) : (
+              <>
+                <span className="ap-fab__icon">
+                  <RobotIcon />
+                </span>
+                <span className="ap-fab__label">Atlas AI</span>
+              </>
+            )}
+          </button>
+          {!open && <span className="ap-fab-hint">Open Atlas AI</span>}
+        </div>
+      )}
     </>
   );
 }

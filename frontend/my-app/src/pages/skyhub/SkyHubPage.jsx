@@ -28,9 +28,7 @@ import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import { apiUrl } from "@/lib/api";
 import { AuthContext } from "@/context/AuthContext";
 
-/* ─────────────────────────────────────────────────────────────
-   Helpers
-───────────────────────────────────────────────────────────── */
+/* ── Data helpers ─────────────────────────────────────────────── */
 function mapBackendPost(post) {
   return {
     id: post._id,
@@ -61,7 +59,6 @@ function mapBackendPost(post) {
   };
 }
 
-// Trending destinations from feed posts
 function deriveTrending(posts) {
   const counts = {};
   posts.forEach((p) => {
@@ -79,7 +76,6 @@ function deriveTrending(posts) {
     }));
 }
 
-// Active travelers (unique recent posters)
 function deriveActiveTravelers(posts) {
   const seen = new Set();
   return posts
@@ -99,7 +95,6 @@ function deriveActiveTravelers(posts) {
     }));
 }
 
-// Trending hashtags from post tags
 function deriveTrendingTags(posts) {
   const counts = {};
   posts.forEach((p) => {
@@ -114,30 +109,150 @@ function deriveTrendingTags(posts) {
     .map(([tag, cnt]) => ({ tag, cnt }));
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Featured Destination Card (Image 2 inspiration)
-   Shows the top trending destination with live stats
-───────────────────────────────────────────────────────────── */
+/* ── SVG Icons used inline ──────────────────────────────────── */
+const TrendUpIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+    <polyline points="16 7 22 7 22 13" />
+  </svg>
+);
+const FireSvg = () => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 01-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" />
+  </svg>
+);
+const HashIcon = () => (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="4" y1="9" x2="20" y2="9" />
+    <line x1="4" y1="15" x2="20" y2="15" />
+    <line x1="10" y1="3" x2="8" y2="21" />
+    <line x1="16" y1="3" x2="14" y2="21" />
+  </svg>
+);
+const MapPinIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
+const SparkleIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+  </svg>
+);
+
+/* ── Empty state icons ──────────────────────────────────────── */
+function EmptyIcon({ type }) {
+  const p = {
+    width: 40,
+    height: 40,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.5,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  const icons = {
+    globe: (
+      <svg {...p}>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="2" y1="12" x2="22" y2="12" />
+        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+      </svg>
+    ),
+    edit: (
+      <svg {...p}>
+        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+      </svg>
+    ),
+    pin: (
+      <svg {...p}>
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
+    chat: (
+      <svg {...p}>
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+      </svg>
+    ),
+    plane: (
+      <svg {...p}>
+        <path d="M22 2L11 13" />
+        <path d="M22 2L15 22 11 13 2 9l20-7z" />
+      </svg>
+    ),
+  };
+  return icons[type] || icons.globe;
+}
+
+/* ── Featured Destination card ─────────────────────────────── */
 function FeaturedCard({ destination, postCount, onExplore }) {
   if (!destination) return null;
   return (
     <div
       style={{
         background:
-          "linear-gradient(135deg,rgba(255,107,43,0.18),rgba(147,51,234,0.14))",
-        border: "1px solid rgba(255,107,43,0.25)",
-        borderRadius: 18,
-        padding: "16px 18px",
+          "linear-gradient(135deg,rgba(255,107,43,0.16),rgba(147,51,234,0.12))",
+        border: "1px solid rgba(255,107,43,0.22)",
+        borderRadius: 20,
+        padding: "16px 20px",
         display: "flex",
         alignItems: "center",
         gap: 14,
-        marginBottom: 0,
         cursor: "pointer",
-        transition: "transform 0.15s, box-shadow 0.15s",
+        transition: "all 0.18s",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 8px 32px rgba(255,107,43,0.2)";
+        e.currentTarget.style.boxShadow = "0 10px 32px rgba(255,107,43,0.2)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
@@ -147,38 +262,27 @@ function FeaturedCard({ destination, postCount, onExplore }) {
     >
       <div
         style={{
-          width: 44,
-          height: 44,
-          borderRadius: 12,
+          width: 46,
+          height: 46,
+          borderRadius: 14,
           flexShrink: 0,
           background: "linear-gradient(135deg,#ff6b2b,#9333ea)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 22,
+          color: "#ff9555",
         }}
       >
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#ff9555"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 01-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" />
-        </svg>
+        <FireSvg />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: "rgba(255,149,85,0.9)",
+            fontSize: 10,
+            fontWeight: 800,
+            color: "rgba(255,149,85,0.85)",
             textTransform: "uppercase",
-            letterSpacing: "0.08em",
+            letterSpacing: "0.1em",
             marginBottom: 2,
           }}
         >
@@ -198,22 +302,18 @@ function FeaturedCard({ destination, postCount, onExplore }) {
           {destination}
         </div>
         <div
-          style={{
-            fontSize: 12,
-            color: "rgba(240,236,255,0.55)",
-            marginTop: 2,
-          }}
+          style={{ fontSize: 12, color: "rgba(240,236,255,0.5)", marginTop: 1 }}
         >
           {postCount} post{postCount !== 1 ? "s" : ""} · Active community
         </div>
       </div>
       <div
         style={{
-          padding: "6px 14px",
+          padding: "7px 14px",
           borderRadius: 99,
           flexShrink: 0,
-          background: "rgba(255,107,43,0.2)",
-          border: "1px solid rgba(255,107,43,0.35)",
+          background: "rgba(255,107,43,0.18)",
+          border: "1px solid rgba(255,107,43,0.32)",
           fontSize: 12,
           fontWeight: 700,
           color: "#ff9555",
@@ -225,20 +325,17 @@ function FeaturedCard({ destination, postCount, onExplore }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Today's Hotspots Widget (Image 1 inspiration)
-   Shows top destinations with percentage bars
-───────────────────────────────────────────────────────────── */
+/* ── Today's Hotspots ────────────────────────────────────────── */
 function HotspotsWidget({ trending }) {
   if (!trending?.length) return null;
   return (
     <div
       style={{
-        background: "rgba(20,16,40,0.85)",
+        background: "rgba(13,10,30,0.75)",
         border: "1px solid rgba(255,255,255,0.1)",
         borderRadius: 16,
         overflow: "hidden",
-        backdropFilter: "blur(16px)",
+        backdropFilter: "blur(24px)",
       }}
     >
       <div
@@ -250,20 +347,17 @@ function HotspotsWidget({ trending }) {
           gap: 8,
         }}
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#ff6b2b"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <span style={{ color: "var(--sh-orange2)" }}>
+          <TrendUpIcon />
+        </span>
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: "var(--sh-text)",
+            fontFamily: "'Sora',sans-serif",
+          }}
         >
-          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-          <polyline points="16 7 22 7 22 13" />
-        </svg>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#f0ecff" }}>
           Today's Hotspots
         </span>
       </div>
@@ -286,16 +380,18 @@ function HotspotsWidget({ trending }) {
               marginBottom: 5,
             }}
           >
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#f0ecff" }}>
+            <span
+              style={{ fontSize: 13, fontWeight: 600, color: "var(--sh-text)" }}
+            >
               {d.name}
             </span>
             <span
               style={{
                 fontSize: 11,
                 fontWeight: 700,
-                color: "#ff9555",
-                background: "rgba(255,107,43,0.12)",
-                padding: "1px 7px",
+                color: "var(--sh-orange2)",
+                background: "var(--sh-odim)",
+                padding: "1px 8px",
                 borderRadius: 99,
               }}
             >
@@ -305,7 +401,7 @@ function HotspotsWidget({ trending }) {
           <div
             style={{
               height: 4,
-              background: "rgba(255,255,255,0.07)",
+              background: "rgba(255,255,255,0.06)",
               borderRadius: 99,
               overflow: "hidden",
             }}
@@ -314,7 +410,7 @@ function HotspotsWidget({ trending }) {
               style={{
                 height: "100%",
                 width: `${d.pct}%`,
-                background: "linear-gradient(90deg,#ff6b2b,#9333ea)",
+                background: "linear-gradient(90deg,var(--sh-orange),#9333ea)",
                 borderRadius: 99,
                 transition: "width 0.8s ease",
               }}
@@ -326,153 +422,88 @@ function HotspotsWidget({ trending }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Trending Tags Widget (Image 1 inspiration)
-───────────────────────────────────────────────────────────── */
+/* ── Trending Tags ────────────────────────────────────────────── */
 function TrendingTagsWidget({ tags }) {
   if (!tags?.length) return null;
   return (
     <div
       style={{
-        background: "rgba(20,16,40,0.85)",
+        background: "rgba(13,10,30,0.75)",
         border: "1px solid rgba(255,255,255,0.1)",
         borderRadius: 16,
         padding: "13px 16px",
-        backdropFilter: "blur(16px)",
+        backdropFilter: "blur(24px)",
       }}
     >
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          gap: 7,
           marginBottom: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#ff6b2b"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 01-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" />
-          </svg>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#f0ecff" }}>
-            Trending
-          </span>
-        </div>
+        <span style={{ color: "var(--sh-orange)" }}>
+          <FireSvg />
+        </span>
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: "var(--sh-text)",
+            fontFamily: "'Sora',sans-serif",
+          }}
+        >
+          Trending
+        </span>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
         {tags.map(({ tag, cnt }) => (
-          <div
+          <span
             key={tag}
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 5,
-              padding: "5px 11px",
+              padding: "5px 12px",
               borderRadius: 99,
               cursor: "pointer",
-              background: "rgba(147,51,234,0.13)",
-              border: "1px solid rgba(147,51,234,0.25)",
+              background: "rgba(147,51,234,0.12)",
+              border: "1px solid rgba(147,51,234,0.22)",
               transition: "all 0.14s",
             }}
             onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "rgba(147,51,234,0.24)")
+              (e.currentTarget.style.background = "rgba(147,51,234,0.22)")
             }
             onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "rgba(147,51,234,0.13)")
+              (e.currentTarget.style.background = "rgba(147,51,234,0.12)")
             }
           >
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#c084fc" }}>
-              {tag}
+            <span style={{ color: "#a78bfa" }}>
+              <HashIcon />
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#c084fc" }}>
+              {tag.replace("#", "")}
             </span>
             <span
               style={{
-                fontSize: 11,
-                color: "rgba(240,236,255,0.4)",
-                background: "rgba(255,255,255,0.06)",
+                fontSize: 10,
+                color: "rgba(240,236,255,0.35)",
+                background: "rgba(255,255,255,0.05)",
                 padding: "0 5px",
                 borderRadius: 99,
               }}
             >
               {cnt}
             </span>
-          </div>
+          </span>
         ))}
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Main Page
-───────────────────────────────────────────────────────────── */
-
-/* ── Empty state icon by type ─────────────────────────────── */
-function EmptyIcon({ type }) {
-  const props = {
-    width: 40,
-    height: 40,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.5,
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-  };
-  switch (type) {
-    case "globe":
-      return (
-        <svg {...props}>
-          <circle cx="12" cy="12" r="10" />
-          <line x1="2" y1="12" x2="22" y2="12" />
-          <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-        </svg>
-      );
-    case "edit":
-      return (
-        <svg {...props}>
-          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-        </svg>
-      );
-    case "pin":
-      return (
-        <svg {...props}>
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-          <circle cx="12" cy="10" r="3" />
-        </svg>
-      );
-    case "chat":
-      return (
-        <svg {...props}>
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-        </svg>
-      );
-    case "plane":
-      return (
-        <svg {...props}>
-          <path d="M22 2L11 13" />
-          <path d="M22 2L15 22 11 13 2 9l20-7z" />
-        </svg>
-      );
-    default:
-      return (
-        <svg {...props}>
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-      );
-  }
-}
-
+/* ── Main ─────────────────────────────────────────────────────── */
 export default function SkyHubPage() {
   const navigate = useNavigate();
   const { user: authUser } = useContext(AuthContext);
@@ -508,7 +539,6 @@ export default function SkyHubPage() {
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState(null);
 
-  // Debounce search
   const debounceRef = useRef(null);
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -539,99 +569,98 @@ export default function SkyHubPage() {
     fetchFeed();
   }, [fetchFeed]);
 
-  // All derived from feed — zero extra API calls
   const trendingDestinations = useMemo(() => deriveTrending(posts), [posts]);
   const activeTravelers = useMemo(() => deriveActiveTravelers(posts), [posts]);
   const trendingTags = useMemo(() => deriveTrendingTags(posts), [posts]);
 
   const liveStats = useMemo(() => {
     if (!posts.length) return null;
-    const uniqueAuthors = new Set(
+    const authors = new Set(
       posts.map((p) => p.authorId || p.username).filter(Boolean)
     );
-    const uniqueCountries = new Set(
-      posts.map((p) => p.destination).filter(Boolean)
-    );
+    const countries = new Set(posts.map((p) => p.destination).filter(Boolean));
     return {
-      travelers: uniqueAuthors.size,
+      travelers: authors.size,
       posts: posts.length,
-      countries: uniqueCountries.size,
+      countries: countries.size,
     };
   }, [posts]);
 
-  // Tab-aware filtering
-  const visiblePosts = useMemo(() => {
-    const myUsername = currentUser?.username?.toLowerCase();
-    const myId = currentUser?.id;
-    return posts.filter((post) => {
-      const s = debouncedSearch.toLowerCase();
-      const ms =
-        !s ||
-        (post.text || "").toLowerCase().includes(s) ||
-        (post.destination || "").toLowerCase().includes(s) ||
-        (post.author || "").toLowerCase().includes(s) ||
-        (post.tags || []).join(" ").toLowerCase().includes(s);
-      const mf =
-        activeFilter === "All" ||
-        (post.tags || []).some(
-          (t) => t.toLowerCase() === activeFilter.toLowerCase()
-        ) ||
-        (post.type || "").toLowerCase() === activeFilter.toLowerCase();
-      let mt = true;
-      switch (activeTab) {
-        case "following":
-          mt =
-            (post.username || "").replace("@", "").toLowerCase() ===
-              myUsername ||
-            (post.authorId && String(post.authorId) === String(myId)) ||
-            (post.username || "").replace("@", "").toLowerCase() === "you";
-          break;
-        case "nearby":
-          mt = !!post.destination?.trim();
-          break;
-        case "questions":
-          mt = post.type === "Question";
-          break;
-        case "trips":
-          mt = post.type === "Join Trip" || post.type === "Story";
-          break;
-        default:
-          mt = true;
-      }
-      return ms && mf && mt;
-    });
-  }, [posts, debouncedSearch, activeFilter, activeTab, currentUser]);
+  const myUsername = currentUser?.username?.toLowerCase();
+  const myId = currentUser?.id;
 
-  const emptyMessages = {
+  const visiblePosts = useMemo(
+    () =>
+      posts.filter((post) => {
+        const s = debouncedSearch.toLowerCase();
+        const ms =
+          !s ||
+          (post.text || "").toLowerCase().includes(s) ||
+          (post.destination || "").toLowerCase().includes(s) ||
+          (post.author || "").toLowerCase().includes(s) ||
+          (post.tags || []).join(" ").toLowerCase().includes(s);
+        const mf =
+          activeFilter === "All" ||
+          (post.tags || []).some(
+            (t) => t.toLowerCase() === activeFilter.toLowerCase()
+          ) ||
+          (post.type || "").toLowerCase() === activeFilter.toLowerCase();
+        let mt = true;
+        switch (activeTab) {
+          case "following":
+            mt =
+              (post.username || "").replace("@", "").toLowerCase() ===
+                myUsername ||
+              (post.authorId && String(post.authorId) === String(myId)) ||
+              (post.username || "").replace("@", "").toLowerCase() === "you";
+            break;
+          case "nearby":
+            mt = !!post.destination?.trim();
+            break;
+          case "questions":
+            mt = post.type === "Question";
+            break;
+          case "trips":
+            mt = post.type === "Join Trip" || post.type === "Story";
+            break;
+          default:
+            mt = true;
+        }
+        return ms && mf && mt;
+      }),
+    [posts, debouncedSearch, activeFilter, activeTab, myUsername, myId]
+  );
+
+  const EMPTY = {
     forYou: {
       icon: "globe",
       title: "Nothing here yet",
-      body: "Be the first to share a tip, question, or story.",
+      sub: "Be the first to share a tip, question, or story.",
     },
     following: {
       icon: "edit",
       title: "No posts yet",
-      body: "Posts you create will appear here.",
+      sub: "Posts you create will appear here.",
     },
     nearby: {
       icon: "pin",
       title: "No destination posts",
-      body: "Posts tagged with a destination will appear here.",
+      sub: "Posts tagged with a destination will appear here.",
     },
     questions: {
       icon: "chat",
       title: "No questions yet",
-      body: "Ask the community anything about travel.",
+      sub: "Ask the community anything about travel.",
     },
     trips: {
       icon: "plane",
       title: "No trips yet",
-      body: "Share a trip idea or story to get started.",
+      sub: "Share a trip idea or story to get started.",
     },
   };
-  const emptyMsg = emptyMessages[activeTab] || emptyMessages.forYou;
+  const empty = EMPTY[activeTab] || EMPTY.forYou;
 
-  const feedTitles = {
+  const FEED_TITLES = {
     forYou: "Community Feed",
     following: "Your Posts",
     nearby: "Destination Posts",
@@ -639,7 +668,7 @@ export default function SkyHubPage() {
     trips: "Trips & Stories",
   };
 
-  // Handlers
+  /* Handlers */
   const handleCreatePost = async () => {
     if (!composerText.trim() && composerPhotos.length === 0) {
       message.warning("Write something or add a photo before posting.");
@@ -647,31 +676,29 @@ export default function SkyHubPage() {
     }
     try {
       setCreatingPost(true);
-      let uploadedImageUrls = [];
+      let urls = [];
       if (composerPhotos.length > 0) {
         const token = localStorage.getItem("token");
-        const results = await Promise.allSettled(
+        const res = await Promise.allSettled(
           composerPhotos.map(async (file) => {
             const fd = new FormData();
             fd.append("file", file);
-            const res = await fetch(apiUrl("/api/uploads/image"), {
+            const r = await fetch(apiUrl("/api/uploads/image"), {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
               credentials: "include",
               body: fd,
             });
-            const d = await res.json();
-            if (!res.ok) throw new Error(d.message || "Upload failed");
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.message || "Upload failed");
             return d.url;
           })
         );
-        uploadedImageUrls = results
-          .filter((r) => r.status === "fulfilled")
-          .map((r) => r.value);
-        const failed = results.filter((r) => r.status === "rejected").length;
-        if (failed)
+        urls = res.filter((r) => r.status === "fulfilled").map((r) => r.value);
+        const bad = res.filter((r) => r.status === "rejected").length;
+        if (bad)
           message.warning(
-            `${failed} photo${failed > 1 ? "s" : ""} failed to upload.`
+            `${bad} photo${bad > 1 ? "s" : ""} failed to upload.`
           );
       }
       const res = await fetch(apiUrl("/api/skyhub/posts"), {
@@ -682,18 +709,16 @@ export default function SkyHubPage() {
           text: composerText.trim(),
           type: activePostType,
           destination: destination.trim(),
-          images: uploadedImageUrls,
-          image: uploadedImageUrls[0] || "",
+          images: urls,
+          image: urls[0] || "",
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to create post");
       const enriched = {
         ...data.post,
-        images: uploadedImageUrls.length
-          ? uploadedImageUrls
-          : data.post.images || [],
-        image: uploadedImageUrls[0] || data.post.image || "",
+        images: urls.length ? urls : data.post.images || [],
+        image: urls[0] || data.post.image || "",
         authorName: currentUser?.name || data.post.authorName,
         username: currentUser?.username || data.post.username,
         avatar: currentUser?.avatar || data.post.avatar,
@@ -712,9 +737,9 @@ export default function SkyHubPage() {
     }
   };
 
-  const handleToggleLike = async (postId) => {
+  const handleToggleLike = async (id) => {
     try {
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}/like`), {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${id}/like`), {
         method: "POST",
         credentials: "include",
       });
@@ -722,7 +747,7 @@ export default function SkyHubPage() {
       if (!res.ok) throw new Error(data?.message);
       setPosts((p) =>
         p.map((x) =>
-          x.id === postId
+          x.id === id
             ? { ...x, liked: !!data.liked, likes: data.likesCount ?? x.likes }
             : x
         )
@@ -732,9 +757,9 @@ export default function SkyHubPage() {
     }
   };
 
-  const handleToggleSave = async (postId) => {
+  const handleToggleSave = async (id) => {
     try {
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}/save`), {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${id}/save`), {
         method: "POST",
         credentials: "include",
       });
@@ -742,7 +767,7 @@ export default function SkyHubPage() {
       if (!res.ok) throw new Error(data?.message);
       setPosts((p) =>
         p.map((x) =>
-          x.id === postId
+          x.id === id
             ? { ...x, saved: !!data.saved, saves: data.savesCount ?? x.saves }
             : x
         )
@@ -753,11 +778,11 @@ export default function SkyHubPage() {
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
+  const handleDeletePost = async (id) => {
+    setPosts((prev) => prev.filter((p) => p.id !== id));
     message.success("Post deleted.");
     try {
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${postId}`), {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${id}`), {
         method: "DELETE",
         credentials: "include",
         headers: {
@@ -765,7 +790,7 @@ export default function SkyHubPage() {
         },
       });
       if (!res.ok && res.status !== 404)
-        console.warn("[skyhub] delete returned", res.status);
+        console.warn("[skyhub] delete", res.status);
     } catch {
       /* UI already updated */
     }
@@ -792,16 +817,16 @@ export default function SkyHubPage() {
     }
   };
 
-  const refreshPostComments = (postId, count) =>
+  const refreshPostComments = (id, count) =>
     setPosts((p) =>
       p.map((x) =>
-        x.id === postId
+        x.id === id
           ? { ...x, comments: typeof count === "number" ? count : x.comments }
           : x
       )
     );
 
-  const handleExploreSearch = () =>
+  const scrollToFeed = () =>
     document
       .querySelector(".skyhub-feedSection")
       ?.scrollIntoView({ behavior: "smooth" });
@@ -810,9 +835,9 @@ export default function SkyHubPage() {
     ? `${currentUser.id || ""}|${currentUser.username || ""}`
     : null;
 
-  const topTrending = trendingDestinations[0] || null;
+  const topTrend = trendingDestinations[0] || null;
 
-  /* ── Render ──────────────────────────────────────────────── */
+  /* ── Render ─────────────────────────────────────────────────── */
   return (
     <div
       className="skyhub-page"
@@ -823,13 +848,19 @@ export default function SkyHubPage() {
         <div className="skyhub-topHeaderOverlay" />
         <div className="skyhub-topHeaderInner">
           <div className="skyhub-heroCopy">
+            {/* Logged-in user pill */}
             {currentUser && (
               <div
                 style={{
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
                   gap: 10,
-                  marginBottom: 14,
+                  marginBottom: 18,
+                  padding: "8px 14px 8px 8px",
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 99,
+                  backdropFilter: "blur(12px)",
                 }}
               >
                 {currentUser.avatar ? (
@@ -837,27 +868,27 @@ export default function SkyHubPage() {
                     src={currentUser.avatar}
                     alt=""
                     style={{
-                      width: 40,
-                      height: 40,
+                      width: 32,
+                      height: 32,
                       borderRadius: "50%",
                       objectFit: "cover",
-                      border: "2px solid rgba(255,255,255,0.5)",
                       flexShrink: 0,
                     }}
                   />
                 ) : (
                   <div
                     style={{
-                      width: 40,
-                      height: 40,
+                      width: 32,
+                      height: 32,
                       borderRadius: "50%",
                       flexShrink: 0,
-                      background: "linear-gradient(135deg,#ff6b2b,#9333ea)",
+                      background:
+                        "linear-gradient(135deg,var(--sh-orange),#9333ea)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontWeight: 800,
-                      fontSize: 14,
+                      fontSize: 12,
                       color: "#fff",
                     }}
                   >
@@ -867,23 +898,50 @@ export default function SkyHubPage() {
                 <div>
                   <div
                     style={{
-                      color: "#fff",
+                      fontSize: 13,
                       fontWeight: 700,
-                      fontSize: 14,
+                      color: "#fff",
                       lineHeight: 1.2,
                     }}
                   >
-                    Hey, {currentUser.name.split(" ")[0]}
+                    {currentUser.name.split(" ")[0]}
                   </div>
                   <div
-                    style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}
+                    style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}
                   >
-                    @{currentUser.username} · {currentUser.badge} ·{" "}
-                    {(currentUser.xp || 0).toLocaleString()} XP
+                    @{currentUser.username} · {currentUser.xp.toLocaleString()}{" "}
+                    XP
                   </div>
+                </div>
+                {/* Live badge */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "2px 8px",
+                    borderRadius: 99,
+                    background: "rgba(52,211,153,0.15)",
+                    border: "1px solid rgba(52,211,153,0.3)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#34d399",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: "50%",
+                      background: "#34d399",
+                      display: "inline-block",
+                    }}
+                  />
+                  LIVE
                 </div>
               </div>
             )}
+
             <div className="skyhub-eyebrow">Skyrio Community</div>
             <h1 className="skyhub-pageTitle">SkyHub</h1>
             <p className="skyhub-pageSubtitle">
@@ -914,14 +972,14 @@ export default function SkyHubPage() {
               prefix={<SearchOutlined />}
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
-              onPressEnter={handleExploreSearch}
+              onPressEnter={scrollToFeed}
               className="skyhub-searchInput"
             />
             <Button
               type="primary"
               icon={<GlobalOutlined />}
               className="skyhub-exploreBtn"
-              onClick={handleExploreSearch}
+              onClick={scrollToFeed}
             >
               Explore SkyHub
             </Button>
@@ -960,7 +1018,6 @@ export default function SkyHubPage() {
       <main className="skyhub-main">
         {/* Sticky nav */}
         <div className="skyhub-navbar">
-          {/* Tabs — single scrolling row */}
           <div className="skyhub-navbar-tabs">
             {skyhubTabs.map((tab) => (
               <button
@@ -975,7 +1032,7 @@ export default function SkyHubPage() {
               </button>
             ))}
           </div>
-          {/* Vibe chips — SINGLE scrolling row, no wrap */}
+          {/* Single scrolling row — no wrap on mobile */}
           <div className="skyhub-navbar-vibes" style={{ flexWrap: "nowrap" }}>
             {skyhubFilters
               .filter((f) => f !== "Team Travel")
@@ -994,18 +1051,18 @@ export default function SkyHubPage() {
           </div>
         </div>
 
-        {/* Content grid */}
+        {/* Content */}
         <section className="skyhub-contentGrid">
           <div className="skyhub-leftRail">
-            {/* Featured destination card (Image 2 inspiration) */}
-            {topTrending && (
+            {/* Featured trending destination */}
+            {topTrend && (
               <FeaturedCard
-                destination={topTrending.name}
-                postCount={topTrending.posts}
+                destination={topTrend.name}
+                postCount={topTrend.posts}
                 onExplore={() => {
-                  setActiveFilter("All");
                   setActiveTab("nearby");
-                  handleExploreSearch();
+                  setActiveFilter("All");
+                  scrollToFeed();
                 }}
               />
             )}
@@ -1027,7 +1084,7 @@ export default function SkyHubPage() {
               <div className="skyhub-feedSectionHeader">
                 <div>
                   <h2 className="skyhub-sectionTitle">
-                    {feedTitles[activeTab] || "Community Feed"}
+                    {FEED_TITLES[activeTab] || "Community Feed"}
                   </h2>
                   <p className="skyhub-sectionSubtext">
                     {debouncedSearch
@@ -1039,7 +1096,7 @@ export default function SkyHubPage() {
                 </div>
                 <Badge
                   count={visiblePosts.length}
-                  style={{ backgroundColor: "#ff6b2b" }}
+                  style={{ backgroundColor: "var(--sh-orange)" }}
                 />
               </div>
 
@@ -1048,8 +1105,8 @@ export default function SkyHubPage() {
                   <div className="skyhub-emptyState">
                     <div
                       style={{
-                        marginBottom: 10,
-                        color: "rgba(240,236,255,0.3)",
+                        marginBottom: 12,
+                        color: "rgba(240,236,255,0.2)",
                       }}
                     >
                       <EmptyIcon type="plane" />
@@ -1075,24 +1132,23 @@ export default function SkyHubPage() {
                     <div
                       style={{
                         marginBottom: 12,
-                        color: "rgba(240,236,255,0.25)",
+                        color: "rgba(240,236,255,0.2)",
                       }}
                     >
-                      <EmptyIcon type={emptyMsg.icon} />
+                      <EmptyIcon type={empty.icon} />
                     </div>
-                    <h3>{emptyMsg.title}</h3>
-                    <p>{emptyMsg.body}</p>
+                    <h3>{empty.title}</h3>
+                    <p>{empty.sub}</p>
                   </div>
                 )}
               </div>
             </section>
           </div>
 
-          {/* Sidebar — all data from feed, no extra API calls */}
+          {/* Sidebar */}
           <aside className="skyhub-rightRail">
             <SkyHubPassportCard currentUser={currentUser} />
 
-            {/* Trending tags (Image 1 inspiration) */}
             {trendingTags.length > 0 && (
               <TrendingTagsWidget tags={trendingTags} />
             )}
@@ -1103,7 +1159,6 @@ export default function SkyHubPage() {
               onSeeAll={() => navigate("/skyhub/destinations")}
             />
 
-            {/* Today's hotspots with % bars (Image 1 inspiration) */}
             {trendingDestinations.length > 0 && (
               <HotspotsWidget trending={trendingDestinations} />
             )}

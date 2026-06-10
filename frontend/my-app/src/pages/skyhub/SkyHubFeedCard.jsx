@@ -7,7 +7,7 @@ import {
   EnvironmentOutlined,
 } from "@ant-design/icons";
 
-/* ── SVG Icons (no emojis) ─────────────────────────────────── */
+/* ── SVG Icons ─────────────────────────────────────────────── */
 const CommentIcon = () => (
   <svg
     width="16"
@@ -44,8 +44,8 @@ const HeartIcon = ({ filled }) => (
     width="16"
     height="16"
     viewBox="0 0 24 24"
-    fill={filled ? "#ef4444" : "none"}
-    stroke={filled ? "#ef4444" : "currentColor"}
+    fill={filled ? "#f87171" : "none"}
+    stroke={filled ? "#f87171" : "currentColor"}
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -82,183 +82,35 @@ const ShareIcon = () => (
     <polygon points="22 2 15 22 11 13 2 9 22 2" />
   </svg>
 );
-const TipIcon = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <line x1="12" y1="2" x2="12" y2="6" />
-    <line x1="12" y1="18" x2="12" y2="22" />
-    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
-    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
-    <line x1="2" y1="12" x2="6" y2="12" />
-    <line x1="18" y1="12" x2="22" y2="12" />
-    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
-    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
-  </svg>
-);
-const QuestionIcon = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="10" />
-    <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
-    <line x1="12" y1="17" x2="12.01" y2="17" />
-  </svg>
-);
-const BookIcon = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
-    <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
-  </svg>
-);
-const CameraIcon = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
-    <circle cx="12" cy="13" r="4" />
-  </svg>
-);
-const PlaneIcon = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
-  </svg>
-);
 const VerifiedIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="#38bdf8">
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="#38bdf8"
+    style={{ flexShrink: 0 }}
+  >
     <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
   </svg>
 );
 
-/* ── Type config with SVG icons ────────────────────────────── */
-const TYPE_META = {
-  Tip: {
-    icon: <TipIcon />,
-    c: "#f59e0b",
-    bg: "rgba(245,158,11,0.12)",
-    label: "Tip",
-  },
-  Question: {
-    icon: <QuestionIcon />,
-    c: "#38bdf8",
-    bg: "rgba(56,189,248,0.12)",
-    label: "Question",
-  },
-  Story: {
-    icon: <BookIcon />,
-    c: "#34d399",
-    bg: "rgba(52,211,153,0.12)",
-    label: "Story",
-  },
-  Photo: {
-    icon: <CameraIcon />,
-    c: "#f472b6",
-    bg: "rgba(244,114,182,0.12)",
-    label: "Photo",
-  },
-  "Join Trip": {
-    icon: <PlaneIcon />,
-    c: "#a78bfa",
-    bg: "rgba(167,139,250,0.12)",
-    label: "Join Trip",
-  },
+/* ── Type config ────────────────────────────────────────────── */
+const TYPE_CONFIG = {
+  Tip: { cssClass: "tp-Tip", label: "Tip", icon: "◎" },
+  Question: { cssClass: "tp-Question", label: "Question", icon: "?" },
+  Story: { cssClass: "tp-Story", label: "Story", icon: "≡" },
+  Photo: { cssClass: "tp-Photo", label: "Photo", icon: "▣" },
+  "Join Trip": { cssClass: "tp-Join-Trip", label: "Join Trip", icon: "→" },
 };
 
-const AV_COLORS = [
-  "linear-gradient(135deg,#ff6b2b,#c94f10)",
-  "linear-gradient(135deg,#3b82f6,#1d4ed8)",
-  "linear-gradient(135deg,#9333ea,#6d28d9)",
-  "linear-gradient(135deg,#10b981,#065f46)",
-  "linear-gradient(135deg,#f59e0b,#b45309)",
+/* Avatar color variants matching CSS classes */
+const AVATAR_VARIANTS = [
+  "is-orange",
+  "is-blue",
+  "is-purple",
+  "is-orange",
+  "is-blue",
 ];
-
-/* ── Avatar ─────────────────────────────────────────────────── */
-function Avatar({ name, avatarUrl, size = 44 }) {
-  const [failed, setFailed] = useState(false);
-  const init = (name || "T").slice(0, 2).toUpperCase();
-  const color = AV_COLORS[(name || "T").charCodeAt(0) % AV_COLORS.length];
-  if (
-    avatarUrl &&
-    typeof avatarUrl === "string" &&
-    avatarUrl.startsWith("http") &&
-    !failed
-  ) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={name}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: "50%",
-          objectFit: "cover",
-          flexShrink: 0,
-          border: "2px solid rgba(255,255,255,0.15)",
-        }}
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        flexShrink: 0,
-        background: color,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontWeight: 800,
-        fontSize: Math.round(size * 0.34),
-        color: "#fff",
-        userSelect: "none",
-      }}
-    >
-      {init}
-    </div>
-  );
-}
 
 /* ── Image grid ─────────────────────────────────────────────── */
 function ImageGrid({ images }) {
@@ -267,46 +119,54 @@ function ImageGrid({ images }) {
   const vis = images.filter((_, i) => !failed[i]);
   if (!vis.length) return null;
   const fail = (i) => setFailed((f) => ({ ...f, [i]: true }));
-  const Img = ({ src, i, xStyle = {} }) => (
-    <img
-      src={src}
-      alt=""
-      loading="lazy"
-      onError={() => fail(i)}
-      style={{
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-        display: "block",
-        ...xStyle,
-      }}
-    />
-  );
-  if (vis.length === 1)
-    return (
-      <div style={{ marginTop: 10, borderRadius: 12, overflow: "hidden" }}>
-        <Img src={vis[0]} i={0} xStyle={{ height: 280, borderRadius: 12 }} />
-      </div>
-    );
-  const grid = (cols, rows, h) => ({
-    display: "grid",
-    gridTemplateColumns: cols,
-    gridTemplateRows: rows,
-    gap: 3,
-    height: h,
+  const imgStyle = (extra = {}) => ({
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+    ...extra,
   });
-  if (vis.length === 2)
+  if (vis.length === 1)
     return (
       <div
         style={{
-          marginTop: 10,
-          borderRadius: 12,
+          marginTop: 12,
+          borderRadius: 14,
           overflow: "hidden",
-          ...grid("1fr 1fr", "1fr", 210),
+          border: "1px solid rgba(255,255,255,0.1)",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
         }}
       >
+        <img
+          src={vis[0]}
+          alt=""
+          loading="lazy"
+          onError={() => fail(0)}
+          style={{ ...imgStyle(), height: 280 }}
+        />
+      </div>
+    );
+  const grid = {
+    display: "grid",
+    gap: 3,
+    marginTop: 12,
+    borderRadius: 14,
+    overflow: "hidden",
+    border: "1px solid rgba(255,255,255,0.1)",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+  };
+  if (vis.length === 2)
+    return (
+      <div style={{ ...grid, gridTemplateColumns: "1fr 1fr", height: 210 }}>
         {vis.map((s, i) => (
-          <Img key={i} src={s} i={i} />
+          <img
+            key={i}
+            src={s}
+            alt=""
+            loading="lazy"
+            onError={() => fail(i)}
+            style={imgStyle()}
+          />
         ))}
       </div>
     );
@@ -314,18 +174,20 @@ function ImageGrid({ images }) {
     return (
       <div
         style={{
-          marginTop: 10,
-          borderRadius: 12,
-          overflow: "hidden",
-          ...grid("1fr 1fr", "1fr 1fr", 230),
+          ...grid,
+          gridTemplateColumns: "1fr 1fr",
+          gridTemplateRows: "1fr 1fr",
+          height: 230,
         }}
       >
         {vis.map((s, i) => (
-          <Img
+          <img
             key={i}
             src={s}
-            i={i}
-            xStyle={i === 0 ? { gridRow: "1/3" } : {}}
+            alt=""
+            loading="lazy"
+            onError={() => fail(i)}
+            style={imgStyle(i === 0 ? { gridRow: "1/3" } : {})}
           />
         ))}
       </div>
@@ -333,14 +195,21 @@ function ImageGrid({ images }) {
   return (
     <div
       style={{
-        marginTop: 10,
-        borderRadius: 12,
-        overflow: "hidden",
-        ...grid("1fr 1fr", "1fr 1fr", 230),
+        ...grid,
+        gridTemplateColumns: "1fr 1fr",
+        gridTemplateRows: "1fr 1fr",
+        height: 230,
       }}
     >
       {vis.slice(0, 4).map((s, i) => (
-        <Img key={i} src={s} i={i} />
+        <img
+          key={i}
+          src={s}
+          alt=""
+          loading="lazy"
+          onError={() => fail(i)}
+          style={imgStyle()}
+        />
       ))}
     </div>
   );
@@ -349,7 +218,7 @@ function ImageGrid({ images }) {
 function fmt(n) {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "m";
   if (n >= 1000) return (n / 1000).toFixed(1) + "k";
-  return String(n);
+  return String(n || 0);
 }
 
 /* ── Feed Card ──────────────────────────────────────────────── */
@@ -362,20 +231,24 @@ export default function SkyHubFeedCard({
   onReportPost,
   onDeletePost,
 }) {
-  const tm = TYPE_META[post.type] || TYPE_META.Story;
+  const tc = TYPE_CONFIG[post.type] || TYPE_CONFIG.Story;
 
-  // Ownership — backend returns "you" for logged-in user's posts
+  // Determine avatar color variant from author name
+  const avatarVariant =
+    AVATAR_VARIANTS[
+      (post.author || "T").charCodeAt(0) % AVATAR_VARIANTS.length
+    ];
+
+  // Ownership check
   const rawUsername = (post.username || "").replace(/^@/, "").toLowerCase();
   const isOwner =
     rawUsername === "you" ||
     (() => {
       if (!currentUserId) return false;
-      const parts = String(currentUserId).split("|");
-      const myMongoId = parts[0] || "";
-      const myUsername = (parts[1] || "").toLowerCase();
+      const [myId, myUser] = String(currentUserId).split("|");
       return (
-        (post.authorId && String(post.authorId) === myMongoId) ||
-        (myUsername && rawUsername === myUsername)
+        (post.authorId && String(post.authorId) === myId) ||
+        (myUser && rawUsername === myUser.toLowerCase())
       );
     })();
 
@@ -400,9 +273,24 @@ export default function SkyHubFeedCard({
       ];
 
   return (
-    <div className="skyhub-feedCard">
+    /* data-type unlocks the colored left accent bar from CSS */
+    <article className="skyhub-feedCard" data-type={post.type}>
       <div className="skyhub-feedCard__top">
-        <Avatar name={post.author} avatarUrl={post.avatar} size={44} />
+        {/* Avatar — uses CSS class system (rounded square like Notion/Discord) */}
+        <div className={`skyhub-feedCard__avatar ${avatarVariant}`}>
+          {post.avatar ? (
+            <img
+              src={post.avatar}
+              alt={post.author}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={(e) => {
+                e.target.style.display = "none";
+              }}
+            />
+          ) : (
+            (post.author || "T").slice(0, 2).toUpperCase()
+          )}
+        </div>
 
         <div className="skyhub-feedCard__head">
           {/* Name row */}
@@ -413,36 +301,26 @@ export default function SkyHubFeedCard({
             <span className="skyhub-feedCard__time">{post.timeAgo}</span>
           </div>
 
-          {/* Location + type */}
+          {/* Location + type pill using CSS tp-{Type} classes */}
           {(post.destination || post.type) && (
-            <div className="skyhub-feedCard__location">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                marginTop: 4,
+                flexWrap: "wrap",
+              }}
+            >
               {post.destination && (
-                <>
-                  <EnvironmentOutlined
-                    style={{ fontSize: 11, color: "#ff6b2b" }}
-                  />
-                  <span style={{ color: "#ff6b2b", fontWeight: 600 }}>
-                    {post.destination}
-                  </span>
-                </>
+                <span className="skyhub-feedCard__location">
+                  <EnvironmentOutlined style={{ fontSize: 11 }} />
+                  {post.destination}
+                </span>
               )}
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  borderRadius: 999,
-                  padding: "2px 8px",
-                  marginLeft: post.destination ? 4 : 0,
-                  background: tm.bg,
-                  color: tm.c,
-                  border: `1px solid ${tm.c}30`,
-                }}
-              >
-                <span style={{ color: tm.c }}>{tm.icon}</span>
-                {tm.label}
+              {/* Uses CSS class for per-type coloring */}
+              <span className={`skyhub-feedCard__typepill ${tc.cssClass}`}>
+                {tc.icon} {tc.label}
               </span>
             </div>
           )}
@@ -462,7 +340,7 @@ export default function SkyHubFeedCard({
         </Dropdown>
       </div>
 
-      {/* Body */}
+      {/* Body — uses CSS margin-left to align under avatar */}
       <div className="skyhub-feedCard__body">
         {post.text && <p className="skyhub-feedCard__text">{post.text}</p>}
 
@@ -476,6 +354,7 @@ export default function SkyHubFeedCard({
           </div>
         )}
 
+        {/* Images */}
         {post.images?.length > 0 ? (
           <ImageGrid images={post.images} />
         ) : post.image ? (
@@ -491,7 +370,7 @@ export default function SkyHubFeedCard({
         ) : null}
       </div>
 
-      {/* Actions — all SVG, no emojis */}
+      {/* Footer — uses CSS margin-left to align under avatar */}
       <div className="skyhub-feedCard__footer">
         <div className="skyhub-feedCard__actions">
           <button
@@ -532,6 +411,6 @@ export default function SkyHubFeedCard({
           </button>
         </div>
       </div>
-    </div>
+    </article>
   );
 }

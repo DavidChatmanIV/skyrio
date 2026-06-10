@@ -340,7 +340,6 @@ function WeatherGlobe({ size = 22 }) {
   );
 }
 
-// ── Form-specific icons ──────────────────────────────────────
 function IconHotel({ size = 14 }) {
   return (
     <svg
@@ -581,133 +580,187 @@ const CITY_WEATHER = {
     label: "New York",
     Icon: WeatherPartlyCloudy,
     temp: "Avg 62° / 48°",
-    sub: "Partly cloudy • Light wind",
+    sub: "Partly cloudy · Light wind",
   },
   newark: {
     label: "Newark",
     Icon: WeatherPartlyCloudy,
     temp: "Avg 58° / 44°",
-    sub: "Partly cloudy • Cool winds",
+    sub: "Partly cloudy · Cool winds",
+  },
+  ewr: {
+    label: "Newark",
+    Icon: WeatherPartlyCloudy,
+    temp: "Avg 58° / 44°",
+    sub: "Partly cloudy · Cool winds",
+  },
+  jfk: {
+    label: "New York",
+    Icon: WeatherPartlyCloudy,
+    temp: "Avg 62° / 48°",
+    sub: "Partly cloudy · Light wind",
+  },
+  lga: {
+    label: "New York",
+    Icon: WeatherPartlyCloudy,
+    temp: "Avg 62° / 48°",
+    sub: "Partly cloudy · Light wind",
+  },
+  lax: {
+    label: "Los Angeles",
+    Icon: WeatherSunny,
+    temp: "Avg 75° / 60°",
+    sub: "Sunny all week · Low rain risk",
+  },
+  ord: {
+    label: "Chicago",
+    Icon: WeatherWindy,
+    temp: "Avg 55° / 42°",
+    sub: "Windy with clear skies · Cool evenings",
   },
   miami: {
     label: "Miami",
     Icon: WeatherMostlySunny,
     temp: "Avg 78° / 65°",
-    sub: "Mostly sunny • Low rain risk",
+    sub: "Mostly sunny · Low rain risk",
+  },
+  mia: {
+    label: "Miami",
+    Icon: WeatherMostlySunny,
+    temp: "Avg 78° / 65°",
+    sub: "Mostly sunny · Low rain risk",
   },
   paris: {
     label: "Paris",
     Icon: WeatherRainSun,
     temp: "Avg 59° / 46°",
-    sub: "Occasional showers • Mild temps",
+    sub: "Occasional showers · Mild temps",
+  },
+  cdg: {
+    label: "Paris",
+    Icon: WeatherRainSun,
+    temp: "Avg 59° / 46°",
+    sub: "Occasional showers · Mild temps",
   },
   london: {
     label: "London",
     Icon: WeatherRainy,
     temp: "Avg 54° / 44°",
-    sub: "Overcast • Bring an umbrella",
+    sub: "Overcast · Bring an umbrella",
+  },
+  lhr: {
+    label: "London",
+    Icon: WeatherRainy,
+    temp: "Avg 54° / 44°",
+    sub: "Overcast · Bring an umbrella",
   },
   barcelona: {
     label: "Barcelona",
     Icon: WeatherPartlyCloudy,
     temp: "Avg 70° / 58°",
-    sub: "Warm & breezy • Great for exploring",
+    sub: "Warm & breezy · Great for exploring",
   },
   rome: {
     label: "Rome",
     Icon: WeatherSunny,
     temp: "Avg 72° / 56°",
-    sub: "Warm & sunny • Low humidity",
+    sub: "Warm & sunny · Low humidity",
   },
   tokyo: {
     label: "Tokyo",
     Icon: WeatherCherryBlossom,
     temp: "Avg 68° / 55°",
-    sub: "Mild & clear • Cherry blossom season",
+    sub: "Mild & clear · Cherry blossom season",
+  },
+  nrt: {
+    label: "Tokyo",
+    Icon: WeatherCherryBlossom,
+    temp: "Avg 68° / 55°",
+    sub: "Mild & clear · Cherry blossom season",
   },
   japan: {
     label: "Japan",
     Icon: WeatherCherryBlossom,
     temp: "Avg 68° / 55°",
-    sub: "Mild & clear • Cherry blossom season",
+    sub: "Mild & clear · Cherry blossom season",
   },
   kyoto: {
     label: "Kyoto",
     Icon: WeatherCherryBlossom,
     temp: "Avg 67° / 54°",
-    sub: "Cherry blossoms peak • Stunning season",
+    sub: "Cherry blossoms peak · Stunning season",
   },
   osaka: {
     label: "Osaka",
     Icon: WeatherCherryBlossom,
     temp: "Avg 66° / 53°",
-    sub: "Mild & pleasant • Spring conditions",
+    sub: "Mild & pleasant · Spring conditions",
   },
   seoul: {
     label: "Seoul",
     Icon: WeatherMostlySunny,
     temp: "Avg 60° / 46°",
-    sub: "Clear & cool • Low humidity",
+    sub: "Clear & cool · Low humidity",
   },
   dubai: {
     label: "Dubai",
     Icon: WeatherSunny,
     temp: "Avg 95° / 78°",
-    sub: "Hot & dry • Low humidity at night",
+    sub: "Hot & dry · Low humidity at night",
   },
   bali: {
     label: "Bali",
     Icon: WeatherTropical,
     temp: "Avg 84° / 72°",
-    sub: "Tropical • Some afternoon showers",
+    sub: "Tropical · Some afternoon showers",
   },
   bangkok: {
     label: "Bangkok",
     Icon: WeatherMostlySunny,
     temp: "Avg 92° / 78°",
-    sub: "Very hot • Sunny with some clouds",
+    sub: "Very hot · Sunny with some clouds",
   },
   singapore: {
     label: "Singapore",
     Icon: WeatherRainSun,
     temp: "Avg 88° / 76°",
-    sub: "Hot & humid • Daily showers",
+    sub: "Hot & humid · Daily showers",
   },
   "los angeles": {
     label: "Los Angeles",
     Icon: WeatherSunny,
     temp: "Avg 75° / 60°",
-    sub: "Sunny all week • Low rain risk",
+    sub: "Sunny all week · Low rain risk",
   },
   chicago: {
     label: "Chicago",
     Icon: WeatherWindy,
     temp: "Avg 55° / 42°",
-    sub: "Windy with clear skies • Cool evenings",
+    sub: "Windy with clear skies · Cool evenings",
   },
   "las vegas": {
     label: "Las Vegas",
     Icon: WeatherSunny,
     temp: "Avg 85° / 64°",
-    sub: "Hot & dry • Clear skies",
+    sub: "Hot & dry · Clear skies",
   },
   cancun: {
     label: "Cancún",
     Icon: WeatherWaves,
     temp: "Avg 88° / 74°",
-    sub: "Hot & humid • Perfect beach weather",
+    sub: "Hot & humid · Perfect beach weather",
   },
   hawaii: {
     label: "Hawaii",
     Icon: WeatherHibiscus,
     temp: "Avg 82° / 70°",
-    sub: "Sunny with trade winds • Ideal conditions",
+    sub: "Sunny with trade winds · Ideal conditions",
   },
   sydney: {
     label: "Sydney",
     Icon: WeatherMostlySunny,
     temp: "Avg 72° / 60°",
-    sub: "Mostly sunny • Comfortable",
+    sub: "Mostly sunny · Comfortable",
   },
 };
 
@@ -746,7 +799,6 @@ function SearchBtn({ onClick, loading }) {
   );
 }
 
-// ── Tab bar ──────────────────────────────────
 const PRIMARY_TABS = [
   { key: "Flights", label: "Flights" },
   { key: "Stays", label: "Stays" },
@@ -836,7 +888,6 @@ function BookingTabBar({ value, onChange }) {
   );
 }
 
-// ── Trip type toggle ──────────────────────────
 const TRIP_TYPES = [
   { key: "roundtrip", label: "Round trip" },
   { key: "oneway", label: "One way" },
@@ -860,7 +911,6 @@ function TripTypeToggle({ value, onChange }) {
   );
 }
 
-// ── Multi-city form ───────────────────────────
 const EMPTY_LEG = () => ({
   id: Date.now() + Math.random(),
   origin: null,
@@ -894,7 +944,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
     setLegs((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Propagate last destination for weather strip
   useEffect(() => {
     const lastDest = [...legs].reverse().find((l) => l.dest?.city);
     if (lastDest) onDestChange?.(lastDest.dest.city);
@@ -906,7 +955,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
       return antdMessage.warning("Please fill in all flights before searching");
     setLoading(true);
     try {
-      // Build params for each leg individually and collect results
       const results = await Promise.all(
         legs.map((leg) => {
           const params = new URLSearchParams({
@@ -937,17 +985,13 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
 
   return (
     <div className="sk-search-bar sk-multicity-bar">
-      {/* Legs */}
       <div className="sk-mc-legs">
         {legs.map((leg, index) => (
           <div key={leg.id} className="sk-mc-leg">
-            {/* Leg number badge */}
             <div className="sk-mc-leg-badge">
               <span className="sk-mc-leg-num">{index + 1}</span>
               {index < legs.length - 1 && <div className="sk-mc-leg-line" />}
             </div>
-
-            {/* Leg fields */}
             <div className="sk-mc-leg-fields">
               <div className="sk-mc-field-row">
                 <div className="sk-mc-field">
@@ -963,11 +1007,9 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
                     }
                   />
                 </div>
-
                 <div className="sk-mc-arrow" aria-hidden="true">
                   →
                 </div>
-
                 <div className="sk-mc-field">
                   <span className="sk-mc-field-label">To</span>
                   <AirportInput
@@ -978,7 +1020,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
                         dest: ap,
                         destDisplay: `${ap.city} (${ap.code})`,
                       });
-                      // Auto-fill next leg's origin
                       if (index < legs.length - 1) {
                         setLegs((prev) =>
                           prev.map((l, i) =>
@@ -995,7 +1036,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
                     }}
                   />
                 </div>
-
                 <div className="sk-mc-field sk-mc-field--date">
                   <span className="sk-mc-field-label">Date</span>
                   <DatePicker
@@ -1005,17 +1045,13 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
                     disabledDate={(d) => {
                       if (!d) return false;
                       if (d.isBefore(dayjs(), "day")) return true;
-                      // Must be after previous leg's date
-                      if (index > 0 && legs[index - 1].date) {
+                      if (index > 0 && legs[index - 1].date)
                         return d.isBefore(legs[index - 1].date, "day");
-                      }
                       return false;
                     }}
                     onChange={(date) => updateLeg(index, { date })}
                   />
                 </div>
-
-                {/* Remove leg button — only show when > 2 legs */}
                 {legs.length > 2 && (
                   <button
                     type="button"
@@ -1031,8 +1067,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
           </div>
         ))}
       </div>
-
-      {/* Bottom controls row */}
       <div className="sk-mc-controls">
         <button
           type="button"
@@ -1043,7 +1077,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
           <span className="sk-mc-add-icon">+</span>
           Add flight
         </button>
-
         <div className="sk-mc-right">
           <Select
             className="sk-select-cabin"
@@ -1056,7 +1089,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
             <Option value="business">Business</Option>
             <Option value="first">First Class</Option>
           </Select>
-
           <InputNumber
             className="sk-input-travelers"
             min={1}
@@ -1065,7 +1097,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
             onChange={(v) => setAdults(v ?? 1)}
             placeholder="Travelers"
           />
-
           <SearchBtn onClick={handleSearch} loading={loading} />
         </div>
       </div>
@@ -1073,8 +1104,12 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
   );
 }
 
-// ── Search forms ──────────────────────────────
-function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
+function FlightsForm({
+  onSearch,
+  onDestChange,
+  onDatesChange,
+  onOriginChange,
+}) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
   const [originDisplay, setOriginDisplay] = useState("");
@@ -1109,7 +1144,6 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
     if (!dates[0]) return antdMessage.warning("Select a departure date");
     if (tripType === "roundtrip" && !dates[1])
       return antdMessage.warning("Select a return date, or switch to One way");
-
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -1135,15 +1169,20 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
   };
 
   const handleSwap = () => {
-    const newDestCity = originAirport?.city ?? null;
-    setOriginAirport(destAirport);
-    setDestAirport(originAirport);
+    const prevOrigin = originAirport;
+    const prevDest = destAirport;
+    setOriginAirport(prevDest);
+    setDestAirport(prevOrigin);
     setOriginDisplay(destDisplay);
     setDestDisplay(originDisplay);
-    if (newDestCity) onDestChange?.(newDestCity);
+    if (prevDest?.city) {
+      onOriginChange?.(prevDest.city);
+    }
+    if (prevOrigin?.city) {
+      onDestChange?.(prevOrigin.city);
+    }
   };
 
-  // Multi-city mode — hand off entirely to MultiCityForm
   if (tripType === "multi-city") {
     return (
       <div className="sk-search-bar">
@@ -1177,7 +1216,6 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
       >
         <TripTypeToggle value={tripType} onChange={setTripType} />
       </div>
-
       <div className="sk-airport-pair">
         <AirportInput
           value={originDisplay}
@@ -1185,6 +1223,7 @@ function FlightsForm({ onSearch, onDestChange, onDatesChange }) {
           onChange={(ap) => {
             setOriginAirport(ap);
             setOriginDisplay(`${ap.city} (${ap.code})`);
+            onOriginChange?.(ap.city);
           }}
         />
         <button
@@ -1547,7 +1586,6 @@ function SavedForm() {
   );
 }
 
-// ── Skeleton ──────────────────────────────────
 function FlightSkeleton() {
   return (
     <div className="sk-flight-skeleton">
@@ -1621,6 +1659,10 @@ export default function BookingPage() {
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
+
+  // ── originCity starts EMPTY — only set when user selects an airport ──
+  const [originCity, setOriginCity] = useState("");
+
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -1634,10 +1676,8 @@ export default function BookingPage() {
     bookingTotal: 0,
     tripDays: prefillData?.tripDays ?? null,
   });
-
   const [visibleCount, setVisibleCount] = useState(RESULTS_PER_PAGE);
   const budgetRef = useRef(null);
-
   const [priceWatchOn, setPriceWatchOn] = useState(false);
   const [priceWatchRoute, setPriceWatchRoute] = useState(null);
   const [watchingId, setWatchingId] = useState(null);
@@ -1734,7 +1774,6 @@ export default function BookingPage() {
   const budgetSeed = prefillData?.budget ?? null;
   const tripDaySeed = prefillData?.tripDays ?? null;
 
-  // Auto-search on mount when prefillData has an IATA code
   useEffect(() => {
     if (!prefillData?.iata || autoSearchDone) return;
     const { iata, tripDays: days = 10 } = prefillData;
@@ -1806,7 +1845,6 @@ export default function BookingPage() {
     [visibleFlights, visibleCount]
   );
   const hasMore = visibleCount < visibleFlights.length;
-
   const activeFilterCount = useMemo(
     () => Object.values(smartFilters).filter((v) => v !== "any").length,
     [smartFilters]
@@ -1816,12 +1854,20 @@ export default function BookingPage() {
     setVisibleCount(RESULTS_PER_PAGE);
   }, [flightResults, smartFilters]);
 
+  // ── Weather — driven by actual user selections only ──
   const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
+  const departureWeather = useMemo(
+    () => getWeatherForCity(originCity),
+    [originCity]
+  );
+
   const weatherTitle = weather.label
     ? `${weather.label}${weather.temp ? `  ·  ${weather.temp}` : ""}`
     : "Select a destination";
 
-  const heroRoute = destCity ? `${fromCode} → ${destCity}` : "Where to next?";
+  const heroRoute = destCity
+    ? `${originCity ? originCity.toUpperCase() : fromCode} → ${destCity}`
+    : "Where to next?";
   const heroNights = selectedNights
     ? `${selectedNights} night${selectedNights !== 1 ? "s" : ""}`
     : "";
@@ -1842,12 +1888,10 @@ export default function BookingPage() {
     title: "",
     total: 0,
   });
-
   const handleSelectResult = useCallback((result) => {
     setSelectedResult(result);
     setBudgetState((prev) => ({ ...prev, bookingTotal: result.total ?? 0 }));
   }, []);
-
   const handleBudgetChange = useCallback((state) => {
     setBudgetState(state);
   }, []);
@@ -1884,6 +1928,7 @@ export default function BookingPage() {
             }}
             onDestChange={setDestCity}
             onDatesChange={handleDatesChange}
+            onOriginChange={setOriginCity}
           />
         );
       case "Stays":
@@ -1928,13 +1973,11 @@ export default function BookingPage() {
   return (
     <div className="sk-booking" style={{ "--sk-bg-image": `url(${heroImg})` }}>
       <div className="sk-booking-hero">
-        {/* ── Hero headline ── */}
         <Title className="sk-hero-title">
           Lock in your{" "}
           <span className="sk-hero-title-accent">next adventure.</span>
         </Title>
 
-        {/* ── Trip state card ── */}
         <div className="sk-tripState">
           <div className="sk-tripRoute">{heroRoute}</div>
           <div className="sk-tripMeta">
@@ -1952,7 +1995,6 @@ export default function BookingPage() {
               : "Enter your destination to get started"}
           </div>
 
-          {/* Prefill strip */}
           {prefillData && !prefillDismissed && (
             <div className="sk-prefill-strip">
               {!prefillEditing ? (
@@ -2063,7 +2105,6 @@ export default function BookingPage() {
             </div>
           )}
 
-          {/* Pills row */}
           <Space size={8} className="sk-hero-pills">
             <div className="sk-pill sk-pill-orange">
               <Zap
@@ -2072,7 +2113,6 @@ export default function BookingPage() {
               />
               XP 60
             </div>
-
             {!aiInsightDismissed ? (
               <div className="sk-ai-insight-pill">
                 <span className="sk-ai-insight-icon">
@@ -2103,7 +2143,6 @@ export default function BookingPage() {
                 AI Insight
               </button>
             )}
-
             <button
               type="button"
               className={`sk-pill sk-pill-glass sk-pill-toggle${
@@ -2136,7 +2175,6 @@ export default function BookingPage() {
           Smart Plan AI helps balance budget, comfort, and XP.
         </Text>
 
-        {/* ── Tab bar ── */}
         <BookingTabBar
           value={tab}
           onChange={(val) => {
@@ -2148,23 +2186,60 @@ export default function BookingPage() {
           }}
         />
 
-        {/* ── Weather strip ── */}
+        {/* ── Weather strip — side by side, only populated after user selects ── */}
         <div className="sk-weatherStrip">
-          <div className="sk-weatherInner">
-            <div className="sk-weatherTop">
-              <span className="sk-weatherIcon">
-                <weather.Icon size={20} />
-              </span>
-              <span>{weatherTitle}</span>
+          <div className="sk-weatherInner sk-weatherInner--split">
+            {/* Departure side */}
+            <div className="sk-weatherSide">
+              <div className="sk-weatherSideLabel">
+                {originCity ? "Departing from" : "Select departure city"}
+              </div>
+              <div className="sk-weatherTop">
+                <span className="sk-weatherIcon">
+                  {originCity ? (
+                    <departureWeather.Icon size={18} />
+                  ) : (
+                    <WeatherGlobe size={18} />
+                  )}
+                </span>
+                <span>
+                  {originCity && departureWeather.label
+                    ? `${departureWeather.label} · ${departureWeather.temp}`
+                    : "—"}
+                </span>
+              </div>
+              <div className="sk-weatherSub">
+                {originCity
+                  ? departureWeather.sub
+                  : "Select a departure airport above"}
+              </div>
             </div>
-            <div className="sk-weatherSub">{weather.sub}</div>
+
+            {/* Arrow divider */}
+            <div className="sk-weatherDivider">
+              <ArrowRight size={14} />
+            </div>
+
+            {/* Destination side */}
+            <div className="sk-weatherSide">
+              <div className="sk-weatherSideLabel">
+                {destCity
+                  ? `${destCity} · Travel week est.`
+                  : "Select a destination"}
+              </div>
+              <div className="sk-weatherTop">
+                <span className="sk-weatherIcon">
+                  <weather.Icon size={18} />
+                </span>
+                <span>{weather.label ? weatherTitle : "—"}</span>
+              </div>
+              <div className="sk-weatherSub">{weather.sub}</div>
+            </div>
           </div>
         </div>
 
-        {/* ── Search form ── */}
         {searchForm}
 
-        {/* ── Smart filter bar ── */}
         <SmartFilterBar
           filters={smartFilters}
           onChange={setSmartFilters}
@@ -2172,7 +2247,6 @@ export default function BookingPage() {
           visible={tab === "Flights"}
         />
 
-        {/* ── Action row ── */}
         <Space className="sk-action-row" wrap>
           <Button className="sk-btn-orange">Sort: Recommended</Button>
           <Link to="/sync-together">
@@ -2195,7 +2269,6 @@ export default function BookingPage() {
           )}
         </Space>
 
-        {/* ── Quick filters ── */}
         {tab === "Flights" && (
           <Space className="sk-filters" wrap>
             {quickFilters.map((f) => (
@@ -2223,12 +2296,8 @@ export default function BookingPage() {
         )}
       </div>
 
-      {/* ═══════════════════════════════════
-          RESULTS + BUDGET
-      ═══════════════════════════════════ */}
       <Row gutter={[24, 24]} className="sk-results-wrap">
         <Col xs={24} lg={16}>
-          {/* Results header */}
           <div className="sk-resultsHeader">
             <Title level={4} className="sk-section-title">
               {resultsTitle}
@@ -2265,10 +2334,8 @@ export default function BookingPage() {
               )}
           </div>
 
-          {/* Loading skeleton */}
           {autoSearchLoading && <FlightSkeleton />}
 
-          {/* Error state */}
           {!autoSearchLoading && autoSearchError && (
             <div className="sk-search-error">
               <IconWarning size={14} /> {autoSearchError} —{" "}
@@ -2285,7 +2352,6 @@ export default function BookingPage() {
             </div>
           )}
 
-          {/* Flight results */}
           {!autoSearchLoading &&
             paginatedFlights.length > 0 &&
             paginatedFlights.map((flight) => (
@@ -2453,7 +2519,6 @@ export default function BookingPage() {
               </Card>
             ))}
 
-          {/* Load more */}
           {!autoSearchLoading && hasMore && (
             <div
               style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
@@ -2480,7 +2545,6 @@ export default function BookingPage() {
             </div>
           )}
 
-          {/* Empty state */}
           {!autoSearchLoading &&
             flightResults.length === 0 &&
             !autoSearchError && (
@@ -2523,7 +2587,6 @@ export default function BookingPage() {
             )}
         </Col>
 
-        {/* Budget sidebar */}
         <Col xs={24} lg={8}>
           <div ref={budgetRef}>
             <TripBudgetCard

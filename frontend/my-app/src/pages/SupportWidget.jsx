@@ -1,11 +1,10 @@
 /**
  * SupportWidget.jsx
- * ─────────────────
- * Floating "Need help?" button — portal-based for iOS Safari fix.
- * Save to: src/pages/SupportWidget.jsx
+ * Floating "Need help?" button — hides when date picker is open.
+ * Positioned bottom-left to avoid overlap with Atlas FAB (bottom-right).
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 const STORAGE_KEY = "skyrio_support_tickets";
@@ -62,12 +61,25 @@ const btnSecondary = {
 export default function SupportWidget() {
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
+  const [pickerActive, setPickerActive] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
     category: "technical",
     message: "",
   });
+
+  // ── Hide widget when any Ant Design date picker is open ──
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const hasOpenPicker = !!document.querySelector(
+        ".ant-picker-dropdown:not(.ant-picker-dropdown-hidden)"
+      );
+      setPickerActive(hasOpenPicker);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -102,35 +114,37 @@ export default function SupportWidget() {
         @keyframes swSlideUp { from { transform:translateX(-50%) translateY(100%) } to { transform:translateX(-50%) translateY(0) } }
       `}</style>
 
-      {/* ── Floating trigger button ── */}
-      <button
-        onClick={() => setOpen(true)}
-        style={{
-          position: "fixed",
-          bottom: 28,
-          right: 28,
-          zIndex: 2147483640,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "12px 20px",
-          borderRadius: 50,
-          border: "none",
-          background: "linear-gradient(135deg, #ff8a2a, #7c5cfc)",
-          color: "#fff",
-          fontFamily: "'DM Sans', sans-serif",
-          fontSize: 14,
-          fontWeight: 700,
-          cursor: "pointer",
-          boxShadow: "0 8px 24px rgba(124,92,252,0.45)",
-          WebkitTransform: "translateZ(0)",
-          transform: "translateZ(0)",
-          touchAction: "manipulation",
-          WebkitTapHighlightColor: "transparent",
-        }}
-      >
-        💬 Need help?
-      </button>
+      {/* ── Floating trigger — bottom LEFT, away from Atlas FAB ── */}
+      {!pickerActive && (
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            position: "fixed",
+            bottom: 28,
+            left: 20,
+            zIndex: 2147483630,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "12px 20px",
+            borderRadius: 50,
+            border: "none",
+            background: "linear-gradient(135deg, #ff8a2a, #7c5cfc)",
+            color: "#fff",
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            boxShadow: "0 8px 24px rgba(124,92,252,0.45)",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          💬 Need help?
+        </button>
+      )}
 
       {/* ── Backdrop ── */}
       {open && (
@@ -161,7 +175,6 @@ export default function SupportWidget() {
             transform: "translateX(-50%)",
             zIndex: 2147483642,
             width: "min(480px, 100vw)",
-            // Fully opaque — no transparency
             background: "#120f2a",
             border: "1px solid rgba(255,255,255,0.12)",
             borderBottom: "none",
@@ -172,7 +185,6 @@ export default function SupportWidget() {
             overflowY: "auto",
             WebkitOverflowScrolling: "touch",
             animation: "swSlideUp .35s cubic-bezier(.22,1,.36,1)",
-            // Force GPU layer for iOS Safari
             WebkitTransform: "translateX(-50%) translateZ(0)",
             willChange: "transform",
           }}
