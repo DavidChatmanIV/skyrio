@@ -70,6 +70,7 @@ import useRewardsOptInPrompt from "../../hooks/useRewardsOptInPrompt";
 import { apiUrl } from "@/lib/api";
 import OnboardingModal from "@/components/onboarding/OnboardingModal";
 import ShareRankPrompt from "./ShareRankPrompt";
+import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
 
 const { Title, Text } = Typography;
 
@@ -403,6 +404,10 @@ function InlineTravelerSearch({ token, onFollowChange }) {
                     }}
                   >
                     <span>@{u.username}</span>
+                    {/* Show badge in search results if the user is verified */}
+                    {u.verifiedTier && (
+                      <PlaneBadge tier={u.verifiedTier} size={12} />
+                    )}
                   </div>
                 </div>
                 <div
@@ -705,6 +710,37 @@ export default function DigitalPassportPage() {
         setBadgePercent(Number(data?.badgePercent ?? 0));
         setXpIntoLevel(Number(data?.xpIntoLevel ?? 0));
         setXpNeeded(Number(data?.xpNeeded ?? 100));
+
+        // Sync verification fields from the fresh API response back into the
+        // auth context. useAuth() reads from localStorage/JWT which won't have
+        // verifiedTier until we push it here — this is why the badge was invisible.
+        if (setUser && data?.user) {
+          const tier = data.user.verifiedTier ?? null;
+          const pending = data.user.verificationPending ?? false;
+          setUser((prev) => {
+            if (
+              prev?.verifiedTier === tier &&
+              prev?.verificationPending === pending
+            )
+              return prev;
+            const updated = {
+              ...prev,
+              verifiedTier: tier,
+              verificationPending: pending,
+            };
+            try {
+              localStorage.setItem(
+                "user",
+                JSON.stringify({
+                  ...JSON.parse(localStorage.getItem("user") || "{}"),
+                  verifiedTier: tier,
+                  verificationPending: pending,
+                })
+              );
+            } catch {}
+            return updated;
+          });
+        }
       } catch {
         if (!mounted) return;
         setXp(0);
@@ -1090,7 +1126,14 @@ export default function DigitalPassportPage() {
                           {displayName}
                         </Title>
                         <Text className="pp-muted">
-                          {handle} · {currentBadge}
+                          {handle}
+                          {/* Verified plane badge — shows tier, pending, or nothing */}
+                          {user?.verifiedTier ? (
+                            <PlaneBadge tier={user.verifiedTier} size={15} />
+                          ) : user?.verificationPending ? (
+                            <PlaneBadgePending size={14} />
+                          ) : null}{" "}
+                          · {currentBadge}
                         </Text>
                         {user?.bio && (
                           <Text
@@ -1462,6 +1505,9 @@ export default function DigitalPassportPage() {
                       </Button>
                     </div>
                   </Card>
+                  <div style={{ marginTop: 10, opacity: 0.95 }}>
+                    <Tag className="pp-tag ppTagDark">Soft Launch</Tag>
+                  </div>
                 </div>
               </div>
             </div>

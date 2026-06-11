@@ -17,6 +17,7 @@ import apiRouter from "./routes/api/index.js";
 import healthRouter from "./routes/health.routes.js";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
+import { assignFounderBadge } from "./routes/verificationRoutes.js";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -49,11 +50,8 @@ if (process.env.NODE_ENV !== "production") {
     "http://localhost:5273",
     "http://127.0.0.1:5273",
   ];
-
   devExtras.forEach((origin) => {
-    if (!allowedOrigins.includes(origin)) {
-      allowedOrigins.push(origin);
-    }
+    if (!allowedOrigins.includes(origin)) allowedOrigins.push(origin);
   });
 }
 
@@ -77,7 +75,7 @@ app.use(cors(corsOptions));
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
 
-// ── Stripe webhook needs raw body — must come BEFORE express.json() ──
+// Stripe webhook needs raw body — must come BEFORE express.json()
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 
 app.use(express.json({ limit: "2mb" }));
@@ -138,19 +136,9 @@ async function connectMongo() {
 
   const c = mongoose.connection;
 
-  c.on("error", (err) => {
-    console.error("❌ MongoDB error:", err.message);
-  });
-
-  c.on("disconnected", () => {
-    console.warn(
-      "⚠️  MongoDB disconnected. Check Atlas IP whitelist or network."
-    );
-  });
-
-  c.on("reconnected", () => {
-    console.log("✅ MongoDB reconnected.");
-  });
+  c.on("error", (err) => console.error("❌ MongoDB error:", err.message));
+  c.on("disconnected", () => console.warn("⚠️  MongoDB disconnected."));
+  c.on("reconnected", () => console.log("✅ MongoDB reconnected."));
 
   const safeUri = MONGODB_URI.replace(/:([^@]+)@/, ":***@");
   console.log(`🔌 Connecting to: ${safeUri.substring(0, 70)}...`);
@@ -162,7 +150,6 @@ async function connectMongo() {
       serverSelectionTimeoutMS: 7_000,
       socketTimeoutMS: 60_000,
     });
-
     console.log(`✅ MongoDB connected (db: ${c.name})`);
   } catch (err) {
     console.error("❌ MongoDB connection failed:", err.message);
@@ -173,11 +160,8 @@ async function connectMongo() {
 
 app.get("/health/db", async (_req, res) => {
   const state = mongoose.connection.readyState;
-
-  if (state !== 1 || !mongoose.connection.db) {
+  if (state !== 1 || !mongoose.connection.db)
     return res.status(503).json({ ok: false, state, error: "DB not ready" });
-  }
-
   try {
     await mongoose.connection.db.admin().ping();
     return res.json({ ok: true, state });
@@ -195,17 +179,12 @@ app.use("/api", apiRouter);
 app.post("/contact", async (req, res) => {
   try {
     const { name, email, message } = req.body || {};
-
-    if (!name || !email || !message) {
+    if (!name || !email || !message)
       return res
         .status(400)
         .json({ error: "Missing name, email, or message." });
-    }
-
-    if (mongoose.connection.readyState !== 1) {
+    if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ error: "DB not ready." });
-    }
-
     await new Contact({ name, email, message }).save();
     return res.json({ ok: true, message: "Thank you for reaching out!" });
   } catch (err) {
@@ -233,9 +212,7 @@ app.use((err, _req, res, _next) => {
 
 const httpServer = createServer(app);
 
-const io = new SocketIOServer(httpServer, {
-  cors: corsOptions,
-});
+const io = new SocketIOServer(httpServer, { cors: corsOptions });
 
 app.set("io", io);
 
@@ -249,22 +226,24 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("auth:join", ({ userId }) => {
+    if (userId) socket.join(String(userId));
+  });
+
   socket.on("dm:join", ({ conversationId }) => {
     if (conversationId) socket.join(String(conversationId));
   });
 
   socket.on("dm:typing", ({ conversationId, fromUserId }) => {
-    if (conversationId) {
+    if (conversationId)
       socket.to(String(conversationId)).emit("dm:typing", { fromUserId });
-    }
   });
 
   socket.on("send_message", (payload) => {
-    if (payload?.conversationId) {
+    if (payload?.conversationId)
       socket
         .to(String(payload.conversationId))
         .emit("message_received", payload);
-    }
   });
 
   socket.on("disconnect", () => {
@@ -297,7 +276,13 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
+// ── Boot sequence ─────────────────────────────────────────────
 await connectMongo();
+
+// Assign purple founder badge on every deploy (safe idempotent upsert).
+// Reads FOUNDER_USER_ID from .env — no-ops silently if not set.
+await assignFounderBadge();
+
 startJobs();
 
 const PORT = Number(process.env.PORT) || 4000;

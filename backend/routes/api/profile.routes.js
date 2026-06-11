@@ -41,18 +41,23 @@ router.get("/me", requireAuth, async (req, res) => {
     }
 
     const levelData = getLevel(user.xp || 0);
+    const safe = user.toSafeJSON();
 
     return res.json({
       ok: true,
       user: {
-        ...user.toSafeJSON(),
-        bio: profile?.bio || "",
-        city: profile?.city || user.toSafeJSON().city || "",
-        homeBase: profile?.homeBase || "",
-        avatar: profile?.avatar || user.toSafeJSON().avatar || "",
-        // ── FIX: expose travelVibes so DigitalPassportPage
-        //    can seed localVibes from the server on first load ──
-        travelVibes: profile?.travelVibes || [],
+        ...safe,
+        bio: profile?.bio || safe.bio || "",
+        city: profile?.city || safe.city || "",
+        homeBase: profile?.homeBase || safe.city || "",
+        avatar: profile?.avatar || safe.avatar || "",
+        travelVibes: profile?.travelVibes?.length
+          ? profile.travelVibes
+          : safe.travelVibes || [],
+        // Verification — comes through toSafeJSON() but made explicit
+        // so frontend always gets them even if toSafeJSON changes later
+        verifiedTier: safe.verifiedTier ?? null,
+        verificationPending: safe.verificationPending ?? false,
       },
       profile,
       xp: user.xp || 0,
@@ -195,13 +200,19 @@ router.patch("/settings", requireAuth, async (req, res) => {
       if (key in req.body) profileUpdates[key] = req.body[key];
     }
 
-    if (Array.isArray(travelVibes)) {
-      // ── FIX: was .slice(0, 3) which silently dropped the 4th and 5th
-      //    vibe. Frontend allows up to 5 — match that limit here. ──
-      profileUpdates.travelVibes = travelVibes.slice(0, 5);
+    // Sync city to User model so homeBaseLabel on passport reads correctly
+    // from both Profile and User without a second query
+    if (city !== undefined) {
+      userUpdates.city = String(city).trim();
     }
 
-    if (homeAirportData && homeAirportData.code) {
+    if (Array.isArray(travelVibes)) {
+      profileUpdates.travelVibes = travelVibes.slice(0, 5);
+      // Keep User.travelVibes in sync for search/badge queries
+      userUpdates.travelVibes = travelVibes.slice(0, 5);
+    }
+
+    if (homeAirportData?.code) {
       profileUpdates.homeAirportData = {
         code: homeAirportData.code,
         city: homeAirportData.city || "",
@@ -257,6 +268,13 @@ router.patch("/update", requireAuth, async (req, res) => {
       { new: true, upsert: true }
     );
 
+    // Keep User.avatar in sync when avatar is updated (e.g. from avatar upload)
+    if (req.body.avatar) {
+      await User.findByIdAndUpdate(req.user._id, {
+        $set: { avatar: req.body.avatar },
+      });
+    }
+
     return res.json({ ok: true, message: "Profile updated", profile });
   } catch (err) {
     console.error("Profile update error:", err);
@@ -288,7 +306,8 @@ router.get("/public/:username", async (req, res) => {
 
     const user = await User.findById(profile.user)
       .select(
-        "xp username name avatar followers following followersCount followingCount isOfficial createdAt"
+        // Added verifiedTier so the public passport page can show the badge
+        "xp username name avatar followers following followersCount followingCount isOfficial verifiedTier createdAt"
       )
       .lean();
 
@@ -333,9 +352,10 @@ router.get("/public/:username", async (req, res) => {
       xpPercent: levelData.percent || 0,
       nextBadge: levelData.next || null,
       isOfficial: user?.isOfficial || false,
+      // Verification badge — shown on public passport page
+      verifiedTier: user?.verifiedTier || null,
       followersCount,
       followingCount,
-      // ── FIX: was already correct but ensure empty array fallback ──
       travelVibes: profile.travelVibes || [],
       profileMusic: profile.profileMusic?.url
         ? {

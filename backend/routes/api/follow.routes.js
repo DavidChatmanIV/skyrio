@@ -2,6 +2,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import User from "../../models/user.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
+import { autoFlagForVerification } from "../verificationRoutes.js";
 
 const router = Router();
 
@@ -27,7 +28,10 @@ router.get("/search", requireAuth, async (req, res) => {
       _id: { $ne: meId },
       $or: [{ username: regex }, { name: regex }],
     })
-      .select("_id username name avatar bio followersCount followingCount")
+      // Added verifiedTier so PlaneBadge renders in search results
+      .select(
+        "_id username name avatar bio followersCount followingCount verifiedTier"
+      )
       .limit(limit)
       .lean();
 
@@ -72,7 +76,7 @@ router.get("/:userId/followers", async (req, res) => {
 
     const user = await User.findById(userId)
       .select("followers")
-      .populate("followers", "username name avatar bio city")
+      .populate("followers", "username name avatar bio city verifiedTier")
       .lean();
 
     if (!user) {
@@ -98,7 +102,7 @@ router.get("/:userId/following", async (req, res) => {
 
     const user = await User.findById(userId)
       .select("following")
-      .populate("following", "username name avatar bio city")
+      .populate("following", "username name avatar bio city verifiedTier")
       .lean();
 
     if (!user) {
@@ -142,6 +146,9 @@ router.post("/:targetUserId", requireAuth, async (req, res) => {
         { _id: target, followers: { $ne: me } },
         { $addToSet: { followers: me }, $inc: { followersCount: 1 } }
       );
+
+      // Auto-flag for verification review if they crossed a threshold
+      await autoFlagForVerification(target);
     }
 
     return res.json({ ok: true, followed: changed });

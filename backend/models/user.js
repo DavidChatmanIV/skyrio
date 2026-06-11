@@ -32,6 +32,18 @@ const UserSchema = new Schema(
     // ---------- Profile ----------
     avatar: { type: String, default: "/default-avatar.png" },
     bio: { type: String, trim: true },
+    city: { type: String, trim: true }, // Home Base shown on passport
+    travelVibes: { type: [String], default: [] }, // Up to 5 vibe tags
+
+    // ---------- Verification ----------
+    // verifiedTier:        orange (1k followers) | blue (5k) | purple (founder only)
+    // verificationPending: true while awaiting manual review from admin
+    verifiedTier: {
+      type: String,
+      enum: [null, "orange", "blue", "purple"],
+      default: null,
+    },
+    verificationPending: { type: Boolean, default: false },
 
     // ---------- Social Core ----------
     isOfficial: { type: Boolean, default: false },
@@ -49,7 +61,7 @@ const UserSchema = new Schema(
     xp: { type: Number, default: 0, min: 0 },
     settings: { rewardsEnabled: { type: Boolean, default: false } },
 
-    // ---------- RBAC ROLE SYSTEM ----------
+    // ---------- RBAC Role System ----------
     role: {
       type: String,
       enum: ["user", "support", "manager", "admin"],
@@ -128,6 +140,10 @@ UserSchema.methods.toSafeJSON = function () {
     name: this.name,
     avatar: this.avatar,
     bio: this.bio,
+    city: this.city,
+    travelVibes: this.travelVibes,
+    verifiedTier: this.verifiedTier,
+    verificationPending: this.verificationPending,
     xp: this.xp,
     settings: this.settings,
     role: this.role,
