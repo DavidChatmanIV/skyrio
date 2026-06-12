@@ -1,807 +1,577 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Card,
-  Button,
-  Tag,
-  Row,
-  Col,
-  Typography,
-  Space,
-  Switch,
-  Divider,
-  Tooltip,
-  Progress,
-  Modal,
-  notification,
-  Badge,
-  Tabs,
-} from "antd";
-import { Link, useNavigate } from "react-router-dom";
-import {
-  CheckCircleOutlined,
-  StarOutlined,
-  RocketOutlined,
-  HomeOutlined,
-  ThunderboltOutlined,
-  TrophyOutlined,
-  FireOutlined,
-  LockOutlined,
-  UnlockOutlined,
-  ClockCircleOutlined,
-  GlobalOutlined,
-  InfoCircleOutlined,
+  ArrowRightOutlined,
+  CheckOutlined,
+  ToolOutlined,
 } from "@ant-design/icons";
-import PageLayout from "../../components/PageLayout";
-import useXPSystem, {
-  XP_TIERS,
-  XP_ACTIONS,
-  getTier,
-  getNextTier,
-} from "../../hooks/useXPSystem";
-import "../../styles/Membership.css";
 
-const { Title, Paragraph, Text } = Typography;
-const { TabPane } = Tabs;
-
-// ─── Plan definitions ────────────────────────────────────────────────────────
 const PLANS = [
   {
     id: "free",
-    name: "Free Explorer",
-    monthly: 0,
-    yearly: 0,
-    tag: { text: "Free", color: "green" },
-    className: "m-card",
-    icon: "🧭",
-    accentColor: "#60a5fa",
-    multiplier: "1×",
-    features: [
-      { icon: <CheckCircleOutlined />, text: "Access to booking & SkyStream" },
-      { icon: <CheckCircleOutlined />, text: "Earn XP & unlock badges" },
-      { icon: <CheckCircleOutlined />, text: "Save up to 3 trips" },
-      { icon: <CheckCircleOutlined />, text: "Basic travel search" },
-      { icon: <CheckCircleOutlined />, text: "1× XP on all activity" },
+    name: "Free",
+    price: { monthly: 0, annual: 0 },
+    badge: null,
+    description: "Everything you need to start planning smarter trips.",
+    cta: "Get started free",
+    ctaRoute: "/register",
+    highlight: false,
+    perks: [
+      "Unlimited AI trip planning with Atlas",
+      "Flight & hotel search across 30+ destinations",
+      "Skyrio Passport (Explorer rank)",
+      "Basic XP & badge tracking",
+      "Trip saving (up to 5 trips)",
+      "Email support",
     ],
-    ctaText: "You're on this plan",
-    disabled: true,
   },
   {
-    id: "pro",
-    name: "Sky Pro",
-    monthly: 9.99,
-    yearly: 7.99, // per month billed annually
-    tag: { text: "Most Popular", color: "blue" },
-    className: "m-card m-popular",
-    icon: "⚡",
-    accentColor: "#f59e0b",
-    multiplier: "2×",
-    features: [
-      { icon: <StarOutlined />, text: "Everything in Free Explorer" },
-      { icon: <StarOutlined />, text: "2× XP on all activity & actions" },
-      { icon: <StarOutlined />, text: "Unlimited saved trips" },
-      { icon: <StarOutlined />, text: "Priority booking access" },
-      { icon: <StarOutlined />, text: "Exclusive Pro badges" },
-      { icon: <StarOutlined />, text: "Advanced route planner" },
+    id: "explorer",
+    name: "Explorer",
+    price: { monthly: 8, annual: 6 },
+    badge: "Most popular",
+    description: "For frequent travelers who want more power and fewer limits.",
+    cta: "Start Explorer",
+    ctaRoute: "/register?plan=explorer",
+    highlight: true,
+    perks: [
+      "Everything in Free",
+      "Unlimited saved trips",
+      "Priority Atlas AI responses",
+      "Advanced budget breakdown & alerts",
+      "Exclusive Explorer-only destinations",
+      "2× XP on every booking",
+      "Early access to new features",
+      "Priority email support",
     ],
-    ctaText: "Upgrade to Pro",
   },
   {
-    id: "elite",
-    name: "Sky Elite",
-    monthly: 19.99,
-    yearly: 15.99,
-    tag: { text: "Best Value", color: "gold" },
-    className: "m-card m-best",
-    icon: "👑",
-    accentColor: "#a78bfa",
-    multiplier: "3×",
-    features: [
-      { icon: <RocketOutlined />, text: "Everything in Sky Pro" },
-      { icon: <RocketOutlined />, text: "3× XP on all activity & actions" },
-      { icon: <RocketOutlined />, text: "+200 XP monthly bonus" },
-      { icon: <RocketOutlined />, text: "Concierge trip planning" },
-      { icon: <RocketOutlined />, text: "VIP lounge access" },
-      { icon: <RocketOutlined />, text: "Early feature access" },
-      { icon: <RocketOutlined />, text: "Dedicated support" },
+    id: "legend",
+    name: "Legend",
+    price: { monthly: 18, annual: 14 },
+    badge: "Best value",
+    description: "For power travelers who want the full Skyrio experience.",
+    cta: "Go Legend",
+    ctaRoute: "/register?plan=legend",
+    highlight: false,
+    perks: [
+      "Everything in Explorer",
+      "Concierge trip-building service",
+      "5× XP multiplier",
+      "Legend badge & exclusive rewards",
+      "Access to private group travel rooms",
+      "Custom passport card design",
+      "Early booking access & exclusive deals", // ← replaced "Dedicated account manager"
+      "24/7 live chat support",
     ],
-    ctaText: "Upgrade to Elite",
   },
 ];
 
-// ─── XP Ring SVG ─────────────────────────────────────────────────────────────
-function XPRing({ xp, tier, progress }) {
-  const r = 70;
-  const stroke = 8;
-  const norm = r - stroke / 2;
-  const circ = 2 * Math.PI * norm;
-  const dash = (progress / 100) * circ;
+const FAQS = [
+  {
+    q: "Can I upgrade or downgrade anytime?",
+    a: "Yes — plan changes take effect immediately. If you upgrade mid-cycle, you're prorated for the remainder.",
+  },
+  {
+    q: "Is there a free trial for paid plans?",
+    a: "Explorer comes with a 14-day free trial, no credit card required. Legend includes a 7-day trial.",
+  },
+  {
+    q: "What happens to my saved trips if I downgrade?",
+    a: "Your trips are never deleted. On Free, only your 5 most recent are active — the rest are archived and restored if you re-upgrade.",
+  },
+  {
+    q: "Are payments secure?",
+    a: "All payments are processed by Stripe. We never store your card details.",
+  },
+];
 
+const API = import.meta.env.VITE_API_URL || "https://skyrio.onrender.com";
+
+const CSS = `
+  .mp-wrap {
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124,92,252,0.22) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 10%,  rgba(255,138,42,0.12) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 60% at 50% 90%,  rgba(124,92,252,0.12) 0%, transparent 60%),
+      linear-gradient(160deg, #0e0b24 0%, #09071a 50%, #0b0719 100%);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    padding: 64px 24px 96px;
+  }
+  .mp-head { text-align: center; margin-bottom: 52px; }
+  .mp-eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,138,42,0.14); border: 1px solid rgba(255,138,42,0.28);
+    border-radius: 999px; padding: 5px 16px; font-size: 12px; font-weight: 500;
+    letter-spacing: 0.04em; color: #ff8a2a; margin-bottom: 20px;
+  }
+  .mp-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800; letter-spacing: -0.02em;
+    color: #fff; margin: 0 0 14px; line-height: 1.1;
+  }
+  .mp-title span {
+    background: linear-gradient(135deg, #ff8a2a, #ffb347);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .mp-sub {
+    font-size: 16px; color: rgba(255,255,255,0.55);
+    max-width: 480px; margin: 0 auto; line-height: 1.65;
+  }
+  .mp-toggle {
+    display: inline-flex; align-items: center;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px; padding: 4px;
+  }
+  .mp-toggle__btn {
+    padding: 8px 22px; border-radius: 999px; border: none; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    transition: all 0.2s; background: transparent; color: rgba(255,255,255,0.45);
+  }
+  .mp-toggle__btn--active {
+    background: linear-gradient(135deg, #ff8a2a, #ffb347);
+    color: #1a0d04; box-shadow: 0 4px 14px rgba(255,138,42,0.3);
+  }
+  .mp-toggle__save {
+    font-size: 10px; font-weight: 700; color: #ff8a2a;
+    background: rgba(255,138,42,0.14); border: 1px solid rgba(255,138,42,0.28);
+    border-radius: 999px; padding: 2px 8px; margin-left: 6px;
+  }
+  .mp-plans {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 20px; max-width: 1020px; margin: 0 auto 80px;
+  }
+  @media (max-width: 860px) { .mp-plans { grid-template-columns: 1fr; max-width: 480px; } }
+  .mp-plan {
+    position: relative;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px; padding: 28px 26px 32px;
+    display: flex; flex-direction: column;
+    transition: border-color 0.22s, transform 0.22s;
+  }
+  .mp-plan:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-3px); }
+  .mp-plan--highlight {
+    border-color: rgba(255,138,42,0.45); background: rgba(255,138,42,0.07);
+    box-shadow: 0 0 0 1px rgba(255,138,42,0.1), 0 20px 48px rgba(0,0,0,0.35);
+  }
+  .mp-plan--active-plan {
+    border-color: rgba(124,92,252,0.6) !important;
+    box-shadow: 0 0 0 1px rgba(124,92,252,0.2), 0 20px 48px rgba(124,92,252,0.2) !important;
+  }
+  .mp-plan__badge {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, #ff8a2a, #ffb347);
+    color: #1a0d04; font-size: 11px; font-weight: 800;
+    padding: 4px 16px; border-radius: 999px; white-space: nowrap;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .mp-plan__active-badge {
+    position: absolute; top: -12px; right: 20px;
+    background: rgba(124,92,252,0.9); border: 1px solid rgba(124,92,252,0.5);
+    color: #fff; font-size: 10px; font-weight: 800;
+    padding: 3px 12px; border-radius: 999px; white-space: nowrap;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .mp-plan__name {
+    font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800;
+    color: #fff; margin-bottom: 6px;
+  }
+  .mp-plan__desc { font-size: 12.5px; color: rgba(255,255,255,0.5); line-height: 1.5; margin-bottom: 22px; }
+  .mp-plan__price { margin-bottom: 24px; }
+  .mp-plan__amount {
+    font-family: 'Syne', sans-serif; font-size: 42px; font-weight: 800; color: #fff; line-height: 1;
+  }
+  .mp-plan__amount sup { font-size: 20px; vertical-align: top; margin-top: 8px; }
+  .mp-plan__per { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+  .mp-plan__cta {
+    width: 100%; padding: 12px 0; border-radius: 999px; border: none;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    gap: 8px; transition: filter 0.18s, transform 0.18s; margin-bottom: 26px;
+  }
+  .mp-plan__cta--primary {
+    background: linear-gradient(135deg, #ff8a2a, #ffb347); color: #1a0d04;
+    box-shadow: 0 8px 24px rgba(255,138,42,0.3);
+  }
+  .mp-plan__cta--primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .mp-plan__cta--ghost {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.8);
+  }
+  .mp-plan__cta--ghost:hover { background: rgba(255,255,255,0.12); transform: translateY(-1px); }
+  .mp-plan__cta--current {
+    background: rgba(124,92,252,0.15); border: 1px solid rgba(124,92,252,0.35);
+    color: rgba(255,255,255,0.5); cursor: default;
+  }
+  .mp-plan__divider { width: 100%; height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 20px; }
+  .mp-plan__perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .mp-plan__perk {
+    display: flex; align-items: flex-start; gap: 9px;
+    font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.45;
+  }
+  .mp-plan__check {
+    width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center; font-size: 9px;
+  }
+  .mp-plan__check--orange { background: rgba(255,138,42,0.2); color: #ff8a2a; }
+  .mp-plan__check--muted  { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.35); }
+
+  /* Admin Panel */
+  .mp-admin-panel {
+    max-width: 1020px; margin: 0 auto 48px;
+    background: rgba(124,92,252,0.08); border: 1px solid rgba(124,92,252,0.3);
+    border-radius: 16px; padding: 20px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .mp-admin-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; color: rgba(124,92,252,0.9);
+    white-space: nowrap;
+  }
+  .mp-admin-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mp-admin-btn {
+    padding: 7px 18px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);
+    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: all 0.18s; text-transform: capitalize;
+  }
+  .mp-admin-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .mp-admin-btn--active {
+    background: linear-gradient(135deg,rgba(124,92,252,0.5),rgba(124,92,252,0.3));
+    border-color: rgba(124,92,252,0.6); color: #fff;
+  }
+  .mp-admin-status {
+    font-size: 12px; color: rgba(255,255,255,0.4); margin-left: auto;
+  }
+  .mp-admin-status span { color: #a78bfa; font-weight: 700; }
+
+  /* FAQ */
+  .mp-faq-wrap { max-width: 720px; margin: 0 auto; }
+  .mp-faq-head { text-align: center; margin-bottom: 32px; }
+  .mp-faq-title {
+    font-family: 'Syne', sans-serif; font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 800; color: #fff; margin: 0 0 8px; letter-spacing: -0.02em;
+  }
+  .mp-faq-sub { font-size: 14px; color: rgba(255,255,255,0.45); margin: 0; }
+  .mp-faq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .mp-faq-grid { grid-template-columns: 1fr; } }
+  .mp-faq-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 14px; padding: 18px 20px; transition: border-color 0.2s;
+  }
+  .mp-faq-card:hover { border-color: rgba(255,138,42,0.25); }
+  .mp-faq-q { font-size: 13.5px; font-weight: 700; color: #fff; margin-bottom: 7px; line-height: 1.4; }
+  .mp-faq-a  { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.6; }
+
+  /* Bottom CTA */
+  .mp-bottom-cta {
+    text-align: center; padding: 52px 24px;
+    background: linear-gradient(135deg, rgba(124,58,237,0.2) 0%, rgba(255,138,42,0.18) 100%);
+    border: 1px solid rgba(255,138,42,0.25); border-radius: 24px;
+    max-width: 1020px; margin: 64px auto 0;
+  }
+  .mp-bottom-cta h2 {
+    font-family: 'Syne', sans-serif; font-size: clamp(24px, 4vw, 38px);
+    font-weight: 800; color: #fff; margin: 0 0 12px; letter-spacing: -0.02em;
+  }
+  .mp-bottom-cta p { font-size: 15px; color: rgba(255,255,255,0.55); margin: 0 0 28px; }
+  .mp-bottom-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 32px; border-radius: 999px; border: none;
+    background: linear-gradient(135deg, #ff8a2a, #ffb347);
+    color: #1a0d04; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: filter 0.18s, transform 0.18s;
+    box-shadow: 0 8px 28px rgba(255,138,42,0.35);
+  }
+  .mp-bottom-btn:hover { filter: brightness(1.08); transform: translateY(-2px); }
+  .mp-note { font-size: 12px; color: rgba(255,255,255,0.3); margin-top: 12px; }
+  .mp-note span { color: #ff8a2a; cursor: pointer; }
+  .mp-note span:hover { text-decoration: underline; }
+`;
+
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem("user") || sessionStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getToken() {
   return (
-    <div className="xp-ring-wrap">
-      <svg width="160" height="160" className="xp-ring-svg">
-        {/* Track */}
-        <circle
-          cx="80"
-          cy="80"
-          r={norm}
-          fill="none"
-          stroke="rgba(255,255,255,0.08)"
-          strokeWidth={stroke}
-        />
-        {/* Progress arc */}
-        <circle
-          cx="80"
-          cy="80"
-          r={norm}
-          fill="none"
-          stroke={tier.color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${circ}`}
-          style={{
-            transform: "rotate(-90deg)",
-            transformOrigin: "80px 80px",
-            transition: "stroke-dasharray 1s cubic-bezier(.4,0,.2,1)",
-            filter: `drop-shadow(0 0 6px ${tier.color})`,
-          }}
-        />
-      </svg>
-      <div className="xp-ring-inner">
-        <span className="xp-ring-icon">{tier.icon}</span>
-        <span className="xp-ring-tier" style={{ color: tier.color }}>
-          {tier.name}
-        </span>
-        <span className="xp-ring-xp">
-          {xp} <small>XP</small>
-        </span>
-      </div>
-    </div>
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("skyrio_token") ||
+    ""
   );
 }
 
-// ─── XP Event Feed item ───────────────────────────────────────────────────────
-function XPEvent({ event }) {
-  const age = Math.round((Date.now() - event.time) / 60000);
-  const timeLabel =
-    age < 1
-      ? "just now"
-      : age < 60
-      ? `${age}m ago`
-      : `${Math.round(age / 60)}h ago`;
-  return (
-    <div className="xp-event">
-      <span className="xp-event-icon">{event.icon}</span>
-      <span className="xp-event-label">{event.label}</span>
-      <span className="xp-event-xp" style={{ color: "#f59e0b" }}>
-        +{event.xp} XP
-      </span>
-      <span className="xp-event-time">{timeLabel}</span>
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MembershipPage() {
-  const navigate = useNavigate();
-  const [period, setPeriod] = useState("monthly");
-  const [confirmPlan, setConfirmPlan] = useState(null); // plan object awaiting confirm
-  const [api, contextHolder] = notification.useNotification();
-
-  const {
-    xp,
-    plan: currentPlan,
-    streak,
-    tier,
-    nextTier,
-    progress,
-    multiplier,
-    recentEvents,
-    totalEarned,
-    onceDone,
-    awardXP,
-    trackPageVisit,
-    upgradePlan,
-    resetXP,
-  } = useXPSystem();
-
-  // Track this page visit
-  useEffect(() => {
-    trackPageVisit("/membership");
-  }, [trackPageVisit]);
+  const nav = useNavigate();
+  const [annual, setAnnual] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [activePlan, setActivePlan] = useState("free");
+  const [adminMsg, setAdminMsg] = useState("");
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
-    const prev = document.title;
-    document.title = "Skyrio • Membership";
-    return () => (document.title = prev);
+    const user = getStoredUser();
+    if (user) {
+      setCurrentUser(user);
+      setActivePlan(user.plan || "free");
+    }
   }, []);
 
-  // ── Show XP toast when events come in ─────────────────────────────────────
-  const lastEventRef = React.useRef(null);
-  useEffect(() => {
-    if (!recentEvents.length) return;
-    const latest = recentEvents[0];
-    if (latest.time === lastEventRef.current) return;
-    lastEventRef.current = latest.time;
-    api.open({
-      message: (
-        <span style={{ fontWeight: 700, color: "#fff" }}>
-          {latest.icon} +{latest.xp} XP
-        </span>
-      ),
-      description: (
-        <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
-          {latest.label}
-        </span>
-      ),
-      placement: "bottomRight",
-      duration: 2.5,
-      style: {
-        background: "rgba(20,8,45,0.97)",
-        border: "1px solid rgba(167,139,250,0.35)",
-        borderRadius: 14,
-        backdropFilter: "blur(12px)",
-      },
-    });
-  }, [recentEvents, api]);
+  const isAdmin = currentUser?.role === "admin";
+  const isLoggedIn = !!currentUser;
 
-  // ── Upgrade flow ──────────────────────────────────────────────────────────
-  const handleUpgrade = useCallback(
-    (planObj) => {
-      if (planObj.id === currentPlan) return;
-      setConfirmPlan(planObj);
-    },
-    [currentPlan]
-  );
+  // Admin: switch own plan via backend
+  async function handleAdminPlanSwitch(planId) {
+    if (switching) return;
+    setSwitching(true);
+    setAdminMsg("");
+    try {
+      const res = await fetch(`${API}/api/admin/set-plan`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ plan: planId }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setActivePlan(data.plan);
+        // Sync localStorage so the rest of the app sees the new plan
+        const stored = getStoredUser();
+        if (stored) {
+          localStorage.setItem(
+            "user",
+            JSON.stringify({ ...stored, plan: data.plan })
+          );
+        }
+        setAdminMsg(`Switched to ${data.plan}`);
+      } else {
+        setAdminMsg(data.message || "Failed to switch");
+      }
+    } catch {
+      setAdminMsg("Network error");
+    } finally {
+      setSwitching(false);
+    }
+  }
 
-  const confirmUpgrade = useCallback(() => {
-    if (!confirmPlan) return;
-    upgradePlan(confirmPlan.id);
-    setConfirmPlan(null);
-    // Navigate to checkout (Stripe stub)
-    navigate(`/membership/checkout?plan=${confirmPlan.id}&period=${period}`);
-  }, [confirmPlan, upgradePlan, navigate, period]);
+  function handlePlanCta(plan) {
+    if (plan.id === "free") {
+      nav(isLoggedIn ? "/dashboard" : "/register");
+    } else {
+      nav(isLoggedIn ? `/upgrade?plan=${plan.id}` : plan.ctaRoute);
+    }
+  }
 
-  const yearlyMonthlyPrice = (plan) =>
-    period === "yearly" ? plan.yearly : plan.monthly;
-
-  const plans = useMemo(() => PLANS, []);
+  function ctaLabel(plan) {
+    if (plan.id === activePlan) return "Current plan";
+    if (plan.id === "free" && isLoggedIn) return "Go to Dashboard";
+    return plan.cta;
+  }
 
   return (
-    <PageLayout fullBleed={false} maxWidth={1180} className="m-wrap">
-      {contextHolder}
+    <div className="mp-wrap">
+      <style>{CSS}</style>
 
-      {/* ── Top header ─────────────────────────────────────────────────────── */}
-      <div className="m-top">
-        <div className="m-top-header">
-          <div>
-            <Title level={2} className="m-title">
-              Skyrio Membership
-            </Title>
-            <Paragraph className="m-sub">
-              Unlock premium perks, boost your XP, and get exclusive travel
-              tools by upgrading your membership.
-            </Paragraph>
-          </div>
+      {/* Head */}
+      <div className="mp-head">
+        <div className="mp-eyebrow">✦ Skyrio Membership</div>
+        <h1 className="mp-title">
+          Travel smarter with <span>Skyrio</span>
+        </h1>
+        <p className="mp-sub">
+          Start free. Upgrade when you're ready. Every plan includes Atlas AI,
+          full trip planning, and your Skyrio Passport.
+        </p>
+      </div>
 
-          {/* Live XP pill */}
-          <div
-            className="m-xp-pill"
-            style={{ borderColor: tier.color + "55", color: tier.color }}
+      {/* Billing toggle */}
+      <div
+        style={{ display: "flex", justifyContent: "center", marginBottom: 48 }}
+      >
+        <div className="mp-toggle">
+          <button
+            className={`mp-toggle__btn${
+              !annual ? " mp-toggle__btn--active" : ""
+            }`}
+            onClick={() => setAnnual(false)}
           >
-            {tier.icon}&nbsp;{tier.name}&nbsp;·&nbsp;
-            <strong>{xp}</strong>&nbsp;XP
-            {streak > 1 && (
-              <span className="m-streak-badge">
-                <FireOutlined /> {streak}d
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="m-top-actions">
-          <Link to="/" aria-label="Back to Home">
-            <Button
-              type="primary"
-              size="large"
-              className="m-home-btn"
-              icon={<HomeOutlined />}
-            >
-              Home
-            </Button>
-          </Link>
-
-          <div className="m-billing-toggle">
-            <Text>Monthly</Text>
-            <Switch
-              checked={period === "yearly"}
-              onChange={(v) => setPeriod(v ? "yearly" : "monthly")}
-              aria-label="Toggle yearly billing"
-            />
-            <Space size={6} align="center">
-              <Text strong>Yearly</Text>
-              <Tooltip title="Save ~20% vs monthly billing">
-                <Tag color="gold">Save 20%</Tag>
-              </Tooltip>
-            </Space>
-          </div>
+            Monthly
+          </button>
+          <button
+            className={`mp-toggle__btn${
+              annual ? " mp-toggle__btn--active" : ""
+            }`}
+            onClick={() => setAnnual(true)}
+          >
+            Annual <span className="mp-toggle__save">Save 25%</span>
+          </button>
         </div>
       </div>
 
-      {/* ── Tabs: Plans / XP & Levels ──────────────────────────────────────── */}
-      <Tabs
-        defaultActiveKey="plans"
-        className="m-tabs"
-        tabBarStyle={{ marginBottom: 0 }}
-      >
-        {/* ─ Plans tab ─ */}
-        <TabPane
-          tab={
-            <span>
-              <StarOutlined /> Membership Plans
-            </span>
-          }
-          key="plans"
-        >
-          <div className="m-section">
-            <Paragraph className="m-sub" style={{ marginTop: 12 }}>
-              Choose the tier that matches your travel energy.
-            </Paragraph>
+      {/* Admin plan switcher — only visible to admins */}
+      {isAdmin && (
+        <div className="mp-admin-panel">
+          <div className="mp-admin-label">
+            <ToolOutlined /> Admin — Test Plan
+          </div>
+          <div className="mp-admin-btns">
+            {["free", "explorer", "legend"].map((p) => (
+              <button
+                key={p}
+                className={`mp-admin-btn${
+                  activePlan === p ? " mp-admin-btn--active" : ""
+                }`}
+                onClick={() => handleAdminPlanSwitch(p)}
+                disabled={switching || activePlan === p}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          {adminMsg && (
+            <div className="mp-admin-status">
+              {switching ? (
+                "Switching…"
+              ) : (
+                <>
+                  Active: <span>{adminMsg}</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-            <Row gutter={[24, 24]} justify="center">
-              {plans.map((p) => {
-                const price = yearlyMonthlyPrice(p);
-                const label =
-                  period === "monthly" ? "month" : "mo (billed yearly)";
-                const isCurrent = p.id === currentPlan;
+      {/* Plans */}
+      <div className="mp-plans">
+        {PLANS.map((plan) => {
+          const price = annual ? plan.price.annual : plan.price.monthly;
+          const isFree = plan.id === "free";
+          const isCurrent = plan.id === activePlan;
+          return (
+            <div
+              key={plan.id}
+              className={`mp-plan${
+                plan.highlight ? " mp-plan--highlight" : ""
+              }${isCurrent && isLoggedIn ? " mp-plan--active-plan" : ""}`}
+            >
+              {plan.badge && <div className="mp-plan__badge">{plan.badge}</div>}
+              {isCurrent && isLoggedIn && (
+                <div className="mp-plan__active-badge">Your Plan</div>
+              )}
 
-                return (
-                  <Col xs={24} md={12} lg={8} key={p.id}>
-                    <Card
-                      title={
-                        <span>
-                          {p.icon}&nbsp;{p.name}
-                        </span>
-                      }
-                      bordered={false}
-                      className={`${p.className}${
-                        isCurrent ? " m-current" : ""
+              <div className="mp-plan__name">{plan.name}</div>
+              <div className="mp-plan__desc">{plan.description}</div>
+
+              <div className="mp-plan__price">
+                <div className="mp-plan__amount">
+                  {isFree ? (
+                    "Free"
+                  ) : (
+                    <>
+                      <sup>$</sup>
+                      {price}
+                    </>
+                  )}
+                </div>
+                {!isFree && (
+                  <div className="mp-plan__per">
+                    per month{annual ? ", billed annually" : ""}
+                  </div>
+                )}
+              </div>
+
+              <button
+                className={`mp-plan__cta ${
+                  isCurrent && isLoggedIn
+                    ? "mp-plan__cta--current"
+                    : plan.highlight
+                    ? "mp-plan__cta--primary"
+                    : "mp-plan__cta--ghost"
+                }`}
+                onClick={() => !isCurrent && handlePlanCta(plan)}
+                disabled={isCurrent && isLoggedIn}
+              >
+                {ctaLabel(plan)} <ArrowRightOutlined />
+              </button>
+
+              <div className="mp-plan__divider" />
+
+              <ul className="mp-plan__perks">
+                {plan.perks.map((perk) => (
+                  <li key={perk} className="mp-plan__perk">
+                    <span
+                      className={`mp-plan__check ${
+                        plan.highlight
+                          ? "mp-plan__check--orange"
+                          : "mp-plan__check--muted"
                       }`}
-                      style={{ "--plan-accent": p.accentColor }}
-                      extra={
-                        <Space size={4}>
-                          {isCurrent && (
-                            <Tag color="purple" icon={<CheckCircleOutlined />}>
-                              Current
-                            </Tag>
-                          )}
-                          <Tag color={p.tag.color}>{p.tag.text}</Tag>
-                        </Space>
-                      }
                     >
-                      {/* Price */}
-                      <div className="m-price-block">
-                        <span className="m-price">
-                          {price === 0 ? "Free" : `$${price.toFixed(2)}`}
-                        </span>
-                        {price > 0 && (
-                          <span className="m-price-period">/{label}</span>
-                        )}
-                      </div>
-
-                      {/* XP multiplier badge */}
-                      <div
-                        className="m-xp-mult"
-                        style={{
-                          background: p.accentColor + "22",
-                          border: `1px solid ${p.accentColor}44`,
-                          color: p.accentColor,
-                        }}
-                      >
-                        <ThunderboltOutlined /> {p.multiplier} XP multiplier
-                      </div>
-
-                      {/* Features */}
-                      <ul className="m-feature-list">
-                        {p.features.map((f, i) => (
-                          <li key={i}>
-                            <span className="m-feat-icon">{f.icon}</span>
-                            <span>{f.text}</span>
-                          </li>
-                        ))}
-                      </ul>
-
-                      {/* CTA */}
-                      <Button
-                        type="primary"
-                        block
-                        className="m-cta"
-                        disabled={isCurrent}
-                        style={
-                          !isCurrent
-                            ? {
-                                background: p.accentColor,
-                                boxShadow: `0 8px 24px ${p.accentColor}44`,
-                              }
-                            : {}
-                        }
-                        onClick={() => !isCurrent && handleUpgrade(p)}
-                      >
-                        {isCurrent ? (
-                          <>
-                            <CheckCircleOutlined /> You're on this plan
-                          </>
-                        ) : (
-                          p.ctaText
-                        )}
-                      </Button>
-                    </Card>
-                  </Col>
-                );
-              })}
-            </Row>
-
-            <Divider />
-            <section aria-label="Membership notes">
-              <Space direction="vertical" size={4}>
-                <Text type="secondary">
-                  Prices in USD. Switch plans or cancel anytime.
-                </Text>
-                <Text type="secondary">
-                  Yearly plans billed upfront — ~20% off vs monthly.
-                </Text>
-                <Text type="secondary">
-                  XP multipliers apply to all passive SkyHub activity and
-                  explicit actions.
-                </Text>
-              </Space>
-            </section>
-          </div>
-        </TabPane>
-
-        {/* ─ XP & Levels tab ─ */}
-        <TabPane
-          tab={
-            <span>
-              <TrophyOutlined /> XP &amp; Levels
-            </span>
-          }
-          key="xp"
-        >
-          <div className="m-section">
-            <Row gutter={[24, 24]}>
-              {/* Left: Ring + progress */}
-              <Col xs={24} md={10}>
-                <Card className="m-card xp-card" bordered={false}>
-                  <XPRing xp={xp} tier={tier} progress={progress} />
-
-                  <div className="xp-tier-labels">
-                    <span style={{ color: tier.color }}>
-                      {tier.icon} {tier.name}
+                      <CheckOutlined />
                     </span>
-                    {nextTier && (
-                      <span style={{ color: nextTier.color }}>
-                        {nextTier.name} {nextTier.icon}
-                      </span>
-                    )}
-                  </div>
-
-                  <Progress
-                    percent={Math.round(progress)}
-                    showInfo={false}
-                    strokeColor={tier.color}
-                    trailColor="rgba(255,255,255,0.08)"
-                    strokeWidth={7}
-                    style={{ margin: "6px 0 4px" }}
-                  />
-
-                  {nextTier && (
-                    <div className="xp-to-next">
-                      {xp} / {tier.max} XP&nbsp;·&nbsp;
-                      <span style={{ color: nextTier.color }}>
-                        {tier.max - xp} to {nextTier.name}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Stats row */}
-                  <div className="xp-stats">
-                    <div className="xp-stat">
-                      <FireOutlined style={{ color: "#f97316" }} />
-                      <span>{streak}</span>
-                      <small>Day Streak</small>
-                    </div>
-                    <div className="xp-stat">
-                      <ThunderboltOutlined style={{ color: "#f59e0b" }} />
-                      <span>{multiplier}×</span>
-                      <small>XP Mult.</small>
-                    </div>
-                    <div className="xp-stat">
-                      <TrophyOutlined style={{ color: "#a78bfa" }} />
-                      <span>{totalEarned}</span>
-                      <small>Total XP</small>
-                    </div>
-                  </div>
-                </Card>
-              </Col>
-
-              {/* Right: Rank ladder + earn actions */}
-              <Col xs={24} md={14}>
-                {/* Rank ladder */}
-                <Card
-                  className="m-card"
-                  bordered={false}
-                  title={
-                    <span style={{ color: "rgba(255,255,255,0.9)" }}>
-                      <TrophyOutlined /> Rank Ladder
-                    </span>
-                  }
-                  style={{ marginBottom: 16 }}
-                >
-                  {XP_TIERS.map((t) => {
-                    const unlocked = xp >= t.min;
-                    const current = tier.name === t.name;
-                    return (
-                      <div
-                        key={t.name}
-                        className={`xp-rank-row ${
-                          current ? "xp-rank-current" : ""
-                        } ${!unlocked ? "xp-rank-locked" : ""}`}
-                        style={
-                          current
-                            ? {
-                                borderColor: t.color + "55",
-                                background: t.color + "12",
-                              }
-                            : {}
-                        }
-                      >
-                        <div
-                          className="xp-rank-icon"
-                          style={{
-                            background: unlocked
-                              ? t.color + "22"
-                              : "rgba(255,255,255,0.05)",
-                            border: `1px solid ${
-                              unlocked ? t.color + "44" : "transparent"
-                            }`,
-                          }}
-                        >
-                          {unlocked ? t.icon : <LockOutlined />}
-                        </div>
-                        <div className="xp-rank-info">
-                          <span
-                            className="xp-rank-name"
-                            style={{ color: unlocked ? "#fff" : "#6b7280" }}
-                          >
-                            {t.name}
-                            {current && (
-                              <Tag
-                                color="purple"
-                                style={{ marginLeft: 6, fontSize: 10 }}
-                              >
-                                YOU
-                              </Tag>
-                            )}
-                          </span>
-                          <span className="xp-rank-range">
-                            {t.max === Infinity
-                              ? `${t.min.toLocaleString()}+ XP`
-                              : `${t.min.toLocaleString()} – ${t.max.toLocaleString()} XP`}
-                          </span>
-                        </div>
-                        {unlocked && (
-                          <UnlockOutlined style={{ color: t.color }} />
-                        )}
-                      </div>
-                    );
-                  })}
-                </Card>
-
-                {/* Ways to earn */}
-                <Card
-                  className="m-card"
-                  bordered={false}
-                  title={
-                    <Space>
-                      <span style={{ color: "rgba(255,255,255,0.9)" }}>
-                        <ThunderboltOutlined /> Ways to Earn XP
-                      </span>
-                      <Tooltip title="Multiplied by your plan tier. Passive XP is awarded automatically as you use SkyHub.">
-                        <InfoCircleOutlined
-                          style={{ color: "#6b7280", fontSize: 13 }}
-                        />
-                      </Tooltip>
-                    </Space>
-                  }
-                >
-                  <div className="xp-action-group-label">
-                    <ClockCircleOutlined /> Passive · SkyHub Activity
-                  </div>
-                  {[
-                    "DAILY_SESSION",
-                    "ACTIVE_INTERVAL",
-                    "PAGE_VISIT",
-                    "STREAK_DAY",
-                    "STREAK_WEEK",
-                    "STREAK_MONTH",
-                  ].map((key) => {
-                    const a = XP_ACTIONS[key];
-                    const effective = a.xp * multiplier;
-                    return (
-                      <div key={key} className="xp-action-row">
-                        <span className="xp-action-icon">{a.icon}</span>
-                        <span className="xp-action-label">{a.label}</span>
-                        {a.dailyCap && (
-                          <Tag style={{ fontSize: 10, marginRight: 4 }}>
-                            cap {a.dailyCap}/day
-                          </Tag>
-                        )}
-                        {a.daily && !a.dailyCap && (
-                          <Tag style={{ fontSize: 10, marginRight: 4 }}>
-                            1/day
-                          </Tag>
-                        )}
-                        <span
-                          className="xp-action-xp"
-                          style={{ color: "#f59e0b" }}
-                        >
-                          +{effective} XP
-                        </span>
-                      </div>
-                    );
-                  })}
-
-                  <div
-                    className="xp-action-group-label"
-                    style={{ marginTop: 14 }}
-                  >
-                    <GlobalOutlined /> Active · Your Actions
-                  </div>
-                  {[
-                    "SAVE_DESTINATION",
-                    "COMPLETE_PROFILE",
-                    "WRITE_REVIEW",
-                    "SHARE_SKYSTREAM",
-                    "BOOK_TRIP",
-                    "FIRST_INTL",
-                    "REFER_FRIEND",
-                  ].map((key) => {
-                    const a = XP_ACTIONS[key];
-                    const effective = a.xp * multiplier;
-                    const done = a.once && onceDone[key];
-                    return (
-                      <div
-                        key={key}
-                        className={`xp-action-row ${
-                          done ? "xp-action-done" : ""
-                        }`}
-                      >
-                        <span className="xp-action-icon">
-                          {done ? "✅" : a.icon}
-                        </span>
-                        <span className="xp-action-label">{a.label}</span>
-                        {a.once && (
-                          <Tag
-                            color={done ? "green" : "default"}
-                            style={{ fontSize: 10, marginRight: 4 }}
-                          >
-                            {done ? "Earned" : "once"}
-                          </Tag>
-                        )}
-                        <span
-                          className="xp-action-xp"
-                          style={{ color: done ? "#34d399" : "#f59e0b" }}
-                        >
-                          {done ? "Done" : `+${effective} XP`}
-                        </span>
-                      </div>
-                    );
-                  })}
-
-                  {multiplier > 1 && (
-                    <div className="xp-mult-note">
-                      <ThunderboltOutlined style={{ color: "#f59e0b" }} />
-                      &nbsp;{multiplier}× multiplier active — all XP values
-                      above already reflect your{" "}
-                      {currentPlan === "pro" ? "Sky Pro" : "Sky Elite"} bonus.
-                    </div>
-                  )}
-                </Card>
-              </Col>
-            </Row>
-
-            {/* Recent XP activity feed */}
-            {recentEvents.length > 0 && (
-              <Card
-                className="m-card"
-                bordered={false}
-                title={
-                  <span style={{ color: "rgba(255,255,255,0.9)" }}>
-                    Recent XP Activity
-                  </span>
-                }
-                style={{ marginTop: 16 }}
-              >
-                {recentEvents.map((ev, i) => (
-                  <XPEvent key={i} event={ev} />
+                    {perk}
+                  </li>
                 ))}
-              </Card>
-            )}
-          </div>
-        </TabPane>
-      </Tabs>
+              </ul>
+            </div>
+          );
+        })}
+      </div>
 
-      {/* ── Upgrade confirmation modal ─────────────────────────────────────── */}
-      <Modal
-        open={!!confirmPlan}
-        onCancel={() => setConfirmPlan(null)}
-        footer={null}
-        centered
-        className="m-upgrade-modal"
-        width={420}
-      >
-        {confirmPlan && (
-          <div className="m-modal-body">
-            <div className="m-modal-icon">{confirmPlan.icon}</div>
-            <Title level={3} className="m-modal-title">
-              Upgrade to {confirmPlan.name}
-            </Title>
-            <Paragraph className="m-modal-desc">
-              You'll be billed{" "}
-              <strong style={{ color: confirmPlan.accentColor }}>
-                ${yearlyMonthlyPrice(confirmPlan).toFixed(2)}/
-                {period === "yearly" ? "mo (yearly)" : "month"}
-              </strong>
-              .
-            </Paragraph>
+      {/* FAQ */}
+      <div className="mp-faq-wrap">
+        <div className="mp-faq-head">
+          <h2 className="mp-faq-title">Common questions</h2>
+          <p className="mp-faq-sub">
+            Everything you need before choosing a plan.
+          </p>
+        </div>
+        <div className="mp-faq-grid">
+          {FAQS.map((faq) => (
+            <div key={faq.q} className="mp-faq-card">
+              <div className="mp-faq-q">{faq.q}</div>
+              <div className="mp-faq-a">{faq.a}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
-            {/* Upgrade bonus callout */}
-            {confirmPlan.id === "elite" && (
-              <div
-                className="m-modal-bonus"
-                style={{ borderColor: "#a78bfa44", background: "#a78bfa11" }}
-              >
-                <RocketOutlined style={{ color: "#a78bfa" }} />
-                &nbsp; Elite bonus: <strong>3× XP</strong> on everything +{" "}
-                <strong>+200 XP/month</strong> automatically.
-              </div>
-            )}
-            {confirmPlan.id === "pro" && (
-              <div
-                className="m-modal-bonus"
-                style={{ borderColor: "#f59e0b44", background: "#f59e0b11" }}
-              >
-                <ThunderboltOutlined style={{ color: "#f59e0b" }} />
-                &nbsp; Pro bonus: <strong>2× XP</strong> on all SkyHub activity
-                and actions starting now.
-              </div>
-            )}
-
-            <Button
-              type="primary"
-              block
-              size="large"
-              className="m-cta"
-              style={{
-                marginTop: 18,
-                background: confirmPlan.accentColor,
-                boxShadow: `0 8px 24px ${confirmPlan.accentColor}44`,
-              }}
-              onClick={confirmUpgrade}
-            >
-              Confirm Upgrade
-            </Button>
-            <Button
-              block
-              size="large"
-              className="m-cancel-btn"
-              onClick={() => setConfirmPlan(null)}
-            >
-              Maybe Later
-            </Button>
-          </div>
+      {/* Bottom CTA — auth-aware */}
+      <div className="mp-bottom-cta">
+        {isLoggedIn ? (
+          <>
+            <h2>Ready to upgrade?</h2>
+            <p>Unlock more power, more XP, and more of Skyrio.</p>
+            <button className="mp-bottom-btn" onClick={() => nav("/upgrade")}>
+              View upgrade options <ArrowRightOutlined />
+            </button>
+          </>
+        ) : (
+          <>
+            <h2>Start planning for free</h2>
+            <p>No credit card required. Upgrade anytime.</p>
+            <button className="mp-bottom-btn" onClick={() => nav("/register")}>
+              Create a free account <ArrowRightOutlined />
+            </button>
+            <div className="mp-note">
+              Already have an account?{" "}
+              <span onClick={() => nav("/login")}>Sign in →</span>
+            </div>
+          </>
         )}
-      </Modal>
-    </PageLayout>
+      </div>
+    </div>
   );
 }

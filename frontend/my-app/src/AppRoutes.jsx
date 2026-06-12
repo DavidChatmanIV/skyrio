@@ -12,6 +12,7 @@ const DigitalPassportPage = lazy(() =>
   import("./pages/passport/DigitalPassportPage")
 );
 const MembershipPage = lazy(() => import("./pages/Membership/MembershipPage"));
+const UpgradePage = lazy(() => import("./pages/UpgradePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
@@ -111,6 +112,7 @@ function TrackedRoutes() {
           element={<Navigate to="/passport" replace />}
         />
         <Route path="membership" element={<MembershipPage />} />
+        <Route path="upgrade" element={<UpgradePage />} />
 
         {/* ── Sync Together — login wall for guests, full page for authed users ── */}
         <Route

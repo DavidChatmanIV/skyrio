@@ -568,6 +568,7 @@ export default function DigitalPassportPage() {
   });
   const [followOpen, setFollowOpen] = useState(false);
   const [followMode, setFollowMode] = useState("following");
+  const [referralsCount, setReferralsCount] = useState(0);
 
   const socketRef = useRef(null);
   const avatarInputRef = useRef(null);
@@ -807,6 +808,20 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed, token]);
 
+  // Fetch referral stats
+  useEffect(() => {
+    if (!isAuthed || !token) return;
+    fetch(apiUrl("/api/referral/stats"), {
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.ok) setReferralsCount(data.referralsCount || 0);
+      })
+      .catch(() => {});
+  }, [isAuthed, token]);
+
   useEffect(() => {
     if (!myId || !isAuthed) return;
     if (!socketRef.current) {
@@ -841,11 +856,11 @@ export default function DigitalPassportPage() {
   const sharePassport = useCallback(async () => {
     const username = user?.username || safeEmailPrefix(user?.email);
     if (!username) {
-      // FIX 3: use antdMessage (static) — guaranteed to work outside App context
       antdMessage.info("Set a username first to share your passport.");
       return;
     }
-    const url = `${window.location.origin}/u/${username}`;
+    // Append ?ref= so signups from this link are tracked back to this user
+    const url = `${window.location.origin}/u/${username}?ref=${username}`;
     try {
       if (navigator.share) {
         await navigator.share({
@@ -854,10 +869,18 @@ export default function DigitalPassportPage() {
         });
       } else {
         await navigator.clipboard.writeText(url);
-        antdMessage.success("Passport link copied!");
+        antdMessage.success(
+          "Referral link copied! +10 XP when someone joins ✈️"
+        );
       }
+      // Grant share XP (once per day — backend deduplicates)
+      fetch(apiUrl("/api/referral/share-xp"), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      }).catch(() => {});
     } catch {}
-  }, [user, displayName]);
+  }, [user, displayName, token]);
 
   const copyPassportLink = useCallback(async () => {
     try {
@@ -1176,6 +1199,30 @@ export default function DigitalPassportPage() {
                             setFollowOpen(true);
                           }}
                         />
+                        {/* Referral stat */}
+                        {referralsCount > 0 && (
+                          <div
+                            style={{
+                              marginTop: 8,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              fontSize: 12,
+                              color: "rgba(255,255,255,0.5)",
+                            }}
+                          >
+                            <span style={{ fontSize: 14 }}>✈️</span>
+                            <span>
+                              <span
+                                style={{ fontWeight: 700, color: "#ff8a2a" }}
+                              >
+                                {referralsCount}
+                              </span>{" "}
+                              {referralsCount === 1 ? "traveler" : "travelers"}{" "}
+                              joined via your passport
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="pp-profileRing">
                         {xpLoading ? (

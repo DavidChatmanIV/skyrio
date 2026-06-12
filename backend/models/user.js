@@ -91,6 +91,14 @@ const UserSchema = new Schema(
       notesCount: { type: Number, default: 0, min: 0 },
     },
 
+    // ---------- Membership Plan ----------
+    plan: {
+      type: String,
+      enum: ["free", "explorer", "legend"],
+      default: "free",
+      index: true,
+    },
+
     // ---------- Saved Trips ----------
     savedTrips: [{ type: Schema.Types.ObjectId, ref: "Place" }],
 
