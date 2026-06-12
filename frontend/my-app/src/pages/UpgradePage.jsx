@@ -187,6 +187,8 @@ export default function UpgradePage() {
   const [params] = useSearchParams();
 
   const planKey = params.get("plan");
+  const billing = params.get("billing") || "monthly";
+  const annual = billing === "annual";
   const plan = PLANS[planKey] || PLANS.explorer;
 
   const mailto = `mailto:support@skyrioofficial.com?subject=Early access: ${plan.name} plan&body=Hi, I'd like to be notified when the ${plan.name} plan billing goes live!`;
@@ -220,15 +222,26 @@ export default function UpgradePage() {
             borderColor: plan.border,
           }}
         >
-          <div className="up-price-label">Annual price</div>
+          <div className="up-price-label">
+            {annual ? "Annual price" : "Monthly price"}
+          </div>
           <div className="up-price">
             <sup>$</sup>
-            {plan.price.annual}
+            {annual ? plan.price.annual : plan.price.monthly}
           </div>
-          <div className="up-price-per">per month, billed annually</div>
-          <div className="up-price-monthly">
-            or ${plan.price.monthly}/mo billed monthly
+          <div className="up-price-per">
+            per month{annual ? ", billed annually" : ""}
           </div>
+          {annual && (
+            <div className="up-price-monthly">
+              or ${plan.price.monthly}/mo billed monthly
+            </div>
+          )}
+          {!annual && (
+            <div className="up-price-monthly">
+              or ${plan.price.annual}/mo billed annually — save 25%
+            </div>
+          )}
         </div>
 
         {/* Notice */}

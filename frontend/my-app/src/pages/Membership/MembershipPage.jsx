@@ -502,7 +502,7 @@ export default function MembershipPage() {
       return;
     }
     // Paid plans always go to upgrade page — no early return
-    nav(`/upgrade?plan=${plan.id}`);
+    nav(`/upgrade?plan=${plan.id}&billing=${annual ? "annual" : "monthly"}`);
   }
 
   function ctaLabel(plan) {
@@ -688,7 +688,13 @@ export default function MembershipPage() {
             <p>Unlock more XP, smarter AI, and exclusive travel perks.</p>
             <button
               className="mp-bottom__btn"
-              onClick={() => nav("/upgrade?plan=explorer")}
+              onClick={() =>
+                nav(
+                  `/upgrade?plan=explorer&billing=${
+                    annual ? "annual" : "monthly"
+                  }`
+                )
+              }
             >
               View upgrade options <ArrowRightOutlined />
             </button>

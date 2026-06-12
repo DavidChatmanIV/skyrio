@@ -65,7 +65,7 @@ await mount("/xp", "../xp.js");
 await mount("/atlas", "../atlas/atlas.routes.js");
 await mount("/stripe", "../stripe.routes.js");
 await mount("/verification", "../verificationRoutes.js");
-await mount("/referral", "../referral.routes.js");
+await mount("/referral", "./referral.routes.js");
 
 /* ======================================================
    API Root
