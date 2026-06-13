@@ -1,16 +1,9 @@
-/**
- * MembershipPage.jsx
- * Route: /membership
- */
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRightOutlined, ToolOutlined } from "@ant-design/icons";
 import { useAuth } from "../../auth/useAuth";
 
-// ─────────────────────────────────────────────
-// SVG Icon system
-// ─────────────────────────────────────────────
 const ICONS = {
   robot:
     "M12 2a2 2 0 0 1 2 2v1h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3V4a2 2 0 0 1 2-2zm-2 9a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm4 0a1 1 0 1 0 2 0 1 1 0 0 0-2 0zM9 17h6",
@@ -57,14 +50,12 @@ function Icon({ name, size = 15, color = "currentColor" }) {
   );
 }
 
-// ─────────────────────────────────────────────
-// Data
-// ─────────────────────────────────────────────
 const PLANS = [
   {
     id: "free",
     name: "Free",
     price: { monthly: 0, annual: 0 },
+    annualTotal: null,
     badge: null,
     description: "Everything you need to start planning smarter trips.",
     cta: "Get started free",
@@ -90,7 +81,8 @@ const PLANS = [
   {
     id: "explorer",
     name: "Explorer",
-    price: { monthly: 8, annual: 6 },
+    price: { monthly: 7, annual: 55 },
+    annualTotal: 55,
     badge: "Most popular",
     description: "For frequent travelers who want more power and fewer limits.",
     cta: "Start Explorer",
@@ -129,7 +121,8 @@ const PLANS = [
   {
     id: "legend",
     name: "Legend",
-    price: { monthly: 18, annual: 14 },
+    price: { monthly: 15, annual: 144 },
+    annualTotal: 144,
     badge: "Best value",
     description: "For power travelers who demand the full Skyrio experience.",
     cta: "Go Legend",
@@ -192,9 +185,6 @@ const FAQS = [
 
 const API = import.meta.env.VITE_API_URL || "https://skyrio.onrender.com";
 
-// ─────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────
 const CSS = `
   .mp-wrap {
     min-height: 100vh;
@@ -206,8 +196,6 @@ const CSS = `
     font-family: 'DM Sans', sans-serif;
     padding: 64px 24px 96px;
   }
-
-  /* ── Head ── */
   .mp-head { text-align: center; margin-bottom: 52px; }
   .mp-eyebrow {
     display: inline-flex; align-items: center; gap: 6px;
@@ -230,8 +218,6 @@ const CSS = `
     font-size: 16px; color: rgba(255,255,255,0.52);
     max-width: 480px; margin: 0 auto; line-height: 1.65;
   }
-
-  /* ── Toggle ── */
   .mp-toggle {
     display: inline-flex; align-items: center;
     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
@@ -251,8 +237,6 @@ const CSS = `
     background: rgba(255,138,42,0.14); border: 1px solid rgba(255,138,42,0.28);
     border-radius: 999px; padding: 2px 8px; margin-left: 6px;
   }
-
-  /* ── Plans grid ── */
   .mp-plans {
     display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 20px; max-width: 1100px; margin: 0 auto 80px;
@@ -260,8 +244,6 @@ const CSS = `
   @media (max-width: 900px) {
     .mp-plans { grid-template-columns: 1fr; max-width: 500px; }
   }
-
-  /* ── Plan card ── */
   .mp-plan {
     position: relative;
     background: rgba(255,255,255,0.04);
@@ -286,8 +268,6 @@ const CSS = `
     box-shadow: 0 0 0 1px rgba(124,92,252,0.2),
                 0 24px 56px rgba(124,92,252,0.18) !important;
   }
-
-  /* Badges */
   .mp-plan__badge {
     position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
     background: linear-gradient(135deg, #ff8a2a, #ffb347);
@@ -302,8 +282,6 @@ const CSS = `
     padding: 3px 13px; border-radius: 999px;
     letter-spacing: 0.05em; text-transform: uppercase;
   }
-
-  /* Name / desc / price */
   .mp-plan__name {
     font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
     color: #fff; margin-bottom: 6px;
@@ -319,8 +297,10 @@ const CSS = `
   }
   .mp-plan__amount sup { font-size: 22px; vertical-align: top; margin-top: 9px; }
   .mp-plan__per { font-size: 12px; color: rgba(255,255,255,0.36); margin-top: 5px; }
-
-  /* CTA */
+  .mp-plan__annual-note {
+    font-size: 11px; color: rgba(255,138,42,0.8);
+    margin-top: 3px; font-weight: 600;
+  }
   .mp-plan__cta {
     width: 100%; padding: 13px 0; border-radius: 999px; border: none;
     font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 700;
@@ -341,8 +321,6 @@ const CSS = `
     background: rgba(124,92,252,0.12); border: 1px solid rgba(124,92,252,0.3);
     color: rgba(255,255,255,0.42); cursor: default;
   }
-
-  /* Perks */
   .mp-plan__divider {
     width: 100%; height: 1px;
     background: rgba(255,255,255,0.07); margin-bottom: 22px;
@@ -355,8 +333,6 @@ const CSS = `
     display: flex; align-items: flex-start; gap: 11px;
     font-size: 13.5px; color: rgba(255,255,255,0.7); line-height: 1.5;
   }
-
-  /* ── Admin panel ── */
   .mp-admin {
     max-width: 1100px; margin: 0 auto 44px;
     background: rgba(124,92,252,0.07);
@@ -384,8 +360,6 @@ const CSS = `
   .mp-admin__btn:disabled { opacity: 0.45; cursor: default; }
   .mp-admin__status { font-size: 12px; color: rgba(255,255,255,0.35); margin-left: auto; }
   .mp-admin__status b { color: #a78bfa; }
-
-  /* ── FAQ ── */
   .mp-faq { max-width: 740px; margin: 0 auto; }
   .mp-faq__head { text-align: center; margin-bottom: 32px; }
   .mp-faq__title {
@@ -403,8 +377,6 @@ const CSS = `
   .mp-faq__card:hover { border-color: rgba(255,138,42,0.22); }
   .mp-faq__q { font-size: 13.5px; font-weight: 700; color: #fff; margin-bottom: 7px; line-height: 1.4; }
   .mp-faq__a { font-size: 13px; color: rgba(255,255,255,0.46); line-height: 1.6; }
-
-  /* ── Bottom CTA ── */
   .mp-bottom {
     text-align: center; padding: 56px 28px;
     background: linear-gradient(135deg, rgba(124,58,237,0.18) 0%, rgba(255,138,42,0.15) 100%);
@@ -431,9 +403,6 @@ const CSS = `
   .mp-note span:hover { text-decoration: underline; }
 `;
 
-// ─────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────
 export default function MembershipPage() {
   const nav = useNavigate();
   const { user, isAuthed } = useAuth();
@@ -445,12 +414,10 @@ export default function MembershipPage() {
 
   const isAdmin = user?.role === "admin";
 
-  // Sync plan from auth context
   useEffect(() => {
     if (user?.plan) setActivePlan(user.plan);
   }, [user]);
 
-  // ── Admin: switch own plan via backend ──────
   async function handleAdminSwitch(planId) {
     if (switching || activePlan === planId) return;
     setSwitching(true);
@@ -491,7 +458,6 @@ export default function MembershipPage() {
     }
   }
 
-  // ── Plan CTA — always navigate for paid plans ──
   function handleCta(plan) {
     if (!isAuthed) {
       nav(plan.id === "free" ? "/register" : `/register?plan=${plan.id}`);
@@ -501,7 +467,6 @@ export default function MembershipPage() {
       nav("/dashboard");
       return;
     }
-    // Paid plans always go to upgrade page — no early return
     nav(`/upgrade?plan=${plan.id}&billing=${annual ? "annual" : "monthly"}`);
   }
 
@@ -528,7 +493,6 @@ export default function MembershipPage() {
     <div className="mp-wrap">
       <style>{CSS}</style>
 
-      {/* ── Header ── */}
       <div className="mp-head">
         <div className="mp-eyebrow">✦ Skyrio Membership</div>
         <h1 className="mp-title">
@@ -540,7 +504,6 @@ export default function MembershipPage() {
         </p>
       </div>
 
-      {/* ── Billing toggle ── */}
       <div
         style={{ display: "flex", justifyContent: "center", marginBottom: 48 }}
       >
@@ -559,12 +522,11 @@ export default function MembershipPage() {
             }`}
             onClick={() => setAnnual(true)}
           >
-            Annual <span className="mp-toggle__save">Save 25%</span>
+            Annual <span className="mp-toggle__save">Save up to 34%</span>
           </button>
         </div>
       </div>
 
-      {/* ── Admin plan switcher ── */}
       {isAdmin && (
         <div className="mp-admin">
           <div className="mp-admin__label">
@@ -598,7 +560,6 @@ export default function MembershipPage() {
         </div>
       )}
 
-      {/* ── Plan cards ── */}
       <div className="mp-plans">
         {PLANS.map((plan) => {
           const price = annual ? plan.price.annual : plan.price.monthly;
@@ -634,9 +595,16 @@ export default function MembershipPage() {
                   )}
                 </div>
                 {!isFree && (
-                  <div className="mp-plan__per">
-                    per month{annual ? ", billed annually" : ""}
-                  </div>
+                  <>
+                    <div className="mp-plan__per">
+                      per month{annual ? ", billed annually" : ""}
+                    </div>
+                    {annual && plan.annualTotal && (
+                      <div className="mp-plan__annual-note">
+                        ${plan.annualTotal}/year total
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -662,7 +630,6 @@ export default function MembershipPage() {
         })}
       </div>
 
-      {/* ── FAQ ── */}
       <div className="mp-faq">
         <div className="mp-faq__head">
           <h2 className="mp-faq__title">Common questions</h2>
@@ -680,7 +647,6 @@ export default function MembershipPage() {
         </div>
       </div>
 
-      {/* ── Bottom CTA — auth-aware ── */}
       <div className="mp-bottom">
         {isAuthed ? (
           <>

@@ -1,3 +1,8 @@
+/**
+ * UpgradePage.jsx
+ * Route: /upgrade?plan=explorer|legend&billing=monthly|annual
+ */
+
 import React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRightOutlined, ArrowLeftOutlined } from "@ant-design/icons";
@@ -5,7 +10,8 @@ import { ArrowRightOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 const PLANS = {
   explorer: {
     name: "Explorer",
-    price: { monthly: 8, annual: 6 },
+    price: { monthly: 7, annual: 55 },
+    annualTotal: 55,
     color: "#ff8a2a",
     glow: "rgba(255,138,42,0.15)",
     border: "rgba(255,138,42,0.35)",
@@ -14,7 +20,8 @@ const PLANS = {
   },
   legend: {
     name: "Legend",
-    price: { monthly: 18, annual: 14 },
+    price: { monthly: 15, annual: 144 },
+    annualTotal: 144,
     color: "#a78bfa",
     glow: "rgba(167,139,250,0.15)",
     border: "rgba(167,139,250,0.35)",
@@ -64,17 +71,14 @@ const CSS = `
     font-size: 15px;
     color: rgba(255,255,255,0.52);
     line-height: 1.65;
-    margin: 0 0 36px;
+    margin: 0 auto 36px;
     max-width: 380px;
-    margin-left: auto;
-    margin-right: auto;
   }
   .up-price-box {
     border-radius: 20px;
     padding: 28px 32px;
     border: 1px solid;
     margin-bottom: 28px;
-    text-align: center;
   }
   .up-price-label {
     font-size: 11px;
@@ -102,7 +106,12 @@ const CSS = `
     color: rgba(255,255,255,0.36);
     margin-top: 8px;
   }
-  .up-price-monthly {
+  .up-price-total {
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 6px;
+  }
+  .up-price-alt {
     font-size: 12px;
     color: rgba(255,255,255,0.28);
     margin-top: 4px;
@@ -186,12 +195,13 @@ export default function UpgradePage() {
   const nav = useNavigate();
   const [params] = useSearchParams();
 
-  const planKey = params.get("plan");
+  const planKey = params.get("plan") || "explorer";
   const billing = params.get("billing") || "monthly";
-  const annual = billing === "annual";
+  const isAnnual = billing === "annual";
   const plan = PLANS[planKey] || PLANS.explorer;
 
-  const mailto = `mailto:support@skyrioofficial.com?subject=Early access: ${plan.name} plan&body=Hi, I'd like to be notified when the ${plan.name} plan billing goes live!`;
+  const displayPrice = isAnnual ? plan.price.annual : plan.price.monthly;
+  const mailto = `mailto:support@skyrioofficial.com?subject=Early access: ${plan.name} plan (${billing})&body=Hi, I'd like to be notified when the ${plan.name} plan billing goes live! Preferred billing: ${billing}.`;
 
   return (
     <div className="up-wrap">
@@ -214,32 +224,34 @@ export default function UpgradePage() {
         <h1 className="up-title">Upgrade to {plan.name}</h1>
         <p className="up-sub">{plan.description}</p>
 
-        {/* Price */}
+        {/* Price box */}
         <div
           className="up-price-box"
-          style={{
-            background: plan.glow,
-            borderColor: plan.border,
-          }}
+          style={{ background: plan.glow, borderColor: plan.border }}
         >
           <div className="up-price-label">
-            {annual ? "Annual price" : "Monthly price"}
+            {isAnnual ? "Annual plan" : "Monthly plan"}
           </div>
           <div className="up-price">
             <sup>$</sup>
-            {annual ? plan.price.annual : plan.price.monthly}
+            {displayPrice}
           </div>
           <div className="up-price-per">
-            per month{annual ? ", billed annually" : ""}
+            per month{isAnnual ? ", billed annually" : ""}
           </div>
-          {annual && (
-            <div className="up-price-monthly">
-              or ${plan.price.monthly}/mo billed monthly
+          {isAnnual && (
+            <div className="up-price-total" style={{ color: plan.color }}>
+              ${plan.annualTotal}/year total
             </div>
           )}
-          {!annual && (
-            <div className="up-price-monthly">
-              or ${plan.price.annual}/mo billed annually — save 25%
+          {isAnnual ? (
+            <div className="up-price-alt">
+              or ${plan.price.monthly}/mo billed monthly
+            </div>
+          ) : (
+            <div className="up-price-alt" style={{ color: plan.color }}>
+              Save with annual — ${plan.annualTotal}/year (${plan.price.annual}
+              /mo)
             </div>
           )}
         </div>
@@ -249,7 +261,7 @@ export default function UpgradePage() {
           <span className="up-notice-icon">🚀</span>
           <div className="up-notice-text">
             <b>Billing launches with Skyrio in July 2026.</b>
-            We're putting the finishing touches on our payment system. Drop us
+            We're putting the finishing touches on our payment system. Send us
             an email and you'll be first to know — plus get an early-bird
             discount when we go live.
           </div>
