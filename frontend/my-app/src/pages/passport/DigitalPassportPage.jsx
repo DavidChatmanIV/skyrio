@@ -708,6 +708,11 @@ export default function DigitalPassportPage() {
         setXpIntoLevel(Number(data?.xpIntoLevel ?? 0));
         setXpNeeded(Number(data?.xpNeeded ?? 100));
 
+        // Read referralsCount from /me so we don't need a separate /stats call
+        if (data?.user?.referralsCount !== undefined) {
+          setReferralsCount(Number(data.user.referralsCount) || 0);
+        }
+
         // Sync verification fields from the fresh API response back into the
         // auth context. useAuth() reads from localStorage/JWT which won't have
         // verifiedTier until we push it here — this is why the badge was invisible.
@@ -804,20 +809,6 @@ export default function DigitalPassportPage() {
     };
   }, [isAuthed, token]);
 
-  // Fetch referral stats
-  useEffect(() => {
-    if (!isAuthed || !token) return;
-    fetch(apiUrl("/api/referral/stats"), {
-      credentials: "include",
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.ok) setReferralsCount(data.referralsCount || 0);
-      })
-      .catch(() => {});
-  }, [isAuthed, token]);
-
   useEffect(() => {
     if (!myId || !isAuthed) return;
     if (!socketRef.current) {
@@ -868,7 +859,7 @@ export default function DigitalPassportPage() {
         message.success("Referral link copied! +10 XP when someone joins ✈️");
       }
       // Grant share XP (once per day — backend deduplicates)
-      fetch(apiUrl("/api/referral/share-xp"), {
+      fetch(apiUrl("/api/profile/share-xp"), {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         credentials: "include",

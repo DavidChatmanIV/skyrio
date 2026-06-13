@@ -54,10 +54,12 @@ router.get("/me", requireAuth, async (req, res) => {
         travelVibes: profile?.travelVibes?.length
           ? profile.travelVibes
           : safe.travelVibes || [],
-        // Verification — comes through toSafeJSON() but made explicit
-        // so frontend always gets them even if toSafeJSON changes later
+        // Verification — explicit so frontend always gets these
         verifiedTier: safe.verifiedTier ?? null,
         verificationPending: safe.verificationPending ?? false,
+        // Referrals — read here so no separate /referral/stats call needed
+        referralsCount: safe.referralsCount ?? 0,
+        referredBy: safe.referredBy ?? null,
       },
       profile,
       xp: user.xp || 0,
@@ -378,6 +380,42 @@ router.get("/public/:username", async (req, res) => {
     return res
       .status(500)
       .json({ ok: false, message: "Failed to fetch profile" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/profile/share-xp
+// Awards +10 XP for sharing passport link, once per day.
+// Lives here (not in referral routes) because requireAuth
+// is proven to work in this router.
+// ─────────────────────────────────────────────────────────────
+router.post("/share-xp", requireAuth, async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const user = await User.findById(req.user._id)
+      .select("xp lastShareXpDate")
+      .lean();
+
+    if (!user)
+      return res.status(404).json({ ok: false, message: "User not found." });
+
+    if (user.lastShareXpDate === today)
+      return res.json({
+        ok: true,
+        awarded: false,
+        reason: "already_awarded_today",
+      });
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $inc: { xp: 10 },
+      $set: { lastShareXpDate: today },
+    });
+
+    console.log(`[profile] share-xp +10 XP → ${req.user._id}`);
+    res.json({ ok: true, awarded: true, xp: 10 });
+  } catch (err) {
+    console.error("[profile] share-xp error:", err);
+    res.status(500).json({ ok: false, message: err.message });
   }
 });
 
