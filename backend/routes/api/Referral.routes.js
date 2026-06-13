@@ -8,6 +8,11 @@ const XP_REFERRER = 50;
 const XP_NEW_USER = 25;
 const XP_SHARE_DAY = 10;
 
+// Temporary debug route — remove after confirming routing works
+router.get("/ping", (_req, res) =>
+  res.json({ ok: true, msg: "referral router alive" })
+);
+
 // POST /api/referral/complete
 router.post("/complete", async (req, res) => {
   try {
