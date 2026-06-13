@@ -48,11 +48,12 @@ function useReferral() {
 
 // ─── Filled SVG badge icons ───────────────────────────────────────────────────
 function BadgeIconExplorer({ size = 18, color }) {
+  // Compass — fits Explorer rank
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
       <path
         fillRule="evenodd"
-        d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5zM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5z"
+        d="M8.161 2.58a1.875 1.875 0 0 1 1.678 0l4.993 2.498c.106.052.214.1.323.143C15.27 5.649 16 6.887 16 8.25V9h.75a3 3 0 0 1 3 3v5.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V12a3 3 0 0 1 3-3H6v-.75a3 3 0 0 1 2.161-2.87zM12 15a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm-3-1.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"
         clipRule="evenodd"
       />
     </svg>
@@ -412,6 +413,29 @@ function StampGrid({ destinations, badgeColor }) {
   );
 }
 
+// ─── Share modal reward SVG icons ────────────────────────────────────────────
+function RewardPlane({ size = 18, color = "#ff8a2a" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.925A1.5 1.5 0 0 0 5.135 9.25h6.115a.25.25 0 0 1 0 .5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.114A28.897 28.897 0 0 0 3.105 2.289z" />
+    </svg>
+  );
+}
+function RewardGlobe({ size = 18, color = "#ff8a2a" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M21.721 12.752a9.711 9.711 0 0 0-.945-5.003 12.754 12.754 0 0 1-4.339 2.708 18.991 18.991 0 0 1-.214 4.772 17.165 17.165 0 0 0 5.498-2.477zM14.634 15.55a17.324 17.324 0 0 0 .332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 0 0 .332 4.647 17.385 17.385 0 0 0 5.268 0zM9.772 17.119a18.963 18.963 0 0 0 4.456 0A17.182 17.182 0 0 1 12 21.724a17.18 17.18 0 0 1-2.228-4.605zM7.777 15.23a18.87 18.87 0 0 1-.214-4.774 12.753 12.753 0 0 1-4.34-2.708 9.711 9.711 0 0 0-.944 5.004 17.165 17.165 0 0 0 5.498 2.477zM21.356 14.752a9.765 9.765 0 0 1-7.478 6.817 18.64 18.64 0 0 0 1.988-4.718 18.627 18.627 0 0 0 5.49-2.098zM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 0 0 1.988 4.718 9.765 9.765 0 0 1-7.478-6.816zM13.878 2.43a9.755 9.755 0 0 1 6.116 3.986 11.267 11.267 0 0 1-3.746 2.504 18.63 18.63 0 0 0-2.37-6.49zM12 2.276a17.152 17.152 0 0 1 2.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0 1 12 2.276zM10.122 2.43a18.629 18.629 0 0 0-2.37 6.49 11.266 11.266 0 0 1-3.746-2.504 9.754 9.754 0 0 1 6.116-3.985z" />
+    </svg>
+  );
+}
+function RewardGift({ size = 18, color = "#ff8a2a" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M9.375 3a1.875 1.875 0 0 0 0 3.75h1.875v4.5H3.375A1.875 1.875 0 0 1 1.5 9.375v-.75a1.875 1.875 0 0 1 1.875-1.875h.375A3.375 3.375 0 0 1 9.375 3zM15 6.75h1.875A1.875 1.875 0 0 1 18.75 8.625v.75A1.875 1.875 0 0 1 16.875 11.25H12.75V6.75H15zM11.25 12.75H3v6.375C3 20.496 3.504 21 4.125 21h7.125v-8.25zM12.75 21h7.125A1.125 1.125 0 0 0 21 19.875V12.75h-8.25V21zM14.625 3a3.375 3.375 0 0 1 3.375 3.375h.375A1.875 1.875 0 0 1 20.25 8.25v.75a1.875 1.875 0 0 1-1.875 1.875H14.625V6.75H12.75V3h1.875z" />
+    </svg>
+  );
+}
+
 // ─── Referral Share Modal ─────────────────────────────────────────────────────
 function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
   const [copied, setCopied] = useState(false);
@@ -548,10 +572,14 @@ function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
             }}
           >
             {[
-              { emoji: "✈️", label: "You share your link", xp: "+10 XP" },
-              { emoji: "🌍", label: "Friend signs up", xp: "+50 XP to you" },
+              { Icon: RewardPlane, label: "You share your link", xp: "+10 XP" },
               {
-                emoji: "🎁",
+                Icon: RewardGlobe,
+                label: "Friend signs up",
+                xp: "+50 XP to you",
+              },
+              {
+                Icon: RewardGift,
                 label: "Friend's welcome bonus",
                 xp: "+25 XP to them",
               },
@@ -569,7 +597,21 @@ function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 17 }}>{r.emoji}</span>
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 9,
+                      background: "rgba(255,138,42,0.12)",
+                      border: "1px solid rgba(255,138,42,0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <r.Icon size={16} color="#ff8a2a" />
+                  </div>
                   <span
                     style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}
                   >

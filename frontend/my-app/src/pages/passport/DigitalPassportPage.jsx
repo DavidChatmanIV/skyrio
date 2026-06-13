@@ -17,11 +17,9 @@ import {
   Modal,
   Input,
   App,
-  message as antdMessage,
 } from "antd";
 import {
   UserOutlined,
-  CopyOutlined,
   ShareAltOutlined,
   PlayCircleOutlined,
   SoundOutlined,
@@ -634,9 +632,7 @@ export default function DigitalPassportPage() {
 
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
-    antdMessage.success(
-      `Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`
-    );
+    message.success(`Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`);
     try {
       window.history.replaceState({}, document.title);
     } catch {}
@@ -763,7 +759,7 @@ export default function DigitalPassportPage() {
     const alreadyShown = sessionStorage.getItem("xp_toast_shown") === "1";
     if (xp > 0 && !xpToastShown && !xpLoading && !alreadyShown) {
       const timer = setTimeout(() => {
-        antdMessage.success(`✦ ${xp} XP earned — keep exploring!`);
+        message.success(`✦ ${xp} XP earned — keep exploring!`);
         setXpToastShown(true);
         try {
           sessionStorage.setItem("xp_toast_shown", "1");
@@ -856,7 +852,7 @@ export default function DigitalPassportPage() {
   const sharePassport = useCallback(async () => {
     const username = user?.username || safeEmailPrefix(user?.email);
     if (!username) {
-      antdMessage.info("Set a username first to share your passport.");
+      message.info("Set a username first to share your passport.");
       return;
     }
     // Append ?ref= so signups from this link are tracked back to this user
@@ -869,9 +865,7 @@ export default function DigitalPassportPage() {
         });
       } else {
         await navigator.clipboard.writeText(url);
-        antdMessage.success(
-          "Referral link copied! +10 XP when someone joins ✈️"
-        );
+        message.success("Referral link copied! +10 XP when someone joins ✈️");
       }
       // Grant share XP (once per day — backend deduplicates)
       fetch(apiUrl("/api/referral/share-xp"), {
@@ -881,15 +875,6 @@ export default function DigitalPassportPage() {
       }).catch(() => {});
     } catch {}
   }, [user, displayName, token]);
-
-  const copyPassportLink = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      antdMessage.success("Passport link copied");
-    } catch {
-      antdMessage.error("Copy failed");
-    }
-  }, []);
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -928,9 +913,9 @@ export default function DigitalPassportPage() {
           })
         );
       }
-      antdMessage.success("Avatar updated ✓");
+      message.success("Avatar updated ✓");
     } catch (err) {
-      antdMessage.error(err.message);
+      message.error(err.message);
     } finally {
       setAvatarUploading(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
@@ -941,7 +926,7 @@ export default function DigitalPassportPage() {
   const handleSaveProfile = async () => {
     const trimmedUsername = editUsername.trim();
     if (trimmedUsername && trimmedUsername.length < 3) {
-      antdMessage.error("Username must be at least 3 characters.");
+      message.error("Username must be at least 3 characters.");
       return;
     }
     setEditSaving(true);
@@ -989,10 +974,9 @@ export default function DigitalPassportPage() {
       }
 
       saved = true;
-      // Use static antdMessage — works regardless of App context
-      antdMessage.success("Profile updated ✓");
+      message.success("Profile updated ✓");
     } catch (err) {
-      antdMessage.error(err.message || "Failed to save. Please try again.");
+      message.error(err.message || "Failed to save. Please try again.");
     } finally {
       setEditSaving(false);
       // Only close if save succeeded; keep open on error so user can fix
@@ -1020,7 +1004,7 @@ export default function DigitalPassportPage() {
       setDeleteStep(0);
       setDeleteInput("");
       navigate("/", { replace: true });
-      antdMessage.success("Your account has been deleted.");
+      message.success("Your account has been deleted.");
     } catch (err) {
       message.error(
         err.message || "Could not delete account. Please try again."
@@ -1490,13 +1474,7 @@ export default function DigitalPassportPage() {
                       >
                         {profileMusic ? "Profile Music" : "Add Profile Music"}
                       </Button>
-                      <Button
-                        className="pp-actionBtn"
-                        icon={<CopyOutlined />}
-                        onClick={copyPassportLink}
-                      >
-                        Copy Link
-                      </Button>
+
                       <Button
                         className="pp-actionBtn"
                         icon={<ShareAltOutlined />}
@@ -1552,9 +1530,6 @@ export default function DigitalPassportPage() {
                       </Button>
                     </div>
                   </Card>
-                  <div style={{ marginTop: 10, opacity: 0.95 }}>
-                    <Tag className="pp-tag ppTagDark">Soft Launch</Tag>
-                  </div>
                 </div>
               </div>
             </div>

@@ -36,8 +36,6 @@ const UserSchema = new Schema(
     travelVibes: { type: [String], default: [] }, // Up to 5 vibe tags
 
     // ---------- Verification ----------
-    // verifiedTier:        orange (1k followers) | blue (5k) | purple (founder only)
-    // verificationPending: true while awaiting manual review from admin
     verifiedTier: {
       type: String,
       enum: [null, "orange", "blue", "purple"],
@@ -60,6 +58,11 @@ const UserSchema = new Schema(
     // ---------- XP & Rewards ----------
     xp: { type: Number, default: 0, min: 0 },
     settings: { rewardsEnabled: { type: Boolean, default: false } },
+
+    // ---------- Referrals ----------
+    referredBy: { type: String, default: null }, // username who referred this user
+    referralsCount: { type: Number, default: 0, min: 0 }, // how many users this user referred
+    lastShareXpDate: { type: String, default: null }, // "YYYY-MM-DD" — dedup share XP
 
     // ---------- RBAC Role System ----------
     role: {
@@ -152,9 +155,12 @@ UserSchema.methods.toSafeJSON = function () {
     travelVibes: this.travelVibes,
     verifiedTier: this.verifiedTier,
     verificationPending: this.verificationPending,
+    referredBy: this.referredBy,
+    referralsCount: this.referralsCount,
     xp: this.xp,
     settings: this.settings,
     role: this.role,
+    plan: this.plan,
     isOfficial: this.isOfficial,
     isActive: this.isActive,
     emailVerified: this.emailVerified,

@@ -4,16 +4,11 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 
 const router = Router();
 
-const XP_REFERRER = 50; // XP granted to the person who shared
-const XP_NEW_USER = 25; // Bonus XP granted to the new signup
+const XP_REFERRER = 50;
+const XP_NEW_USER = 25;
+const XP_SHARE_DAY = 10;
 
-/* ============================================================
-   POST /api/referral/complete
-   Called from auth.routes.js register handler after a user
-   successfully creates an account with a referredBy username.
-
-   Body: { newUserId, referredBy }  (both required)
-============================================================ */
+// POST /api/referral/complete
 router.post("/complete", async (req, res) => {
   try {
     const { newUserId, referredBy } = req.body || {};
@@ -22,23 +17,18 @@ router.post("/complete", async (req, res) => {
         .status(400)
         .json({ ok: false, message: "newUserId and referredBy required." });
 
-    // Grant bonus XP to the new user
     await User.findByIdAndUpdate(newUserId, {
       $inc: { xp: XP_NEW_USER },
       $set: { referredBy },
     });
 
-    // Grant XP + increment referral count to the sharer
     const referrer = await User.findOneAndUpdate(
       { username: referredBy.toLowerCase() },
       { $inc: { xp: XP_REFERRER, referralsCount: 1 } },
       { new: true }
     );
 
-    if (!referrer) {
-      // Referrer username not found — still ok, new user keeps their bonus
-      return res.json({ ok: true, referrerFound: false });
-    }
+    if (!referrer) return res.json({ ok: true, referrerFound: false });
 
     console.log(
       `[referral] ${referredBy} referred ${newUserId} — +${XP_REFERRER} XP`
@@ -50,21 +40,47 @@ router.post("/complete", async (req, res) => {
   }
 });
 
-/* ============================================================
-   GET /api/referral/stats
-   Returns the logged-in user's referral count and XP earned
-   from referrals. Used to show the stat on the passport.
-============================================================ */
+// POST /api/referral/share-xp
+router.post("/share-xp", requireAuth, async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const user = await User.findById(req.user._id)
+      .select("xp lastShareXpDate")
+      .lean();
+
+    if (!user)
+      return res.status(404).json({ ok: false, message: "User not found." });
+
+    if (user.lastShareXpDate === today)
+      return res.json({
+        ok: true,
+        awarded: false,
+        reason: "already_awarded_today",
+      });
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $inc: { xp: XP_SHARE_DAY },
+      $set: { lastShareXpDate: today },
+    });
+
+    console.log(`[referral] share-xp +${XP_SHARE_DAY} XP → ${req.user._id}`);
+    res.json({ ok: true, awarded: true, xp: XP_SHARE_DAY });
+  } catch (err) {
+    console.error("[referral] share-xp error:", err);
+    res.status(500).json({ ok: false, message: err.message });
+  }
+});
+
+// GET /api/referral/stats
 router.get("/stats", requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .select("referralsCount")
       .lean();
-
     res.json({
       ok: true,
       referralsCount: user?.referralsCount || 0,
-      xpEarned: (user?.referralsCount || 0) * 50,
+      xpEarned: (user?.referralsCount || 0) * XP_REFERRER,
     });
   } catch (err) {
     console.error("[referral] stats error:", err);

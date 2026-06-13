@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/react";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { ConfigProvider } from "antd";
+import { ConfigProvider, App } from "antd";
 import AuthProvider from "@/auth/AuthProvider.jsx";
 import { AtlasProvider } from "@/components/Atlas/AtlasContext";
 import AppRoutes from "./AppRoutes";
@@ -58,7 +58,12 @@ createRoot(rootEl).render(
               },
             }}
           >
-            <AppRoutes />
+            {/* App must be inside ConfigProvider so it inherits the theme.
+                This enables message/notification/modal to consume dynamic
+                theme context — fixes the antd static message warning. */}
+            <App>
+              <AppRoutes />
+            </App>
           </ConfigProvider>
         </AtlasProvider>
       </AuthProvider>
