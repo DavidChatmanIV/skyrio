@@ -5,13 +5,12 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Plane,
   MapPin,
   Music,
   Share2,
-  Award,
   Zap,
   ChevronRight,
   Globe,
@@ -28,48 +27,95 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
 import FollowButton from "./FollowButton";
+import PlaneBadge from "./PlaneBadge";
 import passportBg from "../../assets/DigitalPassport/worldmap.png";
-
-// ── Same CSS as DigitalPassportPage ──
 import "../../styles/profile-passport.css";
 
 const API = import.meta.env.VITE_API_URL || "";
 
-/* ── Badge config — identical to DigitalPassportPage ── */
+// ─── Capture ?ref= param and store in sessionStorage ─────────────────────────
+function useReferral() {
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref?.trim()) {
+      try {
+        sessionStorage.setItem("skyrio_ref", ref.trim().toLowerCase());
+      } catch {}
+    }
+  }, [searchParams]);
+}
+
+// ─── Filled SVG badge icons ───────────────────────────────────────────────────
+function BadgeIconExplorer({ size = 18, color }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path
+        fillRule="evenodd"
+        d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5zM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+function BadgeIconAdventurer({ size = 18, color }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path
+        fillRule="evenodd"
+        d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+function BadgeIconNomad({ size = 18, color }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M21.721 12.752a9.711 9.711 0 0 0-.945-5.003 12.754 12.754 0 0 1-4.339 2.708 18.991 18.991 0 0 1-.214 4.772 17.165 17.165 0 0 0 5.498-2.477zM14.634 15.55a17.324 17.324 0 0 0 .332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 0 0 .332 4.647 17.385 17.385 0 0 0 5.268 0zM9.772 17.119a18.963 18.963 0 0 0 4.456 0A17.182 17.182 0 0 1 12 21.724a17.18 17.18 0 0 1-2.228-4.605zM7.777 15.23a18.87 18.87 0 0 1-.214-4.774 12.753 12.753 0 0 1-4.34-2.708 9.711 9.711 0 0 0-.944 5.004 17.165 17.165 0 0 0 5.498 2.477zM21.356 14.752a9.765 9.765 0 0 1-7.478 6.817 18.64 18.64 0 0 0 1.988-4.718 18.627 18.627 0 0 0 5.49-2.098zM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 0 0 1.988 4.718 9.765 9.765 0 0 1-7.478-6.816zM13.878 2.43a9.755 9.755 0 0 1 6.116 3.986 11.267 11.267 0 0 1-3.746 2.504 18.63 18.63 0 0 0-2.37-6.49zM12 2.276a17.152 17.152 0 0 1 2.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0 1 12 2.276zM10.122 2.43a18.629 18.629 0 0 0-2.37 6.49 11.266 11.266 0 0 1-3.746-2.504 9.754 9.754 0 0 1 6.116-3.985z" />
+    </svg>
+  );
+}
+function BadgeIconLegend({ size = 18, color }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path
+        fillRule="evenodd"
+        d="M11.484 2.17a.75.75 0 0 1 1.032 0 11.209 11.209 0 0 0 7.877 3.08.75.75 0 0 1 .722.515 12.74 12.74 0 0 1 .635 3.985c0 5.942-4.064 10.933-9.563 12.348a.749.749 0 0 1-.374 0C6.314 20.683 2.25 15.692 2.25 9.75c0-1.39.223-2.73.635-3.985a.75.75 0 0 1 .722-.516l.143.001c2.996 0 5.718-1.17 7.734-3.08zM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75zM12 15a.75.75 0 0 0-.75.75v.008c0 .414.336.75.75.75h.008a.75.75 0 0 0 .75-.75v-.008a.75.75 0 0 0-.75-.75H12z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+const BADGE_ICONS = {
+  Explorer: BadgeIconExplorer,
+  Adventurer: BadgeIconAdventurer,
+  Nomad: BadgeIconNomad,
+  Legend: BadgeIconLegend,
+};
+
 const BADGE_CONFIG = {
   Explorer: {
     color: "#7c5cfc",
     glow: "rgba(124,92,252,0.35)",
     next: "Adventurer",
-    icon: "🧭",
   },
   Adventurer: {
     color: "#ff8a2a",
     glow: "rgba(255,138,42,0.35)",
     next: "Nomad",
-    icon: "🏔️",
   },
-  Nomad: {
-    color: "#00b8d9",
-    glow: "rgba(0,184,217,0.35)",
-    next: "Legend",
-    icon: "🌍",
-  },
-  Legend: {
-    color: "#f0c040",
-    glow: "rgba(240,192,64,0.35)",
-    next: null,
-    icon: "👑",
-  },
+  Nomad: { color: "#00b8d9", glow: "rgba(0,184,217,0.35)", next: "Legend" },
+  Legend: { color: "#f0c040", glow: "rgba(240,192,64,0.35)", next: null },
 };
 const DEFAULT_BADGE = {
   color: "#7c5cfc",
   glow: "rgba(124,92,252,0.35)",
   next: "Adventurer",
-  icon: "🧭",
 };
 
-/* ── YouTube helpers ── */
+// ─── YouTube helpers ──────────────────────────────────────────────────────────
 function extractYouTubeId(url) {
   try {
     if (!url) return null;
@@ -91,7 +137,7 @@ const getYouTubeThumbnail = (url) => {
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
 };
 
-/* ── Skeleton ── */
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 function Skeleton({ w = "100%", h = 16, radius = 8 }) {
   return (
     <div
@@ -101,7 +147,7 @@ function Skeleton({ w = "100%", h = 16, radius = 8 }) {
   );
 }
 
-/* ── Not found ── */
+// ─── Not found ────────────────────────────────────────────────────────────────
 function NotFound({ username, onSignup }) {
   return (
     <div style={{ textAlign: "center", padding: "80px 24px" }}>
@@ -147,7 +193,7 @@ function NotFound({ username, onSignup }) {
   );
 }
 
-/* ── Section label ── */
+// ─── Section label ────────────────────────────────────────────────────────────
 function SectionLabel({ icon: Icon, label }) {
   return (
     <div className="pp-pub-section-label">
@@ -157,12 +203,11 @@ function SectionLabel({ icon: Icon, label }) {
   );
 }
 
-/* ── Music card ── */
+// ─── Music card ───────────────────────────────────────────────────────────────
 function MusicCard({ profileMusic, embedUrl }) {
   const [expanded, setExpanded] = useState(false);
   const thumbnail = getYouTubeThumbnail(profileMusic?.url);
   if (!embedUrl) return null;
-
   return (
     <div className="pp-pub-card pp-pub-section">
       <SectionLabel icon={Music} label="Travel Soundtrack" />
@@ -229,9 +274,6 @@ function MusicCard({ profileMusic, embedUrl }) {
                   borderRadius: 2,
                   background: "#ff8a2a",
                   opacity: 0.5,
-                  animation: `ppMusicBar 0.8s ease-in-out ${
-                    i * 0.12
-                  }s infinite alternate`,
                 }}
               />
             ))}
@@ -278,7 +320,7 @@ function MusicCard({ profileMusic, embedUrl }) {
   );
 }
 
-/* ── Journey card ── */
+// ─── Journey card ─────────────────────────────────────────────────────────────
 function JourneyCard({ journey, badgeColor }) {
   return (
     <div className="pp-pub-journey-card">
@@ -348,7 +390,7 @@ function JourneyCard({ journey, badgeColor }) {
   );
 }
 
-/* ── Stamp grid ── */
+// ─── Stamp grid ───────────────────────────────────────────────────────────────
 function StampGrid({ destinations, badgeColor }) {
   if (!destinations?.length) return null;
   return (
@@ -370,7 +412,276 @@ function StampGrid({ destinations, badgeColor }) {
   );
 }
 
-/* ── Follow list modal ── */
+// ─── Referral Share Modal ─────────────────────────────────────────────────────
+function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
+  const [copied, setCopied] = useState(false);
+
+  const referralUrl =
+    isOwnProfile && profile?.username
+      ? `${window.location.origin}/u/${profile.username}?ref=${profile.username}`
+      : `${window.location.origin}/u/${profile?.username || ""}`;
+
+  const copyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(referralUrl);
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = referralUrl;
+        ta.style.cssText = "position:fixed;opacity:0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {}
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const nativeShare = async () => {
+    try {
+      await navigator.share({
+        title: `${profile?.name || profile?.username}'s Skyrio Passport`,
+        text: isOwnProfile
+          ? "Join me on Skyrio and earn bonus XP! ✈️"
+          : undefined,
+        url: referralUrl,
+      });
+    } catch {}
+    onClose();
+  };
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9998,
+          background: "rgba(0,0,0,0.5)",
+        }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 9999,
+          background: "#16103a",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "20px 20px 0 0",
+          padding: "24px 20px 36px",
+          fontFamily: "'DM Sans', sans-serif",
+          boxShadow: "0 -20px 60px rgba(0,0,0,0.6)",
+          maxWidth: 520,
+          margin: "0 auto",
+        }}
+      >
+        {/* Handle */}
+        <div
+          style={{
+            width: 36,
+            height: 4,
+            borderRadius: 2,
+            background: "rgba(255,255,255,0.15)",
+            margin: "0 auto 20px",
+          }}
+        />
+
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 16,
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: "#fff" }}>
+              {isOwnProfile
+                ? "Share your passport"
+                : `Share ${profile?.name || profile?.username}'s passport`}
+            </div>
+            {isOwnProfile && (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.4)",
+                  marginTop: 2,
+                }}
+              >
+                Earn XP every time someone joins through your link
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "50%",
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "rgba(255,255,255,0.5)",
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* XP reward rows — only on own profile */}
+        {isOwnProfile && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              marginBottom: 16,
+            }}
+          >
+            {[
+              { emoji: "✈️", label: "You share your link", xp: "+10 XP" },
+              { emoji: "🌍", label: "Friend signs up", xp: "+50 XP to you" },
+              {
+                emoji: "🎁",
+                label: "Friend's welcome bonus",
+                xp: "+25 XP to them",
+              },
+            ].map((r, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 12,
+                  padding: "10px 14px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 17 }}>{r.emoji}</span>
+                  <span
+                    style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}
+                  >
+                    {r.label}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#ff8a2a",
+                    background: "rgba(255,138,42,0.12)",
+                    border: "1px solid rgba(255,138,42,0.22)",
+                    borderRadius: 20,
+                    padding: "3px 10px",
+                  }}
+                >
+                  {r.xp}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Link row */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.09)",
+            borderRadius: 12,
+            padding: "10px 12px",
+            marginBottom: 10,
+          }}
+        >
+          <Link
+            size={13}
+            color="rgba(255,255,255,0.35)"
+            style={{ flexShrink: 0 }}
+          />
+          <div
+            style={{
+              flex: 1,
+              fontSize: 12,
+              color: "rgba(255,255,255,0.5)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              userSelect: "all",
+            }}
+          >
+            {referralUrl}
+          </div>
+          <button
+            onClick={copyUrl}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: "none",
+              background: copied
+                ? "rgba(72,199,142,0.15)"
+                : "rgba(255,138,42,0.15)",
+              color: copied ? "#48c78e" : "#ff8a2a",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              flexShrink: 0,
+              transition: "all 0.18s",
+            }}
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+
+        {/* Native share */}
+        {typeof navigator !== "undefined" && navigator.share && (
+          <button
+            onClick={nativeShare}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: "12px 0",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.09)",
+              background: "rgba(255,255,255,0.04)",
+              color: "rgba(255,255,255,0.6)",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <ExternalLink size={14} />
+            More share options…
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── Follow list modal ────────────────────────────────────────────────────────
 function FollowListModal({
   tab,
   userId,
@@ -436,7 +747,6 @@ function FollowListModal({
     <>
       <div className="pp-pub-modal-backdrop" onClick={onClose} />
       <div className="pp-pub-modal-sheet">
-        {/* Header */}
         <div
           style={{
             padding: "16px 20px 0",
@@ -492,8 +802,6 @@ function FollowListModal({
             ))}
           </div>
         </div>
-
-        {/* List */}
         <div
           style={{
             flex: 1,
@@ -556,7 +864,6 @@ function FollowListModal({
             list.map((user) => {
               const uid = user.username || user.handle || "";
               const displayName = user.name || user.displayName || uid;
-              const avatarUrl = user.avatar || null;
               return (
                 <button
                   key={user._id || user.id || uid}
@@ -573,7 +880,6 @@ function FollowListModal({
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    transition: "background 0.15s",
                     textAlign: "left",
                     fontFamily: "DM Sans,sans-serif",
                   }}
@@ -604,9 +910,9 @@ function FollowListModal({
                     }}
                   >
                     {displayName[0].toUpperCase()}
-                    {avatarUrl && (
+                    {user.avatar && (
                       <img
-                        src={avatarUrl}
+                        src={user.avatar}
                         alt=""
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
@@ -671,22 +977,23 @@ function FollowListModal({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Main component
-═══════════════════════════════════════════════════════════════ */
+// ═══════════════════════════════════════════════════════════════
+//  Main component
+// ═══════════════════════════════════════════════════════════════
 export default function PublicPassportPage() {
   const { username } = useParams();
   const navigate = useNavigate();
   const { user: authUser, token, isAuthed } = useAuth();
 
+  // Capture ?ref= param for referral tracking
+  useReferral();
+
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [followListTab, setFollowListTab] = useState(null);
-  const shareRef = useRef(null);
 
   const isOwnProfile = useMemo(() => {
     if (!authUser || !profile) return false;
@@ -700,24 +1007,11 @@ export default function PublicPassportPage() {
     () => BADGE_CONFIG[profile?.badge] || DEFAULT_BADGE,
     [profile?.badge]
   );
+  const BadgeIcon = BADGE_ICONS[profile?.badge] || BadgeIconExplorer;
   const embedUrl = useMemo(
     () => getYouTubeEmbedUrl(profile?.profileMusic?.url),
     [profile?.profileMusic?.url]
   );
-  const profileUrl = typeof window !== "undefined" ? window.location.href : "";
-
-  /* close share popover on outside click */
-  useEffect(() => {
-    if (!showShare) return;
-    const handler = (e) => {
-      if (shareRef.current && !shareRef.current.contains(e.target)) {
-        setShowShare(false);
-        setCopied(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showShare]);
 
   /* fetch profile */
   useEffect(() => {
@@ -766,50 +1060,19 @@ export default function PublicPassportPage() {
     );
   }, []);
 
-  const copyUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(profileUrl);
-    } catch {
-      try {
-        const ta = document.createElement("textarea");
-        ta.value = profileUrl;
-        ta.style.cssText = "position:fixed;opacity:0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      } catch {}
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  const nativeShare = async () => {
-    try {
-      await navigator.share({
-        title: `${profile?.name || username}'s Skyrio Passport`,
-        url: profileUrl,
-      });
-    } catch {}
-    setShowShare(false);
-  };
-
   const goSignup = () => navigate(`/register?ref=passport&from=${username}`);
   const journeys = profile?.journeys || profile?.trips || [];
   const destinations = profile?.destinations || profile?.visitedCities || [];
 
   return (
-    /* Same outer shell as DigitalPassportPage */
     <div className="passport-page">
-      {/* Same world map background as DigitalPassportPage */}
       <div
         className="passport-bg"
         style={{ backgroundImage: `url(${passportBg})` }}
         aria-hidden="true"
       />
-
       <div className="passport-content">
-        {/* ── Top bar ── */}
+        {/* Top bar */}
         <div className="pp-pub-topbar">
           <button className="pp-pub-logo-btn" onClick={() => navigate("/")}>
             <div className="pp-pub-logo-icon">
@@ -831,7 +1094,7 @@ export default function PublicPassportPage() {
           )}
         </div>
 
-        {/* ── Main scroll area ── */}
+        {/* Scroll area */}
         <div className="pp-pub-container">
           {/* Loading */}
           {loading && (
@@ -868,10 +1131,10 @@ export default function PublicPassportPage() {
             <NotFound username={username} onSignup={goSignup} />
           )}
 
-          {/* ── Profile loaded ── */}
+          {/* Profile */}
           {!loading && !notFound && profile && (
             <>
-              {/* ── Hero card ── */}
+              {/* Hero card */}
               <div className="pp-pub-card pp-pub-hero">
                 {/* Watermark */}
                 <div
@@ -894,7 +1157,7 @@ export default function PublicPassportPage() {
                   />
                 </div>
 
-                {/* Top row: avatar + meta + share */}
+                {/* Top row */}
                 <div
                   style={{
                     display: "flex",
@@ -954,24 +1217,23 @@ export default function PublicPassportPage() {
                           pointerEvents: "none",
                         }}
                       />
-                      {/* Badge dot */}
+                      {/* Badge dot — SVG icon */}
                       <div
                         style={{
                           position: "absolute",
                           bottom: 0,
                           right: 0,
-                          width: 22,
-                          height: 22,
+                          width: 24,
+                          height: 24,
                           borderRadius: "50%",
                           background: badge.color,
                           border: "2.5px solid rgba(8,8,22,0.9)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: 11,
                         }}
                       >
-                        {badge.icon}
+                        <BadgeIcon size={13} color="#fff" />
                       </div>
                     </div>
 
@@ -988,6 +1250,10 @@ export default function PublicPassportPage() {
                         <div className="pp-pub-name">
                           {profile.name || profile.username}
                         </div>
+                        {/* Verification badge */}
+                        {profile.verifiedTier && (
+                          <PlaneBadge tier={profile.verifiedTier} size={15} />
+                        )}
                         {isAuthed && !isOwnProfile && (
                           <FollowButton
                             userId={profile._id || profile.id}
@@ -1043,135 +1309,15 @@ export default function PublicPassportPage() {
                     </div>
                   </div>
 
-                  {/* Share */}
-                  <div
-                    ref={shareRef}
-                    style={{ position: "relative", flexShrink: 0 }}
+                  {/* Share button */}
+                  <button
+                    className="pp-pub-share-btn"
+                    onClick={() => setShowShare(true)}
+                    style={{ flexShrink: 0 }}
                   >
-                    <button
-                      className="pp-pub-share-btn"
-                      onClick={() => {
-                        setShowShare((p) => !p);
-                        setCopied(false);
-                      }}
-                    >
-                      <Share2 size={13} />
-                      Share
-                    </button>
-                    {showShare && (
-                      <div className="pp-pub-share-popover">
-                        <button
-                          onClick={() => {
-                            setShowShare(false);
-                            setCopied(false);
-                          }}
-                          style={{
-                            position: "absolute",
-                            top: 10,
-                            right: 10,
-                            background: "none",
-                            border: "none",
-                            color: "rgba(255,255,255,0.35)",
-                            cursor: "pointer",
-                            padding: 4,
-                          }}
-                        >
-                          <X size={14} />
-                        </button>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: "rgba(255,255,255,0.45)",
-                            marginBottom: 10,
-                            letterSpacing: "0.03em",
-                          }}
-                        >
-                          Share this passport
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            background: "rgba(255,255,255,0.05)",
-                            border: "1px solid rgba(255,255,255,0.09)",
-                            borderRadius: 10,
-                            padding: "8px 10px",
-                            marginBottom: 10,
-                          }}
-                        >
-                          <Link
-                            size={12}
-                            color="rgba(255,255,255,0.35)"
-                            style={{ flexShrink: 0 }}
-                          />
-                          <div
-                            style={{
-                              flex: 1,
-                              fontSize: 12,
-                              color: "rgba(255,255,255,0.55)",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              userSelect: "all",
-                            }}
-                          >
-                            {profileUrl}
-                          </div>
-                          <button
-                            onClick={copyUrl}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 5,
-                              padding: "5px 10px",
-                              borderRadius: 8,
-                              border: "none",
-                              background: copied
-                                ? "rgba(72,199,142,0.15)"
-                                : "rgba(255,138,42,0.15)",
-                              color: copied ? "#48c78e" : "#ff8a2a",
-                              fontSize: 11,
-                              fontWeight: 700,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                              flexShrink: 0,
-                              transition: "all 0.18s",
-                            }}
-                          >
-                            {copied ? <Check size={12} /> : <Copy size={12} />}
-                            {copied ? "Copied" : "Copy"}
-                          </button>
-                        </div>
-                        {typeof navigator !== "undefined" &&
-                          navigator.share && (
-                            <button
-                              onClick={nativeShare}
-                              style={{
-                                width: "100%",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: 8,
-                                padding: "9px 0",
-                                borderRadius: 10,
-                                border: "1px solid rgba(255,255,255,0.09)",
-                                background: "rgba(255,255,255,0.04)",
-                                color: "rgba(255,255,255,0.55)",
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              <ExternalLink size={13} />
-                              More share options…
-                            </button>
-                          )}
-                      </div>
-                    )}
-                  </div>
+                    <Share2 size={13} />
+                    Share
+                  </button>
                 </div>
 
                 {/* Bio */}
@@ -1192,18 +1338,20 @@ export default function PublicPassportPage() {
                     <div
                       style={{ display: "flex", alignItems: "center", gap: 10 }}
                     >
+                      {/* SVG badge icon in rank box */}
                       <div
                         style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 10,
+                          width: 38,
+                          height: 38,
+                          borderRadius: 11,
                           background: `${badge.color}18`,
+                          border: `1px solid ${badge.color}30`,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                         }}
                       >
-                        <Award size={18} color={badge.color} />
+                        <BadgeIcon size={20} color={badge.color} />
                       </div>
                       <div>
                         <div
@@ -1275,7 +1423,7 @@ export default function PublicPassportPage() {
                 </div>
               </div>
 
-              {/* ── Travel vibes ── */}
+              {/* Travel vibes */}
               {profile.travelVibes?.length > 0 && (
                 <div className="pp-pub-card pp-pub-section">
                   <SectionLabel icon={Compass} label="Travel Vibe" />
@@ -1289,13 +1437,13 @@ export default function PublicPassportPage() {
                 </div>
               )}
 
-              {/* ── Travel soundtrack ── */}
+              {/* Music */}
               <MusicCard
                 profileMusic={profile.profileMusic}
                 embedUrl={embedUrl}
               />
 
-              {/* ── Journeys ── */}
+              {/* Journeys */}
               {journeys.length > 0 && (
                 <div className="pp-pub-card pp-pub-section">
                   <SectionLabel icon={Map} label="Travel Journeys" />
@@ -1329,7 +1477,7 @@ export default function PublicPassportPage() {
                 </div>
               )}
 
-              {/* ── Passport stamps ── */}
+              {/* Stamps */}
               {destinations.length > 0 && (
                 <div className="pp-pub-card pp-pub-section">
                   <SectionLabel icon={Globe} label="Passport Stamps" />
@@ -1340,7 +1488,7 @@ export default function PublicPassportPage() {
                 </div>
               )}
 
-              {/* ── Stats ── */}
+              {/* Stats */}
               {(profile.tripsCount > 0 || profile.joinedAt) && (
                 <div
                   className="pp-pub-card"
@@ -1403,7 +1551,7 @@ export default function PublicPassportPage() {
                 </div>
               )}
 
-              {/* ── CTA (logged-out) ── */}
+              {/* CTA (logged-out) */}
               {!isAuthed && (
                 <div className="pp-pub-card pp-pub-cta-card">
                   <div
@@ -1486,6 +1634,16 @@ export default function PublicPassportPage() {
           )}
         </div>
       </div>
+
+      {/* Referral share modal */}
+      {showShare && profile && (
+        <ReferralShareModal
+          profile={profile}
+          isOwnProfile={isOwnProfile}
+          onClose={() => setShowShare(false)}
+          token={token}
+        />
+      )}
 
       {/* Follow list modal */}
       {followListTab && profile && (
