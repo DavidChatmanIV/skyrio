@@ -599,7 +599,7 @@ export default function MembershipPage() {
               <div className="mp-plan__name">{plan.name}</div>
               <div className="mp-plan__desc">{plan.description}</div>
 
-              {/* Price — Crunchyroll style */}
+              {/* Price block */}
               <div className="mp-plan__price">
                 {isFree ? (
                   <div className="mp-plan__amount">Free</div>
@@ -607,11 +607,11 @@ export default function MembershipPage() {
                   <>
                     <div className="mp-plan__amount">
                       <sup>$</sup>
-                      {plan.monthlyEquiv}
+                      {plan.annualTotal}
                     </div>
-                    <div className="mp-plan__per">/mo</div>
+                    <div className="mp-plan__per">/yr</div>
                     <div className="mp-plan__annual-total">
-                      (${plan.annualTotal}/yr)
+                      (${plan.monthlyEquiv}/mo)
                     </div>
                   </>
                 ) : (

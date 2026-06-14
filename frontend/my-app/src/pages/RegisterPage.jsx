@@ -145,15 +145,33 @@ export default function RegisterPage() {
     setLoading(true);
     setIsScanning(true);
 
+    // ── Read referral code captured by useReferral hook on /u/:username ──
+    let referredBy = null;
+    try {
+      referredBy = sessionStorage.getItem("skyrio_ref") || null;
+    } catch {}
+
     try {
       const res = await fetch(`${API}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, username, email, password }),
+        body: JSON.stringify({
+          name,
+          username,
+          email,
+          password,
+          // Pass referral code so backend can grant XP to both users
+          ...(referredBy ? { referredBy } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Registration failed");
+
+      // ── Clear referral code after successful signup ──
+      try {
+        sessionStorage.removeItem("skyrio_ref");
+      } catch {}
 
       if (auth?.setSession)
         auth.setSession({ token: data?.token, user: data?.user });

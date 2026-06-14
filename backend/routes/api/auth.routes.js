@@ -5,11 +5,10 @@ import nodemailer from "nodemailer";
 import User from "../../models/user.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 import { signToken, setAuthCookie, clearAuthCookie } from "./utils/auth.js";
-import { sendWelcomeEmail } from "../../utils/sendWelcomeEmail.js"; // ← NEW
+import { sendWelcomeEmail } from "../../utils/sendWelcomeEmail.js";
 
 const router = Router();
 
-// ── Nodemailer helper ──────────────────────────────────
 function createMailer() {
   return nodemailer.createTransport({
     service: "gmail",
@@ -22,7 +21,7 @@ function createMailer() {
 
 router.post("/register", async (req, res) => {
   try {
-    const { username, email, password, name } = req.body;
+    const { username, email, password, name, referredBy } = req.body;
 
     if (!username || !email || !password) {
       return res.status(400).json({
@@ -61,20 +60,48 @@ router.post("/register", async (req, res) => {
       passwordHash,
     });
 
-    // ── Send verification email async (don't block registration) ──
+    // ── Send verification email async ──────────────────────────
     const verifyToken = crypto.randomBytes(32).toString("hex");
     user.emailVerifyToken = verifyToken;
-    user.emailVerifyExpiry = Date.now() + 1000 * 60 * 60 * 24; // 24 hours
+    user.emailVerifyExpiry = Date.now() + 1000 * 60 * 60 * 24;
     await user.save();
 
-    // ── Award signup XP ──
+    // ── Award signup XP ────────────────────────────────────────
     try {
       await User.findByIdAndUpdate(user._id, { $inc: { xp: 100 } });
     } catch (xpErr) {
       console.error("Signup XP award failed:", xpErr);
     }
 
-    // ── Send welcome email async (don't block registration) ── ← NEW
+    // ── Handle referral ───────────────────────────────────────
+    // If the new user signed up via a referral link (?ref=username),
+    // grant XP to both the new user (+25) and the sharer (+50),
+    // and record who referred them.
+    if (referredBy && typeof referredBy === "string") {
+      const ref = referredBy.trim().toLowerCase();
+      try {
+        const referrer = await User.findOne({ username: ref });
+        if (referrer && String(referrer._id) !== String(user._id)) {
+          // Grant bonus XP to the new user
+          await User.findByIdAndUpdate(user._id, {
+            $inc: { xp: 25 },
+            $set: { referredBy: ref },
+          });
+          // Grant XP + increment referral count to the sharer
+          await User.findByIdAndUpdate(referrer._id, {
+            $inc: { xp: 50, referralsCount: 1 },
+          });
+          console.log(
+            `[referral] ${ref} referred ${user.username} — XP granted to both`
+          );
+        }
+      } catch (refErr) {
+        // Non-fatal — never let referral logic break registration
+        console.error("[referral] XP grant failed:", refErr);
+      }
+    }
+
+    // ── Welcome email ──────────────────────────────────────────
     sendWelcomeEmail({
       name: user.name || user.username,
       email: user.email,
@@ -115,10 +142,7 @@ router.post("/register", async (req, res) => {
     });
   } catch (err) {
     console.error("Register error:", err);
-    return res.status(500).json({
-      ok: false,
-      message: "Failed to register",
-    });
+    return res.status(500).json({ ok: false, message: "Failed to register" });
   }
 });
 
@@ -128,10 +152,9 @@ router.post("/login", async (req, res) => {
     const loginValue = emailOrUsername || email || username;
 
     if (!loginValue || !password) {
-      return res.status(400).json({
-        ok: false,
-        message: "Login and password are required",
-      });
+      return res
+        .status(400)
+        .json({ ok: false, message: "Login and password are required" });
     }
 
     const normalizedLogin = String(loginValue).trim().toLowerCase();
@@ -145,13 +168,11 @@ router.post("/login", async (req, res) => {
         .status(401)
         .json({ ok: false, message: "Invalid credentials" });
     }
-
     if (!user.isActive) {
       return res
         .status(403)
         .json({ ok: false, message: "Account is inactive" });
     }
-
     if (typeof user.isSuspended === "function" && user.isSuspended()) {
       return res
         .status(403)
@@ -201,7 +222,6 @@ router.get("/check", requireAuth, async (req, res) => {
 router.get("/available", async (req, res) => {
   try {
     const { username, email } = req.query;
-
     if (!username && !email) {
       return res
         .status(400)
@@ -209,13 +229,11 @@ router.get("/available", async (req, res) => {
     }
 
     const result = {};
-
     if (username) {
       const normalized = String(username).trim().toLowerCase();
       const exists = await User.findOne({ username: normalized }).lean();
       result.username = { available: !exists };
     }
-
     if (email) {
       const normalized = String(email).trim().toLowerCase();
       const exists = await User.findOne({ email: normalized }).lean();
@@ -234,19 +252,15 @@ router.get("/available", async (req, res) => {
 router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
-
-    if (!email) {
+    if (!email)
       return res.status(400).json({ ok: false, message: "Email required" });
-    }
 
     const user = await User.findOne({ email: email.trim().toLowerCase() });
-
-    if (!user) {
+    if (!user)
       return res.json({
         ok: true,
         message: "If that email exists, a reset link was sent.",
       });
-    }
 
     const token = crypto.randomBytes(32).toString("hex");
     user.resetToken = token;
@@ -254,7 +268,6 @@ router.post("/forgot-password", async (req, res) => {
     await user.save();
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset?token=${token}`;
-
     await createMailer().sendMail({
       from: `"Skyrio" <${process.env.EMAIL_USER}>`,
       to: user.email,
@@ -262,16 +275,9 @@ router.post("/forgot-password", async (req, res) => {
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#09071a;color:#fff;border-radius:16px">
           <h2 style="color:#ff8a2a;margin-bottom:8px">Reset your password</h2>
-          <p style="color:rgba(255,255,255,0.7);margin-bottom:24px">
-            Click the button below to reset your Skyrio password. This link expires in <strong>1 hour</strong>.
-          </p>
-          <a href="${resetUrl}"
-            style="background:linear-gradient(135deg,#ff8a2a,#ffb066);color:#000;padding:14px 28px;border-radius:10px;text-decoration:none;display:inline-block;font-weight:700;font-size:15px">
-            ✈️ Reset Password
-          </a>
-          <p style="margin-top:32px;color:rgba(255,255,255,0.3);font-size:12px">
-            If you didn't request this, you can safely ignore this email.
-          </p>
+          <p style="color:rgba(255,255,255,0.7);margin-bottom:24px">Click the button below to reset your Skyrio password. This link expires in <strong>1 hour</strong>.</p>
+          <a href="${resetUrl}" style="background:linear-gradient(135deg,#ff8a2a,#ffb066);color:#000;padding:14px 28px;border-radius:10px;text-decoration:none;display:inline-block;font-weight:700;font-size:15px">✈️ Reset Password</a>
+          <p style="margin-top:32px;color:rgba(255,255,255,0.3);font-size:12px">If you didn't request this, you can safely ignore this email.</p>
         </div>
       `,
     });
@@ -291,29 +297,23 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   try {
     const { token, password } = req.body;
-
-    if (!token || !password) {
+    if (!token || !password)
       return res
         .status(400)
         .json({ ok: false, message: "Token and password are required" });
-    }
-
-    if (password.length < 6) {
+    if (password.length < 6)
       return res
         .status(400)
         .json({ ok: false, message: "Password must be at least 6 characters" });
-    }
 
     const user = await User.findOne({
       resetToken: token,
       resetTokenExpiry: { $gt: Date.now() },
     });
-
-    if (!user) {
+    if (!user)
       return res
         .status(400)
         .json({ ok: false, message: "Invalid or expired reset link" });
-    }
 
     user.passwordHash = await bcrypt.hash(password, 10);
     user.resetToken = undefined;
@@ -329,14 +329,11 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
-// ── Send verification email ────────────────────────────
 router.post("/send-verification", requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-
-    if (user.emailVerified) {
+    if (user.emailVerified)
       return res.json({ ok: true, message: "Email already verified" });
-    }
 
     const token = crypto.randomBytes(32).toString("hex");
     user.emailVerifyToken = token;
@@ -344,7 +341,6 @@ router.post("/send-verification", requireAuth, async (req, res) => {
     await user.save();
 
     const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
-
     await createMailer().sendMail({
       from: `"Skyrio" <${process.env.EMAIL_USER}>`,
       to: user.email,
@@ -352,16 +348,9 @@ router.post("/send-verification", requireAuth, async (req, res) => {
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#09071a;color:#fff;border-radius:16px">
           <h2 style="color:#ff8a2a;margin-bottom:8px">Verify your email</h2>
-          <p style="color:rgba(255,255,255,0.7);margin-bottom:24px">
-            Click below to verify your Skyrio account. This link expires in <strong>24 hours</strong>.
-          </p>
-          <a href="${verifyUrl}"
-            style="background:linear-gradient(135deg,#ff8a2a,#ffb066);color:#000;padding:14px 28px;border-radius:10px;text-decoration:none;display:inline-block;font-weight:700;font-size:15px">
-            ✈️ Verify Email
-          </a>
-          <p style="margin-top:32px;color:rgba(255,255,255,0.3);font-size:12px">
-            If you didn't create a Skyrio account, ignore this email.
-          </p>
+          <p style="color:rgba(255,255,255,0.7);margin-bottom:24px">Click below to verify your Skyrio account. This link expires in <strong>24 hours</strong>.</p>
+          <a href="${verifyUrl}" style="background:linear-gradient(135deg,#ff8a2a,#ffb066);color:#000;padding:14px 28px;border-radius:10px;text-decoration:none;display:inline-block;font-weight:700;font-size:15px">✈️ Verify Email</a>
+          <p style="margin-top:32px;color:rgba(255,255,255,0.3);font-size:12px">If you didn't create a Skyrio account, ignore this email.</p>
         </div>
       `,
     });
@@ -375,25 +364,20 @@ router.post("/send-verification", requireAuth, async (req, res) => {
   }
 });
 
-// ── Confirm email token ────────────────────────────────
 router.get("/verify-email", async (req, res) => {
   try {
     const { token } = req.query;
-
-    if (!token) {
+    if (!token)
       return res.status(400).json({ ok: false, message: "Token required" });
-    }
 
     const user = await User.findOne({
       emailVerifyToken: token,
       emailVerifyExpiry: { $gt: Date.now() },
     });
-
-    if (!user) {
+    if (!user)
       return res
         .status(400)
         .json({ ok: false, message: "Invalid or expired verification link" });
-    }
 
     user.emailVerified = true;
     user.emailVerifyToken = undefined;

@@ -553,6 +553,30 @@ function ShareGiftIcon({ size = 16, color = "#ff8a2a" }) {
 // ── Referral Share Modal ──────────────────────────────────────
 function PassportShareModal({ user, token, apiUrl, onClose }) {
   const [copied, setCopied] = React.useState(false);
+
+  // Lock body scroll and hide floating buttons while modal is open
+  React.useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    // Hide floating action buttons so they don't overlap the sheet
+    document
+      .querySelectorAll(
+        "[data-atlas-btn], [data-support-widget], .support-widget-root, #atlas-fab"
+      )
+      .forEach((el) => {
+        el.style.visibility = "hidden";
+      });
+    return () => {
+      document.body.style.overflow = prev;
+      document
+        .querySelectorAll(
+          "[data-atlas-btn], [data-support-widget], .support-widget-root, #atlas-fab"
+        )
+        .forEach((el) => {
+          el.style.visibility = "";
+        });
+    };
+  }, []);
   const username = user?.username || "";
   const referralUrl = `${window.location.origin}/u/${username}?ref=${username}`;
 
@@ -604,7 +628,7 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 9998,
+          zIndex: 2147483645,
           background: "rgba(0,0,0,0.55)",
           backdropFilter: "blur(2px)",
         }}
@@ -616,7 +640,7 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
           bottom: 0,
           left: 0,
           right: 0,
-          zIndex: 9999,
+          zIndex: 2147483646,
           background: "#16103a",
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: "20px 20px 0 0",

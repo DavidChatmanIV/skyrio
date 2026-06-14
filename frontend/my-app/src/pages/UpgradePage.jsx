@@ -109,7 +109,7 @@ const CSS = `
     color: rgba(255,255,255,0.5);
     margin-top: 6px;
   }
-  .up-price-annual-total {
+  .up-price-sub {
     font-size: 14px;
     color: rgba(255,255,255,0.35);
     margin-top: 4px;
@@ -226,7 +226,7 @@ export default function UpgradePage() {
         <h1 className="up-title">Upgrade to {plan.name}</h1>
         <p className="up-sub">{plan.description}</p>
 
-        {/* Price box — Crunchyroll style */}
+        {/* Price box */}
         <div
           className="up-price-box"
           style={{ background: plan.glow, borderColor: plan.border }}
@@ -239,12 +239,10 @@ export default function UpgradePage() {
             <>
               <div className="up-price">
                 <sup>$</sup>
-                {plan.monthlyEquiv}
+                {plan.price.annual}
               </div>
-              <div className="up-price-per">/mo</div>
-              <div className="up-price-annual-total">
-                (${plan.price.annual}/yr)
-              </div>
+              <div className="up-price-per">/yr</div>
+              <div className="up-price-sub">(${plan.monthlyEquiv}/mo)</div>
               <div className="up-price-nudge" style={{ color: plan.color }}>
                 saves ${plan.monthlySaving} vs paying monthly
               </div>
