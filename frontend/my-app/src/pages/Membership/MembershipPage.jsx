@@ -1,3 +1,7 @@
+/**
+ * MembershipPage.jsx
+ * Route: /membership
+ */
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -56,6 +60,8 @@ const PLANS = [
     name: "Free",
     price: { monthly: 0, annual: 0 },
     annualTotal: null,
+    monthlyEquiv: null,
+    monthlySaving: null,
     badge: null,
     description: "Everything you need to start planning smarter trips.",
     cta: "Get started free",
@@ -83,6 +89,8 @@ const PLANS = [
     name: "Explorer",
     price: { monthly: 7, annual: 55 },
     annualTotal: 55,
+    monthlyEquiv: 4.58,
+    monthlySaving: 29,
     badge: "Most popular",
     description: "For frequent travelers who want more power and fewer limits.",
     cta: "Start Explorer",
@@ -123,6 +131,8 @@ const PLANS = [
     name: "Legend",
     price: { monthly: 15, annual: 144 },
     annualTotal: 144,
+    monthlyEquiv: 12.0,
+    monthlySaving: 36,
     badge: "Best value",
     description: "For power travelers who demand the full Skyrio experience.",
     cta: "Go Legend",
@@ -296,10 +306,17 @@ const CSS = `
     font-weight: 800; color: #fff; line-height: 1;
   }
   .mp-plan__amount sup { font-size: 22px; vertical-align: top; margin-top: 9px; }
-  .mp-plan__per { font-size: 12px; color: rgba(255,255,255,0.36); margin-top: 5px; }
-  .mp-plan__annual-note {
-    font-size: 11px; color: rgba(255,138,42,0.8);
-    margin-top: 3px; font-weight: 600;
+  .mp-plan__per {
+    font-size: 13px; font-weight: 600;
+    color: rgba(255,255,255,0.5); margin-top: 4px;
+  }
+  .mp-plan__annual-total {
+    font-size: 13px; color: rgba(255,255,255,0.35);
+    margin-top: 3px;
+  }
+  .mp-plan__save-nudge {
+    font-size: 11px; color: #ff8a2a;
+    margin-top: 4px; font-weight: 600;
   }
   .mp-plan__cta {
     width: 100%; padding: 13px 0; border-radius: 999px; border: none;
@@ -562,7 +579,6 @@ export default function MembershipPage() {
 
       <div className="mp-plans">
         {PLANS.map((plan) => {
-          const price = annual ? plan.price.annual : plan.price.monthly;
           const isFree = plan.id === "free";
           const isCurrent = isAuthed && plan.id === activePlan;
 
@@ -583,27 +599,31 @@ export default function MembershipPage() {
               <div className="mp-plan__name">{plan.name}</div>
               <div className="mp-plan__desc">{plan.description}</div>
 
+              {/* Price — Crunchyroll style */}
               <div className="mp-plan__price">
-                <div className="mp-plan__amount">
-                  {isFree ? (
-                    "Free"
-                  ) : (
-                    <>
-                      <sup>$</sup>
-                      {price}
-                    </>
-                  )}
-                </div>
-                {!isFree && (
+                {isFree ? (
+                  <div className="mp-plan__amount">Free</div>
+                ) : annual ? (
                   <>
-                    <div className="mp-plan__per">
-                      per month{annual ? ", billed annually" : ""}
+                    <div className="mp-plan__amount">
+                      <sup>$</sup>
+                      {plan.monthlyEquiv}
                     </div>
-                    {annual && plan.annualTotal && (
-                      <div className="mp-plan__annual-note">
-                        ${plan.annualTotal}/year total
-                      </div>
-                    )}
+                    <div className="mp-plan__per">/mo</div>
+                    <div className="mp-plan__annual-total">
+                      (${plan.annualTotal}/yr)
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mp-plan__amount">
+                      <sup>$</sup>
+                      {plan.price.monthly}
+                    </div>
+                    <div className="mp-plan__per">/mo</div>
+                    <div className="mp-plan__save-nudge">
+                      or ${plan.annualTotal}/yr — save ${plan.monthlySaving}
+                    </div>
                   </>
                 )}
               </div>

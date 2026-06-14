@@ -11,7 +11,8 @@ const PLANS = {
   explorer: {
     name: "Explorer",
     price: { monthly: 7, annual: 55 },
-    annualTotal: 55,
+    monthlyEquiv: 4.58,
+    monthlySaving: 29,
     color: "#ff8a2a",
     glow: "rgba(255,138,42,0.15)",
     border: "rgba(255,138,42,0.35)",
@@ -21,7 +22,8 @@ const PLANS = {
   legend: {
     name: "Legend",
     price: { monthly: 15, annual: 144 },
-    annualTotal: 144,
+    monthlyEquiv: 12.0,
+    monthlySaving: 36,
     color: "#a78bfa",
     glow: "rgba(167,139,250,0.15)",
     border: "rgba(167,139,250,0.35)",
@@ -102,19 +104,20 @@ const CSS = `
     display: inline-block;
   }
   .up-price-per {
-    font-size: 13px;
-    color: rgba(255,255,255,0.36);
-    margin-top: 8px;
-  }
-  .up-price-total {
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
     margin-top: 6px;
   }
-  .up-price-alt {
-    font-size: 12px;
-    color: rgba(255,255,255,0.28);
+  .up-price-annual-total {
+    font-size: 14px;
+    color: rgba(255,255,255,0.35);
     margin-top: 4px;
+  }
+  .up-price-nudge {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 6px;
   }
   .up-notice {
     display: flex;
@@ -200,7 +203,6 @@ export default function UpgradePage() {
   const isAnnual = billing === "annual";
   const plan = PLANS[planKey] || PLANS.explorer;
 
-  const displayPrice = isAnnual ? plan.price.annual : plan.price.monthly;
   const mailto = `mailto:support@skyrioofficial.com?subject=Early access: ${plan.name} plan (${billing})&body=Hi, I'd like to be notified when the ${plan.name} plan billing goes live! Preferred billing: ${billing}.`;
 
   return (
@@ -224,35 +226,40 @@ export default function UpgradePage() {
         <h1 className="up-title">Upgrade to {plan.name}</h1>
         <p className="up-sub">{plan.description}</p>
 
-        {/* Price box */}
+        {/* Price box — Crunchyroll style */}
         <div
           className="up-price-box"
           style={{ background: plan.glow, borderColor: plan.border }}
         >
           <div className="up-price-label">
-            {isAnnual ? "Annual plan" : "Monthly plan"}
+            {isAnnual ? "Billed once per year" : "Billed every month"}
           </div>
-          <div className="up-price">
-            <sup>$</sup>
-            {displayPrice}
-          </div>
-          <div className="up-price-per">
-            per month{isAnnual ? ", billed annually" : ""}
-          </div>
-          {isAnnual && (
-            <div className="up-price-total" style={{ color: plan.color }}>
-              ${plan.annualTotal}/year total
-            </div>
-          )}
+
           {isAnnual ? (
-            <div className="up-price-alt">
-              or ${plan.price.monthly}/mo billed monthly
-            </div>
+            <>
+              <div className="up-price">
+                <sup>$</sup>
+                {plan.monthlyEquiv}
+              </div>
+              <div className="up-price-per">/mo</div>
+              <div className="up-price-annual-total">
+                (${plan.price.annual}/yr)
+              </div>
+              <div className="up-price-nudge" style={{ color: plan.color }}>
+                saves ${plan.monthlySaving} vs paying monthly
+              </div>
+            </>
           ) : (
-            <div className="up-price-alt" style={{ color: plan.color }}>
-              Save with annual — ${plan.annualTotal}/year (${plan.price.annual}
-              /mo)
-            </div>
+            <>
+              <div className="up-price">
+                <sup>$</sup>
+                {plan.price.monthly}
+              </div>
+              <div className="up-price-per">/mo</div>
+              <div className="up-price-nudge" style={{ color: plan.color }}>
+                or ${plan.price.annual}/yr — save ${plan.monthlySaving}
+              </div>
+            </>
           )}
         </div>
 
