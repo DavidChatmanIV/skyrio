@@ -1,31 +1,15 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
 import User from "../../models/user.js";
 
 const router = Router();
 
 const XP_REFERRER = 50;
 const XP_NEW_USER = 25;
-const XP_SHARE_DAY = 10;
-const JWT_SECRET = process.env.JWT_SECRET || process.env.ACCESS_TOKEN_SECRET;
-
-// ── Internal: extract userId from Bearer token ────────────────
-function getUserIdFromRequest(req) {
-  try {
-    const header = req.headers?.authorization;
-    if (!header?.startsWith("Bearer ")) return null;
-    const token = header.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    // Support all common payload shapes
-    return decoded.id || decoded._id || decoded.userId || decoded.sub || null;
-  } catch {
-    return null;
-  }
-}
 
 // ── POST /api/referral/complete ───────────────────────────────
-// Called from auth register after signup via ?ref= link.
-// No auth needed — system call with newUserId + referredBy.
+// Called from auth register after a new user signs up via ?ref=
+// No auth needed — fired automatically after successful signup.
+// Body: { newUserId, referredBy }
 router.post("/complete", async (req, res) => {
   try {
     const { newUserId, referredBy } = req.body || {};
@@ -34,11 +18,13 @@ router.post("/complete", async (req, res) => {
         .status(400)
         .json({ ok: false, message: "newUserId and referredBy required." });
 
+    // Grant bonus XP to the new signup
     await User.findByIdAndUpdate(newUserId, {
       $inc: { xp: XP_NEW_USER },
       $set: { referredBy },
     });
 
+    // Grant XP + increment referral count to the sharer
     const referrer = await User.findOneAndUpdate(
       { username: referredBy.toLowerCase() },
       { $inc: { xp: XP_REFERRER, referralsCount: 1 } },
@@ -53,44 +39,6 @@ router.post("/complete", async (req, res) => {
     res.json({ ok: true, referrerFound: true, xpGranted: XP_REFERRER });
   } catch (err) {
     console.error("[referral] complete error:", err);
-    res.status(500).json({ ok: false, message: err.message });
-  }
-});
-
-// ── POST /api/referral/share-xp ───────────────────────────────
-// +10 XP for sharing passport link, deduplicated once per day.
-// Uses manual JWT verification instead of requireAuth middleware
-// to avoid the middleware routing issue seen on this service.
-router.post("/share-xp", async (req, res) => {
-  try {
-    const userId = getUserIdFromRequest(req);
-    if (!userId)
-      return res.status(401).json({ ok: false, message: "Not authenticated." });
-
-    const today = new Date().toISOString().slice(0, 10);
-    const user = await User.findById(userId)
-      .select("xp lastShareXpDate")
-      .lean();
-
-    if (!user)
-      return res.status(404).json({ ok: false, message: "User not found." });
-
-    if (user.lastShareXpDate === today)
-      return res.json({
-        ok: true,
-        awarded: false,
-        reason: "already_awarded_today",
-      });
-
-    await User.findByIdAndUpdate(userId, {
-      $inc: { xp: XP_SHARE_DAY },
-      $set: { lastShareXpDate: today },
-    });
-
-    console.log(`[referral] share-xp +${XP_SHARE_DAY} XP → ${userId}`);
-    res.json({ ok: true, awarded: true, xp: XP_SHARE_DAY });
-  } catch (err) {
-    console.error("[referral] share-xp error:", err);
     res.status(500).json({ ok: false, message: err.message });
   }
 });
