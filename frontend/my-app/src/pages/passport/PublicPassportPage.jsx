@@ -1019,6 +1019,94 @@ function FollowListModal({
   );
 }
 
+// ── Referral invite banner ────────────────────────────────────
+// Shows at the top when someone visits via ?ref=username link
+function ReferralBanner({ referrerUsername, onSignup }) {
+  return (
+    <div
+      style={{
+        margin: "0 0 16px",
+        padding: "14px 18px",
+        borderRadius: 16,
+        background:
+          "linear-gradient(135deg, rgba(255,138,42,0.15), rgba(124,92,252,0.12))",
+        border: "1px solid rgba(255,138,42,0.3)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        flexWrap: "wrap",
+      }}
+    >
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}
+      >
+        {/* Plane icon */}
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            flexShrink: 0,
+            background: "rgba(255,138,42,0.15)",
+            border: "1px solid rgba(255,138,42,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="#ff8a2a">
+            <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.925A1.5 1.5 0 0 0 5.135 9.25h6.115a.25.25 0 0 1 0 .5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.114A28.897 28.897 0 0 0 3.105 2.289z" />
+          </svg>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#fff",
+              lineHeight: 1.3,
+            }}
+          >
+            <span style={{ color: "#ff8a2a" }}>@{referrerUsername}</span>{" "}
+            invited you to Skyrio
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "rgba(255,255,255,0.5)",
+              marginTop: 2,
+            }}
+          >
+            Sign up and earn{" "}
+            <span style={{ color: "#ffb066", fontWeight: 700 }}>+25 XP</span>{" "}
+            welcome bonus ✦
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={onSignup}
+        style={{
+          padding: "9px 18px",
+          borderRadius: 10,
+          border: "none",
+          background: "linear-gradient(135deg, #ff8a2a, #ffb066)",
+          color: "#fff",
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+          boxShadow: "0 4px 14px rgba(255,138,42,0.35)",
+        }}
+      >
+        Claim your passport →
+      </button>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  Main component
 // ═══════════════════════════════════════════════════════════════
@@ -1029,6 +1117,8 @@ export default function PublicPassportPage() {
 
   // Capture ?ref= param for referral tracking
   useReferral();
+  const [searchParams] = useSearchParams();
+  const refParam = searchParams.get("ref") || null;
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1138,6 +1228,11 @@ export default function PublicPassportPage() {
 
         {/* Scroll area */}
         <div className="pp-pub-container">
+          {/* Referral invite banner — shows when visiting via ?ref= link and not logged in */}
+          {refParam && !isAuthed && (
+            <ReferralBanner referrerUsername={refParam} onSignup={goSignup} />
+          )}
+
           {/* Loading */}
           {loading && (
             <div
