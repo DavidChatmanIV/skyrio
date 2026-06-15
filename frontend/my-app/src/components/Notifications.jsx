@@ -31,11 +31,13 @@ import { apiUrl } from "@/lib/api";
 
 const { Text } = Typography;
 
+// ── Auth helper ──────────────────────────────────────────────────────────────
 const getAuthHeaders = () => {
   const token = localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+// ── Icon map ─────────────────────────────────────────────────────────────────
 const iconMap = {
   xp: <GiftOutlined style={{ color: "#22c55e" }} />,
   trip: <CheckCircleOutlined style={{ color: "#3b82f6" }} />,
@@ -43,6 +45,7 @@ const iconMap = {
   saved_trip: <CheckCircleOutlined style={{ color: "#ff8a2a" }} />,
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const timeAgo = (date) => {
   const d = typeof date === "string" ? new Date(date) : date;
   const diff = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -60,6 +63,7 @@ const byTab = (items, key) => {
 
 const isMobile = () => typeof window !== "undefined" && window.innerWidth < 768;
 
+// ─────────────────────────────────────────────────────────────────────────────
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,12 +74,14 @@ export default function Notifications() {
   const panelRef = useRef(null);
   const navigate = useNavigate();
 
+  // ── Responsive detection ──────────────────────────────────────────────────
   useEffect(() => {
     const handler = () => setMobile(isMobile());
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
 
+  // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
@@ -90,18 +96,17 @@ export default function Notifications() {
       );
     } catch (err) {
       console.error("❌ load notifications:", err);
+      toast.error("Couldn't load notifications");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // ── KEY FIX: optimistic update — drain badge immediately before waiting
-  //    for the server so the count always clears the moment panel opens,
-  //    even on slow connections or if the PATCH returns an error.
+  // ── Silent mark-all-read (runs on panel open — drains badge instantly) ────
   const silentMarkAllRead = useCallback(async () => {
-    // 1. Update local state first (badge drains instantly)
+    // 1. Optimistic — drain badge immediately
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    // 2. Tell the server in the background
+    // 2. Sync to server in background
     try {
       await fetch(apiUrl("/api/notifications/read-all"), {
         method: "PATCH",
@@ -109,56 +114,61 @@ export default function Notifications() {
         credentials: "include",
       });
     } catch {
-      // Silent — local state is already drained, server will sync on next load
+      // Silent — badge is already drained, will sync on next open
     }
   }, []);
 
+  // ── Explicit mark-all-read (button in panel header) ───────────────────────
   const markAllAsRead = async () => {
     try {
       setBusy(true);
-      await fetch(apiUrl("/api/notifications/read-all"), {
+      const res = await fetch(apiUrl("/api/notifications/read-all"), {
         method: "PATCH",
         headers: { ...getAuthHeaders() },
         credentials: "include",
       });
+      if (!res.ok) throw new Error();
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       toast.success("Marked all as read");
     } catch (err) {
       console.error("❌ mark all as read:", err);
+      toast.error("Couldn't mark all as read");
     } finally {
       setBusy(false);
     }
   };
 
+  // ── Clear all ─────────────────────────────────────────────────────────────
   const clearAll = async () => {
     try {
       setBusy(true);
-      await fetch(apiUrl("/api/notifications/clear"), {
+      const res = await fetch(apiUrl("/api/notifications/clear"), {
         method: "DELETE",
         headers: { ...getAuthHeaders() },
         credentials: "include",
       });
+      if (!res.ok) throw new Error();
       setNotifications([]);
       toast("Notifications cleared", { icon: "🧹" });
     } catch (err) {
       console.error("❌ clear notifications:", err);
+      toast.error("Couldn't clear notifications");
     } finally {
       setBusy(false);
     }
   };
 
+  // ── Open panel: fetch then silently mark read ─────────────────────────────
   useEffect(() => {
     if (!visible) return;
-    // Fetch first, then drain badge optimistically
     fetchNotifications().then(() => silentMarkAllRead());
     if (!mobile) {
       const t = setTimeout(() => panelRef.current?.focus(), 0);
       return () => clearTimeout(t);
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
-  // ↑ Intentionally omitting fetchNotifications/silentMarkAllRead from deps
-  //   to avoid re-fetching on every render when those callbacks change identity.
 
+  // ── Derived state ─────────────────────────────────────────────────────────
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
     [notifications]
@@ -169,10 +179,12 @@ export default function Notifications() {
     [notifications, activeKey]
   );
 
+  // ── Item click: mark single read + navigate ───────────────────────────────
   const handleItemClick = async (item) => {
     try {
       const notifId = item._id || item.id;
       if (notifId && !item.read) {
+        // Optimistic
         setNotifications((prev) =>
           prev.map((n) =>
             n._id === notifId || n.id === notifId ? { ...n, read: true } : n
@@ -200,8 +212,10 @@ export default function Notifications() {
     }
   };
 
+  // ── Panel content (shared between mobile Modal + desktop flyout) ──────────
   const panelContent = (
     <>
+      {/* Header row */}
       <div
         style={{
           display: "flex",
@@ -248,6 +262,7 @@ export default function Notifications() {
         </div>
       </div>
 
+      {/* Body */}
       {loading || busy ? (
         <div
           style={{
@@ -284,6 +299,7 @@ export default function Notifications() {
                 border: !item.read
                   ? "1px solid rgba(124,92,252,0.2)"
                   : "1px solid transparent",
+                transition: "background 0.2s",
               }}
               onClick={() => handleItemClick(item)}
             >
@@ -321,6 +337,7 @@ export default function Notifications() {
                   </>
                 }
               />
+              {/* Unread dot */}
               {!item.read && (
                 <div
                   style={{
@@ -340,6 +357,7 @@ export default function Notifications() {
     </>
   );
 
+  // ── Bell button (shared) ──────────────────────────────────────────────────
   const bellButton = (
     <Badge count={unreadCount} size="small">
       <button
@@ -362,7 +380,7 @@ export default function Notifications() {
     </Badge>
   );
 
-  // ── Mobile: full-screen Modal ──
+  // ── Mobile: full-screen Modal ─────────────────────────────────────────────
   if (mobile) {
     return (
       <>
@@ -401,13 +419,14 @@ export default function Notifications() {
     );
   }
 
-  // ── Desktop: floating panel ──
+  // ── Desktop: floating panel ───────────────────────────────────────────────
   return (
     <div style={{ position: "relative" }}>
       {bellButton}
       <AnimatePresence>
         {visible && (
           <>
+            {/* Click-outside overlay */}
             <div
               style={{ position: "fixed", inset: 0, zIndex: 9998 }}
               onClick={() => setVisible(false)}

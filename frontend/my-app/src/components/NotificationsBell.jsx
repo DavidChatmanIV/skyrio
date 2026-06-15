@@ -27,6 +27,12 @@ import { apiUrl } from "@/lib/api";
 
 const { Text } = Typography;
 
+// ── Auth helper ──────────────────────────────────────────────────────────────
+const authHeaders = () => {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 function timeAgo(iso) {
   if (!iso) return "";
   const t = new Date(iso).getTime();
@@ -64,11 +70,13 @@ export default function NotificationsBell({ maxItems = 20 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchMine = async () => {
     setLoading(true);
     try {
       const res = await fetch(apiUrl("/api/notifications/mine"), {
         credentials: "include",
+        headers: { ...authHeaders() },
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -81,27 +89,33 @@ export default function NotificationsBell({ maxItems = 20 }) {
     }
   };
 
+  // ── Mark all read ──────────────────────────────────────────────────────────
   const markAllRead = async () => {
     const prevUnread = unread;
+    // Optimistic update
     setUnread(0);
     setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
     try {
       const res = await fetch(apiUrl("/api/notifications/read-all"), {
         method: "PATCH",
         credentials: "include",
+        headers: { ...authHeaders() },
       });
       if (!res.ok) throw new Error();
       message.success("All caught up ✅");
     } catch {
+      // Rollback on failure
       setUnread(prevUnread);
       fetchMine();
       message.error("Couldn't mark all as read");
     }
   };
 
+  // ── Mark one read ──────────────────────────────────────────────────────────
   const markOneRead = async (id) => {
     const target = items.find((x) => x._id === id);
     if (!target || target.isRead) return;
+    // Optimistic update
     setItems((prev) =>
       prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
     );
@@ -110,31 +124,40 @@ export default function NotificationsBell({ maxItems = 20 }) {
       const res = await fetch(apiUrl(`/api/notifications/${id}/read`), {
         method: "PATCH",
         credentials: "include",
+        headers: { ...authHeaders() },
       });
       if (!res.ok) throw new Error();
     } catch {
+      // Rollback on failure
       fetchMine();
       message.error("Couldn't mark as read");
     }
   };
 
+  // ── Remove one ─────────────────────────────────────────────────────────────
   const removeOne = async (id) => {
     const prev = items;
+    const removedIsUnread = items.find((n) => n._id === id && !n.isRead);
+    // Optimistic update
     setItems((p) => p.filter((n) => n._id !== id));
+    if (removedIsUnread) setUnread((u) => Math.max(0, u - 1));
     try {
       const res = await fetch(apiUrl(`/api/notifications/${id}`), {
         method: "DELETE",
         credentials: "include",
+        headers: { ...authHeaders() },
       });
       if (!res.ok) throw new Error();
       message.success("Removed");
-      fetchMine();
     } catch {
+      // Rollback on failure
       setItems(prev);
+      if (removedIsUnread) setUnread((u) => u + 1);
       message.error("Couldn't delete");
     }
   };
 
+  // ── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchMine();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,7 +167,9 @@ export default function NotificationsBell({ maxItems = 20 }) {
     if (!userId) return;
     socket.emit("notifications:join", { userId });
     const onNew = (notif) => {
-      setItems((prev) => [notif, ...prev].slice(0, maxItems));
+      setItems((prev) =>
+        [{ ...notif, isRead: false }, ...prev].slice(0, maxItems)
+      );
       setUnread((u) => u + 1);
     };
     socket.on("notification:new", onNew);
@@ -153,11 +178,13 @@ export default function NotificationsBell({ maxItems = 20 }) {
     };
   }, [userId, maxItems]);
 
+  // Re-fetch when dropdown opens to stay in sync
   useEffect(() => {
     if (open) fetchMine();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // ── Menu items ─────────────────────────────────────────────────────────────
   const menuItems = useMemo(() => {
     const header = {
       key: "__header",
@@ -188,7 +215,7 @@ export default function NotificationsBell({ maxItems = 20 }) {
           </div>
           <div style={{ marginTop: 6 }}>
             <Text style={{ color: "rgba(255,255,255,.70)", fontSize: 12 }}>
-              {unread ? `${unread} unread` : "You're all caught up"}
+              {unread ? `${unread} unread` : "You're all caught up ✅"}
             </Text>
           </div>
           <Divider
@@ -317,8 +344,10 @@ export default function NotificationsBell({ maxItems = 20 }) {
         };
       }),
     ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, unread, nav]);
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Dropdown
       open={open}
