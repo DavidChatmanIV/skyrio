@@ -67,8 +67,6 @@ router.post(
             link: "/passport",
           });
         }
-
-        console.log(`✅ Booking confirmed: ${bookingId}`);
       } catch (err) {
         console.error("Webhook processing error:", err);
       }
@@ -80,7 +78,6 @@ router.post(
       const paymentIntentId = charge.payment_intent;
 
       try {
-        // Find the booking by its Stripe PaymentIntent ID
         const booking = await Booking.findOne({
           $or: [
             { stripePaymentIntentId: paymentIntentId },
@@ -100,7 +97,6 @@ router.post(
             },
           });
 
-          // Notify the user
           if (booking.user) {
             await Notification.create({
               user: booking.user,
@@ -114,12 +110,6 @@ router.post(
               link: "/saved-trips",
             });
           }
-
-          console.log(
-            `💰 Refund processed: $${refundAmount.toFixed(2)} for booking ${
-              booking._id
-            }`
-          );
         }
       } catch (err) {
         console.error("Refund webhook processing error:", err);
@@ -154,10 +144,6 @@ router.post(
               link: "/saved-trips",
             });
           }
-
-          console.error(
-            `⚠️ Refund failed for booking ${booking._id}: ${refund.failure_reason}`
-          );
         }
       } catch (err) {
         console.error("Refund failure webhook error:", err);
@@ -187,10 +173,6 @@ router.post(
             link: "/saved-trips",
           });
         }
-
-        console.error(
-          `❌ Payment failed for booking ${bookingId}: ${intent.last_payment_error?.message}`
-        );
       } catch (err) {
         console.error("Payment failed webhook error:", err);
       }

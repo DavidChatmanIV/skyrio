@@ -36,9 +36,43 @@ import MembershipPage from "./pages/Membership/MembershipPage";
 import SyncTogether from "./pages/SyncTogether";
 import SyncGroupPage from "./pages/SyncGroupPage";
 
+// ── Page title map ─────────────────────────────────────────────────────────────
+const PAGE_TITLES = {
+  "/": "Skyrio — Plan Smarter. Travel Better.",
+  "/login": "Sign In — Skyrio",
+  "/register": "Create Account — Skyrio",
+  "/forgot-password": "Reset Password — Skyrio",
+  "/reset": "Reset Password — Skyrio",
+  "/explore": "Explore Destinations — Skyrio",
+  "/dashboard": "Dashboard — Skyrio",
+  "/profile": "My Profile — Skyrio",
+  "/saved-trips": "Saved Trips — Skyrio",
+  "/quest-feed": "Quest Feed — Skyrio",
+  "/membership": "Membership — Skyrio",
+  "/sync-together": "Sync Together — Skyrio",
+  "/privacy": "Privacy Policy — Skyrio",
+  "/terms": "Terms of Service — Skyrio",
+  "/admin/login": "Admin Login — Skyrio",
+  "/admin": "Admin Dashboard — Skyrio",
+  "/admin/support": "Support Inbox — Skyrio",
+};
+
+function getPageTitle(pathname) {
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  // Dynamic routes — e.g. /sync-together/:id
+  if (pathname.startsWith("/sync-together/")) return "Group Trip — Skyrio";
+  if (pathname.startsWith("/admin")) return "Admin — Skyrio";
+  return "Skyrio — Plan Smarter. Travel Better.";
+}
+
 // ── Analytics + scroll restoration ────────────────────────────────────────────
 function AppWithTracking() {
   const location = useLocation();
+
+  // ── Page title ──
+  useEffect(() => {
+    document.title = getPageTitle(location.pathname);
+  }, [location.pathname]);
 
   // ── Scroll to top on route change ──
   useEffect(() => {

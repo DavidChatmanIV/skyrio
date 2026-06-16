@@ -7,6 +7,16 @@ const PreferencesSchema = new Schema(
   { _id: false }
 );
 
+// ── XP Level thresholds ───────────────────────────────────────
+const XP_LEVELS = [
+  { label: "Newcomer", min: 0 },
+  { label: "Explorer", min: 200 },
+  { label: "Adventurer", min: 500 },
+  { label: "Globetrotter", min: 1000 },
+  { label: "Voyager", min: 2000 },
+  { label: "Legend", min: 5000 },
+];
+
 const UserSchema = new Schema(
   {
     // ---------- Core Identity ----------
@@ -32,8 +42,8 @@ const UserSchema = new Schema(
     // ---------- Profile ----------
     avatar: { type: String, default: "/default-avatar.png" },
     bio: { type: String, trim: true },
-    city: { type: String, trim: true }, // Home Base shown on passport
-    travelVibes: { type: [String], default: [] }, // Up to 5 vibe tags
+    city: { type: String, trim: true },
+    travelVibes: { type: [String], default: [] },
 
     // ---------- Verification ----------
     verifiedTier: {
@@ -60,9 +70,9 @@ const UserSchema = new Schema(
     settings: { rewardsEnabled: { type: Boolean, default: false } },
 
     // ---------- Referrals ----------
-    referredBy: { type: String, default: null }, // username who referred this user
-    referralsCount: { type: Number, default: 0, min: 0 }, // how many users this user referred
-    lastShareXpDate: { type: String, default: null }, // "YYYY-MM-DD" — dedup share XP
+    referredBy: { type: String, default: null },
+    referralsCount: { type: Number, default: 0, min: 0 },
+    lastShareXpDate: { type: String, default: null },
 
     // ---------- RBAC Role System ----------
     role: {
@@ -117,7 +127,7 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
-// ---------- Moderation helpers ----------
+// ── Moderation helpers ────────────────────────────────────────
 UserSchema.methods.isMuted = function () {
   const until = this?.moderation?.mutedUntil;
   return until ? new Date(until).getTime() > Date.now() : false;
@@ -142,7 +152,38 @@ UserSchema.methods.getModerationStatus = function () {
   return this?.moderation?.status || "ok";
 };
 
-// ---------- Instance helpers ----------
+// ── XP Level helper ───────────────────────────────────────────
+// Returns levelLabel, levelProgressPct, nextLevel, xpToNext
+// based on the user's current XP. Used in toSafeJSON so every
+// API response includes up-to-date level info automatically.
+UserSchema.methods.getXPLevel = function () {
+  const xp = this.xp || 0;
+  let current = XP_LEVELS[0];
+  let next = XP_LEVELS[1] || null;
+
+  for (let i = 0; i < XP_LEVELS.length; i++) {
+    if (xp >= XP_LEVELS[i].min) {
+      current = XP_LEVELS[i];
+      next = XP_LEVELS[i + 1] || null;
+    }
+  }
+
+  const progressPct = next
+    ? Math.round(((xp - current.min) / (next.min - current.min)) * 100)
+    : 100;
+
+  return {
+    levelLabel: current.label,
+    levelProgressPct: Math.min(progressPct, 100),
+    nextLevel: next?.label || null,
+    xpToNext: next ? next.min - xp : 0,
+  };
+};
+
+// ── toSafeJSON ────────────────────────────────────────────────
+// Used everywhere we return a user object to the frontend.
+// Includes computed XP level fields so Dashboard, Passport,
+// and SkyHub all get levelLabel + levelProgressPct automatically.
 UserSchema.methods.toSafeJSON = function () {
   return {
     id: this._id.toString(),
@@ -158,6 +199,7 @@ UserSchema.methods.toSafeJSON = function () {
     referredBy: this.referredBy,
     referralsCount: this.referralsCount,
     xp: this.xp,
+    ...this.getXPLevel(),
     settings: this.settings,
     role: this.role,
     plan: this.plan,

@@ -319,12 +319,10 @@ router.post("/:id/approve", async (req, res) => {
     if (!group)
       return res.status(404).json({ ok: false, error: "Group not found" });
 
-    // Find the member
     const member = group.members.find(
       (m) => m.user && String(m.user) === String(userId)
     );
 
-    // Owner can also approve (they're not in members array)
     const isOwner = String(group.owner) === String(userId);
 
     if (!member && !isOwner) {
@@ -336,7 +334,6 @@ router.post("/:id/approve", async (req, res) => {
       member.approvedAt = new Date();
     }
 
-    // Check if everyone approved
     const allApproved = group.members.every(
       (m) => m.approved || m.status === "declined"
     );
@@ -360,11 +357,7 @@ router.post("/:id/approve", async (req, res) => {
       .populate("changeRequests.user", "username name avatar")
       .lean();
 
-    return res.json({
-      ok: true,
-      group: populated,
-      allApproved,
-    });
+    return res.json({ ok: true, group: populated, allApproved });
   } catch (err) {
     console.error("[sync-together] approve error:", err);
     return res.status(500).json({ ok: false, error: "Approval failed" });
@@ -396,7 +389,6 @@ router.post("/:id/change-request", async (req, res) => {
       status: "open",
     });
 
-    // Reset the requester's approval
     const member = group.members.find(
       (m) => m.user && String(m.user) === String(userId)
     );
@@ -405,7 +397,6 @@ router.post("/:id/change-request", async (req, res) => {
       member.approvedAt = null;
     }
 
-    // Move back to reviewing if was confirmed
     if (group.status === "confirmed") {
       group.status = "reviewing";
     }
@@ -538,7 +529,6 @@ router.post("/:id/member", async (req, res) => {
 
     const { userId: newUserId, email, name } = req.body;
 
-    // Check for duplicates
     const alreadyExists = group.members.some((m) => {
       if (newUserId && m.user && String(m.user) === String(newUserId))
         return true;
@@ -638,12 +628,10 @@ router.patch("/:id/member-airport", async (req, res) => {
 
     const { departureAirport } = req.body;
 
-    // Check if user is owner — update group-level airport
     if (String(group.owner) === String(userId)) {
       group.departureAirport = departureAirport;
     }
 
-    // Also update member-level airport if they're in the members array
     const member = group.members.find(
       (m) => m.user && String(m.user) === String(userId)
     );
@@ -699,7 +687,6 @@ router.post("/:id/chat", async (req, res) => {
 
     await group.save();
 
-    // Return just the new message populated
     const populated = await SyncGroup.findById(group._id)
       .select("chatMessages")
       .populate("chatMessages.user", "username name avatar")
@@ -735,31 +722,6 @@ router.get("/:id/chat", async (req, res) => {
     return res
       .status(500)
       .json({ ok: false, error: "Failed to fetch messages" });
-  }
-});
-
-/* ──────────────────────────────────────────────
-   DELETE /api/sync-together/:id
-   Delete a group (owner only).
-   ────────────────────────────────────────────── */
-router.delete("/:id", async (req, res) => {
-  try {
-    const userId = req.user?.id ?? req.user?._id;
-    const group = await SyncGroup.findById(req.params.id);
-    if (!group)
-      return res.status(404).json({ ok: false, error: "Group not found" });
-
-    if (String(group.owner) !== String(userId)) {
-      return res
-        .status(403)
-        .json({ ok: false, error: "Only the organizer can delete this trip" });
-    }
-
-    await SyncGroup.findByIdAndDelete(req.params.id);
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("[sync-together] delete error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to delete group" });
   }
 });
 

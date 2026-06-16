@@ -782,17 +782,15 @@ export default function SkyHubPage() {
     setPosts((prev) => prev.filter((p) => p.id !== id));
     message.success("Post deleted.");
     try {
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${id}`), {
+      await fetch(apiUrl(`/api/skyhub/posts/${id}`), {
         method: "DELETE",
         credentials: "include",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
         },
       });
-      if (!res.ok && res.status !== 404)
-        console.warn("[skyhub] delete", res.status);
     } catch {
-      /* UI already updated */
+      /* UI already updated optimistically */
     }
   };
 
