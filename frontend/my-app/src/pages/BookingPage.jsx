@@ -33,6 +33,7 @@ import dayjs from "dayjs";
 import { Link, useSearchParams } from "react-router-dom";
 
 import heroImg from "@/assets/Booking/skyrio-hero.jpg";
+import skyrioLogo from "@/assets/logo/skyrio-logo-transparent.png";
 import "@/styles/BookingPage.css";
 
 import BookingCheckout from "@/pages/booking/BookingCheckout";
@@ -433,6 +434,14 @@ const DEFAULT_FILTERS = {
   airline: "any",
   xp: "any",
 };
+
+const ATLAS_LOADING_STEPS = [
+  "Scanning live routes…",
+  "Comparing 847 options…",
+  "Filtering by value + timing…",
+  "Ranking best picks for you…",
+  "Almost there…",
+];
 
 function getFlightXP(flight) {
   let xp = 40;
@@ -926,18 +935,15 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
   const [adults, setAdults] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const updateLeg = (index, patch) => {
+  const updateLeg = (index, patch) =>
     setLegs((prev) =>
       prev.map((l, i) => (i === index ? { ...l, ...patch } : l))
     );
-  };
-
   const addLeg = () => {
     if (legs.length >= 6)
       return antdMessage.info("Maximum 6 flights for multi-city");
     setLegs((prev) => [...prev, EMPTY_LEG()]);
   };
-
   const removeLeg = (index) => {
     if (legs.length <= 2)
       return antdMessage.info("At least 2 flights required");
@@ -972,9 +978,8 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
             });
         })
       );
-      const combined = results.flat();
       antdMessage.success(
-        `Found ${combined.length} options across ${legs.length} flights`
+        `Found ${results.flat().length} options across ${legs.length} flights`
       );
     } catch (err) {
       antdMessage.error(err.message || "Multi-city search failed");
@@ -1074,8 +1079,7 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
           onClick={addLeg}
           disabled={legs.length >= 6}
         >
-          <span className="sk-mc-add-icon">+</span>
-          Add flight
+          <span className="sk-mc-add-icon">+</span>Add flight
         </button>
         <div className="sk-mc-right">
           <Select
@@ -1104,11 +1108,14 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
   );
 }
 
+// ── KEY CHANGE: FlightsForm now accepts onSearchStart / onSearchEnd ──
 function FlightsForm({
   onSearch,
   onDestChange,
   onDatesChange,
   onOriginChange,
+  onSearchStart,
+  onSearchEnd,
 }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
@@ -1144,7 +1151,11 @@ function FlightsForm({
     if (!dates[0]) return antdMessage.warning("Select a departure date");
     if (tripType === "roundtrip" && !dates[1])
       return antdMessage.warning("Select a return date, or switch to One way");
+
+    // ── Tell parent loading has started so logo animation shows ──
     setLoading(true);
+    onSearchStart?.();
+
     try {
       const params = new URLSearchParams({
         from: originAirport.code,
@@ -1164,7 +1175,9 @@ function FlightsForm({
     } catch (err) {
       antdMessage.error(err.message || "Flight search failed");
     } finally {
+      // ── Tell parent loading is done so logo animation hides ──
       setLoading(false);
+      onSearchEnd?.();
     }
   };
 
@@ -1175,12 +1188,8 @@ function FlightsForm({
     setDestAirport(prevOrigin);
     setOriginDisplay(destDisplay);
     setDestDisplay(originDisplay);
-    if (prevDest?.city) {
-      onOriginChange?.(prevDest.city);
-    }
-    if (prevOrigin?.city) {
-      onDestChange?.(prevOrigin.city);
-    }
+    if (prevDest?.city) onOriginChange?.(prevDest.city);
+    if (prevOrigin?.city) onDestChange?.(prevOrigin.city);
   };
 
   if (tripType === "multi-city") {
@@ -1301,7 +1310,6 @@ function StaysForm({ onDestChange, onDatesChange }) {
     },
     [onDatesChange]
   );
-
   return (
     <div className="sk-search-bar">
       <AirportInput
@@ -1363,7 +1371,6 @@ function PackagesForm({ onDestChange, onDatesChange }) {
   });
   const toggle = (key) =>
     setPkgOptions((prev) => ({ ...prev, [key]: !prev[key] }));
-
   const handleDatesChange = useCallback(
     (v) => {
       const nd = v ?? [null, null];
@@ -1373,7 +1380,6 @@ function PackagesForm({ onDestChange, onDatesChange }) {
     },
     [onDatesChange]
   );
-
   const PKG_PILLS = [
     { key: "stay", Icon: IconHotel, label: "Stay" },
     { key: "flight", Icon: IconFlight, label: "Flight" },
@@ -1586,29 +1592,66 @@ function SavedForm() {
   );
 }
 
-function FlightSkeleton() {
+// ─────────────────────────────────────────────
+// Skyrio Logo Loading State
+// ─────────────────────────────────────────────
+function FlightSkeleton({ destCity, fromCode }) {
+  const [stepIdx, setStepIdx] = useState(0);
+
+  useEffect(() => {
+    const iv = setInterval(
+      () => setStepIdx((i) => (i + 1) % ATLAS_LOADING_STEPS.length),
+      1800
+    );
+    return () => clearInterval(iv);
+  }, []);
+
   return (
-    <div className="sk-flight-skeleton">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="sk-skeleton-card">
-          <div className="sk-skeleton-thumb sk-shimmer" />
-          <div className="sk-skeleton-body">
-            <div
-              className="sk-skeleton-line sk-shimmer"
-              style={{ width: "52%" }}
-            />
-            <div
-              className="sk-skeleton-line sk-shimmer"
-              style={{ width: "38%", marginTop: 8 }}
-            />
-            <div
-              className="sk-skeleton-line sk-shimmer"
-              style={{ width: "28%", marginTop: 8 }}
-            />
+    <div className="sk-search-loading">
+      <div className="sk-search-loading__logo-wrap">
+        <div className="sk-search-loading__glow" />
+        <div className="sk-search-loading__ring" />
+        <div className="sk-search-loading__ring-2" />
+        <img
+          src={skyrioLogo}
+          alt="Skyrio"
+          className="sk-search-loading__logo"
+        />
+      </div>
+      <div className="sk-search-loading__label">Skyrio AI active</div>
+      <div className="sk-search-loading__copy">
+        {ATLAS_LOADING_STEPS[stepIdx]}
+      </div>
+      <div className="sk-search-loading__sub">
+        {fromCode && destCity
+          ? `Comparing options for ${fromCode} → ${destCity} based on timing, comfort & value.`
+          : "Finding the best flights for your trip."}
+      </div>
+      <div className="sk-search-loading__bar">
+        <div className="sk-search-loading__bar-fill" />
+      </div>
+      <div className="sk-flight-skeleton">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="sk-skeleton-card">
+            <div className="sk-skeleton-thumb sk-shimmer" />
+            <div className="sk-skeleton-body">
+              <div
+                className="sk-skeleton-line sk-shimmer"
+                style={{ width: "52%" }}
+              />
+              <div
+                className="sk-skeleton-line sk-shimmer"
+                style={{ width: "38%", marginTop: 8 }}
+              />
+              <div
+                className="sk-skeleton-line sk-shimmer"
+                style={{ width: "28%", marginTop: 8 }}
+              />
+            </div>
+            <div className="sk-skeleton-price sk-shimmer" />
           </div>
-          <div className="sk-skeleton-price sk-shimmer" />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -1659,9 +1702,10 @@ export default function BookingPage() {
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
-
-  // ── originCity starts EMPTY — only set when user selects an airport ──
   const [originCity, setOriginCity] = useState("");
+
+  // ── NEW: tracks manual Search button loading so logo shows ──
+  const [manualSearchLoading, setManualSearchLoading] = useState(false);
 
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
@@ -1854,17 +1898,14 @@ export default function BookingPage() {
     setVisibleCount(RESULTS_PER_PAGE);
   }, [flightResults, smartFilters]);
 
-  // ── Weather — driven by actual user selections only ──
   const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
   const departureWeather = useMemo(
     () => getWeatherForCity(originCity),
     [originCity]
   );
-
   const weatherTitle = weather.label
     ? `${weather.label}${weather.temp ? `  ·  ${weather.temp}` : ""}`
     : "Select a destination";
-
   const heroRoute = destCity
     ? `${originCity ? originCity.toUpperCase() : fromCode} → ${destCity}`
     : "Where to next?";
@@ -1904,6 +1945,9 @@ export default function BookingPage() {
     onDatesChange: handleDatesChange,
   };
 
+  // ── NEW: combined loading flag — true for both auto-search and manual search ──
+  const isSearching = autoSearchLoading || manualSearchLoading;
+
   const searchForm = useMemo(() => {
     switch (tab) {
       case "Flights":
@@ -1929,6 +1973,9 @@ export default function BookingPage() {
             onDestChange={setDestCity}
             onDatesChange={handleDatesChange}
             onOriginChange={setOriginCity}
+            // ── NEW: wire loading callbacks so logo shows on manual search ──
+            onSearchStart={() => setManualSearchLoading(true)}
+            onSearchEnd={() => setManualSearchLoading(false)}
           />
         );
       case "Stays":
@@ -1948,7 +1995,7 @@ export default function BookingPage() {
     }
   }, [tab, handleDatesChange]);
 
-  const resultsTitle = autoSearchLoading
+  const resultsTitle = isSearching
     ? "Searching flights…"
     : visibleFlights.length > 0
     ? `${visibleFlights.length} Flight${
@@ -1972,6 +2019,22 @@ export default function BookingPage() {
 
   return (
     <div className="sk-booking" style={{ "--sk-bg-image": `url(${heroImg})` }}>
+      {/* DEBUG — remove after testing */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          zIndex: 9999,
+          background: "red",
+          color: "white",
+          padding: 20,
+          fontSize: 20,
+        }}
+      >
+        MANUAL: {String(manualSearchLoading)} | AUTO:{" "}
+        {String(autoSearchLoading)}
+      </div>
       <div className="sk-booking-hero">
         <Title className="sk-hero-title">
           Lock in your{" "}
@@ -1986,7 +2049,7 @@ export default function BookingPage() {
             {destCity && "  ·  Best value window"}
           </div>
           <div className="sk-tripAssist">
-            {autoSearchLoading
+            {isSearching
               ? "Searching live flights for you…"
               : autoSearchDone && flightResults.length > 0
               ? `Found ${flightResults.length} flights — scroll down to pick`
@@ -2186,10 +2249,8 @@ export default function BookingPage() {
           }}
         />
 
-        {/* ── Weather strip — side by side, only populated after user selects ── */}
         <div className="sk-weatherStrip">
           <div className="sk-weatherInner sk-weatherInner--split">
-            {/* Departure side */}
             <div className="sk-weatherSide">
               <div className="sk-weatherSideLabel">
                 {originCity ? "Departing from" : "Select departure city"}
@@ -2214,13 +2275,9 @@ export default function BookingPage() {
                   : "Select a departure airport above"}
               </div>
             </div>
-
-            {/* Arrow divider */}
             <div className="sk-weatherDivider">
               <ArrowRight size={14} />
             </div>
-
-            {/* Destination side */}
             <div className="sk-weatherSide">
               <div className="sk-weatherSideLabel">
                 {destCity
@@ -2303,10 +2360,10 @@ export default function BookingPage() {
               {resultsTitle}
             </Title>
             <div className="sk-resultsSub">
-              {autoSearchLoading
+              {isSearching
                 ? `Searching ${fromCode} → ${
                     prefillData?.iata ?? destCity
-                  } · today +14 days`
+                  } · live prices`
                 : visibleFlights.length > 0
                 ? `Sorted by price · ${fromCode} → ${
                     prefillData?.iata ?? destCity
@@ -2321,7 +2378,7 @@ export default function BookingPage() {
                 ? "Try relaxing your filters to see more results"
                 : "Search above to find flights."}
             </div>
-            {!autoSearchLoading &&
+            {!isSearching &&
               flightResults.length > 0 &&
               visibleFlights.length === 0 && (
                 <button
@@ -2334,9 +2391,12 @@ export default function BookingPage() {
               )}
           </div>
 
-          {autoSearchLoading && <FlightSkeleton />}
+          {/* ── Logo loading state: fires on BOTH auto-search and manual search ── */}
+          {isSearching && (
+            <FlightSkeleton destCity={destCity} fromCode={fromCode} />
+          )}
 
-          {!autoSearchLoading && autoSearchError && (
+          {!isSearching && autoSearchError && (
             <div className="sk-search-error">
               <IconWarning size={14} /> {autoSearchError} —{" "}
               <button
@@ -2352,7 +2412,7 @@ export default function BookingPage() {
             </div>
           )}
 
-          {!autoSearchLoading &&
+          {!isSearching &&
             paginatedFlights.length > 0 &&
             paginatedFlights.map((flight) => (
               <Card
@@ -2519,7 +2579,7 @@ export default function BookingPage() {
               </Card>
             ))}
 
-          {!autoSearchLoading && hasMore && (
+          {!isSearching && hasMore && (
             <div
               style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
             >
@@ -2545,46 +2605,44 @@ export default function BookingPage() {
             </div>
           )}
 
-          {!autoSearchLoading &&
-            flightResults.length === 0 &&
-            !autoSearchError && (
+          {!isSearching && flightResults.length === 0 && !autoSearchError && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "52px 24px",
+                color: "rgba(255,255,255,0.38)",
+                fontSize: 14,
+              }}
+            >
+              <div style={{ marginBottom: 14 }}>
+                <PlaneIcon
+                  size={40}
+                  strokeWidth={1.25}
+                  color="rgba(255,255,255,0.28)"
+                />
+              </div>
               <div
                 style={{
-                  textAlign: "center",
-                  padding: "52px 24px",
-                  color: "rgba(255,255,255,0.38)",
-                  fontSize: 14,
+                  fontWeight: 700,
+                  fontSize: 17,
+                  color: "rgba(255,255,255,0.75)",
+                  letterSpacing: "-0.01em",
+                  marginBottom: 7,
                 }}
               >
-                <div style={{ marginBottom: 14 }}>
-                  <PlaneIcon
-                    size={40}
-                    strokeWidth={1.25}
-                    color="rgba(255,255,255,0.28)"
-                  />
-                </div>
-                <div
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 17,
-                    color: "rgba(255,255,255,0.75)",
-                    letterSpacing: "-0.01em",
-                    marginBottom: 7,
-                  }}
-                >
-                  Ready when you are
-                </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 300,
-                    color: "rgba(255,255,255,0.38)",
-                  }}
-                >
-                  Select airports and dates above to search live flights
-                </div>
+                Ready when you are
               </div>
-            )}
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 300,
+                  color: "rgba(255,255,255,0.38)",
+                }}
+              >
+                Select airports and dates above to search live flights
+              </div>
+            </div>
+          )}
         </Col>
 
         <Col xs={24} lg={8}>
