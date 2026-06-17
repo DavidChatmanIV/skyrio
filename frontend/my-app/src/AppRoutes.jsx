@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { useAuth } from "./auth/useAuth";
+import CookieBanner from "./components/CookieBanner";
 
 // ── Core pages ──
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -148,6 +149,7 @@ function TrackedRoutes() {
 export default function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
+      <CookieBanner />
       <TrackedRoutes />
     </Suspense>
   );
