@@ -111,7 +111,7 @@ export default function SupportInbox() {
     <div style={s.root}>
       {/* ── Top bar ── */}
       <div style={s.topBar}>
-        <button onClick={() => navigate("/admin/dashboard")} style={s.backBtn}>
+        <button onClick={() => navigate("/admin")} style={s.backBtn}>
           ← Admin Dashboard
         </button>
         <div style={s.topTitle}>
