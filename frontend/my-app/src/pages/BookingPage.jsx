@@ -2019,22 +2019,6 @@ export default function BookingPage() {
 
   return (
     <div className="sk-booking" style={{ "--sk-bg-image": `url(${heroImg})` }}>
-      {/* DEBUG — remove after testing */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          zIndex: 9999,
-          background: "red",
-          color: "white",
-          padding: 20,
-          fontSize: 20,
-        }}
-      >
-        MANUAL: {String(manualSearchLoading)} | AUTO:{" "}
-        {String(autoSearchLoading)}
-      </div>
       <div className="sk-booking-hero">
         <Title className="sk-hero-title">
           Lock in your{" "}
