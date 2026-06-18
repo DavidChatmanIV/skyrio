@@ -1108,7 +1108,6 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
   );
 }
 
-// ── KEY CHANGE: FlightsForm now accepts onSearchStart / onSearchEnd ──
 function FlightsForm({
   onSearch,
   onDestChange,
@@ -1152,7 +1151,6 @@ function FlightsForm({
     if (tripType === "roundtrip" && !dates[1])
       return antdMessage.warning("Select a return date, or switch to One way");
 
-    // ── Tell parent loading has started so logo animation shows ──
     setLoading(true);
     onSearchStart?.();
 
@@ -1175,7 +1173,6 @@ function FlightsForm({
     } catch (err) {
       antdMessage.error(err.message || "Flight search failed");
     } finally {
-      // ── Tell parent loading is done so logo animation hides ──
       setLoading(false);
       onSearchEnd?.();
     }
@@ -1704,7 +1701,6 @@ export default function BookingPage() {
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
   const [originCity, setOriginCity] = useState("");
 
-  // ── NEW: tracks manual Search button loading so logo shows ──
   const [manualSearchLoading, setManualSearchLoading] = useState(false);
 
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
@@ -1945,7 +1941,6 @@ export default function BookingPage() {
     onDatesChange: handleDatesChange,
   };
 
-  // ── NEW: combined loading flag — true for both auto-search and manual search ──
   const isSearching = autoSearchLoading || manualSearchLoading;
 
   const searchForm = useMemo(() => {
@@ -1957,6 +1952,7 @@ export default function BookingPage() {
               setFlightResults(f);
               setSmartFilters(DEFAULT_FILTERS);
               setVisibleCount(RESULTS_PER_PAGE);
+              setAiInsightDismissed(false);
               if (f.length > 0) {
                 const cheapest = [...f].sort(
                   (a, b) =>
@@ -1973,7 +1969,6 @@ export default function BookingPage() {
             onDestChange={setDestCity}
             onDatesChange={handleDatesChange}
             onOriginChange={setOriginCity}
-            // ── NEW: wire loading callbacks so logo shows on manual search ──
             onSearchStart={() => setManualSearchLoading(true)}
             onSearchEnd={() => setManualSearchLoading(false)}
           />
@@ -2151,71 +2146,78 @@ export default function BookingPage() {
               )}
             </div>
           )}
+        </div>
 
-          <Space size={8} className="sk-hero-pills">
-            <div className="sk-pill sk-pill-orange">
-              <Zap
-                size={12}
-                style={{ marginRight: 4, verticalAlign: "middle" }}
-              />
-              XP 60
+        {/* ── Price Watch Card — lives outside sk-tripState grid ── */}
+        <div className="sk-price-watch-card">
+          {/* Top row: XP reward left, toggle right */}
+          <div className="sk-pwc-header">
+            <div className="sk-pwc-xp">
+              <Zap size={13} className="sk-pwc-xp-icon" />
+              <span className="sk-pwc-xp-label">
+                Earn <strong>60 XP</strong> on booking
+              </span>
             </div>
-            {!aiInsightDismissed ? (
-              <div className="sk-ai-insight-pill">
-                <span className="sk-ai-insight-icon">
-                  <Zap size={13} />
-                </span>
-                <span className="sk-ai-insight-text">
-                  <strong>AI Insight:</strong> Prices expected to rise +$40
-                </span>
-                <button
-                  type="button"
-                  className="sk-ai-insight-dismiss"
-                  onClick={() => setAiInsightDismissed(true)}
-                  aria-label="Dismiss insight"
-                >
-                  ×
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="sk-pill sk-pill-glass"
-                onClick={() => setAiInsightDismissed(false)}
-              >
-                <Zap
-                  size={12}
-                  style={{ marginRight: 4, verticalAlign: "middle" }}
-                />{" "}
-                AI Insight
-              </button>
-            )}
             <button
               type="button"
-              className={`sk-pill sk-pill-glass sk-pill-toggle${
-                priceWatchOn ? " is-active" : ""
-              }`}
+              className={`sk-pwc-toggle${priceWatchOn ? " is-on" : ""}`}
               onClick={handlePriceWatchToggle}
+              aria-pressed={priceWatchOn}
             >
               {priceWatchOn ? (
-                <>
-                  <Bell
-                    size={12}
-                    style={{ marginRight: 4, verticalAlign: "middle" }}
-                  />{" "}
-                  Price Watch On
-                </>
+                <Bell size={13} className="sk-pwc-bell" />
               ) : (
-                <>
-                  <BellOff
-                    size={12}
-                    style={{ marginRight: 4, verticalAlign: "middle" }}
-                  />{" "}
-                  Price Watch Off
-                </>
+                <BellOff size={13} className="sk-pwc-bell" />
               )}
+              <span className="sk-pwc-toggle-label">
+                Price Watch {priceWatchOn ? "On" : "Off"}
+              </span>
+              <span className={`sk-pwc-dot${priceWatchOn ? " is-on" : ""}`} />
             </button>
-          </Space>
+          </div>
+
+          {/* Descriptor — changes when toggled */}
+          <div className="sk-pwc-desc">
+            {priceWatchOn
+              ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
+                  priceWatchRoute?.to ?? "destination"
+                } — we'll notify you when prices drop.`
+              : priceWatchRoute
+              ? "Search results loaded — turn on to get alerted if this route drops in price."
+              : "Search for a route above, then turn on price alerts."}
+          </div>
+
+          {/* AI Insight — only shows when we have real flight data with a price spread */}
+          {!aiInsightDismissed &&
+            priceWatchRoute &&
+            flightResults.length >= 3 &&
+            (() => {
+              const prices = flightResults
+                .map((f) => parseFloat(f.totalAmount))
+                .filter(Boolean);
+              const cheapest = Math.min(...prices);
+              const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+              const delta = Math.round(avg - cheapest);
+              if (delta < 20) return null;
+              return (
+                <div className="sk-pwc-insight">
+                  <Zap size={12} className="sk-pwc-insight-icon" />
+                  <span className="sk-pwc-insight-text">
+                    The cheapest option is ${cheapest.toFixed(0)} — prices on
+                    this route vary by up to ${delta} right now. Turn on Price
+                    Watch to catch any drops.
+                  </span>
+                  <button
+                    type="button"
+                    className="sk-pwc-insight-dismiss"
+                    onClick={() => setAiInsightDismissed(true)}
+                    aria-label="Dismiss AI insight"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })()}
         </div>
 
         <Text className="sk-hero-sub">
@@ -2375,7 +2377,6 @@ export default function BookingPage() {
               )}
           </div>
 
-          {/* ── Logo loading state: fires on BOTH auto-search and manual search ── */}
           {isSearching && (
             <FlightSkeleton destCity={destCity} fromCode={fromCode} />
           )}

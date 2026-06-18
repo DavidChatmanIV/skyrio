@@ -307,7 +307,198 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 }
 
 /* ======================================
-   HERO PILLS ROW
+   PRICE WATCH CARD
+   Replaces the old sk-hero-pills row.
+   Lives inside .sk-tripState, spans full
+   width via grid-column: 1 / -1.
+====================================== */
+.sk-price-watch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 13px 16px;
+  width: min(960px, calc(100% - 0px));
+  box-sizing: border-box;
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.sk-price-watch-card:has(.sk-pwc-toggle.is-on) {
+  border-color: rgba(255, 138, 42, 0.18);
+  background: rgba(255, 138, 42, 0.03);
+}
+
+/* Header row: XP left, toggle right */
+.sk-pwc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* XP reward label */
+.sk-pwc-xp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12.5px;
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.sk-pwc-xp-icon {
+  color: var(--sk-orange-2);
+  flex-shrink: 0;
+}
+
+.sk-pwc-xp strong {
+  color: var(--sk-orange-2);
+  font-weight: 700;
+}
+
+/* Toggle button */
+.sk-pwc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--sk-radius-pill);
+  padding: 5px 11px 5px 9px;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: var(--sk-font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+  letter-spacing: 0.01em;
+}
+
+.sk-pwc-toggle:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sk-pwc-toggle.is-on {
+  background: rgba(255, 138, 42, 0.14);
+  border-color: rgba(255, 138, 42, 0.4);
+  color: var(--sk-orange-2);
+}
+
+.sk-pwc-toggle.is-on:hover {
+  background: rgba(255, 138, 42, 0.2);
+  border-color: rgba(255, 138, 42, 0.6);
+}
+
+.sk-pwc-bell {
+  flex-shrink: 0;
+}
+
+.sk-pwc-toggle-label {
+  white-space: nowrap;
+}
+
+/* Live status dot */
+.sk-pwc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+  margin-left: 1px;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.sk-pwc-dot.is-on {
+  background: #4ade80;
+  box-shadow: 0 0 5px rgba(74, 222, 128, 0.6);
+}
+
+/* One-line description */
+.sk-pwc-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.38);
+  line-height: 1.45;
+  padding-left: 1px;
+}
+
+/* AI Insight banner — reason to enable the toggle */
+.sk-pwc-insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(255, 138, 42, 0.07);
+  border: 1px solid rgba(255, 138, 42, 0.18);
+  border-radius: 10px;
+  padding: 9px 11px;
+  animation: sk-insight-pulse 3.5s ease-in-out infinite;
+}
+
+@keyframes sk-insight-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 138, 42, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.08);
+  }
+}
+
+.sk-pwc-insight-icon {
+  color: var(--sk-orange);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.sk-pwc-insight-text {
+  font-size: 12px;
+  color: rgba(255, 185, 100, 0.88);
+  flex: 1;
+  line-height: 1.45;
+}
+
+.sk-pwc-insight-dismiss {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+  margin-top: -1px;
+  transition: color 0.15s;
+  border-radius: 4px;
+}
+
+.sk-pwc-insight-dismiss:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .sk-price-watch-card {
+    padding: 11px 13px;
+    gap: 8px;
+  }
+  .sk-pwc-xp {
+    font-size: 12px;
+  }
+  .sk-pwc-toggle {
+    font-size: 12px;
+    padding: 5px 10px 5px 8px;
+  }
+}
+
+/* ======================================
+   LEGACY HERO PILLS
+   Kept so any other usage of .sk-pill
+   classes elsewhere doesn't break.
 ====================================== */
 .sk-hero-pills {
   margin-top: 8px;
@@ -355,7 +546,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 }
 
 /* ======================================
-   AI INSIGHT PILL
+   AI INSIGHT PILL (legacy — kept for
+   backward compat if used elsewhere)
 ====================================== */
 .sk-ai-insight-pill {
   display: inline-flex;
@@ -367,16 +559,6 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   background: rgba(255, 138, 42, 0.1);
   backdrop-filter: blur(10px);
   animation: sk-insight-pulse 3.5s ease-in-out infinite;
-}
-
-@keyframes sk-insight-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 138, 42, 0);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(255, 138, 42, 0.1);
-  }
 }
 
 .sk-ai-insight-icon {
@@ -1538,7 +1720,6 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   margin-bottom: 20px;
 }
 
-/* Outer orbital ring */
 .sk-search-loading__ring {
   position: absolute;
   inset: -10px;
@@ -1549,7 +1730,6 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   animation: sk-orbit 1.4s linear infinite;
 }
 
-/* Inner ring, counter-rotate */
 .sk-search-loading__ring-2 {
   position: absolute;
   inset: -4px;
@@ -1560,7 +1740,6 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   animation: sk-orbit 2.2s linear infinite reverse;
 }
 
-/* Radial glow behind logo */
 .sk-search-loading__glow {
   position: absolute;
   inset: 0;
