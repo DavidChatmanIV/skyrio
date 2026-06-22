@@ -5,15 +5,25 @@
   background: transparent;
 }
 
-/* Push content below the fixed navbar */
+:root {
+  --floating-widgets-clearance: 104px;
+}
+
+/* Push content below the fixed navbar, and above the floating widgets */
 .osq-main {
   flex: 1;
   padding-top: var(--sk-nav-h, 86px);
+  padding-bottom: calc(
+    var(--floating-widgets-clearance) + env(safe-area-inset-bottom, 0px)
+  );
 }
 
-/* SkyHub manages its own layout */
+/* SkyHub manages its own top layout, but still needs bottom clearance */
 .osq-main--flush {
   padding-top: 0 !important;
+  padding-bottom: calc(
+    var(--floating-widgets-clearance) + env(safe-area-inset-bottom, 0px)
+  );
 }
 
 .osq-footer {
