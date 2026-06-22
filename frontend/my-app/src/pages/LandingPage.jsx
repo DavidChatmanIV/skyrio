@@ -233,6 +233,11 @@ const ATLAS_FEATURES = [
     title: "Books it too",
     desc: "Atlas doesn't just suggest — it takes you all the way to confirmed.",
   },
+  {
+    iconKey: "headset",
+    title: "Handles the unexpected, too",
+    desc: "Need to cancel, get a refund, or change a flight? Atlas is your 24/7 customer service — no waiting on hold.",
+  },
 ];
 
 const PROFILE_PERKS = [
@@ -293,6 +298,16 @@ const ATLAS_CHAT_INTRO = (homeCity) => [
     id: 4,
     from: "atlas",
     text: "Found 3 beachfront options under $180/night. Top pick has free cancellation and a rooftop pool. Adding it to your plan now.",
+  },
+  {
+    id: 5,
+    from: "user",
+    text: "What if something comes up and I need to cancel later?",
+  },
+  {
+    id: 6,
+    from: "atlas",
+    text: "No problem — this fare has free cancellation up to 48 hours out. If your plans change, just tell me and I'll cancel, refund, or move your flight to a new date. No hold music required.",
   },
 ];
 
@@ -563,6 +578,24 @@ const ICONS = {
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
       <circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  headset: () => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M3 13a9 9 0 0 1 18 0" />
+      <path d="M21 13v4a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z" />
+      <path d="M3 13v4a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
     </svg>
   ),
   xp: ({ size = 18 }) => (
