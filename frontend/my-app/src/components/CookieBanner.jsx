@@ -1,16 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 const ORANGE = "#ff8a2a";
 const ORANGE2 = "#ffb066";
-
-function isIOSSafari() {
-  if (typeof window === "undefined") return false;
-  const ua = window.navigator.userAgent;
-  return (
-    /iP(ad|hone|od)/.test(ua) && /Safari/.test(ua) && !/Chrome|CriOS/.test(ua)
-  );
-}
 
 function CookieIcon() {
   return (
@@ -42,11 +34,8 @@ function CookieIcon() {
 
 export default function CookieBanner() {
   const [visible, setVisible] = useState(false);
-  const isSafariRef = useRef(false);
-  const scrollYRef = useRef(0);
 
   useEffect(() => {
-    isSafariRef.current = isIOSSafari();
     const consent = localStorage.getItem("cookieConsent");
     if (!consent) setVisible(true);
   }, []);
@@ -61,15 +50,11 @@ export default function CookieBanner() {
   return createPortal(
     <div
       style={{
-        position: isSafariRef.current ? "absolute" : "fixed",
-        bottom: isSafariRef.current
-          ? `${
-              -(
-                scrollYRef.current ||
-                (typeof window !== "undefined" ? window.scrollY : 0)
-              ) + 20
-            }px`
-          : 20,
+        position: "fixed",
+        // dvh-based viewport + safe-area inset handles iOS Safari's
+        // collapsing/expanding bottom toolbar correctly, instead of
+        // trying to track scrollY manually.
+        bottom: "calc(20px + env(safe-area-inset-bottom, 0px))",
         left: 20,
         right: 20,
         zIndex: 2147483647,

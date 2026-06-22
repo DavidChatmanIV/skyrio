@@ -15,7 +15,10 @@
   left: 0;
   right: 0;
   z-index: 99999;
-  padding: 12px 20px 0;
+  /* env() falls back to 0px on devices/browsers without a safe-area
+     inset, so this is identical to the old flat 12px everywhere except
+     notched iOS devices in standalone/black-translucent mode. */
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 20px 0;
   pointer-events: none;
 }
 
@@ -478,7 +481,7 @@
     overflow: visible;
   }
   .sk-navbar-wrap {
-    padding: 10px 12px 0;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 0;
   }
   .sk-nav-links {
     display: none;
@@ -568,7 +571,7 @@
   /* ── 480px and below — tighten brand ── */
   @media (max-width: 480px) {
     .sk-navbar-wrap {
-      padding: 8px 10px 0;
+      padding: calc(8px + env(safe-area-inset-top, 0px)) 10px 0;
     }
     .sk-navbar {
       padding: 0 10px 0 6px;
