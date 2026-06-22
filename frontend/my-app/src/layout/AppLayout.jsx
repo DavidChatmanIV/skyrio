@@ -41,8 +41,8 @@ export default function AppLayout() {
           <Outlet />
         </main>
 
-        {/* ── Footer — hidden on landing and SkyHub ── */}
-        {!isLanding && !isSkyHub && <Footer />}
+        {/* ── Footer — hidden on SkyHub only ── */}
+        {!isSkyHub && <Footer />}
 
         <AtlasChat destination={atlasDestination} />
         <CookieBanner />
