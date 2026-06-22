@@ -76,10 +76,6 @@
 ================================================================ */
 .skyhub-page {
   min-height: 100vh;
-  background-color: var(--sh-bg);
-  background-size: cover;
-  background-position: center top;
-  background-attachment: fixed;
   font-family: "DM Sans", system-ui, sans-serif;
   color: var(--sh-text);
   -webkit-font-smoothing: antialiased;

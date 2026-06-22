@@ -5,6 +5,47 @@
   background: transparent;
 }
 
+.osq-shell--landing {
+  background-image: var(--sk-hero-bg);
+  background-size: cover;
+  background-position: center center;
+  background-attachment: scroll;
+  background-repeat: no-repeat;
+}
+
+.osq-shell--book {
+  background-image: radial-gradient(
+      ellipse 80% 60% at 50% 0%,
+      rgba(255, 138, 42, 0.07) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse at 20% 5%,
+      rgba(140, 90, 255, 0.18),
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 85% 10%,
+      rgba(255, 138, 42, 0.13),
+      transparent 50%
+    ),
+    linear-gradient(180deg, rgba(8, 6, 20, 0.32) 0%, rgba(8, 6, 20, 0.72) 100%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.04)),
+    var(--sk-hero-bg);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+.osq-shell--skyhub {
+  background-color: #07050f;
+  background-image: var(--sk-hero-bg);
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
 :root {
   --floating-widgets-clearance: 104px;
 }

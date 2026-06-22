@@ -828,10 +828,7 @@ const INJECTED_CSS = `
    to the hero height. We set the bg-image on .sk-landing itself so the
    cosmic image covers the entire page on scroll. ══ */
 .sk-landing {
-  background-image: var(--sk-hero-bg) !important;
-  background-size: cover !important;
-  background-position: center center !important;
-  background-attachment: scroll !important;
+  background: transparent !important;
 }
 
 /* Reduce time-period overlay opacity so the cosmic image stays vivid */

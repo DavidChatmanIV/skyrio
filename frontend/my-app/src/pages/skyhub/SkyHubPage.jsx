@@ -837,10 +837,7 @@ export default function SkyHubPage() {
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
-    <div
-      className="skyhub-page"
-      style={{ backgroundImage: `url(${heroBeach})` }}
-    >
+    <div className="skyhub-page">
       {/* ══ HERO ══ */}
       <header className="skyhub-topHeader">
         <div className="skyhub-topHeaderOverlay" />
