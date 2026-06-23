@@ -1,9 +1,3 @@
-/**
- * SkyrioDTour.jsx
- * Onboarding tour — iOS Safari, Android Chrome, Desktop.
- * Save to: src/components/SkyrioDTour.jsx
- * Reset:   localStorage.removeItem("skyrio_tour_done")
- */
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
@@ -62,6 +56,14 @@ function IconPassport({ size = 28, color = ORANGE }) {
         d="M22.5 9.75h-21v7.5a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-7.5zm-18 3.75a.75.75 0 0 1 .75-.75h6a.75.75 0 0 1 0 1.5h-6a.75.75 0 0 1-.75-.75zm.75 2.25a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"
         clipRule="evenodd"
       />
+    </svg>
+  );
+}
+
+function IconGift({ size = 28, color = ORANGE }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M9.375 3a1.875 1.875 0 0 0 0 3.75h1.875v4.5H3.375A1.875 1.875 0 0 1 1.5 9.375v-.75a1.875 1.875 0 0 1 1.875-1.875h.375A3.375 3.375 0 0 1 9.375 3zM15 6.75h1.875A1.875 1.875 0 0 1 18.75 8.625v.75A1.875 1.875 0 0 1 16.875 11.25H12.75V6.75H15zM11.25 12.75H3v6.375C3 20.496 3.504 21 4.125 21h7.125v-8.25zM12.75 21h7.125A1.125 1.125 0 0 0 21 19.875V12.75h-8.25V21zM14.625 3a3.375 3.375 0 0 1 3.375 3.375h.375A1.875 1.875 0 0 1 20.25 8.25v.75a1.875 1.875 0 0 1-1.875 1.875H14.625V6.75H12.75V3h1.875z" />
     </svg>
   );
 }
@@ -165,6 +167,12 @@ const STEPS = [
     title: "Your Digital Passport",
     body: "Your Digital Passport is your Skyrio profile. Every booking, save, and adventure earns XP and unlocks badges that show up here as you explore the world.",
     tip: "Check your passport from the profile menu anytime.",
+  },
+  {
+    Icon: IconGift,
+    title: "Spend your XP — Passport Rewards",
+    body: "Passport Rewards is your XP store. Redeem the XP you've earned for boosts, exclusive badges, priority support, and limited-edition drops.",
+    tip: "Open Passport Rewards from your Digital Passport to see what's redeemable right now.",
   },
   {
     Icon: IconShare,

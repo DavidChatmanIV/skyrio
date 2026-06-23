@@ -38,15 +38,16 @@ const TABS = [
 ];
 
 // Fallback catalog — only used if no `items` prop is passed in.
-// In production, pass items fetched from your backend (e.g. GET /api/rewards/items)
-// so cost requirements live in one place (the DB), not in the component.
+//
+// ⚠️ Costs/ids here MUST match REWARDS_CATALOG in backend/routes/rewards.js
+// — the backend is the source of truth for what gets charged, but the
+// frontend needs matching ids/costs to render correctly and for the
+// optimistic-UI math to land on the same numbers the server returns.
 //
 // NOTE on `level`: currently UNUSED for gating. /api/profile/me returns a
 // badge *tier name* (currentBadge: "Explorer", "Adventurer", ...), not a
 // numeric level — so there's no reliable number to gate against yet. Items
-// are gated by XP cost only for now. Once the full badge-tier ladder is
-// confirmed, swap `level` for a `requiredBadge` string and compare against
-// `currentBadge`'s position in that ladder.
+// are gated by XP cost only for now.
 const DEFAULT_ITEMS = [
   {
     id: "weekend_xp",
@@ -108,19 +109,19 @@ function getStatus(item, { xp, redeemedIds, profileLoading }) {
  * PassportRewards
  * - embedded=true => no page overlay/bg so Passport map stays visible
  *
- * XP data:
+ * XP + redemption data:
  * - On mount, self-fetches /api/profile/me (mirrors the effect in
  *   DigitalPassportPage.jsx) so the balance shown here always matches the
- *   real account — no more placeholder "0 XP".
- * - `xp` prop still exists as a fallback seed (used briefly before the fetch
- *   resolves, and as a fallback if the fetch fails) and for backward
- *   compatibility with any preview/storybook usage.
- * - `level` prop is deprecated — see NOTE above DEFAULT_ITEMS.
- *
- * Wiring notes for redemption:
- * - Pass `onRedeem(item)` returning a Promise that calls your backend
- *   (e.g. POST /api/rewards/redeem). Reject it on failure — the optimistic
- *   XP deduction is rolled back automatically and an error toast shows.
+ *   real account.
+ * - Also fetches /api/rewards/redeemed so one-time items correctly show
+ *   "Redeemed" after a page refresh, instead of resetting to redeemable.
+ * - Redeeming calls POST /api/rewards/redeem by default (see
+ *   backend/routes/rewards.js) and trusts the server's `newBalance` in the
+ *   response over local math, so the displayed balance can never drift from
+ *   what's actually stored.
+ * - `onRedeem` prop still exists if you want to override this (e.g. for
+ *   tests or a different backend path); `xp` prop is a fallback seed used
+ *   only before/if the real fetch resolves.
  */
 export default function PassportRewards({
   embedded = false,
@@ -144,9 +145,9 @@ export default function PassportRewards({
   const [pendingId, setPendingId] = useState(null);
   const [confirmItem, setConfirmItem] = useState(null);
 
-  // Self-fetch real XP — mirrors the /api/profile/me effect in
-  // DigitalPassportPage.jsx so this page never shows a stale/placeholder
-  // balance. Same endpoint, same auth header pattern, same abort-on-unmount.
+  // Self-fetch real XP + redemption history. Mirrors the /api/profile/me
+  // effect in DigitalPassportPage.jsx for the XP half; the redeemed-items
+  // fetch is best-effort (won't block the page if that endpoint isn't live).
   useEffect(() => {
     if (!isAuthed) {
       setProfileLoading(false);
@@ -157,21 +158,34 @@ export default function PassportRewards({
     (async () => {
       setProfileLoading(true);
       try {
-        const res = await fetch(apiUrl("/api/profile/me"), {
-          credentials: "include",
-          signal: controller.signal,
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("profile fetch failed");
-        const data = await res.json();
+        const [profileRes, redeemedRes] = await Promise.all([
+          fetch(apiUrl("/api/profile/me"), {
+            credentials: "include",
+            signal: controller.signal,
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(apiUrl("/api/rewards/redeemed"), {
+            credentials: "include",
+            signal: controller.signal,
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => null), // best-effort — don't let this fail the whole load
+        ]);
+
+        if (!profileRes.ok) throw new Error("profile fetch failed");
+        const profileData = await profileRes.json();
         if (!mounted) return;
-        const realXp = Number(data?.xp ?? data?.user?.xp ?? 0);
+        const realXp = Number(profileData?.xp ?? profileData?.user?.xp ?? 0);
         setBalance(realXp);
-        setCurrentBadge(String(data?.currentBadge ?? "Explorer"));
+        setCurrentBadge(String(profileData?.currentBadge ?? "Explorer"));
+
+        if (redeemedRes?.ok) {
+          const redeemedData = await redeemedRes.json();
+          if (mounted && redeemedData?.ok) {
+            setRedeemedIds(redeemedData.redeemedRewards || []);
+          }
+        }
       } catch {
         if (!mounted) return;
-        // Fetch failed — fall back to whatever was passed in as a prop (or 0)
-        // rather than leaving the UI stuck on a spinner forever.
         setBalance(xpProp);
       } finally {
         if (mounted) setProfileLoading(false);
@@ -181,10 +195,33 @@ export default function PassportRewards({
       mounted = false;
       controller.abort();
     };
-    // xpProp is intentionally omitted — it's only a fallback seed, not
+    // xpProp intentionally omitted — it's only a fallback seed, not
     // something that should re-trigger a real-data fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthed, token]);
+
+  // Default redeem call — hits the real backend route. Used whenever no
+  // `onRedeem` prop is passed in, which is the case when this page is
+  // mounted directly off the /passport/rewards route.
+  const defaultRedeem = useCallback(
+    async (item) => {
+      const res = await fetch(apiUrl("/api/rewards/redeem"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ itemId: item.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.message || "Couldn't redeem that right now.");
+      }
+      return data;
+    },
+    [token]
+  );
 
   const enriched = useMemo(
     () =>
@@ -232,10 +269,15 @@ export default function PassportRewards({
     setPendingId(item.id);
 
     try {
-      if (typeof onRedeem === "function") {
-        await onRedeem(item);
+      const redeemFn = onRedeem || defaultRedeem;
+      const result = await redeemFn(item);
+      // Prefer the server's authoritative new balance when available, so the
+      // displayed XP can never drift from what's actually stored in Mongo.
+      if (result && typeof result.newBalance === "number") {
+        setBalance(result.newBalance);
+      } else {
+        setBalance((b) => b - item.cost);
       }
-      setBalance((b) => b - item.cost);
       setRedeemedIds((ids) => (item.repeatable ? ids : [...ids, item.id]));
       message.success(`Redeemed: ${item.title}`);
     } catch (err) {
@@ -245,7 +287,7 @@ export default function PassportRewards({
     } finally {
       setPendingId(null);
     }
-  }, [confirmItem, onRedeem]);
+  }, [confirmItem, onRedeem, defaultRedeem]);
 
   // Sensible defaults if no handler prop is passed in (this page is rendered
   // directly off the /passport/rewards route with no props right now).

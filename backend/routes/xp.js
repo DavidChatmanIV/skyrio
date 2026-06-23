@@ -82,7 +82,13 @@ router.get("/me", requireAuth, async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const xp = user.xp ?? 0;
-    const plan = user.membershipPlan ?? "free";
+    // ✅ Reads the User model's real `plan` field (free/explorer/legend) —
+    // previously read a `membershipPlan` field (free/pro/elite) that didn't
+    // exist on the schema, so this multiplier silently always fell back to
+    // the XP_MULTIPLIERS default. See note at the bottom of this file: the
+    // keys inside XP_MULTIPLIERS (in config/xpRules.js) still need to be
+    // updated to free/explorer/legend to match.
+    const plan = user.plan ?? "free";
     const meta = user.xpDailyMeta ?? {};
     const streak = meta.streak ?? 0;
     const multiplier = XP_MULTIPLIERS[plan] ?? 1;
@@ -115,7 +121,8 @@ router.post("/activity", requireAuth, async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const meta = getDailyMeta(user);
-    const plan = user.membershipPlan ?? "free";
+    // ✅ Same fix as GET /me above — reads the real `plan` field.
+    const plan = user.plan ?? "free";
     const multiplier = XP_MULTIPLIERS[plan] ?? 1;
 
     // ── Resolve rule (passive or active) ────────────────────────────────────
@@ -215,15 +222,34 @@ export default router;
 
 /**
  * ─────────────────────────────────────────────────────────────
- * USER MODEL ADDITIONS NEEDED (backend/models/User.js)
- * Add these fields to your existing User schema:
+ * USER MODEL ADDITIONS NEEDED (backend/models/user.js)
  * ─────────────────────────────────────────────────────────────
  *
- * membershipPlan:  { type: String, enum: ["free","pro","elite"], default: "free" },
  * xpTotalEarned:  { type: Number, default: 0 },
  * xpDailyTotal:   { type: Number, default: 0 },
- * xpDailyMeta:    { type: mongoose.Schema.Types.Mixed, default: {} },
+ * xpDailyMeta:    { type: Schema.Types.Mixed, default: {} },
  * xpRecentEvents: { type: Array, default: [] },
+ *
+ * (membershipPlan removed from this list — this file now reads the
+ * existing `plan` field on the User model instead of a separate field,
+ * so there's only one source of truth for subscription tier.)
+ *
+ * ─────────────────────────────────────────────────────────────
+ * ⚠️ STILL NEEDED: update config/xpRules.js
+ * ─────────────────────────────────────────────────────────────
+ *
+ * XP_MULTIPLIERS' keys currently match the old free/pro/elite scheme.
+ * They need to be free/explorer/legend to match `plan`'s actual enum,
+ * e.g.:
+ *
+ *   export const XP_MULTIPLIERS = {
+ *     free: 1,
+ *     explorer: 1.25,   // pick real values — these are placeholders
+ *     legend: 1.5,
+ *   };
+ *
+ * I don't have config/xpRules.js, so I can't make this edit directly —
+ * paste it and I'll update it to match.
  *
  * ─────────────────────────────────────────────────────────────
  * CRON JOB (reset xpDailyTotal nightly — add to your jobs):

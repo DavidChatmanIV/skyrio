@@ -67,7 +67,24 @@ const UserSchema = new Schema(
 
     // ---------- XP & Rewards ----------
     xp: { type: Number, default: 0, min: 0 },
+    // Tracks which one-time Passport Rewards items this user has redeemed.
+    // Enforced atomically alongside the xp deduction in
+    // routes/api/rewards.routes.js so a non-repeatable item can't be
+    // redeemed twice (including across two open tabs racing each other),
+    // and so the frontend can correctly show "Redeemed" after a refresh
+    // instead of resetting to redeemable.
+    redeemedRewards: { type: [String], default: [] },
     settings: { rewardsEnabled: { type: Boolean, default: false } },
+
+    // ---------- XP Earning System (routes/xp.js) ----------
+    // membershipPlan was removed from here — xp.js now reads the existing
+    // `plan` field below (---------- Membership Plan ----------) instead
+    // of a separate field, so there's one source of truth for tier instead
+    // of two that could drift apart again.
+    xpTotalEarned: { type: Number, default: 0 },
+    xpDailyTotal: { type: Number, default: 0 },
+    xpDailyMeta: { type: Schema.Types.Mixed, default: {} },
+    xpRecentEvents: { type: Array, default: [] },
 
     // ---------- Referrals ----------
     referredBy: { type: String, default: null },

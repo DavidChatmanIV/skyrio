@@ -45,6 +45,8 @@ await mount("/weather", "./weather.routes.js");
 await mount("/notifications", "./notifications.routes.js");
 await mount("/saved-trips", "./savedTrips.routes.js");
 await mount("/sync-together", "./syncTogether.routes.js");
+// ✅ NEW: Passport Rewards — XP redemption store (atomic redeem + history)
+await mount("/rewards", "./rewards.routes.js");
 
 /* ======================================================
    Extended Modules (outside api folder)
@@ -78,6 +80,7 @@ api.get("/", (_req, res) => {
       "/auth",
       "/profile",
       "/passport",
+      "/rewards",
       "/users",
       "/flights",
       "/weather",

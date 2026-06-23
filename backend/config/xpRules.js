@@ -106,10 +106,27 @@ export const XP_LEVELS = [
 ];
 
 // ─── Membership XP Multipliers ────────────────────────────────────────────────
+// Keys match User.plan's real enum: free / explorer / legend.
+// (Previously free/pro/elite — a field that never existed on the User model,
+// so this multiplier always silently fell back to 1 for everyone. Fixed
+// alongside routes/xp.js, which now reads user.plan instead of a separate
+// membershipPlan field.)
+//
+// ⚠️ Naming heads-up: "explorer" and "legend" here are MEMBERSHIP PLAN tiers
+// (paid subscription names), but XP_LEVELS above also has rank tiers
+// literally named "Explorer" (rank 1, 0 XP — where every user starts) and
+// "Legend" (rank 8, 4000 XP — the top rank). Those are two unrelated
+// concepts sharing the same words. A free-tier user who's grinded their way
+// to "Legend" rank, and a user who's paid for the "Legend" membership plan,
+// are two completely different people — but any UI copy that just says
+// "You're Legend!" won't be able to tell them apart. Worth renaming one set
+// of these (probably the membership plan tiers, since the XP rank ladder
+// already has a full design — icons, colors, descriptions — built around its
+// names) before this reaches more surfaces.
 export const XP_MULTIPLIERS = {
   free: 1,
-  pro: 1.5,
-  elite: 2.5,
+  explorer: 1.5,
+  legend: 2.5,
 };
 
 // ─── Passive: SkyHub Activity ─────────────────────────────────────────────────
