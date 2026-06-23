@@ -26,6 +26,7 @@ import {
   EditOutlined,
   DeleteOutlined,
   WarningOutlined,
+  GiftOutlined,
 } from "@ant-design/icons";
 import {
   Star,
@@ -1801,6 +1802,18 @@ export default function DigitalPassportPage() {
                         onClick={() => setShowShare(true)}
                       >
                         Share Passport
+                      </Button>
+
+                      {/* NEW: Passport Rewards entry point — same row style as
+                          Edit Profile / Profile Music / Share Passport above.
+                          TODO: confirm real route path with David, currently
+                          guessing /passport/rewards. */}
+                      <Button
+                        className="pp-actionBtn"
+                        icon={<GiftOutlined />}
+                        onClick={() => navigate("/passport/rewards")}
+                      >
+                        Passport Rewards
                       </Button>
                     </div>
                     <Text className="pp-credentialHint">

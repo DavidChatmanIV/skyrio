@@ -12,6 +12,11 @@ const SkyHubPage = lazy(() => import("./pages/skyhub/SkyHubPage"));
 const DigitalPassportPage = lazy(() =>
   import("./pages/passport/DigitalPassportPage")
 );
+// ✅ NEW: Passport Rewards — the XP redemption store, linked from the
+// "Passport Rewards" button in DigitalPassportPage's sidebar actions stack.
+const PassportRewardsPage = lazy(() =>
+  import("./pages/passport/PassportRewards")
+);
 const MembershipPage = lazy(() => import("./pages/Membership/MembershipPage"));
 const UpgradePage = lazy(() => import("./pages/UpgradePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -108,6 +113,8 @@ function TrackedRoutes() {
         <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
         <Route path="feed" element={<Navigate to="/skyhub" replace />} />
         <Route path="passport" element={<DigitalPassportPage />} />
+        {/* ✅ NEW: Passport Rewards — XP redemption store, sibling to /passport */}
+        <Route path="passport/rewards" element={<PassportRewardsPage />} />
         <Route
           path="digital-passport"
           element={<Navigate to="/passport" replace />}

@@ -1,0 +1,443 @@
+:root {
+  --pr-text: rgba(244, 246, 251, 0.95);
+  --pr-muted: rgba(244, 246, 251, 0.72);
+  --pr-faint: rgba(244, 246, 251, 0.55);
+
+  --pr-stroke: rgba(255, 255, 255, 0.12);
+  --pr-stroke-2: rgba(255, 255, 255, 0.08);
+
+  --pr-glassA: rgba(255, 255, 255, 0.09);
+  --pr-glassB: rgba(255, 255, 255, 0.04);
+
+  --pr-orange: #ff8a2a;
+  --pr-orange-2: #ffb066;
+
+  --pr-radius-lg: 22px;
+  --pr-radius-md: 18px;
+  --pr-radius-sm: 14px;
+
+  --pr-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+  --pr-blur: blur(16px);
+  --pr-max: 1160px;
+}
+
+/* page wrapper */
+.pr-page {
+  color: var(--pr-text);
+  position: relative;
+  padding: 18px 14px 42px;
+}
+
+.pr-page.is-embedded {
+  padding: 0;
+}
+
+/* optional overlay bg when standalone */
+.pr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(
+      1200px 700px at 20% 0%,
+      rgba(120, 90, 255, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 600px at 80% 30%,
+      rgba(255, 138, 42, 0.18),
+      transparent 55%
+    ),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.62));
+  pointer-events: none;
+}
+
+.pr-shell {
+  width: min(var(--pr-max), 100%);
+  margin: 0 auto;
+}
+
+/* =========================
+   HEADER
+========================= */
+.pr-header {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.pr-titleBlock {
+  border-radius: var(--pr-radius-lg);
+  border: 1px solid var(--pr-stroke);
+  background: linear-gradient(180deg, var(--pr-glassA), var(--pr-glassB));
+  box-shadow: var(--pr-shadow);
+  backdrop-filter: var(--pr-blur);
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pr-titleBlock::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      650px 360px at 20% 15%,
+      rgba(120, 90, 255, 0.22),
+      transparent 62%
+    ),
+    radial-gradient(
+      520px 360px at 80% 15%,
+      rgba(255, 138, 42, 0.16),
+      transparent 62%
+    );
+  pointer-events: none;
+}
+
+.pr-title {
+  color: var(--pr-text) !important;
+  margin: 0 !important;
+  position: relative;
+  letter-spacing: 0.2px;
+}
+
+.pr-subtitle {
+  display: block;
+  margin-top: 8px;
+  color: var(--pr-muted) !important;
+  font-weight: 800;
+  position: relative;
+}
+
+.pr-lead {
+  display: block;
+  margin-top: 8px;
+  color: var(--pr-muted) !important;
+  position: relative;
+  max-width: 60ch;
+}
+
+/* balance card */
+.pr-balanceCard {
+  border-radius: var(--pr-radius-lg);
+  border: 1px solid var(--pr-stroke);
+  background: linear-gradient(180deg, var(--pr-glassA), var(--pr-glassB));
+  box-shadow: var(--pr-shadow);
+  backdrop-filter: var(--pr-blur);
+  padding: 18px;
+}
+
+.pr-xpRow {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.pr-xp {
+  font-weight: 950;
+  letter-spacing: 0.2px;
+  font-size: 18px;
+}
+
+.pr-level {
+  color: var(--pr-muted);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.pr-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* =========================
+   BUTTONS (match passport)
+========================= */
+.pr-btnPrimary.ant-btn,
+.pr-btnGhost.ant-btn,
+.pr-btnRedeem.ant-btn,
+.pr-btnLocked.ant-btn,
+.pr-btnRedeemed.ant-btn {
+  height: 38px;
+  border-radius: 999px;
+  font-weight: 900;
+  border: 1px solid var(--pr-stroke);
+}
+
+.pr-btnPrimary.ant-btn {
+  background: linear-gradient(135deg, var(--pr-orange), var(--pr-orange-2));
+  border-color: rgba(255, 138, 42, 0.55);
+  color: rgba(20, 12, 8, 0.92);
+}
+
+.pr-btnGhost.ant-btn {
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--pr-text);
+}
+
+.pr-btnGhost.ant-btn:hover {
+  border-color: rgba(255, 138, 42, 0.3);
+}
+
+.pr-btnRedeem.ant-btn {
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--pr-text);
+  border-color: rgba(255, 138, 42, 0.45);
+}
+
+.pr-btnLocked.ant-btn {
+  background: rgba(0, 0, 0, 0.16);
+  color: rgba(244, 246, 251, 0.85);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.pr-btnRedeemed.ant-btn {
+  background: rgba(80, 200, 120, 0.12);
+  border-color: rgba(120, 220, 150, 0.35);
+  color: rgba(170, 240, 190, 0.95);
+}
+
+/* =========================
+   TABS
+========================= */
+.pr-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--pr-stroke);
+  background: rgba(0, 0, 0, 0.16);
+  backdrop-filter: var(--pr-blur);
+  margin: 12px 0 14px;
+}
+
+.pr-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--pr-muted);
+  font-weight: 900;
+  border-radius: 999px;
+  padding: 8px 12px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease,
+    background 0.14s ease;
+}
+
+.pr-tab:hover {
+  transform: translateY(-1px);
+  color: var(--pr-text);
+}
+
+.pr-tab.active {
+  color: var(--pr-text);
+  border-color: rgba(255, 138, 42, 0.35);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 138, 42, 0.18),
+    rgba(0, 0, 0, 0.16)
+  );
+}
+
+/* =========================
+   FEATURED
+========================= */
+.pr-featured.ant-card {
+  border-radius: var(--pr-radius-lg);
+  border: 1px solid var(--pr-stroke);
+  background: linear-gradient(180deg, var(--pr-glassA), var(--pr-glassB));
+  box-shadow: var(--pr-shadow);
+  backdrop-filter: var(--pr-blur);
+}
+
+.pr-featured .ant-card-body {
+  padding: 16px;
+}
+
+.pr-featuredHeader {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 950;
+  letter-spacing: 0.6px;
+  font-size: 12px;
+  color: rgba(255, 176, 102, 0.95);
+  margin-bottom: 10px;
+}
+
+.pr-featuredBody {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.pr-featuredTitle {
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.pr-featuredDesc {
+  margin-top: 4px;
+  color: var(--pr-muted);
+  font-weight: 700;
+}
+
+.pr-featuredRight {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.pr-meta {
+  color: var(--pr-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* =========================
+   SECTION LABEL
+========================= */
+.pr-section {
+  margin: 14px 0 10px;
+  color: rgba(244, 246, 251, 0.72);
+  font-weight: 950;
+  letter-spacing: 0.8px;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+/* =========================
+   GRID + CARDS
+========================= */
+.pr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pr-card.ant-card {
+  border-radius: var(--pr-radius-lg);
+  border: 1px solid var(--pr-stroke);
+  background: linear-gradient(180deg, var(--pr-glassA), var(--pr-glassB));
+  box-shadow: var(--pr-shadow);
+  backdrop-filter: var(--pr-blur);
+  overflow: hidden;
+}
+
+.pr-card .ant-card-body {
+  padding: 16px;
+}
+
+.pr-cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* ✅ Pill tags — NO WHITE */
+.pr-tag.ant-tag,
+.pr-new.ant-tag {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 950;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(244, 246, 251, 0.9);
+}
+
+.pr-new.ant-tag {
+  border-color: rgba(255, 138, 42, 0.45);
+  background: rgba(255, 138, 42, 0.14);
+  color: rgba(255, 176, 102, 0.95);
+}
+
+/* "Ready" tag on redeemable cards */
+.pr-ready.ant-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 950;
+  border: 1px solid rgba(120, 220, 150, 0.45);
+  background: rgba(80, 200, 120, 0.14);
+  color: rgba(170, 240, 190, 0.95);
+}
+
+.pr-cardTitle {
+  font-weight: 950;
+  font-size: 15px;
+}
+
+.pr-cardDesc {
+  margin-top: 6px;
+  color: var(--pr-muted);
+  font-weight: 700;
+  min-height: 36px;
+}
+
+.pr-faint {
+  color: var(--pr-faint) !important;
+}
+
+.pr-cardProgress {
+  margin: 10px 0;
+}
+
+.pr-cardProgress .ant-progress-bg {
+  background: linear-gradient(135deg, var(--pr-orange), var(--pr-orange-2));
+}
+
+.pr-foot {
+  margin-top: 10px;
+  color: var(--pr-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Card border accents by redemption status */
+.pr-card--redeemable.ant-card {
+  border-color: rgba(255, 138, 42, 0.35);
+}
+
+.pr-card--insufficient_xp.ant-card,
+.pr-card--level_locked.ant-card {
+  opacity: 0.88;
+}
+
+.pr-card--redeemed.ant-card {
+  opacity: 0.7;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 1024px) {
+  .pr-header {
+    grid-template-columns: 1fr;
+  }
+  .pr-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .pr-actions {
+    grid-template-columns: 1fr;
+  }
+  .pr-featuredBody {
+    grid-template-columns: 1fr;
+  }
+  .pr-featuredRight {
+    justify-items: start;
+  }
+  .pr-grid {
+    grid-template-columns: 1fr;
+  }
+}
