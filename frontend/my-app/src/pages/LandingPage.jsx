@@ -15,7 +15,7 @@ import {
   LoadingOutlined,
   StarOutlined,
   ClockCircleOutlined,
-  BellOutlined,
+  BulbOutlined,
   TrophyOutlined,
 } from "@ant-design/icons";
 
@@ -72,31 +72,6 @@ const AIRPORTS = [
   { code: "HNL", city: "Honolulu", name: "Daniel K. Inouye Intl" },
 ];
 const DEFAULT_AIRPORT = AIRPORTS[0];
-
-// Safety wrapper for the four components folded in from the old
-// Dashboard.jsx (SavedExcursions, UpcomingBookings, TravelAlerts,
-// XPBadgeCard).
-//
-// Originally this was solid white (Dashboard.jsx's old `bg-white` Layout),
-// as a hedge against not knowing how these components style themselves on
-// a dark page. A live screenshot showed SavedExcursions already brings its
-// own correct dark navy background — the white wrapper just produced an
-// odd white picture-frame effect around it, clashing with every other card
-// on this page (Passport, SkyHub) which use translucent dark glass.
-// Switched to match that same dark-glass language: for components that
-// self-style like SavedExcursions does, this is effectively invisible —
-// for anything that doesn't, it's still a safe fallback that no longer
-// fights the rest of the page.
-const LIGHT_CARD_STYLE = {
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: 16,
-  padding: 20,
-  color: "rgba(255,255,255,0.85)",
-  minHeight: 160,
-  backdropFilter: "blur(16px)",
-  WebkitBackdropFilter: "blur(16px)",
-};
 
 const TIME_PERIODS = {
   dawn: {
@@ -1214,6 +1189,25 @@ const INJECTED_CSS = `
 }
 .sk-examples__retry:hover { background: rgba(255,138,42,0.25); }
 
+/* ══ AUTHED DASHBOARD TABS — brand orange instead of antd's default blue ══ */
+.sk-authedTabs .ant-tabs-tab {
+  color: rgba(255,255,255,0.55) !important;
+  font-weight: 600 !important;
+}
+.sk-authedTabs .ant-tabs-tab:hover {
+  color: #ffb066 !important;
+}
+.sk-authedTabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #ff8a2a !important;
+}
+.sk-authedTabs .ant-tabs-ink-bar {
+  background: linear-gradient(90deg, #ff8a2a, #ffb347) !important;
+  height: 3px !important;
+}
+.sk-authedTabs .ant-tabs-nav::before {
+  border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+}
+
 /* ══ MOBILE ══ */
 @media(max-width:640px){
   .sk-support__grid{grid-template-columns:1fr} .sk-support{padding:0 16px 72px}
@@ -2027,6 +2021,8 @@ export default function LandingPage() {
                 </h2>
                 <Tabs
                   size="large"
+                  centered
+                  className="sk-authedTabs"
                   items={[
                     {
                       key: "saved",
@@ -2035,11 +2031,7 @@ export default function LandingPage() {
                           <StarOutlined /> Saved Trips
                         </span>
                       ),
-                      children: (
-                        <div style={LIGHT_CARD_STYLE}>
-                          <SavedExcursions />
-                        </div>
-                      ),
+                      children: <SavedExcursions />,
                     },
                     {
                       key: "upcoming",
@@ -2048,24 +2040,16 @@ export default function LandingPage() {
                           <ClockCircleOutlined /> Upcoming
                         </span>
                       ),
-                      children: (
-                        <div style={LIGHT_CARD_STYLE}>
-                          <UpcomingBookings />
-                        </div>
-                      ),
+                      children: <UpcomingBookings />,
                     },
                     {
-                      key: "alerts",
+                      key: "tips",
                       label: (
                         <span>
-                          <BellOutlined /> Alerts
+                          <BulbOutlined /> Tips
                         </span>
                       ),
-                      children: (
-                        <div style={LIGHT_CARD_STYLE}>
-                          <TravelAlerts />
-                        </div>
-                      ),
+                      children: <TravelAlerts />,
                     },
                     {
                       key: "xp",
@@ -2074,11 +2058,7 @@ export default function LandingPage() {
                           <TrophyOutlined /> XP & Badges
                         </span>
                       ),
-                      children: (
-                        <div style={LIGHT_CARD_STYLE}>
-                          <XPBadgeCard />
-                        </div>
-                      ),
+                      children: <XPBadgeCard />,
                     },
                   ]}
                 />
