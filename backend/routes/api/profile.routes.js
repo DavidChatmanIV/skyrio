@@ -3,7 +3,14 @@ import jwt from "jsonwebtoken";
 import Profile from "../../models/profile.js";
 import User from "../../models/user.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
-import { getLevel } from "../../lib/xpLevels.js";
+// ✅ Was importing from "../../lib/xpLevels.js" — a file with an unverified,
+// differently-shaped getLevel() (current/next as plain strings, vs the real
+// xpRules.js which returns objects with .name/.minXp/etc). Switched to the
+// one ladder we've actually validated against live data (70 XP → Explorer,
+// 70/100 — matched the real Passport page exactly). lib/xpLevels.js itself
+// is left untouched in case anything else still imports it; only this
+// file's import changed.
+import { getLevel } from "../../config/xpRules.js";
 
 const router = Router();
 
@@ -63,8 +70,12 @@ router.get("/me", requireAuth, async (req, res) => {
       },
       profile,
       xp: user.xp || 0,
-      currentBadge: levelData.current,
-      nextBadge: levelData.next,
+      // ✅ levelData.current/.next are now objects ({ name, minXp, ... })
+      // from the real xpRules.js getLevel() — extract .name so the JSON
+      // shape sent to the frontend is unchanged (still plain strings, since
+      // DigitalPassportPage.jsx does String(data?.currentBadge ?? ...)).
+      currentBadge: levelData.current.name,
+      nextBadge: levelData.next?.name || null,
       xpToNextBadge: levelData.xpToNext,
       xpIntoLevel: levelData.xpIntoLevel,
       xpNeeded: levelData.xpNeeded,
@@ -313,9 +324,14 @@ router.get("/public/:username", async (req, res) => {
       )
       .lean();
 
-    const levelData = user
-      ? getLevel(user.xp || 0)
-      : { current: "Explorer", next: "Adventurer", percent: 0 };
+    // ✅ levelData.current/.next are objects from the real getLevel() now,
+    // not plain strings — extract .name explicitly (with the same
+    // "Explorer"/null fallback behavior as before) instead of relying on
+    // the old fallback literal, which assumed current/next were strings.
+    const levelData = user ? getLevel(user.xp || 0) : null;
+    const currentBadgeName = levelData?.current?.name || "Explorer";
+    const nextBadgeName = levelData?.next?.name || null;
+    const badgePercentValue = levelData?.percent || 0;
 
     const followersCount = user?.followers?.length ?? user?.followersCount ?? 0;
     const followingCount = user?.following?.length ?? user?.followingCount ?? 0;
@@ -348,11 +364,11 @@ router.get("/public/:username", async (req, res) => {
       avatar,
       bio: profile.bio || null,
       city: profile.city || null,
-      badge: levelData.current,
-      currentBadge: levelData.current,
+      badge: currentBadgeName,
+      currentBadge: currentBadgeName,
       xp: user?.xp || 0,
-      xpPercent: levelData.percent || 0,
-      nextBadge: levelData.next || null,
+      xpPercent: badgePercentValue,
+      nextBadge: nextBadgeName,
       isOfficial: user?.isOfficial || false,
       // Verification badge — shown on public passport page
       verifiedTier: user?.verifiedTier || null,

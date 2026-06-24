@@ -1,35 +1,83 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../../auth/useAuth";
+import { apiUrl } from "@/lib/api";
 
-const LEVELS = [
-  { name: "Explorer", min: 0, next: 3000 },
-  { name: "Voyager", min: 3000, next: 7500 },
-  { name: "Navigator", min: 7500, next: 15000 },
-  { name: "Pioneer", min: 15000, next: 30000 },
-  { name: "Legend", min: 30000, next: null },
-];
-
-function getLevel(xp = 0) {
-  for (let i = LEVELS.length - 1; i >= 0; i--) {
-    if (xp >= LEVELS[i].min) return { level: LEVELS[i], index: i };
-  }
-  return { level: LEVELS[0], index: 0 };
-}
-
+/**
+ * SkyHubPassportCard
+ *
+ * Used to compute its own local 5-tier ladder (Explorer/Voyager@3000/
+ * Navigator@7500/Pioneer@15000/Legend@30000) — completely disconnected from
+ * the real 8-tier system in backend/config/xpRules.js (Explorer/Adventurer@
+ * 100/Voyager@300/Navigator@600/Trailblazer@1000/Globetrotter@1500/Elite@
+ * 2500/Legend@4000). Voyager alone was off by 10x between the two. A user
+ * at real-world "Globetrotter" (1500 XP) would have seen "Explorer" here.
+ *
+ * Fix: this now fetches the real tier from GET /api/xp/me (same backend
+ * helper Passport already trusts) instead of carrying a fourth copy of the
+ * ladder in the frontend — a frontend component can't import the backend's
+ * config file directly anyway, so duplicating the thresholds by hand was
+ * always going to drift out of sync again the next time the ladder changes.
+ */
 export default function SkyHubPassportCard({ currentUser }) {
-  const xp = currentUser?.xp || currentUser?.passport || 0;
-  const { level, index } = getLevel(xp);
-  const nextLevel = LEVELS[index + 1] || null;
+  const { token, isAuthed } = useAuth();
 
-  const pct = level.next
-    ? Math.min(
-        100,
-        Math.round(((xp - level.min) / (level.next - level.min)) * 100)
-      )
-    : 100;
-  const xpToNext = level.next ? level.next - xp : 0;
+  const [loading, setLoading] = useState(true);
+  const [xp, setXp] = useState(0);
+  const [tierName, setTierName] = useState("Explorer");
+  const [nextTierName, setNextTierName] = useState(null);
+  const [progressPct, setProgressPct] = useState(0);
+  const [xpToNext, setXpToNext] = useState(0);
 
-  // Show skeleton if no user yet
-  if (!currentUser)
+  useEffect(() => {
+    if (!isAuthed) {
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(apiUrl("/api/xp/me"), {
+          credentials: "include",
+          signal: controller.signal,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("xp fetch failed");
+        const data = await res.json();
+        if (!mounted) return;
+
+        const realXp = Number(data?.xp ?? 0);
+        setXp(realXp);
+        setTierName(String(data?.tier?.name ?? "Explorer"));
+        setNextTierName(data?.nextTier?.name ?? null);
+        setProgressPct(Number(data?.progress ?? 0));
+        // GET /api/xp/me doesn't return xpToNext directly, but nextTier.min
+        // is the same minXp getLevel() itself uses, so this matches exactly
+        // what xpRules.js's own getLevel() would compute for xpToNext.
+        setXpToNext(
+          data?.nextTier ? Math.max(0, data.nextTier.min - realXp) : 0
+        );
+      } catch {
+        if (!mounted) return;
+        // Fetch failed — fall back to whatever currentUser already has
+        // rather than showing nothing, even though we can't compute a real
+        // tier client-side without the backend.
+        setXp(Number(currentUser?.xp || currentUser?.passport || 0));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [isAuthed, token]);
+
+  // Show skeleton while we don't have a user yet, or while the real tier
+  // fetch is still in flight — avoids a flash of "Explorer · 0%" before the
+  // real numbers land.
+  if (!currentUser || loading)
     return (
       <div
         style={{
@@ -150,12 +198,12 @@ export default function SkyHubPassportCard({ currentUser }) {
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
         <span style={{ fontSize: 12, fontWeight: 700, color: "#a78bfa" }}>
-          XP · {level.name}
+          XP · {tierName}
         </span>
       </div>
 
       {/* Progress bar */}
-      {nextLevel ? (
+      {nextTierName ? (
         <>
           <div
             style={{
@@ -169,7 +217,7 @@ export default function SkyHubPassportCard({ currentUser }) {
             <div
               style={{
                 height: "100%",
-                width: `${pct}%`,
+                width: `${progressPct}%`,
                 borderRadius: 99,
                 background: "linear-gradient(90deg,#ff7a35,#8b5cf6)",
                 transition: "width 0.8s ease",
@@ -177,7 +225,7 @@ export default function SkyHubPassportCard({ currentUser }) {
             />
           </div>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-            {xpToNext.toLocaleString()} XP to {nextLevel.name} — keep sharing
+            {xpToNext.toLocaleString()} XP to {nextTierName} — keep sharing
           </div>
         </>
       ) : (
@@ -206,7 +254,7 @@ export default function SkyHubPassportCard({ currentUser }) {
             <path d="M5 3C5 3 4 13 12 13C20 13 19 3 19 3" />
             <line x1="12" y1="13" x2="12" y2="17" />
           </svg>
-          Legend — you've reached the top!
+          {tierName} — you've reached the top!
         </div>
       )}
     </div>

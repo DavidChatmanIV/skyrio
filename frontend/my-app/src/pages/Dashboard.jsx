@@ -75,7 +75,16 @@ export default function Dashboard() {
   const levelPct = user.levelProgressPct ?? 80;
 
   const stats = {
-    trips: user.savedTripsCount ?? 0,
+    // ✅ FIX: was user.savedTripsCount, a field that doesn't exist anywhere
+    // in the schema or any route — always undefined, so this was always 0
+    // regardless of how many trips the user actually saved. toSafeJSON()
+    // does include `savedTrips` (the real array), so read its length.
+    trips: user.savedTrips?.length ?? 0,
+    // ⚠️ STILL 0 FOR EVERYONE: unreadNotifications doesn't exist anywhere
+    // I have visibility into either (no field on the User model, and I
+    // don't have notifications.routes.js to know how/where a real count
+    // would come from). Not fixing this blind — needs that file, or
+    // whatever endpoint actually tracks unread counts.
     notifications: user.unreadNotifications ?? 0,
   };
 
@@ -313,7 +322,11 @@ export default function Dashboard() {
               <br />
               <Text strong>Level: </Text> <Text>{levelLabel}</Text>
               <br />
-              <Text strong>Role: </Text> <Text>{user.role || "explorer"}</Text>
+              {/* ✅ Fallback was "explorer" — not even a valid role value
+                  (role enum is user/support/manager/admin, defaulting to
+                  "user"). Harmless since role always has a default on the
+                  schema, but the fallback text didn't match reality. */}
+              <Text strong>Role: </Text> <Text>{user.role || "user"}</Text>
             </Card>
 
             <Card title="Profile Snapshot" style={{ borderRadius: 16 }}>

@@ -6,18 +6,32 @@ import React, {
   useRef,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { Input, Button, message, Select } from "antd";
+import { Input, Button, message, Select, Tabs } from "antd";
 import {
   SearchOutlined,
   ArrowRightOutlined,
   ThunderboltOutlined,
   EnvironmentOutlined,
   LoadingOutlined,
+  StarOutlined,
+  ClockCircleOutlined,
+  BellOutlined,
+  TrophyOutlined,
 } from "@ant-design/icons";
 
 import "@/styles/LandingPage.css";
 import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
 import { trackPassportEvent } from "@/utils/passportEvents";
+import { useAuth } from "@/auth/useAuth";
+import { apiUrl } from "@/lib/api";
+
+// Real, logged-in-only content folded in from the old Dashboard.jsx — same
+// components, same import paths (LandingPage.jsx and Dashboard.jsx are both
+// directly under src/pages/, so these paths carry over unchanged).
+import SavedExcursions from "../components/excursions/SavedExcursions";
+import UpcomingBookings from "../components/dashboard/UpcomingBookings";
+import TravelAlerts from "../components/dashboard/TravelAlerts";
+import XPBadgeCard from "./passport/XPBadgeCard";
 
 const { Option } = Select;
 
@@ -58,6 +72,31 @@ const AIRPORTS = [
   { code: "HNL", city: "Honolulu", name: "Daniel K. Inouye Intl" },
 ];
 const DEFAULT_AIRPORT = AIRPORTS[0];
+
+// Safety wrapper for the four components folded in from the old
+// Dashboard.jsx (SavedExcursions, UpcomingBookings, TravelAlerts,
+// XPBadgeCard).
+//
+// Originally this was solid white (Dashboard.jsx's old `bg-white` Layout),
+// as a hedge against not knowing how these components style themselves on
+// a dark page. A live screenshot showed SavedExcursions already brings its
+// own correct dark navy background — the white wrapper just produced an
+// odd white picture-frame effect around it, clashing with every other card
+// on this page (Passport, SkyHub) which use translucent dark glass.
+// Switched to match that same dark-glass language: for components that
+// self-style like SavedExcursions does, this is effectively invisible —
+// for anything that doesn't, it's still a safe fallback that no longer
+// fights the rest of the page.
+const LIGHT_CARD_STYLE = {
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 16,
+  padding: 20,
+  color: "rgba(255,255,255,0.85)",
+  minHeight: 160,
+  backdropFilter: "blur(16px)",
+  WebkitBackdropFilter: "blur(16px)",
+};
 
 const TIME_PERIODS = {
   dawn: {
@@ -1200,6 +1239,47 @@ export default function LandingPage() {
   const nav = useNavigate();
   const landingRef = useRef(null);
 
+  const { user, token, isAuthed } = useAuth();
+  const [authedXpLoading, setAuthedXpLoading] = useState(true);
+  const [authedXp, setAuthedXp] = useState(0);
+  const [authedTier, setAuthedTier] = useState("Explorer");
+
+  // Real XP/tier for the logged-in greeting pill. Self-fetches /api/xp/me
+  // rather than trusting a possibly-stale field on `user` — same reasoning
+  // as PassportRewards.jsx and SkyHubPassportCard.jsx earlier this session.
+  useEffect(() => {
+    if (!isAuthed) {
+      setAuthedXpLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    let mounted = true;
+    (async () => {
+      setAuthedXpLoading(true);
+      try {
+        const res = await fetch(apiUrl("/api/xp/me"), {
+          credentials: "include",
+          signal: controller.signal,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("xp fetch failed");
+        const data = await res.json();
+        if (!mounted) return;
+        setAuthedXp(Number(data?.xp ?? 0));
+        setAuthedTier(String(data?.tier?.name ?? "Explorer"));
+      } catch {
+        // Greeting pill just shows 0 XP / Explorer until the next successful
+        // fetch — not worth a visible error state for a homepage accent.
+      } finally {
+        if (mounted) setAuthedXpLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [isAuthed, token]);
+
   const { homeAirport, setHomeAirport, homeCode, homeCity } = useHomeAirport();
 
   const [timePeriod, setTimePeriod] = useState(() =>
@@ -1472,6 +1552,66 @@ export default function LandingPage() {
       <div className="sk-landing__content">
         {/* ══ HERO ══ */}
         <header className="sk-hero">
+          {isAuthed && (
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 18,
+                  padding: "8px 16px 8px 8px",
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 999,
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                <div
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    background: "linear-gradient(135deg,#ff8a2a,#7c3aed)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: 12,
+                  }}
+                >
+                  {(user?.name || user?.username || "?")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </div>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "rgba(255,255,255,0.85)",
+                  }}
+                >
+                  Welcome back,{" "}
+                  {user?.name?.split(" ")[0] || user?.username || "traveler"}
+                </span>
+                <span style={{ color: "rgba(255,255,255,0.25)" }}>·</span>
+                <span
+                  style={{ fontSize: 13, fontWeight: 700, color: "#ff8a2a" }}
+                >
+                  {authedXpLoading ? "…" : `${authedXp.toLocaleString()} XP`}
+                </span>
+                {!authedXpLoading && (
+                  <span
+                    style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}
+                  >
+                    {authedTier}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
           <div className="sk-hero__eyebrow">{HERO_COPY.eyebrow}</div>
           <h1 className="sk-hero__title">
             {HERO_COPY.title.split("\n").map((line, i, arr) => (
@@ -1716,18 +1856,20 @@ export default function LandingPage() {
               </span>
             ))}
           </div>
-          <div className="sk-hero__secondaryCta">
-            <p className="sk-hero__secondaryCta-text">
-              {HERO_COPY.secondaryCta.prompt}
-            </p>
-            <button
-              type="button"
-              className="sk-hero__secondaryCta-btn"
-              onClick={goSignup}
-            >
-              {HERO_COPY.secondaryCta.label} <ArrowRightOutlined />
-            </button>
-          </div>
+          {!isAuthed && (
+            <div className="sk-hero__secondaryCta">
+              <p className="sk-hero__secondaryCta-text">
+                {HERO_COPY.secondaryCta.prompt}
+              </p>
+              <button
+                type="button"
+                className="sk-hero__secondaryCta-btn"
+                onClick={goSignup}
+              >
+                {HERO_COPY.secondaryCta.label} <ArrowRightOutlined />
+              </button>
+            </div>
+          )}
         </header>
 
         {/* ══ BELOW HERO ══ */}
@@ -1871,89 +2013,164 @@ export default function LandingPage() {
 
           <div className="sk-divider" />
 
-          <Reveal tag="section" className="sk-profile-banner">
-            <div className="sk-profile-banner__left">
-              <div className="sk-profile-banner__badge">
-                <Icon name="sparkle" size={11} /> Your Skyrio Profile
+          {isAuthed ? (
+            <Reveal tag="section" className="sk-profile-banner" delay={0}>
+              <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto" }}>
+                <div className="sk-profile-banner__badge">
+                  <Icon name="sparkle" size={11} /> Your Skyrio
+                </div>
+                <h2
+                  className="sk-profile-banner__title"
+                  style={{ marginBottom: 24 }}
+                >
+                  Welcome back — here's <span>what's waiting for you.</span>
+                </h2>
+                <Tabs
+                  size="large"
+                  items={[
+                    {
+                      key: "saved",
+                      label: (
+                        <span>
+                          <StarOutlined /> Saved Trips
+                        </span>
+                      ),
+                      children: (
+                        <div style={LIGHT_CARD_STYLE}>
+                          <SavedExcursions />
+                        </div>
+                      ),
+                    },
+                    {
+                      key: "upcoming",
+                      label: (
+                        <span>
+                          <ClockCircleOutlined /> Upcoming
+                        </span>
+                      ),
+                      children: (
+                        <div style={LIGHT_CARD_STYLE}>
+                          <UpcomingBookings />
+                        </div>
+                      ),
+                    },
+                    {
+                      key: "alerts",
+                      label: (
+                        <span>
+                          <BellOutlined /> Alerts
+                        </span>
+                      ),
+                      children: (
+                        <div style={LIGHT_CARD_STYLE}>
+                          <TravelAlerts />
+                        </div>
+                      ),
+                    },
+                    {
+                      key: "xp",
+                      label: (
+                        <span>
+                          <TrophyOutlined /> XP & Badges
+                        </span>
+                      ),
+                      children: (
+                        <div style={LIGHT_CARD_STYLE}>
+                          <XPBadgeCard />
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
               </div>
-              <h2 className="sk-profile-banner__title">
-                Every trip earns you
-                <br />
-                <span>rewards, rank, and recognition.</span>
-              </h2>
-              <p className="sk-profile-banner__sub">
-                Create a free account to activate your profile instantly. Book
-                your way to Explorer, Adventurer, and Legend — with real rewards
-                along the way.
-              </p>
-              <div className="sk-profile-banner__perks">
-                {PROFILE_PERKS.map((p) => (
-                  <div key={p.label} className="sk-profile-perk">
-                    <div className="sk-profile-perk__icon">
-                      <Icon name={p.iconKey} size={16} />
+            </Reveal>
+          ) : (
+            <Reveal tag="section" className="sk-profile-banner">
+              <div className="sk-profile-banner__left">
+                <div className="sk-profile-banner__badge">
+                  <Icon name="sparkle" size={11} /> Your Skyrio Profile
+                </div>
+                <h2 className="sk-profile-banner__title">
+                  Every trip earns you
+                  <br />
+                  <span>rewards, rank, and recognition.</span>
+                </h2>
+                <p className="sk-profile-banner__sub">
+                  Create a free account to activate your profile instantly. Book
+                  your way to Explorer, Adventurer, and Legend — with real
+                  rewards along the way.
+                </p>
+                <div className="sk-profile-banner__perks">
+                  {PROFILE_PERKS.map((p) => (
+                    <div key={p.label} className="sk-profile-perk">
+                      <div className="sk-profile-perk__icon">
+                        <Icon name={p.iconKey} size={16} />
+                      </div>
+                      <div>
+                        <div className="sk-profile-perk__label">{p.label}</div>
+                        <div className="sk-profile-perk__desc">{p.desc}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="sk-profile-perk__label">{p.label}</div>
-                      <div className="sk-profile-perk__desc">{p.desc}</div>
-                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="sk-profile-banner__right">
+                <div className="sk-profile-card">
+                  <div className="sk-profile-card__top">
+                    <div className="sk-profile-card__logo">SKYRIO</div>
+                    <div className="sk-profile-card__chip" />
                   </div>
-                ))}
+                  <div className="sk-profile-card__label">
+                    Your Profile Tier
+                  </div>
+                  <div className="sk-profile-card__level">
+                    Explorer <Icon name="sparkle" size={14} />
+                  </div>
+                  <div className="sk-profile-card__xp-label">XP Progress</div>
+                  <div className="sk-profile-card__bar">
+                    <div className="sk-profile-card__fill" />
+                  </div>
+                  <div className="sk-profile-card__disclaimer">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      style={{ flexShrink: 0, marginTop: 1 }}
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="rgba(255,255,255,0.2)"
+                        strokeWidth="2"
+                      />
+                      <path
+                        d="M12 16V12M12 8H12.01"
+                        stroke="rgba(255,255,255,0.2)"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <span className="sk-profile-card__disclaimer-text">
+                      Membership profile only — not an official travel document.
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  className="sk-profile-banner__cta"
+                  onClick={goSignup}
+                  disabled={isRouting}
+                >
+                  Create free account{" "}
+                  <ArrowRightOutlined style={{ marginLeft: 6 }} />
+                </Button>
+                <div className="sk-profile-banner__note">
+                  Free forever · No credit card required
+                </div>
               </div>
-            </div>
-            <div className="sk-profile-banner__right">
-              <div className="sk-profile-card">
-                <div className="sk-profile-card__top">
-                  <div className="sk-profile-card__logo">SKYRIO</div>
-                  <div className="sk-profile-card__chip" />
-                </div>
-                <div className="sk-profile-card__label">Your Profile Tier</div>
-                <div className="sk-profile-card__level">
-                  Explorer <Icon name="sparkle" size={14} />
-                </div>
-                <div className="sk-profile-card__xp-label">XP Progress</div>
-                <div className="sk-profile-card__bar">
-                  <div className="sk-profile-card__fill" />
-                </div>
-                <div className="sk-profile-card__disclaimer">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    style={{ flexShrink: 0, marginTop: 1 }}
-                  >
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="rgba(255,255,255,0.2)"
-                      strokeWidth="2"
-                    />
-                    <path
-                      d="M12 16V12M12 8H12.01"
-                      stroke="rgba(255,255,255,0.2)"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span className="sk-profile-card__disclaimer-text">
-                    Membership profile only — not an official travel document.
-                  </span>
-                </div>
-              </div>
-              <Button
-                className="sk-profile-banner__cta"
-                onClick={goSignup}
-                disabled={isRouting}
-              >
-                Create free account{" "}
-                <ArrowRightOutlined style={{ marginLeft: 6 }} />
-              </Button>
-              <div className="sk-profile-banner__note">
-                Free forever · No credit card required
-              </div>
-            </div>
-          </Reveal>
+            </Reveal>
+          )}
 
           <div className="sk-divider" />
 

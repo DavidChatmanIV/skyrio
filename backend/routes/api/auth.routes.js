@@ -67,6 +67,9 @@ router.post("/register", async (req, res) => {
     await user.save();
 
     // ── Award signup XP ────────────────────────────────────────
+    // NOTE: findByIdAndUpdate's result is intentionally not captured back
+    // into `user` below — see the re-fetch right before the response is
+    // built, which is what actually keeps the response in sync now.
     try {
       await User.findByIdAndUpdate(user._id, { $inc: { xp: 100 } });
     } catch (xpErr) {
@@ -134,10 +137,21 @@ router.post("/register", async (req, res) => {
     const token = signToken(user);
     setAuthCookie(res, token);
 
+    // ✅ FIX: `user` here is the original in-memory doc from User.create(),
+    // captured BEFORE the signup-XP (+100) and referral-XP (+25) increments
+    // above. Those increments wrote to MongoDB correctly via
+    // findByIdAndUpdate, but findByIdAndUpdate's result was never captured
+    // back into `user` — so `user.toSafeJSON()` would have reported the
+    // pre-bonus xp (and therefore the pre-bonus levelLabel/
+    // levelProgressPct too). Re-fetching right before building the
+    // response guarantees it reflects whatever actually landed in the DB,
+    // regardless of how many separate XP-awarding writes happened above.
+    const freshUser = await User.findById(user._id);
+
     return res.status(201).json({
       ok: true,
       message: "Account created successfully",
-      user: user.toSafeJSON(),
+      user: (freshUser || user).toSafeJSON(),
       token,
     });
   } catch (err) {

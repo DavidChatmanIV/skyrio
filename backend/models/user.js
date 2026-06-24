@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { getLevel } from "../config/xpRules.js";
 
 const { Schema } = mongoose;
 
@@ -6,16 +7,6 @@ const PreferencesSchema = new Schema(
   { officialUpdatesMuted: { type: Boolean, default: false } },
   { _id: false }
 );
-
-// ── XP Level thresholds ───────────────────────────────────────
-const XP_LEVELS = [
-  { label: "Newcomer", min: 0 },
-  { label: "Explorer", min: 200 },
-  { label: "Adventurer", min: 500 },
-  { label: "Globetrotter", min: 1000 },
-  { label: "Voyager", min: 2000 },
-  { label: "Legend", min: 5000 },
-];
 
 const UserSchema = new Schema(
   {
@@ -173,27 +164,27 @@ UserSchema.methods.getModerationStatus = function () {
 // Returns levelLabel, levelProgressPct, nextLevel, xpToNext
 // based on the user's current XP. Used in toSafeJSON so every
 // API response includes up-to-date level info automatically.
+//
+// This used to compute its own separate 6-tier ladder (Newcomer/Explorer@200
+// XP/Adventurer@500/...) that disagreed with the real 8-tier system in
+// config/xpRules.js (Explorer@0/Adventurer@100/Voyager@300/...) — the one
+// actually shown on the live Passport page. A 70 XP user would have shown
+// as "Newcomer" here but "Explorer" everywhere else. Now this just
+// translates getLevel()'s output into the same field names this method
+// has always returned, so toSafeJSON() and anything reading
+// levelLabel/levelProgressPct/nextLevel/xpToNext keeps working exactly as
+// before — it just gets correct, consistent values now.
+//
+// New code should prefer calling getLevel(user.xp) from
+// ../config/xpRules.js directly; this method exists for backward
+// compatibility with whatever already reads these specific field names.
 UserSchema.methods.getXPLevel = function () {
-  const xp = this.xp || 0;
-  let current = XP_LEVELS[0];
-  let next = XP_LEVELS[1] || null;
-
-  for (let i = 0; i < XP_LEVELS.length; i++) {
-    if (xp >= XP_LEVELS[i].min) {
-      current = XP_LEVELS[i];
-      next = XP_LEVELS[i + 1] || null;
-    }
-  }
-
-  const progressPct = next
-    ? Math.round(((xp - current.min) / (next.min - current.min)) * 100)
-    : 100;
-
+  const { current, next, percent, xpToNext } = getLevel(this.xp || 0);
   return {
-    levelLabel: current.label,
-    levelProgressPct: Math.min(progressPct, 100),
-    nextLevel: next?.label || null,
-    xpToNext: next ? next.min - xp : 0,
+    levelLabel: current.name,
+    levelProgressPct: percent,
+    nextLevel: next?.name || null,
+    xpToNext,
   };
 };
 
