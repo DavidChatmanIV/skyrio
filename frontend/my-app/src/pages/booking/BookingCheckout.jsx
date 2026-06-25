@@ -222,6 +222,10 @@ function buildFlight(flight) {
       from,
       to,
       date: dep ? dayjs(dep).format("ddd, MMM D") : "TBD",
+      // ✅ NEW: real ISO date, kept separate from the display-formatted
+      // `date` above (which has no year — "Fri, Jun 5" — and isn't safe to
+      // send to the backend; see the booking POST in StepReviewPay below).
+      dateISO: dep ? dayjs(dep).format("YYYY-MM-DD") : null,
       time: dep ? dayjs(dep).format("h:mm A") : "TBD",
       duration: fmt(dep, arr),
       airline,
@@ -232,6 +236,9 @@ function buildFlight(flight) {
       date: flight.returningAt
         ? dayjs(flight.returningAt).format("ddd, MMM D")
         : "Return TBD",
+      dateISO: flight.returningAt
+        ? dayjs(flight.returningAt).format("YYYY-MM-DD")
+        : null,
       time: flight.returningAt
         ? dayjs(flight.returningAt).format("h:mm A")
         : "--",
@@ -1594,7 +1601,10 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
             flight: {
               origin: flight.outbound.from,
               destination: flight.outbound.to,
-              departingAt: flight.outbound.date,
+              // ✅ FIX: was flight.outbound.date ("Fri, Jun 5" — no year,
+              // not a valid value for a Date-typed field). Now sends the
+              // real ISO date.
+              departingAt: flight.outbound.dateISO,
               airline: flight.outbound.airline,
             },
             travelers: [
@@ -1604,12 +1614,31 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
                 email: passenger.email,
               },
             ],
+            // ✅ FIX: field names changed from depart/return to start/end
+            // to match the actual Booking schema (dates: { start, end }) —
+            // they didn't match before, so dates.start/dates.end were
+            // always empty on every booking ever created, silently
+            // dropped by Mongoose. Also now sending real ISO dates instead
+            // of the display-formatted strings.
             dates: {
-              depart: flight.outbound.date,
-              return: flight.return?.date || null,
+              start: flight.outbound.dateISO,
+              end: flight.return?.dateISO || null,
             },
           }),
         });
+
+        // ✅ FIX: this never checked bRes.ok before. If booking creation
+        // failed for any reason, execution would silently continue with
+        // bookingId = "" and still set up a real Stripe payment intent —
+        // meaning a card could be charged with zero booking record tying
+        // it to anything. Now it stops here and surfaces an error instead.
+        if (!bRes.ok) {
+          const errBody = await bRes.json().catch(() => ({}));
+          throw new Error(
+            errBody.message ||
+              "Could not create your booking. Please go back and try again."
+          );
+        }
         const bData = await bRes.json();
         const bId = bData?._id || bData?.id || "";
         setBookingId(bId);

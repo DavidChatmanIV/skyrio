@@ -37,6 +37,7 @@ function mapBackendPost(post) {
     username: post.username ? `@${post.username}` : "@traveler",
     avatar: post.avatar || null,
     verified: !!post.verified,
+    badge: post.authorBadge || "Explorer",
     type: post.type || "Story",
     destination: post.destination || "",
     timeAgo: post.timeAgo || "now",
@@ -91,7 +92,7 @@ function deriveActiveTravelers(posts) {
       username: p.username?.replace("@", ""),
       avatar: p.avatar,
       location: p.destination,
-      badge: "Explorer",
+      badge: p.badge || "Explorer",
     }));
 }
 

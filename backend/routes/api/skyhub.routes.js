@@ -2,6 +2,8 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import SkyHubPost from "../../models/SkyHubPost.js";
 import SkyHubComment from "../../models/SkyHubComment.js";
+import User from "../../models/user.js";
+import { getLevel } from "../../lib/xpLevels.js";
 
 const router = Router();
 
@@ -29,19 +31,29 @@ function getTimeAgo(date) {
   return `${diffDay}d`;
 }
 
-function mapPost(post, viewerId) {
+function mapPost(post, viewerId, xpByAuthorId = new Map()) {
   // Convert likes/saves to strings once for reliable comparison
   const likeIds = (post.likes || []).map(String);
   const saveIds = (post.saves || []).map(String);
+  const authorId = post.author?.toString() || null;
+  // ✅ NEW: real current tier for this post's author, computed from the
+  // same xpLevels.js ladder used everywhere else (confirmed identical to
+  // config/xpRules.js). Previously there was no badge data here at all —
+  // the frontend's Active Travelers sidebar just hardcoded "Explorer" for
+  // every single traveler, regardless of their real XP, because it
+  // genuinely had nothing real to read.
+  const authorXp = authorId ? xpByAuthorId.get(authorId) ?? 0 : 0;
+  const authorBadge = getLevel(authorXp).current; // already a string, e.g. "Explorer"
 
   return {
     _id: post._id,
     // ✅ authorId exposed so frontend can check "is this my post?"
-    authorId: post.author?.toString() || null,
+    authorId,
     authorName: post.authorName,
     username: post.username,
     avatar: post.avatar,
     verified: post.verified,
+    authorBadge,
     type: post.type,
     destination: post.destination,
     text: post.text,
@@ -83,7 +95,25 @@ router.get("/feed", async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
-    return res.json({ posts: posts.map((p) => mapPost(p, viewerId)) });
+
+    // Batch-lookup real XP for every unique author in this page, so we
+    // compute each one's real current tier instead of a hardcoded badge.
+    // One query for the whole page, not one per post.
+    const authorIds = [
+      ...new Set(posts.map((p) => p.author?.toString()).filter(Boolean)),
+    ];
+    const authors = authorIds.length
+      ? await User.find({ _id: { $in: authorIds } })
+          .select("xp")
+          .lean()
+      : [];
+    const xpByAuthorId = new Map(
+      authors.map((a) => [a._id.toString(), a.xp || 0])
+    );
+
+    return res.json({
+      posts: posts.map((p) => mapPost(p, viewerId, xpByAuthorId)),
+    });
   } catch (err) {
     console.error("[skyhub] feed error:", err);
     return res.status(500).json({ message: "Failed to load feed." });
@@ -128,9 +158,18 @@ router.post("/posts", async (req, res) => {
           : [],
     });
 
+    // Real XP for the response's badge field — same lookup the feed does,
+    // just for the one author who just posted.
+    const authorId = req.user?._id?.toString() || null;
+    const xpByAuthorId = new Map();
+    if (authorId) {
+      const authorDoc = await User.findById(authorId).select("xp").lean();
+      if (authorDoc) xpByAuthorId.set(authorId, authorDoc.xp || 0);
+    }
+
     return res.status(201).json({
       message: "Post created.",
-      post: mapPost(newPost.toObject(), getViewerId(req)),
+      post: mapPost(newPost.toObject(), getViewerId(req), xpByAuthorId),
     });
   } catch (err) {
     console.error("[skyhub] create post error:", err);
