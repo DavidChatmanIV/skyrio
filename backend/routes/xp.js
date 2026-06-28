@@ -8,6 +8,8 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import User from "../models/user.js";
 import addXP from "../utils/xpTracker.js";
+import Challenge from "../models/challenge.js";
+import ChallengeProgress from "../models/challengeProgress.js";
 
 import {
   XP_RULES,
@@ -28,17 +30,6 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
 }
 
-/**
- * Read + mutate the user's xpDailyMeta field.
- * xpDailyMeta shape (stored on User model):
- * {
- *   date:         String,   // "YYYY-MM-DD" — resets counts when date changes
- *   counts:       Map,      // { actionKey: Number }
- *   streak:       Number,
- *   lastStreakDate: String,
- *   onceDone:     [String], // action keys that are "once: true"
- * }
- */
 function getDailyMeta(user) {
   const today = todayStr();
   if (!user.xpDailyMeta || user.xpDailyMeta.date !== today) {
@@ -67,7 +58,6 @@ function canAwardRule(meta, key, rule) {
   return true;
 }
 
-// ─── Internal: push to recent events array (max 12) ──────────────────────────
 function pushEvent(user, event) {
   if (!user.xpRecentEvents) user.xpRecentEvents = [];
   user.xpRecentEvents.unshift(event);
@@ -75,19 +65,12 @@ function pushEvent(user, event) {
 }
 
 // ─── GET /api/xp/me ──────────────────────────────────────────────────────────
-// Returns full XP state for the current user.
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).lean();
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const xp = user.xp ?? 0;
-    // ✅ Reads the User model's real `plan` field (free/explorer/legend) —
-    // previously read a `membershipPlan` field (free/pro/elite) that didn't
-    // exist on the schema, so this multiplier silently always fell back to
-    // the XP_MULTIPLIERS default. See note at the bottom of this file: the
-    // keys inside XP_MULTIPLIERS (in config/xpRules.js) still need to be
-    // updated to free/explorer/legend to match.
     const plan = user.plan ?? "free";
     const meta = user.xpDailyMeta ?? {};
     const streak = meta.streak ?? 0;
@@ -110,8 +93,6 @@ router.get("/me", requireAuth, async (req, res) => {
 });
 
 // ─── POST /api/xp/activity ───────────────────────────────────────────────────
-// Awards XP for a passive activity OR an active action.
-// Body: { type: "DAILY_SESSION" | "BOOKING_CONFIRMED" | ... }
 router.post("/activity", requireAuth, async (req, res) => {
   const { type } = req.body;
   if (!type) return res.status(400).json({ error: "type is required" });
@@ -121,11 +102,9 @@ router.post("/activity", requireAuth, async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const meta = getDailyMeta(user);
-    // ✅ Same fix as GET /me above — reads the real `plan` field.
     const plan = user.plan ?? "free";
     const multiplier = XP_MULTIPLIERS[plan] ?? 1;
 
-    // ── Resolve rule (passive or active) ────────────────────────────────────
     const passiveRule = XP_PASSIVE[type];
     const activeRule = XP_RULES[type];
     const rule = passiveRule ?? activeRule;
@@ -134,7 +113,6 @@ router.post("/activity", requireAuth, async (req, res) => {
       return res.status(400).json({ error: `Unknown XP type: ${type}` });
     }
 
-    // ── Streak logic (runs alongside STREAK_DAY) ─────────────────────────────
     if (type === "STREAK_DAY") {
       const today = todayStr();
       const yesterday = new Date();
@@ -148,7 +126,6 @@ router.post("/activity", requireAuth, async (req, res) => {
       meta.streak = meta.lastStreakDate === yStr ? (meta.streak ?? 0) + 1 : 1;
       meta.lastStreakDate = today;
 
-      // Milestone bonuses
       if (meta.streak % 30 === 0) {
         const bonus = XP_PASSIVE.STREAK_MONTH.xp * multiplier;
         user.xp += bonus;
@@ -170,7 +147,6 @@ router.post("/activity", requireAuth, async (req, res) => {
       }
     }
 
-    // ── Guard checks ─────────────────────────────────────────────────────────
     const allowed = passiveRule
       ? canAwardPassive(meta, type, rule)
       : canAwardRule(meta, type, rule);
@@ -179,19 +155,16 @@ router.post("/activity", requireAuth, async (req, res) => {
       return res.json({ awarded: false, xp: user.xp });
     }
 
-    // ── Daily cap check ───────────────────────────────────────────────────────
     const dailyTotal = user.xpDailyTotal ?? 0;
     if (dailyTotal >= XP_DAILY_CAP) {
       return res.json({ awarded: false, xp: user.xp, reason: "daily_cap" });
     }
 
-    // ── Award XP ──────────────────────────────────────────────────────────────
     const earned = rule.xp * multiplier;
     user.xp += earned;
     user.xpTotalEarned = (user.xpTotalEarned ?? 0) + earned;
     user.xpDailyTotal = dailyTotal + earned;
 
-    // Update daily count
     if (rule.dailyLimit) {
       meta.counts[type] = (meta.counts[type] ?? 0) + 1;
     }
@@ -207,62 +180,68 @@ router.post("/activity", requireAuth, async (req, res) => {
     };
     pushEvent(user, event);
 
+    // ── Challenge progress check ────────────────────────────────────────
+    // Rides on the exact same action that just earned normal XP — no new
+    // tracking calls anywhere else in the app. Wrapped in its own
+    // try/catch so a bug here can never break ordinary XP awarding, which
+    // is the thing this whole endpoint exists to do correctly.
+    let completedChallenges = [];
+    try {
+      const now = new Date();
+      const activeChallenges = await Challenge.find({
+        active: true,
+        "requirement.actionType": type,
+        startDate: { $lte: now },
+        endDate: { $gte: now },
+      }).lean();
+
+      for (const challenge of activeChallenges) {
+        const cp = await ChallengeProgress.findOne({
+          user: user._id,
+          challenge: challenge._id,
+        });
+        // Not activated, or already finished — nothing to do.
+        if (!cp || cp.completedAt) continue;
+
+        cp.progress += 1;
+        if (cp.progress >= challenge.requirement.count && !cp.bonusAwarded) {
+          cp.completedAt = now;
+          cp.bonusAwarded = true;
+          const bonus = challenge.bonusXP * multiplier;
+          user.xp += bonus;
+          user.xpTotalEarned = (user.xpTotalEarned ?? 0) + bonus;
+          pushEvent(user, {
+            label: `Challenge complete: ${challenge.title}`,
+            xp: bonus,
+            icon: challenge.icon || "🏆",
+            time: Date.now(),
+          });
+          completedChallenges.push({
+            id: challenge._id,
+            title: challenge.title,
+            bonusXP: bonus,
+          });
+        }
+        await cp.save();
+      }
+    } catch (challengeErr) {
+      console.error("[xp] challenge progress check failed:", challengeErr);
+    }
+
     user.xpDailyMeta = meta;
     user.markModified("xpDailyMeta");
     user.markModified("xpRecentEvents");
     await user.save();
 
-    res.json({ awarded: true, xp: user.xp, event });
+    res.json({
+      awarded: true,
+      xp: user.xp,
+      event,
+      completedChallenges,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 export default router;
-
-/**
- * ─────────────────────────────────────────────────────────────
- * USER MODEL ADDITIONS NEEDED (backend/models/user.js)
- * ─────────────────────────────────────────────────────────────
- *
- * xpTotalEarned:  { type: Number, default: 0 },
- * xpDailyTotal:   { type: Number, default: 0 },
- * xpDailyMeta:    { type: Schema.Types.Mixed, default: {} },
- * xpRecentEvents: { type: Array, default: [] },
- *
- * (membershipPlan removed from this list — this file now reads the
- * existing `plan` field on the User model instead of a separate field,
- * so there's only one source of truth for subscription tier.)
- *
- * ─────────────────────────────────────────────────────────────
- * ⚠️ STILL NEEDED: update config/xpRules.js
- * ─────────────────────────────────────────────────────────────
- *
- * XP_MULTIPLIERS' keys currently match the old free/pro/elite scheme.
- * They need to be free/explorer/legend to match `plan`'s actual enum,
- * e.g.:
- *
- *   export const XP_MULTIPLIERS = {
- *     free: 1,
- *     explorer: 1.25,   // pick real values — these are placeholders
- *     legend: 1.5,
- *   };
- *
- * I don't have config/xpRules.js, so I can't make this edit directly —
- * paste it and I'll update it to match.
- *
- * ─────────────────────────────────────────────────────────────
- * CRON JOB (reset xpDailyTotal nightly — add to your jobs):
- * ─────────────────────────────────────────────────────────────
- *
- * // backend/jobs/resetDailyXP.js
- * import User from "../models/user.js";
- * async function resetDailyXP() {
- *   await User.updateMany({}, { $set: { xpDailyTotal: 0 } });
- *   console.log("✅ Daily XP totals reset");
- * }
- * export default resetDailyXP;
- *
- * // In your scheduler (e.g. node-cron):
- * cron.schedule("0 0 * * *", resetDailyXP); // midnight UTC
- */
