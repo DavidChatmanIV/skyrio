@@ -62,7 +62,13 @@ function readAdminFromHeader(req) {
   return { isAdmin: true, email };
 }
 
-function verifyAdmin(req, res, next) {
+// ✅ Exported so other route files (challenges.routes.js) can reuse this
+// exact auth logic instead of duplicating it — duplicating it would mean
+// it silently drifts out of sync the next time this changes, the same
+// failure pattern this whole project has been cleaning up elsewhere.
+// Internal usage below (router.get("/users", verifyAdmin, ...) etc.) is
+// completely unaffected by adding this export.
+export function verifyAdmin(req, res, next) {
   if (!JWT_SECRET) {
     return res
       .status(500)

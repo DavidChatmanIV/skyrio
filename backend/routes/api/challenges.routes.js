@@ -2,12 +2,17 @@ import { Router } from "express";
 import Challenge from "../../models/challenge.js";
 import ChallengeProgress from "../../models/challengeProgress.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
-// ✅ Confirmed against the real middleware/auth.js: verifyAdmin checks the
-// "skyrio_admin" cookie first, falling back to a Bearer header. On
-// success it sets req.admin (not req.user) — so nothing in this file's
-// admin routes should ever read req.user; the auth gate is verifyAdmin
-// itself, not a manual role check afterward.
-import { verifyAdmin } from "../../middleware/auth.js";
+// ✅ CORRECTED: this is the verifyAdmin that actually gates the working
+// /api/admin/dashboard, /api/admin/users, etc. endpoints — confirmed
+// against the real admin.routes.js. It was previously imported from
+// middleware/auth.js, which turned out to be a same-named but completely
+// different function (cookie-or-Bearer only, no x-admin-email header
+// support) — that one was never actually the right tool for this job,
+// which is why every admin write call from AdminDashboard.jsx kept
+// failing despite both files individually looking correct. Reusing this
+// one (now exported from admin.routes.js, one line changed there) keeps
+// every admin route in the app authenticating exactly one consistent way.
+import { verifyAdmin } from "../admin.routes.js";
 
 const router = Router();
 
