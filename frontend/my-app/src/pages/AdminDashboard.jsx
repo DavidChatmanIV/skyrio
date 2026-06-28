@@ -1,7 +1,109 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "antd";
+import {
+  Button,
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  DatePicker,
+  Select,
+  message,
+  Popconfirm,
+} from "antd";
+import {
+  TrophyOutlined,
+  FlagOutlined,
+  FireOutlined,
+  RocketOutlined,
+  GiftOutlined,
+  StarOutlined,
+  CrownOutlined,
+  ThunderboltOutlined,
+  TeamOutlined,
+  HeartOutlined,
+  CalendarOutlined,
+  EnvironmentOutlined,
+} from "@ant-design/icons";
+import dayjs from "dayjs";
 import { apiUrl } from "@/lib/api";
+
+// ✅ Real SVG icons for Challenges specifically — not emoji like the rest
+// of this dashboard's stat cards. Worth keeping separate: a Challenge's
+// icon is shown to actual end users (in PassportRewards.jsx's
+// ChallengeCard), so it needs to render reliably across every OS/browser,
+// not just look fine in whatever environment this admin page happens to
+// be viewed in. Stored as a short key string ("trophy", "flag", etc.),
+// not the emoji itself — PassportRewards.jsx needs the matching lookup
+// table to resolve the same key back into the same icon.
+const CHALLENGE_ICONS = [
+  { key: "trophy", label: "Trophy", Icon: TrophyOutlined },
+  { key: "flag", label: "Flag", Icon: FlagOutlined },
+  { key: "fire", label: "Fire", Icon: FireOutlined },
+  { key: "rocket", label: "Rocket", Icon: RocketOutlined },
+  { key: "gift", label: "Gift", Icon: GiftOutlined },
+  { key: "star", label: "Star", Icon: StarOutlined },
+  { key: "crown", label: "Crown", Icon: CrownOutlined },
+  { key: "thunderbolt", label: "Bolt", Icon: ThunderboltOutlined },
+  { key: "team", label: "Team", Icon: TeamOutlined },
+  { key: "heart", label: "Heart", Icon: HeartOutlined },
+  { key: "calendar", label: "Calendar", Icon: CalendarOutlined },
+  { key: "environment", label: "Destination", Icon: EnvironmentOutlined },
+];
+
+function ChallengeIconPicker({ value, onChange }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {CHALLENGE_ICONS.map(({ key, label, Icon }) => {
+        const selected = value === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            title={label}
+            onClick={() => onChange(key)}
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 16,
+              cursor: "pointer",
+              background: selected
+                ? "rgba(255,138,42,0.18)"
+                : "rgba(255,255,255,0.05)",
+              border: selected
+                ? "1px solid #ff8a2a"
+                : "1px solid rgba(255,255,255,0.12)",
+              color: selected ? "#ff8a2a" : "rgba(255,255,255,0.6)",
+              transition: "all 0.15s",
+            }}
+          >
+            <Icon />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Action types a Challenge can track — matches the real keys in
+// backend/config/xpRules.js (XP_RULES + XP_PASSIVE) so a challenge always
+// rides on an action that already earns XP correctly, rather than
+// inventing a new tracking mechanism.
+const CHALLENGE_ACTION_TYPES = [
+  { value: "BOOKING_CONFIRMED", label: "Booking confirmed" },
+  { value: "SAVED_TRIP", label: "Saved a trip" },
+  { value: "POST_CREATED", label: "Created a SkyHub post" },
+  { value: "COMMENT_CREATED", label: "Commented on SkyHub" },
+  { value: "REFER_FRIEND", label: "Referred a friend" },
+  { value: "PROFILE_COMPLETED", label: "Completed profile" },
+  { value: "FEEDBACK_SUBMITTED", label: "Submitted feedback" },
+  { value: "SHARE_SKYSTREAM", label: "Shared on SkyStream" },
+  { value: "STREAK_DAY", label: "Daily login streak" },
+];
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -97,6 +199,50 @@ const INJECTED_CSS = `
   .sk-admin__support-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 3px; }
   .sk-admin__support-sub { font-size: 12px; color: rgba(255,255,255,0.45); }
   .sk-admin__support-arrow { font-size: 20px; font-weight: 700; color: #ff8a2a; flex-shrink: 0; }
+
+  /* ── Challenges section ── */
+  .sk-admin__challenge-actions { display: flex; align-items: center; gap: 8px; }
+  .sk-admin__challenge-action-btn {
+    background: none; border: 1px solid ${C.border}; color: ${C.muted};
+    padding: 4px 10px; border-radius: 999px; font-size: 11px; cursor: pointer;
+    font-family: inherit; transition: border-color .2s, color .2s;
+  }
+  .sk-admin__challenge-action-btn:hover { border-color: ${C.orange}; color: ${C.orange}; }
+  .sk-admin__challenge-action-btn--danger:hover { border-color: ${C.red}; color: ${C.red}; }
+
+  /* ── Challenge modal — fix: typed/selected values were rendering in
+     antd's default dark text on this dark modal background, nearly
+     invisible. Force every input type to light text explicitly. ── */
+  .sk-challenge-modal .ant-form-item-label > label { color: rgba(255,255,255,0.7) !important; }
+  .sk-challenge-modal .ant-input,
+  .sk-challenge-modal textarea.ant-input {
+    background: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+    color: #fff !important;
+  }
+  .sk-challenge-modal .ant-input::placeholder { color: rgba(255,255,255,0.35) !important; }
+  .sk-challenge-modal .ant-input-number {
+    background: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+  }
+  .sk-challenge-modal .ant-input-number-input { color: #fff !important; }
+  .sk-challenge-modal .ant-select-selector {
+    background: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+  }
+  .sk-challenge-modal .ant-select-selection-item,
+  .sk-challenge-modal .ant-select-selection-placeholder { color: #fff !important; }
+  .sk-challenge-modal .ant-select-selection-item {
+    background: rgba(255,138,42,0.18) !important;
+    border-color: rgba(255,138,42,0.4) !important;
+  }
+  .sk-challenge-modal .ant-picker {
+    background: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+  }
+  .sk-challenge-modal .ant-picker-input input { color: #fff !important; }
+  .sk-challenge-modal .ant-picker-separator,
+  .sk-challenge-modal .ant-picker-suffix { color: rgba(255,255,255,0.5) !important; }
 `;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -164,6 +310,42 @@ function LevelPill({ xp = 0 }) {
   );
 }
 
+function ChallengeStatusPill({ challenge }) {
+  const now = Date.now();
+  const start = new Date(challenge.startDate).getTime();
+  const end = new Date(challenge.endDate).getTime();
+
+  let label, color;
+  if (!challenge.active) {
+    label = "Ended early";
+    color = C.red;
+  } else if (now < start) {
+    label = "Upcoming";
+    color = C.blue;
+  } else if (now > end) {
+    label = "Finished";
+    color = C.muted;
+  } else {
+    label = "Running";
+    color = C.green;
+  }
+
+  return (
+    <span
+      className="sk-admin__pill"
+      style={{ background: color + "20", color }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function resolveChallengeIcon(key) {
+  const found = CHALLENGE_ICONS.find((i) => i.key === key);
+  const Icon = found?.Icon || TrophyOutlined;
+  return <Icon />;
+}
+
 function StatCard({ icon, label, value, color, dim }) {
   return (
     <div className="sk-stat">
@@ -203,6 +385,133 @@ const AdminDashboard = () => {
   const [lastRefresh, setLastRefresh] = useState(null);
   const openTickets = useSupportCount();
 
+  // ✅ NEW: Challenges management state. Uses the same auth pattern as
+  // everything else on this page (credentials: "include", cookie-based
+  // verifyAdmin) — not the Bearer-token flow regular user pages use.
+  const [challenges, setChallenges] = useState([]);
+  const [challengesLoading, setChallengesLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingChallenge, setEditingChallenge] = useState(null); // null = creating new
+  const [saving, setSaving] = useState(false);
+  const [selectedIcon, setSelectedIcon] = useState("trophy");
+  const [form] = Form.useForm();
+
+  const fetchChallenges = useCallback(async () => {
+    setChallengesLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/challenges/admin"), {
+        credentials: "include",
+        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.ok) setChallenges(json.challenges || []);
+    } catch {
+      // Non-fatal — the rest of the dashboard still works without this.
+    }
+    setChallengesLoading(false);
+  }, []);
+
+  const openCreateModal = () => {
+    setEditingChallenge(null);
+    form.resetFields();
+    setSelectedIcon("trophy");
+    setModalOpen(true);
+  };
+
+  const openEditModal = (challenge) => {
+    setEditingChallenge(challenge);
+    form.setFieldsValue({
+      title: challenge.title,
+      description: challenge.description,
+      theme: challenge.theme,
+      actionType: challenge.requirement?.actionType
+        ? [challenge.requirement.actionType]
+        : undefined,
+      count: challenge.requirement?.count,
+      bonusXP: challenge.bonusXP,
+      dateRange: [dayjs(challenge.startDate), dayjs(challenge.endDate)],
+    });
+    // Falls back to "trophy" if this challenge predates the icon-key
+    // system (e.g. still has an old raw emoji value) rather than crashing
+    // on an unrecognized key.
+    const knownKey = CHALLENGE_ICONS.some((i) => i.key === challenge.icon);
+    setSelectedIcon(knownKey ? challenge.icon : "trophy");
+    setModalOpen(true);
+  };
+
+  const handleSaveChallenge = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+
+      const payload = {
+        title: values.title,
+        description: values.description,
+        theme: values.theme || "general",
+        icon: selectedIcon,
+        requirement: {
+          // Select with mode="tags" always returns an array even when
+          // maxCount limits it to one selection.
+          actionType: Array.isArray(values.actionType)
+            ? values.actionType[0]
+            : values.actionType,
+          count: values.count,
+        },
+        bonusXP: values.bonusXP,
+        startDate: values.dateRange[0].toISOString(),
+        endDate: values.dateRange[1].toISOString(),
+      };
+
+      const url = editingChallenge
+        ? apiUrl(`/api/challenges/${editingChallenge.id}`)
+        : apiUrl("/api/challenges");
+      const method = editingChallenge ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": localStorage.getItem("admin_email") || "",
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        throw new Error(json.message || "Failed to save challenge.");
+      }
+
+      message.success(
+        editingChallenge ? "Challenge updated." : "Challenge created."
+      );
+      setModalOpen(false);
+      fetchChallenges();
+    } catch (err) {
+      if (err?.errorFields) return; // antd form validation error — already shown inline
+      message.error(err.message || "Failed to save challenge.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEndChallenge = async (challenge) => {
+    try {
+      const res = await fetch(apiUrl(`/api/challenges/${challenge.id}`), {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        throw new Error(json.message || "Failed to end challenge.");
+      }
+      message.success("Challenge ended.");
+      fetchChallenges();
+    } catch (err) {
+      message.error(err.message || "Failed to end challenge.");
+    }
+  };
+
   // ── Guard: redirect if not logged in ──
   useEffect(() => {
     const isAdmin = localStorage.getItem("admin");
@@ -236,7 +545,8 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchChallenges();
+  }, [fetchData, fetchChallenges]);
 
   const handleLogout = async () => {
     await fetch(apiUrl("/api/admin/logout"), {
@@ -669,7 +979,192 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* ── Challenges ── */}
+        <div className="sk-admin__card" style={{ marginBottom: 24 }}>
+          <div className="sk-admin__card-head">
+            <span className="sk-admin__card-title">Challenges</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="sk-admin__card-count">
+                {challenges.length} total
+              </span>
+              <Button
+                type="primary"
+                size="small"
+                onClick={openCreateModal}
+                style={{ background: C.orange, borderColor: C.orange }}
+              >
+                + New Challenge
+              </Button>
+            </div>
+          </div>
+          {challengesLoading && (
+            <div className="sk-admin__empty">
+              <span className="sk-admin__spinner" />
+            </div>
+          )}
+          {!challengesLoading && challenges.length === 0 && (
+            <div className="sk-admin__empty">
+              No challenges yet — create one to get started
+            </div>
+          )}
+          {challenges.map((c) => (
+            <div key={c.id} className="sk-admin__row">
+              <div className="sk-admin__row-left">
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: C.orangeDim,
+                    border: `1px solid ${C.borderAccent}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    flexShrink: 0,
+                  }}
+                >
+                  {resolveChallengeIcon(c.icon)}
+                </div>
+                <div>
+                  <div className="sk-admin__name">{c.title}</div>
+                  <div className="sk-admin__sub">
+                    {c.requirement?.actionType} ×{c.requirement?.count} · +
+                    {c.bonusXP} XP · {c.activatedCount || 0} activated ·{" "}
+                    {c.completedCount || 0} completed
+                  </div>
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexShrink: 0,
+                }}
+              >
+                <ChallengeStatusPill challenge={c} />
+                <div className="sk-admin__challenge-actions">
+                  <button
+                    type="button"
+                    className="sk-admin__challenge-action-btn"
+                    onClick={() => openEditModal(c)}
+                  >
+                    Edit
+                  </button>
+                  {c.active && (
+                    <Popconfirm
+                      title="End this challenge early?"
+                      description="Already-earned bonuses and progress are kept — this just stops it from running."
+                      okText="End it"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => handleEndChallenge(c)}
+                    >
+                      <button
+                        type="button"
+                        className="sk-admin__challenge-action-btn sk-admin__challenge-action-btn--danger"
+                      >
+                        End early
+                      </button>
+                    </Popconfirm>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* ── Create / Edit Challenge Modal ── */}
+      <Modal
+        open={modalOpen}
+        title={editingChallenge ? "Edit Challenge" : "New Challenge"}
+        onCancel={() => setModalOpen(false)}
+        onOk={handleSaveChallenge}
+        okText={editingChallenge ? "Save Changes" : "Create Challenge"}
+        confirmLoading={saving}
+        className="sk-challenge-modal"
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="title"
+            label="Title"
+            rules={[{ required: true, message: "Title is required" }]}
+          >
+            <Input placeholder="Game Day Getaway" />
+          </Form.Item>
+          <Form.Item
+            name="description"
+            label="Description"
+            rules={[{ required: true, message: "Description is required" }]}
+          >
+            <Input.TextArea
+              rows={2}
+              placeholder="Save or book a trip for an away game this season — earn bonus XP."
+            />
+          </Form.Item>
+          <Form.Item name="theme" label="Theme">
+            <Input placeholder="football" />
+          </Form.Item>
+          <Form.Item label="Icon">
+            <ChallengeIconPicker
+              value={selectedIcon}
+              onChange={setSelectedIcon}
+            />
+          </Form.Item>
+          <Form.Item
+            name="actionType"
+            label="What action counts toward this challenge?"
+            rules={[{ required: true, message: "Pick or type an action" }]}
+            extra={
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                Pick from the list, or type your own. A custom action only
+                tracks progress if that exact action is already being recorded
+                elsewhere in the app — otherwise this challenge won't have
+                anything to count, with no error to tell you why.
+              </span>
+            }
+          >
+            <Select
+              mode="tags"
+              maxCount={1}
+              options={CHALLENGE_ACTION_TYPES}
+              placeholder="Select an action, or type your own"
+            />
+          </Form.Item>
+          <div style={{ display: "flex", gap: 12 }}>
+            <Form.Item
+              name="count"
+              label="How many times?"
+              rules={[{ required: true, message: "Required" }]}
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={1} style={{ width: "100%" }} placeholder="3" />
+            </Form.Item>
+            <Form.Item
+              name="bonusXP"
+              label="Bonus XP on completion"
+              rules={[{ required: true, message: "Required" }]}
+              style={{ flex: 1 }}
+            >
+              <InputNumber
+                min={0}
+                style={{ width: "100%" }}
+                placeholder="150"
+              />
+            </Form.Item>
+          </div>
+          <Form.Item
+            name="dateRange"
+            label="Runs from / to"
+            rules={[{ required: true, message: "Pick a start and end date" }]}
+          >
+            <DatePicker.RangePicker style={{ width: "100%" }} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

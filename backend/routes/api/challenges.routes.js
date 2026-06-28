@@ -2,12 +2,14 @@ import { Router } from "express";
 import Challenge from "../../models/challenge.js";
 import ChallengeProgress from "../../models/challengeProgress.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
+// ✅ Confirmed against the real middleware/auth.js: verifyAdmin checks the
+// "skyrio_admin" cookie first, falling back to a Bearer header. On
+// success it sets req.admin (not req.user) — so nothing in this file's
+// admin routes should ever read req.user; the auth gate is verifyAdmin
+// itself, not a manual role check afterward.
+import { verifyAdmin } from "../../middleware/auth.js";
 
 const router = Router();
-
-function isAdmin(req) {
-  return req.user?.role === "admin" || req.user?.isAdmin === true;
-}
 
 /* ─────────────────────────────────────────────────────────────
    GET /api/challenges
@@ -111,15 +113,49 @@ router.post("/:id/activate", requireAuth, async (req, res) => {
 /* ─────────────────────────────────────────────────────────────
    ADMIN CONTROL — create / edit / end early.
    No UI yet — call these directly (curl, Postman, etc.) until
-   there's time to wrap a screen around them. Same admin check
-   already established in bookings.routes.js.
+   there's time to wrap a screen around them. Gated by verifyAdmin
+   (cookie-based), the same auth flow AdminDashboard.jsx actually
+   uses — not the regular user Bearer-token flow.
 ───────────────────────────────────────────────────────────── */
 
-// POST /api/challenges — create a new challenge
-router.post("/", requireAuth, async (req, res) => {
-  if (!isAdmin(req)) {
-    return res.status(403).json({ ok: false, message: "Admins only." });
+// GET /api/challenges/admin — every challenge regardless of active flag
+// or date window (the user-facing GET / above only shows what's currently
+// running), with real participation/completion counts so the admin
+// screen can show something more useful than a guess.
+router.get("/admin", verifyAdmin, async (req, res) => {
+  try {
+    const challenges = await Challenge.find({}).sort({ createdAt: -1 }).lean();
+
+    const counts = await Promise.all(
+      challenges.map((c) =>
+        Promise.all([
+          ChallengeProgress.countDocuments({ challenge: c._id }),
+          ChallengeProgress.countDocuments({
+            challenge: c._id,
+            completedAt: { $ne: null },
+          }),
+        ])
+      )
+    );
+
+    const result = challenges.map((c, i) => ({
+      ...c,
+      id: c._id,
+      activatedCount: counts[i][0],
+      completedCount: counts[i][1],
+    }));
+
+    return res.json({ ok: true, challenges: result });
+  } catch (err) {
+    console.error("[challenges] admin list error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to load challenges." });
   }
+});
+
+// POST /api/challenges — create a new challenge
+router.post("/", verifyAdmin, async (req, res) => {
   try {
     const {
       title,
@@ -168,10 +204,7 @@ router.post("/", requireAuth, async (req, res) => {
 // PATCH /api/challenges/:id — edit anything: bonus, dates, active flag,
 // even swap which action it tracks. This is the "change my mind mid
 // campaign" endpoint — no deploy needed for any of it.
-router.patch("/:id", requireAuth, async (req, res) => {
-  if (!isAdmin(req)) {
-    return res.status(403).json({ ok: false, message: "Admins only." });
-  }
+router.patch("/:id", verifyAdmin, async (req, res) => {
   try {
     const allowed = [
       "title",
@@ -213,10 +246,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
 // DELETE /api/challenges/:id — end a challenge early. Sets active=false
 // rather than hard-deleting, so existing progress/completion records
 // (and anyone's already-awarded bonus XP) stay intact.
-router.delete("/:id", requireAuth, async (req, res) => {
-  if (!isAdmin(req)) {
-    return res.status(403).json({ ok: false, message: "Admins only." });
-  }
+router.delete("/:id", verifyAdmin, async (req, res) => {
   try {
     const challenge = await Challenge.findByIdAndUpdate(
       req.params.id,

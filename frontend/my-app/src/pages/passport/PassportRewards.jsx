@@ -15,9 +15,41 @@ import {
   TrophyOutlined,
   GiftOutlined,
   FireOutlined,
+  FlagOutlined,
+  RocketOutlined,
+  StarOutlined,
+  CrownOutlined,
+  TeamOutlined,
+  HeartOutlined,
+  CalendarOutlined,
+  EnvironmentOutlined,
   CheckCircleFilled,
   LoadingOutlined,
 } from "@ant-design/icons";
+
+// Same icon-key set as AdminDashboard.jsx's challenge creation form —
+// kept in sync so a challenge's icon renders identically for the admin
+// who created it and the user who sees it. Stored as a short key string
+// ("trophy", "flag", etc.), not the icon itself.
+const CHALLENGE_ICON_MAP = {
+  trophy: TrophyOutlined,
+  flag: FlagOutlined,
+  fire: FireOutlined,
+  rocket: RocketOutlined,
+  gift: GiftOutlined,
+  star: StarOutlined,
+  crown: CrownOutlined,
+  thunderbolt: ThunderboltOutlined,
+  team: TeamOutlined,
+  heart: HeartOutlined,
+  calendar: CalendarOutlined,
+  environment: EnvironmentOutlined,
+};
+
+function resolveChallengeIcon(key) {
+  const Icon = CHALLENGE_ICON_MAP[key] || TrophyOutlined;
+  return <Icon />;
+}
 
 import "../../styles/PassportRewards.css";
 import { useAuth } from "../../auth/useAuth";
@@ -35,19 +67,13 @@ const TABS = [
   { key: "badges", label: "Badges", icon: <TrophyOutlined />, type: "BADGE" },
   { key: "perks", label: "Perks", icon: <GiftOutlined />, type: "PERK" },
   { key: "limited", label: "Limited", icon: <FireOutlined />, type: "LIMITED" },
+  // ✅ NEW: Challenges — fundamentally different data shape from the other
+  // four tabs (progress toward a count + an end date, not an XP cost to
+  // spend), so it has no `type` here and gets its own render branch below
+  // instead of being filtered into the shared catalog grid.
+  { key: "challenges", label: "Challenges", icon: <FlagOutlined /> },
 ];
 
-// Fallback catalog — only used if no `items` prop is passed in.
-//
-// ⚠️ Costs/ids here MUST match REWARDS_CATALOG in backend/routes/rewards.js
-// — the backend is the source of truth for what gets charged, but the
-// frontend needs matching ids/costs to render correctly and for the
-// optimistic-UI math to land on the same numbers the server returns.
-//
-// NOTE on `level`: currently UNUSED for gating. /api/profile/me returns a
-// badge *tier name* (currentBadge: "Explorer", "Adventurer", ...), not a
-// numeric level — so there's no reliable number to gate against yet. Items
-// are gated by XP cost only for now.
 const DEFAULT_ITEMS = [
   {
     id: "weekend_xp",
@@ -105,24 +131,6 @@ function getStatus(item, { xp, redeemedIds, profileLoading }) {
   return "redeemable";
 }
 
-/**
- * PassportRewards
- * - embedded=true => no page overlay/bg so Passport map stays visible
- *
- * XP + redemption data:
- * - On mount, self-fetches /api/profile/me (mirrors the effect in
- *   DigitalPassportPage.jsx) so the balance shown here always matches the
- *   real account.
- * - Also fetches /api/rewards/redeemed so one-time items correctly show
- *   "Redeemed" after a page refresh, instead of resetting to redeemable.
- * - Redeeming calls POST /api/rewards/redeem by default (see
- *   backend/routes/rewards.js) and trusts the server's `newBalance` in the
- *   response over local math, so the displayed balance can never drift from
- *   what's actually stored.
- * - `onRedeem` prop still exists if you want to override this (e.g. for
- *   tests or a different backend path); `xp` prop is a fallback seed used
- *   only before/if the real fetch resolves.
- */
 export default function PassportRewards({
   embedded = false,
   title = "Passport Rewards",
@@ -145,9 +153,13 @@ export default function PassportRewards({
   const [pendingId, setPendingId] = useState(null);
   const [confirmItem, setConfirmItem] = useState(null);
 
-  // Self-fetch real XP + redemption history. Mirrors the /api/profile/me
-  // effect in DigitalPassportPage.jsx for the XP half; the redeemed-items
-  // fetch is best-effort (won't block the page if that endpoint isn't live).
+  // ✅ NEW: Challenges tab state — separate from the catalog state above
+  // since it's a genuinely different data shape (progress + activation,
+  // not cost + redemption).
+  const [challenges, setChallenges] = useState([]);
+  const [challengesLoading, setChallengesLoading] = useState(true);
+  const [activatingId, setActivatingId] = useState(null);
+
   useEffect(() => {
     if (!isAuthed) {
       setProfileLoading(false);
@@ -168,7 +180,7 @@ export default function PassportRewards({
             credentials: "include",
             signal: controller.signal,
             headers: { Authorization: `Bearer ${token}` },
-          }).catch(() => null), // best-effort — don't let this fail the whole load
+          }).catch(() => null),
         ]);
 
         if (!profileRes.ok) throw new Error("profile fetch failed");
@@ -195,14 +207,9 @@ export default function PassportRewards({
       mounted = false;
       controller.abort();
     };
-    // xpProp intentionally omitted — it's only a fallback seed, not
-    // something that should re-trigger a real-data fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthed, token]);
 
-  // Default redeem call — hits the real backend route. Used whenever no
-  // `onRedeem` prop is passed in, which is the case when this page is
-  // mounted directly off the /passport/rewards route.
   const defaultRedeem = useCallback(
     async (item) => {
       const res = await fetch(apiUrl("/api/rewards/redeem"), {
@@ -219,6 +226,84 @@ export default function PassportRewards({
         throw new Error(data?.message || "Couldn't redeem that right now.");
       }
       return data;
+    },
+    [token]
+  );
+
+  // ✅ NEW: fetch active challenges + this user's progress on each, same
+  // self-fetch pattern as the profile/redeemed effect above. Fetched
+  // eagerly on mount alongside everything else, not lazily on tab switch,
+  // for consistency with how the rest of this page already loads.
+  useEffect(() => {
+    if (!isAuthed) {
+      setChallengesLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    let mounted = true;
+    (async () => {
+      setChallengesLoading(true);
+      try {
+        const res = await fetch(apiUrl("/api/challenges"), {
+          credentials: "include",
+          signal: controller.signal,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!mounted) return;
+        if (data?.ok) {
+          setChallenges(data.challenges || []);
+        }
+      } catch {
+        // Leave challenges as whatever was last successfully loaded —
+        // a failed fetch here shouldn't break the rest of the page.
+      } finally {
+        if (mounted) setChallengesLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [isAuthed, token]);
+
+  // ✅ NEW: activate a challenge — opts the user in so their actions start
+  // counting toward it. Updates local state from the real server response
+  // rather than assuming success, same principle as the redeem flow above.
+  const activateChallenge = useCallback(
+    async (challenge) => {
+      setActivatingId(challenge.id);
+      try {
+        const res = await fetch(
+          apiUrl(`/api/challenges/${challenge.id}/activate`),
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) {
+          throw new Error(data?.message || "Couldn't activate that challenge.");
+        }
+        setChallenges((prev) =>
+          prev.map((c) =>
+            c.id === challenge.id
+              ? {
+                  ...c,
+                  activated: true,
+                  progress: data.progress ?? c.progress,
+                  completed: !!data.completed,
+                }
+              : c
+          )
+        );
+        message.success(`Activated: ${challenge.title}`);
+      } catch (err) {
+        message.error(err?.message || "Couldn't activate that challenge.");
+      } finally {
+        setActivatingId(null);
+      }
     },
     [token]
   );
@@ -271,8 +356,6 @@ export default function PassportRewards({
     try {
       const redeemFn = onRedeem || defaultRedeem;
       const result = await redeemFn(item);
-      // Prefer the server's authoritative new balance when available, so the
-      // displayed XP can never drift from what's actually stored in Mongo.
       if (result && typeof result.newBalance === "number") {
         setBalance(result.newBalance);
       } else {
@@ -289,8 +372,6 @@ export default function PassportRewards({
     }
   }, [confirmItem, onRedeem, defaultRedeem]);
 
-  // Sensible defaults if no handler prop is passed in (this page is rendered
-  // directly off the /passport/rewards route with no props right now).
   const handleEarnMore = onEarnMore || (() => navigate("/booking"));
   const handleViewPassport = onViewPassport || (() => navigate("/passport"));
 
@@ -343,7 +424,7 @@ export default function PassportRewards({
           ))}
         </div>
 
-        {featured && (
+        {tab !== "challenges" && featured && (
           <Card bordered={false} className="pr-featured">
             <div className="pr-featuredHeader">
               <FireOutlined /> FEATURED THIS WEEK
@@ -367,21 +448,47 @@ export default function PassportRewards({
           </Card>
         )}
 
-        <div className="pr-section">AVAILABLE IN REWARDS</div>
-
-        {visibleItems.length === 0 ? (
-          <Empty description="No items in this category yet" />
+        {tab === "challenges" ? (
+          <>
+            <div className="pr-section">LIVE CHALLENGES</div>
+            {challengesLoading ? (
+              <div style={{ textAlign: "center", padding: "32px 0" }}>
+                <LoadingOutlined style={{ fontSize: 20, color: "#ff8a2a" }} />
+              </div>
+            ) : challenges.length === 0 ? (
+              <Empty description="No challenges running right now — check back soon" />
+            ) : (
+              <div className="pr-grid">
+                {challenges.map((c) => (
+                  <ChallengeCard
+                    key={c.id}
+                    challenge={c}
+                    activating={activatingId === c.id}
+                    onActivate={() => activateChallenge(c)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <div className="pr-grid">
-            {visibleItems.map((item) => (
-              <RewardCard
-                key={item.id}
-                item={item}
-                pending={pendingId === item.id}
-                onRedeem={() => requestRedeem(item)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="pr-section">AVAILABLE IN REWARDS</div>
+
+            {visibleItems.length === 0 ? (
+              <Empty description="No items in this category yet" />
+            ) : (
+              <div className="pr-grid">
+                {visibleItems.map((item) => (
+                  <RewardCard
+                    key={item.id}
+                    item={item}
+                    pending={pendingId === item.id}
+                    onRedeem={() => requestRedeem(item)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -465,6 +572,102 @@ function RewardCard({ item, pending, onRedeem }) {
       <div className="pr-meta">Cost: {item.cost} XP</div>
 
       <RedeemButton item={item} pending={pending} onRedeem={onRedeem} />
+    </Card>
+  );
+}
+
+// ✅ NEW: Challenges have a genuinely different shape than catalog items —
+// progress toward a count and an end date, not a cost to spend — so this
+// is its own component rather than a variant of RewardCard. Deliberately
+// reuses the existing pr-card/pr-tag/pr-cardTitle/pr-cardDesc/pr-meta/
+// pr-btn* classes already used by RewardCard above, since those are
+// already proven to render correctly in this exact file — only the
+// days-left text below is a genuinely new bit of styling.
+function formatDaysLeft(endDate) {
+  if (!endDate) return null;
+  const end = new Date(endDate).getTime();
+  const days = Math.ceil((end - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days <= 0) return "Ends today";
+  if (days === 1) return "1 day left";
+  return `${days} days left`;
+}
+
+function ChallengeCard({ challenge, activating, onActivate }) {
+  const pct = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (challenge.progress / Math.max(1, challenge.requirementCount)) * 100
+      )
+    )
+  );
+  const daysLeft = formatDaysLeft(challenge.endDate);
+
+  return (
+    <Card bordered={false} className="pr-card">
+      <div className="pr-cardTop">
+        <Tag className="pr-tag">
+          {(challenge.theme || "challenge").toUpperCase()}
+        </Tag>
+        {challenge.completed && (
+          <Tag className="pr-ready">
+            <CheckCircleFilled /> Completed
+          </Tag>
+        )}
+      </div>
+
+      <div className="pr-cardTitle">
+        <span style={{ marginRight: 6 }}>
+          {resolveChallengeIcon(challenge.icon)}
+        </span>
+        {challenge.title}
+      </div>
+      <div className="pr-cardDesc">{challenge.description}</div>
+
+      {challenge.activated && !challenge.completed && (
+        <div className="pr-cardProgress">
+          <Progress percent={pct} showInfo={false} size="small" />
+          <Text className="pr-faint" style={{ fontSize: 12 }}>
+            {challenge.progress} / {challenge.requirementCount} complete
+          </Text>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 8,
+        }}
+      >
+        <div className="pr-meta">+{challenge.bonusXP} XP bonus</div>
+        {daysLeft && (
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+            {daysLeft}
+          </div>
+        )}
+      </div>
+
+      {challenge.completed ? (
+        <Button className="pr-btnRedeemed" disabled style={{ marginTop: 10 }}>
+          <CheckCircleFilled /> +{challenge.bonusXP} XP earned
+        </Button>
+      ) : challenge.activated ? (
+        <Button className="pr-btnLocked" disabled style={{ marginTop: 10 }}>
+          In progress — keep going
+        </Button>
+      ) : (
+        <Button
+          className="pr-btnRedeem"
+          loading={activating}
+          onClick={onActivate}
+          style={{ marginTop: 10 }}
+        >
+          Activate
+        </Button>
+      )}
     </Card>
   );
 }

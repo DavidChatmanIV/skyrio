@@ -17,7 +17,7 @@ const ChallengeSchema = new Schema(
     // Free-text grouping/theming for display only (e.g. "football",
     // "worldcup", "general") — has zero effect on tracking logic.
     theme: { type: String, default: "general", trim: true },
-    icon: { type: String, default: "🏆" },
+    icon: { type: String, default: "trophy" },
 
     requirement: {
       actionType: { type: String, required: true },
