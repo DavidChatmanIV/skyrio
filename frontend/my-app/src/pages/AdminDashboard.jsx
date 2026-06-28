@@ -8,6 +8,7 @@ import {
   InputNumber,
   DatePicker,
   Select,
+  Switch,
   message,
   Popconfirm,
 } from "antd";
@@ -93,6 +94,13 @@ function ChallengeIconPicker({ value, onChange }) {
 // backend/config/xpRules.js (XP_RULES + XP_PASSIVE) so a challenge always
 // rides on an action that already earns XP correctly, rather than
 // inventing a new tracking mechanism.
+const REWARD_TYPES = [
+  { value: "BOOST", label: "Boost" },
+  { value: "BADGE", label: "Badge" },
+  { value: "PERK", label: "Perk" },
+  { value: "LIMITED", label: "Limited" },
+];
+
 const CHALLENGE_ACTION_TYPES = [
   { value: "BOOKING_CONFIRMED", label: "Booking confirmed" },
   { value: "SAVED_TRIP", label: "Saved a trip" },
@@ -512,6 +520,124 @@ const AdminDashboard = () => {
     }
   };
 
+  // ✅ NEW: Rewards catalog management — same pattern as Challenges above,
+  // same verifyAdmin auth, same soft-remove (active: false) rather than a
+  // hard delete, since a hard delete would orphan anyone's existing
+  // redeemedRewards entry for that item.
+  const [rewardItems, setRewardItems] = useState([]);
+  const [rewardItemsLoading, setRewardItemsLoading] = useState(true);
+  const [rewardModalOpen, setRewardModalOpen] = useState(false);
+  const [editingReward, setEditingReward] = useState(null); // null = creating new
+  const [rewardSaving, setRewardSaving] = useState(false);
+  const [rewardForm] = Form.useForm();
+
+  const fetchRewardItems = useCallback(async () => {
+    setRewardItemsLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/rewards/items/admin"), {
+        credentials: "include",
+        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.ok) setRewardItems(json.items || []);
+    } catch {
+      // Non-fatal — the rest of the dashboard still works without this.
+    }
+    setRewardItemsLoading(false);
+  }, []);
+
+  const openCreateRewardModal = () => {
+    setEditingReward(null);
+    rewardForm.resetFields();
+    setRewardModalOpen(true);
+  };
+
+  const openEditRewardModal = (item) => {
+    setEditingReward(item);
+    rewardForm.setFieldsValue({
+      itemId: item.itemId,
+      title: item.title,
+      desc: item.desc,
+      type: item.type,
+      cost: item.cost,
+      level: item.level,
+      featured: item.featured,
+      repeatable: item.repeatable,
+      isNew: item.isNew,
+    });
+    setRewardModalOpen(true);
+  };
+
+  const handleSaveReward = async () => {
+    try {
+      const values = await rewardForm.validateFields();
+      setRewardSaving(true);
+
+      const url = editingReward
+        ? apiUrl(`/api/rewards/items/${editingReward.itemId}`)
+        : apiUrl("/api/rewards/items");
+      const method = editingReward ? "PATCH" : "POST";
+
+      // itemId is only sent on create — it's the stable slug and can't be
+      // changed afterward (changing it would orphan it from anyone's
+      // existing redeemedRewards entries), so the edit payload omits it
+      // even though the form shows it (disabled) for reference.
+      const payload = editingReward
+        ? {
+            title: values.title,
+            desc: values.desc,
+            type: values.type,
+            cost: values.cost,
+            level: values.level,
+            featured: values.featured,
+            repeatable: values.repeatable,
+            isNew: values.isNew,
+          }
+        : values;
+
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": localStorage.getItem("admin_email") || "",
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        throw new Error(json.message || "Failed to save reward item.");
+      }
+
+      message.success(editingReward ? "Item updated." : "Item created.");
+      setRewardModalOpen(false);
+      fetchRewardItems();
+    } catch (err) {
+      if (err?.errorFields) return; // antd form validation error — already shown inline
+      message.error(err.message || "Failed to save reward item.");
+    } finally {
+      setRewardSaving(false);
+    }
+  };
+
+  const handleRemoveReward = async (item) => {
+    try {
+      const res = await fetch(apiUrl(`/api/rewards/items/${item.itemId}`), {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        throw new Error(json.message || "Failed to remove item.");
+      }
+      message.success("Item removed.");
+      fetchRewardItems();
+    } catch (err) {
+      message.error(err.message || "Failed to remove item.");
+    }
+  };
+
   // ── Guard: redirect if not logged in ──
   useEffect(() => {
     const isAdmin = localStorage.getItem("admin");
@@ -546,7 +672,8 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchData();
     fetchChallenges();
-  }, [fetchData, fetchChallenges]);
+    fetchRewardItems();
+  }, [fetchData, fetchChallenges, fetchRewardItems]);
 
   const handleLogout = async () => {
     await fetch(apiUrl("/api/admin/logout"), {
@@ -1074,6 +1201,98 @@ const AdminDashboard = () => {
             </div>
           ))}
         </div>
+
+        {/* ── Rewards Catalog ── */}
+        <div className="sk-admin__card" style={{ marginBottom: 24 }}>
+          <div className="sk-admin__card-head">
+            <span className="sk-admin__card-title">Rewards Catalog</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="sk-admin__card-count">
+                {rewardItems.length} total
+              </span>
+              <Button
+                type="primary"
+                size="small"
+                onClick={openCreateRewardModal}
+                style={{ background: C.orange, borderColor: C.orange }}
+              >
+                + New Item
+              </Button>
+            </div>
+          </div>
+          {rewardItemsLoading && (
+            <div className="sk-admin__empty">
+              <span className="sk-admin__spinner" />
+            </div>
+          )}
+          {!rewardItemsLoading && rewardItems.length === 0 && (
+            <div className="sk-admin__empty">
+              No reward items yet — create one to get started
+            </div>
+          )}
+          {rewardItems.map((item) => (
+            <div key={item.id} className="sk-admin__row">
+              <div className="sk-admin__row-left">
+                <div>
+                  <div className="sk-admin__name">
+                    {item.title}
+                    {!item.active && (
+                      <span
+                        className="sk-admin__pill"
+                        style={{
+                          marginLeft: 8,
+                          background: C.redDim,
+                          color: C.red,
+                        }}
+                      >
+                        Removed
+                      </span>
+                    )}
+                  </div>
+                  <div className="sk-admin__sub">
+                    {item.type} · {item.cost} XP
+                    {item.repeatable ? " · repeatable" : ""}
+                    {item.featured ? " · featured" : ""}
+                  </div>
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexShrink: 0,
+                }}
+              >
+                <div className="sk-admin__challenge-actions">
+                  <button
+                    type="button"
+                    className="sk-admin__challenge-action-btn"
+                    onClick={() => openEditRewardModal(item)}
+                  >
+                    Edit
+                  </button>
+                  {item.active && (
+                    <Popconfirm
+                      title="Remove this item?"
+                      description="Anyone who already redeemed it keeps that history — this just stops it from showing in the live catalog."
+                      okText="Remove"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => handleRemoveReward(item)}
+                    >
+                      <button
+                        type="button"
+                        className="sk-admin__challenge-action-btn sk-admin__challenge-action-btn--danger"
+                      >
+                        Remove
+                      </button>
+                    </Popconfirm>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Create / Edit Challenge Modal ── */}
@@ -1163,6 +1382,100 @@ const AdminDashboard = () => {
           >
             <DatePicker.RangePicker style={{ width: "100%" }} />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* ── Create / Edit Reward Item Modal ── */}
+      <Modal
+        open={rewardModalOpen}
+        title={editingReward ? "Edit Reward Item" : "New Reward Item"}
+        onCancel={() => setRewardModalOpen(false)}
+        onOk={handleSaveReward}
+        okText={editingReward ? "Save Changes" : "Create Item"}
+        confirmLoading={rewardSaving}
+        className="sk-challenge-modal"
+        destroyOnClose
+      >
+        <Form form={rewardForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="itemId"
+            label="Item ID (slug — can't be changed later)"
+            rules={[
+              { required: true, message: "Item ID is required" },
+              {
+                pattern: /^[a-z0-9_]+$/,
+                message: "Lowercase letters, numbers, and underscores only",
+              },
+            ]}
+          >
+            <Input placeholder="weekend_xp" disabled={!!editingReward} />
+          </Form.Item>
+          <Form.Item
+            name="title"
+            label="Title"
+            rules={[{ required: true, message: "Title is required" }]}
+          >
+            <Input placeholder="Weekend XP Multiplier" />
+          </Form.Item>
+          <Form.Item
+            name="desc"
+            label="Description"
+            rules={[{ required: true, message: "Description is required" }]}
+          >
+            <Input.TextArea
+              rows={2}
+              placeholder="+2x XP on all bookings Fri–Sun"
+            />
+          </Form.Item>
+          <div style={{ display: "flex", gap: 12 }}>
+            <Form.Item
+              name="type"
+              label="Type"
+              rules={[{ required: true, message: "Pick a type" }]}
+              style={{ flex: 1 }}
+            >
+              <Select options={REWARD_TYPES} placeholder="Select a type" />
+            </Form.Item>
+            <Form.Item
+              name="cost"
+              label="Cost (XP)"
+              rules={[{ required: true, message: "Required" }]}
+              style={{ flex: 1 }}
+            >
+              <InputNumber
+                min={0}
+                style={{ width: "100%" }}
+                placeholder="250"
+              />
+            </Form.Item>
+          </div>
+          <Form.Item
+            name="level"
+            label="Level"
+            extra={
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                Carried over from the original catalog data — not currently
+                wired up to restrict an item to any particular tier.
+              </span>
+            }
+          >
+            <InputNumber min={1} style={{ width: "100%" }} placeholder="1" />
+          </Form.Item>
+          <div style={{ display: "flex", gap: 24 }}>
+            <Form.Item name="featured" label="Featured" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              name="repeatable"
+              label="Repeatable"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item name="isNew" label="Mark as New" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+          </div>
         </Form>
       </Modal>
     </div>

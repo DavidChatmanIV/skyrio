@@ -1,71 +1,66 @@
 import { Router } from "express";
 import User from "../../models/user.js";
+import RewardItem from "../../models/rewardItem.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
-// ✅ Confirmed against the real requireAuth.js: req.user is the FULL
-// Mongoose document (requireAuth does `User.findById(userId)` before
-// calling next()), not a decoded JWT payload. That means req.user.xp and
-// req.user.redeemedRewards are already loaded — no need for an extra DB
-// read just to look at them (see GET /redeemed below).
-//
-// Important: that does NOT mean it's safe to mutate req.user and call
-// .save() for the actual redeem write. req.user is a snapshot taken at the
-// start of THIS request — if two tabs hit Redeem at the same instant, both
-// snapshots would show the same xp, both could pass a "can afford it" check
-// in JS, and both would then save(), double-spending. The atomic
-// findOneAndUpdate below (with xp: { $gte: cost } in the filter) is what
-// actually prevents that, so it stays even though req.user already has
-// the data.
+// ✅ The real verifyAdmin — same one that gates /api/admin/dashboard,
+// confirmed against the actual admin.routes.js source (not a same-named
+// lookalike from middleware/auth.js or middleware/verifyAdminToken.js,
+// both of which exist in this codebase but are NOT what AdminDashboard.jsx
+// actually authenticates against).
+import { verifyAdmin } from "../admin.routes.js";
 
 const router = Router();
 
 // ─────────────────────────────────────────────────────────────────────────
-// Server-side source of truth for reward costs + repeatability.
+// ✅ REMOVED: the old hardcoded REWARDS_CATALOG object. Every item it had
+// (weekend_xp, review_streak, globetrotter, priority_support, wc_jacket)
+// has been carried forward into the RewardItem collection via the one-time
+// seed script — see scripts/seedRewards.js. Nothing about what users see
+// should change the moment this deploys; the data just now lives in Mongo
+// instead of being duplicated across two hardcoded JS files.
 //
-// SECURITY: never trust a `cost` sent from the client request body — always
-// look it up here. Otherwise anyone could open devtools, rewrite the
-// network request, and redeem a 1200-XP item by claiming it costs 1 XP.
-//
-// ⚠️ Keep this in sync with DEFAULT_ITEMS in PassportRewards.jsx.
-//
-// ⚠️ "globetrotter" here is a purchasable badge item, but your User model's
-// XP_LEVELS also has a tier literally called "Globetrotter" (reached
-// automatically at 1000 XP). Worth renaming one of these to avoid confusing
-// users who'll otherwise think they already have this.
+// ⚠️ Still true and still unresolved: "globetrotter" here is a purchasable
+// badge item, but the XP tier ladder also has a tier literally called
+// "Globetrotter" (reached automatically at 1000 XP). Worth renaming one of
+// these — that's a product/copy decision, not something I'm changing here.
 // ─────────────────────────────────────────────────────────────────────────
-const REWARDS_CATALOG = {
-  weekend_xp: {
-    cost: 250,
-    repeatable: true,
-    title: "Weekend XP Multiplier",
-  },
-  review_streak: {
-    cost: 180,
-    repeatable: false,
-    title: "Review Streak (+1.5x)",
-  },
-  globetrotter: {
-    cost: 400,
-    repeatable: false,
-    title: "Globetrotter",
-  },
-  priority_support: {
-    cost: 150,
-    repeatable: true,
-    title: "Priority Support Week",
-  },
-  wc_jacket: {
-    cost: 1200,
-    repeatable: false,
-    title: "Skyrio World Cup Jacket — Numbered Drop",
-  },
-};
+
+// GET /api/rewards/items
+// Public catalog listing — no per-user data here on purpose. The frontend
+// already fetches personalized redeemed-state separately via GET
+// /redeemed below and combines the two client-side; this keeps that
+// existing, already-correct split instead of merging concerns that don't
+// need to be merged.
+router.get("/items", async (req, res) => {
+  try {
+    const items = await RewardItem.find({ active: true })
+      .sort({ type: 1, cost: 1 })
+      .lean();
+    return res.json({
+      ok: true,
+      items: items.map((i) => ({
+        id: i.itemId,
+        type: i.type,
+        title: i.title,
+        desc: i.desc,
+        cost: i.cost,
+        level: i.level,
+        featured: i.featured,
+        repeatable: i.repeatable,
+        isNew: i.isNewItem,
+      })),
+    });
+  } catch (err) {
+    console.error("[rewards] items list error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to load rewards." });
+  }
+});
 
 // GET /api/rewards/redeemed
-// Returns which one-time items this user has already redeemed, so the
-// frontend can correctly show "Redeemed" instead of "Redeem" after a
-// refresh — without this, a one-time item would look redeemable again on
-// reload even though the POST route below would (correctly) reject a
-// second redeem of it.
+// Unchanged — still reads req.user.redeemedRewards directly off the
+// already-loaded full Mongoose doc that requireAuth provides.
 router.get("/redeemed", requireAuth, async (req, res) => {
   return res.json({
     ok: true,
@@ -75,6 +70,12 @@ router.get("/redeemed", requireAuth, async (req, res) => {
 
 // POST /api/rewards/redeem
 // Body: { itemId: string }
+// ✅ UNCHANGED logic: the atomic findOneAndUpdate with xp: { $gte: cost }
+// is the actual security-critical piece here — it's what stops two open
+// tabs from double-spending the same XP, since only the first request to
+// reach Mongo can match the filter. The only thing that changed is WHERE
+// the reward's cost/repeatable/title come from (the database now, not an
+// in-memory object) — the redeem logic itself is byte-identical to before.
 router.post("/redeem", requireAuth, async (req, res) => {
   try {
     const { itemId } = req.body || {};
@@ -82,7 +83,7 @@ router.post("/redeem", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, message: "Missing itemId." });
     }
 
-    const reward = REWARDS_CATALOG[itemId];
+    const reward = await RewardItem.findOne({ itemId, active: true }).lean();
     if (!reward) {
       return res
         .status(400)
@@ -91,13 +92,6 @@ router.post("/redeem", requireAuth, async (req, res) => {
 
     const userId = req.user._id;
 
-    // Atomic find+update. The `xp: { $gte: reward.cost }` filter is what
-    // prevents double-spending: if two redeem requests race (e.g. two open
-    // tabs hitting Redeem at the same instant), only the FIRST one to reach
-    // Mongo can match — by the time the second request's filter is
-    // evaluated, the first one's $inc has already landed. A naive
-    // "read xp, check in JS, then write" approach has a race window between
-    // the read and the write; this single atomic operation does not.
     const filter = {
       _id: userId,
       xp: { $gte: reward.cost },
@@ -107,8 +101,6 @@ router.post("/redeem", requireAuth, async (req, res) => {
     };
 
     if (!reward.repeatable) {
-      // Same atomic operation also guards against redeeming a one-time
-      // item twice — no separate read-then-write race window here either.
       filter.redeemedRewards = { $ne: itemId };
       update.$push = { redeemedRewards: itemId };
     }
@@ -118,11 +110,6 @@ router.post("/redeem", requireAuth, async (req, res) => {
     }).select("xp redeemedRewards");
 
     if (!updatedUser) {
-      // The atomic update matched nothing — figure out why, purely for an
-      // accurate error message. req.user reflects state from the start of
-      // this same request, which is fresh enough for picking a message
-      // (the actual security-critical decision was already made correctly
-      // by the atomic write above, regardless of what we say here).
       if (!reward.repeatable && req.user.redeemedRewards?.includes(itemId)) {
         return res
           .status(409)
@@ -141,6 +128,149 @@ router.post("/redeem", requireAuth, async (req, res) => {
     return res
       .status(500)
       .json({ ok: false, message: "Something went wrong. Please try again." });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+   ADMIN CONTROL — create / edit / remove catalog items.
+   Same verifyAdmin as Challenges, same soft-remove-not-hard-delete
+   pattern, for the same reason: a hard delete would orphan anyone's
+   existing redeemedRewards entry for that item.
+───────────────────────────────────────────────────────────── */
+
+// GET /api/rewards/items/admin — every item regardless of active flag,
+// so the admin screen can see (and potentially restore) removed items too.
+router.get("/items/admin", verifyAdmin, async (req, res) => {
+  try {
+    const items = await RewardItem.find({}).sort({ createdAt: -1 }).lean();
+    return res.json({
+      ok: true,
+      items: items.map((i) => ({ ...i, id: i._id, isNew: i.isNewItem })),
+    });
+  } catch (err) {
+    console.error("[rewards] admin list error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to load rewards." });
+  }
+});
+
+// POST /api/rewards/items — create a new catalog item
+router.post("/items", verifyAdmin, async (req, res) => {
+  try {
+    const {
+      itemId,
+      title,
+      desc,
+      type,
+      cost,
+      level,
+      featured,
+      repeatable,
+      isNew,
+    } = req.body;
+
+    if (!itemId || !title || !desc || !type || cost == null) {
+      return res.status(400).json({
+        ok: false,
+        message: "itemId, title, desc, type, and cost are required.",
+      });
+    }
+
+    const existing = await RewardItem.findOne({ itemId });
+    if (existing) {
+      return res.status(409).json({
+        ok: false,
+        message: `An item with itemId "${itemId}" already exists.`,
+      });
+    }
+
+    const item = await RewardItem.create({
+      itemId,
+      title,
+      desc,
+      type,
+      cost,
+      level: level ?? 1,
+      featured: !!featured,
+      repeatable: !!repeatable,
+      isNewItem: !!isNew,
+    });
+
+    return res.status(201).json({ ok: true, item });
+  } catch (err) {
+    console.error("[rewards] create item error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to create reward item." });
+  }
+});
+
+// PATCH /api/rewards/items/:itemId — edit an existing item. itemId itself
+// is deliberately NOT in the allowed list — changing it would orphan it
+// from anyone's existing User.redeemedRewards entries.
+router.patch("/items/:itemId", verifyAdmin, async (req, res) => {
+  try {
+    const allowed = [
+      "title",
+      "desc",
+      "type",
+      "cost",
+      "level",
+      "featured",
+      "repeatable",
+      "active",
+    ];
+    const updates = {};
+    for (const key of allowed) {
+      if (key in req.body) updates[key] = req.body[key];
+    }
+    // ✅ Handled separately, not in the generic passthrough loop above —
+    // the request body uses "isNew" (matching what both frontend files
+    // already send), but the schema field is "isNewItem". Passing
+    // "isNew" straight through to $set would write to the reserved
+    // Mongoose pathname directly, the exact collision this rename exists
+    // to avoid.
+    if ("isNew" in req.body) {
+      updates.isNewItem = !!req.body.isNew;
+    }
+
+    const item = await RewardItem.findOneAndUpdate(
+      { itemId: req.params.itemId },
+      { $set: updates },
+      { new: true }
+    );
+    if (!item) {
+      return res.status(404).json({ ok: false, message: "Item not found." });
+    }
+    return res.json({ ok: true, item });
+  } catch (err) {
+    console.error("[rewards] update item error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to update reward item." });
+  }
+});
+
+// DELETE /api/rewards/items/:itemId — soft-remove (active: false), not a
+// hard delete. Preserves redemption history for anyone who already
+// redeemed this item; it just stops showing up in the live catalog.
+router.delete("/items/:itemId", verifyAdmin, async (req, res) => {
+  try {
+    const item = await RewardItem.findOneAndUpdate(
+      { itemId: req.params.itemId },
+      { $set: { active: false } },
+      { new: true }
+    );
+    if (!item) {
+      return res.status(404).json({ ok: false, message: "Item not found." });
+    }
+    return res.json({ ok: true, message: "Item removed.", item });
+  } catch (err) {
+    console.error("[rewards] remove item error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to remove reward item." });
   }
 });
 
