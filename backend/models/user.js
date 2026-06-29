@@ -56,22 +56,22 @@ const UserSchema = new Schema(
     followingCount: { type: Number, default: 0, min: 0 },
     preferences: { type: PreferencesSchema, default: () => ({}) },
 
+    // ---------- Privacy ----------
+    // Controls who can see this user's seat/flight location (e.g. the
+    // child/pet seatmap badge). 'mutual' = only mutual-follow connections,
+    // 'everyone' = any Skyrio user on the same flight, 'off' = nobody.
+    seatVisibility: {
+      type: String,
+      enum: ["mutual", "everyone", "off"],
+      default: "mutual",
+    },
+
     // ---------- XP & Rewards ----------
     xp: { type: Number, default: 0, min: 0 },
-    // Tracks which one-time Passport Rewards items this user has redeemed.
-    // Enforced atomically alongside the xp deduction in
-    // routes/api/rewards.routes.js so a non-repeatable item can't be
-    // redeemed twice (including across two open tabs racing each other),
-    // and so the frontend can correctly show "Redeemed" after a refresh
-    // instead of resetting to redeemable.
     redeemedRewards: { type: [String], default: [] },
     settings: { rewardsEnabled: { type: Boolean, default: false } },
 
     // ---------- XP Earning System (routes/xp.js) ----------
-    // membershipPlan was removed from here — xp.js now reads the existing
-    // `plan` field below (---------- Membership Plan ----------) instead
-    // of a separate field, so there's one source of truth for tier instead
-    // of two that could drift apart again.
     xpTotalEarned: { type: Number, default: 0 },
     xpDailyTotal: { type: Number, default: 0 },
     xpDailyMeta: { type: Schema.Types.Mixed, default: {} },
@@ -161,23 +161,6 @@ UserSchema.methods.getModerationStatus = function () {
 };
 
 // ── XP Level helper ───────────────────────────────────────────
-// Returns levelLabel, levelProgressPct, nextLevel, xpToNext
-// based on the user's current XP. Used in toSafeJSON so every
-// API response includes up-to-date level info automatically.
-//
-// This used to compute its own separate 6-tier ladder (Newcomer/Explorer@200
-// XP/Adventurer@500/...) that disagreed with the real 8-tier system in
-// config/xpRules.js (Explorer@0/Adventurer@100/Voyager@300/...) — the one
-// actually shown on the live Passport page. A 70 XP user would have shown
-// as "Newcomer" here but "Explorer" everywhere else. Now this just
-// translates getLevel()'s output into the same field names this method
-// has always returned, so toSafeJSON() and anything reading
-// levelLabel/levelProgressPct/nextLevel/xpToNext keeps working exactly as
-// before — it just gets correct, consistent values now.
-//
-// New code should prefer calling getLevel(user.xp) from
-// ../config/xpRules.js directly; this method exists for backward
-// compatibility with whatever already reads these specific field names.
 UserSchema.methods.getXPLevel = function () {
   const { current, next, percent, xpToNext } = getLevel(this.xp || 0);
   return {
@@ -189,9 +172,6 @@ UserSchema.methods.getXPLevel = function () {
 };
 
 // ── toSafeJSON ────────────────────────────────────────────────
-// Used everywhere we return a user object to the frontend.
-// Includes computed XP level fields so Dashboard, Passport,
-// and SkyHub all get levelLabel + levelProgressPct automatically.
 UserSchema.methods.toSafeJSON = function () {
   return {
     id: this._id.toString(),
@@ -217,6 +197,7 @@ UserSchema.methods.toSafeJSON = function () {
     followersCount: this.followersCount,
     followingCount: this.followingCount,
     preferences: this.preferences,
+    seatVisibility: this.seatVisibility,
     moderation: this.moderation,
     savedTrips: this.savedTrips,
     createdAt: this.createdAt,

@@ -1,5 +1,27 @@
 import mongoose from "mongoose";
 
+const passengerSchema = new mongoose.Schema(
+  {
+    name: { type: String },
+    type: {
+      type: String,
+      enum: ["adult", "child", "infant_without_seat", "infant_with_seat"],
+      default: "adult",
+    },
+    duffelPassengerId: { type: String }, // ties back to Duffel's passenger_id
+    seat: {
+      designator: { type: String }, // e.g. "14B"
+      segmentId: { type: String }, // which flight segment this seat is on
+      tag: {
+        type: String,
+        enum: ["none", "child", "infant", "pet"],
+        default: "none",
+      },
+    },
+  },
+  { _id: false }
+);
+
 const bookingSchema = new mongoose.Schema(
   {
     // ── Core identity ──
@@ -38,12 +60,23 @@ const bookingSchema = new mongoose.Schema(
     },
     travelers: { type: Number, default: 1 },
 
+    // ── Passengers (individual-level, needed for seat tags) ──
+    passengers: { type: [passengerSchema], default: [] },
+
+    // ── Sync Together trip link (set if this booking belongs to a group trip) ──
+    syncTripId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SyncTrip",
+      index: true,
+    },
+
     // ── Flight data (populated from Duffel) ──
     flight: {
       duffelOrderId: { type: String, index: true },
       offerId: { type: String },
       owner: { type: String }, // airline name
       airline: { type: String }, // alias
+      flightNumber: { type: String }, // marketing carrier flight number, used for cross-booking flight matching
       origin: { type: String }, // IATA code
       destination: { type: String }, // IATA code
       departingAt: { type: Date },
@@ -110,6 +143,9 @@ const bookingSchema = new mongoose.Schema(
 bookingSchema.index({ user: 1, status: 1 });
 bookingSchema.index({ user: 1, "dates.start": 1 });
 bookingSchema.index({ "flight.duffelOrderId": 1 });
+// Used to find other Skyrio bookings on the same physical flight, for the
+// seat-tag visibility feature (mutual-follow or Sync Together members only)
+bookingSchema.index({ "flight.flightNumber": 1, "flight.departingAt": 1 });
 
 const Booking =
   mongoose.models.Booking || mongoose.model("Booking", bookingSchema);

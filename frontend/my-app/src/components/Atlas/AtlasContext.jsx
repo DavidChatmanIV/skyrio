@@ -20,6 +20,11 @@ export function AtlasProvider({ children }) {
     bookingTotal: null,
     spent: null,
     flights: [],
+    // NEW: "solo" | "romantic" | "family" | "group" | null
+    // Set explicitly when known (e.g. from a booking search form).
+    // If left null, AtlasPanel falls back to letting the model infer
+    // it from conversation context instead.
+    tripType: null,
   });
 
   // Convenience updater — merges partial updates so callers

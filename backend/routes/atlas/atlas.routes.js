@@ -9,6 +9,36 @@ import { Router } from "express";
 
 const router = Router();
 
+// Trip-type-specific guidance injected into the system prompt.
+// Keyed to filters.type — see TRIP_TYPE_GUIDANCE below.
+const TRIP_TYPE_GUIDANCE = {
+  solo: `
+This is a SOLO trip. Favor destinations with strong safety reputations,
+walkable city centers or well-trodden routes, and good opportunities to
+meet other travelers if desired (hostels, group tours, co-working cafes).
+Avoid suggesting destinations requiring a private car/driver as the only
+way to get around.`,
+  romantic: `
+This is a ROMANTIC trip (couple). Favor destinations and stays with
+privacy, ambiance, and a clear "experience" factor (sunset dinners,
+scenic viewpoints, boutique stays) over high-volume tourist hubs. If the
+prompt mentions an anniversary/proposal/honeymoon, weight that heavily
+in the "fit" and "summary" fields.`,
+  family: `
+This is a FAMILY trip (parents + kids). Favor destinations with
+kid-friendly infrastructure: short transit times, stroller/car-seat
+accessible transport, family room configurations, and activities
+suitable for mixed ages. Penalize destinations known for being
+logistically hard with young children (e.g. long transfer times, no
+direct flights) unless the prompt specifically asks for adventure.`,
+  group: `
+This is a GROUP trip (multiple independent travelers, possibly multiple
+families). Favor destinations with a range of activities so different
+sub-groups can split off and reconvene, flexible group-size lodging
+(villas, multi-room hotels), and reasonably central locations that don't
+require everyone to agree on one single narrow activity.`,
+};
+
 router.post("/suggest", async (req, res) => {
   try {
     const {
@@ -28,6 +58,11 @@ router.post("/suggest", async (req, res) => {
       .map(([k, v]) => `${k}: ${v}`)
       .join(", ");
 
+    // Pull trip-type-specific guidance if filters.type matches a known type.
+    // filters.type is expected to be one of: "solo" | "romantic" | "family" | "group"
+    const typeGuidance = TRIP_TYPE_GUIDANCE[filters.type] || "";
+
+    // Build a filter context string for the AI
     const systemPrompt = `You are Atlas, Skyrio's AI travel planner.
 Given a user's travel prompt, their home airport, and optional filters, return ${count} ranked trip suggestions.
 
@@ -42,6 +77,8 @@ Rules:
 - "dates" is a plausible window e.g. "Apr 5-15".
 - "score" is 1-100 representing how well this matches the prompt + filters.
 - Consider prompt history to understand the user's preferences.
+- If no trip type is given, infer one from the prompt itself (e.g. "me and my wife" -> romantic, "my kids" -> family, "solo" / "by myself" -> solo, "my friends" / "our group" -> group) and let that inference quietly shape your picks without naming it back to the user.
+${typeGuidance}
 ${filterContext ? `\nActive filters the user set: ${filterContext}` : ""}
 
 Respond ONLY with raw JSON — no markdown, no backticks, no preamble.

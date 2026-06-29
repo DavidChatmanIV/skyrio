@@ -19,6 +19,12 @@ const MemberSchema = new Schema(
     departureAirport: { type: String, trim: true, default: null },
     approved: { type: Boolean, default: false },
     approvedAt: { type: Date, default: null },
+
+    // ── NEW: family-unit grouping ──
+    // Members sharing the same familyUnit string are voted/planned for
+    // as a single block (used for multi-family trips). Leave null for
+    // friend-group members who each vote independently.
+    familyUnit: { type: String, trim: true, default: null },
   },
   { _id: true }
 );
@@ -45,29 +51,34 @@ const ChatMessageSchema = new Schema(
   { timestamps: true }
 );
 
-const ActivityLogSchema = new Schema(
+// ── NEW: trip composition sub-schema ──
+const TripCompositionSchema = new Schema(
   {
-    user: { type: Schema.Types.ObjectId, ref: "User" },
-    action: {
+    // If null, category is auto-derived from member shape at read time
+    // (see services/tripComposition.js). Set explicitly if the
+    // "who's coming" UI step asks the user directly.
+    category: {
       type: String,
       enum: [
-        "created",
-        "member_added",
-        "member_removed",
-        "details_updated",
-        "plan_generated",
-        "plan_updated",
-        "approved",
-        "change_requested",
-        "confirmed",
-        "booked",
-        "message_sent",
-        "airport_set",
+        null,
+        "immediateFamily",
+        "multiFamily",
+        "friends",
+        "mixed",
+        "romantic",
+        "solo",
       ],
+      default: null,
     },
-    detail: { type: String, trim: true },
+    // Tie-breaker authority. Defaults to the group owner in the
+    // pre-save hook below, but can be reassigned to any member.
+    organizerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    // Whether Atlas should surface SyncTogether's voting/coordination
+    // UI at all. False for immediate-family/solo/romantic trips where
+    // there's a single decision-maker and the UI would just be noise.
+    syncTogetherEnabled: { type: Boolean, default: true },
   },
-  { timestamps: true }
+  { _id: false }
 );
 
 const SyncGroupSchema = new Schema(
@@ -111,6 +122,9 @@ const SyncGroupSchema = new Schema(
     dateRangeStart: { type: Date, default: null },
     dateRangeEnd: { type: Date, default: null },
 
+    // ── NEW ──
+    tripComposition: { type: TripCompositionSchema, default: () => ({}) },
+
     // Atlas plan
     plan: { type: String, default: null },
     planGeneratedAt: { type: Date, default: null },
@@ -140,6 +154,11 @@ SyncGroupSchema.pre("save", function (next) {
   if (!this.inviteCode) {
     this.inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   }
+  // Default tie-breaker authority to the owner if never set
+  if (!this.tripComposition) this.tripComposition = {};
+  if (!this.tripComposition.organizerId) {
+    this.tripComposition.organizerId = this.owner;
+  }
   next();
 });
 
@@ -157,6 +176,7 @@ SyncGroupSchema.methods.toSafeJSON = function () {
     departureTime: this.departureTime,
     dateRangeStart: this.dateRangeStart,
     dateRangeEnd: this.dateRangeEnd,
+    tripComposition: this.tripComposition,
     plan: this.plan,
     planGeneratedAt: this.planGeneratedAt,
     planVersion: this.planVersion,
