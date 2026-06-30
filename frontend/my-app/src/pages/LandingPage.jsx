@@ -25,19 +25,12 @@ import { trackPassportEvent } from "@/utils/passportEvents";
 import { useAuth } from "@/auth/useAuth";
 import { apiUrl } from "@/lib/api";
 
-// Real, logged-in-only content folded in from the old Dashboard.jsx — same
-// components, same import paths (LandingPage.jsx and Dashboard.jsx are both
-// directly under src/pages/, so these paths carry over unchanged).
 import SavedExcursions from "../components/excursions/SavedExcursions";
 import UpcomingBookings from "../components/dashboard/UpcomingBookings";
 import TravelAlerts from "../components/dashboard/TravelAlerts";
 import XPBadgeCard from "./passport/XPBadgeCard";
 
 const { Option } = Select;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONFIG
-// ─────────────────────────────────────────────────────────────────────────────
 
 const AIRPORTS = [
   { code: "EWR", city: "Newark", name: "Newark Liberty Intl" },
@@ -114,6 +107,13 @@ const HERO_COPY = {
   },
 };
 
+const LANDING_TRIP_TYPES = [
+  { key: "solo", label: "Solo trip" },
+  { key: "romantic", label: "Romantic trip" },
+  { key: "family", label: "Family trip" },
+  { key: "group", label: "Group trip" },
+];
+
 const FILTER_OPTIONS = {
   budget: [
     { label: "Under $500", value: "under $500" },
@@ -185,7 +185,6 @@ const EXAMPLE_SEEDS = [
   "an adventure trip for one week any destination",
 ];
 
-// Static fallback plans — shown instantly if API is unavailable (mobile/CORS)
 const FALLBACK_PLANS = [
   {
     trip: "Tulum, Mexico",
@@ -325,10 +324,6 @@ const ATLAS_CHAT_INTRO = (homeCity) => [
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AI
-// ─────────────────────────────────────────────────────────────────────────────
-
 async function fetchAISuggestion(
   prompt,
   homeCity,
@@ -366,10 +361,6 @@ async function fetchAISuggestion(
     : [];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HOME AIRPORT
-// ─────────────────────────────────────────────────────────────────────────────
-
 const HOME_AIRPORT_KEY = "skyrio_home_airport";
 function readStoredAirport() {
   try {
@@ -404,10 +395,6 @@ function useHomeAirport() {
     homeCity: airport.city,
   };
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCROLL REVEAL
-// ─────────────────────────────────────────────────────────────────────────────
 
 function useScrollReveal(threshold = 0.05) {
   const ref = useRef(null);
@@ -444,10 +431,6 @@ function Reveal({ children, className = "", delay = 0, tag: Tag = "div" }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UTILS
-// ─────────────────────────────────────────────────────────────────────────────
-
 function getTimePeriod(hour) {
   for (const [k, v] of Object.entries(TIME_PERIODS)) {
     if (v.hours.includes(hour)) return k;
@@ -455,10 +438,6 @@ function getTimePeriod(hour) {
   return "night";
 }
 const normalizePrompt = (v) => String(v || "").trim();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SVG ICONS
-// ─────────────────────────────────────────────────────────────────────────────
 
 const ICONS = {
   robot: ({ size = 18 }) => (
@@ -770,10 +749,6 @@ function Icon({ name, size }) {
   return C ? <C size={size} /> : null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LIVE PLAN CARD
-// ─────────────────────────────────────────────────────────────────────────────
-
 function LivePlanCard({ plan, homeCode, disabled }) {
   const nav = useNavigate();
   const img = getDestinationImage(plan.trip);
@@ -832,20 +807,11 @@ function SkeletonCard() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CSS
-// ─────────────────────────────────────────────────────────────────────────────
-
 const INJECTED_CSS = `
-/* ══ FULL-PAGE BACKGROUND
-   sk-landing__bg uses position:absolute + contain:paint which clips it
-   to the hero height. We set the bg-image on .sk-landing itself so the
-   cosmic image covers the entire page on scroll. ══ */
 .sk-landing {
   background: transparent !important;
 }
 
-/* Reduce time-period overlay opacity so the cosmic image stays vivid */
 .sk-landing[data-time="night"] .sk-landing__bg::after,
 .sk-landing .sk-landing__bg::after {
   background:
@@ -874,7 +840,6 @@ const INJECTED_CSS = `
     linear-gradient(175deg, rgba(13,10,30,0.45) 0%, rgba(74,16,64,0.35) 55%, rgba(156,42,16,0.28) 100%) !important;
 }
 
-/* ══ BELOW-HERO — transparent so cosmic bg shows through everything ══ */
 .sk-below-hero {
   background: transparent !important;
   position: relative;
@@ -882,14 +847,12 @@ const INJECTED_CSS = `
 }
 .sk-below-hero .sk-card { background-color: transparent; }
 
-/* ══ SECTION DIVIDERS ══ */
 .sk-divider {
   width: 100%;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,138,42,0.2), transparent);
 }
 
-/* ══ SECTION KICKER ══ */
 .sk-examples__kicker {
   display: inline-flex;
   align-items: center;
@@ -910,7 +873,6 @@ const INJECTED_CSS = `
   border-radius: 2px;
 }
 
-/* ══ SCROLL REVEAL ══ */
 @keyframes sk-revealUp {
   from { opacity:0; transform:translateY(24px); }
   to   { opacity:1; transform:translateY(0); }
@@ -921,7 +883,6 @@ const INJECTED_CSS = `
 .sk-reveal.is-visible.sk-d2 { animation-delay:0.14s; }
 .sk-reveal.is-visible.sk-d3 { animation-delay:0.21s; }
 
-/* ══ AIRPORT ROW ══ */
 .sk-hero__airportRow {
   display: flex; align-items: center; gap: 8px;
   justify-content: center; flex-wrap: wrap;
@@ -941,17 +902,44 @@ const INJECTED_CSS = `
 .sk-home-airport-popup .ant-select-item-option-active,
 .sk-home-airport-popup .ant-select-item-option-selected { background:rgba(255,138,42,0.12)!important; color:#ff8a2a!important; }
 
-/* ══ TIME BADGE ══ */
 .sk-time-badge-wrap { display:flex; justify-content:flex-end; padding:10px 24px 0; position:relative; z-index:2; }
 .sk-time-badge-wrap .sk-time-badge { position:relative!important; top:auto!important; right:auto!important; }
 
-/* ══ SEARCH — focus glow ══ */
 .sk-hero__search:focus-within {
   border-color: rgba(255,138,42,0.6)!important;
   box-shadow: 0 0 0 4px rgba(255,138,42,0.08), 0 8px 32px rgba(0,0,0,0.2)!important;
 }
 
-/* ══ SUGGESTION CARD — glass over cosmic bg ══ */
+.sk-landing-tripPills {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.sk-landing-tripPill {
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.6);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  transition: all 0.15s;
+}
+.sk-landing-tripPill:hover {
+  border-color: rgba(255,138,42,0.4);
+  color: #ffb066;
+}
+.sk-landing-tripPill.active {
+  border-color: #ff8a2a;
+  background: rgba(255,138,42,0.16);
+  color: #ff8a2a;
+  font-weight: 700;
+}
+
 .sk-suggestion {
   background: rgba(8,5,20,0.5) !important;
   border: 1px solid rgba(255,255,255,0.14) !important;
@@ -972,7 +960,6 @@ const INJECTED_CSS = `
 }
 .sk-suggestion__body { animation: sk-suggFade 0.28s ease forwards; }
 
-/* ══ FILTERS ══ */
 .sk-filters { margin-top:14px; text-align:center; }
 .sk-filter-toggle {
   display:inline-flex; align-items:center; gap:6px;
@@ -1014,7 +1001,6 @@ const INJECTED_CSS = `
 .sk-filter-clear { align-self:flex-start; font-size:11px; color:rgba(255,255,255,0.3); background:none; border:none; cursor:pointer; padding:0; font-family:"DM Sans",sans-serif; text-decoration:underline; margin-top:4px; }
 .sk-filter-clear:hover { color:rgba(255,100,100,0.8); }
 
-/* ══ SUGGESTION TABS ══ */
 .sk-sugg-tabs { display:flex; gap:5px; margin-left:auto; }
 .sk-sugg-tab { width:26px; height:26px; border-radius:7px; font-size:11px; font-weight:700; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14); color:rgba(255,255,255,0.5); cursor:pointer; transition:all 0.15s; font-family:"DM Sans",sans-serif; }
 .sk-sugg-tab.active, .sk-sugg-tab:hover { background:rgba(255,138,42,0.18); border-color:#ff8a2a; color:#ff8a2a; }
@@ -1024,7 +1010,6 @@ const INJECTED_CSS = `
 .sk-sugg-more:hover { color:#ff8a2a; }
 .sk-sugg-more:disabled { opacity:0.35; cursor:not-allowed; }
 
-/* ══ SOCIAL PROOF ══ */
 .sk-social-proof {
   display:flex; align-items:stretch; justify-content:center; gap:0;
   margin:32px auto 0; max-width:520px;
@@ -1039,7 +1024,6 @@ const INJECTED_CSS = `
 .sk-trust-signals { display:flex; align-items:center; justify-content:center; gap:18px; flex-wrap:wrap; margin-top:14px; }
 .sk-trust-signals span { font-size:12px; color:rgba(255,255,255,0.35); font-weight:500; display:inline-flex; align-items:center; gap:4px; }
 
-/* ══ SECONDARY CTA ══ */
 .sk-hero__secondaryCta { margin-top:24px; text-align:center; }
 .sk-hero__secondaryCta-text { font-size:13px; color:rgba(255,255,255,0.45); margin-bottom:10px; }
 .sk-hero__secondaryCta-btn {
@@ -1051,21 +1035,18 @@ const INJECTED_CSS = `
 }
 .sk-hero__secondaryCta-btn:hover { background:rgba(255,138,42,0.18); border-color:rgba(255,138,42,0.6); transform:translateY(-1px); }
 
-/* ══ LIVE PLAN CARDS ══ */
 .sk-live-card { transition:transform 0.22s ease, box-shadow 0.22s ease !important; }
 .sk-live-card:hover { transform:translateY(-6px) !important; box-shadow:0 20px 48px rgba(0,0,0,0.5) !important; }
 .sk-live-card:hover .sk-live-card__media { transform:scale(1.04); }
 .sk-live-card__media { transition:transform 0.4s ease !important; }
 .sk-live-card__price { font-family:"Syne",sans-serif; font-size:22px; font-weight:800; color:#fff; line-height:1; margin-bottom:6px; }
 .sk-live-card__price span { font-family:"DM Sans",sans-serif; font-size:12px; font-weight:400; color:rgba(255,255,255,0.5); margin-left:3px; }
-/* Footer always visible — hover effect only on desktop */
 .sk-live-card__footer { opacity:1; transform:none; transition:all 0.2s ease; }
 @media(min-width:641px) {
   .sk-live-card__footer { opacity:0; transform:translateY(6px); }
   .sk-live-card:hover .sk-live-card__footer { opacity:1; transform:translateY(0); }
 }
 
-/* ══ SKELETON ══ */
 @keyframes sk-shimmer {
   0%   { background-position:-600px 0; }
   100% { background-position:600px 0; }
@@ -1084,7 +1065,6 @@ const INJECTED_CSS = `
 .sk-skeleton--short  { width:55%; }
 .sk-skeleton--btn    { height:34px; width:110px; margin-top:16px; border-radius:999px; }
 
-/* ══ ATLAS ══ */
 .sk-atlas { padding:0 24px 80px; max-width:1100px; margin:0 auto; }
 .sk-atlas__head { text-align:center; margin-bottom:48px; }
 .sk-atlas__eyebrow { display:inline-flex; align-items:center; gap:6px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.25); border-radius:999px; padding:5px 16px; font-size:12px; font-weight:500; letter-spacing:0.04em; color:#ff8a2a; margin-bottom:18px; }
@@ -1122,7 +1102,6 @@ const INJECTED_CSS = `
 .sk-atlas__featureDesc { font-size:12.5px; color:rgba(255,255,255,0.55); line-height:1.5; }
 @media(max-width:820px){.sk-atlas__body{grid-template-columns:1fr} .sk-atlas{padding:0 16px 60px} .sk-atlas__head{margin-bottom:32px}}
 
-/* ══ PROFILE BANNER ══ */
 .sk-profile-banner { margin:0 24px 80px; max-width:1100px; margin-left:auto; margin-right:auto; position:relative; border-radius:24px; overflow:hidden; background:rgba(8,5,20,0.45); border:1px solid rgba(255,138,42,0.28); padding:52px 48px; display:flex; align-items:center; justify-content:space-between; gap:32px; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
 .sk-profile-banner::before { content:""; position:absolute; inset:0; background:linear-gradient(135deg,rgba(124,58,237,0.18) 0%,rgba(255,138,42,0.12) 50%,rgba(236,72,153,0.12) 100%); pointer-events:none; }
 .sk-profile-banner__left { flex:1; position:relative; z-index:1; }
@@ -1154,7 +1133,6 @@ const INJECTED_CSS = `
 @media(max-width:820px){.sk-profile-banner{flex-direction:column;padding:32px 20px;margin:0 16px 64px} .sk-profile-banner__right{width:100%} .sk-profile-card{width:100%} .sk-profile-banner__cta{width:100%!important}}
 @media(max-width:480px){.sk-profile-banner__perks{grid-template-columns:1fr}}
 
-/* ══ SUPPORT / FAQ ══ */
 .sk-support { padding:0 24px 96px; max-width:860px; margin:0 auto; }
 .sk-support__head { text-align:center; margin-bottom:40px; }
 .sk-support__eyebrow { display:inline-flex; align-items:center; gap:6px; background:rgba(255,138,42,0.1); border:1px solid rgba(255,138,42,0.22); border-radius:999px; padding:5px 16px; font-size:12px; font-weight:500; letter-spacing:0.04em; color:#ff8a2a; margin-bottom:16px; }
@@ -1171,7 +1149,6 @@ const INJECTED_CSS = `
 .sk-support__email { display:inline-flex; align-items:center; gap:8px; padding:10px 22px; border-radius:999px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.3); color:#ff8a2a; font-size:13px; font-weight:600; text-decoration:none; transition:background 0.2s, transform 0.2s; }
 .sk-support__email:hover { background:rgba(255,138,42,0.2); transform:translateY(-1px); }
 
-/* ══ EXAMPLES ERROR STATE ══ */
 .sk-examples__error {
   text-align: center;
   padding: 32px 16px;
@@ -1189,7 +1166,6 @@ const INJECTED_CSS = `
 }
 .sk-examples__retry:hover { background: rgba(255,138,42,0.25); }
 
-/* ══ AUTHED DASHBOARD TABS — brand orange instead of antd's default blue ══ */
 .sk-authedTabs .ant-tabs-tab {
   color: rgba(255,255,255,0.55) !important;
   font-weight: 600 !important;
@@ -1208,7 +1184,6 @@ const INJECTED_CSS = `
   border-bottom: 1px solid rgba(255,255,255,0.1) !important;
 }
 
-/* ══ MOBILE ══ */
 @media(max-width:640px){
   .sk-support__grid{grid-template-columns:1fr} .sk-support{padding:0 16px 72px}
   .sk-support__contact{flex-direction:column;padding:20px 16px} .sk-support__email{width:100%;justify-content:center}
@@ -1219,15 +1194,10 @@ const INJECTED_CSS = `
   .sk-time-badge-wrap{padding:6px 16px 0}
   .sk-filter-groups{padding:14px} .sk-filter-pill{padding:5px 12px;font-size:11px}
   .sk-sugg-tabs{display:none}
-  /* Shorter card images on mobile so content doesn't get cut off */
   .sk-card__media { height:160px !important; }
   .sk-card--skeleton .sk-card__media { height:160px !important; }
 }
 `;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   const nav = useNavigate();
@@ -1238,9 +1208,6 @@ export default function LandingPage() {
   const [authedXp, setAuthedXp] = useState(0);
   const [authedTier, setAuthedTier] = useState("Explorer");
 
-  // Real XP/tier for the logged-in greeting pill. Self-fetches /api/xp/me
-  // rather than trusting a possibly-stale field on `user` — same reasoning
-  // as PassportRewards.jsx and SkyHubPassportCard.jsx earlier this session.
   useEffect(() => {
     if (!isAuthed) {
       setAuthedXpLoading(false);
@@ -1262,8 +1229,7 @@ export default function LandingPage() {
         setAuthedXp(Number(data?.xp ?? 0));
         setAuthedTier(String(data?.tier?.name ?? "Explorer"));
       } catch {
-        // Greeting pill just shows 0 XP / Explorer until the next successful
-        // fetch — not worth a visible error state for a homepage accent.
+        // intentionally silent — homepage accent only
       } finally {
         if (mounted) setAuthedXpLoading(false);
       }
@@ -1293,6 +1259,7 @@ export default function LandingPage() {
   const timeMeta = TIME_PERIODS[timePeriod];
 
   const [q, setQ] = useState("");
+  const [landingTripType, setLandingTripType] = useState(null);
   const promptHistoryRef = useRef([]);
   const [suggestions, setSuggestions] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -1304,7 +1271,7 @@ export default function LandingPage() {
   const [examplePlans, setExamplePlans] = useState([]);
   const [examplesLoading, setExamplesLoading] = useState(true);
   const [examplesFailed, setExamplesFailed] = useState(false);
-  const [examplesKey, setExamplesKey] = useState(0); // increment to retry
+  const [examplesKey, setExamplesKey] = useState(0);
   const [activeFilters, setActiveFilters] = useState({
     budget: null,
     type: null,
@@ -1409,7 +1376,6 @@ export default function LandingPage() {
       setExamplesLoading(true);
       setExamplesFailed(false);
 
-      // 8 second timeout — if API hasn't responded, use fallback
       const timeout = setTimeout(() => {
         if (!cancelled) {
           setExamplePlans(FALLBACK_PLANS);
@@ -1431,7 +1397,6 @@ export default function LandingPage() {
           .filter((r) => r.status === "fulfilled" && r.value)
           .map((r) => r.value);
         if (!cancelled) {
-          // Use live plans if we got them, otherwise fallback
           setExamplePlans(plans.length > 0 ? plans : FALLBACK_PLANS);
           setExamplesFailed(false);
         }
@@ -1474,11 +1439,16 @@ export default function LandingPage() {
         prompt,
         homeAirport: homeCode,
       });
-      nav(`/booking?prompt=${encodeURIComponent(prompt)}&from=${homeCode}`);
+      const typeParam = landingTripType ? `&type=${landingTripType}` : "";
+      nav(
+        `/booking?prompt=${encodeURIComponent(
+          prompt
+        )}&from=${homeCode}${typeParam}`
+      );
     } finally {
       setIsRouting(false);
     }
-  }, [q, nav, homeCode]);
+  }, [q, nav, homeCode, landingTripType]);
 
   const viewPlan = useCallback(
     async (sugg = suggestion) => {
@@ -1496,15 +1466,18 @@ export default function LandingPage() {
           planKey: sugg.planKey,
           homeAirport: homeCode,
         });
+        const typeParam = landingTripType ? `&type=${landingTripType}` : "";
         const base = `/booking?plan=${encodeURIComponent(
           sugg.planKey
-        )}&prompt=${encodeURIComponent(prompt || sugg.trip)}&from=${homeCode}`;
+        )}&prompt=${encodeURIComponent(
+          prompt || sugg.trip
+        )}&from=${homeCode}${typeParam}`;
         nav(fp ? `${base}&${fp}` : base);
       } finally {
         setIsRouting(false);
       }
     },
-    [q, nav, suggestion, homeCode, activeFilters]
+    [q, nav, suggestion, homeCode, activeFilters, landingTripType]
   );
 
   const showMoreOptions = useCallback(async () => {
@@ -1515,14 +1488,15 @@ export default function LandingPage() {
       .join("&");
     try {
       setIsRouting(true);
+      const typeParam = landingTripType ? `&type=${landingTripType}` : "";
       const base = `/booking?prompt=${encodeURIComponent(
         prompt || "recommend me a trip"
-      )}&from=${homeCode}&showAll=true`;
+      )}&from=${homeCode}&showAll=true${typeParam}`;
       nav(fp ? `${base}&${fp}` : base);
     } finally {
       setIsRouting(false);
     }
-  }, [q, nav, homeCode, activeFilters]);
+  }, [q, nav, homeCode, activeFilters, landingTripType]);
 
   const goSignup = useCallback(() => nav("/register"), [nav]);
 
@@ -1544,7 +1518,6 @@ export default function LandingPage() {
       </div>
 
       <div className="sk-landing__content">
-        {/* ══ HERO ══ */}
         <header className="sk-hero">
           {isAuthed && (
             <div style={{ display: "flex", justifyContent: "center" }}>
@@ -1616,6 +1589,23 @@ export default function LandingPage() {
             ))}
           </h1>
           <p className="sk-hero__sub">{HERO_COPY.subtitle}</p>
+
+          <div className="sk-landing-tripPills">
+            {LANDING_TRIP_TYPES.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`sk-landing-tripPill${
+                  landingTripType === t.key ? " active" : ""
+                }`}
+                onClick={() =>
+                  setLandingTripType((prev) => (prev === t.key ? null : t.key))
+                }
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
           <div className="sk-hero__search" style={{ marginBottom: 0 }}>
             <Input
@@ -1866,7 +1856,6 @@ export default function LandingPage() {
           )}
         </header>
 
-        {/* ══ BELOW HERO ══ */}
         <div className="sk-below-hero">
           <div className="sk-divider" />
 
@@ -2179,10 +2168,10 @@ export default function LandingPage() {
                 Still have questions? <strong>Our team is here to help.</strong>
               </div>
               <a
-                href="mailto:skyrioofficial@gmail.com"
+                href="mailto:skyriooofficial@gmail.com"
                 className="sk-support__email"
               >
-                <Icon name="mail" /> skyrioofficial@gmail.com
+                <Icon name="mail" /> skyriooofficial@gmail.com
               </a>
             </div>
           </Reveal>

@@ -42,6 +42,8 @@ import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
 import SmartFilterBar from "@/pages/booking/SmartFilterBar";
 import SkyrioPicker from "@/pages/booking/SkyrioPicker";
+import HeroPlanner from "@/pages/booking/HeroPlanner";
+import TripTypeSelector from "@/components/Atlas/TripTypeSelector";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import { createNotification } from "@/services/notificationsService";
 import {
@@ -897,7 +899,7 @@ function BookingTabBar({ value, onChange }) {
   );
 }
 
-const TRIP_TYPES = [
+const BOOKING_TRIP_TYPES = [
   { key: "roundtrip", label: "Round trip" },
   { key: "oneway", label: "One way" },
   { key: "multi-city", label: "Multi-city" },
@@ -906,7 +908,7 @@ const TRIP_TYPES = [
 function TripTypeToggle({ value, onChange }) {
   return (
     <div className="sk-trip-type">
-      {TRIP_TYPES.map(({ key, label }) => (
+      {BOOKING_TRIP_TYPES.map(({ key, label }) => (
         <button
           key={key}
           type="button"
@@ -1382,7 +1384,6 @@ function PackagesForm({ onDestChange, onDatesChange }) {
     { key: "flight", Icon: IconFlight, label: "Flight" },
     { key: "car", Icon: IconCar, label: "Car" },
   ];
-
   return (
     <div className="sk-search-bar">
       <div className="sk-search-bar-pills">
@@ -1594,7 +1595,6 @@ function SavedForm() {
 // ─────────────────────────────────────────────
 function FlightSkeleton({ destCity, fromCode }) {
   const [stepIdx, setStepIdx] = useState(0);
-
   useEffect(() => {
     const iv = setInterval(
       () => setStepIdx((i) => (i + 1) % ATLAS_LOADING_STEPS.length),
@@ -1602,7 +1602,6 @@ function FlightSkeleton({ destCity, fromCode }) {
     );
     return () => clearInterval(iv);
   }, []);
-
   return (
     <div className="sk-search-loading">
       <div className="sk-search-loading__logo-wrap">
@@ -1700,9 +1699,7 @@ export default function BookingPage() {
   const [autoSearchError, setAutoSearchError] = useState(null);
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
   const [originCity, setOriginCity] = useState("");
-
   const [manualSearchLoading, setManualSearchLoading] = useState(false);
-
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -1718,6 +1715,7 @@ export default function BookingPage() {
   });
   const [visibleCount, setVisibleCount] = useState(RESULTS_PER_PAGE);
   const budgetRef = useRef(null);
+  const searchFormRef = useRef(null);
   const [priceWatchOn, setPriceWatchOn] = useState(false);
   const [priceWatchRoute, setPriceWatchRoute] = useState(null);
   const [watchingId, setWatchingId] = useState(null);
@@ -1792,6 +1790,14 @@ export default function BookingPage() {
       setSelectedNights(nights);
       setBudgetState((prev) => ({ ...prev, tripDays: nights }));
     }
+  }, []);
+
+  // Scroll to search form when "Search manually" is clicked from HeroPlanner
+  const handleSearchManually = useCallback(() => {
+    searchFormRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }, []);
 
   useEffect(() => {
@@ -1940,7 +1946,6 @@ export default function BookingPage() {
     onDestChange: setDestCity,
     onDatesChange: handleDatesChange,
   };
-
   const isSearching = autoSearchLoading || manualSearchLoading;
 
   const searchForm = useMemo(() => {
@@ -2148,9 +2153,8 @@ export default function BookingPage() {
           )}
         </div>
 
-        {/* ── Price Watch Card — lives outside sk-tripState grid ── */}
+        {/* ── Price Watch Card ── */}
         <div className="sk-price-watch-card">
-          {/* Top row: XP reward left, toggle right */}
           <div className="sk-pwc-header">
             <div className="sk-pwc-xp">
               <Zap size={13} className="sk-pwc-xp-icon" />
@@ -2175,8 +2179,6 @@ export default function BookingPage() {
               <span className={`sk-pwc-dot${priceWatchOn ? " is-on" : ""}`} />
             </button>
           </div>
-
-          {/* Descriptor — changes when toggled */}
           <div className="sk-pwc-desc">
             {priceWatchOn
               ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
@@ -2186,8 +2188,6 @@ export default function BookingPage() {
               ? "Search results loaded — turn on to get alerted if this route drops in price."
               : "Search for a route above, then turn on price alerts."}
           </div>
-
-          {/* AI Insight — only shows when we have real flight data with a price spread */}
           {!aiInsightDismissed &&
             priceWatchRoute &&
             flightResults.length >= 3 &&
@@ -2223,6 +2223,17 @@ export default function BookingPage() {
         <Text className="sk-hero-sub">
           Smart Plan AI helps balance budget, comfort, and XP.
         </Text>
+
+        {/* ── Who's traveling + HeroPlanner ── */}
+        <TripTypeSelector />
+
+        <HeroPlanner
+          onDestinationSelect={(city) => {
+            if (city) setDestCity(city);
+            else setDestCity("");
+          }}
+          onSearchManually={handleSearchManually}
+        />
 
         <BookingTabBar
           value={tab}
@@ -2281,7 +2292,8 @@ export default function BookingPage() {
           </div>
         </div>
 
-        {searchForm}
+        {/* ── Search form (scroll target for "Search manually") ── */}
+        <div ref={searchFormRef}>{searchForm}</div>
 
         <SmartFilterBar
           filters={smartFilters}

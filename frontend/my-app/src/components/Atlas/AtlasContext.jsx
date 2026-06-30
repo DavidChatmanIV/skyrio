@@ -1,18 +1,11 @@
-/**
- * ─────────────────────────────────────────────────────────────
- * Global context so any page can feed Atlas real booking data:
- * destination, budget, flight results, and spend tracking.
- * ─────────────────────────────────────────────────────────────
- */
-
 import { createContext, useContext, useState, useCallback } from "react";
 
 const AtlasContext = createContext(null);
 
 export function AtlasProvider({ children }) {
   const [atlasDestination, setAtlasDestination] = useState(null);
+  const [pendingAtlasMessage, setPendingAtlasMessage] = useState(null);
 
-  // Full booking context passed into every Atlas request
   const [atlasContext, setAtlasContext] = useState({
     destination: null,
     budget: null,
@@ -20,19 +13,20 @@ export function AtlasProvider({ children }) {
     bookingTotal: null,
     spent: null,
     flights: [],
-    // NEW: "solo" | "romantic" | "family" | "group" | null
-    // Set explicitly when known (e.g. from a booking search form).
-    // If left null, AtlasPanel falls back to letting the model infer
-    // it from conversation context instead.
     tripType: null,
   });
 
-  // Convenience updater — merges partial updates so callers
-  // only need to pass what changed
   const updateAtlasContext = useCallback((patch) => {
     setAtlasContext((prev) => ({ ...prev, ...patch }));
-    // Keep destination in sync for the chat widget header
     if (patch.destination) setAtlasDestination(patch.destination);
+  }, []);
+
+  const sendAtlasMessage = useCallback((message) => {
+    setPendingAtlasMessage({ text: message, id: Date.now() });
+  }, []);
+
+  const clearPendingAtlasMessage = useCallback(() => {
+    setPendingAtlasMessage(null);
   }, []);
 
   return (
@@ -42,6 +36,9 @@ export function AtlasProvider({ children }) {
         setAtlasDestination,
         atlasContext,
         updateAtlasContext,
+        pendingAtlasMessage,
+        sendAtlasMessage,
+        clearPendingAtlasMessage,
       }}
     >
       {children}

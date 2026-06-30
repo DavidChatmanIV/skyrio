@@ -2,7 +2,7 @@ import React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import AtlasChat from "../components/Atlas/AtlasChat";
+import AtlasPanel from "../components/Atlas/AtlasPanel";
 import { useAtlasContext } from "../components/Atlas/AtlasContext";
 import CookieBanner from "../components/CookieBanner";
 import SkyrioDTour from "../components/SkyrioDTour";
@@ -22,7 +22,6 @@ function themeForPath(pathname) {
 
 export default function AppLayout() {
   const { pathname } = useLocation();
-  const { atlasDestination } = useAtlasContext();
 
   const isLanding = pathname === "/";
   const isSkyHub = pathname.startsWith("/skyhub");
@@ -63,7 +62,7 @@ export default function AppLayout() {
         {/* ── Footer — hidden on SkyHub only ── */}
         {!isSkyHub && <Footer />}
 
-        <AtlasChat destination={atlasDestination} />
+        <AtlasPanel />
         <CookieBanner />
       </div>
 

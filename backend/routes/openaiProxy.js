@@ -1,42 +1,319 @@
-/**
- * openaiProxy.js — add this route to your existing Express backend
- *
- * Place this file in your backend routes folder, then in your main
- * server.js add:
- *
- *   import openaiProxy from "./routes/openaiProxy.js";
- *   app.use("/api/openai", openaiProxy);
- *
- * Make sure OPENAI_API_KEY is in your backend .env file.
- */
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { AuthContext } from "../context/AuthContext";
 
-import express from "express";
+const API = import.meta.env.VITE_API_URL || "";
 
-const router = express.Router();
-
-router.post("/chat/completions", async (req, res) => {
+function safeParse(json) {
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? ""}`,
-      },
-      body: JSON.stringify(req.body),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("[OpenAI proxy] error from OpenAI:", data);
-      return res.status(response.status).json(data);
-    }
-
-    res.json(data);
-  } catch (err) {
-    console.error("[OpenAI proxy] fetch failed:", err.message);
-    res.status(500).json({ error: err.message });
+    return json ? JSON.parse(json) : null;
+  } catch {
+    return null;
   }
-});
+}
 
-export default router;
+function normalizeUser(u) {
+  if (!u || typeof u !== "object") return null;
+  const id = u._id || u.id;
+  return { ...u, ...(id ? { _id: id, id } : {}) };
+}
+
+function pickError(data) {
+  return data?.error || data?.message || "Request failed";
+}
+
+function getStoredToken() {
+  return localStorage.getItem("token") || null;
+}
+
+function buildAuthHeaders(extraHeaders = {}) {
+  const token = getStoredToken();
+  return {
+    ...extraHeaders,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+export default function AuthProvider({ children }) {
+  const [user, setUser] = useState(() =>
+    safeParse(localStorage.getItem("user"))
+  );
+  const [token, setToken] = useState(() => getStoredToken());
+  const [guestFlag, setGuestFlag] = useState(
+    () => localStorage.getItem("skyrio_guest") === "1"
+  );
+  const [loading, setLoading] = useState(true);
+
+  const isAuthed = !!(token && (user?.id || user?._id));
+  const isGuest = !!guestFlag && !isAuthed;
+
+  const setSession = useCallback(
+    ({ user: nextUser, token: nextToken } = {}) => {
+      localStorage.removeItem("skyrio_guest");
+      setGuestFlag(false);
+      if (nextUser) {
+        const normalized = normalizeUser(nextUser);
+        setUser(normalized);
+        localStorage.setItem("user", JSON.stringify(normalized));
+      }
+      if (nextToken) {
+        setToken(nextToken);
+        localStorage.setItem("token", nextToken);
+      }
+    },
+    []
+  );
+
+  const clearSession = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    setGuestFlag(false);
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    localStorage.removeItem("skyrio_guest");
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch(`${API}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: buildAuthHeaders(),
+      });
+    } catch (err) {
+      console.error("Logout request failed:", err);
+    } finally {
+      clearSession();
+    }
+  }, [clearSession]);
+
+  const authFetch = useCallback(
+    async (url, options = {}) => {
+      const res = await fetch(url, {
+        credentials: "include",
+        ...options,
+        headers: buildAuthHeaders(options.headers || {}),
+      });
+      if (res.status === 401) {
+        clearSession();
+      }
+      return res;
+    },
+    [clearSession]
+  );
+
+  // Shared helper: given a (possibly slim) user object, fetch the full
+  // profile (avatar, homeBase, bio, etc.) and merge it in. Falls back to
+  // the slim user if the profile fetch fails for any reason.
+  // NOTE: requires the token to already be in localStorage, since
+  // buildAuthHeaders() reads it from there.
+  const fetchFullProfile = useCallback(async (fallbackUser) => {
+    try {
+      const profileRes = await fetch(`${API}/api/profile/me`, {
+        method: "GET",
+        credentials: "include",
+        headers: buildAuthHeaders(),
+      });
+      if (profileRes.ok) {
+        const profileData = await profileRes.json().catch(() => ({}));
+        return normalizeUser(profileData?.user || fallbackUser);
+      }
+    } catch (err) {
+      console.error("fetchFullProfile failed:", err);
+    }
+    return normalizeUser(fallbackUser);
+  }, []);
+
+  // Shared helper used by both login() and signup(): stores the token
+  // immediately (so the profile fetch is authenticated), fetches the
+  // full profile, then commits everything to session state.
+  const loginSuccess = useCallback(
+    async (data) => {
+      // Token must hit localStorage before fetchFullProfile runs.
+      setToken(data.token);
+      localStorage.setItem("token", data.token);
+
+      const fullUser = await fetchFullProfile(data.user);
+      setSession({ token: data.token, user: fullUser });
+      return true;
+    },
+    [fetchFullProfile, setSession]
+  );
+
+  const restoreSession = useCallback(async () => {
+    try {
+      const existingToken = getStoredToken();
+
+      if (!existingToken) {
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`${API}/api/auth/check`, {
+        method: "GET",
+        credentials: "include",
+        headers: buildAuthHeaders(),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        clearSession();
+        setLoading(false);
+        return;
+      }
+
+      const nextUser = normalizeUser(data?.user || data?.profile || data);
+
+      if (nextUser?.id || nextUser?._id) {
+        const fullUser = await fetchFullProfile(nextUser);
+        setUser(fullUser);
+        localStorage.setItem("user", JSON.stringify(fullUser));
+      } else {
+        // Server responded ok but no user shape — keep cached user
+        const cachedUser = safeParse(localStorage.getItem("user"));
+        if (cachedUser) {
+          setUser(cachedUser);
+        } else {
+          clearSession();
+        }
+      }
+    } catch (err) {
+      console.error("restoreSession failed:", err);
+      // Network error — don't clear session, keep cached data
+      const cachedUser = safeParse(localStorage.getItem("user"));
+      const cachedToken = getStoredToken();
+      if (cachedUser && cachedToken) {
+        setUser(cachedUser);
+        setToken(cachedToken);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [clearSession, fetchFullProfile]);
+
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "user") setUser(safeParse(e.newValue));
+      if (e.key === "token") setToken(e.newValue || null);
+      if (e.key === "skyrio_guest") setGuestFlag(e.newValue === "1");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const available = useCallback(async ({ email, username } = {}) => {
+    const params = new URLSearchParams();
+    if (email) params.set("email", String(email).trim().toLowerCase());
+    if (username) params.set("username", String(username).trim());
+    if ([...params.keys()].length === 0) {
+      return { ok: false, error: "Provide email and/or username" };
+    }
+    const res = await fetch(`${API}/api/auth/available?${params.toString()}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: pickError(data) };
+    return data;
+  }, []);
+
+  const login = useCallback(
+    async ({ identity, emailOrUsername, email, password } = {}) => {
+      const id = String(identity || emailOrUsername || email || "").trim();
+      if (!id || !password) {
+        throw new Error("Email/username and password are required");
+      }
+      const res = await fetch(`${API}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ emailOrUsername: id, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(pickError(data));
+      }
+      if (!data?.token || !data?.user) {
+        throw new Error("Login response missing token or user");
+      }
+      return loginSuccess(data);
+    },
+    [loginSuccess]
+  );
+
+  const signup = useCallback(
+    async ({ name, email, password, username } = {}) => {
+      if (!email || !password) {
+        throw new Error("Email and password are required");
+      }
+      const res = await fetch(`${API}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: name || "",
+          email,
+          password,
+          username: username || "",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(pickError(data));
+      }
+      if (!data?.token || !data?.user) {
+        throw new Error("Register response missing token or user");
+      }
+      return loginSuccess(data);
+    },
+    [loginSuccess]
+  );
+
+  const continueAsGuest = useCallback(() => {
+    clearSession();
+    localStorage.setItem("skyrio_guest", "1");
+    setGuestFlag(true);
+  }, [clearSession]);
+
+  const value = useMemo(
+    () => ({
+      user,
+      token,
+      isAuthed,
+      isGuest,
+      loading,
+      setSession,
+      logout,
+      login,
+      signup,
+      available,
+      continueAsGuest,
+      setUser,
+      setToken,
+      authFetch,
+      restoreSession,
+    }),
+    [
+      user,
+      token,
+      isAuthed,
+      isGuest,
+      loading,
+      setSession,
+      logout,
+      login,
+      signup,
+      available,
+      continueAsGuest,
+      authFetch,
+      restoreSession,
+    ]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}

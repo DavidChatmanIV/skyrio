@@ -12,14 +12,26 @@ import React, {
   useMemo,
 } from "react";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
+import {
+  TRIP_TYPE_GUIDANCE,
+  TRIP_TYPE_LABELS,
+  TRIP_TYPE_INFERENCE_INSTRUCTION,
+} from "@/components/Atlas/atlasTripTypes";
 import { Bot, X } from "lucide-react";
 import "@/styles/AtlasPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
 
 function buildSystemPrompt(ctx) {
-  const { destination, budget, tripDays, bookingTotal, spent, flights } =
-    ctx || {};
+  const {
+    destination,
+    budget,
+    tripDays,
+    bookingTotal,
+    spent,
+    flights,
+    tripType,
+  } = ctx || {};
   const hasDest = destination && destination.trim().length > 0;
   const hasBudget = budget && Number(budget) > 0;
   const hasFlights = Array.isArray(flights) && flights.length > 0;
@@ -59,11 +71,19 @@ function buildSystemPrompt(ctx) {
       })`
     );
   }
+  if (tripType && TRIP_TYPE_LABELS[tripType]) {
+    contextLines.push(`- Trip type: ${TRIP_TYPE_LABELS[tripType]}`);
+  }
 
   const contextBlock =
     contextLines.length > 0
       ? `\n\nCURRENT BOOKING CONTEXT:\n${contextLines.join("\n")}`
       : "\n\nNo booking context loaded yet — the user hasn't selected a destination or started a search.";
+
+  const tripTypeBlock =
+    tripType && TRIP_TYPE_GUIDANCE[tripType]
+      ? `\n\nTRIP TYPE GUIDANCE:\n${TRIP_TYPE_GUIDANCE[tripType]}`
+      : `\n\n${TRIP_TYPE_INFERENCE_INSTRUCTION}`;
 
   return `You are Atlas, Skyrio's AI travel companion. You are sharp, warm, and genuinely helpful — like a well-traveled friend who happens to know everything about flights, hotels, and trip planning.
 
@@ -87,19 +107,30 @@ WHAT YOU DO NOT DO:
 - Never make up flight prices or hotel rates. Reference what's loaded or say you don't have that data.
 - Never ask for information Skyrio already has (destination, budget, etc.) — use the context.
 - Never give generic travel blog advice. Be specific to this user's situation.
-- Never be sycophantic.${contextBlock}
+- Never be sycophantic.${contextBlock}${tripTypeBlock}
 
 Keep responses under 120 words unless the user asks for a detailed breakdown. Use short paragraphs or bullet points when listing options. Always end with a clear next step or question if more info would help.`;
 }
 
 function buildStarterPrompts(ctx) {
-  const { destination, budget, tripDays, bookingTotal, flights } = ctx || {};
+  const { destination, budget, tripDays, bookingTotal, flights, tripType } =
+    ctx || {};
   const hasDest = destination && destination.trim().length > 0;
   const hasBudget = budget && Number(budget) > 0;
   const hasFlights = Array.isArray(flights) && flights.length > 0;
   const hasBooking = bookingTotal && Number(bookingTotal) > 0;
 
   const prompts = [];
+
+  if (hasDest && tripType === "family")
+    prompts.push(`What's a kid-friendly itinerary for ${destination}?`);
+  if (hasDest && tripType === "romantic")
+    prompts.push(`What are the most romantic spots in ${destination}?`);
+  if (hasDest && tripType === "solo")
+    prompts.push(`Is ${destination} safe and easy for solo travelers?`);
+  if (hasDest && tripType === "group")
+    prompts.push(`What activities work well for a group in ${destination}?`);
+
   if (hasDest && hasBudget)
     prompts.push(
       `How should I split my $${Number(
@@ -203,7 +234,7 @@ function AtlasNudge({ visible, onDismiss }) {
       </button>
       <strong className="ap-nudge__title">👋 I'm Atlas</strong>
       <span className="ap-nudge__body">
-        Type your trip idea and I'll handle flights, hotels, and budget —
+        Type your trip idea and I'll handle flights, hotels & budget —
         instantly.
       </span>
     </div>
@@ -233,7 +264,12 @@ function Bubble({ msg }) {
 }
 
 export default function AtlasPanel() {
-  const { atlasContext, atlasDestination } = useAtlasContext();
+  const {
+    atlasContext,
+    atlasDestination,
+    pendingAtlasMessage,
+    clearPendingAtlasMessage,
+  } = useAtlasContext();
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -241,7 +277,6 @@ export default function AtlasPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showNudge, setShowNudge] = useState(true);
-  // ── Hide FAB when any Ant Design date picker is open ──
   const [pickerActive, setPickerActive] = useState(false);
 
   const bottomRef = useRef(null);
@@ -256,6 +291,17 @@ export default function AtlasPanel() {
     () => buildStarterPrompts(atlasContext),
     [atlasContext]
   );
+
+  // ── Watch for messages triggered by TripTypeSelector ──
+  useEffect(() => {
+    if (!pendingAtlasMessage) return;
+    setOpen(true);
+    const t = setTimeout(() => {
+      sendMessage(pendingAtlasMessage.text);
+      clearPendingAtlasMessage();
+    }, 350);
+    return () => clearTimeout(t);
+  }, [pendingAtlasMessage]);
 
   // ── Observe DOM for open date picker ──
   useEffect(() => {
@@ -272,15 +318,19 @@ export default function AtlasPanel() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 120);
   }, [open]);
+
   useEffect(() => () => abortRef.current?.abort(), []);
+
   useEffect(() => {
     if (!showNudge) return;
     const t = setTimeout(() => setShowNudge(false), 7000);
     return () => clearTimeout(t);
   }, [showNudge]);
+
   useEffect(() => {
     if (open) setShowNudge(false);
   }, [open]);

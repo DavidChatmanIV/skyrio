@@ -3,6 +3,10 @@
  *
  * POST /api/atlas/suggest
  * Returns up to 3 ranked trip suggestions based on prompt + filters.
+ *
+ * POST /api/atlas/chat
+ * General-purpose Atlas conversation used by the floating AtlasPanel
+ * widget and the SyncTogether group planner.
  */
 
 import { Router } from "express";
@@ -155,6 +159,83 @@ ${
   } catch (err) {
     console.error("[Atlas suggest] error:", err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/atlas/chat
+// General Atlas conversation. Used by AtlasPanel.jsx (floating
+// widget) and SyncGroupPage.jsx (group trip planning).
+//
+// Body: { messages: [{ role, content }], systemPrompt?: string,
+//         context?: object }
+// Response: { ok: true, reply: string }
+// ─────────────────────────────────────────────────────────────
+const DEFAULT_CHAT_SYSTEM_PROMPT = `You are Atlas, Skyrio's AI travel companion. Be sharp, warm, and direct. Keep responses concise unless the user asks for detail.`;
+
+router.post("/chat", async (req, res) => {
+  try {
+    const { messages, systemPrompt, context } = req.body ?? {};
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "messages array is required" });
+    }
+
+    // Some callers (SyncGroupPage) send `context` separately instead of
+    // baking it into systemPrompt — fold it in if present.
+    let finalSystemPrompt = systemPrompt || DEFAULT_CHAT_SYSTEM_PROMPT;
+    if (context && typeof context === "object") {
+      const ctxLines = Object.entries(context)
+        .filter(([, v]) => v !== null && v !== undefined && v !== "")
+        .map(([k, v]) => `- ${k}: ${v}`)
+        .join("\n");
+      if (ctxLines) {
+        finalSystemPrompt += `\n\nADDITIONAL CONTEXT:\n${ctxLines}`;
+      }
+    }
+
+    const openaiRes = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? ""}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          temperature: 0.7,
+          messages: [
+            { role: "system", content: finalSystemPrompt },
+            ...messages.map((m) => ({ role: m.role, content: m.content })),
+          ],
+        }),
+      }
+    );
+
+    if (!openaiRes.ok) {
+      const err = await openaiRes.json().catch(() => ({}));
+      console.error("[Atlas chat] OpenAI error:", err);
+      return res
+        .status(openaiRes.status)
+        .json({ ok: false, error: "OpenAI request failed", detail: err });
+    }
+
+    const data = await openaiRes.json();
+    const reply = data.choices?.[0]?.message?.content?.trim();
+
+    if (!reply) {
+      return res
+        .status(500)
+        .json({ ok: false, error: "Atlas returned an empty response" });
+    }
+
+    return res.json({ ok: true, reply });
+  } catch (err) {
+    console.error("[Atlas chat] error:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

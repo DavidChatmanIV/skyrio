@@ -10,6 +10,8 @@
   --ap-radius: 20px;
   --ap-w: 380px;
   --ap-h: 540px;
+  /* Falls back to 86px if AppLayout's --sk-nav-h isn't in scope here */
+  --ap-nav-h: var(--sk-nav-h, 86px);
 }
 
 /* ── FAB wrapper
@@ -21,7 +23,8 @@
   position: fixed;
   bottom: calc(28px + env(safe-area-inset-bottom, 0px));
   right: 24px;
-  z-index: 1000;
+  /* Navbar is 99999 — must sit above it */
+  z-index: 100000;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -173,11 +176,14 @@
   position: fixed;
   bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   right: 24px;
-  z-index: 999;
+  /* Must sit above Navbar (99999) */
+  z-index: 100000;
   width: var(--ap-w);
   max-width: calc(100vw - 32px);
   height: var(--ap-h);
-  max-height: calc(100dvh - 120px);
+  /* Reserve space for the navbar height + FAB at the bottom so the
+     panel can never grow tall enough to slide under/behind the navbar */
+  max-height: min(var(--ap-h), calc(100dvh - var(--ap-nav-h) - 110px));
   display: flex;
   flex-direction: column;
   background: var(--ap-glass);
@@ -558,7 +564,7 @@
   .ap-panel {
     right: 12px;
     bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-    max-height: calc(100dvh - 100px);
+    max-height: min(var(--ap-h), calc(100dvh - var(--ap-nav-h) - 90px));
   }
 
   .ap-nudge {

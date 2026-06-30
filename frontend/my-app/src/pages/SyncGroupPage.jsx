@@ -58,6 +58,8 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
+// NEW: trip-composition classification for family/friends/multi-family-aware planning
+import { buildCompositionInstructions } from "@/utils/tripComposition";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 function authHeaders() {
@@ -531,6 +533,7 @@ export default function SyncGroupPage() {
     }
   };
 
+  // ── UPDATED: now injects trip-composition guidance into the prompt ──
   const askAtlasToPlan = async () => {
     if (!destination) {
       antdMessage.warning("Set a destination first");
@@ -578,7 +581,11 @@ export default function SyncGroupPage() {
         openCRs
           .map((cr) => `- ${cr.user?.name || "Member"}: "${cr.message}"`)
           .join("\n");
-    const prompt = `Plan a group trip to ${destination} with ${count} travelers (me + ${names}).\n\nDETAILS:\n- Organizer: ${home}\n- Destination: ${destination}\n- Cabin: ${cabin}\n- Time: ${time}\n- Airports:\n  - Me: ${home}\n${airports}\n${
+
+    // NEW: trip-composition guidance (family / friends / multi-family / etc)
+    const compositionNote = buildCompositionInstructions(group);
+
+    const prompt = `Plan a group trip to ${destination} with ${count} travelers (me + ${names}).\n\nTRAVELER COMPOSITION:\n${compositionNote}\n\nDETAILS:\n- Organizer: ${home}\n- Destination: ${destination}\n- Cabin: ${cabin}\n- Time: ${time}\n- Airports:\n  - Me: ${home}\n${airports}\n${
       days ? `- ${days} days` : ""
     }${
       dateRange[0]
