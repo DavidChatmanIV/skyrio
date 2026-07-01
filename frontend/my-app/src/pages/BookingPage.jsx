@@ -1800,6 +1800,17 @@ export default function BookingPage() {
     });
   }, []);
 
+  // ── Read trip type from landing page URL param on mount ──
+  useEffect(() => {
+    const typeFromUrl = searchParams.get("type");
+    if (
+      typeFromUrl &&
+      ["solo", "romantic", "family", "group"].includes(typeFromUrl)
+    ) {
+      updateAtlasContext({ tripType: typeFromUrl });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     updateAtlasContext({
       destination: destCity,
