@@ -632,31 +632,41 @@ export default function SkyHubPage() {
     [posts, debouncedSearch, activeFilter, activeTab, myUsername, myId]
   );
 
+  // ✅ REWRITE: previously read as a dead/unfinished product ("Nothing
+  // here yet"). SkyHub is in beta, so these now frame the same empty
+  // state as an invitation to be an early member — matching the
+  // "founding traveler" framing used elsewhere in the app (Digital
+  // Passport badges, founder badge, etc).
   const EMPTY = {
     forYou: {
       icon: "globe",
-      title: "Nothing here yet",
-      sub: "Be the first to share a tip, question, or story.",
+      title: "You're early — that's a good thing",
+      sub: "SkyHub is in beta, and you're one of the first people here. Be the first to share a tip, question, or story with the community.",
+      cta: "Write the first post",
     },
     following: {
       icon: "edit",
-      title: "No posts yet",
-      sub: "Posts you create will appear here.",
+      title: "Your posts will show up here",
+      sub: "Nothing posted yet — once you share something, it'll appear in this tab.",
+      cta: "Create a post",
     },
     nearby: {
       icon: "pin",
-      title: "No destination posts",
-      sub: "Posts tagged with a destination will appear here.",
+      title: "No destination posts yet",
+      sub: "Be the first to tag a destination and help other early travelers find it.",
+      cta: "Post about a destination",
     },
     questions: {
       icon: "chat",
       title: "No questions yet",
-      sub: "Ask the community anything about travel.",
+      sub: "As one of Skyrio's first travelers, your question could be the one that kicks off the community.",
+      cta: "Ask a question",
     },
     trips: {
       icon: "plane",
-      title: "No trips yet",
-      sub: "Share a trip idea or story to get started.",
+      title: "No trips shared yet",
+      sub: "Share a trip idea or story — early posts like yours are what shape SkyHub as it grows.",
+      cta: "Share a trip",
     },
   };
   const empty = EMPTY[activeTab] || EMPTY.forYou;
@@ -983,7 +993,7 @@ export default function SkyHubPage() {
         </div>
 
         {/* Live stats */}
-        {liveStats && (
+        {liveStats ? (
           <div className="skyhub-topStats">
             <div className="skyhub-statItem">
               <strong>{liveStats.travelers.toLocaleString()}</strong>
@@ -1005,6 +1015,17 @@ export default function SkyHubPage() {
                     liveStats.travelers !== 1 ? "s" : ""
                   } here`
                 : "Be the first to post"}
+            </div>
+          </div>
+        ) : (
+          // ✅ NEW: previously this whole block (including the "Be the
+          // first to post" pill) only rendered when liveStats existed,
+          // which requires posts.length > 0 — meaning on a truly empty
+          // SkyHub (day one of beta) there was no framing at all here,
+          // just silence. This covers that exact case.
+          <div className="skyhub-topStats">
+            <div className="skyhub-onlinePill">
+              SkyHub is in beta — be one of the first to post
             </div>
           </div>
         )}
@@ -1135,6 +1156,31 @@ export default function SkyHubPage() {
                     </div>
                     <h3>{empty.title}</h3>
                     <p>{empty.sub}</p>
+                    {/* ✅ NEW: empty state previously had no action —
+                        a dead end for a visitor. This scrolls up to
+                        the composer, which already exists above the
+                        feed. */}
+                    <Button
+                      type="primary"
+                      onClick={() => {
+                        const composer =
+                          document.getElementById("skyhub-composer");
+                        composer?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "center",
+                        });
+                        // Focus the actual textarea inside the composer
+                        // after the scroll starts, so the person can
+                        // start typing immediately rather than having
+                        // to click into it themselves.
+                        composer
+                          ?.querySelector("textarea")
+                          ?.focus({ preventScroll: true });
+                      }}
+                      style={{ marginTop: 16 }}
+                    >
+                      {empty.cta}
+                    </Button>
                   </div>
                 )}
               </div>

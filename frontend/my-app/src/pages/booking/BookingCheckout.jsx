@@ -222,9 +222,6 @@ function buildFlight(flight) {
       from,
       to,
       date: dep ? dayjs(dep).format("ddd, MMM D") : "TBD",
-      // ✅ NEW: real ISO date, kept separate from the display-formatted
-      // `date` above (which has no year — "Fri, Jun 5" — and isn't safe to
-      // send to the backend; see the booking POST in StepReviewPay below).
       dateISO: dep ? dayjs(dep).format("YYYY-MM-DD") : null,
       time: dep ? dayjs(dep).format("h:mm A") : "TBD",
       duration: fmt(dep, arr),
@@ -254,7 +251,6 @@ function buildFlight(flight) {
   };
 }
 
-// ✅ d1: All emoji replaced with Lucide icons
 const SEAT_OPTIONS = [
   {
     id: "none",
@@ -317,7 +313,7 @@ const BAG_OPTIONS = [
   },
 ];
 
-// ── Inline SVG icons (kept for internal use, no emoji) ──────
+// ── Inline SVG icons (no emoji, matches existing project style) ──────
 function PlaneIconSvg({ size = 15 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -357,7 +353,174 @@ function ShieldIconSvg() {
   );
 }
 
-// ── ✅ d2: Stepper with Lucide Check + horizontal scroll on mobile ──
+function CalendarCheckIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <path d="M9 16l2 2 4-4" />
+    </svg>
+  );
+}
+
+function InfoIconSvg() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
+    </svg>
+  );
+}
+
+// ✅ NEW: used by the "Secured by Stripe" trust row in StripePayForm.
+// Deliberately a generic card glyph rather than an attempted redraw of
+// Stripe's actual "S" logomark, since that's a trademarked brand asset.
+function StripeMarkIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <line x1="2" y1="10" x2="22" y2="10" />
+      <line x1="6" y1="15" x2="10" y2="15" />
+    </svg>
+  );
+}
+
+function getCancellationEligibility(departureDateISO) {
+  if (!departureDateISO) return { known: false };
+
+  const departure = dayjs(departureDateISO);
+  const now = dayjs();
+  const daysUntilDeparture = departure.diff(now, "day");
+
+  if (!Number.isFinite(daysUntilDeparture)) return { known: false };
+
+  return {
+    known: true,
+    eligible: daysUntilDeparture >= 7,
+    daysUntilDeparture,
+  };
+}
+
+function CancellationBadge({ departureDateISO }) {
+  const { known, eligible } = getCancellationEligibility(departureDateISO);
+
+  if (!known) {
+    return (
+      <div
+        style={{
+          marginTop: 16,
+          padding: "12px 14px",
+          background: "rgba(255,255,255,.04)",
+          border: `1px solid ${G.border}`,
+          borderRadius: 10,
+          display: "flex",
+          gap: 8,
+          alignItems: "flex-start",
+        }}
+      >
+        <span style={{ color: G.muted, marginTop: 1 }}>
+          <InfoIconSvg />
+        </span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: G.faint }}>
+            Cancellation terms
+          </div>
+          <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
+            Terms will be confirmed with your flight selection.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (eligible) {
+    return (
+      <div
+        style={{
+          marginTop: 16,
+          padding: "12px 14px",
+          background: "rgba(52,211,153,.07)",
+          border: "1px solid rgba(52,211,153,.2)",
+          borderRadius: 10,
+          display: "flex",
+          gap: 8,
+          alignItems: "flex-start",
+        }}
+      >
+        <span style={{ color: G.success, marginTop: 1 }}>
+          <CalendarCheckIcon />
+        </span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: G.success }}>
+            Book with confidence
+          </div>
+          <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
+            Free cancellation within 24 hours of booking, per DOT rule.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: "12px 14px",
+        background: "rgba(249,115,22,.06)",
+        border: "1px solid rgba(249,115,22,.2)",
+        borderRadius: 10,
+        display: "flex",
+        gap: 8,
+        alignItems: "flex-start",
+      }}
+    >
+      <span style={{ color: G.orange, marginTop: 1 }}>
+        <InfoIconSvg />
+      </span>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: G.orange }}>
+          Departing soon
+        </div>
+        <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
+          This flight departs in under 7 days, so standard fare cancellation
+          rules apply instead of the 24-hour grace period.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProgressBar({ step }) {
   const steps = ["Passengers", "Seats & Bags", "Review & Pay"];
   return (
@@ -417,7 +580,6 @@ function ProgressBar({ step }) {
                 flexShrink: 0,
               }}
             >
-              {/* ✅ d1: Lucide Check replaces ✓ emoji */}
               {i < step ? <Check size={16} strokeWidth={2.5} /> : i + 1}
             </div>
             <span
@@ -795,30 +957,7 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
             ${total.toFixed(2)}
           </span>
         </div>
-        <div
-          style={{
-            marginTop: 16,
-            padding: "12px 14px",
-            background: "rgba(52,211,153,.07)",
-            border: "1px solid rgba(52,211,153,.2)",
-            borderRadius: 10,
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-start",
-          }}
-        >
-          <span style={{ color: G.success, marginTop: 1 }}>
-            <ShieldIconSvg />
-          </span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: G.success }}>
-              Book with confidence
-            </div>
-            <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-              Free cancellation within 24 hours of booking.
-            </div>
-          </div>
-        </div>
+        <CancellationBadge departureDateISO={flight?.outbound?.dateISO} />
       </div>
     </div>
   );
@@ -1007,7 +1146,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
                 autoComplete="tel"
               />
             </label>
-            {/* ✅ d1: Known traveler — Lucide Medal icon */}
             <button
               type="button"
               onClick={() => setShowKtn((v) => !v)}
@@ -1160,7 +1298,6 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
               />
             </section>
           ))}
-          {/* ✅ d1: Travel protection — Lucide ShieldCheck */}
           <section style={{ marginBottom: 28 }}>
             <div
               style={{
@@ -1303,7 +1440,38 @@ function StripePayForm({
         setLoading(false);
         return;
       }
-      if (paymentIntent?.status === "succeeded") setDone(true);
+      // ✅ FIX: previously only "succeeded" was handled — any other
+      // status (processing, requires_action, requires_payment_method,
+      // etc.) fell through silently, leaving the user staring at a
+      // normal-looking button with no idea what happened.
+      switch (paymentIntent?.status) {
+        case "succeeded":
+          setDone(true);
+          break;
+        case "processing":
+          setError(
+            "Your payment is still processing. This can take a moment — please don't refresh or submit again. We'll email your confirmation once it clears."
+          );
+          setLoading(false);
+          break;
+        case "requires_action":
+          setError(
+            "Your bank requires additional verification to complete this payment. Please try again."
+          );
+          setLoading(false);
+          break;
+        case "requires_payment_method":
+          setError(
+            "That payment method couldn't be used. Please check your card details or try a different payment method."
+          );
+          setLoading(false);
+          break;
+        default:
+          setError(
+            "We couldn't confirm your payment status. Please check your email for a confirmation, or contact support before trying again."
+          );
+          setLoading(false);
+      }
     } catch (err) {
       setError(err.message || "Something went wrong.");
       setLoading(false);
@@ -1316,7 +1484,6 @@ function StripePayForm({
         className="skc-pop"
         style={{ textAlign: "center", padding: "60px 20px" }}
       >
-        {/* ✅ d1: Lucide Plane replaces ✈️ emoji */}
         <div
           style={{
             marginBottom: 20,
@@ -1420,6 +1587,24 @@ function StripePayForm({
             }}
           />
         </div>
+        {/* ✅ NEW: names Stripe specifically rather than a generic
+            "secure" claim — brand recognition builds more trust than
+            an unnamed padlock, and it's accurate since Stripe is the
+            actual processor handling this payment. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            color: G.muted,
+            fontSize: 12,
+            marginTop: 10,
+          }}
+        >
+          <StripeMarkIcon />
+          <span>Payments securely processed by Stripe</span>
+        </div>
       </section>
 
       {error && (
@@ -1437,7 +1622,6 @@ function StripePayForm({
             gap: 8,
           }}
         >
-          {/* ✅ d1: Lucide AlertTriangle replaces ⚠️ */}
           <AlertTriangle size={14} />
           {error}
         </div>
@@ -1589,7 +1773,6 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
       try {
         const token = localStorage.getItem("token");
         const API = import.meta.env?.VITE_API_URL || "";
-        const userId = getUserIdFromToken();
         const bRes = await fetch(`${API}/api/bookings`, {
           method: "POST",
           headers: {
@@ -1601,9 +1784,6 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
             flight: {
               origin: flight.outbound.from,
               destination: flight.outbound.to,
-              // ✅ FIX: was flight.outbound.date ("Fri, Jun 5" — no year,
-              // not a valid value for a Date-typed field). Now sends the
-              // real ISO date.
               departingAt: flight.outbound.dateISO,
               airline: flight.outbound.airline,
             },
@@ -1612,26 +1792,26 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
                 firstName: passenger.firstName,
                 lastName: passenger.lastName,
                 email: passenger.email,
+                dob: passenger.dob,
+                phone: passenger.phone,
+                knownTravelerNumber: passenger.ktn || null,
               },
             ],
-            // ✅ FIX: field names changed from depart/return to start/end
-            // to match the actual Booking schema (dates: { start, end }) —
-            // they didn't match before, so dates.start/dates.end were
-            // always empty on every booking ever created, silently
-            // dropped by Mongoose. Also now sending real ISO dates instead
-            // of the display-formatted strings.
             dates: {
               start: flight.outbound.dateISO,
               end: flight.return?.dateISO || null,
             },
+            addOns: {
+              seatTier: extras.seat,
+              seatPrice: sp,
+              bagOption: extras.bag,
+              bagPrice: bp,
+              insurance: extras.insurance,
+              insurancePrice: ip,
+            },
           }),
         });
 
-        // ✅ FIX: this never checked bRes.ok before. If booking creation
-        // failed for any reason, execution would silently continue with
-        // bookingId = "" and still set up a real Stripe payment intent —
-        // meaning a card could be charged with zero booking record tying
-        // it to anything. Now it stops here and surfaces an error instead.
         if (!bRes.ok) {
           const errBody = await bRes.json().catch(() => ({}));
           throw new Error(
@@ -1642,6 +1822,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
         const bData = await bRes.json();
         const bId = bData?._id || bData?.id || "";
         setBookingId(bId);
+
         const iRes = await fetch(`${API}/api/stripe/create-payment-intent`, {
           method: "POST",
           headers: {
@@ -1649,12 +1830,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
             Authorization: `Bearer ${token}`,
           },
           credentials: "include",
-          body: JSON.stringify({
-            amount: total,
-            currency: "usd",
-            bookingId: bId,
-            userId,
-          }),
+          body: JSON.stringify({ bookingId: bId }),
         });
         const iData = await iRes.json();
         if (!iData.ok) throw new Error(iData.message || "Payment setup failed");
@@ -1871,7 +2047,6 @@ export default function BookingCheckout({ flight, onBack }) {
           padding: "0 20px 72px",
         }}
       >
-        {/* ── Header ── */}
         <div
           style={{
             display: "flex",

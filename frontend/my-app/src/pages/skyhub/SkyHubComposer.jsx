@@ -22,6 +22,10 @@ export default function SkyHubComposer({
   user = {},
 }) {
   const fileRef = useRef(null);
+  // ✅ NEW: lets SkyHubPage scroll to AND focus the textarea directly
+  // (e.g. from the empty-state "Write the first post" button), instead
+  // of guessing at a selector with no stable id/class to target.
+  const textareaRef = useRef(null);
   const [previews, setPreviews] = useState([]);
   const [files, setFiles] = useState([]);
   const [focused, setFocused] = useState(false);
@@ -124,7 +128,10 @@ export default function SkyHubComposer({
         transition: "border-color 0.2s",
       }}
     >
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+      <div
+        id="skyhub-composer"
+        style={{ display: "flex", gap: 12, alignItems: "flex-start" }}
+      >
         {AvatarEl}
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Post type pills — only when focused */}
@@ -174,6 +181,7 @@ export default function SkyHubComposer({
 
           {/* Textarea */}
           <textarea
+            ref={textareaRef}
             value={composerText}
             onChange={(e) => setComposerText(e.target.value)}
             onFocus={() => setFocused(true)}
