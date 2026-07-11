@@ -393,6 +393,11 @@ const AdminDashboard = () => {
   const [lastRefresh, setLastRefresh] = useState(null);
   const openTickets = useSupportCount();
 
+  // ✅ NEW: Growth metrics state — second-booking rate, referral share
+  // rate, cancellation rate. See fetchGrowthMetrics below.
+  const [growthMetrics, setGrowthMetrics] = useState(null);
+  const [growthLoading, setGrowthLoading] = useState(true);
+
   // ✅ NEW: Challenges management state. Uses the same auth pattern as
   // everything else on this page (credentials: "include", cookie-based
   // verifyAdmin) — not the Bearer-token flow regular user pages use.
@@ -669,11 +674,30 @@ const AdminDashboard = () => {
     setLoading(false);
   }, [navigate]);
 
+  // ✅ NEW: Fetch growth metrics (second-booking rate, referral share
+  // rate, cancellation rate). Same auth pattern as fetchData — cookie
+  // first, x-admin-email header fallback for local dev.
+  const fetchGrowthMetrics = useCallback(async () => {
+    setGrowthLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/admin/growth-metrics"), {
+        credentials: "include",
+        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.ok) setGrowthMetrics(json.data);
+    } catch {
+      // Non-fatal — rest of dashboard still works without this.
+    }
+    setGrowthLoading(false);
+  }, []);
+
   useEffect(() => {
     fetchData();
     fetchChallenges();
     fetchRewardItems();
-  }, [fetchData, fetchChallenges, fetchRewardItems]);
+    fetchGrowthMetrics();
+  }, [fetchData, fetchChallenges, fetchRewardItems, fetchGrowthMetrics]);
 
   const handleLogout = async () => {
     await fetch(apiUrl("/api/admin/logout"), {
@@ -845,6 +869,55 @@ const AdminDashboard = () => {
             dim={C.blueDim}
           />
         </div>
+
+        {/* ── Growth Metrics ──
+             Second-booking rate, referral share rate, cancellation rate.
+             D7 return rate deliberately omitted — needs a lastActiveAt
+             field on User that doesn't exist yet. */}
+        <div className="sk-admin__section-title">Growth Metrics</div>
+        <div className="sk-admin__stats">
+          <StatCard
+            icon="🔁"
+            label="Second-Booking Rate"
+            value={
+              growthMetrics ? `${growthMetrics.secondBookingRate}%` : undefined
+            }
+            color={C.green}
+            dim={C.greenDim}
+          />
+          <StatCard
+            icon="🤝"
+            label="Referral Share Rate"
+            value={
+              growthMetrics ? `${growthMetrics.referralShareRate}%` : undefined
+            }
+            color={C.purple}
+            dim={C.purpleDim}
+          />
+          <StatCard
+            icon="⚠️"
+            label="Cancellation Rate"
+            value={
+              growthMetrics ? `${growthMetrics.cancellationRate}%` : undefined
+            }
+            color={C.red}
+            dim={C.redDim}
+          />
+        </div>
+        {!growthLoading && growthMetrics && (
+          <div
+            style={{
+              fontSize: 11,
+              color: C.muted,
+              marginTop: -20,
+              marginBottom: 32,
+            }}
+          >
+            Second-booking rate is of {growthMetrics.usersWithAtLeastOneBooking}{" "}
+            users with 1+ booking · Referral rate is of{" "}
+            {growthMetrics.totalUsers} total users
+          </div>
+        )}
 
         {/* ── Users + Bookings ── */}
         <div className="sk-admin__grid">

@@ -268,4 +268,74 @@ router.get("/dashboard", verifyAdmin, async (_req, res) => {
   }
 });
 
+/* =========================
+   Growth Metrics Endpoint
+   ─────────────────────────
+   Second-booking rate: of users with 1+ booking, what % have 2+.
+   Referral share rate: % of all users with referralsCount > 0.
+   Cancellation rate: % of all bookings with status "cancelled".
+
+   Note: D7 return rate is intentionally NOT included here — there's no
+   login/session timestamp tracked anywhere on User yet (no lastActiveAt
+   field), so it can't be computed accurately. Add a lastActiveAt field
+   to User, update it on authenticated requests, then this endpoint can
+   be extended to include it.
+========================= */
+router.get("/growth-metrics", verifyAdmin, async (_req, res) => {
+  try {
+    const [
+      bookingCountsByUser,
+      totalUsers,
+      usersWithReferrals,
+      totalBookings,
+      cancelledBookings,
+    ] = await Promise.all([
+      // Group bookings by user, get each user's booking count
+      Booking.aggregate([
+        { $group: { _id: "$user", bookingCount: { $sum: 1 } } },
+      ]),
+      User.countDocuments(),
+      User.countDocuments({ referralsCount: { $gt: 0 } }),
+      Booking.countDocuments(),
+      Booking.countDocuments({ status: "cancelled" }),
+    ]);
+
+    const usersWithAtLeastOneBooking = bookingCountsByUser.length;
+    const usersWithTwoPlusBookings = bookingCountsByUser.filter(
+      (u) => u.bookingCount >= 2
+    ).length;
+
+    const secondBookingRate =
+      usersWithAtLeastOneBooking > 0
+        ? (usersWithTwoPlusBookings / usersWithAtLeastOneBooking) * 100
+        : 0;
+
+    const referralShareRate =
+      totalUsers > 0 ? (usersWithReferrals / totalUsers) * 100 : 0;
+
+    const cancellationRate =
+      totalBookings > 0 ? (cancelledBookings / totalBookings) * 100 : 0;
+
+    return res.json({
+      ok: true,
+      data: {
+        secondBookingRate: Number(secondBookingRate.toFixed(1)),
+        usersWithAtLeastOneBooking,
+        usersWithTwoPlusBookings,
+        referralShareRate: Number(referralShareRate.toFixed(1)),
+        usersWithReferrals,
+        totalUsers,
+        cancellationRate: Number(cancellationRate.toFixed(1)),
+        cancelledBookings,
+        totalBookings,
+      },
+    });
+  } catch (err) {
+    console.error("[admin] Growth metrics error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to load growth metrics" });
+  }
+});
+
 export default router;
