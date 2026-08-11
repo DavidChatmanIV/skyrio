@@ -1,15 +1,5 @@
-/**
- * atlas.routes.js  —  backend/routes/atlas/atlas.routes.js
- *
- * POST /api/atlas/suggest
- * Returns up to 3 ranked trip suggestions based on prompt + filters.
- *
- * POST /api/atlas/chat
- * General-purpose Atlas conversation used by the floating AtlasPanel
- * widget and the SyncTogether group planner.
- */
-
 import { Router } from "express";
+import { logEvent } from "../../services/eventService.js";
 
 const router = Router();
 
@@ -235,6 +225,97 @@ router.post("/chat", async (req, res) => {
     return res.json({ ok: true, reply });
   } catch (err) {
     console.error("[Atlas chat] error:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/atlas/destination-guide
+// Lightweight destination guide — activities, tips, food.
+// Logs destination_viewed / guide_generated for the shared
+// event system (feeds email lifecycle + future personalization).
+//
+// Body: { destination: string }
+// Response: { ok: true, guide: {...} }
+// ─────────────────────────────────────────────────────────────
+router.post("/destination-guide", async (req, res) => {
+  try {
+    const { destination } = req.body ?? {};
+    const userId = req.user?.id; // assumes auth middleware sets req.user upstream
+
+    if (!destination || typeof destination !== "string") {
+      return res
+        .status(400)
+        .json({ ok: false, error: "destination is required" });
+    }
+
+    // Log the view immediately — even if generation fails downstream,
+    // this signal still matters for dormancy/email triggers later
+    if (userId) await logEvent(userId, "destination_viewed", { destination });
+
+    const systemPrompt = `You are Atlas, Skyrio's AI travel guide.
+Given a destination, return a concise, practical guide.
+
+Rules:
+- "bestTime" is a short phrase e.g. "Apr-Jun and Sep-Oct".
+- "activities" is an array of 3-4 short strings, each a specific must-do (not generic).
+- "localTip" is 1 sentence of genuinely useful, non-obvious advice.
+- "foodPick" is 1 specific dish or restaurant-type recommendation.
+- "summary" is 1-2 sentences capturing the vibe. Max 30 words.
+- Be specific and warm, never generic filler.
+
+Respond ONLY with raw JSON — no markdown, no backticks, no preamble.
+
+Schema:
+{
+  "destination": "string",
+  "summary": "string",
+  "bestTime": "string",
+  "activities": ["string"],
+  "localTip": "string",
+  "foodPick": "string"
+}`;
+
+    const openaiRes = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? ""}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          temperature: 0.7,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Destination: ${destination}` },
+          ],
+        }),
+      }
+    );
+
+    if (!openaiRes.ok) {
+      const err = await openaiRes.json().catch(() => ({}));
+      console.error("[Atlas destination-guide] OpenAI error:", err);
+      return res
+        .status(openaiRes.status)
+        .json({ ok: false, error: "OpenAI request failed", detail: err });
+    }
+
+    const data = await openaiRes.json();
+    const raw = data.choices?.[0]?.message?.content?.trim() ?? "";
+    const clean = raw
+      .replace(/^```json\s*/i, "")
+      .replace(/```\s*$/, "")
+      .trim();
+    const guide = JSON.parse(clean);
+
+    if (userId) await logEvent(userId, "guide_generated", { destination });
+
+    return res.json({ ok: true, guide });
+  } catch (err) {
+    console.error("[Atlas destination-guide] error:", err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

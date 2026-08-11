@@ -17,6 +17,7 @@ import {
   TRIP_TYPE_LABELS,
   TRIP_TYPE_INFERENCE_INSTRUCTION,
 } from "@/components/Atlas/atlasTripTypes";
+import DestinationGuide from "@/components/Atlas/DestinationGuide";
 import { Bot, X } from "lucide-react";
 import "@/styles/AtlasPanel.css";
 
@@ -272,6 +273,7 @@ export default function AtlasPanel() {
   } = useAtlasContext();
 
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState("chat"); // "chat" | "guide"
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -296,6 +298,7 @@ export default function AtlasPanel() {
   useEffect(() => {
     if (!pendingAtlasMessage) return;
     setOpen(true);
+    setMode("chat");
     const t = setTimeout(() => {
       sendMessage(pendingAtlasMessage.text);
       clearPendingAtlasMessage();
@@ -320,8 +323,9 @@ export default function AtlasPanel() {
   }, [messages]);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 120);
-  }, [open]);
+    if (open && mode === "chat")
+      setTimeout(() => inputRef.current?.focus(), 120);
+  }, [open, mode]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -461,9 +465,9 @@ export default function AtlasPanel() {
 
   return (
     <>
-      {/* ── Chat Panel ── */}
+      {/* ── Chat / Guide Panel ── */}
       {open && (
-        <div className="ap-panel" role="dialog" aria-label="Atlas AI chat">
+        <div className="ap-panel" role="dialog" aria-label="Atlas AI panel">
           <div className="ap-header">
             <div className="ap-header__left">
               <div className="ap-header__avatar">
@@ -473,12 +477,16 @@ export default function AtlasPanel() {
                 <div className="ap-header__name">{headerLabel}</div>
                 <div className="ap-header__status">
                   <span className="ap-status-dot" />
-                  {loading ? "Thinking…" : "Ready"}
+                  {mode === "chat"
+                    ? loading
+                      ? "Thinking…"
+                      : "Ready"
+                    : "Ready"}
                 </div>
               </div>
             </div>
             <div className="ap-header__actions">
-              {messages.length > 0 && (
+              {mode === "chat" && messages.length > 0 && (
                 <button
                   type="button"
                   className="ap-icon-btn"
@@ -499,67 +507,97 @@ export default function AtlasPanel() {
             </div>
           </div>
 
-          <div className="ap-messages">
-            {showStarters && (
-              <div className="ap-starters">
-                <div className="ap-starters__label">Ask Atlas anything</div>
-                {starterPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    className="ap-starter-btn"
-                    onClick={() => sendMessage(prompt)}
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            )}
-            {messages.map((msg) => (
-              <Bubble key={msg.id} msg={msg} />
-            ))}
-            {error && (
-              <div className="ap-error">
-                ⚠️ {error}
-                <button
-                  type="button"
-                  className="ap-error__retry"
-                  onClick={() => setError(null)}
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-            <div ref={bottomRef} />
-          </div>
-
-          <div className="ap-input-wrap">
-            <textarea
-              ref={inputRef}
-              className="ap-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Atlas about your trip…"
-              rows={1}
-              disabled={loading}
-            />
+          {/* ── Mode tabs ── */}
+          <div className="ap-tabs" role="tablist" aria-label="Atlas mode">
             <button
               type="button"
-              className={`ap-send${
-                input.trim() && !loading ? " ap-send--active" : ""
-              }`}
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || loading}
-              aria-label="Send"
+              role="tab"
+              aria-selected={mode === "chat"}
+              className={`ap-tab${mode === "chat" ? " ap-tab--active" : ""}`}
+              onClick={() => setMode("chat")}
             >
-              {loading ? <span className="ap-send__spinner" /> : "↑"}
+              Chat
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "guide"}
+              className={`ap-tab${mode === "guide" ? " ap-tab--active" : ""}`}
+              onClick={() => setMode("guide")}
+            >
+              Destination Guide
             </button>
           </div>
 
-          <div className="ap-footer">
-            Atlas uses your current booking context · Powered by Skyrio AI
-          </div>
+          {mode === "chat" ? (
+            <>
+              <div className="ap-messages">
+                {showStarters && (
+                  <div className="ap-starters">
+                    <div className="ap-starters__label">Ask Atlas anything</div>
+                    {starterPrompts.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        className="ap-starter-btn"
+                        onClick={() => sendMessage(prompt)}
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {messages.map((msg) => (
+                  <Bubble key={msg.id} msg={msg} />
+                ))}
+                {error && (
+                  <div className="ap-error">
+                    ⚠️ {error}
+                    <button
+                      type="button"
+                      className="ap-error__retry"
+                      onClick={() => setError(null)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+                <div ref={bottomRef} />
+              </div>
+
+              <div className="ap-input-wrap">
+                <textarea
+                  ref={inputRef}
+                  className="ap-input"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask Atlas about your trip…"
+                  rows={1}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className={`ap-send${
+                    input.trim() && !loading ? " ap-send--active" : ""
+                  }`}
+                  onClick={() => sendMessage()}
+                  disabled={!input.trim() || loading}
+                  aria-label="Send"
+                >
+                  {loading ? <span className="ap-send__spinner" /> : "↑"}
+                </button>
+              </div>
+
+              <div className="ap-footer">
+                Atlas uses your current booking context · Powered by Skyrio AI
+              </div>
+            </>
+          ) : (
+            <div className="ap-guide-wrap">
+              <DestinationGuide />
+            </div>
+          )}
         </div>
       )}
 
