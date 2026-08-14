@@ -37,6 +37,7 @@ import skyrioLogo from "@/assets/logo/skyrio-logo-transparent.png";
 import "@/styles/BookingPage.css";
 
 import BookingCheckout from "@/pages/booking/BookingCheckout";
+import HotelCheckout from "@/pages/booking/HotelCheckout";
 import SaveTripButton from "@/components/trips/SaveTripButton";
 import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
@@ -1194,14 +1195,7 @@ function FlightsForm({
   if (tripType === "multi-city") {
     return (
       <div className="sk-search-bar">
-        <div
-          style={{
-            flex: "0 0 100%",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
+        <div className="sk-trip-type-row">
           <TripTypeToggle value={tripType} onChange={setTripType} />
         </div>
         <MultiCityForm
@@ -1214,125 +1208,260 @@ function FlightsForm({
 
   return (
     <div className="sk-search-bar">
-      <div
-        style={{
-          flex: "0 0 100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
+      <div className="sk-trip-type-row">
         <TripTypeToggle value={tripType} onChange={setTripType} />
       </div>
-      <div className="sk-airport-pair">
-        <AirportInput
-          value={originDisplay}
-          placeholder="From: City or airport"
-          onChange={(ap) => {
-            setOriginAirport(ap);
-            setOriginDisplay(`${ap.city} (${ap.code})`);
-            onOriginChange?.(ap.city);
-          }}
-        />
-        <button
-          type="button"
-          className="sk-swap-btn"
-          onClick={handleSwap}
-          aria-label="Swap airports"
-        >
-          <SwapOutlined />
-        </button>
-        <AirportInput
-          value={destDisplay}
-          placeholder="To: City or airport"
-          onChange={(ap) => {
-            setDestAirport(ap);
-            setDestDisplay(`${ap.city} (${ap.code})`);
-            onDestChange?.(ap.city);
-          }}
-        />
+      <div className="sk-field-row">
+        <div className="sk-field--airport-pair">
+          <div className="sk-field sk-field--airport">
+            <AirportInput
+              value={originDisplay}
+              placeholder="From: City or airport"
+              onChange={(ap) => {
+                setOriginAirport(ap);
+                setOriginDisplay(`${ap.city} (${ap.code})`);
+                onOriginChange?.(ap.city);
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            className="sk-swap-btn"
+            onClick={handleSwap}
+            aria-label="Swap airports"
+          >
+            <SwapOutlined />
+          </button>
+          <div className="sk-field sk-field--airport">
+            <AirportInput
+              value={destDisplay}
+              placeholder="To: City or airport"
+              onChange={(ap) => {
+                setDestAirport(ap);
+                setDestDisplay(`${ap.city} (${ap.code})`);
+                onDestChange?.(ap.city);
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="sk-field sk-field--date">
+          {tripType === "roundtrip" ? (
+            <SkyrioPicker
+              className="sk-orange-picker"
+              onChange={handleDatesChange}
+              placeholder={["Depart", "Return"]}
+              disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+            />
+          ) : (
+            <DatePicker
+              className="sk-orange-picker"
+              placeholder="Departure date"
+              disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+              onChange={(date) => {
+                const nd = [date, null];
+                setDates(nd);
+                onDatesChange?.({ dates: nd, nights: null });
+              }}
+            />
+          )}
+        </div>
+
+        <div className="sk-field sk-field--select">
+          <Select
+            className="sk-select-cabin"
+            value={cabin}
+            onChange={setCabin}
+            classNames={{ popup: { root: "sk-select-popup" } }}
+          >
+            <Option value="economy">Economy</Option>
+            <Option value="premium_economy">Premium Economy</Option>
+            <Option value="business">Business</Option>
+            <Option value="first">First Class</Option>
+          </Select>
+        </div>
+
+        <div className="sk-field sk-field--num">
+          <InputNumber
+            className="sk-input-travelers"
+            min={1}
+            max={9}
+            value={adults}
+            onChange={(v) => setAdults(v ?? 1)}
+            placeholder="Travelers"
+          />
+        </div>
+
+        <SearchBtn onClick={handleSearch} loading={loading} />
       </div>
-
-      {tripType === "roundtrip" ? (
-        <SkyrioPicker
-          className="sk-orange-picker"
-          onChange={handleDatesChange}
-          placeholder={["Depart", "Return"]}
-          disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
-        />
-      ) : (
-        <DatePicker
-          className="sk-orange-picker"
-          placeholder="Departure date"
-          disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
-          onChange={(date) => {
-            const nd = [date, null];
-            setDates(nd);
-            onDatesChange?.({ dates: nd, nights: null });
-          }}
-        />
-      )}
-
-      <Select
-        className="sk-select-cabin"
-        value={cabin}
-        onChange={setCabin}
-        classNames={{ popup: { root: "sk-select-popup" } }}
-      >
-        <Option value="economy">Economy</Option>
-        <Option value="premium_economy">Premium Economy</Option>
-        <Option value="business">Business</Option>
-        <Option value="first">First Class</Option>
-      </Select>
-
-      <InputNumber
-        className="sk-input-travelers"
-        min={1}
-        max={9}
-        value={adults}
-        onChange={(v) => setAdults(v ?? 1)}
-        placeholder="Travelers"
-      />
-
-      <SearchBtn onClick={handleSearch} loading={loading} />
     </div>
   );
 }
 
-function StaysForm({ onDestChange, onDatesChange }) {
+// ─────────────────────────────────────────────
+// StaysForm — real hotel search wired to
+// /api/hotels/lookup → /api/hotels/search
+// ─────────────────────────────────────────────
+function StaysForm({
+  onSearch,
+  onDestChange,
+  onDatesChange,
+  onSearchStart,
+  onSearchEnd,
+}) {
+  const [cityName, setCityName] = useState("");
+  const [countryCode, setCountryCode] = useState("US");
+  const [dates, setDates] = useState([null, null]);
+  const [occupancy, setOccupancy] = useState("2t1r");
+  const [loading, setLoading] = useState(false);
+
   const handleDatesChange = useCallback(
     (v) => {
       const nd = v ?? [null, null];
+      setDates(nd);
       if (nd[0] && nd[1])
         onDatesChange?.({ dates: nd, nights: nd[1].diff(nd[0], "day") });
       else onDatesChange?.({ dates: nd, nights: null });
     },
     [onDatesChange]
   );
+
+  // occupancy select values are "{travelers}t{rooms}r", e.g. "2t1r"
+  const parseOccupancy = (val) => {
+    const match = val.match(/(\d+)t(\d+)r/);
+    return {
+      adults: match ? Number(match[1]) : 2,
+      rooms: match ? Number(match[2]) : 1,
+    };
+  };
+
+  const handleSearch = async () => {
+    if (!cityName.trim())
+      return antdMessage.warning("Enter a destination city");
+    if (!dates[0] || !dates[1])
+      return antdMessage.warning("Select check-in and check-out dates");
+
+    setLoading(true);
+    onSearchStart?.();
+
+    try {
+      // ── Step 1: resolve destination → hotelIds ──
+      const lookupParams = new URLSearchParams({
+        countryCode,
+        cityName: cityName.trim(),
+        limit: "20",
+      });
+      const lookupRes = await fetch(`${API}/api/hotels/lookup?${lookupParams}`);
+      const lookupData = await lookupRes.json();
+      if (!lookupRes.ok || !lookupData.ok)
+        throw new Error(lookupData.message || "Couldn't find that destination");
+
+      const hotelsFound = lookupData.hotels ?? [];
+      if (!hotelsFound.length) {
+        antdMessage.info("No hotels found for that destination.");
+        onSearch([]);
+        return;
+      }
+
+      // Limit how many hotels we price-check at once — keeps the
+      // rates call fast. Adjust this cap as your UI/UX needs grow.
+      const hotelIds = hotelsFound.slice(0, 15).map((h) => h.id);
+      const { adults, rooms } = parseOccupancy(occupancy);
+
+      // ── Step 2: get live rates for those hotels ──
+      const searchParams = new URLSearchParams({
+        hotelIds: hotelIds.join(","),
+        checkin: dayjs(dates[0].toDate()).format("YYYY-MM-DD"),
+        checkout: dayjs(dates[1].toDate()).format("YYYY-MM-DD"),
+        adults: String(adults),
+        rooms: String(rooms),
+      });
+      const searchRes = await fetch(`${API}/api/hotels/search?${searchParams}`);
+      const searchData = await searchRes.json();
+      if (!searchRes.ok || !searchData.ok)
+        throw new Error(searchData.message || "Hotel search failed");
+
+      // Merge metadata (name, photo, stars) from the lookup step
+      // with pricing/offer data from the search step, keyed by hotelId
+      const metaById = Object.fromEntries(hotelsFound.map((h) => [h.id, h]));
+      const enriched = (searchData.hotels ?? []).map((offer) => ({
+        ...offer,
+        name: metaById[offer.hotelId]?.name ?? "Hotel",
+        thumbnail: metaById[offer.hotelId]?.main_photo ?? null,
+        stars: metaById[offer.hotelId]?.stars ?? null,
+        rating: metaById[offer.hotelId]?.rating ?? null,
+        address: metaById[offer.hotelId]?.address ?? "",
+      }));
+
+      // Attach the search dates to every result so HotelCheckout
+      // can show real check-in/check-out instead of "Dates TBD"
+      const checkinISO = dayjs(dates[0].toDate()).format("YYYY-MM-DD");
+      const checkoutISO = dayjs(dates[1].toDate()).format("YYYY-MM-DD");
+      const withDates = enriched.map((h) => ({
+        ...h,
+        checkin: checkinISO,
+        checkout: checkoutISO,
+      }));
+
+      onSearch(withDates);
+      onDestChange?.(cityName.trim());
+      antdMessage.success(`Found ${withDates.length} room options`);
+    } catch (err) {
+      antdMessage.error(err.message || "Hotel search failed");
+    } finally {
+      setLoading(false);
+      onSearchEnd?.();
+    }
+  };
+
   return (
     <div className="sk-search-bar">
-      <AirportInput
-        value=""
-        placeholder="Where to? City or hotel"
-        onChange={(ap) => onDestChange?.(ap.city)}
-      />
-      <SkyrioPicker
-        className="sk-orange-picker"
-        placeholder={["Check-in", "Check-out"]}
-        onChange={handleDatesChange}
-        disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
-      />
-      <Select
-        className="sk-select-cabin"
-        defaultValue="2t1r"
-        classNames={{ popup: { root: "sk-select-popup" } }}
-      >
-        <Option value="1t1r">1 traveler, 1 room</Option>
-        <Option value="2t1r">2 travelers, 1 room</Option>
-        <Option value="3t1r">3 travelers, 1 room</Option>
-        <Option value="2t2r">2 travelers, 2 rooms</Option>
-      </Select>
-      <SearchBtn />
+      <div className="sk-field-row">
+        <div className="sk-field sk-field--airport">
+          <Input
+            className="sk-orange-picker"
+            placeholder="Where to? City name"
+            value={cityName}
+            onChange={(e) => setCityName(e.target.value)}
+          />
+        </div>
+        <div className="sk-field sk-field--select">
+          <Select
+            className="sk-select-cabin"
+            value={countryCode}
+            onChange={setCountryCode}
+            classNames={{ popup: { root: "sk-select-popup" } }}
+          >
+            <Option value="US">United States</Option>
+            <Option value="GB">United Kingdom</Option>
+            <Option value="FR">France</Option>
+            <Option value="JP">Japan</Option>
+            <Option value="MX">Mexico</Option>
+          </Select>
+        </div>
+        <div className="sk-field sk-field--date">
+          <SkyrioPicker
+            className="sk-orange-picker"
+            placeholder={["Check-in", "Check-out"]}
+            onChange={handleDatesChange}
+            disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+          />
+        </div>
+        <div className="sk-field sk-field--select">
+          <Select
+            className="sk-select-cabin"
+            value={occupancy}
+            onChange={setOccupancy}
+            classNames={{ popup: { root: "sk-select-popup" } }}
+          >
+            <Option value="1t1r">1 traveler, 1 room</Option>
+            <Option value="2t1r">2 travelers, 1 room</Option>
+            <Option value="3t1r">3 travelers, 1 room</Option>
+            <Option value="2t2r">2 travelers, 2 rooms</Option>
+          </Select>
+        </div>
+        <SearchBtn onClick={handleSearch} loading={loading} />
+      </div>
     </div>
   );
 }
@@ -1340,22 +1469,30 @@ function StaysForm({ onDestChange, onDatesChange }) {
 function CarsForm({ onDestChange }) {
   return (
     <div className="sk-search-bar">
-      <AirportInput
-        value=""
-        placeholder="Pick-up location"
-        onChange={(ap) => onDestChange?.(ap.city)}
-      />
-      <AirportInput
-        value=""
-        placeholder="Drop-off (same as pick-up)"
-        onChange={() => {}}
-      />
-      <SkyrioPicker
-        className="sk-orange-picker"
-        placeholder={["Pick-up date", "Drop-off date"]}
-        disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
-      />
-      <SearchBtn />
+      <div className="sk-field-row">
+        <div className="sk-field sk-field--airport">
+          <AirportInput
+            value=""
+            placeholder="Pick-up location"
+            onChange={(ap) => onDestChange?.(ap.city)}
+          />
+        </div>
+        <div className="sk-field sk-field--airport">
+          <AirportInput
+            value=""
+            placeholder="Drop-off (same as pick-up)"
+            onChange={() => {}}
+          />
+        </div>
+        <div className="sk-field sk-field--date">
+          <SkyrioPicker
+            className="sk-orange-picker"
+            placeholder={["Pick-up date", "Drop-off date"]}
+            disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+          />
+        </div>
+        <SearchBtn />
+      </div>
     </div>
   );
 }
@@ -1399,35 +1536,45 @@ function PackagesForm({ onDestChange, onDatesChange }) {
           </button>
         ))}
       </div>
-      <AirportInput
-        value={originDisplay}
-        placeholder="Leaving from"
-        onChange={(ap) => setOriginDisplay(`${ap.city} (${ap.code})`)}
-      />
-      <AirportInput
-        value={destDisplay}
-        placeholder="Going to"
-        onChange={(ap) => {
-          setDestDisplay(`${ap.city} (${ap.code})`);
-          onDestChange?.(ap.city);
-        }}
-      />
-      <SkyrioPicker
-        className="sk-orange-picker"
-        onChange={handleDatesChange}
-        placeholder={["Depart", "Return"]}
-        disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
-      />
-      <Select
-        className="sk-select-cabin"
-        defaultValue="2t1r"
-        classNames={{ popup: { root: "sk-select-popup" } }}
-      >
-        <Option value="1t1r">1 traveler, 1 room</Option>
-        <Option value="2t1r">2 travelers, 1 room</Option>
-        <Option value="2t2r">2 travelers, 2 rooms</Option>
-      </Select>
-      <SearchBtn />
+      <div className="sk-field-row">
+        <div className="sk-field sk-field--airport">
+          <AirportInput
+            value={originDisplay}
+            placeholder="Leaving from"
+            onChange={(ap) => setOriginDisplay(`${ap.city} (${ap.code})`)}
+          />
+        </div>
+        <div className="sk-field sk-field--airport">
+          <AirportInput
+            value={destDisplay}
+            placeholder="Going to"
+            onChange={(ap) => {
+              setDestDisplay(`${ap.city} (${ap.code})`);
+              onDestChange?.(ap.city);
+            }}
+          />
+        </div>
+        <div className="sk-field sk-field--date">
+          <SkyrioPicker
+            className="sk-orange-picker"
+            onChange={handleDatesChange}
+            placeholder={["Depart", "Return"]}
+            disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+          />
+        </div>
+        <div className="sk-field sk-field--select">
+          <Select
+            className="sk-select-cabin"
+            defaultValue="2t1r"
+            classNames={{ popup: { root: "sk-select-popup" } }}
+          >
+            <Option value="1t1r">1 traveler, 1 room</Option>
+            <Option value="2t1r">2 travelers, 1 room</Option>
+            <Option value="2t2r">2 travelers, 2 rooms</Option>
+          </Select>
+        </div>
+        <SearchBtn />
+      </div>
     </div>
   );
 }
@@ -1435,29 +1582,37 @@ function PackagesForm({ onDestChange, onDatesChange }) {
 function ExcursionsForm({ onDestChange }) {
   return (
     <div className="sk-search-bar">
-      <AirportInput
-        value=""
-        placeholder="Destination city"
-        onChange={(ap) => onDestChange?.(ap.city)}
-      />
-      <SkyrioPicker
-        className="sk-orange-picker"
-        placeholder={["Activity from", "Activity to"]}
-        disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
-      />
-      <Select
-        className="sk-select-cabin"
-        defaultValue="any"
-        classNames={{ popup: { root: "sk-select-popup" } }}
-      >
-        <Option value="any">Any category</Option>
-        <Option value="tours">Tours</Option>
-        <Option value="adventure">Adventure</Option>
-        <Option value="food">Food & Drink</Option>
-        <Option value="culture">Culture</Option>
-        <Option value="wellness">Wellness</Option>
-      </Select>
-      <SearchBtn />
+      <div className="sk-field-row">
+        <div className="sk-field sk-field--airport">
+          <AirportInput
+            value=""
+            placeholder="Destination city"
+            onChange={(ap) => onDestChange?.(ap.city)}
+          />
+        </div>
+        <div className="sk-field sk-field--date">
+          <SkyrioPicker
+            className="sk-orange-picker"
+            placeholder={["Activity from", "Activity to"]}
+            disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+          />
+        </div>
+        <div className="sk-field sk-field--select">
+          <Select
+            className="sk-select-cabin"
+            defaultValue="any"
+            classNames={{ popup: { root: "sk-select-popup" } }}
+          >
+            <Option value="any">Any category</Option>
+            <Option value="tours">Tours</Option>
+            <Option value="adventure">Adventure</Option>
+            <Option value="food">Food & Drink</Option>
+            <Option value="culture">Culture</Option>
+            <Option value="wellness">Wellness</Option>
+          </Select>
+        </div>
+        <SearchBtn />
+      </div>
     </div>
   );
 }
@@ -1465,24 +1620,36 @@ function ExcursionsForm({ onDestChange }) {
 function LastMinuteForm() {
   return (
     <div className="sk-search-bar">
-      <AirportInput value="" placeholder="Departing from" onChange={() => {}} />
-      <Select
-        className="sk-select-cabin"
-        defaultValue="anywhere"
-        classNames={{ popup: { root: "sk-select-popup" } }}
-      >
-        <Option value="anywhere">Anywhere</Option>
-        <Option value="beach">Beach</Option>
-        <Option value="city">City break</Option>
-        <Option value="mountains">Mountains</Option>
-        <Option value="theme">Theme parks</Option>
-      </Select>
-      <SkyrioPicker
-        className="sk-orange-picker"
-        placeholder={["This weekend", "Next weekend"]}
-        disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
-      />
-      <SearchBtn />
+      <div className="sk-field-row">
+        <div className="sk-field sk-field--airport">
+          <AirportInput
+            value=""
+            placeholder="Departing from"
+            onChange={() => {}}
+          />
+        </div>
+        <div className="sk-field sk-field--select">
+          <Select
+            className="sk-select-cabin"
+            defaultValue="anywhere"
+            classNames={{ popup: { root: "sk-select-popup" } }}
+          >
+            <Option value="anywhere">Anywhere</Option>
+            <Option value="beach">Beach</Option>
+            <Option value="city">City break</Option>
+            <Option value="mountains">Mountains</Option>
+            <Option value="theme">Theme parks</Option>
+          </Select>
+        </div>
+        <div className="sk-field sk-field--date">
+          <SkyrioPicker
+            className="sk-orange-picker"
+            placeholder={["This weekend", "Next weekend"]}
+            disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
+          />
+        </div>
+        <SearchBtn />
+      </div>
     </div>
   );
 }
@@ -1694,6 +1861,8 @@ export default function BookingPage() {
 
   const [tab, setTab] = useState(prefillData?.tab ?? "Flights");
   const [flightResults, setFlightResults] = useState([]);
+  const [hotelResults, setHotelResults] = useState([]);
+  const [selectedHotelOffer, setSelectedHotelOffer] = useState(null);
   const [autoSearchDone, setAutoSearchDone] = useState(false);
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
@@ -1704,6 +1873,7 @@ export default function BookingPage() {
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
+  const [showHotelCheckout, setShowHotelCheckout] = useState(false);
   const [selectedNights, setSelectedNights] = useState(
     prefillData?.tripDays ?? null
   );
@@ -1907,9 +2077,16 @@ export default function BookingPage() {
     [smartFilters]
   );
 
+  // Hotels — pagination mirrors flights (no separate filter set yet)
+  const paginatedHotels = useMemo(
+    () => hotelResults.slice(0, visibleCount),
+    [hotelResults, visibleCount]
+  );
+  const hotelHasMore = visibleCount < hotelResults.length;
+
   useEffect(() => {
     setVisibleCount(RESULTS_PER_PAGE);
-  }, [flightResults, smartFilters]);
+  }, [flightResults, hotelResults, smartFilters]);
 
   const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
   const departureWeather = useMemo(
@@ -1990,7 +2167,18 @@ export default function BookingPage() {
           />
         );
       case "Stays":
-        return <StaysForm {...searchFormProps} />;
+        return (
+          <StaysForm
+            onSearch={(hotels) => {
+              setHotelResults(hotels);
+              setVisibleCount(RESULTS_PER_PAGE);
+            }}
+            onDestChange={setDestCity}
+            onDatesChange={handleDatesChange}
+            onSearchStart={() => setManualSearchLoading(true)}
+            onSearchEnd={() => setManualSearchLoading(false)}
+          />
+        );
       case "Cars":
         return <CarsForm onDestChange={setDestCity} />;
       case "Saved":
@@ -2006,15 +2194,24 @@ export default function BookingPage() {
     }
   }, [tab, handleDatesChange]);
 
-  const resultsTitle = isSearching
-    ? "Searching flights…"
-    : visibleFlights.length > 0
-    ? `${visibleFlights.length} Flight${
-        visibleFlights.length !== 1 ? "s" : ""
-      } Found${activeFilterCount > 0 ? " (filtered)" : ""}`
-    : flightResults.length > 0
-    ? "No flights match your filters"
-    : "Results";
+  const resultsTitle =
+    tab === "Stays"
+      ? isSearching
+        ? "Searching hotels…"
+        : hotelResults.length > 0
+        ? `${hotelResults.length} Room Option${
+            hotelResults.length !== 1 ? "s" : ""
+          } Found`
+        : "Results"
+      : isSearching
+      ? "Searching flights…"
+      : visibleFlights.length > 0
+      ? `${visibleFlights.length} Flight${
+          visibleFlights.length !== 1 ? "s" : ""
+        } Found${activeFilterCount > 0 ? " (filtered)" : ""}`
+      : flightResults.length > 0
+      ? "No flights match your filters"
+      : "Results";
 
   if (showCheckout && selectedFlight) {
     return (
@@ -2023,6 +2220,18 @@ export default function BookingPage() {
         onBack={() => {
           setShowCheckout(false);
           setSelectedFlight(null);
+        }}
+      />
+    );
+  }
+
+  if (showHotelCheckout && selectedHotelOffer) {
+    return (
+      <HotelCheckout
+        hotel={selectedHotelOffer}
+        onBack={() => {
+          setShowHotelCheckout(false);
+          setSelectedHotelOffer(null);
         }}
       />
     );
@@ -2251,57 +2460,60 @@ export default function BookingPage() {
           onChange={(val) => {
             setTab(val);
             setFlightResults([]);
+            setHotelResults([]);
             setSmartFilters(DEFAULT_FILTERS);
             setActiveFilters([]);
             setVisibleCount(RESULTS_PER_PAGE);
           }}
         />
 
-        <div className="sk-weatherStrip">
-          <div className="sk-weatherInner sk-weatherInner--split">
-            <div className="sk-weatherSide">
-              <div className="sk-weatherSideLabel">
-                {originCity ? "Departing from" : "Select departure city"}
+        {tab === "Flights" && (
+          <div className="sk-weatherStrip">
+            <div className="sk-weatherInner sk-weatherInner--split">
+              <div className="sk-weatherSide">
+                <div className="sk-weatherSideLabel">
+                  {originCity ? "Departing from" : "Select departure city"}
+                </div>
+                <div className="sk-weatherTop">
+                  <span className="sk-weatherIcon">
+                    {originCity ? (
+                      <departureWeather.Icon size={18} />
+                    ) : (
+                      <WeatherGlobe size={18} />
+                    )}
+                  </span>
+                  <span>
+                    {originCity && departureWeather.label
+                      ? `${departureWeather.label} · ${departureWeather.temp}`
+                      : "—"}
+                  </span>
+                </div>
+                <div className="sk-weatherSub">
+                  {originCity
+                    ? departureWeather.sub
+                    : "Select a departure airport above"}
+                </div>
               </div>
-              <div className="sk-weatherTop">
-                <span className="sk-weatherIcon">
-                  {originCity ? (
-                    <departureWeather.Icon size={18} />
-                  ) : (
-                    <WeatherGlobe size={18} />
-                  )}
-                </span>
-                <span>
-                  {originCity && departureWeather.label
-                    ? `${departureWeather.label} · ${departureWeather.temp}`
-                    : "—"}
-                </span>
+              <div className="sk-weatherDivider">
+                <ArrowRight size={14} />
               </div>
-              <div className="sk-weatherSub">
-                {originCity
-                  ? departureWeather.sub
-                  : "Select a departure airport above"}
+              <div className="sk-weatherSide">
+                <div className="sk-weatherSideLabel">
+                  {destCity
+                    ? `${destCity} · Travel week est.`
+                    : "Select a destination"}
+                </div>
+                <div className="sk-weatherTop">
+                  <span className="sk-weatherIcon">
+                    <weather.Icon size={18} />
+                  </span>
+                  <span>{weather.label ? weatherTitle : "—"}</span>
+                </div>
+                <div className="sk-weatherSub">{weather.sub}</div>
               </div>
-            </div>
-            <div className="sk-weatherDivider">
-              <ArrowRight size={14} />
-            </div>
-            <div className="sk-weatherSide">
-              <div className="sk-weatherSideLabel">
-                {destCity
-                  ? `${destCity} · Travel week est.`
-                  : "Select a destination"}
-              </div>
-              <div className="sk-weatherTop">
-                <span className="sk-weatherIcon">
-                  <weather.Icon size={18} />
-                </span>
-                <span>{weather.label ? weatherTitle : "—"}</span>
-              </div>
-              <div className="sk-weatherSub">{weather.sub}</div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* ── Search form (scroll target for "Search manually") ── */}
         <div ref={searchFormRef}>{searchForm}</div>
@@ -2320,7 +2532,7 @@ export default function BookingPage() {
               Sync Together
             </Button>
           </Link>
-          {visibleFlights.length > 0 && (
+          {(visibleFlights.length > 0 || hotelResults.length > 0) && (
             <button
               type="button"
               className="sk-scroll-budget-btn"
@@ -2369,7 +2581,13 @@ export default function BookingPage() {
               {resultsTitle}
             </Title>
             <div className="sk-resultsSub">
-              {isSearching
+              {tab === "Stays"
+                ? isSearching
+                  ? `Searching hotels in ${destCity || "your destination"}…`
+                  : hotelResults.length > 0
+                  ? `Sorted by price · ${destCity}`
+                  : "Search above to find hotels."
+                : isSearching
                 ? `Searching ${fromCode} → ${
                     prefillData?.iata ?? destCity
                   } · live prices`
@@ -2387,7 +2605,8 @@ export default function BookingPage() {
                 ? "Try relaxing your filters to see more results"
                 : "Search above to find flights."}
             </div>
-            {!isSearching &&
+            {tab === "Flights" &&
+              !isSearching &&
               flightResults.length > 0 &&
               visibleFlights.length === 0 && (
                 <button
@@ -2400,11 +2619,14 @@ export default function BookingPage() {
               )}
           </div>
 
-          {isSearching && (
+          {isSearching && tab === "Flights" && (
             <FlightSkeleton destCity={destCity} fromCode={fromCode} />
           )}
+          {isSearching && tab === "Stays" && (
+            <FlightSkeleton destCity={destCity} fromCode={null} />
+          )}
 
-          {!isSearching && autoSearchError && (
+          {!isSearching && tab === "Flights" && autoSearchError && (
             <div className="sk-search-error">
               <IconWarning size={14} /> {autoSearchError} —{" "}
               <button
@@ -2421,6 +2643,7 @@ export default function BookingPage() {
           )}
 
           {!isSearching &&
+            tab === "Flights" &&
             paginatedFlights.length > 0 &&
             paginatedFlights.map((flight) => (
               <Card
@@ -2587,7 +2810,100 @@ export default function BookingPage() {
               </Card>
             ))}
 
-          {!isSearching && hasMore && (
+          {/* ── Hotel result cards ── */}
+          {!isSearching &&
+            tab === "Stays" &&
+            paginatedHotels.length > 0 &&
+            paginatedHotels.map((hotel) => (
+              <Card
+                key={`${hotel.hotelId}-${hotel.offerId}`}
+                variant="borderless"
+                className="sk-result-card"
+                style={{ cursor: "pointer", marginBottom: 14 }}
+              >
+                <div className="sk-resultRow">
+                  <div
+                    className="sk-thumb"
+                    style={
+                      hotel.thumbnail
+                        ? {
+                            backgroundImage: `url(${hotel.thumbnail})`,
+                            backgroundSize: "cover",
+                            backgroundPosition: "center",
+                          }
+                        : undefined
+                    }
+                  />
+                  <div className="sk-resultMain">
+                    <div className="sk-resultTop">
+                      <div>
+                        <div className="sk-resultTitle">{hotel.name}</div>
+                        <div className="sk-resultMeta">
+                          {hotel.address && (
+                            <span className="sk-metaItem">
+                              <EnvironmentOutlined /> {hotel.address}
+                            </span>
+                          )}
+                          {hotel.stars && (
+                            <>
+                              <span className="sk-metaDot">·</span>
+                              <span className="sk-metaItem">
+                                {hotel.stars}★
+                              </span>
+                            </>
+                          )}
+                          {hotel.rating && (
+                            <>
+                              <span className="sk-metaDot">·</span>
+                              <span className="sk-metaItem">
+                                {hotel.rating}/10
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div className="sk-pickedWhy">
+                          {hotel.roomName}
+                          {hotel.boardName ? ` · ${hotel.boardName}` : ""}
+                        </div>
+                      </div>
+                      <div className="sk-resultRight">
+                        <div className="sk-priceLine">
+                          <span className="sk-priceAmt">
+                            ${hotel.totalAmount?.toFixed(0) ?? "—"}
+                          </span>
+                          <span className="sk-priceSub">
+                            {hotel.totalCurrency}
+                          </span>
+                        </div>
+                        <Button
+                          className="sk-btn-orange"
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedHotelOffer(hotel);
+                            setShowHotelCheckout(true);
+                          }}
+                        >
+                          Book Now
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="sk-tagRow">
+                      {hotel.refundableTag === "RFN" && (
+                        <span className="sk-tag sk-tag-good">Refundable</span>
+                      )}
+                      {hotel.refundableTag === "NRFN" && (
+                        <span className="sk-tag sk-tag-orange">
+                          Non-refundable
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+
+          {!isSearching && tab === "Flights" && hasMore && (
             <div
               style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
             >
@@ -2613,7 +2929,72 @@ export default function BookingPage() {
             </div>
           )}
 
-          {!isSearching && flightResults.length === 0 && !autoSearchError && (
+          {!isSearching && tab === "Stays" && hotelHasMore && (
+            <div
+              style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
+            >
+              <button
+                type="button"
+                className="sk-view-more-btn"
+                onClick={() => setVisibleCount((c) => c + RESULTS_PER_PAGE)}
+              >
+                <ArrowRight
+                  size={14}
+                  style={{ marginRight: 6, verticalAlign: "middle" }}
+                />
+                View{" "}
+                {Math.min(RESULTS_PER_PAGE, hotelResults.length - visibleCount)}{" "}
+                more rooms
+                <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
+                  {visibleCount} of {hotelResults.length}
+                </span>
+              </button>
+            </div>
+          )}
+
+          {!isSearching &&
+            tab === "Flights" &&
+            flightResults.length === 0 &&
+            !autoSearchError && (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "52px 24px",
+                  color: "rgba(255,255,255,0.38)",
+                  fontSize: 14,
+                }}
+              >
+                <div style={{ marginBottom: 14 }}>
+                  <PlaneIcon
+                    size={40}
+                    strokeWidth={1.25}
+                    color="rgba(255,255,255,0.28)"
+                  />
+                </div>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 17,
+                    color: "rgba(255,255,255,0.75)",
+                    letterSpacing: "-0.01em",
+                    marginBottom: 7,
+                  }}
+                >
+                  Ready when you are
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 300,
+                    color: "rgba(255,255,255,0.38)",
+                  }}
+                >
+                  Select airports and dates above to search live flights
+                </div>
+              </div>
+            )}
+
+          {!isSearching && tab === "Stays" && hotelResults.length === 0 && (
             <div
               style={{
                 textAlign: "center",
@@ -2623,11 +3004,7 @@ export default function BookingPage() {
               }}
             >
               <div style={{ marginBottom: 14 }}>
-                <PlaneIcon
-                  size={40}
-                  strokeWidth={1.25}
-                  color="rgba(255,255,255,0.28)"
-                />
+                <IconHotel size={40} />
               </div>
               <div
                 style={{
@@ -2647,7 +3024,7 @@ export default function BookingPage() {
                   color: "rgba(255,255,255,0.38)",
                 }}
               >
-                Select airports and dates above to search live flights
+                Enter a destination and dates above to search live hotel rates
               </div>
             </div>
           )}

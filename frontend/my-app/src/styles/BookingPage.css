@@ -821,75 +821,82 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 }
 
 /* ======================================
-   SEARCH BAR
+   SEARCH BAR — rebuilt as a self-contained system
+   ======================================
+   Every tab's form (Flights, Stays, Cars, Excursions,
+   Packages, Last-Minute) now wraps each field in its own
+   controlled <div className="sk-field sk-field--variant">.
+   Width lives ONLY here, on the wrapper — never on the
+   inner AirportInput/SkyrioPicker/Select component itself.
+   This guarantees consistent sizing regardless of what
+   those components render internally, and makes every tab
+   visually identical by construction rather than by chance.
 ====================================== */
 .sk-search-bar {
   width: min(960px, calc(100% - 0px));
-  margin-top: 8px;
+  margin: 8px auto 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+  justify-content: center;
   box-sizing: border-box;
   overflow: visible;
   position: relative;
   z-index: 20;
-  flex: 0 0 auto;
 }
 
-.sk-search-bar .sk-airport-wrap {
-  flex: 1 1 180px;
-  min-width: 160px;
+/* Row that actually holds the fields + search button.
+   Always centers as a group; wraps to a new centered
+   row on narrow screens instead of stretching. */
+.sk-field-row {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
-.sk-search-bar .sk-orange-picker {
-  flex: 1 1 200px;
-  min-width: 0 !important;
+
+/* Base field wrapper — every field (airport input, date
+   picker, select, number input) is one of these. Fixed
+   width by default; variants below override the width. */
+.sk-field {
+  flex: 0 0 auto;
+  min-width: 0;
   box-sizing: border-box;
 }
-.sk-search-bar .sk-select-cabin {
-  flex: 0 0 auto;
-}
-.sk-search-bar .sk-input-travelers {
-  flex: 0 0 auto;
-}
-.sk-search-bar .sk-btn-search-pill {
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-.sk-search-bar-pills {
-  flex: 0 0 100%;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+.sk-field > * {
+  width: 100% !important;
+  min-width: 0 !important;
 }
 
-.sk-airport-pair {
+.sk-field--airport {
+  width: 200px;
+}
+.sk-field--airport-pair {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 2 1 320px;
-  min-width: 0;
-  overflow: visible;
-  position: relative;
-  z-index: 20;
+  flex: 0 0 auto;
+  width: auto;
 }
-.sk-airport-pair .sk-airport-wrap {
-  flex: 1;
-  min-width: 120px;
+.sk-field--airport-pair .sk-field--airport {
+  width: 200px;
 }
 
 .sk-swap-btn {
+  width: 34px !important;
+  height: 34px !important;
+  flex: 0 0 34px !important;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 50%;
-  width: 34px;
-  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: var(--sk-muted);
-  flex-shrink: 0;
   transition: background 0.2s, color 0.2s, transform 0.22s, border-color 0.2s;
 }
 .sk-swap-btn:hover {
@@ -897,6 +904,45 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   border-color: var(--sk-border-warm);
   color: var(--sk-orange);
   transform: rotate(180deg);
+}
+
+.sk-field--date {
+  width: 240px;
+}
+.sk-field--select {
+  width: 160px;
+}
+.sk-field--num {
+  width: 100px;
+}
+
+.sk-search-bar-pills {
+  flex: 0 0 100%;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 992px) {
+  .sk-field-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sk-field,
+  .sk-field--airport,
+  .sk-field--date,
+  .sk-field--select,
+  .sk-field--num {
+    width: 100% !important;
+  }
+  .sk-field--airport-pair {
+    flex-direction: row;
+    width: 100%;
+  }
+  .sk-field--airport-pair .sk-field--airport {
+    width: 100% !important;
+  }
 }
 
 /* ======================================
@@ -1004,9 +1050,6 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   color: rgba(255, 255, 255, 0.95) !important;
 }
 
-.sk-input-travelers {
-  width: 110px !important;
-}
 .sk-input-travelers.ant-input-number {
   background: rgba(255, 255, 255, 0.07) !important;
   border: 1px solid rgba(255, 255, 255, 0.13) !important;
@@ -1074,6 +1117,16 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   padding: 3px;
   gap: 2px;
 }
+
+.sk-trip-type-row {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
 .sk-trip-type-btn {
   padding: 6px 18px;
   border-radius: var(--sk-radius-pill);

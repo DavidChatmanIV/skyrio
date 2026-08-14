@@ -752,8 +752,10 @@ export default function SmartFilterBar({
       style={{
         display: "flex",
         flexWrap: "wrap",
+        justifyContent: "center",
         gap: 8,
         padding: "12px 0 4px",
+        width: "100%",
       }}
     >
       <div

@@ -7,6 +7,7 @@ export default function WeatherChip({
   high,
   low,
   emoji = "🌡️",
+  localTime,
   compact = false,
 }) {
   // If no data, render nothing (keeps landing page clean)
@@ -27,6 +28,9 @@ export default function WeatherChip({
             <span className="sk-weatherHiLo">
               H:{high}° / L:{low}°
             </span>
+          )}
+          {localTime && !compact && (
+            <span className="sk-weatherTime">{localTime} local</span>
           )}
         </>
       )}

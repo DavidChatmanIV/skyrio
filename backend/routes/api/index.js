@@ -39,17 +39,21 @@ await mount("/follow", "./follow.routes.js");
 await mount("/users", "./userSearch.routes.js");
 await mount("/passport", "./passport.routes.js");
 await mount("/flights", "./flights/flights.routes.js");
+await mount("/hotels", "./hotels/hotels.routes.js");
 await mount("/airports", "./airports.routes.js");
 await mount("/skyhub", "./skyhub.routes.js");
 await mount("/weather", "./weather.routes.js");
 await mount("/notifications", "./notifications.routes.js");
 await mount("/saved-trips", "./savedTrips.routes.js");
 await mount("/sync-together", "./syncTogether.routes.js");
-// ✅ Passport Rewards — XP redemption store (atomic redeem + history)
+//  Passport Rewards — XP redemption store (atomic redeem + history)
 await mount("/rewards", "./rewards.routes.js");
-// ✅ NEW: Challenges — fully data-driven, controllable live via the admin
+//  NEW: Challenges — fully data-driven, controllable live via the admin
 // endpoints in challenges.routes.js with no deploys needed.
 await mount("/challenges", "./challenges.routes.js");
+// NEW: Feedback — floating widget submissions, reviewable via
+// GET /api/feedback (admin) and status updates via PATCH.
+await mount("/feedback", "./feedback/feedback.routes.js");
 
 /* ======================================================
    Extended Modules (outside api folder)
@@ -87,6 +91,7 @@ api.get("/", (_req, res) => {
       "/challenges",
       "/users",
       "/flights",
+      "/hotels",
       "/weather",
       "/skyhub",
       "/dm",
@@ -95,6 +100,7 @@ api.get("/", (_req, res) => {
       "/sync-together",
       "/verification",
       "/referral",
+      "/feedback",
     ],
   });
 });
