@@ -3,10 +3,10 @@ import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import AtlasPanel from "../components/Atlas/AtlasPanel";
-import { useAtlasContext } from "../components/Atlas/AtlasContext";
 import CookieBanner from "../components/CookieBanner";
 import SkyrioDTour from "../components/SkyrioDTour";
 import SupportWidget from "../pages/SupportWidget";
+import FeedbackWidget from "../components/FeedbackWidget";
 import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
 import bookingHeroImg from "@/assets/Booking/skyrio-hero.jpg";
 import heroBeach from "@/assets/skyhub/beach.png";
@@ -69,6 +69,7 @@ export default function AppLayout() {
       {/* ── Outside shell so position:fixed works correctly on mobile ── */}
       <SkyrioDTour />
       <SupportWidget />
+      <FeedbackWidget />
     </>
   );
 }

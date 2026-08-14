@@ -1,16 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MessageSquare, X, Star } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
 
 // ─────────────────────────────────────────────
 // FeedbackWidget
-// A floating feedback button + panel, styled to match
-// Skyrio's dark-glass / orange-accent design system.
-// Drop this once near the root of your app layout (e.g.
-// in App.jsx or a shared Layout component) so it's
-// available on every page — similar to Expedia's
-// persistent "Feedback" tab.
+// A floating feedback pill, mirroring the "Need help?"
+// button's style on the opposite corner. Mount once at
+// the app layout level so it persists across every page.
 // ─────────────────────────────────────────────
 export default function FeedbackWidget() {
   const [open, setOpen] = useState(false);
@@ -20,6 +17,10 @@ export default function FeedbackWidget() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    console.log("[FeedbackWidget] mounted successfully");
+  }, []);
 
   const handleSubmit = async () => {
     if (!message.trim()) {
@@ -57,8 +58,6 @@ export default function FeedbackWidget() {
 
   const handleClose = () => {
     setOpen(false);
-    // Reset "submitted" state after the close animation so it's
-    // fresh next time the user opens it
     setTimeout(() => {
       setSubmitted(false);
       setError("");
@@ -66,36 +65,45 @@ export default function FeedbackWidget() {
   };
 
   return (
-    <>
-      {/* ── Floating trigger tab (Expedia-style vertical tab) ── */}
+    <div id="skyrio-feedback-widget-root">
+      {/* ── Floating trigger pill — bottom-right, mirrors
+           "Need help?" on the bottom-left ── */}
       {!open && (
         <button
           type="button"
           onClick={() => setOpen(true)}
           style={{
             position: "fixed",
-            right: 0,
-            top: "50%",
-            transform: "translateY(-50%) rotate(-90deg) translateX(50%)",
-            transformOrigin: "right center",
+            left: 24,
+            bottom: 86,
             background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
             color: "#1a0e06",
             border: "none",
-            borderRadius: "10px 10px 0 0",
-            padding: "10px 18px",
+            borderRadius: 999,
+            padding: "12px 20px",
             fontWeight: 700,
-            fontSize: 13,
+            fontSize: 14,
             fontFamily: "inherit",
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
-            gap: 6,
+            gap: 8,
             cursor: "pointer",
-            boxShadow: "0 4px 18px rgba(255,138,42,0.35)",
-            zIndex: 999,
-            letterSpacing: "0.02em",
+            boxShadow: "0 8px 24px rgba(255,138,42,0.4)",
+            zIndex: 9998,
+            letterSpacing: "0.01em",
+            transition: "transform 0.15s, box-shadow 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow =
+              "0 12px 32px rgba(255,138,42,0.5)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 8px 24px rgba(255,138,42,0.4)";
           }}
         >
-          <MessageSquare size={14} />
+          <MessageSquare size={16} />
           Feedback
         </button>
       )}
@@ -105,20 +113,21 @@ export default function FeedbackWidget() {
         <div
           style={{
             position: "fixed",
-            right: 20,
-            bottom: 20,
+            left: 24,
+            bottom: 90,
             width: 340,
-            maxWidth: "calc(100vw - 40px)",
-            background: "rgba(12, 9, 28, 0.96)",
+            maxWidth: "calc(100vw - 48px)",
+            background: "rgba(12, 9, 28, 0.97)",
             backdropFilter: "blur(24px)",
             WebkitBackdropFilter: "blur(24px)",
             border: "1px solid rgba(255,255,255,0.12)",
             borderRadius: 18,
-            boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
             padding: 20,
-            zIndex: 1000,
+            zIndex: 9998,
             fontFamily: "inherit",
             color: "#fff",
+            boxSizing: "border-box",
             animation:
               "feedback-slide-in 0.22s cubic-bezier(0.22,1,0.36,1) both",
           }}
@@ -203,7 +212,6 @@ export default function FeedbackWidget() {
                 everything.
               </div>
 
-              {/* ── Star rating ── */}
               <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
@@ -256,11 +264,7 @@ export default function FeedbackWidget() {
 
               {error && (
                 <div
-                  style={{
-                    fontSize: 12,
-                    color: "#f87171",
-                    marginBottom: 10,
-                  }}
+                  style={{ fontSize: 12, color: "#f87171", marginBottom: 10 }}
                 >
                   {error}
                 </div>
@@ -291,6 +295,6 @@ export default function FeedbackWidget() {
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
