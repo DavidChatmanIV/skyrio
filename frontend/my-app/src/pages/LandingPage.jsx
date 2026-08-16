@@ -225,6 +225,13 @@ const TRUST_SIGNALS = [
   "Cancel within 24h",
 ];
 
+/**
+ * Atlas has two modes:
+ *  - Chat: plans, prices, and books (flights/hotels), handles budget & cancellations
+ *  - Compass: quick destination highlights, no booking required
+ * The feature list below is ordered so both modes get explained clearly,
+ * rather than reading as an all-booking feature list.
+ */
 const ATLAS_FEATURES = [
   {
     iconKey: "brain",
@@ -235,6 +242,11 @@ const ATLAS_FEATURES = [
     iconKey: "bolt",
     title: "Builds your plan in seconds",
     desc: "Flights, hotels, and budget breakdown — before you finish your coffee.",
+  },
+  {
+    iconKey: "compass",
+    title: "Or just get the highlights",
+    desc: "Switch to Compass for a quick city snapshot — best time to visit, top things to do. No booking required.",
   },
   {
     iconKey: "target",
@@ -250,6 +262,19 @@ const ATLAS_FEATURES = [
     iconKey: "headset",
     title: "Handles the unexpected, too",
     desc: "Need to cancel, get a refund, or change a flight? Atlas is your 24/7 customer service — no waiting on hold.",
+  },
+];
+
+const ATLAS_MODES = [
+  {
+    iconKey: "chat",
+    title: "Chat",
+    desc: "Plan, price, and book flights + hotels. Cancel or change a trip anytime.",
+  },
+  {
+    iconKey: "compass",
+    title: "Compass",
+    desc: "Type a city, get the highlights — best time to visit, top things to do. Nothing to book.",
   },
 ];
 
@@ -589,6 +614,28 @@ const ICONS = {
       <path d="M3 13a9 9 0 0 1 18 0" />
       <path d="M21 13v4a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z" />
       <path d="M3 13v4a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    </svg>
+  ),
+  compass: () => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polygon
+        points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"
+        fill="currentColor"
+        opacity=".9"
+        stroke="none"
+      />
     </svg>
   ),
   xp: ({ size = 18 }) => (
@@ -1071,6 +1118,33 @@ const INJECTED_CSS = `
 .sk-atlas__title { font-family:"Syne",sans-serif!important; font-size:clamp(28px,4.5vw,42px)!important; font-weight:800!important; letter-spacing:-0.02em!important; color:#fff!important; margin:0 0 14px!important; line-height:1.1!important; }
 .sk-atlas__name { background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
 .sk-atlas__sub { font-size:15px; color:rgba(255,255,255,0.6); max-width:480px; margin:0 auto; line-height:1.7; }
+
+.sk-atlas__modes {
+  display:flex; gap:12px; justify-content:center; flex-wrap:wrap;
+  margin:24px auto 0; max-width:560px;
+}
+.sk-atlas__mode-card {
+  flex:1; min-width:220px; display:flex; gap:12px; align-items:flex-start;
+  text-align:left; padding:16px 18px;
+  background:rgba(255,138,42,0.06); border:1px solid rgba(255,138,42,0.22);
+  border-radius:14px; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  transition:border-color 0.2s, background 0.2s, transform 0.2s;
+}
+.sk-atlas__mode-card:hover {
+  border-color:rgba(255,138,42,0.4); background:rgba(255,138,42,0.1); transform:translateY(-2px);
+}
+.sk-atlas__mode-icon {
+  width:32px; height:32px; border-radius:9px;
+  background:rgba(255,138,42,0.14); border:1px solid rgba(255,138,42,0.28);
+  display:flex; align-items:center; justify-content:center; color:#ff8a2a; flex-shrink:0;
+}
+.sk-atlas__mode-title { font-family:"Syne",sans-serif; font-size:13.5px; font-weight:800; color:#fff; margin-bottom:4px; }
+.sk-atlas__mode-desc { font-size:12px; line-height:1.5; color:rgba(255,255,255,0.55); }
+@media(max-width:640px) {
+  .sk-atlas__modes { flex-direction:column; }
+  .sk-atlas__mode-card { min-width:100%; }
+}
+
 .sk-atlas__body { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
 .sk-atlas__chat { background:rgba(8,5,20,0.5); border:1px solid rgba(255,255,255,0.14); border-radius:20px; overflow:hidden; display:flex; flex-direction:column; transition:border-color 0.22s, box-shadow 0.22s; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
 .sk-atlas__chat:hover { border-color:rgba(255,255,255,0.22); box-shadow:0 8px 32px rgba(0,0,0,0.25); }
@@ -1094,6 +1168,7 @@ const INJECTED_CSS = `
 .sk-atlas__chatFooter { padding:14px 20px; border-top:1px solid rgba(255,255,255,0.08); display:flex; gap:10px; align-items:center; }
 .sk-atlas__fakeInput { flex:1; padding:9px 14px; border-radius:10px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); font-size:12px; color:rgba(255,255,255,0.25); }
 .sk-atlas__fabHint { font-size:11px; font-weight:600; color:rgba(255,138,42,0.7); flex-shrink:0; text-align:center; line-height:1.35; }
+.sk-atlas__modeFootnote { padding:8px 20px 14px; font-size:10.5px; color:rgba(255,138,42,0.6); text-align:center; border-top:1px solid rgba(255,255,255,0.06); letter-spacing:0.01em; }
 .sk-atlas__features { display:flex; flex-direction:column; gap:12px; }
 .sk-atlas__feature { display:flex; gap:14px; align-items:flex-start; padding:16px 18px; background:rgba(8,5,20,0.45); border:1px solid rgba(255,255,255,0.12); border-radius:14px; transition:border-color 0.22s, transform 0.22s, background 0.22s; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
 .sk-atlas__feature:hover { border-color:rgba(255,138,42,0.35); transform:translateX(4px); background:rgba(255,138,42,0.08); }
@@ -1904,9 +1979,24 @@ export default function LandingPage() {
                 Say hello to <span className="sk-atlas__name">Atlas</span>
               </h2>
               <p className="sk-atlas__sub">
-                Tell Atlas where you want to go, what you want to spend, and
-                what matters — it handles everything else.
+                Atlas works two ways: chat with it to plan and book a trip end
+                to end, or open Compass for a quick snapshot of any city — no
+                booking required.
               </p>
+
+              <div className="sk-atlas__modes">
+                {ATLAS_MODES.map((m) => (
+                  <div key={m.title} className="sk-atlas__mode-card">
+                    <div className="sk-atlas__mode-icon">
+                      <Icon name={m.iconKey} size={16} />
+                    </div>
+                    <div>
+                      <div className="sk-atlas__mode-title">{m.title}</div>
+                      <div className="sk-atlas__mode-desc">{m.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="sk-atlas__body">
               <Reveal delay={1}>
@@ -1973,6 +2063,9 @@ export default function LandingPage() {
                         ↘ bottom right
                       </span>
                     </div>
+                  </div>
+                  <div className="sk-atlas__modeFootnote">
+                    Chat plans and books · Compass gives quick city highlights
                   </div>
                 </div>
               </Reveal>

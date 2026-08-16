@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Avatar, Button, Drawer, Empty, Input, Spin, message } from "antd";
 import { SendOutlined } from "@ant-design/icons";
+import { apiUrl } from "@/lib/api";
 
 const { TextArea } = Input;
 
@@ -24,7 +25,7 @@ export default function SkyHubCommentDrawer({
   const fetchComments = async () => {
     try {
       setLoadingComments(true);
-      const res = await fetch(`/api/skyhub/posts/${post.id}/comments`, {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${post.id}/comments`), {
         credentials: "include",
       });
 
@@ -51,7 +52,7 @@ export default function SkyHubCommentDrawer({
     try {
       setPostingComment(true);
 
-      const res = await fetch(`/api/skyhub/posts/${post.id}/comments`, {
+      const res = await fetch(apiUrl(`/api/skyhub/posts/${post.id}/comments`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

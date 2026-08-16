@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Table, Tag, Card, Typography, message, Spin } from "antd";
 import { useAuth } from "../../auth/useAuth";
+import { apiUrl } from "@/lib/api";
 
 const { Title, Text } = Typography;
 
@@ -14,7 +15,7 @@ export default function AdminUsersPage() {
       if (!token) return;
       setLoading(true);
       try {
-        const res = await fetch("/api/admin/users", {
+        const res = await fetch(apiUrl("/api/admin/users"), {
           headers: {
             Authorization: `Bearer ${token}`,
           },

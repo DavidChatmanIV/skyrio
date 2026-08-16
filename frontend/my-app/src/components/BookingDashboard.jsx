@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Papa from "papaparse";
+import { apiUrl } from "@/lib/api";
 
 const BookingDashboard = () => {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ const BookingDashboard = () => {
       return;
     }
 
-    fetch("/api/bookings", {
+    fetch(apiUrl("/api/bookings"), {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -60,7 +61,7 @@ const BookingDashboard = () => {
     if (!window.confirm("Are you sure you want to delete this booking?"))
       return;
     try {
-      const res = await fetch(`/api/book/${id}`, {
+      const res = await fetch(apiUrl(`/api/book/${id}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("adminToken")}`,
@@ -86,7 +87,7 @@ const BookingDashboard = () => {
 
   const handleSaveEdit = async () => {
     try {
-      const res = await fetch(`/api/book/${editingId}`, {
+      const res = await fetch(apiUrl(`/api/book/${editingId}`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

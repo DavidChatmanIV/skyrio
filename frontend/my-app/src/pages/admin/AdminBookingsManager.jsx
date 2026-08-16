@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Table, Button, Space, Tag, Popconfirm, message, Result } from "antd";
 import { DownloadOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useAuth } from "../../auth/useAuth"; // adjust path if needed
+import { apiUrl } from "@/lib/api";
 
 export default function AdminBookingsManager() {
   const { user, loading: authLoading } = useAuth();
@@ -34,7 +35,9 @@ export default function AdminBookingsManager() {
       const sortDir = sorterState.order === "ascend" ? "asc" : "desc";
 
       const res = await fetch(
-        `/api/bookings?page=${page}&limit=${pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`,
+        apiUrl(
+          `/api/bookings?page=${page}&limit=${pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`
+        ),
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -83,7 +86,7 @@ export default function AdminBookingsManager() {
   const handleDelete = async (id) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/bookings/${id}`, {
+      const res = await fetch(apiUrl(`/api/bookings/${id}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,

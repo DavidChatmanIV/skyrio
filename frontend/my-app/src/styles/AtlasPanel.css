@@ -299,6 +299,9 @@
   flex-shrink: 0;
 }
 .ap-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: none;
   border: none;
   padding: 9px 12px;
@@ -317,6 +320,37 @@
 .ap-tab--active {
   color: #fff;
   border-bottom-color: var(--ap-orange);
+}
+
+/* ── Mode hint — clarifies what Chat vs Compass is for ── */
+.ap-mode-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 16px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 138, 42, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  animation: apModeHintIn 0.2s ease forwards;
+}
+.ap-mode-hint__icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+@keyframes apModeHintIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Messages ── */
@@ -352,6 +386,13 @@
   text-transform: uppercase;
   color: var(--ap-muted);
   margin-bottom: 4px;
+}
+.ap-starters__sublabel {
+  font-family: "DM Sans", sans-serif;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: -4px 0 10px;
+  line-height: 1.5;
 }
 .ap-starter-btn {
   width: 100%;
@@ -595,6 +636,15 @@
   border-radius: 4px;
 }
 
+/* ── Guide intro line — reinforces what this tab is for ── */
+.ap-guide-intro {
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
 /* ── Guide form ── */
 .ap-guide-form {
   display: flex;
@@ -781,5 +831,10 @@
 
   .ap-nudge {
     max-width: 180px;
+  }
+
+  .ap-mode-hint {
+    padding: 8px 14px;
+    font-size: 11.5px;
   }
 }

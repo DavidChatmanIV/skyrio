@@ -1,9 +1,3 @@
-/**
- * AtlasPanel.jsx
- * Floating Atlas AI chat — hides FAB when date picker is open.
- * Positioned bottom-right.
- */
-
 import React, {
   useState,
   useRef,
@@ -17,7 +11,7 @@ import {
   TRIP_TYPE_LABELS,
   TRIP_TYPE_INFERENCE_INSTRUCTION,
 } from "@/components/Atlas/atlasTripTypes";
-import DestinationGuide from "@/components/Atlas/DestinationGuide";
+import Compass from "@/components/Atlas/Compass";
 import { Bot, X } from "lucide-react";
 import "@/styles/AtlasPanel.css";
 
@@ -222,6 +216,31 @@ function RobotIcon() {
   );
 }
 
+function CompassIcon({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polygon
+        points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"
+        fill="currentColor"
+        opacity=".9"
+        stroke="none"
+      />
+    </svg>
+  );
+}
+
 function AtlasNudge({ visible, onDismiss }) {
   if (!visible) return null;
   return (
@@ -273,7 +292,7 @@ export default function AtlasPanel() {
   } = useAtlasContext();
 
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState("chat"); // "chat" | "guide"
+  const [mode, setMode] = useState("chat"); // "chat" | "compass"
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -465,7 +484,7 @@ export default function AtlasPanel() {
 
   return (
     <>
-      {/* ── Chat / Guide Panel ── */}
+      {/* ── Chat / Compass Panel ── */}
       {open && (
         <div className="ap-panel" role="dialog" aria-label="Atlas AI panel">
           <div className="ap-header">
@@ -521,12 +540,38 @@ export default function AtlasPanel() {
             <button
               type="button"
               role="tab"
-              aria-selected={mode === "guide"}
-              className={`ap-tab${mode === "guide" ? " ap-tab--active" : ""}`}
-              onClick={() => setMode("guide")}
+              aria-selected={mode === "compass"}
+              className={`ap-tab${mode === "compass" ? " ap-tab--active" : ""}`}
+              onClick={() => setMode("compass")}
             >
-              Destination Guide
+              <CompassIcon size={13} />
+              Compass
             </button>
+          </div>
+
+          {/* ── Mode hint — clarifies what each tab is for ── */}
+          <div className="ap-mode-hint" key={mode}>
+            {mode === "chat" ? (
+              <>
+                <span className="ap-mode-hint__icon" aria-hidden="true">
+                  💬
+                </span>
+                <span>
+                  Plan, book, or manage a trip — Atlas can search flights, hold
+                  a budget, and cancel or change bookings.
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="ap-mode-hint__icon" aria-hidden="true">
+                  🧭
+                </span>
+                <span>
+                  Quick highlights for any city — best time to go, top things to
+                  do, no booking needed.
+                </span>
+              </>
+            )}
           </div>
 
           {mode === "chat" ? (
@@ -534,7 +579,13 @@ export default function AtlasPanel() {
               <div className="ap-messages">
                 {showStarters && (
                   <div className="ap-starters">
-                    <div className="ap-starters__label">Ask Atlas anything</div>
+                    <div className="ap-starters__label">
+                      Tell Atlas what to book or change
+                    </div>
+                    <div className="ap-starters__sublabel">
+                      Try one, or type your own — Atlas can search, hold, or
+                      cancel for you.
+                    </div>
                     {starterPrompts.map((prompt) => (
                       <button
                         key={prompt}
@@ -595,7 +646,10 @@ export default function AtlasPanel() {
             </>
           ) : (
             <div className="ap-guide-wrap">
-              <DestinationGuide />
+              <div className="ap-guide-intro">
+                Just want the highlights, not a booking? Type a city below.
+              </div>
+              <Compass />
             </div>
           )}
         </div>
