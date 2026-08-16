@@ -40,6 +40,10 @@ await mount("/users", "./userSearch.routes.js");
 await mount("/passport", "./passport.routes.js");
 await mount("/flights", "./flights/flights.routes.js");
 await mount("/hotels", "./hotels/hotels.routes.js");
+// Excursions — Viator Affiliate API. Displays experiences natively;
+// booking + payment hand off to Viator via affiliate link (no
+// Skyrio-side booking/payment flow, per Viator's license terms).
+await mount("/excursions", "./excursions/excursions.routes.js");
 await mount("/airports", "./airports.routes.js");
 await mount("/skyhub", "./skyhub.routes.js");
 await mount("/weather", "./weather.routes.js");
@@ -92,6 +96,7 @@ api.get("/", (_req, res) => {
       "/users",
       "/flights",
       "/hotels",
+      "/excursions",
       "/weather",
       "/skyhub",
       "/dm",

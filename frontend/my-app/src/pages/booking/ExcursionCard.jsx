@@ -5,22 +5,33 @@ import SaveTripButton from "@/components/trips/SaveTripButton";
 
 // ─────────────────────────────────────────────────────────────
 // ExcursionCard
-// Rebuilt to match the exact markup/classes flights & hotels use
-// (sk-result-card, sk-resultTitle, sk-tagRow, etc.) instead of
-// raw antd Card/Typography/Tag/Rate, which render with antd's
-// default LIGHT theme (white bg, black text) — that mismatch is
-// why the old cards looked out of place against Skyrio's dark
-// glass design.
 // ─────────────────────────────────────────────────────────────
-export default function ExcursionCard({ excursion, onSaveTrip }) {
+export default function ExcursionCard({ excursion, fallbackDestination }) {
   const title = useMemo(() => excursion?.title || "Experience", [excursion]);
+
+  // Viator product data doesn't reliably include a friendly
+  // destination name — fall back to the city the person actually
+  // searched rather than showing a literal "Destination" placeholder.
   const location = useMemo(
-    () => excursion?.destination || "Destination",
-    [excursion]
+    () => excursion?.destination || fallbackDestination || null,
+    [excursion, fallbackDestination]
   );
+
   const price = useMemo(() => {
     const p = excursion?.price;
     return typeof p === "number" ? p.toFixed(0) : p ? String(p) : null;
+  }, [excursion]);
+
+  // Viator's `tags` field is an array of numeric category IDs, not
+  // display-ready labels — filter those out so we don't render raw
+  // numbers like "11929" as if they were a category name. Fall back
+  // to "Tour" so the tag row is never empty — Hotel cards always
+  // show at least Refundable/Non-refundable in this same spot, and
+  // an empty tag row here left a visible gap by comparison.
+  const categoryLabel = useMemo(() => {
+    const c = excursion?.category;
+    if (c && !/^[0-9]+$/.test(String(c).trim())) return c;
+    return "Tour";
   }, [excursion]);
 
   function handleBook() {
@@ -48,16 +59,18 @@ export default function ExcursionCard({ excursion, onSaveTrip }) {
             <div>
               <div className="sk-resultTitle">{title}</div>
               <div className="sk-resultMeta">
-                <span className="sk-metaItem">
-                  <MapPin
-                    size={12}
-                    style={{ marginRight: 3, verticalAlign: "middle" }}
-                  />
-                  {location}
-                </span>
+                {location && (
+                  <span className="sk-metaItem">
+                    <MapPin
+                      size={12}
+                      style={{ marginRight: 3, verticalAlign: "middle" }}
+                    />
+                    {location}
+                  </span>
+                )}
                 {excursion?.duration && (
                   <>
-                    <span className="sk-metaDot">·</span>
+                    {location && <span className="sk-metaDot">·</span>}
                     <span className="sk-metaItem">{excursion.duration}</span>
                   </>
                 )}
@@ -98,15 +111,14 @@ export default function ExcursionCard({ excursion, onSaveTrip }) {
                 tripData={{
                   tripType: "excursion",
                   title,
-                  destination: excursion?.destination,
+                  destination: location,
                   price: excursion?.price ?? 0,
                   currency: excursion?.currency || "USD",
                   metadata: {
                     excursionId: excursion?.id,
-                    category: excursion?.category,
+                    category: categoryLabel,
                   },
                 }}
-                onSaveConfirmed={() => onSaveTrip?.(excursion)}
               />
               <Button
                 className="sk-btn-orange"
@@ -119,9 +131,7 @@ export default function ExcursionCard({ excursion, onSaveTrip }) {
           </div>
 
           <div className="sk-tagRow">
-            {excursion?.category && (
-              <span className="sk-tag sk-tag-orange">{excursion.category}</span>
-            )}
+            <span className="sk-tag sk-tag-orange">{categoryLabel}</span>
             {excursion?.cancellable && (
               <span className="sk-tag sk-tag-good">Free cancellation</span>
             )}

@@ -47,6 +47,8 @@ import HeroPlanner from "@/pages/booking/HeroPlanner";
 import TripTypeSelector from "@/components/Atlas/TripTypeSelector";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import { createNotification } from "@/services/notificationsService";
+import { useExcursionSearch } from "@/hooks/useExcursionSearch";
+import ExcursionResults from "@/pages/booking/ExcursionResults";
 import {
   Zap,
   Bell,
@@ -1579,28 +1581,79 @@ function PackagesForm({ onDestChange, onDatesChange }) {
   );
 }
 
-function ExcursionsForm({ onDestChange }) {
+function ExcursionsForm({
+  onDestChange,
+  onSearch,
+  onSearchStart,
+  onSearchEnd,
+}) {
+  const [destDisplay, setDestDisplay] = useState("");
+  const [dates, setDates] = useState([null, null]);
+  const [category, setCategory] = useState("any");
+  const {
+    loading,
+    results,
+    error,
+    search: runExcursionSearch,
+  } = useExcursionSearch();
+
+  // Forward results/errors up to BookingPage whenever they change —
+  // mirrors how FlightsForm/StaysForm call onSearch(data) after their
+  // own fetch resolves, just via effect since this hook owns its
+  // own state instead of returning data directly from search().
+  useEffect(() => {
+    onSearch?.(results);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results]);
+
+  useEffect(() => {
+    if (error) antdMessage.warning(error);
+  }, [error]);
+
+  const handleSearch = async () => {
+    if (!destDisplay.trim())
+      return antdMessage.warning("Enter a destination city");
+
+    onSearchStart?.();
+    await runExcursionSearch({
+      destination: destDisplay.trim(),
+      startDate: dates[0]
+        ? dayjs(dates[0].toDate()).format("YYYY-MM-DD")
+        : undefined,
+      endDate: dates[1]
+        ? dayjs(dates[1].toDate()).format("YYYY-MM-DD")
+        : undefined,
+      category: category !== "any" ? category : undefined,
+    });
+    onSearchEnd?.();
+  };
+
   return (
     <div className="sk-search-bar">
       <div className="sk-field-row">
         <div className="sk-field sk-field--airport">
           <AirportInput
-            value=""
+            value={destDisplay}
             placeholder="Destination city"
-            onChange={(ap) => onDestChange?.(ap.city)}
+            onChange={(ap) => {
+              setDestDisplay(ap.city);
+              onDestChange?.(ap.city);
+            }}
           />
         </div>
         <div className="sk-field sk-field--date">
           <SkyrioPicker
             className="sk-orange-picker"
             placeholder={["Activity from", "Activity to"]}
+            onChange={(v) => setDates(v ?? [null, null])}
             disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
           />
         </div>
         <div className="sk-field sk-field--select">
           <Select
             className="sk-select-cabin"
-            defaultValue="any"
+            value={category}
+            onChange={setCategory}
             classNames={{ popup: { root: "sk-select-popup" } }}
           >
             <Option value="any">Any category</Option>
@@ -1611,7 +1664,7 @@ function ExcursionsForm({ onDestChange }) {
             <Option value="wellness">Wellness</Option>
           </Select>
         </div>
-        <SearchBtn />
+        <SearchBtn onClick={handleSearch} loading={loading} />
       </div>
     </div>
   );
@@ -1862,6 +1915,7 @@ export default function BookingPage() {
   const [tab, setTab] = useState(prefillData?.tab ?? "Flights");
   const [flightResults, setFlightResults] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
+  const [excursionResults, setExcursionResults] = useState([]);
   const [selectedHotelOffer, setSelectedHotelOffer] = useState(null);
   const [autoSearchDone, setAutoSearchDone] = useState(false);
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
@@ -2184,7 +2238,17 @@ export default function BookingPage() {
       case "Saved":
         return <SavedForm />;
       case "Excursions":
-        return <ExcursionsForm onDestChange={setDestCity} />;
+        return (
+          <ExcursionsForm
+            onDestChange={setDestCity}
+            onSearch={(excursions) => {
+              setExcursionResults(excursions);
+              setVisibleCount(RESULTS_PER_PAGE);
+            }}
+            onSearchStart={() => setManualSearchLoading(true)}
+            onSearchEnd={() => setManualSearchLoading(false)}
+          />
+        );
       case "Packages":
         return <PackagesForm {...searchFormProps} />;
       case "Last-Minute":
@@ -2203,6 +2267,14 @@ export default function BookingPage() {
             hotelResults.length !== 1 ? "s" : ""
           } Found`
         : "Results"
+      : tab === "Excursions"
+      ? isSearching
+        ? "Searching experiences…"
+        : excursionResults.length > 0
+        ? `${excursionResults.length} Experience${
+            excursionResults.length !== 1 ? "s" : ""
+          } Found`
+        : "Things to Do"
       : isSearching
       ? "Searching flights…"
       : visibleFlights.length > 0
@@ -2461,6 +2533,7 @@ export default function BookingPage() {
             setTab(val);
             setFlightResults([]);
             setHotelResults([]);
+            setExcursionResults([]);
             setSmartFilters(DEFAULT_FILTERS);
             setActiveFilters([]);
             setVisibleCount(RESULTS_PER_PAGE);
@@ -2587,6 +2660,14 @@ export default function BookingPage() {
                   : hotelResults.length > 0
                   ? `Sorted by price · ${destCity}`
                   : "Search above to find hotels."
+                : tab === "Excursions"
+                ? isSearching
+                  ? `Searching experiences in ${
+                      destCity || "your destination"
+                    }…`
+                  : excursionResults.length > 0
+                  ? `Powered by Viator · ${destCity}`
+                  : "Search above to find tours & activities."
                 : isSearching
                 ? `Searching ${fromCode} → ${
                     prefillData?.iata ?? destCity
@@ -2875,6 +2956,24 @@ export default function BookingPage() {
                             {hotel.totalCurrency}
                           </span>
                         </div>
+                        <SaveTripButton
+                          size="small"
+                          variant="ghost"
+                          label="Save"
+                          tripData={{
+                            tripType: "hotel",
+                            title: hotel.name,
+                            destination: hotel.address || destCity,
+                            price: hotel.totalAmount ?? 0,
+                            currency: hotel.totalCurrency || "USD",
+                            startDate: hotel.checkin || "",
+                            metadata: {
+                              hotelId: hotel.hotelId,
+                              offerId: hotel.offerId,
+                            },
+                          }}
+                          onSaveError={(msg) => antdMessage.error(msg)}
+                        />
                         <Button
                           className="sk-btn-orange"
                           size="small"
@@ -2902,6 +3001,14 @@ export default function BookingPage() {
                 </div>
               </Card>
             ))}
+
+          {tab === "Excursions" && (
+            <ExcursionResults
+              results={excursionResults}
+              loading={isSearching}
+              destination={destCity}
+            />
+          )}
 
           {!isSearching && tab === "Flights" && hasMore && (
             <div
