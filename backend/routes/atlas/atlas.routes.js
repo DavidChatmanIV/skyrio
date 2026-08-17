@@ -1,5 +1,9 @@
 import { Router } from "express";
 import { logEvent } from "../../services/eventService.js";
+import {
+  atlasChat,
+  ATLAS_DEFAULT_SYSTEM_PROMPT,
+} from "../../services/atlasService.js";
 
 const router = Router();
 
@@ -32,6 +36,12 @@ sub-groups can split off and reconvene, flexible group-size lodging
 (villas, multi-room hotels), and reasonably central locations that don't
 require everyone to agree on one single narrow activity.`,
 };
+
+// NOTE: /suggest and /destination-guide below still call OpenAI directly.
+// They were left untouched — only /chat (used by AtlasPanel.jsx, the
+// widget you're testing against Claude) has been rewired through
+// atlasService.js. If you want /suggest and /destination-guide on the
+// same provider-agnostic path, say the word and I'll convert those too.
 
 router.post("/suggest", async (req, res) => {
   try {
@@ -160,8 +170,10 @@ ${
 // Body: { messages: [{ role, content }], systemPrompt?: string,
 //         context?: object }
 // Response: { ok: true, reply: string }
+//
+// NOW ROUTES THROUGH atlasService.js — respects ATLAS_PROVIDER /
+// ATLAS_FALLBACK_PROVIDER and gets automatic Claude<->OpenAI failover.
 // ─────────────────────────────────────────────────────────────
-const DEFAULT_CHAT_SYSTEM_PROMPT = `You are Atlas, Skyrio's AI travel companion. Be sharp, warm, and direct. Keep responses concise unless the user asks for detail.`;
 
 router.post("/chat", async (req, res) => {
   try {
@@ -175,7 +187,7 @@ router.post("/chat", async (req, res) => {
 
     // Some callers (SyncGroupPage) send `context` separately instead of
     // baking it into systemPrompt — fold it in if present.
-    let finalSystemPrompt = systemPrompt || DEFAULT_CHAT_SYSTEM_PROMPT;
+    let finalSystemPrompt = systemPrompt || ATLAS_DEFAULT_SYSTEM_PROMPT;
     if (context && typeof context === "object") {
       const ctxLines = Object.entries(context)
         .filter(([, v]) => v !== null && v !== undefined && v !== "")
@@ -186,43 +198,36 @@ router.post("/chat", async (req, res) => {
       }
     }
 
-    const openaiRes = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? ""}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          temperature: 0.7,
-          messages: [
-            { role: "system", content: finalSystemPrompt },
-            ...messages.map((m) => ({ role: m.role, content: m.content })),
-          ],
-        }),
-      }
-    );
+    // Normalize roles before sending to the AI provider. The frontend
+    // (AtlasPanel.jsx) stores Atlas's own turns with role: "atlas" for
+    // UI purposes (avatar/name), but neither Claude nor OpenAI's chat
+    // API accepts anything outside "user" / "assistant" / "system" —
+    // sending "atlas" through causes a 400 from both providers.
+    const ROLE_MAP = { atlas: "assistant", ai: "assistant", bot: "assistant" };
+    const normalizedMessages = messages.map((m) => ({
+      role: ROLE_MAP[m.role] || m.role,
+      content: m.content,
+    }));
 
-    if (!openaiRes.ok) {
-      const err = await openaiRes.json().catch(() => ({}));
-      console.error("[Atlas chat] OpenAI error:", err);
-      return res
-        .status(openaiRes.status)
-        .json({ ok: false, error: "OpenAI request failed", detail: err });
-    }
+    const result = await atlasChat({
+      systemPrompt: finalSystemPrompt,
+      messages: normalizedMessages,
+      task: "default",
+      maxTokens: 1024,
+    });
 
-    const data = await openaiRes.json();
-    const reply = data.choices?.[0]?.message?.content?.trim();
-
-    if (!reply) {
+    if (!result?.text) {
       return res
         .status(500)
         .json({ ok: false, error: "Atlas returned an empty response" });
     }
 
-    return res.json({ ok: true, reply });
+    return res.json({
+      ok: true,
+      reply: result.text,
+      provider: result.provider,
+      model: result.model,
+    });
   } catch (err) {
     console.error("[Atlas chat] error:", err.message);
     res.status(500).json({ ok: false, error: err.message });
