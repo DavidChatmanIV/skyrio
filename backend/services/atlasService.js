@@ -11,13 +11,13 @@ const PROVIDERS = {
   },
   claude: {
     name: "Anthropic Claude",
-    defaultModel: "claude-sonnet-4-20250514",
+    defaultModel: "claude-sonnet-5",
     fastModel: "claude-haiku-4-5-20251001",
   },
 };
 
-const PRIMARY_PROVIDER = process.env.ATLAS_PROVIDER || "openai";
-const FALLBACK_PROVIDER = process.env.ATLAS_FALLBACK_PROVIDER || "claude";
+const PRIMARY_PROVIDER = process.env.ATLAS_PROVIDER || "claude";
+const FALLBACK_PROVIDER = process.env.ATLAS_FALLBACK_PROVIDER || "openai";
 
 // ─── Client initialisation ────────────────────────────────────
 
