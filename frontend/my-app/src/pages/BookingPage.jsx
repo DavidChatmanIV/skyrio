@@ -1659,7 +1659,7 @@ function ExcursionsForm({
             <Option value="any">Any category</Option>
             <Option value="tours">Tours</Option>
             <Option value="adventure">Adventure</Option>
-            <Option value="food">Food & Drink</Option>
+            <Option value="food">Food &amp; Drink</Option>
             <Option value="culture">Culture</Option>
             <Option value="wellness">Wellness</Option>
           </Select>
@@ -1971,42 +1971,76 @@ export default function BookingPage() {
 
   const handleWatchFlight = useCallback(
     async (flight) => {
+      const token = localStorage.getItem("token");
+
+      // Already watching this flight — turn it off
       if (watchingId === flight.id) {
+        const existingWatchId = watchIds[flight.id];
         setWatchingId(null);
+        if (existingWatchId) {
+          try {
+            await fetch(`${API}/api/watches/${existingWatchId}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            setWatchIds((prev) => {
+              const next = { ...prev };
+              delete next[flight.id];
+              return next;
+            });
+          } catch {
+            // non-fatal — local state already reflects "off"
+          }
+        }
         antdMessage.info("Stopped watching this flight.");
         return;
       }
+
       setWatchingId(flight.id);
       const price = parseFloat(flight.totalAmount);
-      const route = {
-        from: flight.origin,
-        to: flight.destination,
-        price,
-        flightId: flight.id,
-        airline: flight.owner,
-      };
-      setPriceWatchRoute(route);
-      setPriceWatchOn(true);
+
       try {
-        await createNotification({
-          type: "price_watch",
-          event: "flight_price_watch",
-          title: "Watching flight price",
-          message: `Alert set for ${flight.owner} ${flight.origin} → ${
-            flight.destination
-          } at $${price.toFixed(0)}.`,
-          targetType: "flight",
-          targetId: flight.id,
-          metadata: route,
+        const res = await fetch(`${API}/api/watches`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            type: "flights",
+            origin: flight.origin,
+            destination: flight.destination,
+            dates: [
+              flight.departingAt
+                ? dayjs(flight.departingAt).format("YYYY-MM-DD")
+                : null,
+            ],
+            adults: 1,
+            cabin: "economy",
+            lastSeenPrice: price,
+          }),
         });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to create watch");
+
+        setWatchIds((prev) => ({ ...prev, [flight.id]: data.watch._id }));
+        setPriceWatchRoute({
+          from: flight.origin,
+          to: flight.destination,
+          price,
+          flightId: flight.id,
+          airline: flight.owner,
+        });
+        setPriceWatchOn(true);
         antdMessage.success(
           `Watching $${price.toFixed(0)} — you'll be notified if it drops!`
         );
-      } catch {
-        antdMessage.info("Price watch set — alerts coming soon.");
+      } catch (err) {
+        setWatchingId(null);
+        antdMessage.error(err.message || "Failed to set up price watch");
       }
     },
-    [watchingId]
+    [watchingId, watchIds]
   );
 
   const handleDatesChange = useCallback(({ nights }) => {
@@ -2743,7 +2777,20 @@ export default function BookingPage() {
                 style={{ cursor: "pointer", marginBottom: 14 }}
               >
                 <div className="sk-resultRow">
-                  <div className="sk-thumb" />
+                  <div
+                    className="sk-thumb"
+                    style={
+                      flight.ownerLogo
+                        ? {
+                            backgroundImage: `url(${flight.ownerLogo})`,
+                            backgroundSize: "60%",
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "center",
+                            backgroundColor: "rgba(255,255,255,0.06)",
+                          }
+                        : undefined
+                    }
+                  />
                   <div className="sk-resultMain">
                     <div className="sk-resultTop">
                       <div>

@@ -38,7 +38,10 @@ await mount("/social", "./social.routes.js");
 await mount("/follow", "./follow.routes.js");
 await mount("/users", "./userSearch.routes.js");
 await mount("/passport", "./passport.routes.js");
-await mount("/flights", "./flights/flights.routes.js");
+// Flights — now serving from LiteAPI (Duffel pending account approval).
+// Same LiteAPI account/key as hotels; Flights Production access
+// confirmed via LiteAPI support.
+await mount("/flights", "./flights/Liteapiflights.routes.js");
 await mount("/hotels", "./hotels/hotels.routes.js");
 // Excursions — Viator Affiliate API. Displays experiences natively;
 // booking + payment hand off to Viator via affiliate link (no

@@ -14,18 +14,24 @@ router.post("/", async (req, res) => {
 
     const {
       type = "flights",
+      origin = "",
       destination = "",
       dates = null,
       guests = "",
+      adults = 1,
+      cabin = "economy",
       lastSeenPrice = null,
     } = req.body || {};
 
     const watch = await Watch.create({
       userId,
       type,
+      origin,
       destination,
       dates,
       guests,
+      adults,
+      cabin,
       lastSeenPrice,
       active: true,
     });

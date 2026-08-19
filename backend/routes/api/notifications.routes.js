@@ -4,6 +4,48 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 
 const router = Router();
 
+// POST /api/notifications  (used by notificationsService.js createNotification())
+router.post("/", requireAuth, async (req, res) => {
+  try {
+    const {
+      type,
+      event, // accepted but not stored — Notification schema has no `event` field
+      title = "",
+      message,
+      targetType,
+      targetId,
+      link = "",
+      metadata = {},
+    } = req.body || {};
+
+    if (!type || !message) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "type and message are required" });
+    }
+
+    const notification = await Notification.create({
+      user: req.user._id,
+      type,
+      title,
+      message,
+      link,
+      metadata: {
+        ...metadata,
+        ...(targetType ? { targetType } : {}),
+        ...(targetId ? { targetId } : {}),
+      },
+    });
+
+    return res.status(201).json({ ok: true, notification });
+  } catch (err) {
+    console.error("Notification create error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to create notification" });
+  }
+});
+
 // GET /api/notifications  (used by Notifications.jsx)
 router.get("/", requireAuth, async (req, res) => {
   try {
@@ -32,7 +74,6 @@ router.get("/mine", requireAuth, async (req, res) => {
 
     const unread = notifications.filter((n) => !n.read).length;
 
-    // NotificationsBell expects { unread, items[] } with isRead field
     const items = notifications.map((n) => ({
       ...n.toObject(),
       isRead: n.read,
