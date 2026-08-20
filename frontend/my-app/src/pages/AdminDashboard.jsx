@@ -29,14 +29,6 @@ import {
 import dayjs from "dayjs";
 import { apiUrl } from "@/lib/api";
 
-// ✅ Real SVG icons for Challenges specifically — not emoji like the rest
-// of this dashboard's stat cards. Worth keeping separate: a Challenge's
-// icon is shown to actual end users (in PassportRewards.jsx's
-// ChallengeCard), so it needs to render reliably across every OS/browser,
-// not just look fine in whatever environment this admin page happens to
-// be viewed in. Stored as a short key string ("trophy", "flag", etc.),
-// not the emoji itself — PassportRewards.jsx needs the matching lookup
-// table to resolve the same key back into the same icon.
 const CHALLENGE_ICONS = [
   { key: "trophy", label: "Trophy", Icon: TrophyOutlined },
   { key: "flag", label: "Flag", Icon: FlagOutlined },
@@ -90,10 +82,6 @@ function ChallengeIconPicker({ value, onChange }) {
   );
 }
 
-// Action types a Challenge can track — matches the real keys in
-// backend/config/xpRules.js (XP_RULES + XP_PASSIVE) so a challenge always
-// rides on an action that already earns XP correctly, rather than
-// inventing a new tracking mechanism.
 const REWARD_TYPES = [
   { value: "BOOST", label: "Boost" },
   { value: "BADGE", label: "Badge" },
@@ -113,7 +101,6 @@ const CHALLENGE_ACTION_TYPES = [
   { value: "STREAK_DAY", label: "Daily login streak" },
 ];
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   bg: "#07060f",
   card: "rgba(255,255,255,0.04)",
@@ -185,7 +172,6 @@ const INJECTED_CSS = `
   .sk-admin__topbtn { background: none; border: 1px solid ${C.border}; color: ${C.muted}; padding: 6px 14px; border-radius: 999px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color .2s, color .2s; }
   .sk-admin__topbtn:hover { border-color: ${C.orange}; color: ${C.orange}; }
 
-  /* ── Support Inbox banner ── */
   .sk-admin__support-banner {
     display: flex; align-items: center; justify-content: space-between;
     gap: 16px; padding: 18px 24px;
@@ -208,7 +194,6 @@ const INJECTED_CSS = `
   .sk-admin__support-sub { font-size: 12px; color: rgba(255,255,255,0.45); }
   .sk-admin__support-arrow { font-size: 20px; font-weight: 700; color: #ff8a2a; flex-shrink: 0; }
 
-  /* ── Challenges section ── */
   .sk-admin__challenge-actions { display: flex; align-items: center; gap: 8px; }
   .sk-admin__challenge-action-btn {
     background: none; border: 1px solid ${C.border}; color: ${C.muted};
@@ -218,9 +203,6 @@ const INJECTED_CSS = `
   .sk-admin__challenge-action-btn:hover { border-color: ${C.orange}; color: ${C.orange}; }
   .sk-admin__challenge-action-btn--danger:hover { border-color: ${C.red}; color: ${C.red}; }
 
-  /* ── Challenge modal — fix: typed/selected values were rendering in
-     antd's default dark text on this dark modal background, nearly
-     invisible. Force every input type to light text explicitly. ── */
   .sk-challenge-modal .ant-form-item-label > label { color: rgba(255,255,255,0.7) !important; }
   .sk-challenge-modal .ant-input,
   .sk-challenge-modal textarea.ant-input {
@@ -253,7 +235,6 @@ const INJECTED_CSS = `
   .sk-challenge-modal .ant-picker-suffix { color: rgba(255,255,255,0.5) !important; }
 `;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(date) {
   const diff = Math.floor((Date.now() - new Date(date)) / 1000);
   if (diff < 60) return `${diff}s ago`;
@@ -368,23 +349,27 @@ function StatCard({ icon, label, value, color, dim }) {
   );
 }
 
-// ─── Support inbox ticket count from localStorage ─────────────────────────────
+// ─── Support inbox open ticket count from the API ──────────────────────────
+// Previously read from localStorage("skyrio_support_tickets"), a leftover
+// from the pre-backend SupportRail prototype. "Need help" tickets now save
+// via POST /api/support instead, so this pulls the real open-ticket count
+// so the banner below stays accurate.
 function useSupportCount() {
   const [count, setCount] = useState(0);
   useEffect(() => {
-    try {
-      const tickets = JSON.parse(
-        localStorage.getItem("skyrio_support_tickets") || "[]"
-      );
-      setCount(tickets.filter((t) => t.status === "open").length);
-    } catch {
-      setCount(0);
-    }
+    fetch(apiUrl("/api/support?status=open&limit=200"), {
+      credentials: "include",
+      headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.ok) setCount(json.count || 0);
+      })
+      .catch(() => setCount(0));
   }, []);
   return count;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -393,18 +378,13 @@ const AdminDashboard = () => {
   const [lastRefresh, setLastRefresh] = useState(null);
   const openTickets = useSupportCount();
 
-  // ✅ NEW: Growth metrics state — second-booking rate, referral share
-  // rate, cancellation rate. See fetchGrowthMetrics below.
   const [growthMetrics, setGrowthMetrics] = useState(null);
   const [growthLoading, setGrowthLoading] = useState(true);
 
-  // ✅ NEW: Challenges management state. Uses the same auth pattern as
-  // everything else on this page (credentials: "include", cookie-based
-  // verifyAdmin) — not the Bearer-token flow regular user pages use.
   const [challenges, setChallenges] = useState([]);
   const [challengesLoading, setChallengesLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingChallenge, setEditingChallenge] = useState(null); // null = creating new
+  const [editingChallenge, setEditingChallenge] = useState(null);
   const [saving, setSaving] = useState(false);
   const [selectedIcon, setSelectedIcon] = useState("trophy");
   const [form] = Form.useForm();
@@ -444,9 +424,6 @@ const AdminDashboard = () => {
       bonusXP: challenge.bonusXP,
       dateRange: [dayjs(challenge.startDate), dayjs(challenge.endDate)],
     });
-    // Falls back to "trophy" if this challenge predates the icon-key
-    // system (e.g. still has an old raw emoji value) rather than crashing
-    // on an unrecognized key.
     const knownKey = CHALLENGE_ICONS.some((i) => i.key === challenge.icon);
     setSelectedIcon(knownKey ? challenge.icon : "trophy");
     setModalOpen(true);
@@ -463,8 +440,6 @@ const AdminDashboard = () => {
         theme: values.theme || "general",
         icon: selectedIcon,
         requirement: {
-          // Select with mode="tags" always returns an array even when
-          // maxCount limits it to one selection.
           actionType: Array.isArray(values.actionType)
             ? values.actionType[0]
             : values.actionType,
@@ -500,7 +475,7 @@ const AdminDashboard = () => {
       setModalOpen(false);
       fetchChallenges();
     } catch (err) {
-      if (err?.errorFields) return; // antd form validation error — already shown inline
+      if (err?.errorFields) return;
       message.error(err.message || "Failed to save challenge.");
     } finally {
       setSaving(false);
@@ -525,14 +500,10 @@ const AdminDashboard = () => {
     }
   };
 
-  // ✅ NEW: Rewards catalog management — same pattern as Challenges above,
-  // same verifyAdmin auth, same soft-remove (active: false) rather than a
-  // hard delete, since a hard delete would orphan anyone's existing
-  // redeemedRewards entry for that item.
   const [rewardItems, setRewardItems] = useState([]);
   const [rewardItemsLoading, setRewardItemsLoading] = useState(true);
   const [rewardModalOpen, setRewardModalOpen] = useState(false);
-  const [editingReward, setEditingReward] = useState(null); // null = creating new
+  const [editingReward, setEditingReward] = useState(null);
   const [rewardSaving, setRewardSaving] = useState(false);
   const [rewardForm] = Form.useForm();
 
@@ -583,10 +554,6 @@ const AdminDashboard = () => {
         : apiUrl("/api/rewards/items");
       const method = editingReward ? "PATCH" : "POST";
 
-      // itemId is only sent on create — it's the stable slug and can't be
-      // changed afterward (changing it would orphan it from anyone's
-      // existing redeemedRewards entries), so the edit payload omits it
-      // even though the form shows it (disabled) for reference.
       const payload = editingReward
         ? {
             title: values.title,
@@ -618,7 +585,7 @@ const AdminDashboard = () => {
       setRewardModalOpen(false);
       fetchRewardItems();
     } catch (err) {
-      if (err?.errorFields) return; // antd form validation error — already shown inline
+      if (err?.errorFields) return;
       message.error(err.message || "Failed to save reward item.");
     } finally {
       setRewardSaving(false);
@@ -643,13 +610,11 @@ const AdminDashboard = () => {
     }
   };
 
-  // ── Guard: redirect if not logged in ──
   useEffect(() => {
     const isAdmin = localStorage.getItem("admin");
     if (!isAdmin) navigate("/admin/login");
   }, [navigate]);
 
-  // ── Fetch dashboard data ──
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -674,9 +639,6 @@ const AdminDashboard = () => {
     setLoading(false);
   }, [navigate]);
 
-  // ✅ NEW: Fetch growth metrics (second-booking rate, referral share
-  // rate, cancellation rate). Same auth pattern as fetchData — cookie
-  // first, x-admin-email header fallback for local dev.
   const fetchGrowthMetrics = useCallback(async () => {
     setGrowthLoading(true);
     try {
@@ -719,7 +681,6 @@ const AdminDashboard = () => {
     <div className="sk-admin">
       <style>{INJECTED_CSS}</style>
 
-      {/* Top bar */}
       <div className="sk-admin__topbar">
         <div className="sk-admin__logo">
           ✦ Skyrio <span className="sk-admin__badge">Admin</span>
@@ -763,7 +724,6 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* ── Support Inbox Banner ── */}
         <div
           className="sk-admin__support-banner"
           onClick={() => navigate("/admin/support")}
@@ -801,7 +761,6 @@ const AdminDashboard = () => {
           <div className="sk-admin__support-arrow">→</div>
         </div>
 
-        {/* ── Stats row 1 ── */}
         <div className="sk-admin__section-title">Overview</div>
         <div className="sk-admin__stats">
           <StatCard
@@ -838,7 +797,6 @@ const AdminDashboard = () => {
           />
         </div>
 
-        {/* ── Stats row 2 ── */}
         <div className="sk-admin__stats" style={{ marginBottom: 32 }}>
           <StatCard
             icon="📅"
@@ -870,10 +828,6 @@ const AdminDashboard = () => {
           />
         </div>
 
-        {/* ── Growth Metrics ──
-             Second-booking rate, referral share rate, cancellation rate.
-             D7 return rate deliberately omitted — needs a lastActiveAt
-             field on User that doesn't exist yet. */}
         <div className="sk-admin__section-title">Growth Metrics</div>
         <div className="sk-admin__stats">
           <StatCard
@@ -919,9 +873,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* ── Users + Bookings ── */}
         <div className="sk-admin__grid">
-          {/* Recent users */}
           <div className="sk-admin__card">
             <div className="sk-admin__card-head">
               <span className="sk-admin__card-title">Recent Users</span>
@@ -972,7 +924,6 @@ const AdminDashboard = () => {
             ))}
           </div>
 
-          {/* Recent bookings */}
           <div className="sk-admin__card">
             <div className="sk-admin__card-head">
               <span className="sk-admin__card-title">Recent Bookings</span>
@@ -1039,9 +990,7 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* ── Activity feed + Revenue ── */}
         <div className="sk-admin__grid">
-          {/* Activity feed */}
           <div className="sk-admin__card">
             <div className="sk-admin__card-head">
               <span className="sk-admin__card-title">Recent Activity</span>
@@ -1085,7 +1034,6 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Revenue + Top XP */}
           <div className="sk-admin__card">
             <div className="sk-admin__card-head">
               <span className="sk-admin__card-title">Revenue Breakdown</span>
@@ -1123,7 +1071,6 @@ const AdminDashboard = () => {
                 );
               })}
 
-              {/* Top XP earners */}
               <div
                 style={{
                   marginTop: 16,
@@ -1180,7 +1127,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* ── Challenges ── */}
         <div className="sk-admin__card" style={{ marginBottom: 24 }}>
           <div className="sk-admin__card-head">
             <span className="sk-admin__card-title">Challenges</span>
@@ -1275,7 +1221,6 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* ── Rewards Catalog ── */}
         <div className="sk-admin__card" style={{ marginBottom: 24 }}>
           <div className="sk-admin__card-head">
             <span className="sk-admin__card-title">Rewards Catalog</span>
@@ -1368,7 +1313,6 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* ── Create / Edit Challenge Modal ── */}
       <Modal
         open={modalOpen}
         title={editingChallenge ? "Edit Challenge" : "New Challenge"}
@@ -1458,7 +1402,6 @@ const AdminDashboard = () => {
         </Form>
       </Modal>
 
-      {/* ── Create / Edit Reward Item Modal ── */}
       <Modal
         open={rewardModalOpen}
         title={editingReward ? "Edit Reward Item" : "New Reward Item"}

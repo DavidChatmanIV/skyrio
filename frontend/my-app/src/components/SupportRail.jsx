@@ -3,23 +3,6 @@ import { createPortal } from "react-dom";
 import { MessageSquare, LifeBuoy, X, Star } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
-const STORAGE_KEY = "skyrio_support_tickets";
-
-function loadTickets() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveTickets(tickets) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-}
-
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-}
 
 /* ─── Shared field styles (support form) ────────────────────── */
 const field = { marginBottom: 14 };
@@ -70,6 +53,8 @@ export default function SupportRail() {
 
   // ── Support ticket state ──
   const [helpSent, setHelpSent] = useState(false);
+  const [helpSubmitting, setHelpSubmitting] = useState(false);
+  const [helpError, setHelpError] = useState("");
   const [helpForm, setHelpForm] = useState({
     name: "",
     email: "",
@@ -95,6 +80,7 @@ export default function SupportRail() {
       setFbSubmitted(false);
       setFbError("");
       setHelpSent(false);
+      setHelpError("");
       setHelpForm({ name: "", email: "", category: "technical", message: "" });
     }, 300);
   }
@@ -137,23 +123,41 @@ export default function SupportRail() {
     setHelpForm((f) => ({ ...f, [k]: v }));
   }
 
-  function handleHelpSubmit() {
+  async function handleHelpSubmit() {
     if (
       !helpForm.name.trim() ||
       !helpForm.email.trim() ||
       !helpForm.message.trim()
     )
       return;
-    const ticket = {
-      ...helpForm,
-      id: uid(),
-      status: "open",
-      createdAt: new Date().toISOString(),
-      reply: "",
-      notes: "",
-    };
-    saveTickets([ticket, ...loadTickets()]);
-    setHelpSent(true);
+
+    setHelpSubmitting(true);
+    setHelpError("");
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API}/api/support`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: helpForm.name.trim(),
+          email: helpForm.email.trim(),
+          category: helpForm.category,
+          message: helpForm.message.trim(),
+          page: window.location.pathname,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok)
+        throw new Error(data.message || "Failed to send ticket");
+      setHelpSent(true);
+    } catch (err) {
+      setHelpError(err.message || "Something went wrong — please try again.");
+    } finally {
+      setHelpSubmitting(false);
+    }
   }
 
   if (pickerActive) return null;
@@ -597,8 +601,18 @@ export default function SupportRail() {
                   placeholder="Describe the issue — what happened and what you expected…"
                 />
               </div>
+
+              {helpError && (
+                <div
+                  style={{ fontSize: 12, color: "#f87171", marginBottom: 10 }}
+                >
+                  {helpError}
+                </div>
+              )}
+
               <button
                 onClick={handleHelpSubmit}
+                disabled={helpSubmitting}
                 style={{
                   width: "100%",
                   padding: "14px",
@@ -609,14 +623,15 @@ export default function SupportRail() {
                   fontFamily: "'DM Sans', sans-serif",
                   fontSize: 15,
                   fontWeight: 700,
-                  cursor: "pointer",
+                  cursor: helpSubmitting ? "not-allowed" : "pointer",
+                  opacity: helpSubmitting ? 0.6 : 1,
                   marginTop: 4,
                   minHeight: 48,
                   touchAction: "manipulation",
                   WebkitTapHighlightColor: "transparent",
                 }}
               >
-                Send to support →
+                {helpSubmitting ? "Sending..." : "Send to support →"}
               </button>
             </>
           )}

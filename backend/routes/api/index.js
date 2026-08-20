@@ -61,6 +61,9 @@ await mount("/challenges", "./challenges.routes.js");
 // NEW: Feedback — floating widget submissions, reviewable via
 // GET /api/feedback (admin) and status updates via PATCH.
 await mount("/feedback", "./feedback/feedback.routes.js");
+// NEW: Support tickets — "Need help?" panel submissions, reviewable via
+// GET /api/support (admin) and status updates via PATCH.
+await mount("/support", "../support.routes.js");
 
 /* ======================================================
    Extended Modules (outside api folder)
@@ -109,6 +112,7 @@ api.get("/", (_req, res) => {
       "/verification",
       "/referral",
       "/feedback",
+      "/support",
     ],
   });
 });
