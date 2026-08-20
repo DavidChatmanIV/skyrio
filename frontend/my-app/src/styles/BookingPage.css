@@ -936,12 +936,35 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   .sk-field--num {
     width: 100% !important;
   }
+  /* Airport pair stays a row (with the swap button between
+     the two inputs), so each input must SHARE the row via
+     flex instead of each claiming 100% width — two 100%-wide
+     children side by side is what was blowing out the layout
+     and causing the horizontal page overflow on mobile. */
   .sk-field--airport-pair {
     flex-direction: row;
     width: 100%;
   }
   .sk-field--airport-pair .sk-field--airport {
+    width: auto !important;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Below ~560px there isn't room for two side-by-side
+     airport inputs plus a swap button, so stack them and
+     hide the swap button (matches sk-swap-btn's own
+     max-width:640px display:none rule below). */
+  .sk-field--airport-pair {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .sk-field--airport-pair .sk-field--airport {
     width: 100% !important;
+    flex: none;
   }
 }
 
@@ -1171,13 +1194,6 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 }
 
 .sk-weatherInner {
-  padding: 12px 18px;
-}
-
-.sk-weatherInner--split {
-  display: flex;
-  align-items: center;
-  gap: 0;
   padding: 12px 18px;
 }
 
@@ -2561,10 +2577,6 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
     flex-direction: column;
     align-items: stretch;
   }
-  .sk-airport-pair {
-    flex-direction: row;
-    flex: 0 0 auto;
-  }
   .sk-btn-search-pill.ant-btn {
     width: 100% !important;
     margin-left: 0 !important;
@@ -2693,6 +2705,24 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   .sk-search-loading__sub {
     max-width: 280px;
   }
+
+  /* Tab bar: if six tabs + "More" can't fit their nowrap
+     labels at this width, let the bar scroll horizontally
+     instead of forcing the whole page to overflow. The bar
+     itself is capped to 100% of its (already viewport-safe)
+     parent, so this scroll is contained. */
+  .sk-tab-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .sk-tab-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .sk-tab-btn,
+  .sk-tab-more-btn {
+    flex: 0 0 auto;
+  }
 }
 
 /* ======================================
@@ -2715,21 +2745,6 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
     padding: 9px 12px;
     font-size: 13px;
   }
-  .sk-airport-pair {
-    flex-direction: column;
-    width: 100%;
-    gap: 8px;
-    align-items: stretch;
-    flex: 0 0 auto;
-  }
-  .sk-airport-pair .sk-airport-wrap {
-    min-width: 0 !important;
-    width: 100%;
-    flex: none;
-  }
-  .sk-swap-btn {
-    display: none;
-  }
   .sk-prefill-expandedRow {
     flex-direction: column;
   }
@@ -2746,8 +2761,19 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
     flex-wrap: wrap;
     gap: 7px !important;
   }
-  .sk-airport-wrap input,
-  .sk-airport-pair input {
+}
+
+/* ======================================
+   RESPONSIVE — 560px
+   (airport pair stacks + swap button hides
+   together — see .sk-field--airport-pair
+   rule above at the same breakpoint)
+====================================== */
+@media (max-width: 560px) {
+  .sk-swap-btn {
+    display: none;
+  }
+  .sk-field--airport-pair input {
     background: rgba(255, 255, 255, 0.07) !important;
     border: 1px solid rgba(255, 255, 255, 0.13) !important;
     border-radius: 14px !important;

@@ -5,8 +5,7 @@ import Footer from "../components/Footer";
 import AtlasPanel from "../components/Atlas/AtlasPanel";
 import CookieBanner from "../components/CookieBanner";
 import SkyrioDTour from "../components/SkyrioDTour";
-import SupportWidget from "../pages/SupportWidget";
-import FeedbackWidget from "../components/FeedbackWidget";
+import SupportRail from "../components/SupportRail";
 import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
 import bookingHeroImg from "@/assets/Booking/skyrio-hero.jpg";
 import heroBeach from "@/assets/skyhub/beach.png";
@@ -68,8 +67,12 @@ export default function AppLayout() {
 
       {/* ── Outside shell so position:fixed works correctly on mobile ── */}
       <SkyrioDTour />
-      <SupportWidget />
-      <FeedbackWidget />
+
+      {/* Merged Feedback + Need Help — single collapsed icon rail,
+          bottom-left, replaces the old always-open SupportWidget +
+          FeedbackWidget pair (they used to overlap each other and
+          page content on mobile). */}
+      <SupportRail />
     </>
   );
 }

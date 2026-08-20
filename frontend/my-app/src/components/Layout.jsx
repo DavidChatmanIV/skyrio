@@ -1,7 +1,6 @@
 import { Outlet } from "react-router-dom";
 import SkyrioDTour from "./SkyrioDTour";
-import SupportWidget from "../pages/SupportWidget";
-import FeedbackWidget from "../components/FeedbackWidget";
+import SupportRail from "../components/SupportRail";
 
 export default function Layout() {
   return (
@@ -12,11 +11,8 @@ export default function Layout() {
       {/* First-time onboarding tour — shows once, never again */}
       <SkyrioDTour />
 
-      {/* Floating 💬 help button — visible on every page */}
-      <SupportWidget />
-
-      {/* Floating feedback tab — visible on every page */}
-      <FeedbackWidget />
+      {/* Merged Feedback + Need Help — single collapsed icon rail */}
+      <SupportRail />
     </>
   );
 }

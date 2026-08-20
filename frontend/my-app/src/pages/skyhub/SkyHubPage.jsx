@@ -632,17 +632,14 @@ export default function SkyHubPage() {
     [posts, debouncedSearch, activeFilter, activeTab, myUsername, myId]
   );
 
-  // ✅ REWRITE: previously read as a dead/unfinished product ("Nothing
-  // here yet"). SkyHub is in beta, so these now frame the same empty
-  // state as an invitation to be an early member — matching the
-  // "founding traveler" framing used elsewhere in the app (Digital
-  // Passport badges, founder badge, etc).
+  // Empty-state copy: invites the first post/question/etc. without
+  // flagging the product itself as unfinished or in-testing.
   const EMPTY = {
     forYou: {
       icon: "globe",
-      title: "You're early — that's a good thing",
-      sub: "SkyHub is in beta, and you're one of the first people here. Be the first to share a tip, question, or story with the community.",
-      cta: "Write the first post",
+      title: "Start the conversation",
+      sub: "Be the first to share a tip, question, or story with the community.",
+      cta: "Write a post",
     },
     following: {
       icon: "edit",
@@ -653,19 +650,19 @@ export default function SkyHubPage() {
     nearby: {
       icon: "pin",
       title: "No destination posts yet",
-      sub: "Be the first to tag a destination and help other early travelers find it.",
+      sub: "Be the first to tag a destination and help other travelers find it.",
       cta: "Post about a destination",
     },
     questions: {
       icon: "chat",
       title: "No questions yet",
-      sub: "As one of Skyrio's first travelers, your question could be the one that kicks off the community.",
+      sub: "Ask something — your question could be the one that kicks off the conversation.",
       cta: "Ask a question",
     },
     trips: {
       icon: "plane",
       title: "No trips shared yet",
-      sub: "Share a trip idea or story — early posts like yours are what shape SkyHub as it grows.",
+      sub: "Share a trip idea or story to get the conversation started.",
       cta: "Share a trip",
     },
   };
@@ -849,7 +846,7 @@ export default function SkyHubPage() {
   /* ── Render ─────────────────────────────────────────────────── */
   return (
     <div className="skyhub-page">
-      {/* ══ HERO ══ */}
+      {/* ══ HERO — slim banner, not a full-screen splash ══ */}
       <header className="skyhub-topHeader">
         <div className="skyhub-topHeaderOverlay" />
         <div className="skyhub-topHeaderInner">
@@ -861,8 +858,8 @@ export default function SkyHubPage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 10,
-                  marginBottom: 18,
-                  padding: "8px 14px 8px 8px",
+                  marginBottom: 12,
+                  padding: "6px 12px 6px 6px",
                   background: "rgba(255,255,255,0.07)",
                   border: "1px solid rgba(255,255,255,0.12)",
                   borderRadius: 99,
@@ -874,8 +871,8 @@ export default function SkyHubPage() {
                     src={currentUser.avatar}
                     alt=""
                     style={{
-                      width: 32,
-                      height: 32,
+                      width: 26,
+                      height: 26,
                       borderRadius: "50%",
                       objectFit: "cover",
                       flexShrink: 0,
@@ -884,8 +881,8 @@ export default function SkyHubPage() {
                 ) : (
                   <div
                     style={{
-                      width: 32,
-                      height: 32,
+                      width: 26,
+                      height: 26,
                       borderRadius: "50%",
                       flexShrink: 0,
                       background:
@@ -894,7 +891,7 @@ export default function SkyHubPage() {
                       alignItems: "center",
                       justifyContent: "center",
                       fontWeight: 800,
-                      fontSize: 12,
+                      fontSize: 11,
                       color: "#fff",
                     }}
                   >
@@ -904,7 +901,7 @@ export default function SkyHubPage() {
                 <div>
                   <div
                     style={{
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 700,
                       color: "#fff",
                       lineHeight: 1.2,
@@ -913,7 +910,7 @@ export default function SkyHubPage() {
                     {currentUser.name.split(" ")[0]}
                   </div>
                   <div
-                    style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}
+                    style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}
                   >
                     @{currentUser.username} · {currentUser.xp.toLocaleString()}{" "}
                     XP
@@ -954,20 +951,9 @@ export default function SkyHubPage() {
               Share travel experiences, ask smart questions, and help other
               travelers move better.
             </p>
-            <div className="skyhub-heroStats">
-              <div className="skyhub-heroStat">
-                <FireOutlined />
-                <span>Trending travel conversations</span>
-              </div>
-              <div className="skyhub-heroStat">
-                <EnvironmentOutlined />
-                <span>Destination discovery</span>
-              </div>
-              <div className="skyhub-heroStat">
-                <QuestionCircleOutlined />
-                <span>Real traveler questions</span>
-              </div>
-            </div>
+            {/* Bullet list (Trending conversations / Destination discovery /
+                Real traveler questions) removed — decorative, added height
+                without helping a first-time visitor act. */}
           </div>
 
           <div className="skyhub-headerActions">
@@ -981,14 +967,9 @@ export default function SkyHubPage() {
               onPressEnter={scrollToFeed}
               className="skyhub-searchInput"
             />
-            <Button
-              type="primary"
-              icon={<GlobalOutlined />}
-              className="skyhub-exploreBtn"
-              onClick={scrollToFeed}
-            >
-              Explore SkyHub
-            </Button>
+            {/* "Explore SkyHub" button removed — it scrolled to content
+                that's now one shrunk-hero away, making the button
+                redundant. Pressing Enter in search still jumps to feed. */}
           </div>
         </div>
 
@@ -1018,15 +999,8 @@ export default function SkyHubPage() {
             </div>
           </div>
         ) : (
-          // ✅ NEW: previously this whole block (including the "Be the
-          // first to post" pill) only rendered when liveStats existed,
-          // which requires posts.length > 0 — meaning on a truly empty
-          // SkyHub (day one of beta) there was no framing at all here,
-          // just silence. This covers that exact case.
           <div className="skyhub-topStats">
-            <div className="skyhub-onlinePill">
-              SkyHub is in beta — be one of the first to post
-            </div>
+            <div className="skyhub-onlinePill">Be the first to post</div>
           </div>
         )}
       </header>
@@ -1156,10 +1130,6 @@ export default function SkyHubPage() {
                     </div>
                     <h3>{empty.title}</h3>
                     <p>{empty.sub}</p>
-                    {/* ✅ NEW: empty state previously had no action —
-                        a dead end for a visitor. This scrolls up to
-                        the composer, which already exists above the
-                        feed. */}
                     <Button
                       type="primary"
                       onClick={() => {
@@ -1169,10 +1139,6 @@ export default function SkyHubPage() {
                           behavior: "smooth",
                           block: "center",
                         });
-                        // Focus the actual textarea inside the composer
-                        // after the scroll starts, so the person can
-                        // start typing immediately rather than having
-                        // to click into it themselves.
                         composer
                           ?.querySelector("textarea")
                           ?.focus({ preventScroll: true });
