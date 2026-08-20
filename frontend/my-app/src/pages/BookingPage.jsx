@@ -1943,6 +1943,10 @@ export default function BookingPage() {
   const [priceWatchOn, setPriceWatchOn] = useState(false);
   const [priceWatchRoute, setPriceWatchRoute] = useState(null);
   const [watchingId, setWatchingId] = useState(null);
+  // FIX: this map (flightId -> watch document id) was referenced in
+  // handleWatchFlight below but never declared, causing:
+  //   Uncaught ReferenceError: watchIds is not defined
+  const [watchIds, setWatchIds] = useState({});
 
   const handlePriceWatchToggle = useCallback(async () => {
     const next = !priceWatchOn;
