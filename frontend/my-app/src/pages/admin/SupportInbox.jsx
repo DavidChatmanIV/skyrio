@@ -1,602 +1,406 @@
-/**
- * SupportInbox.jsx
- * ────────────────
- * Your private support ticket inbox — only you see this.
- * Lives at: /admin/support
- *
- * INSTALL — in App.jsx:
- *   import SupportInbox from "./pages/admin/SupportInbox";
- *   // inside your admin Routes:
- *   <Route path="/admin/support" element={<SupportInbox />} />
- *
- * Tickets are read from localStorage (written by SupportWidget.jsx).
- * AI draft reply uses Anthropic API — same key your app already uses.
- */
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Select, message } from "antd";
+import { apiUrl } from "@/lib/api";
 
-const STORAGE_KEY = "skyrio_support_tickets";
-
-function loadTickets() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveTickets(tickets) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-}
-
-const STATUS = {
-  open: { label: "Open", color: "#ff8a2a" },
-  inprogress: { label: "In Progress", color: "#7c5cfc" },
-  resolved: { label: "Resolved", color: "#22c55e" },
+// ─── Design tokens — matches AdminDashboard.jsx ────────────────────────────
+const C = {
+  bg: "#07060f",
+  card: "rgba(255,255,255,0.04)",
+  border: "rgba(255,255,255,0.08)",
+  borderAccent: "rgba(255,138,42,0.3)",
+  orange: "#ff8a2a",
+  orangeDim: "rgba(255,138,42,0.12)",
+  purple: "#7c5cfc",
+  purpleDim: "rgba(124,92,252,0.12)",
+  green: "#34d399",
+  greenDim: "rgba(52,211,153,0.12)",
+  red: "#f87171",
+  redDim: "rgba(248,113,113,0.12)",
+  blue: "#60a5fa",
+  blueDim: "rgba(96,165,250,0.12)",
+  white: "#fff",
+  muted: "rgba(255,255,255,0.45)",
 };
 
-async function draftReply(ticket) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "user",
-          content: `You are a warm, empathetic support agent for Skyrio — a modern AI-powered travel platform. 
-Draft a SHORT, helpful reply to this customer issue (3–5 sentences max). 
-Be genuine, not robotic. End with one clear next step or resolution.
-Don't make up details you don't know.
+const INJECTED_CSS = `
+  .sk-inbox * { box-sizing: border-box; }
+  .sk-inbox { min-height: 100vh; background: ${C.bg}; color: ${C.white}; font-family: "DM Sans", sans-serif; }
+  .sk-inbox__topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 32px; background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid ${C.border};
+    position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px);
+  }
+  .sk-inbox__logo { font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; color: ${C.white}; display: flex; align-items: center; gap: 8px; }
+  .sk-inbox__topbtn { background: none; border: 1px solid ${C.border}; color: ${C.muted}; padding: 6px 14px; border-radius: 999px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color .2s, color .2s; }
+  .sk-inbox__topbtn:hover { border-color: ${C.orange}; color: ${C.orange}; }
+  .sk-inbox__body { padding: 32px; max-width: 1000px; margin: 0 auto; }
 
-Customer: ${ticket.name}
-Category: ${ticket.category}
-Message: ${ticket.message}
+  .sk-inbox__tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+  .sk-inbox__tab {
+    background: none; border: 1px solid ${C.border}; color: ${C.muted};
+    padding: 8px 18px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: all .15s;
+  }
+  .sk-inbox__tab--active { border-color: ${C.orange}; color: ${C.orange}; background: ${C.orangeDim}; }
 
-Reply with just the message body — no subject line, no greeting like "Dear".`,
-        },
-      ],
-    }),
-  });
-  const data = await res.json();
-  return data.content?.[0]?.text || "";
+  .sk-inbox__filters { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .sk-inbox__filter-btn {
+    background: none; border: 1px solid ${C.border}; color: ${C.muted};
+    padding: 5px 14px; border-radius: 999px; font-size: 12px; cursor: pointer;
+    font-family: inherit; transition: all .15s;
+  }
+  .sk-inbox__filter-btn--active { border-color: ${C.purple}; color: ${C.purple}; background: ${C.purpleDim}; }
+
+  .sk-inbox__card { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 14px; padding: 20px; margin-bottom: 14px; }
+  .sk-inbox__card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .sk-inbox__name { font-size: 14px; font-weight: 700; color: ${C.white}; }
+  .sk-inbox__email { font-size: 12px; color: ${C.muted}; margin-top: 2px; }
+  .sk-inbox__time { font-size: 11px; color: ${C.muted}; white-space: nowrap; }
+  .sk-inbox__message { font-size: 13.5px; color: rgba(255,255,255,0.8); line-height: 1.55; margin: 10px 0; white-space: pre-wrap; }
+  .sk-inbox__meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .sk-inbox__pill { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 999px; padding: 3px 10px; }
+  .sk-inbox__stars { color: ${C.orange}; font-size: 13px; letter-spacing: 1px; }
+  .sk-inbox__empty { padding: 60px 20px; text-align: center; font-size: 13px; color: ${C.muted}; }
+  .sk-inbox__spinner { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.1); border-top-color: ${C.orange}; animation: sk-spin 0.7s linear infinite; display: inline-block; }
+  @keyframes sk-spin { to { transform: rotate(360deg); } }
+
+  .sk-inbox .ant-select-selector { background: rgba(255,255,255,0.06) !important; border-color: rgba(255,255,255,0.15) !important; }
+  .sk-inbox .ant-select-selection-item { color: #fff !important; }
+`;
+
+function timeAgo(date) {
+  const diff = Math.floor((Date.now() - new Date(date)) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
-export default function SupportInbox() {
+const SUPPORT_STATUSES = [
+  { value: "open", label: "Open", color: C.orange, bg: C.orangeDim },
+  { value: "in_progress", label: "In progress", color: C.blue, bg: C.blueDim },
+  { value: "resolved", label: "Resolved", color: C.green, bg: C.greenDim },
+  { value: "closed", label: "Closed", color: C.muted, bg: C.card },
+];
+
+const FEEDBACK_STATUSES = [
+  { value: "new", label: "New", color: C.orange, bg: C.orangeDim },
+  { value: "reviewed", label: "Reviewed", color: C.blue, bg: C.blueDim },
+  { value: "actioned", label: "Actioned", color: C.green, bg: C.greenDim },
+  { value: "dismissed", label: "Dismissed", color: C.muted, bg: C.card },
+];
+
+function StatusPill({ status, options }) {
+  const s = options.find((o) => o.value === status) || options[0];
+  return (
+    <span
+      className="sk-inbox__pill"
+      style={{ background: s.bg, color: s.color }}
+    >
+      {s.label}
+    </span>
+  );
+}
+
+export default function AdminSupportInbox() {
   const navigate = useNavigate();
+  const [tab, setTab] = useState("support"); // "support" | "feedback"
+  const [statusFilter, setStatusFilter] = useState("all");
+
   const [tickets, setTickets] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [filter, setFilter] = useState("all");
-  const [drafting, setDrafting] = useState(false);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+
+  const [feedback, setFeedback] = useState([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(true);
+
+  const adminHeaders = () => ({
+    "x-admin-email": localStorage.getItem("admin_email") || "",
+  });
+
+  const fetchTickets = useCallback(async () => {
+    setTicketsLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/support?limit=100"), {
+        credentials: "include",
+        headers: adminHeaders(),
+      });
+      if (res.status === 401) {
+        navigate("/admin/login");
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      if (json.ok) setTickets(json.tickets || []);
+    } catch {
+      message.error("Could not load support tickets.");
+    }
+    setTicketsLoading(false);
+  }, [navigate]);
+
+  const fetchFeedback = useCallback(async () => {
+    setFeedbackLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/feedback?limit=100"), {
+        credentials: "include",
+        headers: adminHeaders(),
+      });
+      if (res.status === 401) {
+        navigate("/admin/login");
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      if (json.ok) setFeedback(json.feedback || []);
+    } catch {
+      message.error("Could not load feedback.");
+    }
+    setFeedbackLoading(false);
+  }, [navigate]);
 
   useEffect(() => {
-    setTickets(loadTickets());
-  }, []);
+    fetchTickets();
+    fetchFeedback();
+  }, [fetchTickets, fetchFeedback]);
 
-  function updateTicket(id, patch) {
-    const updated = tickets.map((t) => (t.id === id ? { ...t, ...patch } : t));
-    setTickets(updated);
-    saveTickets(updated);
-  }
+  const updateTicketStatus = async (id, status) => {
+    try {
+      const res = await fetch(apiUrl(`/api/support/${id}/status`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...adminHeaders() },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok)
+        throw new Error(json.message || "Failed to update");
+      setTickets((prev) =>
+        prev.map((t) => (t._id === id ? { ...t, status } : t))
+      );
+      message.success("Ticket updated.");
+    } catch (err) {
+      message.error(err.message || "Failed to update ticket.");
+    }
+  };
 
-  function deleteTicket(id) {
-    const updated = tickets.filter((t) => t.id !== id);
-    setTickets(updated);
-    saveTickets(updated);
-    if (selected?.id === id) setSelected(null);
-  }
+  const updateFeedbackStatus = async (id, status) => {
+    try {
+      const res = await fetch(apiUrl(`/api/feedback/${id}/status`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...adminHeaders() },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok)
+        throw new Error(json.message || "Failed to update");
+      setFeedback((prev) =>
+        prev.map((f) => (f._id === id ? { ...f, status } : f))
+      );
+      message.success("Feedback updated.");
+    } catch (err) {
+      message.error(err.message || "Failed to update feedback.");
+    }
+  };
 
-  async function handleDraft() {
-    if (!selected) return;
-    setDrafting(true);
-    const text = await draftReply(selected);
-    updateTicket(selected.id, { reply: text, status: "inprogress" });
-    setSelected((t) => ({ ...t, reply: text, status: "inprogress" }));
-    setDrafting(false);
-  }
+  const visibleTickets =
+    statusFilter === "all"
+      ? tickets
+      : tickets.filter((t) => t.status === statusFilter);
+  const visibleFeedback =
+    statusFilter === "all"
+      ? feedback
+      : feedback.filter((f) => f.status === statusFilter);
 
-  const filtered =
-    filter === "all" ? tickets : tickets.filter((t) => t.status === filter);
-
-  const openCount = tickets.filter((t) => t.status === "open").length;
-
-  // Keep selected in sync with tickets state
-  const ticket = selected
-    ? tickets.find((t) => t.id === selected.id) || null
-    : null;
+  const activeStatuses =
+    tab === "support" ? SUPPORT_STATUSES : FEEDBACK_STATUSES;
 
   return (
-    <div style={s.root}>
-      {/* ── Top bar ── */}
-      <div style={s.topBar}>
-        <button onClick={() => navigate("/admin")} style={s.backBtn}>
-          ← Admin Dashboard
-        </button>
-        <div style={s.topTitle}>
-          Support Inbox
-          {openCount > 0 && <span style={s.badge}>{openCount} open</span>}
+    <div className="sk-inbox">
+      <style>{INJECTED_CSS}</style>
+
+      <div className="sk-inbox__topbar">
+        <div className="sk-inbox__logo">
+          ✦ Skyrio{" "}
+          <span style={{ color: C.muted, fontWeight: 500 }}>
+            · Support Inbox
+          </span>
         </div>
-        <div style={{ fontSize: 13, color: "rgba(240,237,255,0.35)" }}>
-          /admin/support
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            className="sk-inbox__topbtn"
+            onClick={() => {
+              fetchTickets();
+              fetchFeedback();
+            }}
+          >
+            ↻ Refresh
+          </button>
+          <button
+            className="sk-inbox__topbtn"
+            onClick={() => navigate("/admin")}
+          >
+            ← Dashboard
+          </button>
         </div>
       </div>
 
-      <div style={s.body}>
-        {/* ── Sidebar ── */}
-        <div style={s.sidebar}>
-          {/* Filter tabs */}
-          <div style={s.filterRow}>
-            {["all", "open", "inprogress", "resolved"].map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                style={{
-                  ...s.filterBtn,
-                  ...(filter === f ? s.filterBtnActive : {}),
-                }}
-              >
-                {f === "all"
-                  ? "All"
-                  : f === "inprogress"
-                  ? "In Progress"
-                  : STATUS[f]?.label}
-                {f === "open" && openCount > 0 && (
-                  <span style={s.filterCount}>{openCount}</span>
-                )}
-              </button>
-            ))}
-          </div>
+      <div className="sk-inbox__body">
+        <div className="sk-inbox__tabs">
+          <button
+            className={`sk-inbox__tab ${
+              tab === "support" ? "sk-inbox__tab--active" : ""
+            }`}
+            onClick={() => {
+              setTab("support");
+              setStatusFilter("all");
+            }}
+          >
+            🛟 Support Tickets ({tickets.length})
+          </button>
+          <button
+            className={`sk-inbox__tab ${
+              tab === "feedback" ? "sk-inbox__tab--active" : ""
+            }`}
+            onClick={() => {
+              setTab("feedback");
+              setStatusFilter("all");
+            }}
+          >
+            💬 Feedback ({feedback.length})
+          </button>
+        </div>
 
-          {/* Ticket list */}
-          <div style={s.list}>
-            {filtered.length === 0 && (
-              <div style={s.empty}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
-                <div>No tickets here</div>
+        <div className="sk-inbox__filters">
+          <button
+            className={`sk-inbox__filter-btn ${
+              statusFilter === "all" ? "sk-inbox__filter-btn--active" : ""
+            }`}
+            onClick={() => setStatusFilter("all")}
+          >
+            All
+          </button>
+          {activeStatuses.map((s) => (
+            <button
+              key={s.value}
+              className={`sk-inbox__filter-btn ${
+                statusFilter === s.value ? "sk-inbox__filter-btn--active" : ""
+              }`}
+              onClick={() => setStatusFilter(s.value)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Support tickets ── */}
+        {tab === "support" && (
+          <>
+            {ticketsLoading && (
+              <div className="sk-inbox__empty">
+                <span className="sk-inbox__spinner" />
               </div>
             )}
-            {filtered.map((t) => (
-              <div
-                key={t.id}
-                onClick={() => setSelected(t)}
-                style={{
-                  ...s.ticketRow,
-                  ...(ticket?.id === t.id ? s.ticketRowActive : {}),
-                }}
-              >
-                <div style={s.ticketTop}>
-                  <span style={s.ticketName}>{t.name}</span>
+            {!ticketsLoading && visibleTickets.length === 0 && (
+              <div className="sk-inbox__empty">No support tickets here.</div>
+            )}
+            {visibleTickets.map((t) => (
+              <div key={t._id} className="sk-inbox__card">
+                <div className="sk-inbox__card-head">
+                  <div>
+                    <div className="sk-inbox__name">{t.name}</div>
+                    <div className="sk-inbox__email">{t.email}</div>
+                  </div>
+                  <div className="sk-inbox__time">{timeAgo(t.createdAt)}</div>
+                </div>
+
+                <div className="sk-inbox__message">{t.message}</div>
+
+                <div className="sk-inbox__meta-row">
+                  <StatusPill status={t.status} options={SUPPORT_STATUSES} />
                   <span
-                    style={{ ...s.dot, background: STATUS[t.status]?.color }}
-                  />
-                </div>
-                <div style={s.ticketCat}>{t.category}</div>
-                <div style={s.ticketSnippet}>
-                  {t.message.slice(0, 55)}
-                  {t.message.length > 55 ? "…" : ""}
-                </div>
-                <div style={s.ticketDate}>
-                  {new Date(t.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
+                    className="sk-inbox__pill"
+                    style={{ background: C.purpleDim, color: C.purple }}
+                  >
+                    {t.category}
+                  </span>
+                  {t.page && (
+                    <span style={{ fontSize: 11, color: C.muted }}>
+                      on {t.page}
+                    </span>
+                  )}
+                  <div style={{ marginLeft: "auto" }}>
+                    <Select
+                      size="small"
+                      value={t.status}
+                      style={{ width: 140 }}
+                      onChange={(val) => updateTicketStatus(t._id, val)}
+                      options={SUPPORT_STATUSES.map((s) => ({
+                        value: s.value,
+                        label: s.label,
+                      }))}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
-          </div>
-        </div>
+          </>
+        )}
 
-        {/* ── Detail panel ── */}
-        <div style={s.detail}>
-          {!ticket ? (
-            <div style={s.noSelect}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>📬</div>
-              <p style={{ color: "rgba(240,237,255,0.35)", fontSize: 15 }}>
-                Select a ticket to view and reply
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Ticket header */}
-              <div style={s.detailHead}>
-                <div>
-                  <h2 style={s.detailName}>{ticket.name}</h2>
-                  <a href={`mailto:${ticket.email}`} style={s.detailEmail}>
-                    {ticket.email}
-                  </a>
+        {/* ── Feedback ── */}
+        {tab === "feedback" && (
+          <>
+            {feedbackLoading && (
+              <div className="sk-inbox__empty">
+                <span className="sk-inbox__spinner" />
+              </div>
+            )}
+            {!feedbackLoading && visibleFeedback.length === 0 && (
+              <div className="sk-inbox__empty">No feedback here.</div>
+            )}
+            {visibleFeedback.map((f) => (
+              <div key={f._id} className="sk-inbox__card">
+                <div className="sk-inbox__card-head">
+                  <div>
+                    <div className="sk-inbox__name">
+                      {f.userId?.username || f.userId?.email || "Anonymous"}
+                    </div>
+                    {f.rating ? (
+                      <div className="sk-inbox__stars">
+                        {"★".repeat(f.rating)}
+                        {"☆".repeat(5 - f.rating)}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="sk-inbox__time">{timeAgo(f.createdAt)}</div>
                 </div>
-                <div style={s.statusRow}>
-                  <select
-                    value={ticket.status}
-                    onChange={(e) =>
-                      updateTicket(ticket.id, { status: e.target.value })
-                    }
-                    style={{
-                      ...s.statusSelect,
-                      borderColor: STATUS[ticket.status]?.color,
-                      color: STATUS[ticket.status]?.color,
-                    }}
-                  >
-                    <option value="open">Open</option>
-                    <option value="inprogress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                  </select>
+
+                <div className="sk-inbox__message">{f.message}</div>
+
+                <div className="sk-inbox__meta-row">
+                  <StatusPill status={f.status} options={FEEDBACK_STATUSES} />
+                  {f.page && (
+                    <span style={{ fontSize: 11, color: C.muted }}>
+                      on {f.page}
+                    </span>
+                  )}
+                  <div style={{ marginLeft: "auto" }}>
+                    <Select
+                      size="small"
+                      value={f.status}
+                      style={{ width: 140 }}
+                      onChange={(val) => updateFeedbackStatus(f._id, val)}
+                      options={FEEDBACK_STATUSES.map((s) => ({
+                        value: s.value,
+                        label: s.label,
+                      }))}
+                    />
+                  </div>
                 </div>
               </div>
-
-              {/* Meta chips */}
-              <div style={s.metaRow}>
-                <span style={s.chip}>📂 {ticket.category}</span>
-                <span style={s.chip}>
-                  🕐{" "}
-                  {new Date(ticket.createdAt).toLocaleString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-
-              {/* Message */}
-              <div style={s.section}>
-                <div style={s.sectionLabel}>Customer message</div>
-                <div style={s.messageBox}>{ticket.message}</div>
-              </div>
-
-              {/* Reply */}
-              <div style={s.section}>
-                <div style={s.sectionLabelRow}>
-                  <span style={s.sectionLabel}>Your reply</span>
-                  <button
-                    onClick={handleDraft}
-                    disabled={drafting}
-                    style={s.draftBtn}
-                  >
-                    {drafting ? "Drafting…" : "✨ AI draft reply"}
-                  </button>
-                </div>
-                <textarea
-                  style={{ ...s.textarea, marginTop: 8 }}
-                  value={ticket.reply}
-                  onChange={(e) =>
-                    updateTicket(ticket.id, { reply: e.target.value })
-                  }
-                  placeholder="Write your reply, or click AI draft reply above…"
-                />
-              </div>
-
-              {/* Internal notes */}
-              <div style={s.section}>
-                <div style={s.sectionLabel}>
-                  Internal notes (only you see this)
-                </div>
-                <textarea
-                  style={{
-                    ...s.textarea,
-                    height: 72,
-                    marginTop: 8,
-                    opacity: 0.7,
-                  }}
-                  value={ticket.notes}
-                  onChange={(e) =>
-                    updateTicket(ticket.id, { notes: e.target.value })
-                  }
-                  placeholder="Private notes — not visible to the customer…"
-                />
-              </div>
-
-              {/* Actions */}
-              <div style={s.actionRow}>
-                <a
-                  href={`mailto:${
-                    ticket.email
-                  }?subject=Re: Your Skyrio Support Request&body=${encodeURIComponent(
-                    ticket.reply
-                  )}`}
-                  style={s.btnPrimary}
-                >
-                  📧 Open in Mail
-                </a>
-                {ticket.status !== "resolved" && (
-                  <button
-                    onClick={() =>
-                      updateTicket(ticket.id, { status: "resolved" })
-                    }
-                    style={s.btnResolve}
-                  >
-                    ✓ Mark Resolved
-                  </button>
-                )}
-                <button
-                  onClick={() => deleteTicket(ticket.id)}
-                  style={s.btnDelete}
-                >
-                  🗑 Delete
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
 }
-
-// ─── Styles (Skyrio dark theme) ───────────────────────────────────────────────
-const s = {
-  root: {
-    minHeight: "100vh",
-    background: "#09071a",
-    color: "#f0edff",
-    fontFamily: "'DM Sans', sans-serif",
-    display: "flex",
-    flexDirection: "column",
-  },
-  topBar: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "16px 28px",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    background: "#0d0b22",
-    position: "sticky",
-    top: 0,
-    zIndex: 100,
-  },
-  backBtn: {
-    background: "none",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 8,
-    color: "rgba(240,237,255,0.55)",
-    padding: "7px 14px",
-    fontSize: 13,
-    cursor: "pointer",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  topTitle: {
-    fontWeight: 700,
-    fontSize: 18,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  },
-  badge: {
-    background: "#ff8a2a",
-    color: "#fff",
-    borderRadius: 20,
-    fontSize: 11,
-    padding: "2px 10px",
-    fontWeight: 700,
-  },
-  body: {
-    display: "flex",
-    flex: 1,
-    overflow: "hidden",
-    height: "calc(100vh - 57px)",
-  },
-
-  // Sidebar
-  sidebar: {
-    width: 300,
-    borderRight: "1px solid rgba(255,255,255,0.07)",
-    display: "flex",
-    flexDirection: "column",
-    flexShrink: 0,
-    background: "#0d0b22",
-  },
-  filterRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 4,
-    padding: "14px 12px 10px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-  },
-  filterBtn: {
-    padding: "5px 10px",
-    borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "none",
-    color: "rgba(240,237,255,0.5)",
-    fontSize: 12,
-    cursor: "pointer",
-    fontFamily: "'DM Sans', sans-serif",
-    display: "flex",
-    alignItems: "center",
-    gap: 5,
-  },
-  filterBtnActive: {
-    background: "rgba(255,138,42,0.15)",
-    borderColor: "#ff8a2a",
-    color: "#ff8a2a",
-  },
-  filterCount: {
-    background: "#ff8a2a",
-    color: "#fff",
-    borderRadius: 10,
-    fontSize: 10,
-    padding: "0 5px",
-  },
-  list: {
-    overflowY: "auto",
-    flex: 1,
-  },
-  empty: {
-    padding: 40,
-    textAlign: "center",
-    color: "rgba(240,237,255,0.25)",
-    fontSize: 14,
-  },
-  ticketRow: {
-    padding: "13px 16px",
-    borderBottom: "1px solid rgba(255,255,255,0.05)",
-    cursor: "pointer",
-    transition: "background .12s",
-  },
-  ticketRowActive: {
-    background: "rgba(255,138,42,0.08)",
-    borderLeft: "3px solid #ff8a2a",
-  },
-  ticketTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 3,
-  },
-  ticketName: { fontWeight: 700, fontSize: 14, color: "#f0edff" },
-  dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
-  ticketCat: {
-    fontSize: 11,
-    color: "#ff8a2a",
-    textTransform: "uppercase",
-    letterSpacing: "0.6px",
-    marginBottom: 3,
-  },
-  ticketSnippet: {
-    fontSize: 13,
-    color: "rgba(240,237,255,0.45)",
-    lineHeight: 1.4,
-  },
-  ticketDate: { fontSize: 11, color: "rgba(240,237,255,0.25)", marginTop: 4 },
-
-  // Detail panel
-  detail: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "28px 32px",
-  },
-  noSelect: {
-    height: "100%",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  detailHead: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 14,
-  },
-  detailName: {
-    margin: "0 0 5px",
-    fontSize: 22,
-    fontWeight: 700,
-    color: "#f0edff",
-  },
-  detailEmail: { color: "#7c5cfc", fontSize: 14, textDecoration: "none" },
-  statusRow: { display: "flex", alignItems: "center", gap: 8 },
-  statusSelect: {
-    padding: "7px 12px",
-    borderRadius: 8,
-    border: "1px solid",
-    background: "rgba(255,255,255,0.05)",
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-    outline: "none",
-  },
-
-  metaRow: { display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" },
-  chip: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 8,
-    padding: "4px 12px",
-    fontSize: 13,
-    color: "rgba(240,237,255,0.55)",
-  },
-
-  section: { marginBottom: 20 },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: 700,
-    textTransform: "uppercase",
-    letterSpacing: "1px",
-    color: "rgba(240,237,255,0.35)",
-    marginBottom: 2,
-  },
-  sectionLabelRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  messageBox: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 10,
-    padding: "14px 16px",
-    fontSize: 15,
-    lineHeight: 1.6,
-    color: "#f0edff",
-    whiteSpace: "pre-wrap",
-    marginTop: 8,
-  },
-  textarea: {
-    width: "100%",
-    height: 130,
-    padding: "12px 14px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.05)",
-    color: "#f0edff",
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: 14,
-    lineHeight: 1.6,
-    resize: "vertical",
-    boxSizing: "border-box",
-    outline: "none",
-  },
-
-  draftBtn: {
-    padding: "5px 12px",
-    borderRadius: 8,
-    border: "1px solid rgba(124,92,252,0.35)",
-    background: "rgba(124,92,252,0.12)",
-    color: "#a78bfa",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-
-  actionRow: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 },
-  btnPrimary: {
-    display: "inline-block",
-    padding: "11px 22px",
-    borderRadius: 10,
-    border: "none",
-    background: "linear-gradient(135deg, #ff8a2a, #7c5cfc)",
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: "pointer",
-    textDecoration: "none",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  btnResolve: {
-    padding: "11px 20px",
-    borderRadius: 10,
-    border: "1px solid rgba(34,197,94,0.35)",
-    background: "rgba(34,197,94,0.10)",
-    color: "#22c55e",
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: "pointer",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  btnDelete: {
-    padding: "11px 16px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "none",
-    color: "rgba(240,237,255,0.3)",
-    fontSize: 14,
-    cursor: "pointer",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-};
