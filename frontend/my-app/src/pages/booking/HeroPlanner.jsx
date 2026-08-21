@@ -237,6 +237,8 @@ export default function HeroPlanner({ onDestinationSelect, onSearchManually }) {
   return (
     <div
       style={{
+        width: "100%",
+        boxSizing: "border-box",
         marginTop: 16,
         padding: "20px 20px 18px",
         borderRadius: 16,
@@ -342,6 +344,8 @@ export default function HeroPlanner({ onDestinationSelect, onSearchManually }) {
           style={{
             display: "flex",
             gap: 8,
+            width: "100%",
+            boxSizing: "border-box",
             overflowX: "auto",
             paddingBottom: 6,
             WebkitOverflowScrolling: "touch",
