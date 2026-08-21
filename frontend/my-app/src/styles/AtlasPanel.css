@@ -8,8 +8,8 @@
   --ap-text: rgba(255, 255, 255, 0.9);
   --ap-muted: rgba(255, 255, 255, 0.45);
   --ap-radius: 20px;
-  --ap-w: 380px;
-  --ap-h: 540px;
+  --ap-w: 440px;
+  --ap-h: 680px;
   /* Falls back to 86px if AppLayout's --sk-nav-h isn't in scope here */
   --ap-nav-h: var(--sk-nav-h, 86px);
 }
