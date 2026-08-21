@@ -812,15 +812,45 @@
   font-family: "DM Sans", sans-serif;
 }
 
-/* ── Mobile ── */
-@media (max-width: 480px) {
-  :root {
-    --ap-w: calc(100vw - 24px);
-  }
-
+/* ── Tablet / large phone ──────────────────────────────────
+   Collapse to an icon-only circle whenever the viewport is
+   narrow enough that BookingPage's own tab bar switches to its
+   mobile layout (768px — see .sk-tab-bar in BookingPage.css).
+   The full "Atlas AI" label + "Open Atlas AI" hint roughly
+   doubled this widget's real footprint. Because the wrapper is
+   `position: fixed`, it always covers this same bottom-right
+   band of the viewport no matter what page content scrolls
+   underneath it — on BookingPage that band frequently lands on
+   the tab bar / destination field. Shrinking the FAB itself is
+   what actually reduces that overlap; nudging bottom/right
+   offsets alone does not, since the tab bar can scroll into any
+   offset. This was previously gated at 480px, which missed
+   common phone/small-tablet widths like ~726px where the
+   overlap was still fully visible.
+==================================================================== */
+@media (max-width: 768px) {
   .ap-fab-wrapper {
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
     right: 16px;
+  }
+
+  .ap-fab:not(.ap-fab--open) {
+    width: 48px;
+    padding: 0;
+    justify-content: center;
+  }
+  .ap-fab:not(.ap-fab--open) .ap-fab__label {
+    display: none;
+  }
+  .ap-fab-hint {
+    display: none;
+  }
+}
+
+/* ── Mobile — narrow phones ── */
+@media (max-width: 480px) {
+  :root {
+    --ap-w: calc(100vw - 24px);
   }
 
   .ap-panel {

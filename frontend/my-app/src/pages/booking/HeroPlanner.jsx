@@ -147,6 +147,31 @@ const SLIDER_STYLES = `
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+
+  /* ── Responsive: CTA row + destination chips ──────────────
+     Previously every style here was inline (no media queries
+     at all), so "Plan with Atlas" / "Search manually" always
+     stayed side-by-side as two flex:1 buttons no matter how
+     narrow the viewport got, and destination chips never
+     shrank. Below ~560px two full-width CTA buttons get too
+     cramped for their label text, so stack them; and shrink
+     chip sizing a bit so more of the row is visible without
+     feeling squeezed. Using !important here because these
+     override the elements' own inline styles. */
+  @media (max-width: 560px) {
+    .sk-hero-cta-row {
+      flex-direction: column !important;
+    }
+    .sk-hero-cta-row > button {
+      width: 100% !important;
+    }
+  }
+  @media (max-width: 480px) {
+    .sk-dest-chip {
+      min-width: 96px !important;
+      padding: 9px 12px !important;
+    }
+  }
 `;
 
 export default function HeroPlanner({ onDestinationSelect, onSearchManually }) {
@@ -466,7 +491,7 @@ export default function HeroPlanner({ onDestinationSelect, onSearchManually }) {
       </div>
 
       {/* CTAs */}
-      <div style={{ display: "flex", gap: 10 }}>
+      <div className="sk-hero-cta-row" style={{ display: "flex", gap: 10 }}>
         <button
           type="button"
           onClick={handlePlanWithAtlas}

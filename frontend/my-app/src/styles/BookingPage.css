@@ -2723,6 +2723,24 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   .sk-tab-more-btn {
     flex: 0 0 auto;
   }
+
+  /* ======================================
+     HERO PLANNER MOBILE SAFE-AREA
+     HeroPlanner (Family/Group trip card) renders its own
+     CTAs — "Plan with Atlas" / "Search manually" — at the
+     bottom of .sk-booking-hero. On mobile, the floating
+     Atlas FAB + SupportRail bubble sit fixed near the
+     bottom of the viewport and can visually sit on top of
+     those CTAs and the tab bar below them. Reserve space
+     so nothing in the hero card is obscured by those
+     floating widgets while scrolling.
+  ====================================== */
+  .sk-booking-hero {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .sk-booking-hero > div:last-child {
+    margin-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* ======================================

@@ -185,8 +185,28 @@ export default function SupportRail() {
         .sr-icon-btn:hover { transform: translateY(-2px); }
         .sr-icon-btn:active { transform: translateY(0) scale(0.96); }
 
+        /* This wrapper sits fixed at the bottom-left of the viewport
+           and always covers whatever page content scrolls into that
+           band — on BookingPage that's frequently the tab bar /
+           departure-city field. It can't fully get out of the way
+           (it's fixed), so shrink the two-icon stack's footprint as
+           much as possible: smaller circles, tighter gap. Gated at
+           768px to match BookingPage's own tab-bar mobile breakpoint
+           (.sk-tab-bar in BookingPage.css) — 480px alone missed
+           common phone/small-tablet widths like ~726px where the
+           overlap with the Flights tab was still fully visible. */
+        @media (max-width: 768px) {
+          .sr-rail-wrapper {
+            bottom: 16px !important;
+            left: 12px !important;
+            gap: 8px !important;
+          }
+          .sr-rail-wrapper .sr-icon-btn {
+            width: 42px !important;
+            height: 42px !important;
+          }
+        }
         @media (max-width: 480px) {
-          .sr-rail-wrapper { bottom: 16px !important; left: 12px !important; }
           .sr-panel { width: calc(100vw - 24px) !important; left: 12px !important; }
         }
       `}</style>
