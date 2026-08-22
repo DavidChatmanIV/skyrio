@@ -1,23 +1,16 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
 import User from "../../models/user.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 import { signToken, setAuthCookie, clearAuthCookie } from "./utils/auth.js";
 import { sendWelcomeEmail } from "../../utils/sendWelcomeEmail.js";
+import {
+  sendPasswordReset,
+  sendVerificationEmail,
+} from "../../services/email.js";
 
 const router = Router();
-
-function createMailer() {
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-}
 
 router.post("/register", async (req, res) => {
   try {
@@ -110,29 +103,12 @@ router.post("/register", async (req, res) => {
       email: user.email,
     }).catch((err) => console.error("Welcome email failed:", err));
 
+    // ── Verification email (now via Resend) ─────────────────────
     const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verifyToken}`;
-    createMailer()
-      .sendMail({
-        from: `"Skyrio" <${process.env.EMAIL_USER}>`,
-        to: user.email,
-        subject: "Verify your Skyrio email",
-        html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#09071a;color:#fff;border-radius:16px">
-          <h2 style="color:#ff8a2a;margin-bottom:8px">Verify your email ✈️</h2>
-          <p style="color:rgba(255,255,255,0.7);margin-bottom:24px">
-            Click below to verify your Skyrio account. This link expires in <strong>24 hours</strong>.
-          </p>
-          <a href="${verifyUrl}"
-            style="background:linear-gradient(135deg,#ff8a2a,#ffb066);color:#000;padding:14px 28px;border-radius:10px;text-decoration:none;display:inline-block;font-weight:700;font-size:15px">
-            ✈️ Verify Email
-          </a>
-          <p style="margin-top:32px;color:rgba(255,255,255,0.3);font-size:12px">
-            If you didn't create a Skyrio account, ignore this email.
-          </p>
-        </div>
-      `,
-      })
-      .catch((err) => console.error("Verification email failed:", err));
+    sendVerificationEmail({
+      to: user.email,
+      verifyUrl,
+    }).catch((err) => console.error("Verification email failed:", err));
 
     const token = signToken(user);
     setAuthCookie(res, token);
@@ -282,18 +258,9 @@ router.post("/forgot-password", async (req, res) => {
     await user.save();
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset?token=${token}`;
-    await createMailer().sendMail({
-      from: `"Skyrio" <${process.env.EMAIL_USER}>`,
+    await sendPasswordReset({
       to: user.email,
-      subject: "Reset your Skyrio password",
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#09071a;color:#fff;border-radius:16px">
-          <h2 style="color:#ff8a2a;margin-bottom:8px">Reset your password</h2>
-          <p style="color:rgba(255,255,255,0.7);margin-bottom:24px">Click the button below to reset your Skyrio password. This link expires in <strong>1 hour</strong>.</p>
-          <a href="${resetUrl}" style="background:linear-gradient(135deg,#ff8a2a,#ffb066);color:#000;padding:14px 28px;border-radius:10px;text-decoration:none;display:inline-block;font-weight:700;font-size:15px">✈️ Reset Password</a>
-          <p style="margin-top:32px;color:rgba(255,255,255,0.3);font-size:12px">If you didn't request this, you can safely ignore this email.</p>
-        </div>
-      `,
+      resetUrl,
     });
 
     return res.json({
@@ -355,18 +322,9 @@ router.post("/send-verification", requireAuth, async (req, res) => {
     await user.save();
 
     const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
-    await createMailer().sendMail({
-      from: `"Skyrio" <${process.env.EMAIL_USER}>`,
+    await sendVerificationEmail({
       to: user.email,
-      subject: "Verify your Skyrio email",
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#09071a;color:#fff;border-radius:16px">
-          <h2 style="color:#ff8a2a;margin-bottom:8px">Verify your email</h2>
-          <p style="color:rgba(255,255,255,0.7);margin-bottom:24px">Click below to verify your Skyrio account. This link expires in <strong>24 hours</strong>.</p>
-          <a href="${verifyUrl}" style="background:linear-gradient(135deg,#ff8a2a,#ffb066);color:#000;padding:14px 28px;border-radius:10px;text-decoration:none;display:inline-block;font-weight:700;font-size:15px">✈️ Verify Email</a>
-          <p style="margin-top:32px;color:rgba(255,255,255,0.3);font-size:12px">If you didn't create a Skyrio account, ignore this email.</p>
-        </div>
-      `,
+      verifyUrl,
     });
 
     return res.json({ ok: true, message: "Verification email sent" });
