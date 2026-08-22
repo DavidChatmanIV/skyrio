@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import dayjs from "dayjs";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -14,15 +14,17 @@ import {
   Shield,
   ShieldCheck,
   Armchair,
-  Star,
-  Crown,
-  Shuffle,
   Briefcase,
   Luggage,
   Package,
   Backpack,
   Medal,
+  Baby,
+  PawPrint,
+  UserPlus,
+  Trash2,
 } from "lucide-react";
+import SkyrioSeatMap from "./SkyrioSeatMap";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
@@ -166,16 +168,6 @@ function useVhFix() {
   }, []);
 }
 
-function getUserIdFromToken() {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) return "";
-    return JSON.parse(atob(token.split(".")[1]))?.id || "";
-  } catch {
-    return "";
-  }
-}
-
 const MOCK_FLIGHT = {
   outbound: {
     from: "EWR",
@@ -251,37 +243,6 @@ function buildFlight(flight) {
   };
 }
 
-const SEAT_OPTIONS = [
-  {
-    id: "none",
-    label: "Skip — assign at check-in",
-    price: 0,
-    desc: "Random seat assigned free",
-    icon: <Shuffle size={17} />,
-  },
-  {
-    id: "standard",
-    label: "Preferred Standard",
-    price: 48,
-    desc: "Rows 3–5 · Sit up front",
-    icon: <Armchair size={17} />,
-  },
-  {
-    id: "premium",
-    label: "Premium Extra Legroom",
-    price: 69,
-    desc: "Rows 4–6 · Extra legroom",
-    icon: <Star size={17} />,
-  },
-  {
-    id: "big",
-    label: "Big Front Seat",
-    price: 89,
-    desc: "Row 1–2 · 11 in. more leg",
-    icon: <Crown size={17} />,
-  },
-];
-
 const BAG_OPTIONS = [
   {
     id: "none",
@@ -313,6 +274,75 @@ const BAG_OPTIONS = [
   },
 ];
 
+// ── Passenger model ──────────────────────────────────────────────
+const PASSENGER_TYPES = [
+  { id: "ADT", label: "Adult" },
+  { id: "CHD", label: "Child" },
+  { id: "INF", label: "Infant" },
+];
+
+// TODO(api): replace with a real per-passenger-type fare breakdown once
+// your backend/LiteAPI response includes one. This is a placeholder
+// ratio so child/infant fares aren't priced identically to an adult.
+const FARE_MULTIPLIER = { ADT: 1, CHD: 1, INF: 0.1 };
+
+function makePassenger(index) {
+  return {
+    index,
+    firstName: "",
+    lastName: "",
+    dob: "",
+    type: "ADT",
+    hasPet: false,
+    email: "",
+    phone: "",
+    ktn: "",
+  };
+}
+
+function fullName(p) {
+  return [p.firstName, p.lastName].filter(Boolean).join(" ").trim();
+}
+
+// ── Seat inventory (mock) ─────────────────────────────────────────
+// TODO(api): replace with a real GET to your seat inventory endpoint
+// for this flight/segment, once one exists. This just marks a handful
+// of seats unavailable so the map isn't wide open.
+const SEAT_ROWS = [11, 12, 13, 14, 15];
+const SEAT_COLUMNS = ["A", "B", "C", "D", "E", "F"];
+
+// Pricing tiers modeled on real 2026 ULCC seat-selection fees
+// (Spirit/Frontier): standard seats free-to-cheap, extra-legroom rows
+// in the $25-45 band, front-row/big-seat rows in the $45-90 band —
+// rather than one flat price applied across the whole cabin.
+// TODO(api): replace with real per-seat pricing from your seat
+// inventory endpoint once it returns one.
+function rowPricing(row, firstRow, secondRow) {
+  if (row === firstRow) return { tier: "premium", price: 59 };
+  if (row === secondRow) return { tier: "extra-legroom", price: 29 };
+  return { tier: "standard", price: 0 };
+}
+
+function generateMockSeatServices(rows, columns) {
+  const unavailable = new Set(["12F", "14A", "15D"]);
+  const [firstRow, secondRow] = rows;
+  const services = [];
+  rows.forEach((row) => {
+    const { tier, price } = rowPricing(row, firstRow, secondRow);
+    columns.forEach((col) => {
+      const seatNumber = `${row}${col}`;
+      services.push({
+        seatNumber,
+        serviceId: `svc-${seatNumber}`,
+        available: !unavailable.has(seatNumber),
+        price,
+        tier,
+      });
+    });
+  });
+  return services;
+}
+
 // ── Inline SVG icons (no emoji, matches existing project style) ──────
 function PlaneIconSvg({ size = 15 }) {
   return (
@@ -334,21 +364,6 @@ function LockIcon() {
     >
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </svg>
-  );
-}
-
-function ShieldIconSvg() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   );
 }
@@ -393,9 +408,6 @@ function InfoIconSvg() {
   );
 }
 
-// ✅ NEW: used by the "Secured by Stripe" trust row in StripePayForm.
-// Deliberately a generic card glyph rather than an attempted redraw of
-// Stripe's actual "S" logomark, since that's a trademarked brand asset.
 function StripeMarkIcon() {
   return (
     <svg
@@ -417,13 +429,10 @@ function StripeMarkIcon() {
 
 function getCancellationEligibility(departureDateISO) {
   if (!departureDateISO) return { known: false };
-
   const departure = dayjs(departureDateISO);
   const now = dayjs();
   const daysUntilDeparture = departure.diff(now, "day");
-
   if (!Number.isFinite(daysUntilDeparture)) return { known: false };
-
   return {
     known: true,
     eligible: daysUntilDeparture >= 7,
@@ -751,14 +760,22 @@ function OptionSelector({ options, selected, onSelect, name }) {
   );
 }
 
-function PriceSummary({ base, seat, bag, insurance }) {
-  const sp = SEAT_OPTIONS.find((o) => o.id === seat)?.price ?? 0;
+function PriceSummary({ base, passengers, seatsPrice = 0, bag, insurance }) {
+  const fareTotal = passengers.reduce(
+    (sum, p) => sum + base * (FARE_MULTIPLIER[p.type] ?? 1),
+    0
+  );
   const bp = BAG_OPTIONS.find((o) => o.id === bag)?.price ?? 0;
   const ip = insurance ? 28.25 : 0;
-  const total = base + sp + bp + ip;
+  const total = fareTotal + seatsPrice + bp + ip;
   const lines = [
-    { label: "Base fare", amt: base },
-    sp > 0 && { label: "Seat upgrade", amt: sp },
+    {
+      label: `Fare (${passengers.length} traveler${
+        passengers.length !== 1 ? "s" : ""
+      })`,
+      amt: fareTotal,
+    },
+    seatsPrice > 0 && { label: "Seat selection", amt: seatsPrice },
     bp > 0 && { label: "Baggage", amt: bp },
     ip > 0 && { label: "Travel protection", amt: ip },
   ].filter(Boolean);
@@ -820,11 +837,24 @@ function PriceSummary({ base, seat, bag, insurance }) {
   );
 }
 
-function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
-  const sp = SEAT_OPTIONS.find((o) => o.id === seat)?.price ?? 0;
+function TripSidebar({
+  flight,
+  passengers,
+  selectedSeats = {},
+  seatsPrice = 0,
+  bag,
+  insurance,
+  basePrice,
+}) {
+  const fareTotal = passengers.reduce(
+    (sum, p) => sum + basePrice * (FARE_MULTIPLIER[p.type] ?? 1),
+    0
+  );
   const bp = BAG_OPTIONS.find((o) => o.id === bag)?.price ?? 0;
   const ip = insurance ? 28.25 : 0;
-  const total = basePrice + sp + bp + ip;
+  const total = fareTotal + seatsPrice + bp + ip;
+  const anySeatsChosen = Object.keys(selectedSeats).length > 0;
+
   return (
     <div
       style={{
@@ -941,7 +971,48 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
           <div style={{ fontSize: 11, color: G.faint, marginBottom: 4 }}>
             Passengers
           </div>
-          <div style={{ fontSize: 14 }}>1 Adult</div>
+          <div style={{ fontSize: 14 }}>
+            {passengers.length} traveler{passengers.length !== 1 ? "s" : ""}
+          </div>
+          {anySeatsChosen && (
+            <div
+              style={{
+                marginTop: 8,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              {passengers.map((p) => {
+                const seat = selectedSeats[p.index]?.seatNumber;
+                if (!seat) return null;
+                return (
+                  <div
+                    key={p.index}
+                    style={{
+                      fontSize: 12,
+                      color: G.muted,
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span
+                      style={{ display: "flex", alignItems: "center", gap: 4 }}
+                    >
+                      {(p.type === "CHD" || p.type === "INF") && (
+                        <Baby size={11} />
+                      )}
+                      {p.hasPet && <PawPrint size={11} />}
+                      {fullName(p) || `Traveler ${p.index + 1}`}
+                    </span>
+                    <span style={{ color: G.orange, fontWeight: 700 }}>
+                      {seat}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div
           style={{
@@ -964,27 +1035,33 @@ function TripSidebar({ flight, seat, bag, insurance, basePrice }) {
 }
 
 function StepPassengers({ onNext, flight, basePrice }) {
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    dob: "",
-    email: "",
-    phone: "",
-    ktn: "",
-  });
+  const [passengers, setPassengers] = useState([makePassenger(0)]);
   const [touched, setTouched] = useState({});
-  const [showKtn, setShowKtn] = useState(false);
-  const firstRef = useRef();
-  const lastRef = useRef();
-  const dobRef = useRef();
-  const emailRef = useRef();
-  const phoneRef = useRef();
 
-  const set = (k) => (e) => {
-    setForm((f) => ({ ...f, [k]: e.target.value }));
-    setTouched((t) => ({ ...t, [k]: true }));
+  const updatePassenger = (idx, patch) =>
+    setPassengers((prev) =>
+      prev.map((p) => (p.index === idx ? { ...p, ...patch } : p))
+    );
+
+  const addPassenger = () => {
+    setPassengers((prev) => {
+      if (prev.length >= 8) return prev;
+      return [...prev, makePassenger(prev.length)];
+    });
   };
-  const blur = (k) => () => setTouched((t) => ({ ...t, [k]: true }));
+
+  const removePassenger = (idx) => {
+    setPassengers((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev
+        .filter((p) => p.index !== idx)
+        .map((p, i) => ({ ...p, index: i }));
+    });
+  };
+
+  const markTouched = (idx, field) =>
+    setTouched((t) => ({ ...t, [`${idx}.${field}`]: true }));
+
   const dobOk = (v) => {
     if (!v) return false;
     const d = dayjs(v);
@@ -992,32 +1069,36 @@ function StepPassengers({ onNext, flight, basePrice }) {
   };
   const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
-  const errs = {
-    firstName: touched.firstName && !form.firstName ? "Required" : null,
-    lastName: touched.lastName && !form.lastName ? "Required" : null,
-    dob: touched.dob && !dobOk(form.dob) ? "Enter a valid past date" : null,
-    email: touched.email && !emailOk(form.email) ? "Enter a valid email" : null,
+  const errorFor = (idx, field, p) => {
+    const key = `${idx}.${field}`;
+    if (!touched[key]) return null;
+    if (field === "firstName" && !p.firstName) return "Required";
+    if (field === "lastName" && !p.lastName) return "Required";
+    if (field === "dob" && !dobOk(p.dob)) return "Enter a valid past date";
+    if (field === "email" && idx === 0 && !emailOk(p.email))
+      return "Enter a valid email";
+    return null;
   };
 
   const handleContinue = () => {
-    const live = {
-      firstName: firstRef.current?.value || form.firstName,
-      lastName: lastRef.current?.value || form.lastName,
-      dob: dobRef.current?.value || form.dob,
-      email: emailRef.current?.value || form.email,
-      phone: phoneRef.current?.value || form.phone,
-      ktn: form.ktn,
-    };
-    setForm(live);
-    setTouched({ firstName: true, lastName: true, dob: true, email: true });
-    if (
-      !live.firstName ||
-      !live.lastName ||
-      !dobOk(live.dob) ||
-      !emailOk(live.email)
-    )
-      return;
-    onNext(live);
+    const allTouched = {};
+    passengers.forEach((p) => {
+      ["firstName", "lastName", "dob"].forEach(
+        (f) => (allTouched[`${p.index}.${f}`] = true)
+      );
+      if (p.index === 0) allTouched[`${p.index}.email`] = true;
+    });
+    setTouched(allTouched);
+
+    const invalid = passengers.some(
+      (p) =>
+        !p.firstName ||
+        !p.lastName ||
+        !dobOk(p.dob) ||
+        (p.index === 0 && !emailOk(p.email))
+    );
+    if (invalid) return;
+    onNext(passengers);
   };
 
   return (
@@ -1035,166 +1116,273 @@ function StepPassengers({ onNext, flight, basePrice }) {
             Passenger details
           </h2>
           <p style={{ color: G.muted, fontSize: 14, marginBottom: 24 }}>
-            Must match your government-issued ID exactly.
+            Must match each traveler's government-issued ID exactly.
           </p>
-          <div className="skc-name-grid">
-            {[
-              {
-                k: "firstName",
-                label: "First name",
-                ref: firstRef,
-                auto: "given-name",
-                ph: "First name",
-              },
-              {
-                k: "lastName",
-                label: "Last name",
-                ref: lastRef,
-                auto: "family-name",
-                ph: "Last name",
-              },
-            ].map(({ k, label, ref, auto, ph }) => (
-              <label key={k} className="skc-label">
-                {label} <span style={{ color: "var(--cta, #ff8a2a)" }}>*</span>
-                <input
-                  ref={ref}
-                  className="skc-input"
-                  value={form[k]}
-                  onChange={set(k)}
-                  onBlur={blur(k)}
-                  placeholder={ph}
-                  autoComplete={auto}
-                />
-                {errs[k] && (
-                  <span
-                    style={{
-                      color: G.danger,
-                      fontSize: 12,
-                      marginTop: 2,
-                      textTransform: "none",
-                      letterSpacing: 0,
-                    }}
-                  >
-                    {errs[k]}
-                  </span>
-                )}
-              </label>
-            ))}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <label className="skc-label">
-              Date of birth{" "}
-              <span style={{ color: "var(--cta, #ff8a2a)" }}>*</span>
-              <input
-                ref={dobRef}
-                className="skc-input"
-                type="date"
-                value={form.dob}
-                onChange={set("dob")}
-                onBlur={blur("dob")}
-                max={dayjs().subtract(1, "day").format("YYYY-MM-DD")}
-              />
-              {errs.dob && (
-                <span
-                  style={{
-                    color: G.danger,
-                    fontSize: 12,
-                    marginTop: 2,
-                    textTransform: "none",
-                    letterSpacing: 0,
-                  }}
-                >
-                  {errs.dob}
-                </span>
-              )}
-            </label>
-            <label className="skc-label">
-              Email <span style={{ color: "var(--cta, #ff8a2a)" }}>*</span>
-              <input
-                ref={emailRef}
-                className="skc-input"
-                type="email"
-                value={form.email}
-                onChange={set("email")}
-                onBlur={blur("email")}
-                placeholder="you@email.com"
-                autoComplete="email"
-              />
-              {errs.email && (
-                <span
-                  style={{
-                    color: G.danger,
-                    fontSize: 12,
-                    marginTop: 2,
-                    textTransform: "none",
-                    letterSpacing: 0,
-                  }}
-                >
-                  {errs.email}
-                </span>
-              )}
-            </label>
-            <label className="skc-label">
-              Phone number
-              <input
-                ref={phoneRef}
-                className="skc-input"
-                type="tel"
-                value={form.phone}
-                onChange={set("phone")}
-                placeholder="+1 (555) 000-0000"
-                autoComplete="tel"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowKtn((v) => !v)}
+
+          {passengers.map((p, i) => (
+            <div
+              key={p.index}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "14px 16px",
-                borderRadius: 12,
                 border: `1px solid ${G.border}`,
+                borderRadius: 14,
+                padding: 18,
+                marginBottom: 16,
                 background: G.bgCard,
-                color: G.faint,
-                fontSize: 14,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                minHeight: 52,
-                touchAction: "manipulation",
               }}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Medal size={15} />
-                Add known traveler number{" "}
-                <span style={{ opacity: 0.6 }}>(optional)</span>
-              </span>
-              <span
+              <div
                 style={{
-                  transition: ".2s",
-                  display: "inline-block",
-                  transform: showKtn ? "rotate(180deg)" : "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 14,
                 }}
               >
-                ▾
-              </span>
-            </button>
-            {showKtn && (
-              <input
-                className="skc-input"
-                value={form.ktn}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, ktn: e.target.value }))
-                }
-                placeholder="Known traveler number"
-              />
-            )}
-          </div>
+                <div
+                  style={{
+                    fontFamily: "inherit",
+                    fontWeight: 700,
+                    fontSize: 14,
+                  }}
+                >
+                  {i === 0 ? "Lead traveler" : `Traveler ${i + 1}`}
+                </div>
+                {i > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => removePassenger(p.index)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: G.danger,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontSize: 12,
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    <Trash2 size={13} /> Remove
+                  </button>
+                )}
+              </div>
+
+              <div className="skc-name-grid">
+                <label className="skc-label">
+                  First name <span style={{ color: G.orange }}>*</span>
+                  <input
+                    className="skc-input"
+                    value={p.firstName}
+                    onChange={(e) =>
+                      updatePassenger(p.index, { firstName: e.target.value })
+                    }
+                    onBlur={() => markTouched(p.index, "firstName")}
+                    placeholder="First name"
+                    autoComplete="given-name"
+                  />
+                  {errorFor(p.index, "firstName", p) && (
+                    <span
+                      style={{
+                        color: G.danger,
+                        fontSize: 12,
+                        textTransform: "none",
+                        letterSpacing: 0,
+                      }}
+                    >
+                      {errorFor(p.index, "firstName", p)}
+                    </span>
+                  )}
+                </label>
+                <label className="skc-label">
+                  Last name <span style={{ color: G.orange }}>*</span>
+                  <input
+                    className="skc-input"
+                    value={p.lastName}
+                    onChange={(e) =>
+                      updatePassenger(p.index, { lastName: e.target.value })
+                    }
+                    onBlur={() => markTouched(p.index, "lastName")}
+                    placeholder="Last name"
+                    autoComplete="family-name"
+                  />
+                  {errorFor(p.index, "lastName", p) && (
+                    <span
+                      style={{
+                        color: G.danger,
+                        fontSize: 12,
+                        textTransform: "none",
+                        letterSpacing: 0,
+                      }}
+                    >
+                      {errorFor(p.index, "lastName", p)}
+                    </span>
+                  )}
+                </label>
+              </div>
+
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 16 }}
+              >
+                <div className="skc-name-grid">
+                  <label className="skc-label">
+                    Date of birth <span style={{ color: G.orange }}>*</span>
+                    <input
+                      className="skc-input"
+                      type="date"
+                      value={p.dob}
+                      onChange={(e) =>
+                        updatePassenger(p.index, { dob: e.target.value })
+                      }
+                      onBlur={() => markTouched(p.index, "dob")}
+                      max={dayjs().subtract(1, "day").format("YYYY-MM-DD")}
+                    />
+                    {errorFor(p.index, "dob", p) && (
+                      <span
+                        style={{
+                          color: G.danger,
+                          fontSize: 12,
+                          textTransform: "none",
+                          letterSpacing: 0,
+                        }}
+                      >
+                        {errorFor(p.index, "dob", p)}
+                      </span>
+                    )}
+                  </label>
+                  <label className="skc-label">
+                    Traveler type
+                    <select
+                      className="skc-input"
+                      value={p.type}
+                      onChange={(e) =>
+                        updatePassenger(p.index, { type: e.target.value })
+                      }
+                    >
+                      {PASSENGER_TYPES.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {i === 0 && (
+                  <>
+                    <label className="skc-label">
+                      Email <span style={{ color: G.orange }}>*</span>
+                      <input
+                        className="skc-input"
+                        type="email"
+                        value={p.email}
+                        onChange={(e) =>
+                          updatePassenger(p.index, { email: e.target.value })
+                        }
+                        onBlur={() => markTouched(p.index, "email")}
+                        placeholder="you@email.com"
+                        autoComplete="email"
+                      />
+                      {errorFor(p.index, "email", p) && (
+                        <span
+                          style={{
+                            color: G.danger,
+                            fontSize: 12,
+                            textTransform: "none",
+                            letterSpacing: 0,
+                          }}
+                        >
+                          {errorFor(p.index, "email", p)}
+                        </span>
+                      )}
+                    </label>
+                    <label className="skc-label">
+                      Phone number
+                      <input
+                        className="skc-input"
+                        type="tel"
+                        value={p.phone}
+                        onChange={(e) =>
+                          updatePassenger(p.index, { phone: e.target.value })
+                        }
+                        placeholder="+1 (555) 000-0000"
+                        autoComplete="tel"
+                      />
+                    </label>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    updatePassenger(p.index, { hasPet: !p.hasPet })
+                  }
+                  className={`skc-opt${p.hasPet ? " sel" : ""}`}
+                  role="checkbox"
+                  aria-checked={p.hasPet}
+                >
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 12 }}
+                  >
+                    <div
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 4,
+                        border: `2px solid ${p.hasPet ? G.orange : G.faint}`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: p.hasPet ? G.orange : "transparent",
+                        color: "white",
+                      }}
+                    >
+                      {p.hasPet && <Check size={11} strokeWidth={3} />}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>
+                        Traveling with a pet in cabin
+                      </div>
+                      <div
+                        style={{ fontSize: 12, color: G.muted, marginTop: 2 }}
+                      >
+                        We'll mark their seat on the map so row-mates know
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addPassenger}
+            disabled={passengers.length >= 8}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "none",
+              border: `1px dashed ${G.border}`,
+              borderRadius: 12,
+              padding: "12px 16px",
+              color: G.orange,
+              cursor: passengers.length >= 8 ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontSize: 14,
+              width: "100%",
+              justifyContent: "center",
+              opacity: passengers.length >= 8 ? 0.4 : 1,
+              marginBottom: 20,
+            }}
+          >
+            <UserPlus size={15} /> Add another traveler
+          </button>
+
           <button
             type="button"
             className="skc-btn-primary"
-            style={{ marginTop: 28 }}
             onClick={handleContinue}
           >
             Continue to Seats &amp; Bags →
@@ -1217,7 +1405,9 @@ function StepPassengers({ onNext, flight, basePrice }) {
         <div className="skc-step-sidebar">
           <TripSidebar
             flight={flight}
-            seat="none"
+            passengers={passengers}
+            selectedSeats={{}}
+            seatsPrice={0}
             bag="none"
             insurance={false}
             basePrice={basePrice}
@@ -1228,10 +1418,37 @@ function StepPassengers({ onNext, flight, basePrice }) {
   );
 }
 
-function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
-  const [seat, setSeat] = useState("none");
+function StepSeatsBags({ onNext, onBack, basePrice, flight, passengers }) {
   const [bag, setBag] = useState("none");
   const [insurance, setInsurance] = useState(false);
+  const [selectedSeats, setSelectedSeats] = useState({});
+  const [activePassengerIndex, setActivePassengerIndex] = useState(0);
+
+  const seatServices = useMemo(
+    () => generateMockSeatServices(SEAT_ROWS, SEAT_COLUMNS),
+    []
+  );
+
+  const seatsPrice = Object.values(selectedSeats).reduce(
+    (sum, s) => sum + (s.price || 0),
+    0
+  );
+
+  function handleSelectSeat(passengerIndex, seatNumber, serviceId, price) {
+    setSelectedSeats((prev) => {
+      const next = {
+        ...prev,
+        [passengerIndex]: { seatNumber, serviceId, price },
+      };
+      const nextIndex = passengers.findIndex(
+        (p, i) => i > passengerIndex && !next[i]
+      );
+      if (nextIndex !== -1) setActivePassengerIndex(nextIndex);
+      return next;
+    });
+  }
+
+  const allSeatsChosen = passengers.every((p) => selectedSeats[p.index]);
 
   return (
     <div className="skc-fade">
@@ -1247,57 +1464,54 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
           >
             Seats &amp; Bags
           </h2>
-          {[
-            {
-              icon: <Armchair size={20} />,
-              title: "Seat preference",
-              hint: "Applies to both flights",
-              opts: SEAT_OPTIONS,
-              val: seat,
-              set: setSeat,
-              name: "Seat",
-            },
-            {
-              icon: <Luggage size={20} />,
-              title: "Baggage",
-              hint: "Prices lower now than at airport · applies to both flights",
-              opts: BAG_OPTIONS,
-              val: bag,
-              set: setBag,
-              name: "Baggage",
-            },
-          ].map(({ icon, title, hint, opts, val, set, name }) => (
-            <section key={name} style={{ marginBottom: 28 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: 14,
-                }}
-              >
-                <span style={{ color: G.orange }}>{icon}</span>
-                <div>
-                  <div
-                    style={{
-                      fontFamily: "inherit",
-                      fontWeight: 700,
-                      fontSize: 16,
-                    }}
-                  >
-                    {title}
-                  </div>
-                  <div style={{ fontSize: 12, color: G.muted }}>{hint}</div>
+
+          <section style={{ marginBottom: 28 }}>
+            <SkyrioSeatMap
+              passengers={passengers}
+              seatServices={seatServices}
+              selectedSeats={selectedSeats}
+              activePassengerIndex={activePassengerIndex}
+              onSetActivePassenger={setActivePassengerIndex}
+              onSelectSeat={handleSelectSeat}
+            />
+          </section>
+
+          <section style={{ marginBottom: 28 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 14,
+              }}
+            >
+              <span style={{ color: G.orange }}>
+                <Luggage size={20} />
+              </span>
+              <div>
+                <div
+                  style={{
+                    fontFamily: "inherit",
+                    fontWeight: 700,
+                    fontSize: 16,
+                  }}
+                >
+                  Baggage
+                </div>
+                <div style={{ fontSize: 12, color: G.muted }}>
+                  Prices lower now than at airport · applies to the whole
+                  booking
                 </div>
               </div>
-              <OptionSelector
-                options={opts}
-                selected={val}
-                onSelect={set}
-                name={name}
-              />
-            </section>
-          ))}
+            </div>
+            <OptionSelector
+              options={BAG_OPTIONS}
+              selected={bag}
+              onSelect={setBag}
+              name="Baggage"
+            />
+          </section>
+
           <section style={{ marginBottom: 28 }}>
             <div
               style={{
@@ -1371,12 +1585,15 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
               </div>
             </button>
           </section>
+
           <PriceSummary
             base={basePrice}
-            seat={seat}
+            passengers={passengers}
+            seatsPrice={seatsPrice}
             bag={bag}
             insurance={insurance}
           />
+
           <div className="skc-btn-row">
             <button type="button" className="skc-btn-back" onClick={onBack}>
               ← Back
@@ -1384,8 +1601,11 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
             <button
               type="button"
               className="skc-btn-primary"
-              style={{ flex: 1 }}
-              onClick={() => onNext({ seat, bag, insurance })}
+              style={{ flex: 1, opacity: allSeatsChosen ? 1 : 0.55 }}
+              disabled={!allSeatsChosen}
+              onClick={() =>
+                onNext({ selectedSeats, bag, insurance, seatsPrice })
+              }
             >
               Review &amp; Pay →
             </button>
@@ -1394,7 +1614,9 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
         <div className="skc-step-sidebar">
           <TripSidebar
             flight={flight}
-            seat={seat}
+            passengers={passengers}
+            selectedSeats={selectedSeats}
+            seatsPrice={seatsPrice}
             bag={bag}
             insurance={insurance}
             basePrice={basePrice}
@@ -1407,7 +1629,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight }) {
 
 function StripePayForm({
   onBack,
-  passenger,
+  passengers,
   flight,
   total,
   loading,
@@ -1419,6 +1641,7 @@ function StripePayForm({
   const elements = useElements();
   const [agreed, setAgreed] = useState(false);
   const [done, setDone] = useState(false);
+  const leadPassenger = passengers[0];
 
   const handleBook = async () => {
     if (!stripe || !elements || !agreed) return;
@@ -1430,7 +1653,7 @@ function StripePayForm({
           elements,
           confirmParams: {
             return_url: `${window.location.origin}/booking-confirmed`,
-            receipt_email: passenger.email,
+            receipt_email: leadPassenger.email,
           },
           redirect: "if_required",
         }
@@ -1440,10 +1663,6 @@ function StripePayForm({
         setLoading(false);
         return;
       }
-      // ✅ FIX: previously only "succeeded" was handled — any other
-      // status (processing, requires_action, requires_payment_method,
-      // etc.) fell through silently, leaving the user staring at a
-      // normal-looking button with no idea what happened.
       switch (paymentIntent?.status) {
         case "succeeded":
           setDone(true);
@@ -1517,7 +1736,7 @@ function StripePayForm({
         </h2>
         <p style={{ color: G.muted, fontSize: 15, marginBottom: 28 }}>
           Confirmation sent to{" "}
-          <strong style={{ color: "#fff" }}>{passenger.email}</strong>
+          <strong style={{ color: "#fff" }}>{leadPassenger.email}</strong>
         </p>
         <div
           style={{
@@ -1587,10 +1806,6 @@ function StripePayForm({
             }}
           />
         </div>
-        {/* ✅ NEW: names Stripe specifically rather than a generic
-            "secure" claim — brand recognition builds more trust than
-            an unnamed padlock, and it's accurate since Stripe is the
-            actual processor handling this payment. */}
         <div
           style={{
             display: "flex",
@@ -1738,32 +1953,41 @@ function StripePayForm({
   );
 }
 
-function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
+function StepReviewPay({ onBack, passengers, extras, basePrice, flight }) {
   const [clientSecret, setClientSecret] = useState(null);
   const [bookingId, setBookingId] = useState(null);
   const [initLoading, setInitLoading] = useState(true);
   const [payLoading, setPayLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const sp = SEAT_OPTIONS.find((o) => o.id === extras.seat)?.price ?? 0;
-  const bp = BAG_OPTIONS.find((o) => o.id === extras.bag)?.price ?? 0;
-  const ip = extras.insurance ? 28.25 : 0;
-  const total = basePrice + sp + bp + ip;
+  const { selectedSeats, bag, insurance, seatsPrice } = extras;
+  const fareTotal = passengers.reduce(
+    (sum, p) => sum + basePrice * (FARE_MULTIPLIER[p.type] ?? 1),
+    0
+  );
+  const bp = BAG_OPTIONS.find((o) => o.id === bag)?.price ?? 0;
+  const ip = insurance ? 28.25 : 0;
+  const total = fareTotal + seatsPrice + bp + ip;
 
   const recapRows = [
     {
-      label: "Passenger",
-      value: `${passenger.firstName} ${passenger.lastName}`,
+      label: "Travelers",
+      value: passengers
+        .map((p) => fullName(p) || `Traveler ${p.index + 1}`)
+        .join(", "),
     },
-    extras.seat !== "none" && {
-      label: "Seat",
-      value: SEAT_OPTIONS.find((o) => o.id === extras.seat)?.label,
+    Object.keys(selectedSeats).length > 0 && {
+      label: "Seats",
+      value: passengers
+        .map((p) => selectedSeats[p.index]?.seatNumber)
+        .filter(Boolean)
+        .join(", "),
     },
-    extras.bag !== "none" && {
+    bag !== "none" && {
       label: "Baggage",
-      value: BAG_OPTIONS.find((o) => o.id === extras.bag)?.label,
+      value: BAG_OPTIONS.find((o) => o.id === bag)?.label,
     },
-    extras.insurance && { label: "Protection", value: "Travel Guard" },
+    insurance && { label: "Protection", value: "Travel Guard" },
   ].filter(Boolean);
 
   useEffect(() => {
@@ -1787,26 +2011,26 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
               departingAt: flight.outbound.dateISO,
               airline: flight.outbound.airline,
             },
-            travelers: [
-              {
-                firstName: passenger.firstName,
-                lastName: passenger.lastName,
-                email: passenger.email,
-                dob: passenger.dob,
-                phone: passenger.phone,
-                knownTravelerNumber: passenger.ktn || null,
-              },
-            ],
+            travelers: passengers.map((p) => ({
+              firstName: p.firstName,
+              lastName: p.lastName,
+              email: p.index === 0 ? p.email : undefined,
+              dob: p.dob,
+              phone: p.index === 0 ? p.phone : undefined,
+              knownTravelerNumber: p.index === 0 ? p.ktn || null : null,
+              type: p.type,
+              hasPet: p.hasPet,
+              seatNumber: selectedSeats[p.index]?.seatNumber || null,
+            })),
             dates: {
               start: flight.outbound.dateISO,
               end: flight.return?.dateISO || null,
             },
             addOns: {
-              seatTier: extras.seat,
-              seatPrice: sp,
-              bagOption: extras.bag,
+              seatsPrice,
+              bagOption: bag,
               bagPrice: bp,
-              insurance: extras.insurance,
+              insurance,
               insurancePrice: ip,
             },
           }),
@@ -1931,9 +2155,10 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
           </section>
           <PriceSummary
             base={basePrice}
-            seat={extras.seat}
-            bag={extras.bag}
-            insurance={extras.insurance}
+            passengers={passengers}
+            seatsPrice={seatsPrice}
+            bag={bag}
+            insurance={insurance}
           />
           {initLoading && (
             <div
@@ -1991,8 +2216,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
             >
               <StripePayForm
                 onBack={onBack}
-                passenger={passenger}
-                extras={extras}
+                passengers={passengers}
                 basePrice={basePrice}
                 flight={flight}
                 bookingId={bookingId}
@@ -2008,9 +2232,11 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
         <div className="skc-step-sidebar">
           <TripSidebar
             flight={flight}
-            seat={extras.seat}
-            bag={extras.bag}
-            insurance={extras.insurance}
+            passengers={passengers}
+            selectedSeats={selectedSeats}
+            seatsPrice={seatsPrice}
+            bag={bag}
+            insurance={insurance}
             basePrice={basePrice}
           />
         </div>
@@ -2022,7 +2248,7 @@ function StepReviewPay({ onBack, passenger, extras, basePrice, flight }) {
 export default function BookingCheckout({ flight, onBack }) {
   const liveFlight = buildFlight(flight);
   const [step, setStep] = useState(0);
-  const [passenger, setPassenger] = useState(null);
+  const [passengers, setPassengers] = useState([]);
   const [extras, setExtras] = useState(null);
 
   useVhFix();
@@ -2110,7 +2336,7 @@ export default function BookingCheckout({ flight, onBack }) {
         {step === 0 && (
           <StepPassengers
             onNext={(p) => {
-              setPassenger(p);
+              setPassengers(p);
               setStep(1);
             }}
             flight={liveFlight}
@@ -2126,12 +2352,13 @@ export default function BookingCheckout({ flight, onBack }) {
             }}
             basePrice={liveFlight.basePrice}
             flight={liveFlight}
+            passengers={passengers}
           />
         )}
         {step === 2 && (
           <StepReviewPay
             onBack={() => setStep(1)}
-            passenger={passenger}
+            passengers={passengers}
             extras={extras}
             basePrice={liveFlight.basePrice}
             flight={liveFlight}

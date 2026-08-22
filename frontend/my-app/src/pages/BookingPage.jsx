@@ -59,6 +59,7 @@ import {
   Calendar,
   ChevronsDown,
   ArrowRight,
+  Clock,
 } from "lucide-react";
 
 const { Title, Text } = Typography;
@@ -819,8 +820,11 @@ const PRIMARY_TABS = [
   { key: "Saved", label: "Saved" },
 ];
 
+// NOTE: Cars is flagged `comingSoon` — it renders in the "More" menu as a
+// disabled item with a "Soon" badge + tooltip instead of being hidden.
+// Flip `comingSoon` to false (or drop the flag) once DiscoverCars is wired up.
 const MORE_TABS = [
-  { key: "Cars", label: "Cars" },
+  { key: "Cars", label: "Cars", comingSoon: true },
   { key: "Excursions", label: "Excursions" },
   { key: "Packages", label: "Packages" },
   { key: "Last-Minute", label: "Last-Minute" },
@@ -841,8 +845,13 @@ function BookingTabBar({ value, onChange }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [moreOpen]);
 
-  const handleSelect = (key) => {
-    onChange(key);
+  const handleSelect = (t) => {
+    if (t.comingSoon) {
+      antdMessage.info(`${t.label} is coming soon — stay tuned!`);
+      setMoreOpen(false);
+      return;
+    }
+    onChange(t.key);
     setMoreOpen(false);
   };
 
@@ -853,7 +862,7 @@ function BookingTabBar({ value, onChange }) {
           key={t.key}
           type="button"
           className={`sk-tab-btn${value === t.key ? " is-active" : ""}`}
-          onClick={() => handleSelect(t.key)}
+          onClick={() => handleSelect(t)}
         >
           {t.label}
         </button>
@@ -889,10 +898,18 @@ function BookingTabBar({ value, onChange }) {
                 type="button"
                 className={`sk-tab-more-item${
                   value === t.key ? " is-active" : ""
-                }`}
-                onClick={() => handleSelect(t.key)}
+                }${t.comingSoon ? " is-disabled" : ""}`}
+                onClick={() => handleSelect(t)}
+                aria-disabled={t.comingSoon || undefined}
+                title={t.comingSoon ? `${t.label} — coming soon` : undefined}
               >
-                {t.label}
+                <span className="sk-tab-more-item-label">{t.label}</span>
+                {t.comingSoon && (
+                  <span className="sk-soon-badge">
+                    <Clock size={9} className="sk-soon-badge-icon" />
+                    Soon
+                  </span>
+                )}
               </button>
             ))}
           </div>
