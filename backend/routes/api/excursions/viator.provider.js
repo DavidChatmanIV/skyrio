@@ -2,18 +2,9 @@
 // viator.provider.js
 // Viator Affiliate/Partner API client — mirrors hotel.provider.js
 //
-// ⚠️ UNVERIFIED AGAINST LIVE DOCS — base URL, auth header name,
-// and endpoint paths below are Viator's PUBLICLY DOCUMENTED
-// conventions as of last training data, but were NOT confirmed
-// against your actual partners.viator.com/developer-api-docs
-// session. Before running this against sandbox, verify:
-//   1. Auth header name (commonly "exp-api-key")
-//   2. Sandbox base URL (commonly https://api.sandbox.viator.com/partner)
-//   3. Required "Accept-Language" and "Accept" headers
-//      (Viator's API is versioned via Accept, e.g.
-//      "application/json;version=2.0")
-// Search each TODO below and confirm against the docs, then
-// delete this warning block.
+// Auth header, base URLs, and version header confirmed working
+// against sandbox. VIATOR_ENV now drives both the key and the
+// base URL together, so they can't drift out of sync.
 //
 // NOTE: Per Viator's Affiliate API license terms, this provider
 // fetches ON DEMAND only — it must NOT persist/cache Viator's
@@ -22,22 +13,23 @@
 // seed excursions the way seed-hotel.js seeds hotel data.
 // ─────────────────────────────────────────────────────────────
 
+const VIATOR_ENV = process.env.VIATOR_ENV || "sandbox";
+
 const apiKey =
-  process.env.VIATOR_SANDBOX_KEY || process.env.VIATOR_PRODUCTION_KEY;
+  VIATOR_ENV === "production"
+    ? process.env.VIATOR_PRODUCTION_KEY
+    : process.env.VIATOR_SANDBOX_KEY;
 
 const BASE_URL =
-  process.env.VIATOR_ENV === "production"
+  VIATOR_ENV === "production"
     ? process.env.VIATOR_PRODUCTION_BASE_URL || "https://api.viator.com/partner"
     : process.env.VIATOR_SANDBOX_BASE_URL ||
-      "https://api.sandbox.viator.com/partner"; // TODO: confirm exact sandbox host
+      "https://api.sandbox.viator.com/partner";
 
 if (!apiKey) {
-  const env = process.env.VIATOR_ENV || "sandbox";
   console.warn(
-    `⚠️ Missing Viator API key for env "${env}". Check VIATOR_SANDBOX_KEY / VIATOR_PRODUCTION_KEY / VIATOR_ENV in your .env`
+    `⚠️ Missing Viator API key for env "${VIATOR_ENV}". Check VIATOR_SANDBOX_KEY / VIATOR_PRODUCTION_KEY / VIATOR_ENV in your .env`
   );
-} else {
-  console.log(`[Viator] Using ${process.env.VIATOR_ENV || "sandbox"} key`);
 }
 
 async function request(path, { method = "GET", body, params } = {}) {
@@ -54,9 +46,9 @@ async function request(path, { method = "GET", body, params } = {}) {
     method,
     headers: {
       "Content-Type": "application/json",
-      Accept: "application/json;version=2.0", // TODO: confirm Viator's required version header
+      Accept: "application/json;version=2.0",
       "Accept-Language": "en-US",
-      "exp-api-key": apiKey, // TODO: confirm this is the correct header name
+      "exp-api-key": apiKey,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -92,7 +84,6 @@ async function request(path, { method = "GET", body, params } = {}) {
 }
 
 export const viator = {
-  // GET/POST helper for search & product endpoints
   get: (path, params) => request(path, { method: "GET", params }),
   post: (path, body) => request(path, { method: "POST", body }),
 };
