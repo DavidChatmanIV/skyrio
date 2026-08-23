@@ -176,7 +176,17 @@ app.use("/health", healthRouter);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api", apiRouter);
 
-app.post("/contact", async (req, res) => {
+// Dedicated, tighter limiter for the public contact form — this route
+// sits outside /api, so it was previously covered by NO rate limit at all.
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many messages sent. Please try again later." },
+});
+
+app.post("/contact", contactLimiter, async (req, res) => {
   try {
     const { name, email, message } = req.body || {};
     if (!name || !email || !message)
@@ -204,10 +214,18 @@ app.use((req, _res, next) => {
 
 Sentry.setupExpressErrorHandler(app);
 
+// 500-level errors are logged in full server-side, but the client only
+// ever sees a generic message — err.message on a 5xx can be a raw DB
+// error, a stack fragment, or other internal detail we don't want to
+// expose. 4xx errors are unaffected since those messages are ones we
+// wrote intentionally (e.g. "Not found", "Invalid credentials").
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;
-  if (status >= 500) console.error(err);
-  res.status(status).json({ error: err.message || "Server error" });
+  if (status >= 500) {
+    console.error(err);
+    return res.status(status).json({ error: "Server error" });
+  }
+  res.status(status).json({ error: err.message || "Request failed" });
 });
 
 const httpServer = createServer(app);

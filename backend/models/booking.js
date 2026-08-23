@@ -100,6 +100,27 @@ const bookingSchema = new Schema(
 
     // Referenced in admin dashboard's recentBookings select().
     paidAt: { type: Date, default: null },
+
+    // ── Stripe payment tracking ──
+    // These were previously written by stripe.routes.js's webhook
+    // handler via $set but did NOT exist on this schema — Mongoose's
+    // default strict mode silently drops unknown fields on write, so
+    // none of this was actually persisting. That broke refund lookups,
+    // since charge.refunded / refund.failed search for a booking by
+    // stripePaymentIntentId, which was never being saved.
+    paymentIntentId: { type: String, default: null },
+    stripePaymentIntentId: { type: String, default: null, index: true },
+    totalAmount: { type: Number, default: null },
+    totalCurrency: { type: String, default: null },
+
+    // ── Refund tracking ──
+    refundStatus: {
+      type: String,
+      enum: ["none", "succeeded", "failed"],
+      default: "none",
+    },
+    refundAmount: { type: Number, default: null },
+    refundedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

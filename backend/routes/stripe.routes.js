@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import Booking from "../models/booking.js";
 import User from "../models/user.js";
 import Notification from "../models/notification.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -31,6 +32,17 @@ router.post(
       const userId = intent.metadata?.userId;
 
       try {
+        // Idempotency guard — Stripe can (and does) retry webhook
+        // deliveries. Without this check, a retried event would
+        // re-award XP and re-fire notifications for a booking
+        // that's already confirmed.
+        if (bookingId) {
+          const existing = await Booking.findById(bookingId).select("status");
+          if (existing?.status === "confirmed") {
+            return res.json({ received: true, alreadyProcessed: true });
+          }
+        }
+
         // 1. Confirm booking + store BOTH payment ID fields
         //    so Atlas can find it for refunds later
         if (bookingId) {
@@ -183,34 +195,59 @@ router.post(
 );
 
 // ─── POST /api/stripe/create-payment-intent ───────────────────
+// Now requires auth, verifies the booking actually belongs to the
+// requester, and derives the charge amount from the booking record
+// itself rather than trusting whatever the client sends. Trusting a
+// client-supplied `amount` here would let anyone pay whatever they
+// want for a booking, regardless of its real price.
 
-router.post("/create-payment-intent", async (req, res) => {
+router.post("/create-payment-intent", requireAuth, async (req, res) => {
   try {
-    const { amount, currency = "usd", bookingId, userId } = req.body;
+    const { bookingId, currency = "usd" } = req.body;
+    const userId = req.user?.id ?? req.user?._id;
+
+    if (!bookingId) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "bookingId is required" });
+    }
+
+    // Ownership check — this booking must belong to the authenticated
+    // user, not whoever the client claims it belongs to.
+    const booking = await Booking.findOne({ _id: bookingId, user: userId });
+    if (!booking) {
+      return res.status(404).json({ ok: false, message: "Booking not found" });
+    }
+
+    // Confirmed from the Booking schema: the stored price lives in
+    // `total`. Never trust a client-supplied amount — a client could
+    // pay whatever they want for a booking otherwise.
+    const amount = booking.total;
 
     if (!amount || amount <= 0) {
-      return res.status(400).json({ ok: false, message: "Invalid amount" });
+      return res.status(400).json({
+        ok: false,
+        message: "This booking has no valid price on file",
+      });
     }
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency,
       metadata: {
-        bookingId: bookingId || "",
-        userId: userId || "",
+        bookingId: String(bookingId),
+        userId: String(userId),
       },
     });
 
     // Pre-link the PaymentIntent to the booking so Atlas can
     // find it even before the webhook confirms payment
-    if (bookingId) {
-      await Booking.findByIdAndUpdate(bookingId, {
-        $set: {
-          stripePaymentIntentId: paymentIntent.id,
-          paymentIntentId: paymentIntent.id,
-        },
-      });
-    }
+    await Booking.findByIdAndUpdate(bookingId, {
+      $set: {
+        stripePaymentIntentId: paymentIntent.id,
+        paymentIntentId: paymentIntent.id,
+      },
+    });
 
     return res.json({
       ok: true,
@@ -219,7 +256,9 @@ router.post("/create-payment-intent", async (req, res) => {
     });
   } catch (err) {
     console.error("PaymentIntent error:", err);
-    return res.status(500).json({ ok: false, message: err.message });
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to create payment intent" });
   }
 });
 
