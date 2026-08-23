@@ -418,39 +418,102 @@
   border-color: rgba(255, 138, 42, 0.25) !important;
 }
 
-/* DatePicker popup */
-.ant-picker-dropdown .ant-picker-panel-container {
-  background: #1e1530 !important;
+/* ═══════════════════════════════════════════
+   Date Range Picker popup — themed to match
+   Skyrio's purple gradient (same gradient used
+   in header cards / delete modal), not the flat
+   dark navy used elsewhere for generic pickers.
+   Scoped to popupClassName="sk-datepicker-dropdown"
+   set on the RangePicker in SyncTogether.jsx so it
+   doesn't affect other date pickers in the app.
+   ═══════════════════════════════════════════ */
+.sk-datepicker-dropdown .ant-picker-panel-container {
+  background: linear-gradient(
+    160deg,
+    #1a0a2e 0%,
+    #2d1057 50%,
+    #1e0b35 100%
+  ) !important;
   border: 1px solid rgba(255, 138, 42, 0.2) !important;
-  border-radius: 12px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5) !important;
+  overflow: hidden;
 }
-.ant-picker-dropdown .ant-picker-header,
-.ant-picker-dropdown .ant-picker-header button {
+
+.sk-datepicker-dropdown .ant-picker-panel {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.sk-datepicker-dropdown .ant-picker-header {
   color: #fff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
-.ant-picker-dropdown .ant-picker-cell .ant-picker-cell-inner {
-  color: rgba(255, 255, 255, 0.7) !important;
+
+.sk-datepicker-dropdown .ant-picker-header button {
+  color: rgba(255, 255, 255, 0.5) !important;
 }
-.ant-picker-dropdown .ant-picker-cell-in-view .ant-picker-cell-inner {
-  color: #fff !important;
+.sk-datepicker-dropdown .ant-picker-header button:hover {
+  color: #ff8a2a !important;
 }
-.ant-picker-dropdown .ant-picker-cell-selected .ant-picker-cell-inner,
-.ant-picker-dropdown .ant-picker-cell-range-start .ant-picker-cell-inner,
-.ant-picker-dropdown .ant-picker-cell-range-end .ant-picker-cell-inner {
-  background: #ff8a2a !important;
-  color: #1b1024 !important;
+
+.sk-datepicker-dropdown .ant-picker-content th {
+  color: rgba(255, 255, 255, 0.35) !important;
 }
-.ant-picker-dropdown .ant-picker-cell-in-range::before {
+
+.sk-datepicker-dropdown .ant-picker-cell {
+  color: rgba(255, 255, 255, 0.22) !important;
+}
+.sk-datepicker-dropdown .ant-picker-cell-in-view {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+.sk-datepicker-dropdown .ant-picker-cell-disabled .ant-picker-cell-inner {
+  color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.sk-datepicker-dropdown .ant-picker-cell:hover .ant-picker-cell-inner {
   background: rgba(255, 138, 42, 0.15) !important;
 }
-.ant-picker-dropdown .ant-picker-content th {
-  color: rgba(255, 255, 255, 0.4) !important;
+
+.sk-datepicker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-today
+  .ant-picker-cell-inner::before {
+  border-color: #ff8a2a !important;
 }
-.ant-picker-dropdown .ant-picker-cell-disabled .ant-picker-cell-inner {
-  color: rgba(255, 255, 255, 0.15) !important;
+
+.sk-datepicker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-selected
+  .ant-picker-cell-inner,
+.sk-datepicker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-range-start
+  .ant-picker-cell-inner,
+.sk-datepicker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-range-end
+  .ant-picker-cell-inner {
+  background: linear-gradient(135deg, #ff8a2a 0%, #ff6000 100%) !important;
+  color: #1b1024 !important;
+  font-weight: 700 !important;
 }
-.ant-picker-dropdown .ant-picker-today-btn {
+
+.sk-datepicker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-in-range::before,
+.sk-datepicker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-range-start::before,
+.sk-datepicker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-range-end::before {
+  background: rgba(255, 138, 42, 0.14) !important;
+}
+
+.sk-datepicker-dropdown .ant-picker-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: transparent !important;
+}
+.sk-datepicker-dropdown .ant-picker-today-btn {
   color: #ff8a2a !important;
+}
+
+.sk-datepicker-dropdown .ant-picker-range-arrow::before {
+  background: linear-gradient(135deg, #2d1057, #1e0b35) !important;
 }
 
 /* ═══════════════════════════════════════════

@@ -133,7 +133,7 @@ const css = `
   }
 
   .skc-step-layout { display: flex; gap: 28px; align-items: flex-start; }
-  .skc-step-form { flex: 1; min-width: 0; }
+  .skc-step-form { flex: 1; min-width: 0; padding-bottom: 24px; }
   .skc-step-sidebar { width: 252px; flex-shrink: 0; }
   .skc-name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
   .skc-btn-row { display: flex; gap: 12px; }
@@ -141,7 +141,13 @@ const css = `
   @media (max-width: 768px) {
     .skc-step-layout { flex-direction: column; gap: 0; }
     .skc-step-sidebar { width: 100% !important; order: 1; }
-    .skc-step-form { order: 2; }
+    .skc-step-form {
+      order: 2;
+      /* Guarantees clearance above any fixed/floating UI (support
+         widget, nav bar, etc.) that lives outside this component,
+         plus the iOS home-indicator safe area. */
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+    }
     .skc-sidebar-full { display: none; }
     .skc-sidebar-compact { display: flex !important; }
     .skc-name-grid { gap: 10px; }

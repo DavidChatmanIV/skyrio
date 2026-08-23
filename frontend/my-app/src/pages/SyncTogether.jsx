@@ -1,5 +1,12 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Button, Input, Avatar, message as antdMessage, Spin } from "antd";
+import {
+  Button,
+  Input,
+  Avatar,
+  message as antdMessage,
+  Spin,
+  DatePicker,
+} from "antd";
 import {
   UserAddOutlined,
   SyncOutlined,
@@ -21,6 +28,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
+
+const { RangePicker } = DatePicker;
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
@@ -80,6 +89,13 @@ const HOW_IT_WORKS = [
 
 export default function SyncTogether() {
   const navigate = useNavigate();
+
+  // ── Trip details (new) ──────────────────────────────────────
+  // Collected BEFORE invites are sent, so the invite email can
+  // actually say what kind of trip this is instead of showing
+  // "Untitled Trip" with no destination.
+  const [destination, setDestination] = useState("");
+  const [dateRange, setDateRange] = useState(null); // [dayjs, dayjs] | null
 
   const [travelers, setTravelers] = useState([]);
   const [inputVal, setInputVal] = useState("");
@@ -206,10 +222,17 @@ export default function SyncTogether() {
         email: t.email || undefined,
         name: t.name || undefined,
       }));
+      const body = {
+        members,
+        title: destination.trim() ? `${destination.trim()} Trip` : undefined,
+        destination: destination.trim() || undefined,
+        dateRangeStart: dateRange?.[0] ? dateRange[0].toISOString() : undefined,
+        dateRangeEnd: dateRange?.[1] ? dateRange[1].toISOString() : undefined,
+      };
       const res = await fetch(`${API_BASE}/sync-together`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ members }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.ok) {
@@ -679,6 +702,48 @@ export default function SyncTogether() {
           })}
         </div>
       )}
+
+      {/* ── Trip Details (new) ──────────────────────────────────
+          Collected up front so the invite email that goes out
+          actually tells recipients what trip they're being asked
+          to join, instead of "Untitled Trip" with no context. */}
+      <div className="sk-sync-group-builder">
+        <div className="sk-sync-group-title">
+          <MapPin
+            size={16}
+            style={{ marginRight: 8, verticalAlign: "middle" }}
+          />
+          What&apos;s the trip?
+        </div>
+        <p className="sk-sync-group-hint">
+          Where are you headed? We&apos;ll use this to name the trip too.
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            marginTop: 4,
+          }}
+        >
+          <Input
+            className="sk-sync-input"
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            placeholder="Destination — e.g.Name"
+            prefix={<MapPin size={14} style={{ color: "#ff8a2a" }} />}
+          />
+          <RangePicker
+            className="sk-sync-input"
+            popupClassName="sk-datepicker-dropdown"
+            style={{ width: "100%" }}
+            value={dateRange}
+            onChange={(vals) => setDateRange(vals)}
+            placeholder={["Start date", "End date"]}
+          />
+        </div>
+      </div>
 
       {/* ── Group builder ── */}
       <div className="sk-sync-group-builder">

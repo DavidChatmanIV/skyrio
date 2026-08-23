@@ -1941,9 +1941,14 @@ export default function SyncGroupPage() {
               a: true,
               d: "Search & book",
             },
-            { i: <Hotel size={16} />, l: "Hotels", d: "Group stays" },
+            { i: <Hotel size={16} />, l: "Hotels", a: true, d: "Group stays" },
             { i: <Car size={16} />, l: "Car Rentals", d: "Shared transport" },
-            { i: <Compass size={16} />, l: "Excursions", d: "Activities" },
+            {
+              i: <Compass size={16} />,
+              l: "Excursions",
+              a: true,
+              d: "Activities",
+            },
           ].map((x) => (
             <div
               key={x.l}

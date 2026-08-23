@@ -2,7 +2,12 @@ import { Router } from "express";
 import User from "../../models/user.js";
 import SyncGroup from "../../models/SyncGroup.js";
 import { auth as authRequired } from "../../middleware/auth.js";
-import { sendTripInvite, sendPlanReady } from "../../services/email.js";
+import {
+  sendTripInvite,
+  sendPlanReady,
+  sendTripDeleted,
+  sendMemberRemoved,
+} from "../../services/email.js";
 
 const router = Router();
 router.use(authRequired);
@@ -106,6 +111,9 @@ router.get("/my-trips", async (req, res) => {
 /* ──────────────────────────────────────────────
    POST /api/sync-together
    Create a new SyncGroup.
+   Now accepts destination/dates/airport/cabinClass at
+   creation time so invite emails reflect real trip info
+   instead of showing "Untitled Trip" with no context.
    ────────────────────────────────────────────── */
 router.post("/", async (req, res) => {
   try {
@@ -113,7 +121,15 @@ router.post("/", async (req, res) => {
     if (!ownerId)
       return res.status(401).json({ ok: false, error: "Not authenticated" });
 
-    const { members = [], title } = req.body;
+    const {
+      members = [],
+      title,
+      destination,
+      dateRangeStart,
+      dateRangeEnd,
+      departureAirport,
+      cabinClass,
+    } = req.body;
     if (!members.length)
       return res
         .status(400)
@@ -129,6 +145,11 @@ router.post("/", async (req, res) => {
     const group = await SyncGroup.create({
       owner: ownerId,
       title: title || "Untitled Trip",
+      destination: destination || null,
+      dateRangeStart: dateRangeStart || null,
+      dateRangeEnd: dateRangeEnd || null,
+      departureAirport: departureAirport || null,
+      cabinClass: cabinClass || null,
       members: memberDocs,
       status: "inviting",
       activityLog: [
@@ -163,7 +184,7 @@ router.post("/", async (req, res) => {
             to: email,
             inviterName,
             tripTitle: group.title,
-            destination: null,
+            destination: group.destination || null,
             inviteCode: group.inviteCode,
             memberNames,
           }).catch((err) => console.error("[email] invite error:", err));
@@ -528,9 +549,41 @@ router.delete("/:id/member/:memberId", async (req, res) => {
       return res.status(404).json({ ok: false, error: "Member not found" });
     }
 
+    // Grab contact info before splicing them out of the array
+    const removedMember = group.members[memberIndex];
+    const removedEmail = removedMember.email;
+    const removedUserId = removedMember.user;
+
     group.members.splice(memberIndex, 1);
     logActivity(group, "member_removed", userId, "A member was removed");
     await group.save();
+
+    // Notify the removed member (non-blocking)
+    try {
+      const remover = await User.findById(userId)
+        .select("name username")
+        .lean();
+      const removerName = remover?.name || remover?.username || "A trip member";
+
+      let email = removedEmail;
+      if (!email && removedUserId) {
+        const u = await User.findById(removedUserId).select("email").lean();
+        email = u?.email;
+      }
+      if (email) {
+        sendMemberRemoved({
+          to: email,
+          tripTitle: group.title,
+          destination: group.destination,
+          ownerName: removerName,
+        }).catch((err) => console.error("[email] member-removed error:", err));
+      }
+    } catch (emailErr) {
+      console.error(
+        "[email] Failed to send member-removed notification:",
+        emailErr.message
+      );
+    }
 
     const populated = await SyncGroup.findById(group._id)
       .populate("owner", "username name avatar")
@@ -642,6 +695,35 @@ router.delete("/:id", async (req, res) => {
         .status(403)
         .json({ ok: false, error: "Only the organizer can delete this trip" });
     }
+
+    // Notify all members before the group is gone (non-blocking —
+    // don't fail the delete if an email fails)
+    try {
+      const owner = await User.findById(userId).select("name username").lean();
+      const ownerName = owner?.name || owner?.username || "The organizer";
+
+      for (const m of group.members) {
+        let email = m.email;
+        if (!email && m.user) {
+          const u = await User.findById(m.user).select("email").lean();
+          email = u?.email;
+        }
+        if (email) {
+          sendTripDeleted({
+            to: email,
+            tripTitle: group.title,
+            destination: group.destination,
+            ownerName,
+          }).catch((err) => console.error("[email] trip-deleted error:", err));
+        }
+      }
+    } catch (emailErr) {
+      console.error(
+        "[email] Failed to send trip-deleted notifications:",
+        emailErr.message
+      );
+    }
+
     await SyncGroup.findByIdAndDelete(req.params.id);
     return res.json({ ok: true });
   } catch (err) {
