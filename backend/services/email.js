@@ -22,23 +22,47 @@ export async function sendTripInvite({
   const html = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<style>
+  :root { color-scheme: dark light; supported-color-schemes: dark light; }
+  /* Pin every color explicitly in dark mode so clients like Apple Mail
+     don't "smart invert" our already-dark design into dark-on-dark. */
+  @media (prefers-color-scheme: dark) {
+    body { background:#0f0520 !important; }
+    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
+    .sk-h1 { color:#fff !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; }
+    .sk-orange { color:#ff8a2a !important; }
+    .sk-white { color:#fff !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; }
+  }
+</style>
+</head>
 <body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
     </div>
-    <div style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
+    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
+      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
         You're invited to a group trip!
       </h1>
-      <p style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        <strong style="color:#ff8a2a;">${inviterName}</strong> wants you to join a trip${
-    destination ? ` to <strong style="color:#fff;">${destination}</strong>` : ""
+      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
+        <strong class="sk-orange" style="color:#ff8a2a;">${inviterName}</strong> wants you to join a trip${
+    destination
+      ? ` to <strong class="sk-white" style="color:#fff;">${destination}</strong>`
+      : ""
   }.
       </p>
-      <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:20px;margin-bottom:24px;">
-        <div style="color:rgba(255,255,255,0.4);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">TRIP</div>
+      <div class="sk-detail-box" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:20px;margin-bottom:24px;">
+        <div class="sk-label" style="color:rgba(255,255,255,0.4);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">TRIP</div>
         <div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:4px;">${
           tripTitle || "Untitled Trip"
         }${destination ? ` → ${destination}` : ""}</div>
@@ -53,15 +77,15 @@ export async function sendTripInvite({
           View Trip & Join
         </a>
       </div>
-      <p style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:20px 0 0;">
+      <p class="sk-muted" style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:20px 0 0;">
         Or use invite code: <strong style="color:rgba(255,255,255,0.5);">${inviteCode}</strong>
       </p>
     </div>
     <div style="text-align:center;margin-top:32px;">
-      <p style="color:rgba(255,255,255,0.25);font-size:12px;margin:0;">
+      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;margin:0;">
         Sent by Skyrio · Plan smarter. Travel better.
       </p>
-      <p style="color:rgba(255,255,255,0.15);font-size:11px;margin:8px 0 0;">
+      <p class="sk-muted2" style="color:rgba(255,255,255,0.15);font-size:11px;margin:8px 0 0;">
         You received this because ${inviterName} added you to a group trip.
       </p>
     </div>
@@ -117,19 +141,41 @@ export async function sendPlanReady({
   const html = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<style>
+  :root { color-scheme: dark light; supported-color-schemes: dark light; }
+  /* Pin every color explicitly in dark mode so clients like Apple Mail
+     don't "smart invert" our already-dark design into dark-on-dark. */
+  @media (prefers-color-scheme: dark) {
+    body { background:#0f0520 !important; }
+    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
+    .sk-h1 { color:#fff !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; }
+    .sk-orange { color:#ff8a2a !important; }
+    .sk-white { color:#fff !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; }
+  }
+</style>
+</head>
 <body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
     </div>
-    <div style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
+    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
+      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
         Your trip plan is ready!
       </h1>
-      <p style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        <strong style="color:#ff8a2a;">${plannerName}</strong> generated a plan for
-        <strong style="color:#fff;">${tripTitle}${
+      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
+        <strong class="sk-orange" style="color:#ff8a2a;">${plannerName}</strong> generated a plan for
+        <strong class="sk-white" style="color:#fff;">${tripTitle}${
     destination ? ` → ${destination}` : ""
   }</strong>.
         Review it and approve!
@@ -141,7 +187,7 @@ export async function sendPlanReady({
       </div>
     </div>
     <div style="text-align:center;margin-top:32px;">
-      <p style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
+      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
     </div>
   </div>
 </body>
@@ -189,26 +235,48 @@ export async function sendTripDeleted({
   const html = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<style>
+  :root { color-scheme: dark light; supported-color-schemes: dark light; }
+  /* Pin every color explicitly in dark mode so clients like Apple Mail
+     don't "smart invert" our already-dark design into dark-on-dark. */
+  @media (prefers-color-scheme: dark) {
+    body { background:#0f0520 !important; }
+    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
+    .sk-h1 { color:#fff !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; }
+    .sk-orange { color:#ff8a2a !important; }
+    .sk-white { color:#fff !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; }
+  }
+</style>
+</head>
 <body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
     </div>
-    <div style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
+    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
+      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
         This trip has been cancelled
       </h1>
-      <p style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        <strong style="color:#ff8a2a;">${ownerName}</strong> deleted
-        <strong style="color:#fff;">${tripTitle || "Untitled Trip"}${
-    destination ? ` → ${destination}` : ""
-  }</strong>.
+      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
+        <strong class="sk-orange" style="color:#ff8a2a;">${ownerName}</strong> deleted
+        <strong class="sk-white" style="color:#fff;">${
+          tripTitle || "Untitled Trip"
+        }${destination ? ` → ${destination}` : ""}</strong>.
         There's nothing further you need to do — this trip no longer exists.
       </p>
     </div>
     <div style="text-align:center;margin-top:32px;">
-      <p style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
+      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
     </div>
   </div>
 </body>
@@ -254,26 +322,48 @@ export async function sendMemberRemoved({
   const html = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<style>
+  :root { color-scheme: dark light; supported-color-schemes: dark light; }
+  /* Pin every color explicitly in dark mode so clients like Apple Mail
+     don't "smart invert" our already-dark design into dark-on-dark. */
+  @media (prefers-color-scheme: dark) {
+    body { background:#0f0520 !important; }
+    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
+    .sk-h1 { color:#fff !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; }
+    .sk-orange { color:#ff8a2a !important; }
+    .sk-white { color:#fff !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; }
+  }
+</style>
+</head>
 <body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
     </div>
-    <div style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
+    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
+      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
         You've been removed from a trip
       </h1>
-      <p style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        <strong style="color:#ff8a2a;">${ownerName}</strong> removed you from
-        <strong style="color:#fff;">${tripTitle || "Untitled Trip"}${
-    destination ? ` → ${destination}` : ""
-  }</strong>.
+      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
+        <strong class="sk-orange" style="color:#ff8a2a;">${ownerName}</strong> removed you from
+        <strong class="sk-white" style="color:#fff;">${
+          tripTitle || "Untitled Trip"
+        }${destination ? ` → ${destination}` : ""}</strong>.
         You won't receive further updates about this trip.
       </p>
     </div>
     <div style="text-align:center;margin-top:32px;">
-      <p style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
+      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
     </div>
   </div>
 </body>
@@ -316,30 +406,52 @@ export async function sendPasswordReset({ to, resetUrl }) {
   const html = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<style>
+  :root { color-scheme: dark light; supported-color-schemes: dark light; }
+  /* Pin every color explicitly in dark mode so clients like Apple Mail
+     don't "smart invert" our already-dark design into dark-on-dark. */
+  @media (prefers-color-scheme: dark) {
+    body { background:#0f0520 !important; }
+    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
+    .sk-h1 { color:#fff !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; }
+    .sk-orange { color:#ff8a2a !important; }
+    .sk-white { color:#fff !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; }
+  }
+</style>
+</head>
 <body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
     </div>
-    <div style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
+    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
+      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
         Reset your password
       </h1>
-      <p style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        Click the button below to reset your Skyrio password. This link expires in <strong style="color:#fff;">1 hour</strong>.
+      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
+        Click the button below to reset your Skyrio password. This link expires in <strong class="sk-white" style="color:#fff;">1 hour</strong>.
       </p>
       <div style="text-align:center;">
         <a href="${resetUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#FF8A2A 0%,#FF6000 100%);color:#fff;text-decoration:none;border-radius:14px;font-size:16px;font-weight:700;box-shadow:0 4px 20px rgba(255,138,42,0.4);">
           Reset Password
         </a>
       </div>
-      <p style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:24px 0 0;">
+      <p class="sk-muted" style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:24px 0 0;">
         If you didn't request this, you can safely ignore this email.
       </p>
     </div>
     <div style="text-align:center;margin-top:32px;">
-      <p style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
+      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
     </div>
   </div>
 </body>
@@ -381,30 +493,52 @@ export async function sendVerificationEmail({ to, verifyUrl }) {
   const html = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<style>
+  :root { color-scheme: dark light; supported-color-schemes: dark light; }
+  /* Pin every color explicitly in dark mode so clients like Apple Mail
+     don't "smart invert" our already-dark design into dark-on-dark. */
+  @media (prefers-color-scheme: dark) {
+    body { background:#0f0520 !important; }
+    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
+    .sk-h1 { color:#fff !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; }
+    .sk-orange { color:#ff8a2a !important; }
+    .sk-white { color:#fff !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; }
+  }
+</style>
+</head>
 <body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
     </div>
-    <div style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
+    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
+      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
         Verify your email ✈️
       </h1>
-      <p style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        Click below to verify your Skyrio account. This link expires in <strong style="color:#fff;">24 hours</strong>.
+      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
+        Click below to verify your Skyrio account. This link expires in <strong class="sk-white" style="color:#fff;">24 hours</strong>.
       </p>
       <div style="text-align:center;">
         <a href="${verifyUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#FF8A2A 0%,#FF6000 100%);color:#fff;text-decoration:none;border-radius:14px;font-size:16px;font-weight:700;box-shadow:0 4px 20px rgba(255,138,42,0.4);">
           Verify Email
         </a>
       </div>
-      <p style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:24px 0 0;">
+      <p class="sk-muted" style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:24px 0 0;">
         If you didn't create a Skyrio account, ignore this email.
       </p>
     </div>
     <div style="text-align:center;margin-top:32px;">
-      <p style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
+      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
     </div>
   </div>
 </body>

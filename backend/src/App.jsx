@@ -11,9 +11,9 @@ import ProfileForm from "./components/ProfileForm";
 import SavedTrips from "./components/SavedTrips";
 import Explore from "./components/Explore";
 import Dashboard from "./components/Dashboard";
-import QuestFeed from "./components/QuestFeed";
 import Layout from "./components/Layout";
 import PrivateRoute from "./components/PrivateRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Auth pages
 import LoginPage from "./pages/LoginPage";
@@ -35,6 +35,7 @@ import MembershipPage from "./pages/Membership/MembershipPage";
 // Sync Together (Group Travel)
 import SyncTogether from "./pages/SyncTogether";
 import SyncGroupPage from "./pages/SyncGroupPage";
+import JoinTripPage from "./pages/JoinTripPage";
 
 // ── Page title map ─────────────────────────────────────────────────────────────
 const PAGE_TITLES = {
@@ -47,7 +48,6 @@ const PAGE_TITLES = {
   "/dashboard": "Dashboard — Skyrio",
   "/profile": "My Profile — Skyrio",
   "/saved-trips": "Saved Trips — Skyrio",
-  "/quest-feed": "Quest Feed — Skyrio",
   "/membership": "Membership — Skyrio",
   "/sync-together": "Sync Together — Skyrio",
   "/privacy": "Privacy Policy — Skyrio",
@@ -133,15 +133,6 @@ function AppWithTracking() {
             </PrivateRoute>
           }
         />
-        <Route
-          path="/quest-feed"
-          element={
-            <PrivateRoute>
-              <QuestFeed />
-            </PrivateRoute>
-          }
-        />
-
         {/* Membership */}
         <Route
           path="/membership"
@@ -153,6 +144,10 @@ function AppWithTracking() {
         />
 
         {/* Sync Together (Group Travel) */}
+        {/* Join route is intentionally public — lets someone see the
+            trip preview before signing in; the page itself gates the
+            actual join action behind auth. */}
+        <Route path="/sync-together/join/:code" element={<JoinTripPage />} />
         <Route
           path="/sync-together"
           element={
@@ -176,9 +171,11 @@ function AppWithTracking() {
 
 function App() {
   return (
-    <Router>
-      <AppWithTracking />
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <AppWithTracking />
+      </Router>
+    </ErrorBoundary>
   );
 }
 

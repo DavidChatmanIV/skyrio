@@ -10,7 +10,97 @@ import {
 } from "../../services/email.js";
 
 const router = Router();
+
+/* ──────────────────────────────────────────────
+   GET /api/sync-together/preview/:code
+   PUBLIC — no auth required. Lets someone who
+   just clicked an invite link see what trip
+   they're being invited to before signing in.
+   ────────────────────────────────────────────── */
+router.get("/preview/:code", async (req, res) => {
+  try {
+    const group = await SyncGroup.findOne({ inviteCode: req.params.code })
+      .populate("owner", "username name avatar")
+      .lean();
+
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Invite not found" });
+
+    return res.json({
+      ok: true,
+      preview: {
+        id: group._id,
+        title: group.title || "Untitled Trip",
+        destination: group.destination || null,
+        dateRangeStart: group.dateRangeStart || null,
+        dateRangeEnd: group.dateRangeEnd || null,
+        ownerName: group.owner?.name || group.owner?.username || "Someone",
+        ownerAvatar: group.owner?.avatar || null,
+        memberCount: (group.members?.length || 0) + 1,
+        status: group.status,
+      },
+    });
+  } catch (err) {
+    console.error("[sync-together] preview error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to load invite" });
+  }
+});
+
 router.use(authRequired);
+
+/* ──────────────────────────────────────────────
+   POST /api/sync-together/join/:code
+   Adds the currently authenticated user as a
+   member of the group matching this invite code.
+   ────────────────────────────────────────────── */
+router.post("/join/:code", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findOne({ inviteCode: req.params.code });
+
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Invite not found" });
+
+    // Already the owner or already a member — just send them to the trip
+    if (isGroupMember(group, userId)) {
+      const populated = await SyncGroup.findById(group._id)
+        .populate("owner", "username name avatar")
+        .populate("members.user", "username name avatar")
+        .lean();
+      return res.json({ ok: true, group: populated, alreadyMember: true });
+    }
+
+    const user = await User.findById(userId)
+      .select("name username email")
+      .lean();
+
+    group.members.push({
+      user: userId,
+      email: user?.email || null,
+      name: user?.name || user?.username || null,
+      status: "pending",
+    });
+
+    logActivity(
+      group,
+      "member_added",
+      userId,
+      `${user?.name || user?.username || "A traveler"} joined via invite link`
+    );
+
+    await group.save();
+
+    const populated = await SyncGroup.findById(group._id)
+      .populate("owner", "username name avatar")
+      .populate("members.user", "username name avatar")
+      .lean();
+
+    return res.json({ ok: true, group: populated, alreadyMember: false });
+  } catch (err) {
+    console.error("[sync-together] join error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to join trip" });
+  }
+});
 
 /* ── Helper: check if user is owner or member ── */
 function isGroupMember(group, userId) {
