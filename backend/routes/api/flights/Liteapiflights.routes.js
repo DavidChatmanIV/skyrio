@@ -9,16 +9,15 @@ import {
 
 const router = express.Router();
 
-// LiteAPI Flights — now serving /api/flights (Duffel pending approval).
-// Frontend calls GET /api/flights/search?from=...&to=...&departDate=...
+// GET /api/flights/search?from=EWR&to=ATL&departDate=2026-09-11&adults=1&cabin=economy
+// POST /api/flights/search  (same params in body — useful for API clients)
 router.get("/search", searchFlights);
-router.post("/search", searchFlights); // also accept POST for direct/API use
+router.post("/search", searchFlights);
 
-// Booking flow — confirmed against LiteAPI's real endpoints via live
-// validation errors. Call in order: verify -> prebook -> (services) -> complete.
-router.post("/verify", verifyOffer); // 1. POST /api/flights/verify
-router.post("/prebook", createPrebook); // 2. POST /api/flights/prebook
-router.post("/prebook/:prebookId/services", attachPrebookServices); // 3. optional
-router.post("/complete", completeBooking); // 4. POST /api/flights/complete
+// Booking flow — call in order: verify -> prebook -> (services) -> complete
+router.post("/verify", verifyOffer);
+router.post("/prebook", createPrebook);
+router.post("/prebook/:prebookId/services", attachPrebookServices);
+router.post("/complete", completeBooking);
 
 export default router;

@@ -21,9 +21,24 @@ export async function requireAuth(req, res, next) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId || decoded.id || decoded._id;
+
+    // Broadened to cover more common payload shapes (top-level and nested
+    // under `user` / `sub`), plus a debug log so we can see the real shape
+    // in the server logs if this still 401s.
+    const userId =
+      decoded.userId ||
+      decoded.id ||
+      decoded._id ||
+      decoded.sub ||
+      decoded.user?.id ||
+      decoded.user?._id ||
+      decoded.uid;
 
     if (!userId) {
+      console.error(
+        "[requireAuth] token verified but no recognizable userId field. Decoded payload:",
+        decoded
+      );
       return res
         .status(401)
         .json({ ok: false, message: "Invalid token payload" });

@@ -16,6 +16,8 @@ import {
   message as antdMessage,
 } from "antd";
 import SkyrioPicker from "./booking/SkyrioPicker";
+import PaymentShareCard from "./PaymentShareCard";
+import PaymentProgressPanel from "./PaymentProgressPanel";
 import {
   ArrowLeftOutlined,
   SyncOutlined,
@@ -105,9 +107,30 @@ function AirportSearchInput({ value, onChange, placeholder }) {
         { headers: authHeaders() }
       );
       const data = await res.json();
-      setResults(Array.isArray(data) ? data.slice(0, 8) : []);
+      // Defensive unwrap — handles either a raw array response or the
+      // { ok, airports: [...] } shape the rest of this API uses. Without
+      // this, a wrapped response silently produces zero results with no
+      // error (Array.isArray(data) is false), which is why the dropdown
+      // never appeared even though the request succeeded.
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.airports)
+        ? data.airports
+        : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.results)
+        ? data.results
+        : [];
+      if (!Array.isArray(data) && list.length === 0) {
+        console.warn(
+          "[airport search] unexpected response shape from /api/airports:",
+          data
+        );
+      }
+      setResults(list.slice(0, 8));
       setShowDrop(true);
-    } catch {
+    } catch (err) {
+      console.error("[airport search] request failed:", err);
       setResults([]);
     } finally {
       setSearching(false);
@@ -413,7 +436,6 @@ export default function SyncGroupPage() {
   const [changeMsg, setChangeMsg] = useState("");
   const [changeSending, setChangeSending] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [addInput, setAddInput] = useState("");
   const [addResults, setAddResults] = useState([]);
   const [addSearching, setAddSearching] = useState(false);
@@ -478,6 +500,7 @@ export default function SyncGroupPage() {
   const isMember = isOwner || !!myMember;
   const hasPlan = !!group?.plan;
   const isBooked = group?.status === "booked";
+  const isPaymentPending = group?.status === "payment_pending";
   const openCRs =
     group?.changeRequests?.filter((cr) => cr.status === "open") || [];
   const approvedCount = group?.members?.filter((m) => m.approved).length || 0;
@@ -710,24 +733,36 @@ export default function SyncGroupPage() {
       setChangeSending(false);
     }
   };
-  const confirmTrip = async () => {
-    setConfirming(true);
-    try {
-      const res = await fetch(`${API_BASE}/sync-together/${id}/confirm`, {
-        method: "POST",
-        headers: authHeaders(),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setGroup(data.group);
-        antdMessage.success("Trip confirmed!");
-      } else antdMessage.error(data.error);
-    } catch (err) {
-      antdMessage.error("Confirmation failed");
-    } finally {
-      setConfirming(false);
-    }
+
+  // ── REWIRED (again): the previous version tried to start payment
+  // collection the moment everyone approved — but that requires
+  // group.bookingId to already exist, and nothing had ever created a
+  // Booking yet (no flight/hotel had been picked). That's why nothing
+  // visibly happened: the call either no-op'd or failed quietly.
+  //
+  // Correct flow, matching how solo booking already works: once
+  // approved, the owner is taken into the SAME flight/hotel search +
+  // BookingCheckout flow a solo traveler uses — just with groupId
+  // attached. Payment split only starts AFTER that checkout succeeds
+  // (handled inside BookingCheckout.jsx's onGroupBookingComplete),
+  // never before. This function no longer calls Stripe at all — it
+  // just navigates.
+  //
+  // NOTE: adjust the destination route below to match whatever path
+  // your solo "Book" flow actually uses to reach flight search — this
+  // assumes something like /book, since that's the top-nav link.
+  const goToGroupBooking = () => {
+    const params = new URLSearchParams({
+      groupId: group._id,
+      groupMemberCount: String(totalMembers + 1),
+    });
+    if (group.destination) params.set("destination", group.destination);
+    if (group.departureAirport)
+      params.set("departureAirport", group.departureAirport);
+    if (group.cabinClass) params.set("cabinClass", group.cabinClass);
+    navigate(`/book?${params.toString()}`);
   };
+
   const deleteGroup = async () => {
     setShowDeleteConfirm(false);
     try {
@@ -955,6 +990,7 @@ export default function SyncGroupPage() {
     planning: { l: "Planning", c: "#ff8a2a" },
     reviewing: { l: "Reviewing Plan", c: "#1890ff" },
     confirmed: { l: "All Approved", c: "#52c41a" },
+    payment_pending: { l: "Collecting Payment", c: "#ff8a2a" },
     booked: { l: "Booked", c: "#52c41a" },
     cancelled: { l: "Cancelled", c: "#ff4d4f" },
   }[group.status] || { l: "Draft", c: "rgba(255,255,255,0.45)" };
@@ -985,6 +1021,7 @@ export default function SyncGroupPage() {
           "planning",
           "reviewing",
           "confirmed",
+          "payment_pending",
           "booked",
           "completed",
         ];
@@ -2114,7 +2151,7 @@ export default function SyncGroupPage() {
       </Section>
 
       {/* ═══ REVIEW & APPROVE ═══ */}
-      {hasPlan && !isBooked && isMember && (
+      {hasPlan && !isBooked && !isPaymentPending && isMember && (
         <Section>
           <SectionTitle
             icon={<ThumbsUp size={16} style={{ color: "#ff8a2a" }} />}
@@ -2298,7 +2335,7 @@ export default function SyncGroupPage() {
               ))}
             </div>
           )}
-          {isOwner && allApproved && !openCRs.length && (
+          {allApproved && !openCRs.length && (
             <div
               style={{
                 marginTop: 16,
@@ -2314,23 +2351,56 @@ export default function SyncGroupPage() {
                   color: "#52c41a",
                   fontWeight: 600,
                   fontSize: 14,
-                  marginBottom: 12,
+                  marginBottom: isOwner ? 12 : 0,
                 }}
               >
                 <CheckCircleOutlined style={{ marginRight: 6 }} />
                 Everyone approved!
               </p>
-              <Button
-                className="sk-sync-cta-btn"
-                icon={<LockOutlined />}
-                onClick={confirmTrip}
-                loading={confirming}
-              >
-                Confirm & Lock Trip
-              </Button>
+              {isOwner ? (
+                <Button
+                  className="sk-sync-cta-btn"
+                  icon={<Plane size={14} />}
+                  onClick={goToGroupBooking}
+                >
+                  Book Flights & Hotels
+                </Button>
+              ) : (
+                <p
+                  style={{
+                    color: "rgba(255,255,255,0.4)",
+                    fontSize: 13,
+                    marginTop: 4,
+                  }}
+                >
+                  Waiting on {group.owner?.name || "the organizer"} to book —
+                  you'll be asked to pay your share once they do.
+                </p>
+              )}
             </div>
           )}
         </Section>
+      )}
+
+      {/* ═══ PAYMENT — split payment collection ═══
+          Owner sees the live progress panel; every member (including
+          the owner, since they're also a payer) sees their own
+          "pay your share" card until their share is marked paid. */}
+      {isPaymentPending && isMember && (
+        <>
+          {isOwner && (
+            <PaymentProgressPanel
+              bookingId={group.bookingId}
+              groupId={group._id}
+              members={group.members}
+              owner={group.owner}
+              onAllPaid={fetchGroup}
+            />
+          )}
+          {myMember?.paymentStatus !== "paid" && (
+            <PaymentShareCard bookingId={group.bookingId} onPaid={fetchGroup} />
+          )}
+        </>
       )}
 
       {isBooked && (

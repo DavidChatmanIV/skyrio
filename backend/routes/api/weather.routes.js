@@ -18,9 +18,25 @@ function codeToLabel(code) {
 
 /**
  * GET /api/weather?city=Miami&days=5
- * Full day-by-day forecast (for booking checkout / destination pages)
- * Uses OpenWeather Geocoding + 5 Day / 3 Hour Forecast (free tier)
- * Days are bucketed using the DESTINATION's local timezone, not UTC.
+ * Full day-by-day forecast (for booking checkout / destination pages).
+ *
+ * Uses OpenWeather Geocoding (free) + the 5-day/3-hour Forecast API
+ * (/data/2.5/forecast — also free, no card or separate subscription
+ * required). This replaces a previous version that used One Call 3.0,
+ * which requires activating a separate "One Call by Call" plan on the
+ * OpenWeather account (still free under 1,000 calls/day, but gated
+ * behind account setup) — confirmed via a live 401
+ * ("requires a separate subscription to the One Call by Call plan").
+ *
+ * Trade-offs vs. the old One Call version:
+ * - /data/2.5/forecast returns 3-hour blocks, not pre-computed daily
+ *   min/max, so this route buckets them into daily hi/lo itself below.
+ * - Only covers ~5 days (40 entries × 3h), not 8.
+ * - TODAY's bucket may look artificially mild/narrow: this endpoint
+ *   only returns blocks from now onward, not hours earlier today that
+ *   have already passed — the opposite of One Call, which always
+ *   returned the full day's real min/max regardless of the time of
+ *   the request.
  */
 router.get("/", async (req, res) => {
   try {
@@ -33,7 +49,7 @@ router.get("/", async (req, res) => {
 
     const { city = "Newark", days = 5 } = req.query;
 
-    // Step 1: Geocode city name to lat/lon
+    // Step 1: Geocode city name to lat/lon (free tier, unchanged)
     const geoRes = await fetch(
       `${OWM_BASE}/geo/1.0/direct?q=${encodeURIComponent(
         city
@@ -51,59 +67,64 @@ router.get("/", async (req, res) => {
 
     const { lat, lon, name, country } = geoData[0];
 
-    // Step 2: Fetch 5 day / 3 hour forecast
-    const weatherRes = await fetch(
+    // Step 2: 5 day / 3 hour forecast — free tier, no card or separate
+    // subscription needed (unlike One Call 3.0).
+    const fcRes = await fetch(
       `${OWM_BASE}/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${OWM_KEY}`
     );
-    const weatherData = await weatherRes.json();
+    const fcData = await fcRes.json();
 
-    if (weatherData.cod && Number(weatherData.cod) !== 200) {
+    if (fcData.cod && Number(fcData.cod) !== 200) {
       return res.status(502).json({
         success: false,
         message: "Weather fetch failed",
-        error: weatherData.message || "Unknown error",
+        error: fcData.message || "Unknown error",
       });
     }
 
-    // Step 3: Collapse 3-hour blocks into daily hi/lo, bucketed by
-    // the DESTINATION's local day (not the server/UTC day)
-    const tzOffsetSec = weatherData.city?.timezone ?? 0; // seconds from UTC
+    const tzOffsetSec = fcData.city?.timezone ?? 0;
 
-    const dailyMap = new Map();
-    for (const entry of weatherData.list || []) {
+    // Bucket the 3-hour entries into local calendar days. Each entry's
+    // dt is UTC seconds; shifting by the location's tz offset before
+    // formatting gives the LOCAL date, matching what a traveler at the
+    // destination would actually see on their calendar.
+    const buckets = new Map();
+    for (const entry of fcData.list || []) {
       const localMs = (entry.dt + tzOffsetSec) * 1000;
-      const date = new Date(localMs).toISOString().split("T")[0]; // local Y-M-D
+      const localDate = new Date(localMs);
+      const date = localDate.toISOString().split("T")[0];
+      const localHour = localDate.getUTCHours(); // already shifted to local
 
-      const temp = entry.main.temp;
-      const code = entry.weather?.[0]?.id;
-      const pop = entry.pop != null ? Math.round(entry.pop * 100) : null;
-
-      if (!dailyMap.has(date)) {
-        dailyMap.set(date, {
-          date,
-          high: temp,
-          low: temp,
-          rainChance: pop ?? 0,
-          code,
-        });
-      } else {
-        const day = dailyMap.get(date);
-        day.high = Math.max(day.high, temp);
-        day.low = Math.min(day.low, temp);
-        day.rainChance = Math.max(day.rainChance, pop ?? 0);
+      if (!buckets.has(date)) {
+        buckets.set(date, { temps: [], pops: [], codes: [], middayCode: null });
       }
+      const b = buckets.get(date);
+      b.temps.push(entry.main.temp);
+      b.pops.push(entry.pop ?? 0);
+      b.codes.push(entry.weather?.[0]?.id);
+      // Prefer a midday (11am-3pm local) reading as the day's
+      // "representative" condition/icon, since that's most
+      // recognizable to a traveler glancing at the forecast — falls
+      // back to the middle entry if no midday block exists in the
+      // bucket (e.g. a partial day at the start or end of the range).
+      if (localHour >= 11 && localHour <= 15)
+        b.middayCode = entry.weather?.[0]?.id;
     }
 
-    const forecast = Array.from(dailyMap.values())
-      .slice(0, Math.min(Number(days), 5))
-      .map((d) => ({
-        date: d.date,
-        high: Math.round(d.high),
-        low: Math.round(d.low),
-        rainChance: d.rainChance,
-        condition: codeToLabel(d.code),
-        code: d.code,
-      }));
+    const forecast = Array.from(buckets.entries())
+      .slice(0, Math.min(Number(days), 5)) // 2.5 forecast only spans ~5 days
+      .map(([date, b]) => {
+        const code =
+          b.middayCode ?? b.codes[Math.floor(b.codes.length / 2)] ?? b.codes[0];
+        return {
+          date,
+          high: Math.round(Math.max(...b.temps)),
+          low: Math.round(Math.min(...b.temps)),
+          rainChance: Math.round(Math.max(...b.pops) * 100),
+          condition: codeToLabel(code),
+          code,
+        };
+      });
 
     res.json({
       success: true,
@@ -126,8 +147,13 @@ router.get("/", async (req, res) => {
 
 /**
  * GET /api/weather/preview?lat=&lon=
- * Lightweight current temp + today's hi/lo (for the WeatherChip widget)
- * Includes the destination's local wall-clock time.
+ * Lightweight current temp + TODAY's hi/lo (for the WeatherChip widget).
+ *
+ * Uses /data/2.5/weather (current conditions — free) for the live temp,
+ * plus /data/2.5/forecast (also free) to derive today's hi/lo from
+ * whatever 3-hour blocks remain for today. Same today's-bucket caveat
+ * as above: if it's evening local time, "today" here may only reflect
+ * the last block or two rather than the full day's actual range.
  */
 router.get("/preview", async (req, res) => {
   try {
@@ -145,7 +171,7 @@ router.get("/preview", async (req, res) => {
         .json({ success: false, message: "lat and lon are required" });
     }
 
-    const [currentRes, forecastRes] = await Promise.all([
+    const [currentRes, fcRes] = await Promise.all([
       fetch(
         `${OWM_BASE}/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${OWM_KEY}`
       ),
@@ -153,42 +179,46 @@ router.get("/preview", async (req, res) => {
         `${OWM_BASE}/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${OWM_KEY}`
       ),
     ]);
-    const current = await currentRes.json();
-    const forecast = await forecastRes.json();
+    const currentData = await currentRes.json();
+    const fcData = await fcRes.json();
 
-    if (current.cod && Number(current.cod) !== 200) {
+    if (currentData.cod && Number(currentData.cod) !== 200) {
       return res.status(502).json({
         success: false,
-        message: current.message || "Weather fetch failed",
+        message: currentData.message || "Weather fetch failed",
       });
     }
 
-    const tzOffsetSec = current.timezone ?? 0;
+    const tzOffsetSec = currentData.timezone ?? fcData.city?.timezone ?? 0;
+    const nowLocalMs = (currentData.dt + tzOffsetSec) * 1000;
+    const todayDate = new Date(nowLocalMs).toISOString().split("T")[0];
 
-    // Destination's current local date
-    const destLocalMs = (current.dt + tzOffsetSec) * 1000;
-    const destLocalDate = new Date(destLocalMs).toISOString().split("T")[0];
-
-    // Pull today's hi/lo from the forecast list, bucketed the same way
-    let high = current.main.temp_max;
-    let low = current.main.temp_min;
-    for (const entry of forecast.list || []) {
-      const entryLocalMs = (entry.dt + tzOffsetSec) * 1000;
-      const entryLocalDate = new Date(entryLocalMs).toISOString().split("T")[0];
-      if (entryLocalDate === destLocalDate) {
-        high = Math.max(high, entry.main.temp);
-        low = Math.min(low, entry.main.temp);
+    // Pull today's remaining 3-hour blocks out of the forecast list to
+    // derive a hi/lo — falls back to the current temp alone if the
+    // forecast call failed or returned nothing for today.
+    let high = Math.round(currentData.main.temp);
+    let low = Math.round(currentData.main.temp);
+    if (Array.isArray(fcData.list)) {
+      const todaysTemps = fcData.list
+        .filter((entry) => {
+          const localMs = (entry.dt + tzOffsetSec) * 1000;
+          return new Date(localMs).toISOString().split("T")[0] === todayDate;
+        })
+        .map((entry) => entry.main.temp);
+      if (todaysTemps.length > 0) {
+        high = Math.round(Math.max(...todaysTemps, currentData.main.temp));
+        low = Math.round(Math.min(...todaysTemps, currentData.main.temp));
       }
     }
 
     res.json({
       success: true,
-      temp: Math.round(current.main.temp),
-      high: Math.round(high),
-      low: Math.round(low),
-      code: current.weather?.[0]?.id,
+      temp: Math.round(currentData.main.temp),
+      high,
+      low,
+      code: currentData.weather?.[0]?.id,
       timezoneOffsetSec: tzOffsetSec,
-      localTimeIso: new Date(destLocalMs).toISOString(),
+      localTimeIso: new Date(nowLocalMs).toISOString(),
     });
   } catch (err) {
     console.error("[weather-preview] Error:", err.message);

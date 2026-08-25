@@ -1176,23 +1176,37 @@ function FlightsForm({
     setLoading(true);
     onSearchStart?.();
 
+    const params = new URLSearchParams({
+      from: originAirport.code,
+      to: destAirport.code,
+      departDate: dayjs(dates[0].toDate()).format("YYYY-MM-DD"),
+      adults: String(adults),
+      cabin,
+    });
+    if (tripType === "roundtrip" && dates[1]) {
+      params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
+    }
+
     try {
-      const params = new URLSearchParams({
-        from: originAirport.code,
-        to: destAirport.code,
-        departDate: dayjs(dates[0].toDate()).format("YYYY-MM-DD"),
-        adults: String(adults),
-        cabin,
-      });
-      if (tripType === "roundtrip" && dates[1]) {
-        params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
-      }
       const res = await fetch(`${API}/api/flights/search?${params}`);
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.message || "Search failed");
-      onSearch(data.flights ?? []);
-      antdMessage.success(`Found ${data.flights?.length ?? 0} flights`);
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.message || "Flight search failed");
+      }
+
+      const flights = data.flights ?? [];
+      onSearch(flights);
+
+      if (flights.length === 0) {
+        antdMessage.info(
+          "No flights found for this route — try adjusting dates."
+        );
+      } else {
+        antdMessage.success(`Found ${flights.length} flights`);
+      }
     } catch (err) {
+      onSearch([]);
       antdMessage.error(err.message || "Flight search failed");
     } finally {
       setLoading(false);
@@ -1522,7 +1536,6 @@ function PackagesForm({ onDestChange, onDatesChange }) {
   const [pkgOptions, setPkgOptions] = useState({
     stay: true,
     flight: true,
-    car: false,
   });
   const toggle = (key) =>
     setPkgOptions((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -1535,10 +1548,12 @@ function PackagesForm({ onDestChange, onDatesChange }) {
     },
     [onDatesChange]
   );
+  // Car dropped — no car rental integration exists yet (CarTrawler is
+  // pending onboarding). Flight + Hotel is the real bundle Skyrio can
+  // actually fulfill today.
   const PKG_PILLS = [
     { key: "stay", Icon: IconHotel, label: "Stay" },
     { key: "flight", Icon: IconFlight, label: "Flight" },
-    { key: "car", Icon: IconCar, label: "Car" },
   ];
   return (
     <div className="sk-search-bar">
@@ -2197,11 +2212,13 @@ export default function BookingPage() {
     setVisibleCount(RESULTS_PER_PAGE);
   }, [flightResults, hotelResults, smartFilters]);
 
+  // Only the destination's weather is surfaced anywhere in the booking flow —
+  // origin weather (e.g. "Newark · Avg 58°/44°") was dropped since the user
+  // already knows their own local forecast; it just ate space on the busiest
+  // screen without helping anyone decide anything. Destination weather is
+  // folded into the single-line trip summary (sk-tripMeta) below instead of
+  // its own standalone widget.
   const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
-  const departureWeather = useMemo(
-    () => getWeatherForCity(originCity),
-    [originCity]
-  );
   const weatherTitle = weather.label
     ? `${weather.label}${weather.temp ? `  ·  ${weather.temp}` : ""}`
     : "Select a destination";
@@ -2376,6 +2393,9 @@ export default function BookingPage() {
           <div className="sk-tripRoute">{heroRoute}</div>
           <div className="sk-tripMeta">
             {heroNights && `${heroNights}  ·  `}
+            {destCity &&
+              weather.label &&
+              `${weather.label} ${weather.temp}  ·  `}
             {weather.sub}
             {destCity && "  ·  Best value window"}
           </div>
@@ -2594,54 +2614,6 @@ export default function BookingPage() {
             setVisibleCount(RESULTS_PER_PAGE);
           }}
         />
-
-        {tab === "Flights" && (
-          <div className="sk-weatherStrip">
-            <div className="sk-weatherInner sk-weatherInner--split">
-              <div className="sk-weatherSide">
-                <div className="sk-weatherSideLabel">
-                  {originCity ? "Departing from" : "Select departure city"}
-                </div>
-                <div className="sk-weatherTop">
-                  <span className="sk-weatherIcon">
-                    {originCity ? (
-                      <departureWeather.Icon size={18} />
-                    ) : (
-                      <WeatherGlobe size={18} />
-                    )}
-                  </span>
-                  <span>
-                    {originCity && departureWeather.label
-                      ? `${departureWeather.label} · ${departureWeather.temp}`
-                      : "—"}
-                  </span>
-                </div>
-                <div className="sk-weatherSub">
-                  {originCity
-                    ? departureWeather.sub
-                    : "Select a departure airport above"}
-                </div>
-              </div>
-              <div className="sk-weatherDivider">
-                <ArrowRight size={14} />
-              </div>
-              <div className="sk-weatherSide">
-                <div className="sk-weatherSideLabel">
-                  {destCity
-                    ? `${destCity} · Travel week est.`
-                    : "Select a destination"}
-                </div>
-                <div className="sk-weatherTop">
-                  <span className="sk-weatherIcon">
-                    <weather.Icon size={18} />
-                  </span>
-                  <span>{weather.label ? weatherTitle : "—"}</span>
-                </div>
-                <div className="sk-weatherSub">{weather.sub}</div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── Search form (scroll target for "Search manually") ── */}
         <div ref={searchFormRef}>{searchForm}</div>

@@ -4,7 +4,20 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Use your verified domain, or Resend's test domain to start
 const FROM_EMAIL = process.env.FROM_EMAIL || "Skyrio <onboarding@resend.dev>";
-const APP_URL = process.env.FRONTEND_ORIGIN || "https://skyrio-iota.vercel.app";
+
+// FRONTEND_ORIGIN should be a single URL. If it's accidentally set to a
+// comma-separated list (e.g. copy-pasted from a CORS allowlist, which
+// legitimately IS a CSV of multiple allowed origins), take just the
+// first entry rather than building a broken multi-URL link — this is
+// what caused "View Trip & Join" to send a literal
+// "http://localhost:5273,https://...,https://..." href instead of one
+// working link. The real fix is still checking FRONTEND_ORIGIN in your
+// actual env config (local .env and your hosting dashboard) and making
+// sure it's a single value there — this is just a safety net so a
+// future misconfiguration doesn't silently break every email link again.
+const rawOrigin =
+  process.env.FRONTEND_ORIGIN || "https://skyrio-iota.vercel.app";
+const APP_URL = rawOrigin.split(",")[0].trim();
 
 /**
  * Send a trip invitation email
@@ -29,8 +42,6 @@ export async function sendTripInvite({
 <meta name="supported-color-schemes" content="dark light">
 <style>
   :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  /* Pin every color explicitly in dark mode so clients like Apple Mail
-     don't "smart invert" our already-dark design into dark-on-dark. */
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
@@ -148,8 +159,6 @@ export async function sendPlanReady({
 <meta name="supported-color-schemes" content="dark light">
 <style>
   :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  /* Pin every color explicitly in dark mode so clients like Apple Mail
-     don't "smart invert" our already-dark design into dark-on-dark. */
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
@@ -242,8 +251,6 @@ export async function sendTripDeleted({
 <meta name="supported-color-schemes" content="dark light">
 <style>
   :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  /* Pin every color explicitly in dark mode so clients like Apple Mail
-     don't "smart invert" our already-dark design into dark-on-dark. */
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
@@ -329,8 +336,6 @@ export async function sendMemberRemoved({
 <meta name="supported-color-schemes" content="dark light">
 <style>
   :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  /* Pin every color explicitly in dark mode so clients like Apple Mail
-     don't "smart invert" our already-dark design into dark-on-dark. */
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
@@ -413,8 +418,6 @@ export async function sendPasswordReset({ to, resetUrl }) {
 <meta name="supported-color-schemes" content="dark light">
 <style>
   :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  /* Pin every color explicitly in dark mode so clients like Apple Mail
-     don't "smart invert" our already-dark design into dark-on-dark. */
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
@@ -500,8 +503,6 @@ export async function sendVerificationEmail({ to, verifyUrl }) {
 <meta name="supported-color-schemes" content="dark light">
 <style>
   :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  /* Pin every color explicitly in dark mode so clients like Apple Mail
-     don't "smart invert" our already-dark design into dark-on-dark. */
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }

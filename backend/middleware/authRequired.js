@@ -16,7 +16,11 @@ async function authRequired(req, res, next) {
 
     const payload = jwt.verify(token, JWT_SECRET);
 
-    const userId = payload.sub || payload.id;
+    // FIX: this project's real tokens are signed with { userId, role,
+    // email, ... } (confirmed by decoding a live token) — payload.sub
+    // and payload.id don't exist on it, so this always fell through to
+    // "Invalid token payload" and 401'd every authenticated request.
+    const userId = payload.userId || payload.sub || payload.id;
     if (!userId) {
       return res.status(401).json({ message: "Invalid token payload" });
     }
@@ -28,15 +32,6 @@ async function authRequired(req, res, next) {
         .json({ message: "User no longer exists or was removed" });
     }
 
-    // ✅ FIX: requireAuth.js (used everywhere else — rewards, XP, profile)
-    // blocks suspended/deactivated users here; this middleware didn't,
-    // meaning a banned user could still create real bookings and have
-    // real Stripe charges go through while being correctly blocked from
-    // everything else in the app. Mirrors requireAuth.js's checks exactly,
-    // just written as plain field comparisons instead of calling
-    // user.isSuspended() — that's an instance method defined on the
-    // Mongoose schema, not available here since .lean() returns a plain
-    // object with no methods attached.
     if (user.isActive === false) {
       return res.status(403).json({ message: "Account is inactive" });
     }
