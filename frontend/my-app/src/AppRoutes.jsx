@@ -27,10 +27,6 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const SyncTogether = lazy(() => import("./pages/SyncTogether"));
 const SyncTogetherLock = lazy(() => import("./pages/SyncTogetherLock"));
 const SyncGroupPage = lazy(() => import("./pages/SyncGroupPage"));
-// NEW — the join-by-invite-link page. Component already existed in the
-// codebase; it just was never registered in the router, which is why
-// /sync-together/join/:code always fell through to the catch-all
-// NotFound route below instead of rendering this.
 const JoinTripPage = lazy(() => import("./pages/JoinTripPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
