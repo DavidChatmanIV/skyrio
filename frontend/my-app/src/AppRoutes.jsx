@@ -27,6 +27,11 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const SyncTogether = lazy(() => import("./pages/SyncTogether"));
 const SyncTogetherLock = lazy(() => import("./pages/SyncTogetherLock"));
 const SyncGroupPage = lazy(() => import("./pages/SyncGroupPage"));
+// NEW — the join-by-invite-link page. Component already existed in the
+// codebase; it just was never registered in the router, which is why
+// /sync-together/join/:code always fell through to the catch-all
+// NotFound route below instead of rendering this.
+const JoinTripPage = lazy(() => import("./pages/JoinTripPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 
@@ -129,6 +134,15 @@ function TrackedRoutes() {
             loading ? null : isAuthed ? <SyncTogether /> : <SyncTogetherLock />
           }
         />
+        {/* NEW — public invite-link landing page. Must be registered as its
+            own literal route: "sync-together/:id" only matches ONE path
+            segment after "sync-together", so "sync-together/join/:code"
+            (two segments: "join" and the code) was never matching it and
+            fell all the way through to the catch-all "*" NotFound route
+            instead. Intentionally public (no auth gate here) — JoinTripPage
+            itself shows an inline login/signup form so someone can preview
+            the trip and sign up without leaving the invite flow. */}
+        <Route path="sync-together/join/:code" element={<JoinTripPage />} />
         <Route path="sync-together/:id" element={<SyncGroupPage />} />
         <Route
           path="team-travel"

@@ -28,6 +28,7 @@ import {
   CheckOutlined,
   CloseOutlined,
   DeleteOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { Link, useSearchParams } from "react-router-dom";
@@ -433,6 +434,7 @@ function IconWarning({ size = 14 }) {
 // Constants & Helpers
 // ─────────────────────────────────────────────
 const RESULTS_PER_PAGE = 5;
+const MAX_ROOMS_PER_TRIP = 8;
 
 const DEFAULT_FILTERS = {
   price: "any",
@@ -482,6 +484,12 @@ function applyFilters(flights, filters) {
     if (filters.xp !== "any" && getFlightXP(f) < filters.xp) return false;
     return true;
   });
+}
+
+// A stable identity for a hotel offer, used to dedupe the room cart and
+// as the React key across the results list + cart chips.
+function roomKey(hotel) {
+  return `${hotel.hotelId}-${hotel.offerId}`;
 }
 
 const EXAMPLE_PLANS = {
@@ -1345,9 +1353,143 @@ function StaysForm({
 }) {
   const [cityName, setCityName] = useState("");
   const [countryCode, setCountryCode] = useState("US");
+  // Selected place from the autocomplete dropdown, if any. When set,
+  // search uses this placeId directly (LiteAPI's preferred, exact way
+  // to resolve a destination) instead of the countryCode+cityName
+  // fallback, which LiteAPI's own docs note requires an EXACT string
+  // match and can silently return zero hotels for larger/ambiguous
+  // cities.
+  const [selectedPlace, setSelectedPlace] = useState(null);
   const [dates, setDates] = useState([null, null]);
-  const [occupancy, setOccupancy] = useState("2t1r");
+  // Travelers/rooms as plain numbers instead of a handful of fixed
+  // presets ("1 traveler, 1 room" / "2 travelers, 2 rooms" etc.) — those
+  // presets topped out at 3 travelers / 2 rooms, which doesn't work for
+  // a big party (a sports team, a large family reunion). MAX_ROOMS_PER_TRIP
+  // is the same cap already used for the room cart, kept consistent here.
+  const [adults, setAdults] = useState(2);
+  const [numRooms, setNumRooms] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  // ── Location autocomplete, backed by LiteAPI's own /data/places
+  // endpoint (via /api/hotels/places) — NOT /data/hotels. This is a
+  // real, purpose-built autocomplete (Google Places under the hood),
+  // but LiteAPI bills it per-request. Debounce (450ms) and a 3-char
+  // minimum are both deliberate cost guards — don't loosen either
+  // without checking the cost impact on your LiteAPI account.
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const suggestDebounceRef = useRef(null);
+  const suggestAbortRef = useRef(null);
+  const cityFieldRef = useRef(null);
+
+  // Close the dropdown on outside click — same pattern as the
+  // "More" tab menu elsewhere in this file.
+  useEffect(() => {
+    if (!suggestOpen) return;
+    const handler = (e) => {
+      if (cityFieldRef.current && !cityFieldRef.current.contains(e.target)) {
+        setSuggestOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [suggestOpen]);
+
+  const fetchPlaceSuggestions = useCallback((query) => {
+    if (suggestDebounceRef.current) clearTimeout(suggestDebounceRef.current);
+
+    const trimmed = query.trim();
+    // 3-char minimum + 450ms debounce are cost guards for a billed
+    // endpoint (see note above) — not just UX polish.
+    if (trimmed.length < 3) {
+      setSuggestions([]);
+      setSuggestOpen(false);
+      return;
+    }
+
+    suggestDebounceRef.current = setTimeout(async () => {
+      if (suggestAbortRef.current) suggestAbortRef.current.abort();
+      const controller = new AbortController();
+      suggestAbortRef.current = controller;
+      setSuggestLoading(true);
+
+      try {
+        const params = new URLSearchParams({ query: trimmed });
+        const res = await fetch(`${API}/api/hotels/places?${params}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          setSuggestions([]);
+          setSuggestOpen(false);
+          return;
+        }
+
+        // NOTE: verify these field names against your actual
+        // /api/hotels/places response — LiteAPI's own wiring docs
+        // reference storing `{ placeId, displayName }`, but the raw
+        // shape may nest displayName differently or use `name`.
+        const places = (data.places ?? []).slice(0, 8).map((p) => ({
+          placeId: p.placeId ?? p.id,
+          displayName:
+            p.displayName ?? p.name ?? p.formattedAddress ?? "Unknown place",
+          secondaryText: p.secondaryText ?? p.country ?? "",
+        }));
+
+        setSuggestions(places);
+        setSuggestOpen(places.length > 0);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setSuggestions([]);
+          setSuggestOpen(false);
+        }
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 450);
+  }, []);
+
+  const handleCityInputChange = (e) => {
+    const val = e.target.value;
+    setCityName(val);
+    // Typing again after picking a suggestion means they're looking
+    // for something else — don't silently keep searching the old place.
+    if (selectedPlace) setSelectedPlace(null);
+    setHighlightedIndex(-1);
+    fetchPlaceSuggestions(val);
+  };
+
+  const handleSelectPlaceSuggestion = (place) => {
+    setCityName(place.displayName);
+    setSelectedPlace(place);
+    setSuggestions([]);
+    setSuggestOpen(false);
+    setHighlightedIndex(-1);
+  };
+
+  // Arrow-key + Enter/Escape navigation — same interaction pattern as
+  // the airport search on Flights, so this dropdown doesn't feel like
+  // a different, lesser control.
+  const handleCityInputKeyDown = (e) => {
+    if (!suggestOpen || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === "Enter") {
+      if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+        e.preventDefault();
+        handleSelectPlaceSuggestion(suggestions[highlightedIndex]);
+      }
+    } else if (e.key === "Escape") {
+      setSuggestOpen(false);
+      setHighlightedIndex(-1);
+    }
+  };
 
   const handleDatesChange = useCallback(
     (v) => {
@@ -1360,15 +1502,6 @@ function StaysForm({
     [onDatesChange]
   );
 
-  // occupancy select values are "{travelers}t{rooms}r", e.g. "2t1r"
-  const parseOccupancy = (val) => {
-    const match = val.match(/(\d+)t(\d+)r/);
-    return {
-      adults: match ? Number(match[1]) : 2,
-      rooms: match ? Number(match[2]) : 1,
-    };
-  };
-
   const handleSearch = async () => {
     if (!cityName.trim())
       return antdMessage.warning("Enter a destination city");
@@ -1380,11 +1513,19 @@ function StaysForm({
 
     try {
       // ── Step 1: resolve destination → hotelIds ──
-      const lookupParams = new URLSearchParams({
-        countryCode,
-        cityName: cityName.trim(),
-        limit: "20",
-      });
+      // Prefer the placeId from a selected autocomplete suggestion —
+      // it's exact and unambiguous. Fall back to countryCode+cityName
+      // only if the user typed a destination without picking a
+      // suggestion (LiteAPI's docs note this fallback needs an exact
+      // string match and can return zero results for larger cities).
+      const lookupParams = selectedPlace
+        ? new URLSearchParams({ placeId: selectedPlace.placeId, limit: "20" })
+        : new URLSearchParams({
+            countryCode,
+            cityName: cityName.trim(),
+            limit: "20",
+          });
+
       const lookupRes = await fetch(`${API}/api/hotels/lookup?${lookupParams}`);
       const lookupData = await lookupRes.json();
       if (!lookupRes.ok || !lookupData.ok)
@@ -1400,7 +1541,6 @@ function StaysForm({
       // Limit how many hotels we price-check at once — keeps the
       // rates call fast. Adjust this cap as your UI/UX needs grow.
       const hotelIds = hotelsFound.slice(0, 15).map((h) => h.id);
-      const { adults, rooms } = parseOccupancy(occupancy);
 
       // ── Step 2: get live rates for those hotels ──
       const searchParams = new URLSearchParams({
@@ -1408,7 +1548,7 @@ function StaysForm({
         checkin: dayjs(dates[0].toDate()).format("YYYY-MM-DD"),
         checkout: dayjs(dates[1].toDate()).format("YYYY-MM-DD"),
         adults: String(adults),
-        rooms: String(rooms),
+        rooms: String(numRooms),
       });
       const searchRes = await fetch(`${API}/api/hotels/search?${searchParams}`);
       const searchData = await searchRes.json();
@@ -1451,13 +1591,57 @@ function StaysForm({
   return (
     <div className="sk-search-bar">
       <div className="sk-field-row">
-        <div className="sk-field sk-field--airport">
+        <div
+          className="sk-field sk-field--airport sk-city-autocomplete"
+          ref={cityFieldRef}
+        >
           <Input
             className="sk-orange-picker"
             placeholder="Where to? City name"
             value={cityName}
-            onChange={(e) => setCityName(e.target.value)}
+            onChange={handleCityInputChange}
+            onKeyDown={handleCityInputKeyDown}
+            onFocus={() => {
+              if (suggestions.length > 0) setSuggestOpen(true);
+            }}
+            autoComplete="off"
           />
+          {suggestOpen && (
+            <div className="sk-city-suggest-menu">
+              {suggestLoading && (
+                <div className="sk-city-suggest-item sk-city-suggest-loading">
+                  <LoadingOutlined /> Searching…
+                </div>
+              )}
+              {!suggestLoading &&
+                suggestions.map((s, i) => (
+                  <button
+                    type="button"
+                    key={s.placeId}
+                    className={`sk-city-suggest-item${
+                      i === highlightedIndex ? " is-highlighted" : ""
+                    }`}
+                    onClick={() => handleSelectPlaceSuggestion(s)}
+                    onMouseEnter={() => setHighlightedIndex(i)}
+                  >
+                    <EnvironmentOutlined
+                      style={{ marginRight: 8, opacity: 0.6 }}
+                    />
+                    <span>{s.displayName}</span>
+                    {s.secondaryText && (
+                      <span className="sk-city-suggest-country">
+                        {s.secondaryText}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              {!suggestLoading && suggestions.length === 0 && (
+                <div className="sk-city-suggest-item sk-city-suggest-empty">
+                  No matches
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="sk-field sk-field--select">
           <Select
@@ -1481,18 +1665,29 @@ function StaysForm({
             disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
           />
         </div>
-        <div className="sk-field sk-field--select">
-          <Select
-            className="sk-select-cabin"
-            value={occupancy}
-            onChange={setOccupancy}
-            classNames={{ popup: { root: "sk-select-popup" } }}
-          >
-            <Option value="1t1r">1 traveler, 1 room</Option>
-            <Option value="2t1r">2 travelers, 1 room</Option>
-            <Option value="3t1r">3 travelers, 1 room</Option>
-            <Option value="2t2r">2 travelers, 2 rooms</Option>
-          </Select>
+        <div className="sk-field sk-field--occupancy">
+          <div className="sk-occupancy-group">
+            <div className="sk-occupancy-field">
+              <span className="sk-occupancy-label">Travelers</span>
+              <InputNumber
+                className="sk-input-travelers sk-occupancy-input"
+                min={1}
+                max={40}
+                value={adults}
+                onChange={(v) => setAdults(v ?? 1)}
+              />
+            </div>
+            <div className="sk-occupancy-field">
+              <span className="sk-occupancy-label">Rooms</span>
+              <InputNumber
+                className="sk-input-travelers sk-occupancy-input"
+                min={1}
+                max={MAX_ROOMS_PER_TRIP}
+                value={numRooms}
+                onChange={(v) => setNumRooms(v ?? 1)}
+              />
+            </div>
+          </div>
         </div>
         <SearchBtn onClick={handleSearch} loading={loading} />
       </div>
@@ -1534,10 +1729,7 @@ function CarsForm({ onDestChange }) {
 function PackagesForm({ onDestChange, onDatesChange }) {
   const [originDisplay, setOriginDisplay] = useState("");
   const [destDisplay, setDestDisplay] = useState("");
-  const [pkgOptions, setPkgOptions] = useState({
-    stay: true,
-    flight: true,
-  });
+  const [pkgOptions, setPkgOptions] = useState({ stay: true, flight: true });
   const toggle = (key) =>
     setPkgOptions((prev) => ({ ...prev, [key]: !prev[key] }));
   const handleDatesChange = useCallback(
@@ -1906,6 +2098,63 @@ function FlightSkeleton({ destCity, fromCode }) {
 }
 
 // ─────────────────────────────────────────────
+// RoomCartBar — shows the rooms a user has queued up for this
+// stay so they can book one room, then add another for family
+// or friends, before checking out as a single trip.
+// ─────────────────────────────────────────────
+function RoomCartBar({ rooms, onRemove, onCheckout, destCity }) {
+  if (!rooms.length) return null;
+  const total = rooms.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0);
+  const currency = rooms[0]?.totalCurrency || "USD";
+
+  return (
+    <div className="sk-room-cart-bar">
+      <div className="sk-room-cart-top">
+        <div className="sk-room-cart-headline">
+          <Users size={14} className="sk-room-cart-icon" />
+          <span>
+            <strong>{rooms.length}</strong> room{rooms.length !== 1 ? "s" : ""}{" "}
+            selected{destCity ? ` in ${destCity}` : ""}
+          </span>
+        </div>
+        <div className="sk-room-cart-total">
+          ${total.toFixed(0)}{" "}
+          <span className="sk-room-cart-currency">{currency}</span> total
+        </div>
+      </div>
+
+      <div className="sk-room-cart-chips">
+        {rooms.map((r) => (
+          <span key={roomKey(r)} className="sk-room-cart-chip">
+            <span className="sk-room-cart-chip-name">{r.name}</span>
+            <span className="sk-room-cart-chip-price">
+              ${r.totalAmount?.toFixed(0) ?? "—"}
+            </span>
+            <button
+              type="button"
+              className="sk-room-cart-chip-remove"
+              onClick={() => onRemove(r)}
+              aria-label={`Remove ${r.name} from trip`}
+            >
+              <CloseOutlined />
+            </button>
+          </span>
+        ))}
+      </div>
+
+      <div className="sk-room-cart-actions">
+        <span className="sk-room-cart-hint">
+          Need a room for someone else? Add another before you check out.
+        </span>
+        <Button className="sk-btn-orange" onClick={onCheckout}>
+          Checkout {rooms.length} room{rooms.length !== 1 ? "s" : ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────
 export default function BookingPage() {
@@ -1949,53 +2198,14 @@ export default function BookingPage() {
   const [flightResults, setFlightResults] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
   const [excursionResults, setExcursionResults] = useState([]);
-
-  // ── Multi-room stays cart ──────────────────────────────────────
-  // roomCart: rooms the user has explicitly added while browsing so
-  // they can check out several rooms (e.g. one for themselves, one
-  // for family/friends) in a single trip.
-  // checkoutRooms: the exact set of rooms passed into HotelCheckout
-  // when the user proceeds — either a single "Book Now" pick or the
-  // full cart via "Checkout N rooms".
+  const [selectedHotelOffer, setSelectedHotelOffer] = useState(null);
+  // Rooms queued up for this Stays search — lets the user book one room,
+  // then add another for family/friends before checking out together.
   const [roomCart, setRoomCart] = useState([]);
+  // Normalized set of rooms actually going through checkout right now.
+  // Populated either from a single "Book Now" click (one room) or the
+  // cart's "Checkout N rooms" button (roomCart in full).
   const [checkoutRooms, setCheckoutRooms] = useState([]);
-
-  const getRoomKey = useCallback((h) => `${h.hotelId}-${h.offerId}`, []);
-
-  const addRoomToCart = useCallback(
-    (hotel) => {
-      setRoomCart((prev) => {
-        if (prev.some((r) => getRoomKey(r) === getRoomKey(hotel))) {
-          antdMessage.info("That room is already in your trip.");
-          return prev;
-        }
-        const nextCount = prev.length + 1;
-        antdMessage.success(
-          `${hotel.name} added — ${nextCount} room${
-            nextCount !== 1 ? "s" : ""
-          } in your trip`
-        );
-        return [...prev, hotel];
-      });
-    },
-    [getRoomKey]
-  );
-
-  const removeRoomFromCart = useCallback(
-    (hotel) => {
-      setRoomCart((prev) =>
-        prev.filter((r) => getRoomKey(r) !== getRoomKey(hotel))
-      );
-    },
-    [getRoomKey]
-  );
-
-  const roomCartTotal = useMemo(
-    () => roomCart.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0),
-    [roomCart]
-  );
-  // ─────────────────────────────────────────────────────────────
-
   const [autoSearchDone, setAutoSearchDone] = useState(false);
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
@@ -2139,6 +2349,97 @@ export default function BookingPage() {
       behavior: "smooth",
       block: "start",
     });
+  }, []);
+
+  // ── Room cart helpers ──────────────────────────────────────
+  // Adds a hotel offer to the trip's room cart so the user can keep
+  // browsing and add rooms for other travelers before checking out.
+  const addRoomToCart = useCallback((hotel) => {
+    setRoomCart((prev) => {
+      if (prev.some((r) => roomKey(r) === roomKey(hotel))) {
+        antdMessage.info("That room is already in your trip.");
+        return prev;
+      }
+      if (prev.length >= MAX_ROOMS_PER_TRIP) {
+        antdMessage.warning(
+          `You can add up to ${MAX_ROOMS_PER_TRIP} rooms per trip.`
+        );
+        return prev;
+      }
+      antdMessage.success(
+        `${hotel.name} added — ${prev.length + 1} room${
+          prev.length + 1 > 1 ? "s" : ""
+        } in this trip`
+      );
+      return [...prev, hotel];
+    });
+  }, []);
+
+  const removeRoomFromCart = useCallback((hotel) => {
+    setRoomCart((prev) => prev.filter((r) => roomKey(r) !== roomKey(hotel)));
+  }, []);
+
+  // "Book Now" on a single card. This now folds the room into the same
+  // cart instead of bypassing it — that's what let a solo "Book Now"
+  // dead-end with no way to add a second room for a teammate/family
+  // member. It still opens checkout immediately for a fast one-room
+  // booking, but since the room joined the cart, hitting "Back to
+  // results" from checkout (below) lands back on Stays with that room
+  // still selected, ready to add more.
+  //
+  // Reads `roomCart` directly and depends on it (rather than nesting
+  // setSelectedHotelOffer/setCheckoutRooms inside the setRoomCart
+  // updater) — calling other components' setState from inside a
+  // different state's updater function is non-idiomatic React and can
+  // cause those updates to fire more than once for a single click.
+  const handleBookSingleRoom = useCallback(
+    (hotel) => {
+      const already = roomCart.some((r) => roomKey(r) === roomKey(hotel));
+      let next;
+      if (already) {
+        next = roomCart;
+      } else if (roomCart.length >= MAX_ROOMS_PER_TRIP) {
+        antdMessage.warning(
+          `You can add up to ${MAX_ROOMS_PER_TRIP} rooms per trip.`
+        );
+        next = roomCart.length ? roomCart : [hotel];
+      } else {
+        next = [...roomCart, hotel];
+        setRoomCart(next);
+      }
+      setSelectedHotelOffer(next[0] ?? hotel);
+      setCheckoutRooms(next.length ? next : [hotel]);
+      setShowHotelCheckout(true);
+    },
+    [roomCart]
+  );
+
+  // "Checkout N rooms" from the cart bar — send the whole cart to
+  // HotelCheckout as one bundled booking.
+  const handleCheckoutCart = useCallback(() => {
+    if (!roomCart.length) return;
+    setSelectedHotelOffer(roomCart[0]);
+    setCheckoutRooms(roomCart);
+    setShowHotelCheckout(true);
+  }, [roomCart]);
+
+  // "Back to results" / "Add another room" from the checkout screen.
+  // Deliberately does NOT clear roomCart or checkoutRooms — the whole
+  // point is letting the user return to Stays, add one more room (e.g.
+  // for a teammate), and come back to checkout with the full set intact.
+  // The cart is only cleared once a booking actually completes, via
+  // handleHotelBookingComplete below.
+  const handleHotelCheckoutBack = useCallback(() => {
+    setShowHotelCheckout(false);
+  }, []);
+
+  // Called by HotelCheckout once payment/booking actually succeeds —
+  // clears the cart so a completed trip doesn't linger in the builder.
+  const handleHotelBookingComplete = useCallback(() => {
+    setRoomCart([]);
+    setShowHotelCheckout(false);
+    setSelectedHotelOffer(null);
+    setCheckoutRooms([]);
   }, []);
 
   // ── Read trip type from landing page URL param on mount ──
@@ -2404,649 +2705,466 @@ export default function BookingPage() {
       ? "No flights match your filters"
       : "Results";
 
-  if (showCheckout && selectedFlight) {
-    return (
-      <BookingCheckout
-        flight={selectedFlight}
-        onBack={() => {
-          setShowCheckout(false);
-          setSelectedFlight(null);
-        }}
-      />
-    );
-  }
-
-  // HotelCheckout now always receives an array of rooms (`rooms` prop) —
-  // one entry for a plain "Book Now", or the full cart when the user
-  // checks out multiple rooms together for family/friends.
-  if (showHotelCheckout && checkoutRooms.length > 0) {
-    return (
-      <HotelCheckout
-        rooms={checkoutRooms}
-        onBack={() => {
-          setShowHotelCheckout(false);
-          setCheckoutRooms([]);
-          setRoomCart([]);
-        }}
-      />
-    );
-  }
+  // Checkout screens render as overlays ON TOP of the results page rather
+  // than replacing it via a separate top-level return. Swapping the whole
+  // return tree used to force React to fully unmount, then rebuild from
+  // scratch, the entire results page (hundreds of cards, heavy
+  // backdrop-filter blur on nearly every panel, re-triggered entry
+  // animations) on every single "Book Now" / "Back" click — THAT
+  // unmount+remount was the real source of the sluggish transitions, not
+  // anything checkout-specific. Keeping the results tree mounted
+  // underneath (just hidden) makes "Back" effectively instant.
+  const checkoutOverlay =
+    showCheckout && selectedFlight ? (
+      <div className="sk-checkout-overlay">
+        <BookingCheckout
+          flight={selectedFlight}
+          onBack={() => {
+            setShowCheckout(false);
+            setSelectedFlight(null);
+          }}
+        />
+      </div>
+    ) : showHotelCheckout && checkoutRooms.length > 0 ? (
+      <div className="sk-checkout-overlay">
+        <HotelCheckout
+          rooms={checkoutRooms}
+          // `hotel` kept for backward compatibility with any code still
+          // reading a single-offer prop — always the first room in the set.
+          hotel={selectedHotelOffer}
+          destCity={destCity}
+          onBack={handleHotelCheckoutBack}
+          onBookingComplete={handleHotelBookingComplete}
+        />
+      </div>
+    ) : null;
 
   return (
-    <div className="sk-booking" style={{ "--sk-bg-image": `url(${heroImg})` }}>
-      <div className="sk-booking-hero">
-        <Title className="sk-hero-title">
-          Lock in your{" "}
-          <span className="sk-hero-title-accent">next adventure.</span>
-        </Title>
+    <>
+      {checkoutOverlay}
+      <div
+        className="sk-booking"
+        style={{
+          "--sk-bg-image": `url(${heroImg})`,
+          // Hidden (not unmounted) while a checkout overlay is open —
+          // display:none is nearly free for the browser (no layout/paint/
+          // compositing of the blur-heavy cards underneath) and preserves
+          // all existing state, scroll position, and DOM nodes so
+          // returning from checkout doesn't rebuild anything.
+          display: checkoutOverlay ? "none" : undefined,
+        }}
+      >
+        <div className="sk-booking-hero">
+          <Title className="sk-hero-title">
+            Lock in your{" "}
+            <span className="sk-hero-title-accent">next adventure.</span>
+          </Title>
 
-        <div className="sk-tripState">
-          <div className="sk-tripRoute">{heroRoute}</div>
-          <div className="sk-tripMeta">
-            {heroNights && `${heroNights}  ·  `}
-            {destCity &&
-              weather.label &&
-              `${weather.label} ${weather.temp}  ·  `}
-            {weather.sub}
-            {destCity && "  ·  Best value window"}
-          </div>
-          <div className="sk-tripAssist">
-            {isSearching
-              ? "Searching live flights for you…"
-              : autoSearchDone && flightResults.length > 0
-              ? `Found ${flightResults.length} flights — scroll down to pick`
-              : destCity
-              ? "Smart Plan found great options for you"
-              : "Enter your destination to get started"}
-          </div>
+          <div className="sk-tripState">
+            <div className="sk-tripRoute">{heroRoute}</div>
+            <div className="sk-tripMeta">
+              {heroNights && `${heroNights}  ·  `}
+              {destCity &&
+                weather.label &&
+                `${weather.label} ${weather.temp}  ·  `}
+              {weather.sub}
+              {destCity && "  ·  Best value window"}
+            </div>
+            <div className="sk-tripAssist">
+              {isSearching
+                ? "Searching live flights for you…"
+                : autoSearchDone && flightResults.length > 0
+                ? `Found ${flightResults.length} flights — scroll down to pick`
+                : destCity
+                ? "Smart Plan found great options for you"
+                : "Enter your destination to get started"}
+            </div>
 
-          {prefillData && !prefillDismissed && (
-            <div className="sk-prefill-strip">
-              {!prefillEditing ? (
-                <div className="sk-prefill-collapsed">
-                  <span className="sk-prefill-bolt">
-                    <Zap size={12} />
-                  </span>
-                  <span className="sk-prefill-loaded">Loaded from AI</span>
-                  <span className="sk-prefill-divider">·</span>
-                  {destCity && (
-                    <span className="sk-prefill-chip">
-                      <MapPin
-                        size={11}
-                        style={{ marginRight: 3, verticalAlign: "middle" }}
-                      />
-                      {destCity}
+            {prefillData && !prefillDismissed && (
+              <div className="sk-prefill-strip">
+                {!prefillEditing ? (
+                  <div className="sk-prefill-collapsed">
+                    <span className="sk-prefill-bolt">
+                      <Zap size={12} />
                     </span>
-                  )}
-                  {budgetSeed && (
-                    <span className="sk-prefill-chip">
-                      <DollarSign
-                        size={11}
-                        style={{ marginRight: 2, verticalAlign: "middle" }}
-                      />
-                      {budgetSeed.toLocaleString()}
-                    </span>
-                  )}
-                  {tripDaySeed && (
-                    <span className="sk-prefill-chip">
-                      <Calendar
-                        size={11}
-                        style={{ marginRight: 3, verticalAlign: "middle" }}
-                      />
-                      {tripDaySeed}d
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="sk-prefill-editBtn"
-                    onClick={() => setPrefillEditing(true)}
-                  >
-                    <EditOutlined /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="sk-prefill-dismissBtn"
-                    onClick={() => setPrefillDismissed(true)}
-                    aria-label="Dismiss"
-                  >
-                    <CloseOutlined />
-                  </button>
-                </div>
-              ) : (
-                <div className="sk-prefill-expanded">
-                  <div className="sk-prefill-expandedRow">
-                    <div className="sk-prefill-field sk-prefill-field--grow">
-                      <label className="sk-prefill-label">Prompt</label>
-                      <Input
-                        className="sk-prefill-input"
-                        value={editPrompt}
-                        onChange={(e) => setEditPrompt(e.target.value)}
-                      />
-                    </div>
-                    <div className="sk-prefill-field">
-                      <label className="sk-prefill-label">Budget ($)</label>
-                      <InputNumber
-                        className="sk-prefill-numInput"
-                        prefix="$"
-                        value={editBudget}
-                        min={0}
-                        step={100}
-                        controls={false}
-                        onChange={(v) => setEditBudget(v ?? null)}
-                        placeholder="2500"
-                      />
-                    </div>
-                    <div className="sk-prefill-field">
-                      <label className="sk-prefill-label">Nights</label>
-                      <InputNumber
-                        className="sk-prefill-numInput"
-                        value={editDays}
-                        min={1}
-                        max={60}
-                        controls={false}
-                        onChange={(v) => setEditDays(v ?? null)}
-                        placeholder="7"
-                      />
-                    </div>
-                  </div>
-                  <div className="sk-prefill-expandedActions">
-                    <button
-                      type="button"
-                      className="sk-prefill-saveBtn"
-                      onClick={handlePrefillSave}
-                    >
-                      <CheckOutlined /> Save
-                    </button>
-                    <button
-                      type="button"
-                      className="sk-prefill-cancelBtn"
-                      onClick={() => setPrefillEditing(false)}
-                    >
-                      <CloseOutlined /> Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Price Watch Card ── */}
-        <div className="sk-price-watch-card">
-          <div className="sk-pwc-header">
-            <div className="sk-pwc-xp">
-              <Zap size={13} className="sk-pwc-xp-icon" />
-              <span className="sk-pwc-xp-label">
-                Earn <strong>60 XP</strong> on booking
-              </span>
-            </div>
-            <button
-              type="button"
-              className={`sk-pwc-toggle${priceWatchOn ? " is-on" : ""}`}
-              onClick={handlePriceWatchToggle}
-              aria-pressed={priceWatchOn}
-            >
-              {priceWatchOn ? (
-                <Bell size={13} className="sk-pwc-bell" />
-              ) : (
-                <BellOff size={13} className="sk-pwc-bell" />
-              )}
-              <span className="sk-pwc-toggle-label">
-                Price Watch {priceWatchOn ? "On" : "Off"}
-              </span>
-              <span className={`sk-pwc-dot${priceWatchOn ? " is-on" : ""}`} />
-            </button>
-          </div>
-          <div className="sk-pwc-desc">
-            {priceWatchOn
-              ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
-                  priceWatchRoute?.to ?? "destination"
-                } — we'll notify you when prices drop.`
-              : priceWatchRoute
-              ? "Search results loaded — turn on to get alerted if this route drops in price."
-              : "Search for a route above, then turn on price alerts."}
-          </div>
-          {!aiInsightDismissed &&
-            priceWatchRoute &&
-            flightResults.length >= 3 &&
-            (() => {
-              const prices = flightResults
-                .map((f) => parseFloat(f.totalAmount))
-                .filter(Boolean);
-              const cheapest = Math.min(...prices);
-              const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-              const delta = Math.round(avg - cheapest);
-              if (delta < 20) return null;
-              return (
-                <div className="sk-pwc-insight">
-                  <Zap size={12} className="sk-pwc-insight-icon" />
-                  <span className="sk-pwc-insight-text">
-                    The cheapest option is ${cheapest.toFixed(0)} — prices on
-                    this route vary by up to ${delta} right now. Turn on Price
-                    Watch to catch any drops.
-                  </span>
-                  <button
-                    type="button"
-                    className="sk-pwc-insight-dismiss"
-                    onClick={() => setAiInsightDismissed(true)}
-                    aria-label="Dismiss AI insight"
-                  >
-                    ×
-                  </button>
-                </div>
-              );
-            })()}
-        </div>
-
-        <Text className="sk-hero-sub">
-          Smart Plan AI helps balance budget, comfort, and XP.
-        </Text>
-
-        {/* ── Who's traveling + HeroPlanner ── */}
-        <TripTypeSelector />
-
-        <HeroPlanner
-          onDestinationSelect={(city) => {
-            if (city) setDestCity(city);
-            else setDestCity("");
-          }}
-          onSearchManually={handleSearchManually}
-        />
-
-        <BookingTabBar
-          value={tab}
-          onChange={(val) => {
-            setTab(val);
-            setFlightResults([]);
-            setHotelResults([]);
-            setExcursionResults([]);
-            setRoomCart([]);
-            setSmartFilters(DEFAULT_FILTERS);
-            setActiveFilters([]);
-            setVisibleCount(RESULTS_PER_PAGE);
-          }}
-        />
-
-        {/* ── Search form (scroll target for "Search manually") ── */}
-        <div ref={searchFormRef}>{searchForm}</div>
-
-        <SmartFilterBar
-          filters={smartFilters}
-          onChange={setSmartFilters}
-          flightResults={flightResults}
-          visible={tab === "Flights"}
-        />
-
-        <Space className="sk-action-row" wrap>
-          <Button className="sk-btn-orange">Sort: Recommended</Button>
-          <Link to="/sync-together">
-            <Button className="sk-btn-sync" icon={<SyncOutlined />}>
-              Sync Together
-            </Button>
-          </Link>
-          {(visibleFlights.length > 0 || hotelResults.length > 0) && (
-            <button
-              type="button"
-              className="sk-scroll-budget-btn"
-              onClick={scrollToBudget}
-            >
-              <ChevronsDown
-                size={13}
-                style={{ marginRight: 4, verticalAlign: "middle" }}
-              />
-              Trip Budget
-            </button>
-          )}
-        </Space>
-
-        {tab === "Flights" && (
-          <Space className="sk-filters" wrap>
-            {quickFilters.map((f) => (
-              <button
-                key={f}
-                type="button"
-                className={`sk-qf${
-                  activeFilters.includes(f) ? " is-active" : ""
-                }`}
-                onClick={() => toggleFilter(f)}
-              >
-                {f}
-              </button>
-            ))}
-            {activeFilters.length > 0 && (
-              <button
-                type="button"
-                className="sk-qf sk-qf-clear"
-                onClick={clearFilters}
-              >
-                Clear filters →
-              </button>
-            )}
-          </Space>
-        )}
-      </div>
-
-      <Row gutter={[24, 24]} className="sk-results-wrap">
-        <Col xs={24} lg={16}>
-          <div className="sk-resultsHeader">
-            <Title level={4} className="sk-section-title">
-              {resultsTitle}
-            </Title>
-            <div className="sk-resultsSub">
-              {tab === "Stays"
-                ? isSearching
-                  ? `Searching hotels in ${destCity || "your destination"}…`
-                  : hotelResults.length > 0
-                  ? `Sorted by price · ${destCity}`
-                  : "Search above to find hotels."
-                : tab === "Excursions"
-                ? isSearching
-                  ? `Searching experiences in ${
-                      destCity || "your destination"
-                    }…`
-                  : excursionResults.length > 0
-                  ? `Powered by Viator · ${destCity}`
-                  : "Search above to find tours & activities."
-                : isSearching
-                ? `Searching ${fromCode} → ${
-                    prefillData?.iata ?? destCity
-                  } · live prices`
-                : visibleFlights.length > 0
-                ? `Sorted by price · ${fromCode} → ${
-                    prefillData?.iata ?? destCity
-                  }${
-                    activeFilterCount > 0
-                      ? ` · ${activeFilterCount} filter${
-                          activeFilterCount > 1 ? "s" : ""
-                        } active`
-                      : ""
-                  }`
-                : flightResults.length > 0 && visibleFlights.length === 0
-                ? "Try relaxing your filters to see more results"
-                : "Search above to find flights."}
-            </div>
-            {tab === "Flights" &&
-              !isSearching &&
-              flightResults.length > 0 &&
-              visibleFlights.length === 0 && (
-                <button
-                  type="button"
-                  className="sk-clear-filters-cta"
-                  onClick={() => setSmartFilters(DEFAULT_FILTERS)}
-                >
-                  Clear all filters
-                </button>
-              )}
-          </div>
-
-          {isSearching && tab === "Flights" && (
-            <FlightSkeleton destCity={destCity} fromCode={fromCode} />
-          )}
-          {isSearching && tab === "Stays" && (
-            <FlightSkeleton destCity={destCity} fromCode={null} />
-          )}
-
-          {!isSearching && tab === "Flights" && autoSearchError && (
-            <div className="sk-search-error">
-              <IconWarning size={14} /> {autoSearchError} —{" "}
-              <button
-                type="button"
-                className="sk-search-retry"
-                onClick={() => {
-                  setAutoSearchDone(false);
-                  setAutoSearchError(null);
-                }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          {!isSearching &&
-            tab === "Flights" &&
-            paginatedFlights.length > 0 &&
-            paginatedFlights.map((flight) => (
-              <Card
-                key={flight.id}
-                variant="borderless"
-                className={`sk-result-card${
-                  selectedResult.id === flight.id ? " is-selected" : ""
-                }`}
-                onClick={() =>
-                  handleSelectResult({
-                    id: flight.id,
-                    title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
-                    total: parseFloat(flight.totalAmount),
-                  })
-                }
-                style={{ cursor: "pointer", marginBottom: 14 }}
-              >
-                <div className="sk-resultRow">
-                  <div
-                    className="sk-thumb"
-                    style={
-                      flight.ownerLogo
-                        ? {
-                            backgroundImage: `url(${flight.ownerLogo})`,
-                            backgroundSize: "60%",
-                            backgroundRepeat: "no-repeat",
-                            backgroundPosition: "center",
-                            backgroundColor: "rgba(255,255,255,0.06)",
-                          }
-                        : undefined
-                    }
-                  />
-                  <div className="sk-resultMain">
-                    <div className="sk-resultTop">
-                      <div>
-                        <div className="sk-resultTitle">{flight.owner}</div>
-                        <div className="sk-resultMeta">
-                          <span className="sk-metaItem">
-                            <EnvironmentOutlined /> {flight.origin} →{" "}
-                            {flight.destination}
-                          </span>
-                          <span className="sk-metaDot">·</span>
-                          <span className="sk-metaItem">
-                            {flight.stops === 0
-                              ? "Nonstop"
-                              : `${flight.stops} stop${
-                                  flight.stops > 1 ? "s" : ""
-                                }`}
-                          </span>
-                          {flight.departingAt && (
-                            <>
-                              <span className="sk-metaDot">·</span>
-                              <span className="sk-metaItem">
-                                {dayjs(flight.departingAt).format(
-                                  "MMM D · h:mm A"
-                                )}{" "}
-                                → {dayjs(flight.arrivingAt).format("h:mm A")}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="sk-pickedWhy">
-                          Best price + comfort score
-                        </div>
-                      </div>
-                      <div className="sk-resultRight">
-                        <div className="sk-priceLine">
-                          <span className="sk-priceAmt">
-                            ${parseFloat(flight.totalAmount).toFixed(0)}
-                          </span>
-                          <span className="sk-priceSub">
-                            {flight.totalCurrency}
-                          </span>
-                        </div>
-                        <SaveTripButton
-                          size="small"
-                          variant="ghost"
-                          label="Save"
-                          tripData={{
-                            tripType: "flight",
-                            title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
-                            destination: flight.destination,
-                            price: parseFloat(flight.totalAmount),
-                            currency: flight.totalCurrency || "USD",
-                            startDate: flight.departingAt
-                              ? dayjs(flight.departingAt).format("YYYY-MM-DD")
-                              : "",
-                            metadata: {
-                              flightId: flight.id,
-                              stops: flight.stops,
-                            },
-                          }}
-                          onSaveError={(msg) => antdMessage.error(msg)}
-                        />
-                        <button
-                          type="button"
-                          className={`sk-watch-btn${
-                            watchingId === flight.id ? " is-watching" : ""
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleWatchFlight(flight);
-                          }}
-                          title={
-                            watchingId === flight.id
-                              ? "Stop watching price"
-                              : "Watch price"
-                          }
-                        >
-                          {watchingId === flight.id ? (
-                            <>
-                              <Bell
-                                size={11}
-                                style={{
-                                  marginRight: 3,
-                                  verticalAlign: "middle",
-                                }}
-                              />{" "}
-                              Watching
-                            </>
-                          ) : (
-                            <>
-                              <BellOff
-                                size={11}
-                                style={{
-                                  marginRight: 3,
-                                  verticalAlign: "middle",
-                                }}
-                              />{" "}
-                              Watch
-                            </>
-                          )}
-                        </button>
-                        <Button
-                          className="sk-btn-orange"
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedFlight(flight);
-                            setShowCheckout(true);
-                            handleSelectResult({
-                              id: flight.id,
-                              title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
-                              total: parseFloat(flight.totalAmount),
-                            });
-                          }}
-                        >
-                          Book Now
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="sk-tagRow">
-                      <span className="sk-tag sk-tag-good">
-                        {flight.stops === 0
-                          ? "Nonstop"
-                          : `${flight.stops} stop`}
-                      </span>
-                      <span className="sk-tag sk-tag-orange">
-                        {flight.ownerCode}
-                      </span>
-                      {budgetSeed &&
-                        parseFloat(flight.totalAmount) <= budgetSeed && (
-                          <span className="sk-tag sk-tag-good">
-                            Within budget
-                          </span>
-                        )}
-                      <span className="sk-tag sk-tag-xp">
-                        <Zap
+                    <span className="sk-prefill-loaded">Loaded from AI</span>
+                    <span className="sk-prefill-divider">·</span>
+                    {destCity && (
+                      <span className="sk-prefill-chip">
+                        <MapPin
                           size={11}
                           style={{ marginRight: 3, verticalAlign: "middle" }}
-                        />{" "}
-                        {getFlightXP(flight)} XP
+                        />
+                        {destCity}
                       </span>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-
-          {/* ── Multi-room cart bar — shown only while browsing Stays
-               and only once at least one room has been added ── */}
-          {!isSearching && tab === "Stays" && roomCart.length > 0 && (
-            <div className="sk-room-cart-bar">
-              <div className="sk-room-cart-summary">
-                <Users
-                  size={14}
-                  style={{ marginRight: 6, verticalAlign: "middle" }}
-                />
-                <strong>{roomCart.length}</strong> room
-                {roomCart.length !== 1 ? "s" : ""} selected · $
-                {roomCartTotal.toFixed(0)} total
-              </div>
-              <div className="sk-room-cart-chips">
-                {roomCart.map((r) => (
-                  <span key={getRoomKey(r)} className="sk-room-cart-chip">
-                    {r.name}
+                    )}
+                    {budgetSeed && (
+                      <span className="sk-prefill-chip">
+                        <DollarSign
+                          size={11}
+                          style={{ marginRight: 2, verticalAlign: "middle" }}
+                        />
+                        {budgetSeed.toLocaleString()}
+                      </span>
+                    )}
+                    {tripDaySeed && (
+                      <span className="sk-prefill-chip">
+                        <Calendar
+                          size={11}
+                          style={{ marginRight: 3, verticalAlign: "middle" }}
+                        />
+                        {tripDaySeed}d
+                      </span>
+                    )}
                     <button
                       type="button"
-                      onClick={() => removeRoomFromCart(r)}
-                      aria-label={`Remove ${r.name}`}
+                      className="sk-prefill-editBtn"
+                      onClick={() => setPrefillEditing(true)}
+                    >
+                      <EditOutlined /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="sk-prefill-dismissBtn"
+                      onClick={() => setPrefillDismissed(true)}
+                      aria-label="Dismiss"
                     >
                       <CloseOutlined />
                     </button>
-                  </span>
-                ))}
+                  </div>
+                ) : (
+                  <div className="sk-prefill-expanded">
+                    <div className="sk-prefill-expandedRow">
+                      <div className="sk-prefill-field sk-prefill-field--grow">
+                        <label className="sk-prefill-label">Prompt</label>
+                        <Input
+                          className="sk-prefill-input"
+                          value={editPrompt}
+                          onChange={(e) => setEditPrompt(e.target.value)}
+                        />
+                      </div>
+                      <div className="sk-prefill-field">
+                        <label className="sk-prefill-label">Budget ($)</label>
+                        <InputNumber
+                          className="sk-prefill-numInput"
+                          prefix="$"
+                          value={editBudget}
+                          min={0}
+                          step={100}
+                          controls={false}
+                          onChange={(v) => setEditBudget(v ?? null)}
+                          placeholder="2500"
+                        />
+                      </div>
+                      <div className="sk-prefill-field">
+                        <label className="sk-prefill-label">Nights</label>
+                        <InputNumber
+                          className="sk-prefill-numInput"
+                          value={editDays}
+                          min={1}
+                          max={60}
+                          controls={false}
+                          onChange={(v) => setEditDays(v ?? null)}
+                          placeholder="7"
+                        />
+                      </div>
+                    </div>
+                    <div className="sk-prefill-expandedActions">
+                      <button
+                        type="button"
+                        className="sk-prefill-saveBtn"
+                        onClick={handlePrefillSave}
+                      >
+                        <CheckOutlined /> Save
+                      </button>
+                      <button
+                        type="button"
+                        className="sk-prefill-cancelBtn"
+                        onClick={() => setPrefillEditing(false)}
+                      >
+                        <CloseOutlined /> Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              <Button
-                className="sk-btn-orange"
-                onClick={() => {
-                  setCheckoutRooms(roomCart);
-                  setShowHotelCheckout(true);
-                }}
+            )}
+          </div>
+
+          {/* ── Price Watch Card ── */}
+          <div className="sk-price-watch-card">
+            <div className="sk-pwc-header">
+              <div className="sk-pwc-xp">
+                <Zap size={13} className="sk-pwc-xp-icon" />
+                <span className="sk-pwc-xp-label">
+                  Earn <strong>60 XP</strong> on booking
+                </span>
+              </div>
+              <button
+                type="button"
+                className={`sk-pwc-toggle${priceWatchOn ? " is-on" : ""}`}
+                onClick={handlePriceWatchToggle}
+                aria-pressed={priceWatchOn}
               >
-                Checkout {roomCart.length} room
-                {roomCart.length !== 1 ? "s" : ""} · ${roomCartTotal.toFixed(0)}
-              </Button>
+                {priceWatchOn ? (
+                  <Bell size={13} className="sk-pwc-bell" />
+                ) : (
+                  <BellOff size={13} className="sk-pwc-bell" />
+                )}
+                <span className="sk-pwc-toggle-label">
+                  Price Watch {priceWatchOn ? "On" : "Off"}
+                </span>
+                <span className={`sk-pwc-dot${priceWatchOn ? " is-on" : ""}`} />
+              </button>
             </div>
+            <div className="sk-pwc-desc">
+              {priceWatchOn
+                ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
+                    priceWatchRoute?.to ?? "destination"
+                  } — we'll notify you when prices drop.`
+                : priceWatchRoute
+                ? "Search results loaded — turn on to get alerted if this route drops in price."
+                : "Search for a route above, then turn on price alerts."}
+            </div>
+            {!aiInsightDismissed &&
+              priceWatchRoute &&
+              flightResults.length >= 3 &&
+              (() => {
+                const prices = flightResults
+                  .map((f) => parseFloat(f.totalAmount))
+                  .filter(Boolean);
+                const cheapest = Math.min(...prices);
+                const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+                const delta = Math.round(avg - cheapest);
+                if (delta < 20) return null;
+                return (
+                  <div className="sk-pwc-insight">
+                    <Zap size={12} className="sk-pwc-insight-icon" />
+                    <span className="sk-pwc-insight-text">
+                      The cheapest option is ${cheapest.toFixed(0)} — prices on
+                      this route vary by up to ${delta} right now. Turn on Price
+                      Watch to catch any drops.
+                    </span>
+                    <button
+                      type="button"
+                      className="sk-pwc-insight-dismiss"
+                      onClick={() => setAiInsightDismissed(true)}
+                      aria-label="Dismiss AI insight"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })()}
+          </div>
+
+          <Text className="sk-hero-sub">
+            Smart Plan AI helps balance budget, comfort, and XP.
+          </Text>
+
+          {/* ── Who's traveling + HeroPlanner ── */}
+          <TripTypeSelector />
+
+          <HeroPlanner
+            onDestinationSelect={(city) => {
+              if (city) setDestCity(city);
+              else setDestCity("");
+            }}
+            onSearchManually={handleSearchManually}
+          />
+
+          <BookingTabBar
+            value={tab}
+            onChange={(val) => {
+              setTab(val);
+              setFlightResults([]);
+              setHotelResults([]);
+              setExcursionResults([]);
+              setSmartFilters(DEFAULT_FILTERS);
+              setActiveFilters([]);
+              setVisibleCount(RESULTS_PER_PAGE);
+              // Leaving Stays clears any in-progress room cart so a
+              // half-built trip from a previous search doesn't linger
+              // silently in the background.
+              if (val !== "Stays") setRoomCart([]);
+            }}
+          />
+
+          {/* ── Search form (scroll target for "Search manually") ── */}
+          <div ref={searchFormRef}>{searchForm}</div>
+
+          <SmartFilterBar
+            filters={smartFilters}
+            onChange={setSmartFilters}
+            flightResults={flightResults}
+            visible={tab === "Flights"}
+          />
+
+          <Space className="sk-action-row" wrap>
+            <Button className="sk-btn-orange">Sort: Recommended</Button>
+            <Link to="/sync-together">
+              <Button className="sk-btn-sync" icon={<SyncOutlined />}>
+                Sync Together
+              </Button>
+            </Link>
+            {(visibleFlights.length > 0 || hotelResults.length > 0) && (
+              <button
+                type="button"
+                className="sk-scroll-budget-btn"
+                onClick={scrollToBudget}
+              >
+                <ChevronsDown
+                  size={13}
+                  style={{ marginRight: 4, verticalAlign: "middle" }}
+                />
+                Trip Budget
+              </button>
+            )}
+          </Space>
+
+          {tab === "Flights" && (
+            <Space className="sk-filters" wrap>
+              {quickFilters.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={`sk-qf${
+                    activeFilters.includes(f) ? " is-active" : ""
+                  }`}
+                  onClick={() => toggleFilter(f)}
+                >
+                  {f}
+                </button>
+              ))}
+              {activeFilters.length > 0 && (
+                <button
+                  type="button"
+                  className="sk-qf sk-qf-clear"
+                  onClick={clearFilters}
+                >
+                  Clear filters →
+                </button>
+              )}
+            </Space>
           )}
 
-          {/* ── Hotel result cards ── */}
-          {!isSearching &&
-            tab === "Stays" &&
-            paginatedHotels.length > 0 &&
-            paginatedHotels.map((hotel) => {
-              const inCart = roomCart.some(
-                (r) => getRoomKey(r) === getRoomKey(hotel)
-              );
-              return (
+          {/* ── Room cart — book one room, then add more for others ── */}
+          {tab === "Stays" && (
+            <RoomCartBar
+              rooms={roomCart}
+              onRemove={removeRoomFromCart}
+              onCheckout={handleCheckoutCart}
+              destCity={destCity}
+            />
+          )}
+        </div>
+
+        <Row gutter={[24, 24]} className="sk-results-wrap">
+          <Col xs={24} lg={16}>
+            <div className="sk-resultsHeader">
+              <Title level={4} className="sk-section-title">
+                {resultsTitle}
+              </Title>
+              <div className="sk-resultsSub">
+                {tab === "Stays"
+                  ? isSearching
+                    ? `Searching hotels in ${destCity || "your destination"}…`
+                    : hotelResults.length > 0
+                    ? `Sorted by price · ${destCity}`
+                    : "Search above to find hotels."
+                  : tab === "Excursions"
+                  ? isSearching
+                    ? `Searching experiences in ${
+                        destCity || "your destination"
+                      }…`
+                    : excursionResults.length > 0
+                    ? `Powered by Viator · ${destCity}`
+                    : "Search above to find tours & activities."
+                  : isSearching
+                  ? `Searching ${fromCode} → ${
+                      prefillData?.iata ?? destCity
+                    } · live prices`
+                  : visibleFlights.length > 0
+                  ? `Sorted by price · ${fromCode} → ${
+                      prefillData?.iata ?? destCity
+                    }${
+                      activeFilterCount > 0
+                        ? ` · ${activeFilterCount} filter${
+                            activeFilterCount > 1 ? "s" : ""
+                          } active`
+                        : ""
+                    }`
+                  : flightResults.length > 0 && visibleFlights.length === 0
+                  ? "Try relaxing your filters to see more results"
+                  : "Search above to find flights."}
+              </div>
+              {tab === "Flights" &&
+                !isSearching &&
+                flightResults.length > 0 &&
+                visibleFlights.length === 0 && (
+                  <button
+                    type="button"
+                    className="sk-clear-filters-cta"
+                    onClick={() => setSmartFilters(DEFAULT_FILTERS)}
+                  >
+                    Clear all filters
+                  </button>
+                )}
+            </div>
+
+            {isSearching && tab === "Flights" && (
+              <FlightSkeleton destCity={destCity} fromCode={fromCode} />
+            )}
+            {isSearching && tab === "Stays" && (
+              <FlightSkeleton destCity={destCity} fromCode={null} />
+            )}
+
+            {!isSearching && tab === "Flights" && autoSearchError && (
+              <div className="sk-search-error">
+                <IconWarning size={14} /> {autoSearchError} —{" "}
+                <button
+                  type="button"
+                  className="sk-search-retry"
+                  onClick={() => {
+                    setAutoSearchDone(false);
+                    setAutoSearchError(null);
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!isSearching &&
+              tab === "Flights" &&
+              paginatedFlights.length > 0 &&
+              paginatedFlights.map((flight) => (
                 <Card
-                  key={`${hotel.hotelId}-${hotel.offerId}`}
+                  key={flight.id}
                   variant="borderless"
-                  className={`sk-result-card${inCart ? " is-selected" : ""}`}
+                  className={`sk-result-card${
+                    selectedResult.id === flight.id ? " is-selected" : ""
+                  }`}
+                  onClick={() =>
+                    handleSelectResult({
+                      id: flight.id,
+                      title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
+                      total: parseFloat(flight.totalAmount),
+                    })
+                  }
                   style={{ cursor: "pointer", marginBottom: 14 }}
                 >
                   <div className="sk-resultRow">
                     <div
                       className="sk-thumb"
                       style={
-                        hotel.thumbnail
+                        flight.ownerLogo
                           ? {
-                              backgroundImage: `url(${hotel.thumbnail})`,
-                              backgroundSize: "cover",
+                              backgroundImage: `url(${flight.ownerLogo})`,
+                              backgroundSize: "60%",
+                              backgroundRepeat: "no-repeat",
                               backgroundPosition: "center",
+                              backgroundColor: "rgba(255,255,255,0.06)",
                             }
                           : undefined
                       }
@@ -3054,42 +3172,43 @@ export default function BookingPage() {
                     <div className="sk-resultMain">
                       <div className="sk-resultTop">
                         <div>
-                          <div className="sk-resultTitle">{hotel.name}</div>
+                          <div className="sk-resultTitle">{flight.owner}</div>
                           <div className="sk-resultMeta">
-                            {hotel.address && (
-                              <span className="sk-metaItem">
-                                <EnvironmentOutlined /> {hotel.address}
-                              </span>
-                            )}
-                            {hotel.stars && (
+                            <span className="sk-metaItem">
+                              <EnvironmentOutlined /> {flight.origin} →{" "}
+                              {flight.destination}
+                            </span>
+                            <span className="sk-metaDot">·</span>
+                            <span className="sk-metaItem">
+                              {flight.stops === 0
+                                ? "Nonstop"
+                                : `${flight.stops} stop${
+                                    flight.stops > 1 ? "s" : ""
+                                  }`}
+                            </span>
+                            {flight.departingAt && (
                               <>
                                 <span className="sk-metaDot">·</span>
                                 <span className="sk-metaItem">
-                                  {hotel.stars}★
-                                </span>
-                              </>
-                            )}
-                            {hotel.rating && (
-                              <>
-                                <span className="sk-metaDot">·</span>
-                                <span className="sk-metaItem">
-                                  {hotel.rating}/10
+                                  {dayjs(flight.departingAt).format(
+                                    "MMM D · h:mm A"
+                                  )}{" "}
+                                  → {dayjs(flight.arrivingAt).format("h:mm A")}
                                 </span>
                               </>
                             )}
                           </div>
                           <div className="sk-pickedWhy">
-                            {hotel.roomName}
-                            {hotel.boardName ? ` · ${hotel.boardName}` : ""}
+                            Best price + comfort score
                           </div>
                         </div>
                         <div className="sk-resultRight">
                           <div className="sk-priceLine">
                             <span className="sk-priceAmt">
-                              ${hotel.totalAmount?.toFixed(0) ?? "—"}
+                              ${parseFloat(flight.totalAmount).toFixed(0)}
                             </span>
                             <span className="sk-priceSub">
-                              {hotel.totalCurrency}
+                              {flight.totalCurrency}
                             </span>
                           </div>
                           <SaveTripButton
@@ -3097,39 +3216,72 @@ export default function BookingPage() {
                             variant="ghost"
                             label="Save"
                             tripData={{
-                              tripType: "hotel",
-                              title: hotel.name,
-                              destination: hotel.address || destCity,
-                              price: hotel.totalAmount ?? 0,
-                              currency: hotel.totalCurrency || "USD",
-                              startDate: hotel.checkin || "",
+                              tripType: "flight",
+                              title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
+                              destination: flight.destination,
+                              price: parseFloat(flight.totalAmount),
+                              currency: flight.totalCurrency || "USD",
+                              startDate: flight.departingAt
+                                ? dayjs(flight.departingAt).format("YYYY-MM-DD")
+                                : "",
                               metadata: {
-                                hotelId: hotel.hotelId,
-                                offerId: hotel.offerId,
+                                flightId: flight.id,
+                                stops: flight.stops,
                               },
                             }}
                             onSaveError={(msg) => antdMessage.error(msg)}
                           />
-                          <Button
-                            className={`sk-btn-ghost sk-btn-addroom${
-                              inCart ? " is-added" : ""
+                          <button
+                            type="button"
+                            className={`sk-watch-btn${
+                              watchingId === flight.id ? " is-watching" : ""
                             }`}
-                            size="small"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (inCart) removeRoomFromCart(hotel);
-                              else addRoomToCart(hotel);
+                              handleWatchFlight(flight);
                             }}
+                            title={
+                              watchingId === flight.id
+                                ? "Stop watching price"
+                                : "Watch price"
+                            }
                           >
-                            {inCart ? "✓ Added" : "+ Add Room"}
-                          </Button>
+                            {watchingId === flight.id ? (
+                              <>
+                                <Bell
+                                  size={11}
+                                  style={{
+                                    marginRight: 3,
+                                    verticalAlign: "middle",
+                                  }}
+                                />{" "}
+                                Watching
+                              </>
+                            ) : (
+                              <>
+                                <BellOff
+                                  size={11}
+                                  style={{
+                                    marginRight: 3,
+                                    verticalAlign: "middle",
+                                  }}
+                                />{" "}
+                                Watch
+                              </>
+                            )}
+                          </button>
                           <Button
                             className="sk-btn-orange"
                             size="small"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setCheckoutRooms([hotel]);
-                              setShowHotelCheckout(true);
+                              setSelectedFlight(flight);
+                              setShowCheckout(true);
+                              handleSelectResult({
+                                id: flight.id,
+                                title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
+                                total: parseFloat(flight.totalAmount),
+                              });
                             }}
                           >
                             Book Now
@@ -3137,94 +3289,291 @@ export default function BookingPage() {
                         </div>
                       </div>
                       <div className="sk-tagRow">
-                        {hotel.refundableTag === "RFN" && (
-                          <span className="sk-tag sk-tag-good">Refundable</span>
-                        )}
-                        {hotel.refundableTag === "NRFN" && (
-                          <span className="sk-tag sk-tag-orange">
-                            Non-refundable
-                          </span>
-                        )}
-                        {inCart && (
-                          <span className="sk-tag sk-tag-xp">
-                            <Users
-                              size={11}
-                              style={{
-                                marginRight: 3,
-                                verticalAlign: "middle",
-                              }}
-                            />
-                            In your trip
-                          </span>
-                        )}
+                        <span className="sk-tag sk-tag-good">
+                          {flight.stops === 0
+                            ? "Nonstop"
+                            : `${flight.stops} stop`}
+                        </span>
+                        <span className="sk-tag sk-tag-orange">
+                          {flight.ownerCode}
+                        </span>
+                        {budgetSeed &&
+                          parseFloat(flight.totalAmount) <= budgetSeed && (
+                            <span className="sk-tag sk-tag-good">
+                              Within budget
+                            </span>
+                          )}
+                        <span className="sk-tag sk-tag-xp">
+                          <Zap
+                            size={11}
+                            style={{ marginRight: 3, verticalAlign: "middle" }}
+                          />{" "}
+                          {getFlightXP(flight)} XP
+                        </span>
                       </div>
                     </div>
                   </div>
                 </Card>
-              );
-            })}
+              ))}
 
-          {tab === "Excursions" && (
-            <ExcursionResults
-              results={excursionResults}
-              loading={isSearching}
-              destination={destCity}
-            />
-          )}
+            {/* ── Hotel result cards ── */}
+            {!isSearching &&
+              tab === "Stays" &&
+              paginatedHotels.length > 0 &&
+              paginatedHotels.map((hotel) => {
+                const inCart = roomCart.some(
+                  (r) => roomKey(r) === roomKey(hotel)
+                );
+                return (
+                  <Card
+                    key={roomKey(hotel)}
+                    variant="borderless"
+                    className={`sk-result-card${inCart ? " is-selected" : ""}`}
+                    style={{ cursor: "pointer", marginBottom: 14 }}
+                  >
+                    <div className="sk-resultRow">
+                      <div
+                        className="sk-thumb"
+                        style={
+                          hotel.thumbnail
+                            ? {
+                                backgroundImage: `url(${hotel.thumbnail})`,
+                                backgroundSize: "cover",
+                                backgroundPosition: "center",
+                              }
+                            : undefined
+                        }
+                      />
+                      <div className="sk-resultMain">
+                        <div className="sk-resultTop">
+                          <div>
+                            <div className="sk-resultTitle">{hotel.name}</div>
+                            <div className="sk-resultMeta">
+                              {hotel.address && (
+                                <span className="sk-metaItem">
+                                  <EnvironmentOutlined /> {hotel.address}
+                                </span>
+                              )}
+                              {hotel.stars && (
+                                <>
+                                  <span className="sk-metaDot">·</span>
+                                  <span className="sk-metaItem">
+                                    {hotel.stars}★
+                                  </span>
+                                </>
+                              )}
+                              {hotel.rating && (
+                                <>
+                                  <span className="sk-metaDot">·</span>
+                                  <span className="sk-metaItem">
+                                    {hotel.rating}/10
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <div className="sk-pickedWhy">
+                              {hotel.roomName}
+                              {hotel.boardName ? ` · ${hotel.boardName}` : ""}
+                            </div>
+                          </div>
+                          <div className="sk-resultRight">
+                            <div className="sk-priceLine">
+                              <span className="sk-priceAmt">
+                                ${hotel.totalAmount?.toFixed(0) ?? "—"}
+                              </span>
+                              <span className="sk-priceSub">
+                                {hotel.totalCurrency}
+                              </span>
+                            </div>
+                            <SaveTripButton
+                              size="small"
+                              variant="ghost"
+                              label="Save"
+                              tripData={{
+                                tripType: "hotel",
+                                title: hotel.name,
+                                destination: hotel.address || destCity,
+                                price: hotel.totalAmount ?? 0,
+                                currency: hotel.totalCurrency || "USD",
+                                startDate: hotel.checkin || "",
+                                metadata: {
+                                  hotelId: hotel.hotelId,
+                                  offerId: hotel.offerId,
+                                },
+                              }}
+                              onSaveError={(msg) => antdMessage.error(msg)}
+                            />
+                            <button
+                              type="button"
+                              className={`sk-add-room-btn${
+                                inCart ? " is-added" : ""
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (inCart) removeRoomFromCart(hotel);
+                                else addRoomToCart(hotel);
+                              }}
+                              title={
+                                inCart
+                                  ? "Remove this room from your trip"
+                                  : "Add this room for another traveler"
+                              }
+                            >
+                              {inCart ? (
+                                <>
+                                  <CheckOutlined
+                                    style={{
+                                      marginRight: 4,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />
+                                  Added
+                                </>
+                              ) : (
+                                <>
+                                  <PlusOutlined
+                                    style={{
+                                      marginRight: 4,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />
+                                  Add Room
+                                </>
+                              )}
+                            </button>
+                            <Button
+                              className="sk-btn-orange"
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleBookSingleRoom(hotel);
+                              }}
+                            >
+                              Book Now
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="sk-tagRow">
+                          {hotel.refundableTag === "RFN" && (
+                            <span className="sk-tag sk-tag-good">
+                              Refundable
+                            </span>
+                          )}
+                          {hotel.refundableTag === "NRFN" && (
+                            <span className="sk-tag sk-tag-orange">
+                              Non-refundable
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
 
-          {!isSearching && tab === "Flights" && hasMore && (
-            <div
-              style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
-            >
-              <button
-                type="button"
-                className="sk-view-more-btn"
-                onClick={() => setVisibleCount((c) => c + RESULTS_PER_PAGE)}
+            {tab === "Excursions" && (
+              <ExcursionResults
+                results={excursionResults}
+                loading={isSearching}
+                destination={destCity}
+              />
+            )}
+
+            {!isSearching && tab === "Flights" && hasMore && (
+              <div
+                style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
               >
-                <ArrowRight
-                  size={14}
-                  style={{ marginRight: 6, verticalAlign: "middle" }}
-                />
-                View{" "}
-                {Math.min(
-                  RESULTS_PER_PAGE,
-                  visibleFlights.length - visibleCount
-                )}{" "}
-                more flights
-                <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
-                  {visibleCount} of {visibleFlights.length}
-                </span>
-              </button>
-            </div>
-          )}
+                <button
+                  type="button"
+                  className="sk-view-more-btn"
+                  onClick={() => setVisibleCount((c) => c + RESULTS_PER_PAGE)}
+                >
+                  <ArrowRight
+                    size={14}
+                    style={{ marginRight: 6, verticalAlign: "middle" }}
+                  />
+                  View{" "}
+                  {Math.min(
+                    RESULTS_PER_PAGE,
+                    visibleFlights.length - visibleCount
+                  )}{" "}
+                  more flights
+                  <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
+                    {visibleCount} of {visibleFlights.length}
+                  </span>
+                </button>
+              </div>
+            )}
 
-          {!isSearching && tab === "Stays" && hotelHasMore && (
-            <div
-              style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
-            >
-              <button
-                type="button"
-                className="sk-view-more-btn"
-                onClick={() => setVisibleCount((c) => c + RESULTS_PER_PAGE)}
+            {!isSearching && tab === "Stays" && hotelHasMore && (
+              <div
+                style={{ textAlign: "center", marginTop: 8, marginBottom: 28 }}
               >
-                <ArrowRight
-                  size={14}
-                  style={{ marginRight: 6, verticalAlign: "middle" }}
-                />
-                View{" "}
-                {Math.min(RESULTS_PER_PAGE, hotelResults.length - visibleCount)}{" "}
-                more rooms
-                <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
-                  {visibleCount} of {hotelResults.length}
-                </span>
-              </button>
-            </div>
-          )}
+                <button
+                  type="button"
+                  className="sk-view-more-btn"
+                  onClick={() => setVisibleCount((c) => c + RESULTS_PER_PAGE)}
+                >
+                  <ArrowRight
+                    size={14}
+                    style={{ marginRight: 6, verticalAlign: "middle" }}
+                  />
+                  View{" "}
+                  {Math.min(
+                    RESULTS_PER_PAGE,
+                    hotelResults.length - visibleCount
+                  )}{" "}
+                  more rooms
+                  <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
+                    {visibleCount} of {hotelResults.length}
+                  </span>
+                </button>
+              </div>
+            )}
 
-          {!isSearching &&
-            tab === "Flights" &&
-            flightResults.length === 0 &&
-            !autoSearchError && (
+            {!isSearching &&
+              tab === "Flights" &&
+              flightResults.length === 0 &&
+              !autoSearchError && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "52px 24px",
+                    color: "rgba(255,255,255,0.38)",
+                    fontSize: 14,
+                  }}
+                >
+                  <div style={{ marginBottom: 14 }}>
+                    <PlaneIcon
+                      size={40}
+                      strokeWidth={1.25}
+                      color="rgba(255,255,255,0.28)"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 17,
+                      color: "rgba(255,255,255,0.75)",
+                      letterSpacing: "-0.01em",
+                      marginBottom: 7,
+                    }}
+                  >
+                    Ready when you are
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 300,
+                      color: "rgba(255,255,255,0.38)",
+                    }}
+                  >
+                    Select airports and dates above to search live flights
+                  </div>
+                </div>
+              )}
+
+            {!isSearching && tab === "Stays" && hotelResults.length === 0 && (
               <div
                 style={{
                   textAlign: "center",
@@ -3234,11 +3583,7 @@ export default function BookingPage() {
                 }}
               >
                 <div style={{ marginBottom: 14 }}>
-                  <PlaneIcon
-                    size={40}
-                    strokeWidth={1.25}
-                    color="rgba(255,255,255,0.28)"
-                  />
+                  <IconHotel size={40} />
                 </div>
                 <div
                   style={{
@@ -3258,58 +3603,24 @@ export default function BookingPage() {
                     color: "rgba(255,255,255,0.38)",
                   }}
                 >
-                  Select airports and dates above to search live flights
+                  Enter a destination and dates above to search live hotel rates
                 </div>
               </div>
             )}
+          </Col>
 
-          {!isSearching && tab === "Stays" && hotelResults.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "52px 24px",
-                color: "rgba(255,255,255,0.38)",
-                fontSize: 14,
-              }}
-            >
-              <div style={{ marginBottom: 14 }}>
-                <IconHotel size={40} />
-              </div>
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: 17,
-                  color: "rgba(255,255,255,0.75)",
-                  letterSpacing: "-0.01em",
-                  marginBottom: 7,
-                }}
-              >
-                Ready when you are
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 300,
-                  color: "rgba(255,255,255,0.38)",
-                }}
-              >
-                Enter a destination and dates above to search live hotel rates
-              </div>
+          <Col xs={24} lg={8}>
+            <div ref={budgetRef}>
+              <TripBudgetCard
+                initialBookingTotal={selectedResult?.total ?? 0}
+                initialTripDays={selectedNights}
+                initialDestination={destCity}
+                onStateChange={handleBudgetChange}
+              />
             </div>
-          )}
-        </Col>
-
-        <Col xs={24} lg={8}>
-          <div ref={budgetRef}>
-            <TripBudgetCard
-              initialBookingTotal={selectedResult?.total ?? 0}
-              initialTripDays={selectedNights}
-              initialDestination={destCity}
-              onStateChange={handleBudgetChange}
-            />
-          </div>
-        </Col>
-      </Row>
-    </div>
+          </Col>
+        </Row>
+      </div>
+    </>
   );
 }

@@ -1,13 +1,10 @@
-// ─────────────────────────────────────────────────────────────
-// hotels.routes.js
-// Thin router — all logic lives in hotels.controller.js
-// ─────────────────────────────────────────────────────────────
 import { Router } from "express";
 import {
   searchHotels,
   prebookHotel,
   bookHotel,
   lookupHotelsByLocation,
+  searchPlaces,
   initHotelCheckout,
   confirmHotelBooking,
 } from "./hotels.controller.js";
@@ -16,6 +13,10 @@ const router = Router();
 
 // GET /api/hotels/lookup — destination → hotelIds
 router.get("/lookup", lookupHotelsByLocation);
+
+// GET /api/hotels/places — free-text location autocomplete (billed
+// per-request by LiteAPI; see searchPlaces for cost notes)
+router.get("/places", searchPlaces);
 
 // GET /api/hotels/search
 router.get("/search", searchHotels);

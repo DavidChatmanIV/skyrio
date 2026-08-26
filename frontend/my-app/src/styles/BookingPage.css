@@ -3132,3 +3132,440 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
     border-bottom: none;
   }
 }
+
+/* ===============================================================
+   MULTI-ROOM BOOKING + HOTEL CHECKOUT + CITY AUTOCOMPLETE +
+   CHECKOUT-OVERLAY PERF FIX + CUSTOM TRAVELER/ROOM COUNT
+   ===============================================================*/
+
+/* ─────────────────────────────────────────────────────────────
+   Multi-room booking additions — append this file's contents
+   into your existing @/styles/BookingPage.css. Reuses the same
+   dark-glass / orange-accent tokens as the rest of BookingPage
+   (sk-result-card, sk-btn-orange, sk-priceAmt, sk-tag, etc.) so
+   nothing here should look bolted-on.
+   ───────────────────────────────────────────────────────────── */
+
+/* "+ Add Room" pill on each hotel result card */
+.sk-add-room-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.sk-add-room-btn:hover {
+  border-color: rgba(255, 138, 42, 0.5);
+  color: #fff;
+  background: rgba(255, 138, 42, 0.08);
+}
+.sk-add-room-btn.is-added {
+  border-color: rgba(255, 138, 42, 0.55);
+  background: rgba(255, 138, 42, 0.14);
+  color: #ff8a2a;
+}
+
+/* Room cart bar — sits under the quick filters, above the results list */
+.sk-room-cart-bar {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 138, 42, 0.28);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 138, 42, 0.09),
+    rgba(255, 255, 255, 0.03)
+  );
+  backdrop-filter: blur(6px);
+}
+
+.sk-room-cart-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sk-room-cart-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+}
+.sk-room-cart-headline strong {
+  color: #ff8a2a;
+}
+.sk-room-cart-icon {
+  color: #ff8a2a;
+  flex-shrink: 0;
+}
+
+.sk-room-cart-total {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+}
+.sk-room-cart-currency {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.sk-room-cart-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sk-room-cart-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 100%;
+}
+
+.sk-room-cart-chip-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sk-room-cart-chip-price {
+  color: #ff8a2a;
+  font-weight: 700;
+}
+
+.sk-room-cart-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-size: 10px;
+  transition: background 0.15s ease;
+}
+.sk-room-cart-chip-remove:hover {
+  background: rgba(255, 77, 79, 0.35);
+  color: #fff;
+}
+
+.sk-room-cart-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sk-room-cart-hint {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   HotelCheckout.jsx
+   ───────────────────────────────────────────────────────────── */
+
+.sk-checkout-page {
+  padding: 40px 24px 80px;
+}
+
+/* Wraps BookingCheckout / HotelCheckout when they render as an overlay
+   on top of the (still-mounted, just hidden) results page. Fixed +
+   full-viewport + its own scroll + its own solid background so it
+   reads as a full page, not a modal, even though the results tree
+   underneath was never actually torn down. */
+.sk-checkout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow-y: auto;
+  background: #0c0918;
+}
+
+.sk-checkout-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.sk-checkout-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 18px;
+  padding: 0;
+}
+.sk-checkout-back:hover {
+  color: #fff;
+}
+
+.sk-checkout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+@media (max-width: 900px) {
+  .sk-checkout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sk-checkout-summary-card,
+.sk-checkout-form-card {
+  padding: 20px;
+}
+
+.sk-checkout-summary-header {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+.sk-checkout-room-line {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.sk-checkout-room-line:last-of-type {
+  border-bottom: none;
+}
+
+.sk-checkout-room-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.sk-checkout-room-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sk-checkout-room-title {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sk-checkout-room-meta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 2px;
+}
+
+.sk-checkout-room-price {
+  font-weight: 700;
+  color: #fff;
+  font-size: 14px;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.sk-checkout-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 600;
+}
+
+.sk-checkout-guest-field {
+  margin-bottom: 14px;
+}
+
+.sk-checkout-card-element {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  margin-bottom: 14px;
+}
+
+.sk-checkout-error {
+  color: #ff6b6b;
+  font-size: 12.5px;
+  margin-bottom: 10px;
+}
+
+.sk-checkout-pay-btn {
+  height: 44px;
+  font-size: 15px;
+}
+
+.sk-checkout-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 80px 24px;
+}
+
+.sk-checkout-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80px 24px;
+}
+
+/* First name / last name side-by-side (holder + per-room guest fields) */
+.sk-checkout-guest-name-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* "+ Add another room" link on the checkout screen — the fix for
+   Book Now no longer being a dead end for group/multi-room trips */
+.sk-checkout-add-room-link {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 138, 42, 0.4);
+  background: rgba(255, 138, 42, 0.06);
+  color: #ff8a2a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sk-checkout-add-room-link:hover {
+  background: rgba(255, 138, 42, 0.12);
+  border-color: rgba(255, 138, 42, 0.6);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   City autocomplete on the Stays search bar (StaysForm)
+   ───────────────────────────────────────────────────────────── */
+
+.sk-city-autocomplete {
+  position: relative;
+}
+
+.sk-city-suggest-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: rgba(20, 14, 30, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.sk-city-suggest-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.sk-city-suggest-item:hover {
+  background: rgba(255, 138, 42, 0.1);
+}
+.sk-city-suggest-item.is-highlighted {
+  background: rgba(255, 138, 42, 0.14);
+}
+.sk-city-suggest-item + .sk-city-suggest-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sk-city-suggest-country {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.4);
+  padding-left: 10px;
+}
+
+.sk-city-suggest-loading,
+.sk-city-suggest-empty {
+  color: rgba(255, 255, 255, 0.45);
+  cursor: default;
+}
+.sk-city-suggest-loading:hover,
+.sk-city-suggest-empty:hover {
+  background: none;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Custom travelers/rooms number inputs on StaysForm — replaces
+   the old fixed-preset dropdown (which capped out at 3 travelers,
+   2 rooms) so big parties/groups can enter their real numbers.
+   ───────────────────────────────────────────────────────────── */
+
+.sk-field--occupancy {
+  width: auto;
+}
+
+.sk-occupancy-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.sk-occupancy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sk-occupancy-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.38);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding-left: 2px;
+}
+
+.sk-occupancy-input.ant-input-number {
+  width: 92px !important;
+}

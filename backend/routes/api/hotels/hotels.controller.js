@@ -1,8 +1,3 @@
-// ─────────────────────────────────────────────────────────────
-// hotels.controller.js
-// All LiteAPI business logic — imported by hotels.routes.js
-// ─────────────────────────────────────────────────────────────
-
 import Stripe from "stripe";
 import { liteapi } from "./hotel.provider.js";
 import {
@@ -81,6 +76,64 @@ export async function lookupHotelsByLocation(req, res) {
     return res.status(err?.status || 500).json({
       ok: false,
       message: err?.message || "Failed to look up hotels for this location",
+      details: err?.details,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/hotels/places
+//
+// Free-text location autocomplete, backed by LiteAPI's own
+// /data/places endpoint (which wraps Google Places). This is a
+// DIFFERENT endpoint from /data/hotels above — it takes a `query`
+// string instead of countryCode/cityName, and returns places with
+// a `placeId` that /data/hotels (and this app's /api/hotels/lookup)
+// already accepts directly.
+//
+// IMPORTANT — this endpoint is billed per LiteAPI's pricing
+// ($0.01/request as of their published docs, confirm current rate
+// on your account). It should NOT be called on every keystroke —
+// the frontend debounces this and requires a minimum query length
+// before firing. Don't lower those guards without checking cost
+// impact first.
+//
+// Query params:
+//   query      — required, free-text search e.g. "Miami"
+//   type       — optional, restrict results (e.g. "city")
+//   language   — optional, e.g. "en"
+// ─────────────────────────────────────────────────────────────
+export async function searchPlaces(req, res) {
+  try {
+    const { query, type, language } = req.query;
+
+    if (!query || !query.trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: "'query' is required",
+      });
+    }
+
+    const result = await liteapi.searchGet("/data/places", {
+      query: query.trim(),
+      type,
+      language,
+    });
+
+    // NOTE: assumes each place entry has `placeId` and a display
+    // name field — the LiteAPI wiring docs reference storing
+    // `{ placeId, displayName }` from this endpoint, but verify the
+    // exact field name against your actual response (could be
+    // `displayName`, `name`, or nested under a `structured` object).
+    return res.json({
+      ok: true,
+      places: result?.data ?? result,
+    });
+  } catch (err) {
+    console.error("LiteAPI places search error:", err);
+    return res.status(err?.status || 500).json({
+      ok: false,
+      message: err?.message || "Failed to search places",
       details: err?.details,
     });
   }

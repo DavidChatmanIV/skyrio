@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button, Avatar, Spin, Input, message as antdMessage } from "antd";
 import { Plane, Users, MapPin, Calendar } from "lucide-react";
 import dayjs from "dayjs";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/auth/useAuth";
 import "@/styles/SyncTogether.css";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
