@@ -211,72 +211,118 @@ export async function prebookHotel(req, res) {
 // ─────────────────────────────────────────────────────────────
 // POST /api/hotels/checkout-intent
 //
-// Step 1 of the real checkout flow. Combines:
+// Step 1 of the real checkout flow. For EVERY room in the trip:
 //   1. LiteAPI prebook (locks price, gets prebookId)
-//   2. Stripe PaymentIntent creation for that exact amount
+// Then, once every room is locked in:
+//   2. ONE combined Stripe PaymentIntent covering all rooms
 //
-// This is what actually charges the GUEST — separate from the
-// LiteAPI book step, which settles against Skyrio's own LiteAPI
-// account. The frontend calls this first, collects payment via
-// Stripe Elements, then calls /api/hotels/confirm-booking once
-// Stripe confirms the charge succeeded.
+// This lets a multi-room booking (e.g. one room for the user,
+// another for family/friends) go through a single card charge
+// instead of one charge per room.
 //
-// Body: { offerId, guestEmail, hotelName }
-// Returns: { clientSecret, prebookId, totalPrice, currency }
+// Body (new, multi-room):
+//   { offers: [{ offerId, hotelName }, ...], guestEmail }
+// Body (legacy, single-room — still supported):
+//   { offerId, hotelName, guestEmail }
+//
+// Returns:
+//   { clientSecret, prebookIds: [...], totalPrice, currency, rooms }
 // ─────────────────────────────────────────────────────────────
 export async function initHotelCheckout(req, res) {
   try {
-    const { offerId, guestEmail, hotelName } = req.body;
+    const { guestEmail, hotelName } = req.body;
 
-    if (!offerId) {
+    // Accept either the new multi-room shape (`offers`) or the
+    // original single-offer shape (`offerId`) for backward
+    // compatibility with any existing caller.
+    const offers = Array.isArray(req.body.offers)
+      ? req.body.offers
+      : req.body.offerId
+      ? [{ offerId: req.body.offerId, hotelName }]
+      : [];
+
+    if (!offers.length) {
       return res.status(400).json({
         ok: false,
-        message: "'offerId' is required",
+        message: "'offers' (array) or 'offerId' is required",
       });
     }
 
-    // ── Step 1: prebook with LiteAPI to lock the price ──
-    const prebookResult = await liteapi.bookRequest("/rates/prebook", {
-      method: "POST",
-      body: { usePaymentSdk: false, offerId },
-    });
+    // ── Step 1: prebook every room with LiteAPI to lock each price ──
+    const prebooks = [];
+    for (const offer of offers) {
+      if (!offer?.offerId) {
+        return res.status(400).json({
+          ok: false,
+          message: "Each offer must include an 'offerId'",
+        });
+      }
 
-    const prebookId =
-      prebookResult?.data?.prebookId ?? prebookResult?.prebookId;
-    const totalPrice =
-      prebookResult?.data?.totalPrice ?? prebookResult?.totalPrice;
-    const currency = prebookResult?.data?.currency ?? "USD";
+      const prebookResult = await liteapi.bookRequest("/rates/prebook", {
+        method: "POST",
+        body: { usePaymentSdk: false, offerId: offer.offerId },
+      });
 
-    if (!prebookId || !Number.isFinite(totalPrice)) {
-      return res.status(502).json({
+      const prebookId =
+        prebookResult?.data?.prebookId ?? prebookResult?.prebookId;
+      const totalPrice =
+        prebookResult?.data?.totalPrice ?? prebookResult?.totalPrice;
+      const currency = prebookResult?.data?.currency ?? "USD";
+
+      if (!prebookId || !Number.isFinite(totalPrice)) {
+        return res.status(502).json({
+          ok: false,
+          message:
+            "LiteAPI didn't return a valid prebook for one of the rooms — please try again.",
+          details: prebookResult,
+        });
+      }
+
+      prebooks.push({
+        offerId: offer.offerId,
+        hotelName: offer.hotelName || "",
+        prebookId,
+        totalPrice,
+        currency,
+      });
+    }
+
+    // A single Stripe PaymentIntent can only carry one currency —
+    // if a multi-room trip somehow mixes currencies, make the caller
+    // check out those rooms separately rather than silently picking one.
+    const currency = prebooks[0].currency;
+    if (prebooks.some((p) => p.currency !== currency)) {
+      return res.status(422).json({
         ok: false,
-        message: "LiteAPI didn't return a valid prebook — please try again.",
-        details: prebookResult,
+        message:
+          "Rooms in this trip have different currencies — please check them out separately.",
       });
     }
 
-    // ── Step 2: create a Stripe PaymentIntent for that exact amount ──
-    // Stripe expects the smallest currency unit (cents for USD).
-    const amountInCents = Math.round(totalPrice * 100);
+    const combinedTotal = prebooks.reduce((sum, p) => sum + p.totalPrice, 0);
+    const amountInCents = Math.round(combinedTotal * 100);
 
+    // ── Step 2: ONE Stripe PaymentIntent for the combined total ──
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: currency.toLowerCase(),
       receipt_email: guestEmail || undefined,
       metadata: {
         type: "hotel_booking",
-        prebookId,
-        offerId,
-        hotelName: hotelName || "",
+        // Comma-separated (not JSON) to stay well under Stripe's
+        // metadata value size limit even with several rooms.
+        prebookIds: prebooks.map((p) => p.prebookId).join(","),
+        roomCount: String(prebooks.length),
       },
     });
 
     return res.json({
       ok: true,
       clientSecret: paymentIntent.client_secret,
-      prebookId,
-      totalPrice,
+      prebookIds: prebooks.map((p) => p.prebookId),
+      totalPrice: combinedTotal,
       currency,
+      rooms: prebooks,
     });
   } catch (err) {
     console.error("Hotel checkout init error:", err);
@@ -295,40 +341,70 @@ export async function initHotelCheckout(req, res) {
 // confirms the guest's payment succeeded (paymentIntent.status
 // === "succeeded" on the frontend). This verifies the payment
 // server-side too — never trust the client's word alone — then
-// calls LiteAPI's /rates/book to actually confirm the room.
+// calls LiteAPI's /rates/book ONCE PER ROOM to confirm each one
+// (LiteAPI only accepts a single prebookId per /rates/book call,
+// so a multi-room trip means multiple sequential book calls here,
+// all covered by the one Stripe charge already captured in step 1).
 //
-// Body: {
-//   paymentIntentId,
-//   prebookId,
-//   holder: { firstName, lastName, email, phone },
-//   guests: [{ occupancyNumber, firstName, lastName, email }]
-// }
+// Body (new, multi-room):
+//   {
+//     paymentIntentId,
+//     bookings: [
+//       { prebookId, holder: {firstName,lastName,email,phone}, guests: [...] },
+//       ...
+//     ]
+//   }
+// Body (legacy, single-room — still supported):
+//   { paymentIntentId, prebookId, holder, guests }
 // ─────────────────────────────────────────────────────────────
 export async function confirmHotelBooking(req, res) {
   try {
-    const { paymentIntentId, prebookId, holder, guests } = req.body;
+    const { paymentIntentId } = req.body;
 
-    if (!paymentIntentId || !prebookId) {
+    const bookings = Array.isArray(req.body.bookings)
+      ? req.body.bookings
+      : req.body.prebookId
+      ? [
+          {
+            prebookId: req.body.prebookId,
+            holder: req.body.holder,
+            guests: req.body.guests,
+          },
+        ]
+      : [];
+
+    if (!paymentIntentId || !bookings.length) {
       return res.status(400).json({
         ok: false,
-        message: "'paymentIntentId' and 'prebookId' are required",
-      });
-    }
-    if (!holder?.firstName || !holder?.lastName || !holder?.email) {
-      return res.status(400).json({
-        ok: false,
-        message: "'holder' must include firstName, lastName, and email",
-      });
-    }
-    if (!Array.isArray(guests) || guests.length === 0) {
-      return res.status(400).json({
-        ok: false,
-        message: "'guests' must be a non-empty array",
+        message:
+          "'paymentIntentId' and 'bookings' (or legacy 'prebookId') are required",
       });
     }
 
-    // ── Verify payment actually succeeded — server-side, not
-    // just trusting whatever the frontend claims. ──
+    for (const b of bookings) {
+      if (!b.prebookId) {
+        return res.status(400).json({
+          ok: false,
+          message: "Each booking must include a 'prebookId'",
+        });
+      }
+      if (!b.holder?.firstName || !b.holder?.lastName || !b.holder?.email) {
+        return res.status(400).json({
+          ok: false,
+          message:
+            "Each booking's 'holder' must include firstName, lastName, and email",
+        });
+      }
+      if (!Array.isArray(b.guests) || b.guests.length === 0) {
+        return res.status(400).json({
+          ok: false,
+          message: "Each booking's 'guests' must be a non-empty array",
+        });
+      }
+    }
+
+    // ── Verify payment actually succeeded — server-side, not just
+    // trusting whatever the frontend claims. ──
     const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
     if (intent.status !== "succeeded") {
       return res.status(402).json({
@@ -336,25 +412,70 @@ export async function confirmHotelBooking(req, res) {
         message: `Payment has not completed (status: ${intent.status}). Booking was not confirmed.`,
       });
     }
-    if (intent.metadata?.prebookId !== prebookId) {
+
+    const expectedPrebookIds = (intent.metadata?.prebookIds || "")
+      .split(",")
+      .filter(Boolean)
+      .sort();
+    const actualPrebookIds = bookings.map((b) => b.prebookId).sort();
+    const setsMatch =
+      expectedPrebookIds.length === actualPrebookIds.length &&
+      expectedPrebookIds.every((id, i) => id === actualPrebookIds[i]);
+
+    if (!setsMatch) {
       return res.status(400).json({
         ok: false,
         message: "Payment/prebook mismatch — booking was not confirmed.",
       });
     }
 
-    // ── Payment confirmed — now actually book the room with LiteAPI ──
-    const result = await liteapi.bookRequest("/rates/book", {
-      method: "POST",
-      body: {
-        holder,
-        guests,
-        payment: { method: "ACC_CREDIT_CARD" },
-        prebookId,
-      },
-    });
+    // ── Payment confirmed — now book each room with LiteAPI. ──
+    // IMPORTANT: the Stripe charge has already succeeded at this
+    // point. If a /rates/book call fails partway through a
+    // multi-room trip, the guest has already paid for every room
+    // but not every room is actually booked — those are returned
+    // in `failures` below so this can be flagged for a support
+    // follow-up (manual booking completion or partial refund)
+    // rather than silently losing track of it.
+    const results = [];
+    const failures = [];
 
-    return res.json({ ok: true, booking: result });
+    for (const b of bookings) {
+      try {
+        const result = await liteapi.bookRequest("/rates/book", {
+          method: "POST",
+          body: {
+            holder: b.holder,
+            guests: b.guests,
+            payment: { method: "ACC_CREDIT_CARD" },
+            prebookId: b.prebookId,
+          },
+        });
+        results.push({ prebookId: b.prebookId, booking: result });
+      } catch (err) {
+        console.error(
+          `LiteAPI booking failed for prebookId ${b.prebookId} (payment already captured):`,
+          err
+        );
+        failures.push({
+          prebookId: b.prebookId,
+          message: err?.message || "Booking failed",
+        });
+      }
+    }
+
+    if (failures.length > 0) {
+      // 207 Multi-Status: partial success — some rooms booked, some not.
+      return res.status(207).json({
+        ok: false,
+        message:
+          "Payment succeeded, but one or more rooms could not be booked. Contact support to resolve.",
+        bookings: results,
+        failures,
+      });
+    }
+
+    return res.json({ ok: true, bookings: results });
   } catch (err) {
     console.error("Hotel booking confirmation error:", err);
     return res.status(err?.status || 500).json({

@@ -24,7 +24,10 @@ const { Title, Text } = Typography;
 
 const API = import.meta.env.VITE_API_URL || "";
 
-// Assumes the same Stripe publishable key setup used elsewhere in Skyrio.
+// NOTE: assumes Stripe is already wired the same way BookingCheckout.jsx
+// uses it elsewhere in Skyrio (VITE_STRIPE_PUBLIC_KEY env var + a backend
+// route that returns a PaymentIntent client secret). Adjust the env var
+// name and the /api/hotels/book route below if your existing setup differs.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || "");
 
 // ─────────────────────────────────────────────
@@ -99,29 +102,22 @@ function RoomLineItem({ room, index }) {
 }
 
 // ─────────────────────────────────────────────
-// Guest name fields for one room (maps to LiteAPI's
-// guests: [{ occupancyNumber, firstName, lastName, email }])
+// Guest / traveler assignment for a single room
+// (kept lightweight — one contact name per room so multi-room
+// bookings can be attributed to whoever is staying in each one)
 // ─────────────────────────────────────────────
-function RoomGuestFields({ room, index, value, onChange }) {
+function RoomGuestField({ room, index, value, onChange }) {
   return (
     <div className="sk-checkout-guest-field">
       <label className="sk-prefill-label">
-        Room {index + 1} guest ({room.name})
+        Room {index + 1} guest name ({room.name})
       </label>
-      <div className="sk-checkout-guest-name-row">
-        <Input
-          className="sk-prefill-input"
-          placeholder="First name"
-          value={value.firstName}
-          onChange={(e) => onChange({ ...value, firstName: e.target.value })}
-        />
-        <Input
-          className="sk-prefill-input"
-          placeholder="Last name"
-          value={value.lastName}
-          onChange={(e) => onChange({ ...value, lastName: e.target.value })}
-        />
-      </div>
+      <Input
+        className="sk-prefill-input"
+        placeholder="Full name for this room"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }
@@ -129,7 +125,7 @@ function RoomGuestFields({ room, index, value, onChange }) {
 // ─────────────────────────────────────────────
 // Payment form (wrapped in <Elements> below)
 // ─────────────────────────────────────────────
-function PaymentForm({ rooms, holder, guestFields, onSuccess }) {
+function PaymentForm({ rooms, guestNames, contactEmail, onSuccess }) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -142,17 +138,10 @@ function PaymentForm({ rooms, holder, guestFields, onSuccess }) {
 
   const handlePay = async () => {
     if (!stripe || !elements) return;
-
-    if (
-      !holder.firstName.trim() ||
-      !holder.lastName.trim() ||
-      !holder.email.trim()
-    ) {
-      return antdMessage.warning(
-        "Enter the primary contact's first name, last name, and email"
-      );
+    if (!contactEmail.trim()) {
+      return antdMessage.warning("Enter a contact email for the booking");
     }
-    if (guestFields.some((g) => !g.firstName.trim() || !g.lastName.trim())) {
+    if (guestNames.some((n) => !n.trim())) {
       return antdMessage.warning("Enter a guest name for every room");
     }
 
@@ -162,97 +151,56 @@ function PaymentForm({ rooms, holder, guestFields, onSuccess }) {
     try {
       const token = localStorage.getItem("token");
 
-      // ── Step 1: prebook every room + create one combined
-      // Stripe PaymentIntent ──
-      const intentRes = await fetch(`${API}/api/hotels/checkout-intent`, {
+      // Backend should accept an array of rooms and return a single
+      // PaymentIntent client secret covering the combined total —
+      // adjust the route/payload shape to match your existing
+      // /api/hotels/* naming if it differs.
+      const res = await fetch(`${API}/api/hotels/book`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          offers: rooms.map((r) => ({
+          rooms: rooms.map((r, i) => ({
+            hotelId: r.hotelId,
             offerId: r.offerId,
-            hotelName: r.name,
+            checkin: r.checkin,
+            checkout: r.checkout,
+            totalAmount: r.totalAmount,
+            totalCurrency: r.totalCurrency || "USD",
+            guestName: guestNames[i],
           })),
-          guestEmail: holder.email.trim(),
+          contactEmail: contactEmail.trim(),
         }),
       });
-      const intentData = await intentRes.json();
-      if (!intentRes.ok || !intentData.ok) {
-        throw new Error(intentData.message || "Couldn't start hotel checkout");
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.message || "Couldn't start hotel booking");
       }
 
-      const { clientSecret, prebookIds } = intentData;
-
-      // ── Step 2: confirm the card payment via Stripe ──
+      const { clientSecret } = data;
       const { error: confirmError, paymentIntent } =
         await stripe.confirmCardPayment(clientSecret, {
           payment_method: {
             card: elements.getElement(CardElement),
-            billing_details: {
-              name: `${holder.firstName} ${holder.lastName}`,
-              email: holder.email.trim(),
-            },
+            billing_details: { email: contactEmail.trim() },
           },
         });
 
       if (confirmError) {
         throw new Error(confirmError.message || "Payment failed");
       }
-      if (paymentIntent?.status !== "succeeded") {
+
+      if (paymentIntent?.status === "succeeded") {
+        antdMessage.success("Booking confirmed!");
+        onSuccess({
+          confirmationId: data.bookingId || paymentIntent.id,
+          rooms,
+        });
+      } else {
         throw new Error("Payment was not completed — please try again.");
       }
-
-      // ── Step 3: confirm each room's booking with LiteAPI now
-      // that payment has actually succeeded ──
-      const bookRes = await fetch(`${API}/api/hotels/confirm-booking`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          paymentIntentId: paymentIntent.id,
-          bookings: rooms.map((r, i) => ({
-            prebookId: prebookIds[i],
-            holder: {
-              firstName: holder.firstName.trim(),
-              lastName: holder.lastName.trim(),
-              email: holder.email.trim(),
-            },
-            guests: [
-              {
-                occupancyNumber: 1,
-                firstName: guestFields[i].firstName.trim(),
-                lastName: guestFields[i].lastName.trim(),
-                email: holder.email.trim(),
-              },
-            ],
-          })),
-        }),
-      });
-      const bookData = await bookRes.json();
-
-      if (!bookRes.ok || !bookData.ok) {
-        // Payment succeeded but one or more rooms failed to book —
-        // surface this clearly rather than a generic error, since the
-        // guest has already been charged.
-        if (bookData.failures?.length) {
-          throw new Error(
-            `Payment succeeded, but ${bookData.failures.length} room${
-              bookData.failures.length !== 1 ? "s" : ""
-            } couldn't be booked. Our team will follow up to fix this — please contact support.`
-          );
-        }
-        throw new Error(bookData.message || "Booking confirmation failed");
-      }
-
-      antdMessage.success("Booking confirmed!");
-      onSuccess({
-        confirmationId: paymentIntent.id,
-        rooms,
-      });
     } catch (err) {
       setError(err.message || "Booking failed");
       antdMessage.error(err.message || "Booking failed");
@@ -353,22 +301,12 @@ export default function HotelCheckout({ rooms: roomsProp, hotel, onBack }) {
     [roomsProp, hotel]
   );
 
-  // Primary contact / LiteAPI "holder" — one per reservation, shared
-  // across every room in the trip.
-  const [holder, setHolder] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-  });
-
-  // One guest name per room (LiteAPI's per-room `guests` array).
-  const [guestFields, setGuestFields] = useState(() =>
-    rooms.map(() => ({ firstName: "", lastName: "" }))
-  );
+  const [guestNames, setGuestNames] = useState(() => rooms.map(() => ""));
+  const [contactEmail, setContactEmail] = useState("");
   const [confirmation, setConfirmation] = useState(null);
 
-  const updateGuestField = useCallback((index, value) => {
-    setGuestFields((prev) => {
+  const updateGuestName = useCallback((index, value) => {
+    setGuestNames((prev) => {
       const next = [...prev];
       next[index] = value;
       return next;
@@ -418,7 +356,7 @@ export default function HotelCheckout({ rooms: roomsProp, hotel, onBack }) {
         </Title>
         <Text style={{ color: "rgba(255,255,255,0.55)" }}>
           {rooms.length > 1
-            ? "Booking multiple rooms together — perfect for family or friends joining the trip. One card charge covers all rooms."
+            ? "Booking multiple rooms together — perfect for family or friends joining the trip."
             : "Review the details below before paying."}
         </Text>
 
@@ -449,43 +387,23 @@ export default function HotelCheckout({ rooms: roomsProp, hotel, onBack }) {
             className="sk-result-card sk-checkout-form-card"
           >
             <div className="sk-prefill-label" style={{ marginBottom: 6 }}>
-              Primary contact (booking holder)
-            </div>
-            <div className="sk-checkout-guest-name-row">
-              <Input
-                className="sk-prefill-input"
-                placeholder="First name"
-                value={holder.firstName}
-                onChange={(e) =>
-                  setHolder((prev) => ({ ...prev, firstName: e.target.value }))
-                }
-              />
-              <Input
-                className="sk-prefill-input"
-                placeholder="Last name"
-                value={holder.lastName}
-                onChange={(e) =>
-                  setHolder((prev) => ({ ...prev, lastName: e.target.value }))
-                }
-              />
+              Contact email
             </div>
             <Input
               className="sk-prefill-input"
               placeholder="you@example.com"
-              value={holder.email}
-              onChange={(e) =>
-                setHolder((prev) => ({ ...prev, email: e.target.value }))
-              }
-              style={{ marginTop: 8, marginBottom: 18 }}
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              style={{ marginBottom: 18 }}
             />
 
             {rooms.map((r, i) => (
-              <RoomGuestFields
+              <RoomGuestField
                 key={roomKey(r)}
                 room={r}
                 index={i}
-                value={guestFields[i]}
-                onChange={(v) => updateGuestField(i, v)}
+                value={guestNames[i]}
+                onChange={(v) => updateGuestName(i, v)}
               />
             ))}
 
@@ -494,8 +412,8 @@ export default function HotelCheckout({ rooms: roomsProp, hotel, onBack }) {
             <Elements stripe={stripePromise}>
               <PaymentForm
                 rooms={rooms}
-                holder={holder}
-                guestFields={guestFields}
+                guestNames={guestNames}
+                contactEmail={contactEmail}
                 onSuccess={setConfirmation}
               />
             </Elements>

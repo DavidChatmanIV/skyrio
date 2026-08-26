@@ -5,19 +5,33 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // Use your verified domain, or Resend's test domain to start
 const FROM_EMAIL = process.env.FROM_EMAIL || "Skyrio <onboarding@resend.dev>";
 
-// FRONTEND_ORIGIN should be a single URL. If it's accidentally set to a
-// comma-separated list (e.g. copy-pasted from a CORS allowlist, which
-// legitimately IS a CSV of multiple allowed origins), take just the
-// first entry rather than building a broken multi-URL link — this is
-// what caused "View Trip & Join" to send a literal
-// "http://localhost:5273,https://...,https://..." href instead of one
-// working link. The real fix is still checking FRONTEND_ORIGIN in your
-// actual env config (local .env and your hosting dashboard) and making
-// sure it's a single value there — this is just a safety net so a
-// future misconfiguration doesn't silently break every email link again.
+// FRONTEND_ORIGIN intentionally holds every environment's URL as one
+// comma-separated list (local, Vercel preview, production domain) so the
+// same .env value works everywhere without editing it per-deploy — the
+// list itself is correct. What was wrong is picking blindly from it:
+// grabbing entry [0] always resolved to localhost, even in production,
+// which would have sent every real user a dead link.
+//
+// Instead, pick the entry that actually matches where this code is
+// running right now:
+//   - production (NODE_ENV=production, set automatically by Vercel/Render)
+//     → the apex myskyrio.com domain, not the www or vercel preview one
+//   - anywhere else → whichever entry contains "localhost"
+// Falls back to the first entry if no match is found, so a missing/odd
+// NODE_ENV never leaves APP_URL empty.
 const rawOrigin =
   process.env.FRONTEND_ORIGIN || "https://skyrio-iota.vercel.app";
-const APP_URL = rawOrigin.split(",")[0].trim();
+const origins = rawOrigin
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+const isProduction = process.env.NODE_ENV === "production";
+const APP_URL =
+  (isProduction
+    ? origins.find((o) => o.includes("myskyrio.com") && !o.includes("www"))
+    : origins.find((o) => o.includes("localhost"))) ||
+  origins[0] ||
+  "https://skyrio-iota.vercel.app";
 
 /**
  * Send a trip invitation email

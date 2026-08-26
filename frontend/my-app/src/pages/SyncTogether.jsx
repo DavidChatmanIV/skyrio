@@ -1,4 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
 import {
   Button,
   Input,
@@ -39,6 +45,17 @@ function authHeaders() {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+}
+// Same pattern already used in SyncGroupPage.jsx — needed here so the
+// delete button can be hidden for non-owners. The backend already
+// enforces owner-only deletion (403 otherwise), but showing the trash
+// icon to everyone just sets non-owners up for a confusing error.
+function getCurrentUserId() {
+  try {
+    return JSON.parse(localStorage.getItem("user")).id;
+  } catch {
+    return null;
+  }
 }
 
 const FEATURES = [
@@ -89,6 +106,7 @@ const HOW_IT_WORKS = [
 
 export default function SyncTogether() {
   const navigate = useNavigate();
+  const currentUserId = useMemo(() => getCurrentUserId(), []);
 
   // ── Trip details (new) ──────────────────────────────────────
   // Collected BEFORE invites are sent, so the invite email can
@@ -674,28 +692,36 @@ export default function SyncTogether() {
                     size={18}
                     style={{ color: "rgba(255,255,255,0.25)" }}
                   />
-                  <button
-                    onClick={(e) => deleteTrip(trip._id, trip.title, e)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 4,
-                      color: "rgba(255,255,255,0.15)",
-                      transition: "color 0.15s",
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.color = "#ff4d4f")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.color = "rgba(255,255,255,0.15)")
-                    }
-                    title="Delete trip"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {/* Only the trip's organizer can delete it — the backend
+                      already enforces this (403 otherwise), this just
+                      keeps the button from appearing for anyone else. */}
+                  {currentUserId &&
+                    String(trip.owner?._id || trip.owner) ===
+                      String(currentUserId) && (
+                      <button
+                        onClick={(e) => deleteTrip(trip._id, trip.title, e)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 4,
+                          color: "rgba(255,255,255,0.15)",
+                          transition: "color 0.15s",
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.color = "#ff4d4f")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.color =
+                            "rgba(255,255,255,0.15)")
+                        }
+                        title="Delete trip"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                 </div>
               </div>
             );

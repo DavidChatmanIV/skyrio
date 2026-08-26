@@ -60,6 +60,7 @@ import {
   ChevronsDown,
   ArrowRight,
   Clock,
+  Users,
 } from "lucide-react";
 
 const { Title, Text } = Typography;
@@ -1948,7 +1949,53 @@ export default function BookingPage() {
   const [flightResults, setFlightResults] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
   const [excursionResults, setExcursionResults] = useState([]);
-  const [selectedHotelOffer, setSelectedHotelOffer] = useState(null);
+
+  // ── Multi-room stays cart ──────────────────────────────────────
+  // roomCart: rooms the user has explicitly added while browsing so
+  // they can check out several rooms (e.g. one for themselves, one
+  // for family/friends) in a single trip.
+  // checkoutRooms: the exact set of rooms passed into HotelCheckout
+  // when the user proceeds — either a single "Book Now" pick or the
+  // full cart via "Checkout N rooms".
+  const [roomCart, setRoomCart] = useState([]);
+  const [checkoutRooms, setCheckoutRooms] = useState([]);
+
+  const getRoomKey = useCallback((h) => `${h.hotelId}-${h.offerId}`, []);
+
+  const addRoomToCart = useCallback(
+    (hotel) => {
+      setRoomCart((prev) => {
+        if (prev.some((r) => getRoomKey(r) === getRoomKey(hotel))) {
+          antdMessage.info("That room is already in your trip.");
+          return prev;
+        }
+        const nextCount = prev.length + 1;
+        antdMessage.success(
+          `${hotel.name} added — ${nextCount} room${
+            nextCount !== 1 ? "s" : ""
+          } in your trip`
+        );
+        return [...prev, hotel];
+      });
+    },
+    [getRoomKey]
+  );
+
+  const removeRoomFromCart = useCallback(
+    (hotel) => {
+      setRoomCart((prev) =>
+        prev.filter((r) => getRoomKey(r) !== getRoomKey(hotel))
+      );
+    },
+    [getRoomKey]
+  );
+
+  const roomCartTotal = useMemo(
+    () => roomCart.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0),
+    [roomCart]
+  );
+  // ─────────────────────────────────────────────────────────────
+
   const [autoSearchDone, setAutoSearchDone] = useState(false);
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
@@ -2369,13 +2416,17 @@ export default function BookingPage() {
     );
   }
 
-  if (showHotelCheckout && selectedHotelOffer) {
+  // HotelCheckout now always receives an array of rooms (`rooms` prop) —
+  // one entry for a plain "Book Now", or the full cart when the user
+  // checks out multiple rooms together for family/friends.
+  if (showHotelCheckout && checkoutRooms.length > 0) {
     return (
       <HotelCheckout
-        hotel={selectedHotelOffer}
+        rooms={checkoutRooms}
         onBack={() => {
           setShowHotelCheckout(false);
-          setSelectedHotelOffer(null);
+          setCheckoutRooms([]);
+          setRoomCart([]);
         }}
       />
     );
@@ -2609,6 +2660,7 @@ export default function BookingPage() {
             setFlightResults([]);
             setHotelResults([]);
             setExcursionResults([]);
+            setRoomCart([]);
             setSmartFilters(DEFAULT_FILTERS);
             setActiveFilters([]);
             setVisibleCount(RESULTS_PER_PAGE);
@@ -2931,116 +2983,186 @@ export default function BookingPage() {
               </Card>
             ))}
 
+          {/* ── Multi-room cart bar — shown only while browsing Stays
+               and only once at least one room has been added ── */}
+          {!isSearching && tab === "Stays" && roomCart.length > 0 && (
+            <div className="sk-room-cart-bar">
+              <div className="sk-room-cart-summary">
+                <Users
+                  size={14}
+                  style={{ marginRight: 6, verticalAlign: "middle" }}
+                />
+                <strong>{roomCart.length}</strong> room
+                {roomCart.length !== 1 ? "s" : ""} selected · $
+                {roomCartTotal.toFixed(0)} total
+              </div>
+              <div className="sk-room-cart-chips">
+                {roomCart.map((r) => (
+                  <span key={getRoomKey(r)} className="sk-room-cart-chip">
+                    {r.name}
+                    <button
+                      type="button"
+                      onClick={() => removeRoomFromCart(r)}
+                      aria-label={`Remove ${r.name}`}
+                    >
+                      <CloseOutlined />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <Button
+                className="sk-btn-orange"
+                onClick={() => {
+                  setCheckoutRooms(roomCart);
+                  setShowHotelCheckout(true);
+                }}
+              >
+                Checkout {roomCart.length} room
+                {roomCart.length !== 1 ? "s" : ""} · ${roomCartTotal.toFixed(0)}
+              </Button>
+            </div>
+          )}
+
           {/* ── Hotel result cards ── */}
           {!isSearching &&
             tab === "Stays" &&
             paginatedHotels.length > 0 &&
-            paginatedHotels.map((hotel) => (
-              <Card
-                key={`${hotel.hotelId}-${hotel.offerId}`}
-                variant="borderless"
-                className="sk-result-card"
-                style={{ cursor: "pointer", marginBottom: 14 }}
-              >
-                <div className="sk-resultRow">
-                  <div
-                    className="sk-thumb"
-                    style={
-                      hotel.thumbnail
-                        ? {
-                            backgroundImage: `url(${hotel.thumbnail})`,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center",
-                          }
-                        : undefined
-                    }
-                  />
-                  <div className="sk-resultMain">
-                    <div className="sk-resultTop">
-                      <div>
-                        <div className="sk-resultTitle">{hotel.name}</div>
-                        <div className="sk-resultMeta">
-                          {hotel.address && (
-                            <span className="sk-metaItem">
-                              <EnvironmentOutlined /> {hotel.address}
+            paginatedHotels.map((hotel) => {
+              const inCart = roomCart.some(
+                (r) => getRoomKey(r) === getRoomKey(hotel)
+              );
+              return (
+                <Card
+                  key={`${hotel.hotelId}-${hotel.offerId}`}
+                  variant="borderless"
+                  className={`sk-result-card${inCart ? " is-selected" : ""}`}
+                  style={{ cursor: "pointer", marginBottom: 14 }}
+                >
+                  <div className="sk-resultRow">
+                    <div
+                      className="sk-thumb"
+                      style={
+                        hotel.thumbnail
+                          ? {
+                              backgroundImage: `url(${hotel.thumbnail})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                            }
+                          : undefined
+                      }
+                    />
+                    <div className="sk-resultMain">
+                      <div className="sk-resultTop">
+                        <div>
+                          <div className="sk-resultTitle">{hotel.name}</div>
+                          <div className="sk-resultMeta">
+                            {hotel.address && (
+                              <span className="sk-metaItem">
+                                <EnvironmentOutlined /> {hotel.address}
+                              </span>
+                            )}
+                            {hotel.stars && (
+                              <>
+                                <span className="sk-metaDot">·</span>
+                                <span className="sk-metaItem">
+                                  {hotel.stars}★
+                                </span>
+                              </>
+                            )}
+                            {hotel.rating && (
+                              <>
+                                <span className="sk-metaDot">·</span>
+                                <span className="sk-metaItem">
+                                  {hotel.rating}/10
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          <div className="sk-pickedWhy">
+                            {hotel.roomName}
+                            {hotel.boardName ? ` · ${hotel.boardName}` : ""}
+                          </div>
+                        </div>
+                        <div className="sk-resultRight">
+                          <div className="sk-priceLine">
+                            <span className="sk-priceAmt">
+                              ${hotel.totalAmount?.toFixed(0) ?? "—"}
                             </span>
-                          )}
-                          {hotel.stars && (
-                            <>
-                              <span className="sk-metaDot">·</span>
-                              <span className="sk-metaItem">
-                                {hotel.stars}★
-                              </span>
-                            </>
-                          )}
-                          {hotel.rating && (
-                            <>
-                              <span className="sk-metaDot">·</span>
-                              <span className="sk-metaItem">
-                                {hotel.rating}/10
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="sk-pickedWhy">
-                          {hotel.roomName}
-                          {hotel.boardName ? ` · ${hotel.boardName}` : ""}
+                            <span className="sk-priceSub">
+                              {hotel.totalCurrency}
+                            </span>
+                          </div>
+                          <SaveTripButton
+                            size="small"
+                            variant="ghost"
+                            label="Save"
+                            tripData={{
+                              tripType: "hotel",
+                              title: hotel.name,
+                              destination: hotel.address || destCity,
+                              price: hotel.totalAmount ?? 0,
+                              currency: hotel.totalCurrency || "USD",
+                              startDate: hotel.checkin || "",
+                              metadata: {
+                                hotelId: hotel.hotelId,
+                                offerId: hotel.offerId,
+                              },
+                            }}
+                            onSaveError={(msg) => antdMessage.error(msg)}
+                          />
+                          <Button
+                            className={`sk-btn-ghost sk-btn-addroom${
+                              inCart ? " is-added" : ""
+                            }`}
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (inCart) removeRoomFromCart(hotel);
+                              else addRoomToCart(hotel);
+                            }}
+                          >
+                            {inCart ? "✓ Added" : "+ Add Room"}
+                          </Button>
+                          <Button
+                            className="sk-btn-orange"
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCheckoutRooms([hotel]);
+                              setShowHotelCheckout(true);
+                            }}
+                          >
+                            Book Now
+                          </Button>
                         </div>
                       </div>
-                      <div className="sk-resultRight">
-                        <div className="sk-priceLine">
-                          <span className="sk-priceAmt">
-                            ${hotel.totalAmount?.toFixed(0) ?? "—"}
+                      <div className="sk-tagRow">
+                        {hotel.refundableTag === "RFN" && (
+                          <span className="sk-tag sk-tag-good">Refundable</span>
+                        )}
+                        {hotel.refundableTag === "NRFN" && (
+                          <span className="sk-tag sk-tag-orange">
+                            Non-refundable
                           </span>
-                          <span className="sk-priceSub">
-                            {hotel.totalCurrency}
+                        )}
+                        {inCart && (
+                          <span className="sk-tag sk-tag-xp">
+                            <Users
+                              size={11}
+                              style={{
+                                marginRight: 3,
+                                verticalAlign: "middle",
+                              }}
+                            />
+                            In your trip
                           </span>
-                        </div>
-                        <SaveTripButton
-                          size="small"
-                          variant="ghost"
-                          label="Save"
-                          tripData={{
-                            tripType: "hotel",
-                            title: hotel.name,
-                            destination: hotel.address || destCity,
-                            price: hotel.totalAmount ?? 0,
-                            currency: hotel.totalCurrency || "USD",
-                            startDate: hotel.checkin || "",
-                            metadata: {
-                              hotelId: hotel.hotelId,
-                              offerId: hotel.offerId,
-                            },
-                          }}
-                          onSaveError={(msg) => antdMessage.error(msg)}
-                        />
-                        <Button
-                          className="sk-btn-orange"
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedHotelOffer(hotel);
-                            setShowHotelCheckout(true);
-                          }}
-                        >
-                          Book Now
-                        </Button>
+                        )}
                       </div>
-                    </div>
-                    <div className="sk-tagRow">
-                      {hotel.refundableTag === "RFN" && (
-                        <span className="sk-tag sk-tag-good">Refundable</span>
-                      )}
-                      {hotel.refundableTag === "NRFN" && (
-                        <span className="sk-tag sk-tag-orange">
-                          Non-refundable
-                        </span>
-                      )}
                     </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
 
           {tab === "Excursions" && (
             <ExcursionResults
