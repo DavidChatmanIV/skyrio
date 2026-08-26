@@ -52,6 +52,7 @@ export async function sendTripInvite({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
 <meta name="color-scheme" content="dark light">
 <meta name="supported-color-schemes" content="dark light">
 <style>
@@ -59,18 +60,24 @@ export async function sendTripInvite({
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    .sk-h1 { color:#fff !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; }
-    .sk-orange { color:#ff8a2a !important; }
-    .sk-white { color:#fff !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    /* background-color:transparent on the text elements themselves stops
+       Gmail's dark-mode engine from injecting its own solid white patch
+       directly behind each heading/paragraph — that injected white square
+       (not the parent .sk-card background) is what was making white text
+       disappear, since the parent's dark background alone doesn't stop
+       a per-element override on the child. */
+    .sk-h1 { color:#fff !important; background-color:transparent !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
+    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
+    .sk-white { color:#fff !important; background-color:transparent !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
     .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
+<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
@@ -169,6 +176,7 @@ export async function sendPlanReady({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
 <meta name="color-scheme" content="dark light">
 <meta name="supported-color-schemes" content="dark light">
 <style>
@@ -176,18 +184,24 @@ export async function sendPlanReady({
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    .sk-h1 { color:#fff !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; }
-    .sk-orange { color:#ff8a2a !important; }
-    .sk-white { color:#fff !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    /* background-color:transparent on the text elements themselves stops
+       Gmail's dark-mode engine from injecting its own solid white patch
+       directly behind each heading/paragraph — that injected white square
+       (not the parent .sk-card background) is what was making white text
+       disappear, since the parent's dark background alone doesn't stop
+       a per-element override on the child. */
+    .sk-h1 { color:#fff !important; background-color:transparent !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
+    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
+    .sk-white { color:#fff !important; background-color:transparent !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
     .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
+<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
@@ -261,6 +275,7 @@ export async function sendTripDeleted({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
 <meta name="color-scheme" content="dark light">
 <meta name="supported-color-schemes" content="dark light">
 <style>
@@ -268,18 +283,24 @@ export async function sendTripDeleted({
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    .sk-h1 { color:#fff !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; }
-    .sk-orange { color:#ff8a2a !important; }
-    .sk-white { color:#fff !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    /* background-color:transparent on the text elements themselves stops
+       Gmail's dark-mode engine from injecting its own solid white patch
+       directly behind each heading/paragraph — that injected white square
+       (not the parent .sk-card background) is what was making white text
+       disappear, since the parent's dark background alone doesn't stop
+       a per-element override on the child. */
+    .sk-h1 { color:#fff !important; background-color:transparent !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
+    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
+    .sk-white { color:#fff !important; background-color:transparent !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
     .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
+<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
@@ -346,6 +367,7 @@ export async function sendMemberRemoved({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
 <meta name="color-scheme" content="dark light">
 <meta name="supported-color-schemes" content="dark light">
 <style>
@@ -353,18 +375,24 @@ export async function sendMemberRemoved({
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    .sk-h1 { color:#fff !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; }
-    .sk-orange { color:#ff8a2a !important; }
-    .sk-white { color:#fff !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    /* background-color:transparent on the text elements themselves stops
+       Gmail's dark-mode engine from injecting its own solid white patch
+       directly behind each heading/paragraph — that injected white square
+       (not the parent .sk-card background) is what was making white text
+       disappear, since the parent's dark background alone doesn't stop
+       a per-element override on the child. */
+    .sk-h1 { color:#fff !important; background-color:transparent !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
+    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
+    .sk-white { color:#fff !important; background-color:transparent !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
     .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
+<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
@@ -428,6 +456,7 @@ export async function sendPasswordReset({ to, resetUrl }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
 <meta name="color-scheme" content="dark light">
 <meta name="supported-color-schemes" content="dark light">
 <style>
@@ -435,18 +464,24 @@ export async function sendPasswordReset({ to, resetUrl }) {
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    .sk-h1 { color:#fff !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; }
-    .sk-orange { color:#ff8a2a !important; }
-    .sk-white { color:#fff !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    /* background-color:transparent on the text elements themselves stops
+       Gmail's dark-mode engine from injecting its own solid white patch
+       directly behind each heading/paragraph — that injected white square
+       (not the parent .sk-card background) is what was making white text
+       disappear, since the parent's dark background alone doesn't stop
+       a per-element override on the child. */
+    .sk-h1 { color:#fff !important; background-color:transparent !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
+    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
+    .sk-white { color:#fff !important; background-color:transparent !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
     .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
+<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
@@ -513,6 +548,7 @@ export async function sendVerificationEmail({ to, verifyUrl }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
 <meta name="color-scheme" content="dark light">
 <meta name="supported-color-schemes" content="dark light">
 <style>
@@ -520,18 +556,24 @@ export async function sendVerificationEmail({ to, verifyUrl }) {
   @media (prefers-color-scheme: dark) {
     body { background:#0f0520 !important; }
     .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    .sk-h1 { color:#fff !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; }
-    .sk-orange { color:#ff8a2a !important; }
-    .sk-white { color:#fff !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; }
+    /* background-color:transparent on the text elements themselves stops
+       Gmail's dark-mode engine from injecting its own solid white patch
+       directly behind each heading/paragraph — that injected white square
+       (not the parent .sk-card background) is what was making white text
+       disappear, since the parent's dark background alone doesn't stop
+       a per-element override on the child. */
+    .sk-h1 { color:#fff !important; background-color:transparent !important; }
+    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
+    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
+    .sk-white { color:#fff !important; background-color:transparent !important; }
+    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
+    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
     .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; }
+    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
+<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
