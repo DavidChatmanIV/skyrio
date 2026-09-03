@@ -37,6 +37,10 @@ import SyncTogether from "./pages/SyncTogether";
 import SyncGroupPage from "./pages/SyncGroupPage";
 import JoinTripPage from "./pages/JoinTripPage";
 
+// Split payments — "pay your share" page reached via a per-member
+// payment link (e.g. from PaymentProgressPanel / a notification).
+import PayShare from "./pages/booking/PayShare";
+
 // ── Page title map ─────────────────────────────────────────────────────────────
 const PAGE_TITLES = {
   "/": "Skyrio — Plan Smarter. Travel Better.",
@@ -61,6 +65,7 @@ function getPageTitle(pathname) {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
   // Dynamic routes — e.g. /sync-together/:id
   if (pathname.startsWith("/sync-together/")) return "Group Trip — Skyrio";
+  if (pathname.startsWith("/pay-share/")) return "Pay Your Share — Skyrio";
   if (pathname.startsWith("/admin")) return "Admin — Skyrio";
   return "Skyrio — Plan Smarter. Travel Better.";
 }
@@ -163,6 +168,20 @@ function AppWithTracking() {
               <SyncGroupPage />
             </PrivateRoute>
           }
+        />
+
+        {/* Split payments — "pay your share" link sent directly to a
+            group member. Kept public (not wrapped in PrivateRoute) to
+            match the join-trip pattern above, on the assumption that
+            PayShare handles a logged-out visitor itself (inline
+            login/signup, like JoinTripPage does). If PayShare instead
+            assumes an authenticated user is already present, wrap this
+            in <PrivateRoute> the same way /dashboard and /profile are —
+            otherwise a logged-out click on the payment link will hit
+            the page with no user and fail silently. */}
+        <Route
+          path="/pay-share/:splitPaymentId/:shareId"
+          element={<PayShare />}
         />
       </Route>
     </Routes>

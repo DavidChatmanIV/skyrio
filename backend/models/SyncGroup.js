@@ -25,6 +25,20 @@ const MemberSchema = new Schema(
     // as a single block (used for multi-family trips). Leave null for
     // friend-group members who each vote independently.
     familyUnit: { type: String, trim: true, default: null },
+
+    // ── NEW: split-payment tracking ──
+    // Mirrors the status of this member's share on the group's active
+    // SplitPayment document (see models/SplitPayment.js). Kept here too,
+    // denormalized, so the frontend can read it directly off the group
+    // object (SyncGroupPage.jsx already reads member.paymentStatus)
+    // without a second fetch. Source of truth for "is everyone paid" is
+    // still the SplitPayment doc; this field is updated alongside it by
+    // the Stripe webhook in stripe.routes.js.
+    paymentStatus: {
+      type: String,
+      enum: ["unpaid", "paid", "failed"],
+      default: "unpaid",
+    },
   },
   { _id: true }
 );
@@ -99,6 +113,10 @@ const SyncGroupSchema = new Schema(
         "planning",
         "reviewing",
         "confirmed",
+        // NEW: split-payment collection is in progress — the group has
+        // a real Booking (see bookingId below) and every payer has a
+        // Stripe PaymentIntent, but not everyone has paid yet.
+        "payment_pending",
         "booked",
         "completed",
         "cancelled",
@@ -121,6 +139,14 @@ const SyncGroupSchema = new Schema(
     },
     dateRangeStart: { type: Date, default: null },
     dateRangeEnd: { type: Date, default: null },
+
+    // ── NEW: split-payment linkage ──
+    // Set once the owner completes checkout in BookingCheckout.jsx
+    // (POST /api/stripe/create-group-payment-intents). References the
+    // real Booking created for this group's trip. The SplitPayment
+    // document itself is looked up by this bookingId, not stored here
+    // directly, so it stays the single source of truth.
+    bookingId: { type: Schema.Types.ObjectId, ref: "Booking", default: null },
 
     // ── NEW ──
     tripComposition: { type: TripCompositionSchema, default: () => ({}) },
@@ -176,6 +202,7 @@ SyncGroupSchema.methods.toSafeJSON = function () {
     departureTime: this.departureTime,
     dateRangeStart: this.dateRangeStart,
     dateRangeEnd: this.dateRangeEnd,
+    bookingId: this.bookingId,
     tripComposition: this.tripComposition,
     plan: this.plan,
     planGeneratedAt: this.planGeneratedAt,

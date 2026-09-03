@@ -1422,6 +1422,14 @@ function StaysForm({
         });
         const data = await res.json();
         if (!res.ok || !data.ok) {
+          // Surfaced to the console (not the user) so this is
+          // debuggable from devtools — a silent empty dropdown with
+          // zero feedback is exactly what makes "the autocomplete
+          // doesn't work" hard to diagnose. Common causes: the
+          // /api/hotels/places route not yet deployed/registered on
+          // the backend, or the LiteAPI key lacking access to the
+          // (billed) /data/places endpoint.
+          console.error("[places autocomplete] request failed:", data);
           setSuggestions([]);
           setSuggestOpen(false);
           return;
@@ -1442,6 +1450,7 @@ function StaysForm({
         setSuggestOpen(places.length > 0);
       } catch (err) {
         if (err.name !== "AbortError") {
+          console.error("[places autocomplete] request error:", err);
           setSuggestions([]);
           setSuggestOpen(false);
         }
@@ -2124,8 +2133,8 @@ function RoomCartBar({ rooms, onRemove, onCheckout, destCity }) {
       </div>
 
       <div className="sk-room-cart-chips">
-        {rooms.map((r) => (
-          <span key={roomKey(r)} className="sk-room-cart-chip">
+        {rooms.map((r, i) => (
+          <span key={`${roomKey(r)}-${i}`} className="sk-room-cart-chip">
             <span className="sk-room-cart-chip-name">{r.name}</span>
             <span className="sk-room-cart-chip-price">
               ${r.totalAmount?.toFixed(0) ?? "—"}
@@ -2354,29 +2363,36 @@ export default function BookingPage() {
   // ── Room cart helpers ──────────────────────────────────────
   // Adds a hotel offer to the trip's room cart so the user can keep
   // browsing and add rooms for other travelers before checking out.
+  //
+  // Duplicates are now ALLOWED on purpose: a group might genuinely
+  // want two identical rooms at the same hotel (e.g. a sports team
+  // booking several of the same room type). The card UI below turns
+  // into a quantity stepper (−/+) once a room is in the cart, rather
+  // than a confusing "already added" block — the stepper count IS
+  // how many of that room are in the trip.
   const addRoomToCart = useCallback((hotel) => {
     setRoomCart((prev) => {
-      if (prev.some((r) => roomKey(r) === roomKey(hotel))) {
-        antdMessage.info("That room is already in your trip.");
-        return prev;
-      }
       if (prev.length >= MAX_ROOMS_PER_TRIP) {
         antdMessage.warning(
           `You can add up to ${MAX_ROOMS_PER_TRIP} rooms per trip.`
         );
         return prev;
       }
-      antdMessage.success(
-        `${hotel.name} added — ${prev.length + 1} room${
-          prev.length + 1 > 1 ? "s" : ""
-        } in this trip`
-      );
       return [...prev, hotel];
     });
   }, []);
 
+  // Removes exactly ONE instance of this room from the cart (not every
+  // matching entry) — needed now that the same room can appear more
+  // than once for a multi-room group booking.
   const removeRoomFromCart = useCallback((hotel) => {
-    setRoomCart((prev) => prev.filter((r) => roomKey(r) !== roomKey(hotel)));
+    setRoomCart((prev) => {
+      const idx = prev.findIndex((r) => roomKey(r) === roomKey(hotel));
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next.splice(idx, 1);
+      return next;
+    });
   }, []);
 
   // "Book Now" on a single card. This now folds the room into the same
@@ -2392,13 +2408,17 @@ export default function BookingPage() {
   // updater) — calling other components' setState from inside a
   // different state's updater function is non-idiomatic React and can
   // cause those updates to fire more than once for a single click.
+  // "Book Now" on a single card. Folds the room into the same cart
+  // instead of bypassing it — that's what let a solo "Book Now"
+  // dead-end with no way to add a second room for a teammate/family
+  // member. It still opens checkout immediately for a fast one-room
+  // booking, but since the room joined the cart, hitting "Back to
+  // results" from checkout (below) lands back on Stays with that room
+  // still selected, ready to add more.
   const handleBookSingleRoom = useCallback(
     (hotel) => {
-      const already = roomCart.some((r) => roomKey(r) === roomKey(hotel));
-      let next;
-      if (already) {
-        next = roomCart;
-      } else if (roomCart.length >= MAX_ROOMS_PER_TRIP) {
+      let next = roomCart;
+      if (roomCart.length >= MAX_ROOMS_PER_TRIP) {
         antdMessage.warning(
           `You can add up to ${MAX_ROOMS_PER_TRIP} rooms per trip.`
         );
@@ -2716,7 +2736,10 @@ export default function BookingPage() {
   // underneath (just hidden) makes "Back" effectively instant.
   const checkoutOverlay =
     showCheckout && selectedFlight ? (
-      <div className="sk-checkout-overlay">
+      <div
+        className="sk-checkout-overlay"
+        style={{ "--sk-bg-image": `url(${heroImg})` }}
+      >
         <BookingCheckout
           flight={selectedFlight}
           onBack={() => {
@@ -2726,7 +2749,10 @@ export default function BookingPage() {
         />
       </div>
     ) : showHotelCheckout && checkoutRooms.length > 0 ? (
-      <div className="sk-checkout-overlay">
+      <div
+        className="sk-checkout-overlay"
+        style={{ "--sk-bg-image": `url(${heroImg})` }}
+      >
         <HotelCheckout
           rooms={checkoutRooms}
           // `hotel` kept for backward compatibility with any code still
@@ -3321,9 +3347,10 @@ export default function BookingPage() {
               tab === "Stays" &&
               paginatedHotels.length > 0 &&
               paginatedHotels.map((hotel) => {
-                const inCart = roomCart.some(
+                const countInCart = roomCart.filter(
                   (r) => roomKey(r) === roomKey(hotel)
-                );
+                ).length;
+                const inCart = countInCart > 0;
                 return (
                   <Card
                     key={roomKey(hotel)}
@@ -3403,44 +3430,55 @@ export default function BookingPage() {
                               }}
                               onSaveError={(msg) => antdMessage.error(msg)}
                             />
-                            <button
-                              type="button"
-                              className={`sk-add-room-btn${
-                                inCart ? " is-added" : ""
-                              }`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (inCart) removeRoomFromCart(hotel);
-                                else addRoomToCart(hotel);
-                              }}
-                              title={
-                                inCart
-                                  ? "Remove this room from your trip"
-                                  : "Add this room for another traveler"
-                              }
-                            >
-                              {inCart ? (
-                                <>
-                                  <CheckOutlined
-                                    style={{
-                                      marginRight: 4,
-                                      verticalAlign: "middle",
-                                    }}
-                                  />
-                                  Added
-                                </>
-                              ) : (
-                                <>
-                                  <PlusOutlined
-                                    style={{
-                                      marginRight: 4,
-                                      verticalAlign: "middle",
-                                    }}
-                                  />
-                                  Add Room
-                                </>
-                              )}
-                            </button>
+                            {/* Quantity stepper once at least one is in the cart —
+                              replaces the old binary "Add Room"/"Added" toggle,
+                              which blocked adding a second identical room (e.g.
+                              a group wanting two of the same room type) and read
+                              as "already added" rather than a real quantity. */}
+                            {inCart ? (
+                              <div
+                                className="sk-room-stepper"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  className="sk-room-stepper-btn"
+                                  onClick={() => removeRoomFromCart(hotel)}
+                                  aria-label="Remove one of this room"
+                                >
+                                  −
+                                </button>
+                                <span className="sk-room-stepper-count">
+                                  {countInCart}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="sk-room-stepper-btn"
+                                  onClick={() => addRoomToCart(hotel)}
+                                  aria-label="Add another of this room"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="sk-add-room-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addRoomToCart(hotel);
+                                }}
+                                title="Add this room for another traveler"
+                              >
+                                <PlusOutlined
+                                  style={{
+                                    marginRight: 4,
+                                    verticalAlign: "middle",
+                                  }}
+                                />
+                                Add Room
+                              </button>
+                            )}
                             <Button
                               className="sk-btn-orange"
                               size="small"
@@ -3462,6 +3500,18 @@ export default function BookingPage() {
                           {hotel.refundableTag === "NRFN" && (
                             <span className="sk-tag sk-tag-orange">
                               Non-refundable
+                            </span>
+                          )}
+                          {hotel.roomCount > 1 && (
+                            <span className="sk-tag sk-tag-xp">
+                              <Users
+                                size={11}
+                                style={{
+                                  marginRight: 3,
+                                  verticalAlign: "middle",
+                                }}
+                              />
+                              {hotel.roomCount} rooms in this rate
                             </span>
                           )}
                         </div>

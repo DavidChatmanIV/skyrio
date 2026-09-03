@@ -1,5 +1,10 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  detectMode,
+  MODE_GUIDANCE,
+  getLastUserText,
+} from "./atlasTripModes.js";
 
 // ─── Provider config ───────────────────────────────────────────
 
@@ -362,6 +367,22 @@ Always keep responses concise unless the user asks for detail.
 When handling cancellations or refunds, be empathetic — these are stressful moments for travelers.
 `.trim();
 
+/**
+ * Builds the effective default prompt for a given conversation: the base
+ * ATLAS_DEFAULT_SYSTEM_PROMPT plus a mode-guidance block detected from the
+ * most recent user message, if any pattern matches. Only used when a
+ * caller does NOT supply its own systemPrompt (e.g. AtlasPanel.jsx always
+ * builds and sends its own, so this path doesn't affect normal chat UI
+ * traffic — it covers server-side/script callers using the default).
+ */
+export function buildDefaultSystemPromptForHistory(conversationHistory) {
+  const lastUserText = getLastUserText(conversationHistory);
+  const mode = detectMode(lastUserText);
+  const modeBlock =
+    mode && MODE_GUIDANCE[mode] ? `\n\n${MODE_GUIDANCE[mode]}` : "";
+  return `${ATLAS_DEFAULT_SYSTEM_PROMPT}${modeBlock}`;
+}
+
 // ─── Convenience wrappers ─────────────────────────────────────
 
 /**
@@ -373,7 +394,7 @@ When handling cancellations or refunds, be empathetic — these are stressful mo
  *   atlasQuery("message", { systemPrompt, maxTokens, task, provider })
  */
 export async function atlasQuery(userMessage, optionsOrPrompt) {
-  let systemPrompt = ATLAS_DEFAULT_SYSTEM_PROMPT;
+  let systemPrompt;
   let maxTokens = 512;
   let task = "fast";
   let provider;
@@ -381,10 +402,18 @@ export async function atlasQuery(userMessage, optionsOrPrompt) {
   if (typeof optionsOrPrompt === "string") {
     systemPrompt = optionsOrPrompt;
   } else if (optionsOrPrompt && typeof optionsOrPrompt === "object") {
-    systemPrompt = optionsOrPrompt.systemPrompt || systemPrompt;
+    systemPrompt = optionsOrPrompt.systemPrompt;
     maxTokens = optionsOrPrompt.maxTokens || maxTokens;
     task = optionsOrPrompt.task || task;
     provider = optionsOrPrompt.provider;
+  }
+
+  // No custom prompt supplied — use the default, with mode guidance
+  // detected from this single message.
+  if (!systemPrompt) {
+    systemPrompt = buildDefaultSystemPromptForHistory([
+      { role: "user", content: userMessage },
+    ]);
   }
 
   const result = await atlasChat({
@@ -403,17 +432,20 @@ export async function atlasQuery(userMessage, optionsOrPrompt) {
  * route can handle tool calls.
  *
  * @param {Array}   conversationHistory
- * @param {string}  [systemPrompt]
+ * @param {string}  [systemPrompt]       - Pass your own to skip the default + mode-detection path entirely.
  * @param {Array}   [tools]              - Tool definitions
  * @returns {Promise<Object>}            - Full result with toolCalls
  */
 export async function atlasConverse(
   conversationHistory,
-  systemPrompt = ATLAS_DEFAULT_SYSTEM_PROMPT,
+  systemPrompt,
   tools = null
 ) {
+  const resolvedSystemPrompt =
+    systemPrompt || buildDefaultSystemPromptForHistory(conversationHistory);
+
   return await atlasChat({
-    systemPrompt,
+    systemPrompt: resolvedSystemPrompt,
     messages: conversationHistory,
     task: "default",
     maxTokens: 2048,

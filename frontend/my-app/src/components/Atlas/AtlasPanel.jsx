@@ -11,13 +11,16 @@ import {
   TRIP_TYPE_LABELS,
   TRIP_TYPE_INFERENCE_INSTRUCTION,
 } from "@/components/Atlas/atlasTripTypes";
+import { MODE_GUIDANCE, detectMode } from "@/components/Atlas/atlasTripModes";
 import Compass from "@/components/Atlas/Compass";
 import { Bot, X } from "lucide-react";
 import "@/styles/AtlasPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
 
-function buildSystemPrompt(ctx) {
+// `userText` is optional — when omitted, no mode block is appended (used for
+// the initial memoized prompt before the user has typed anything).
+function buildSystemPrompt(ctx, userText) {
   const {
     destination,
     budget,
@@ -80,6 +83,15 @@ function buildSystemPrompt(ctx) {
       ? `\n\nTRIP TYPE GUIDANCE:\n${TRIP_TYPE_GUIDANCE[tripType]}`
       : `\n\n${TRIP_TYPE_INFERENCE_INSTRUCTION}`;
 
+  // ── Intent-based mode block ──
+  // Detected from the message being sent right now. Falls back to no
+  // block (general trip planning) when nothing matches.
+  const detectedMode = detectMode(userText);
+  const modeBlock =
+    detectedMode && MODE_GUIDANCE[detectedMode]
+      ? `\n\n${MODE_GUIDANCE[detectedMode]}`
+      : "";
+
   return `You are Atlas, Skyrio's AI travel companion. You are sharp, warm, and genuinely helpful — like a well-traveled friend who happens to know everything about flights, hotels, and trip planning.
 
 Your job is to help users plan smarter trips: better routes, better timing, better value. You combine real data awareness with honest, direct advice.
@@ -102,7 +114,7 @@ WHAT YOU DO NOT DO:
 - Never make up flight prices or hotel rates. Reference what's loaded or say you don't have that data.
 - Never ask for information Skyrio already has (destination, budget, etc.) — use the context.
 - Never give generic travel blog advice. Be specific to this user's situation.
-- Never be sycophantic.${contextBlock}${tripTypeBlock}
+- Never be sycophantic.${contextBlock}${tripTypeBlock}${modeBlock}
 
 Keep responses under 120 words unless the user asks for a detailed breakdown. Use short paragraphs or bullet points when listing options. Always end with a clear next step or question if more info would help.`;
 }
@@ -304,7 +316,10 @@ export default function AtlasPanel() {
   const inputRef = useRef(null);
   const abortRef = useRef(null);
 
-  const systemPrompt = useMemo(
+  // Kept for starter prompts and any place that needs a prompt with no
+  // specific message yet (mode detection needs the outgoing text, so the
+  // real per-send prompt is built fresh inside sendMessage below).
+  const baseSystemPrompt = useMemo(
     () => buildSystemPrompt(atlasContext),
     [atlasContext]
   );
@@ -382,6 +397,10 @@ export default function AtlasPanel() {
 
       abortRef.current = new AbortController();
 
+      // Build the system prompt fresh for this message so intent-mode
+      // detection sees the actual text being sent.
+      const systemPromptForSend = buildSystemPrompt(atlasContext, userText);
+
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(`${API}/api/atlas/chat`, {
@@ -390,7 +409,10 @@ export default function AtlasPanel() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ messages: history, systemPrompt }),
+          body: JSON.stringify({
+            messages: history,
+            systemPrompt: systemPromptForSend,
+          }),
           signal: abortRef.current.signal,
         });
 
@@ -457,7 +479,7 @@ export default function AtlasPanel() {
         setLoading(false);
       }
     },
-    [input, loading, messages, systemPrompt]
+    [input, loading, messages, atlasContext]
   );
 
   const handleKeyDown = useCallback(

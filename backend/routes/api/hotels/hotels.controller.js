@@ -1,3 +1,8 @@
+// ─────────────────────────────────────────────────────────────
+// hotels.controller.js
+// All LiteAPI business logic — imported by hotels.routes.js
+// ─────────────────────────────────────────────────────────────
+
 import Stripe from "stripe";
 import { liteapi } from "./hotel.provider.js";
 import {
@@ -114,8 +119,16 @@ export async function searchPlaces(req, res) {
       });
     }
 
+    // FIXED: LiteAPI's actual required param for this endpoint is
+    // `textQuery`, not `query` — confirmed against their live reference
+    // docs (https://docs.liteapi.travel/reference/get_data-places).
+    // Sending `query` instead was silently missing their required
+    // field, which is exactly why every request here was coming back
+    // 400 Bad Request regardless of what was typed. Our own
+    // /api/hotels/places?query=... contract to the frontend is
+    // unaffected — this only fixes the outbound call to LiteAPI.
     const result = await liteapi.searchGet("/data/places", {
-      query: query.trim(),
+      textQuery: query.trim(),
       type,
       language,
     });
@@ -388,6 +401,61 @@ export async function initHotelCheckout(req, res) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// finalizeHotelBookings(bookings)
+//
+// The actual "call LiteAPI and book every room" step, extracted out
+// of confirmHotelBooking so it can ALSO be called from the split-
+// payment completion path (splitPayments.controller.js) once every
+// traveler's individual share has been paid — the real LiteAPI
+// booking call only ever happens once, in exactly one place, no
+// matter which payment flow (single-payer or split) triggered it.
+//
+// IMPORTANT: callers must have ALREADY verified payment succeeded
+// before calling this — it does not check payment status itself,
+// it only performs the LiteAPI booking calls.
+//
+// @param {Array<{prebookId, holder, guests}>} bookings
+// @returns {Promise<{results: Array, failures: Array}>}
+// ─────────────────────────────────────────────────────────────
+export async function finalizeHotelBookings(bookings) {
+  // IMPORTANT: at the point this runs, payment has already succeeded
+  // (whether via one combined charge or every split-payment share).
+  // If a /rates/book call fails partway through a multi-room trip,
+  // the guest(s) have already paid for every room but not every room
+  // is actually booked — those are returned in `failures` so this can
+  // be flagged for a support follow-up (manual booking completion or
+  // partial refund) rather than silently losing track of it.
+  const results = [];
+  const failures = [];
+
+  for (const b of bookings) {
+    try {
+      const result = await liteapi.bookRequest("/rates/book", {
+        method: "POST",
+        body: {
+          holder: b.holder,
+          guests: b.guests,
+          payment: { method: "ACC_CREDIT_CARD" },
+          prebookId: b.prebookId,
+        },
+      });
+      results.push({ prebookId: b.prebookId, booking: result });
+    } catch (err) {
+      console.error(
+        `LiteAPI booking failed for prebookId ${b.prebookId} (payment already captured):`,
+        err
+      );
+      failures.push({
+        prebookId: b.prebookId,
+        message: err?.message || "Booking failed",
+      });
+    }
+  }
+
+  return { results, failures };
+}
+
+// ─────────────────────────────────────────────────────────────
 // POST /api/hotels/confirm-booking
 //
 // Step 2 of the real checkout flow. Call this ONLY after Stripe
@@ -483,39 +551,7 @@ export async function confirmHotelBooking(req, res) {
     }
 
     // ── Payment confirmed — now book each room with LiteAPI. ──
-    // IMPORTANT: the Stripe charge has already succeeded at this
-    // point. If a /rates/book call fails partway through a
-    // multi-room trip, the guest has already paid for every room
-    // but not every room is actually booked — those are returned
-    // in `failures` below so this can be flagged for a support
-    // follow-up (manual booking completion or partial refund)
-    // rather than silently losing track of it.
-    const results = [];
-    const failures = [];
-
-    for (const b of bookings) {
-      try {
-        const result = await liteapi.bookRequest("/rates/book", {
-          method: "POST",
-          body: {
-            holder: b.holder,
-            guests: b.guests,
-            payment: { method: "ACC_CREDIT_CARD" },
-            prebookId: b.prebookId,
-          },
-        });
-        results.push({ prebookId: b.prebookId, booking: result });
-      } catch (err) {
-        console.error(
-          `LiteAPI booking failed for prebookId ${b.prebookId} (payment already captured):`,
-          err
-        );
-        failures.push({
-          prebookId: b.prebookId,
-          message: err?.message || "Booking failed",
-        });
-      }
-    }
+    const { results, failures } = await finalizeHotelBookings(bookings);
 
     if (failures.length > 0) {
       // 207 Multi-Status: partial success — some rooms booked, some not.

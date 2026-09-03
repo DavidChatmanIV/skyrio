@@ -3135,7 +3135,9 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 
 /* ===============================================================
    MULTI-ROOM BOOKING + HOTEL CHECKOUT + CITY AUTOCOMPLETE +
-   CHECKOUT-OVERLAY PERF FIX + CUSTOM TRAVELER/ROOM COUNT
+   CHECKOUT-OVERLAY PERF FIX + CUSTOM TRAVELER/ROOM COUNT +
+   BUNDLED MULTI-ROOM OFFER DISPLAY + ROOM QUANTITY STEPPER +
+   SPLIT-THE-BILL PAYMENT MODE
    ===============================================================*/
 
 /* ─────────────────────────────────────────────────────────────
@@ -3170,6 +3172,45 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   border-color: rgba(255, 138, 42, 0.55);
   background: rgba(255, 138, 42, 0.14);
   color: #ff8a2a;
+}
+
+/* Quantity stepper — replaces the Add/Added toggle once a room is in
+   the cart. Lets a group add two (or more) of the identical room
+   without it reading as an error or a duplicate block. */
+.sk-room-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.4);
+  background: rgba(255, 138, 42, 0.1);
+  padding: 3px;
+}
+.sk-room-stepper-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #ff8a2a;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.sk-room-stepper-btn:hover {
+  background: rgba(255, 138, 42, 0.22);
+}
+.sk-room-stepper-count {
+  min-width: 20px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
 }
 
 /* Room cart bar — sits under the quick filters, above the results list */
@@ -3293,15 +3334,26 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 
 /* Wraps BookingCheckout / HotelCheckout when they render as an overlay
    on top of the (still-mounted, just hidden) results page. Fixed +
-   full-viewport + its own scroll + its own solid background so it
-   reads as a full page, not a modal, even though the results tree
-   underneath was never actually torn down. */
+   full-viewport + its own scroll. Uses the SAME hero photo + gradient
+   treatment as the rest of the app (passed in via --sk-bg-image, same
+   as .sk-booking) instead of a flat color — a solid black backdrop here
+   was a visual mismatch with the rest of the purple/orange twilight
+   theme used everywhere else. */
 .sk-checkout-overlay {
   position: fixed;
   inset: 0;
   z-index: 200;
   overflow-y: auto;
-  background: #0c0918;
+  background-image: linear-gradient(
+      180deg,
+      rgba(10, 6, 20, 0.62),
+      rgba(10, 6, 20, 0.8)
+    ),
+    var(--sk-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-color: #14091f;
 }
 
 .sk-checkout-wrap {
@@ -3381,6 +3433,35 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sk-checkout-roomcount-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(255, 138, 42, 0.16);
+  color: #ff8a2a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.sk-checkout-subrates {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sk-checkout-subrate-line {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .sk-checkout-room-meta {
@@ -3395,6 +3476,27 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   font-size: 14px;
   white-space: nowrap;
   align-self: center;
+  text-align: right;
+}
+
+.sk-checkout-room-price-note {
+  font-weight: 400;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 2px;
+}
+
+.sk-checkout-guest-group {
+  margin-bottom: 6px;
+}
+
+.sk-checkout-guest-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 138, 42, 0.85);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 10px 0 4px;
 }
 
 .sk-checkout-total-row {
@@ -3568,4 +3670,163 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 
 .sk-occupancy-input.ant-input-number {
   width: 92px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Split-the-bill payment mode (HotelCheckout.jsx + PayShare.jsx)
+   ───────────────────────────────────────────────────────────── */
+
+.sk-checkout-paymode-toggle {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 4px;
+  flex-wrap: wrap;
+}
+
+.sk-checkout-paymode-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sk-checkout-paymode-btn:hover {
+  border-color: rgba(255, 138, 42, 0.4);
+  color: #fff;
+}
+.sk-checkout-paymode-btn.is-active {
+  background: rgba(255, 138, 42, 0.16);
+  border-color: #ff8a2a;
+  color: #ff8a2a;
+}
+
+.sk-checkout-split-assign {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.sk-checkout-split-assign:last-of-type {
+  border-bottom: none;
+}
+
+.sk-checkout-split-assign-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8px;
+}
+
+.sk-checkout-split-assign-amount {
+  color: #ff8a2a;
+  font-weight: 700;
+}
+
+.sk-checkout-split-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  padding: 60px 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 14px;
+}
+
+.sk-checkout-split-status {
+  margin-top: 20px;
+  max-width: 560px;
+}
+
+.sk-checkout-split-expiry {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: rgba(255, 175, 80, 0.8);
+  background: rgba(255, 138, 42, 0.07);
+  border: 1px solid rgba(255, 138, 42, 0.18);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+}
+
+.sk-checkout-split-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+.sk-checkout-split-row:last-of-type {
+  border-bottom: none;
+}
+
+.sk-checkout-split-row-info {
+  flex: 1;
+  min-width: 120px;
+}
+.sk-checkout-split-row-name {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #fff;
+}
+.sk-checkout-split-row-label {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.sk-checkout-split-row-amount {
+  font-weight: 700;
+  color: #fff;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+.sk-checkout-split-row-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.sk-checkout-split-row-status.is-pending {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.5);
+}
+.sk-checkout-split-row-status.is-paid {
+  background: rgba(80, 220, 140, 0.12);
+  color: #4de89a;
+}
+.sk-checkout-split-row-status.is-failed {
+  background: rgba(255, 80, 80, 0.12);
+  color: #ff8080;
+}
+.sk-checkout-split-row-status.is-refunded {
+  background: rgba(140, 90, 255, 0.12);
+  color: #b49eff;
+}
+
+.sk-checkout-split-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.32);
+  background: rgba(255, 138, 42, 0.07);
+  color: #ff8a2a;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+.sk-checkout-split-copy-btn:hover {
+  background: rgba(255, 138, 42, 0.16);
 }

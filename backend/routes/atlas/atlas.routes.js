@@ -3,6 +3,7 @@ import { logEvent } from "../../services/eventService.js";
 import {
   atlasChat,
   ATLAS_DEFAULT_SYSTEM_PROMPT,
+  buildDefaultSystemPromptForHistory,
 } from "../../services/atlasService.js";
 
 const router = Router();
@@ -173,6 +174,13 @@ ${
 //
 // NOW ROUTES THROUGH atlasService.js — respects ATLAS_PROVIDER /
 // ATLAS_FALLBACK_PROVIDER and gets automatic Claude<->OpenAI failover.
+//
+// MODE DETECTION: AtlasPanel.jsx builds its own systemPrompt client-side
+// (with intent-mode guidance already appended — see atlasTripModes.js),
+// so when systemPrompt is present we use it as-is. Callers that don't
+// send one (currently SyncGroupPage.jsx, which sends `context` instead)
+// get buildDefaultSystemPromptForHistory(messages) — the server-side
+// mode-detection path — instead of the raw, mode-blind default prompt.
 // ─────────────────────────────────────────────────────────────
 
 router.post("/chat", async (req, res) => {
@@ -186,8 +194,12 @@ router.post("/chat", async (req, res) => {
     }
 
     // Some callers (SyncGroupPage) send `context` separately instead of
-    // baking it into systemPrompt — fold it in if present.
-    let finalSystemPrompt = systemPrompt || ATLAS_DEFAULT_SYSTEM_PROMPT;
+    // baking it into systemPrompt — fold it in if present. When no
+    // systemPrompt is supplied at all, fall back to the mode-aware
+    // default (detects intent from the latest user message) rather than
+    // the raw ATLAS_DEFAULT_SYSTEM_PROMPT.
+    let finalSystemPrompt =
+      systemPrompt || buildDefaultSystemPromptForHistory(messages);
     if (context && typeof context === "object") {
       const ctxLines = Object.entries(context)
         .filter(([, v]) => v !== null && v !== undefined && v !== "")

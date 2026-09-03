@@ -83,6 +83,12 @@ await mount("/watches", "../watches.js");
 await mount("/xp", "../xp.js");
 await mount("/atlas", "../atlas/atlas.routes.js");
 await mount("/stripe", "../stripe.routes.js");
+// NEW: Split payments — per-member "pay your share" flow for group
+// bookings created via Sync Together (create split, get status by
+// splitPaymentId/shareId, mark a share paid, Stripe PaymentIntents
+// per traveler). Sits alongside stripe.routes.js since it's also a
+// top-level payments module, not nested under /api/.
+await mount("/split-payments", "../splitPayments.routes.js");
 await mount("/verification", "../verificationRoutes.js");
 await mount("/referral", "./referral.routes.js");
 
@@ -113,6 +119,7 @@ api.get("/", (_req, res) => {
       "/referral",
       "/feedback",
       "/support",
+      "/split-payments",
     ],
   });
 });
