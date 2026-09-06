@@ -113,7 +113,15 @@ export async function searchFlights(req, res) {
       Object.keys(data || {})
     );
 
-    const results = normalizeFlightSearchResponse(data);
+    // `params` (origin/destination/returnDate) is now passed through so
+    // normalizeFlightSearchResponse can correctly split each journey's
+    // segments into outbound vs. return legs. Previously this relied
+    // solely on an LiteAPI `direction` field on each segment that
+    // apparently isn't reliably present — every round-trip flight's
+    // return leg was silently getting merged into the outbound slice,
+    // which is why the frontend always showed "Return TBD" for the
+    // return flight regardless of what was actually booked.
+    const results = normalizeFlightSearchResponse(data, params);
     const flights = results.map(toFrontendFlightShape);
 
     console.log(`[flights/search] normalized ${flights.length} flight(s)`);

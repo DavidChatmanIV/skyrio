@@ -213,10 +213,6 @@ function buildFlight(flight) {
   const rawPrice = parseFloat(flight.totalAmount ?? flight.price);
   return {
     id: flight.id || "",
-    // offerId is the one LiteAPI field this whole checkout flow hinges
-    // on — verify/prebook/complete all need it. Kept top-level (not
-    // just inside raw) so nothing downstream has to know the shape of
-    // the original search result.
     offerId: flight.offerId || flight.raw?.offerId || null,
     raw: flight,
     outbound: {
@@ -283,24 +279,14 @@ const BAG_OPTIONS = [
   },
 ];
 
-// ── Passenger model ──────────────────────────────────────────────
 const PASSENGER_TYPES = [
   { id: "ADT", label: "Adult" },
   { id: "CHD", label: "Child" },
   { id: "INF", label: "Infant" },
 ];
 
-// TODO(api): replace with a real per-passenger-type fare breakdown once
-// your backend/LiteAPI response includes one. This is a placeholder
-// ratio so child/infant fares aren't priced identically to an adult.
 const FARE_MULTIPLIER = { ADT: 1, CHD: 1, INF: 0.1 };
 
-// A short list is enough here — it's a fallback field LiteAPI requires
-// regardless of domestic travel, not a real destination picker. Covers
-// the vast majority of Skyrio's current traveler base. Using a <select>
-// instead of free text prevents the exact bug that caused repeated
-// "documentIssueCountry ... got 'UN'" API errors: people typing the full
-// country name ("United States") into a 2-character field.
 const COUNTRY_OPTIONS = [
   { code: "US", label: "United States" },
   { code: "CA", label: "Canada" },
@@ -341,13 +327,10 @@ function makePassenger(index) {
     email: "",
     phone: "",
     ktn: "",
-    // LiteAPI's docs state passengers require "birthday, document, and
-    // name details" — passport/ID info, not just DOB. Added proactively
-    // instead of discovering each field one 400 error at a time.
     passportNumber: "",
     passportExpiry: "",
-    passportCountry: "US", // issuing country, ISO-2 — defaulted since most Skyrio travelers are US-based (Expedia's own domestic flow asks for none of this)
-    nationality: "US", // ISO-2 — same default
+    passportCountry: "US",
+    nationality: "US",
   };
 }
 
@@ -355,20 +338,6 @@ function fullName(p) {
   return [p.firstName, p.lastName].filter(Boolean).join(" ").trim();
 }
 
-// Shapes a local passenger into what LiteAPI's /flights/prebooks expects.
-// The exact field set (dateOfBirth vs dob, passport fields, etc.) is not
-// yet confirmed against a live response — this is the best-guess shape
-// based on standard NDC/LiteAPI conventions. If prebook returns a field
-// validation error, check the console.error in StepReviewPay below for
-// LiteAPI's exact complaint and adjust here.
-// LiteAPI requires document fields on every passenger regardless of
-// domestic vs. international travel, but only validates their FORMAT —
-// confirmed by successful live prebooks using placeholder-style values.
-// Rather than ask every domestic traveler for a passport they likely
-// don't have (something even Expedia's own domestic flow never asks
-// for), generate a well-formed placeholder automatically. Deterministic
-// per-passenger (based on name + DOB) so re-submitting the same
-// passenger doesn't produce a different fake ID each time.
 function generatePlaceholderDocument(p) {
   const namePart = (p.lastName || "XX")
     .replace(/[^A-Za-z]/g, "")
@@ -388,17 +357,13 @@ function toLiteApiPassenger(p) {
   return {
     firstName: p.firstName,
     lastName: p.lastName,
-    birthday: p.dob, // YYYY-MM-DD — LiteAPI's exact field name, confirmed via live 400 error
-    gender: p.gender, // "M" | "F" — confirmed via live 400 error
-    nationality: p.nationality || "US", // top-level — confirmed via live 400 error
-    type: p.type, // ADT | CHD | INF
-    // LiteAPI flattens ALL document fields directly onto the passenger
-    // object — no nested `document` sub-object. Confirmed via two live
-    // 400 errors: documentType and documentIssueCountry both came back
-    // as top-level keys (bodyRequest.passengers[0].X, not .document.X).
+    birthday: p.dob,
+    gender: p.gender,
+    nationality: p.nationality || "US",
+    type: p.type,
     documentType: "id",
     documentNumber: doc.number,
-    documentExpiry: doc.expiry, // NOT documentExpiryDate — confirmed via live error text
+    documentExpiry: doc.expiry,
     documentIssueCountry: doc.issueCountry,
     ...(p.index === 0
       ? {
@@ -409,19 +374,9 @@ function toLiteApiPassenger(p) {
   };
 }
 
-// ── Seat inventory (mock) ─────────────────────────────────────────
-// TODO(api): replace with a real GET to your seat inventory endpoint
-// for this flight/segment, once one exists. This just marks a handful
-// of seats unavailable so the map isn't wide open.
 const SEAT_ROWS = [11, 12, 13, 14, 15];
 const SEAT_COLUMNS = ["A", "B", "C", "D", "E", "F"];
 
-// Pricing tiers modeled on real 2026 ULCC seat-selection fees
-// (Spirit/Frontier): standard seats free-to-cheap, extra-legroom rows
-// in the $25-45 band, front-row/big-seat rows in the $45-90 band —
-// rather than one flat price applied across the whole cabin.
-// TODO(api): replace with real per-seat pricing from your seat
-// inventory endpoint once it returns one.
 function rowPricing(row, firstRow, secondRow) {
   if (row === firstRow) return { tier: "premium", price: 59 };
   if (row === secondRow) return { tier: "extra-legroom", price: 29 };
@@ -448,7 +403,6 @@ function generateMockSeatServices(rows, columns) {
   return services;
 }
 
-// ── Inline SVG icons (no emoji, matches existing project style) ──────
 function PlaneIconSvg({ size = 15 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -728,6 +682,17 @@ function ProgressBar({ step }) {
   );
 }
 
+// FIX (Return TBD bug): this component previously rendered the literal
+// text "Return TBD" unconditionally whenever isReturn was true — it
+// never actually checked leg.time/leg.date, so even a flight object
+// with a correctly populated returningAt (from the backend leg-split
+// fix in Liteapiflights.utils.js) still showed the placeholder here.
+// buildFlight() above already computes the real return date/time
+// correctly into leg.date/leg.time (falling back to "Return TBD"/"--"
+// only when returningAt is genuinely missing) — this component just
+// wasn't reading that value for the return leg's second line. Now it
+// does, and only falls back to the placeholder when there's truly no
+// return time.
 function FlightLeg({ leg, stops, ownerCode, isReturn }) {
   return (
     <div
@@ -788,7 +753,9 @@ function FlightLeg({ leg, stops, ownerCode, isReturn }) {
           </div>
         )}
         {isReturn && (
-          <div style={{ fontSize: 11, color: G.muted }}>Return TBD</div>
+          <div style={{ fontSize: 11, color: G.muted }}>
+            {leg.time && leg.time !== "--" ? leg.time : "Return TBD"}
+          </div>
         )}
       </div>
     </div>
@@ -1063,7 +1030,18 @@ function TripSidebar({
             >
               {flight.return.from} → {flight.return.to}
             </div>
-            <div style={{ fontSize: 12, color: G.muted }}>Return TBD</div>
+            {/* FIX (Return TBD bug): this line was hardcoded to the
+                literal string "Return TBD" regardless of whether real
+                return data existed. flight.return.date/time are already
+                computed correctly by buildFlight() above from
+                returningAt — dateISO is null specifically when that
+                value was genuinely missing, so it's used here as the
+                presence check instead of comparing display strings. */}
+            <div style={{ fontSize: 12, color: G.muted }}>
+              {flight.return.dateISO
+                ? `${flight.return.date} · ${flight.return.time}`
+                : "Return TBD"}
+            </div>
           </div>
         )}
         <div
@@ -1193,9 +1171,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
       return "Enter a valid email";
     if (field === "phone" && idx === 0 && !phoneOk(p.phone))
       return "Enter a valid phone number";
-    // LiteAPI requires document details on every passenger regardless of
-    // domestic vs. international — confirmed via a live 400 error. Not
-    // actually optional despite real-world domestic travel not needing one.
     if (field === "passportNumber") {
       if (!p.passportNumber) return "Required";
       if (!passportNumOk(p.passportNumber))
@@ -1209,8 +1184,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
       if (!p.passportCountry) return "Required";
       if (!countryCodeOk(p.passportCountry)) return "2-letter country code";
     }
-    // Nationality is required for every passenger (LiteAPI top-level field,
-    // separate from the document.nationality sent alongside it).
     if (field === "nationality") {
       if (!p.nationality) return "Required";
       if (!countryCodeOk(p.nationality)) return "2-letter country code";
@@ -1495,17 +1468,6 @@ function StepPassengers({ onNext, flight, basePrice }) {
                     </label>
                   </>
                 )}
-
-                {/* Document fields (passport/ID number, expiry, issuing
-                    country, nationality) are no longer collected here.
-                    LiteAPI's prebook endpoint validates these purely on
-                    format, not authenticity — confirmed by successful
-                    live prebooks using placeholder-style values — so
-                    they're generated automatically in toLiteApiPassenger
-                    instead of asking every domestic traveler for a
-                    passport they likely don't have. Matches Expedia's
-                    actual domestic checkout, which never asks for this
-                    either. */}
 
                 <button
                   type="button"
@@ -1805,6 +1767,30 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight, passengers }) {
               Review &amp; Pay →
             </button>
           </div>
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={() =>
+                onNext({
+                  selectedSeats: {},
+                  bag: "none",
+                  insurance: false,
+                  seatsPrice: 0,
+                })
+              }
+              style={{
+                background: "none",
+                border: "none",
+                color: G.muted,
+                fontSize: 13,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Skip seats &amp; bags
+            </button>
+          </div>
         </div>
         <div className="skc-step-sidebar">
           <TripSidebar
@@ -1822,13 +1808,6 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight, passengers }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// GROUP BANNER — new, purely additive. Shown at the top of Review
-// & Pay only when this checkout was entered with a groupId, so the
-// trip leader understands they're paying for the whole group and
-// will be reimbursed via Sync Together, not that they're only
-// paying for themselves.
-// ═══════════════════════════════════════════════════════════════
 function GroupPaymentBanner({ memberCount }) {
   return (
     <div
@@ -1867,13 +1846,14 @@ function StripePayForm({
   passengers,
   flight,
   prebookId,
+  transactionId,
   total,
   loading,
   setLoading,
   error,
   setError,
-  groupId, // NEW — optional, only present for group bookings
-  onGroupBookingComplete, // NEW — called with the created bookingId
+  groupId,
+  onGroupBookingComplete,
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -1928,10 +1908,7 @@ function StripePayForm({
         return;
       }
 
-      // Payment succeeded on Stripe's side — now tell LiteAPI to finalize
-      // the actual airline booking against the prebook we made earlier.
-      // Nothing is actually ticketed until this call succeeds.
-      if (!prebookId) {
+      if (!prebookId || !transactionId) {
         setError(
           "Payment succeeded but we're missing your booking reference. Please contact support with this confirmation before booking again."
         );
@@ -1949,19 +1926,16 @@ function StripePayForm({
         },
         body: JSON.stringify({
           prebookId: prebookId,
-          prebookID: prebookId, // sending both casings until confirmed which LiteAPI actually reads
-          // Confirmed via LiteAPI's official docs: /flights/bookings requires
-          // a `payment` object with `method` and, for Stripe, `transactionId`
-          // — the PaymentIntent ID from the confirmPayment() call above.
-          // Missing this would have failed the same way the missing
-          // contact/passenger fields did on prebook.
+          prebookID: prebookId,
           payment: {
             method: "TRANSACTION_ID",
-            transactionId: paymentIntent.id,
+            // Use LiteAPI's own transactionId captured at prebook time —
+            // NOT paymentIntent.id. LiteAPI validates this against their
+            // own records tied to the prebook; an arbitrary Stripe
+            // PaymentIntent id from a different account fails with
+            // "transactionId does not match the prebook" (error 45020).
+            transactionId: transactionId,
           },
-          // NEW — tags the created Booking with the SyncGroup it belongs
-          // to, if any. Backend should treat this as optional/no-op when
-          // absent — solo bookings never send this field.
           ...(groupId && { groupId }),
         }),
       });
@@ -1982,23 +1956,46 @@ function StripePayForm({
       // LiteAPI/Stripe payment that already succeeded above — it only
       // starts the separate collection flow (PaymentShareCard /
       // PaymentProgressPanel) against the Booking's own _id.
+      //
+      // UPDATED: fetch() only rejects on a network failure — never on a
+      // non-2xx HTTP status — so the previous version's try/catch never
+      // actually caught a real failure here (e.g. the backend rejecting
+      // because the booking has no price, or a 403 if groupId somehow
+      // didn't match this user as owner). It would silently look like
+      // the split started when it hadn't. Now checks response.ok and the
+      // parsed body's `ok` flag explicitly, same pattern used everywhere
+      // else in this file (see the /flights/complete check just above).
       if (groupId && completeData.booking?._id) {
         try {
-          await fetch(`${API}/api/stripe/create-group-payment-intents`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              bookingId: completeData.booking._id,
-              groupId,
-            }),
-          });
+          const splitRes = await fetch(
+            `${API}/api/stripe/create-group-payment-intents`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                bookingId: completeData.booking._id,
+                groupId,
+              }),
+            }
+          );
+          const splitData = await splitRes.json();
+          if (!splitRes.ok || !splitData.ok) {
+            // Still non-fatal — the flight IS booked at this point — but
+            // now actually logged instead of silently assumed to have
+            // worked. Worst case, the trip leader opens Sync Together and
+            // the group payment split hasn't started yet; that can be
+            // retried from there.
+            console.error(
+              "[group booking] failed to start payment split:",
+              splitData
+            );
+          }
         } catch (splitErr) {
-          // Non-fatal — the flight IS booked at this point. Worst case,
-          // the trip leader opens Sync Together and the group payment
-          // split hasn't started yet; that can be retried from there.
+          // True network failure (offline, DNS, etc.) — same non-fatal
+          // handling as before.
           console.error(
             "[group booking] failed to start payment split:",
             splitErr
@@ -2257,6 +2254,7 @@ function StripePayForm({
           )}
         </button>
       </div>
+      <CancellationBadge departureDateISO={flight?.outbound?.dateISO} />
       <div
         style={{
           display: "flex",
@@ -2281,23 +2279,16 @@ function StepReviewPay({
   extras,
   basePrice,
   flight,
-  groupId, // NEW
-  groupMemberCount, // NEW
-  onGroupBookingComplete, // NEW
+  groupId,
+  groupMemberCount,
+  onGroupBookingComplete,
 }) {
   const [clientSecret, setClientSecret] = useState(null);
   const [prebookId, setPrebookId] = useState(null);
+  const [transactionId, setTransactionId] = useState(null);
   const [initLoading, setInitLoading] = useState(true);
   const [payLoading, setPayLoading] = useState(false);
   const [error, setError] = useState("");
-  // Prevents this effect's async work from running twice — React 18
-  // StrictMode intentionally double-invokes effects in dev, which was
-  // firing two real prebook reservations back-to-back (confirmed by
-  // seeing two POST /flights/prebook 200s in the backend log for one
-  // page load). Each call produces a different clientSecret, and
-  // Stripe Elements gets stuck mid-mount when the secret it's using
-  // changes out from under it — that's what caused the payment form
-  // to start loading and then freeze.
   const hasInitialized = useRef(false);
 
   const { selectedSeats, bag, insurance, seatsPrice } = extras;
@@ -2351,7 +2342,7 @@ function StepReviewPay({
           Authorization: `Bearer ${token}`,
         };
 
-        // Step 1: verify the offer is still bookable and get current pricing.
+        // 1. Verify the fare is still available (unchanged)
         const vRes = await fetch(`${API}/api/flights/verify`, {
           method: "POST",
           headers: authHeaders,
@@ -2364,12 +2355,17 @@ function StepReviewPay({
               "This fare is no longer available. Please go back and pick a fresh result."
           );
         }
-        // LiteAPI may return an updated/refreshed offerId from verify —
-        // fall back to the original if the response doesn't include one.
         const verifiedOfferId = vData.offerId || flight.offerId;
 
-        // Step 2: prebook — reserves the fare and (with usePaymentSdk:true)
-        // sets up payment on LiteAPI's side.
+        // 2. Prebook with LiteAPI — TESTING LiteAPI's own payment flow
+        //    (usePaymentSdk restored). LiteAPI returns BOTH a Stripe
+        //    `secretKey` (their PaymentIntent, on THEIR connected Stripe
+        //    account) AND a `transactionId` that's their internal
+        //    reference to that same PaymentIntent — the /complete step
+        //    requires that exact transactionId back, not an arbitrary
+        //    one. If our Skyrio Stripe account is properly Connect-linked
+        //    to LiteAPI's platform, our own publishable key should be
+        //    able to render Elements against their secretKey with no 401.
         const leadPassenger = passengers[0];
         const prebookBody = {
           offerId: verifiedOfferId,
@@ -2378,9 +2374,6 @@ function StepReviewPay({
             firstName: leadPassenger.firstName,
             lastName: leadPassenger.lastName,
             phoneNumber: leadPassenger.phone,
-            // Must be a numeric dialing code (e.g. "1"), NOT an ISO-2
-            // letter code like "US" — confirmed via live error text
-            // ("must be numeric", "must contain digits").
             phoneCountryCode: "1",
           },
           passengers: passengers.map(toLiteApiPassenger),
@@ -2395,6 +2388,7 @@ function StepReviewPay({
           body: JSON.stringify(prebookBody),
         });
         const pData = await pRes.json();
+        console.log("[prebook] FULL response:", JSON.stringify(pData, null, 2));
         if (!pRes.ok || !pData.ok) {
           throw new Error(
             pData.message ||
@@ -2402,12 +2396,6 @@ function StepReviewPay({
           );
         }
 
-        // LiteAPI wraps flights/prebooks responses the same way search
-        // does — top-level `data` is an ARRAY with one element (confirmed
-        // by the pattern already seen in /flights/search's raw response,
-        // and by LiteAPI's own docs describing booking responses as
-        // `data[0].message` for the idempotent-booking case). Unwrap that
-        // first, then fall back to flatter shapes just in case.
         const prebookRecord = Array.isArray(pData.data)
           ? pData.data[0]
           : pData.data || pData;
@@ -2430,16 +2418,29 @@ function StepReviewPay({
         }
         setPrebookId(newPrebookId);
 
-        // Per LiteAPI's docs, the Stripe fields are literally named
-        // `transactionId` and `secretKey` (not `clientSecret`) inside
-        // `paymentData` — that mismatch is what broke this the first
-        // time, not a missing field.
+        // Capture LiteAPI's own transactionId — THIS is what /complete
+        // needs back, not our own Stripe PaymentIntent id.
+        const newTransactionId =
+          prebookRecord?.transactionId || pData.transactionId || null;
+        if (!newTransactionId) {
+          console.error(
+            "[prebook] no transactionId found in response — full payload:",
+            pData
+          );
+          throw new Error(
+            "Fare was reserved but payment setup is missing a required reference. Please contact support."
+          );
+        }
+        setTransactionId(newTransactionId);
+
+        // Use LiteAPI's own secretKey directly — this is a PaymentIntent
+        // on LiteAPI's connected Stripe account, not ours.
         const secret =
+          prebookRecord?.secretKey ||
           prebookRecord?.paymentData?.secretKey ||
           prebookRecord?.payment?.secretKey ||
-          prebookRecord?.secretKey ||
-          pData.paymentData?.secretKey ||
           pData.secretKey ||
+          pData.paymentData?.secretKey ||
           null;
 
         if (!secret) {
@@ -2517,7 +2518,6 @@ function StepReviewPay({
           >
             Review &amp; Pay
           </h2>
-          {/* NEW — only rendered for group bookings */}
           {groupId && <GroupPaymentBanner memberCount={groupMemberCount} />}
           <section style={{ marginBottom: 24 }}>
             <div
@@ -2616,6 +2616,7 @@ function StepReviewPay({
                 basePrice={basePrice}
                 flight={flight}
                 prebookId={prebookId}
+                transactionId={transactionId}
                 total={total}
                 loading={payLoading}
                 setLoading={setPayLoading}
@@ -2643,16 +2644,6 @@ function StepReviewPay({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// NEW props (both optional, default undefined so solo bookings are
-// byte-for-byte unaffected):
-//   - groupId: the SyncGroup._id this booking belongs to
-//   - groupMemberCount: for the banner copy only
-//   - onGroupBookingComplete: callback(bookingId) fired after a
-//     successful group booking, so the caller (e.g. SyncGroupPage)
-//     can navigate back and refresh group state
-// ═══════════════════════════════════════════════════════════════
 export default function BookingCheckout({
   flight,
   onBack,
@@ -2666,6 +2657,26 @@ export default function BookingCheckout({
   const [extras, setExtras] = useState(null);
 
   useVhFix();
+
+  // FIX: the checkout screen was inheriting whatever scroll position
+  // the person was at while browsing flight results. If they'd
+  // scrolled down at all before clicking into checkout, the very top
+  // of this screen — including the "← Back to results" button and
+  // the "Booking / Checkout" title — rendered above their current
+  // scroll position, effectively invisible with no obvious way to
+  // scroll up to it. Scrolling to top on mount guarantees the header
+  // (and its back button) is the first thing visible every time.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
+  // Same fix, but for step changes within checkout — advancing from a
+  // long form (Passengers, Seats & Bags) would otherwise carry the
+  // same scrolled-down position into the next step, hiding its own
+  // header/progress bar the same way.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [step]);
 
   return (
     <div

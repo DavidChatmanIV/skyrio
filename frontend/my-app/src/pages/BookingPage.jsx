@@ -29,6 +29,7 @@ import {
   CloseOutlined,
   DeleteOutlined,
   PlusOutlined,
+  ArrowLeftOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { Link, useSearchParams } from "react-router-dom";
@@ -490,6 +491,23 @@ function applyFilters(flights, filters) {
 // as the React key across the results list + cart chips.
 function roomKey(hotel) {
   return `${hotel.hotelId}-${hotel.offerId}`;
+}
+
+// A stable identity for a flight's OUTBOUND leg only (ignores return
+// time/price) — used to group multiple round-trip fare combinations
+// that share the same outbound flight but differ in which return
+// flight they're paired with. LiteAPI returns each outbound+return
+// pairing as its own priced "journey", so without this grouping the
+// same outbound flight would show up once per available return time,
+// as a wall of near-duplicate cards.
+function getOutboundGroupKey(flight) {
+  return [
+    flight.origin,
+    flight.destination,
+    flight.departingAt,
+    flight.ownerCode,
+    flight.stops,
+  ].join("|");
 }
 
 const EXAMPLE_PLANS = {
@@ -2245,6 +2263,13 @@ export default function BookingPage() {
   // handleWatchFlight below but never declared, causing:
   //   Uncaught ReferenceError: watchIds is not defined
   const [watchIds, setWatchIds] = useState({});
+  // Which outbound flight (by group key) the person has committed to in
+  // step 1 of the round-trip flow. Null means still browsing departing
+  // flights; once set, the results area switches to showing only that
+  // outbound's available return flights — the two-step pattern used by
+  // Google Flights / Expedia / Kayak, rather than an inline expander.
+  const [selectedOutboundGroupKey, setSelectedOutboundGroupKey] =
+    useState(null);
 
   const handlePriceWatchToggle = useCallback(async () => {
     const next = !priceWatchOn;
@@ -2559,11 +2584,65 @@ export default function BookingPage() {
     () => applyFilters(flightResults, smartFilters),
     [flightResults, smartFilters]
   );
+
+  // Round-trip searches return one priced "journey" per outbound+return
+  // pairing, so the same outbound flight can appear many times, once
+  // per available return time. Grouping by outbound lets step 1 show
+  // one card per outbound flight, then step 2 lists only that group's
+  // return options — the two-step pattern most travel search sites use.
+  // One-way results (no returningAt on any flight) skip grouping
+  // entirely and render exactly as they did before.
+  const hasReturnData = useMemo(
+    () => flightResults.some((f) => f.returningAt),
+    [flightResults]
+  );
+
+  const flightGroups = useMemo(() => {
+    if (!hasReturnData) return [];
+    const groups = new Map();
+    visibleFlights.forEach((f) => {
+      const key = getOutboundGroupKey(f);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(f);
+    });
+    return Array.from(groups.entries())
+      .map(([key, options]) => ({
+        key,
+        options,
+        cheapest: options.reduce(
+          (min, f) =>
+            parseFloat(f.totalAmount) < parseFloat(min.totalAmount) ? f : min,
+          options[0]
+        ),
+      }))
+      .sort(
+        (a, b) =>
+          parseFloat(a.cheapest.totalAmount) -
+          parseFloat(b.cheapest.totalAmount)
+      );
+  }, [visibleFlights, hasReturnData]);
+
+  // The group the person committed to in step 1, if any. Falls back to
+  // null automatically if a filter change makes that group disappear.
+  const selectedGroup = useMemo(
+    () => flightGroups.find((g) => g.key === selectedOutboundGroupKey) || null,
+    [flightGroups, selectedOutboundGroupKey]
+  );
+
   const paginatedFlights = useMemo(
     () => visibleFlights.slice(0, visibleCount),
     [visibleFlights, visibleCount]
   );
-  const hasMore = visibleCount < visibleFlights.length;
+  const paginatedGroups = useMemo(
+    () => flightGroups.slice(0, visibleCount),
+    [flightGroups, visibleCount]
+  );
+  const flightDisplayCount = hasReturnData
+    ? flightGroups.length
+    : visibleFlights.length;
+  // Pagination only applies to the step-1 outbound list — step 2 shows
+  // a group's full set of return options at once (typically small).
+  const hasMore = !selectedGroup && visibleCount < flightDisplayCount;
   const activeFilterCount = useMemo(
     () => Object.values(smartFilters).filter((v) => v !== "any").length,
     [smartFilters]
@@ -2578,6 +2657,7 @@ export default function BookingPage() {
 
   useEffect(() => {
     setVisibleCount(RESULTS_PER_PAGE);
+    setSelectedOutboundGroupKey(null);
   }, [flightResults, hotelResults, smartFilters]);
 
   // Only the destination's weather is surfaced anywhere in the booking flow —
@@ -2623,6 +2703,23 @@ export default function BookingPage() {
   const scrollToBudget = useCallback(() => {
     budgetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  // Confirms a specific outbound+return combination and sends the
+  // person straight to checkout with that exact flight object — used
+  // both for single-return groups ("Book Now") and for a chosen return
+  // time in step 2 of the round-trip flow.
+  const selectFlightForCheckout = useCallback(
+    (flight) => {
+      setSelectedFlight(flight);
+      setShowCheckout(true);
+      handleSelectResult({
+        id: flight.id,
+        title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
+        total: parseFloat(flight.totalAmount),
+      });
+    },
+    [handleSelectResult]
+  );
 
   const searchFormProps = {
     onDestChange: setDestCity,
@@ -2717,10 +2814,16 @@ export default function BookingPage() {
         : "Things to Do"
       : isSearching
       ? "Searching flights…"
-      : visibleFlights.length > 0
-      ? `${visibleFlights.length} Flight${
-          visibleFlights.length !== 1 ? "s" : ""
-        } Found${activeFilterCount > 0 ? " (filtered)" : ""}`
+      : hasReturnData && selectedGroup
+      ? `${selectedGroup.options.length} Return Flight${
+          selectedGroup.options.length !== 1 ? "s" : ""
+        }`
+      : flightDisplayCount > 0
+      ? `${flightDisplayCount} ${
+          hasReturnData ? "Departing Flight" : "Flight"
+        }${flightDisplayCount !== 1 ? "s" : ""} Found${
+          activeFilterCount > 0 ? " (filtered)" : ""
+        }`
       : flightResults.length > 0
       ? "No flights match your filters"
       : "Results";
@@ -3110,7 +3213,9 @@ export default function BookingPage() {
                   ? `Searching ${fromCode} → ${
                       prefillData?.iata ?? destCity
                     } · live prices`
-                  : visibleFlights.length > 0
+                  : hasReturnData && selectedGroup
+                  ? "Pick a return time to continue"
+                  : flightDisplayCount > 0
                   ? `Sorted by price · ${fromCode} → ${
                       prefillData?.iata ?? destCity
                     }${
@@ -3120,14 +3225,15 @@ export default function BookingPage() {
                           } active`
                         : ""
                     }`
-                  : flightResults.length > 0 && visibleFlights.length === 0
+                  : flightResults.length > 0 && flightDisplayCount === 0
                   ? "Try relaxing your filters to see more results"
                   : "Search above to find flights."}
               </div>
               {tab === "Flights" &&
                 !isSearching &&
+                !selectedGroup &&
                 flightResults.length > 0 &&
-                visibleFlights.length === 0 && (
+                flightDisplayCount === 0 && (
                   <button
                     type="button"
                     className="sk-clear-filters-cta"
@@ -3161,8 +3267,12 @@ export default function BookingPage() {
               </div>
             )}
 
+            {/* One-way results — unchanged single-flight cards, one per
+                journey (there's no return leg to group by, so no
+                two-step flow needed). */}
             {!isSearching &&
               tab === "Flights" &&
+              !hasReturnData &&
               paginatedFlights.length > 0 &&
               paginatedFlights.map((flight) => (
                 <Card
@@ -3301,13 +3411,7 @@ export default function BookingPage() {
                             size="small"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedFlight(flight);
-                              setShowCheckout(true);
-                              handleSelectResult({
-                                id: flight.id,
-                                title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
-                                total: parseFloat(flight.totalAmount),
-                              });
+                              selectFlightForCheckout(flight);
                             }}
                           >
                             Book Now
@@ -3341,6 +3445,474 @@ export default function BookingPage() {
                   </div>
                 </Card>
               ))}
+
+            {/* Round-trip results, STEP 1 — one card per outbound
+                flight. Clicking commits to that outbound and moves to
+                step 2 (return-flight picker) below, unless there's
+                only one possible return, in which case it books
+                immediately, same as a one-way flight would. */}
+            {!isSearching &&
+              tab === "Flights" &&
+              hasReturnData &&
+              !selectedGroup &&
+              paginatedGroups.length > 0 &&
+              paginatedGroups.map((group) => {
+                const outbound = group.options[0];
+                const cheapest = group.cheapest;
+                const multipleReturns = group.options.length > 1;
+
+                return (
+                  <Card
+                    key={group.key}
+                    variant="borderless"
+                    className={`sk-result-card${
+                      selectedResult.id === cheapest.id ? " is-selected" : ""
+                    }`}
+                    onClick={() =>
+                      handleSelectResult({
+                        id: cheapest.id,
+                        title: `${outbound.owner} · ${outbound.origin} → ${outbound.destination}`,
+                        total: parseFloat(cheapest.totalAmount),
+                      })
+                    }
+                    style={{ cursor: "pointer", marginBottom: 14 }}
+                  >
+                    <div className="sk-resultRow">
+                      <div
+                        className="sk-thumb"
+                        style={
+                          outbound.ownerLogo
+                            ? {
+                                backgroundImage: `url(${outbound.ownerLogo})`,
+                                backgroundSize: "60%",
+                                backgroundRepeat: "no-repeat",
+                                backgroundPosition: "center",
+                                backgroundColor: "rgba(255,255,255,0.06)",
+                              }
+                            : undefined
+                        }
+                      />
+                      <div className="sk-resultMain">
+                        <div className="sk-resultTop">
+                          <div>
+                            <div className="sk-resultTitle">
+                              {outbound.owner}
+                            </div>
+                            <div className="sk-resultMeta">
+                              <span className="sk-metaItem">
+                                <EnvironmentOutlined /> {outbound.origin} →{" "}
+                                {outbound.destination}
+                              </span>
+                              <span className="sk-metaDot">·</span>
+                              <span className="sk-metaItem">
+                                {outbound.stops === 0
+                                  ? "Nonstop"
+                                  : `${outbound.stops} stop${
+                                      outbound.stops > 1 ? "s" : ""
+                                    }`}
+                              </span>
+                              {outbound.departingAt && (
+                                <>
+                                  <span className="sk-metaDot">·</span>
+                                  <span className="sk-metaItem">
+                                    {dayjs(outbound.departingAt).format(
+                                      "MMM D · h:mm A"
+                                    )}{" "}
+                                    →{" "}
+                                    {dayjs(outbound.arrivingAt).format(
+                                      "h:mm A"
+                                    )}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <div className="sk-pickedWhy">
+                              {multipleReturns
+                                ? `${group.options.length} return times to choose from`
+                                : "Best price + comfort score"}
+                            </div>
+                          </div>
+                          <div className="sk-resultRight">
+                            <div className="sk-priceLine">
+                              {multipleReturns && (
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    color: "rgba(255,255,255,0.45)",
+                                    marginRight: 4,
+                                  }}
+                                >
+                                  from
+                                </span>
+                              )}
+                              <span className="sk-priceAmt">
+                                ${parseFloat(cheapest.totalAmount).toFixed(0)}
+                              </span>
+                              <span className="sk-priceSub">
+                                {cheapest.totalCurrency}
+                              </span>
+                            </div>
+                            <SaveTripButton
+                              size="small"
+                              variant="ghost"
+                              label="Save"
+                              tripData={{
+                                tripType: "flight",
+                                title: `${outbound.owner} · ${outbound.origin} → ${outbound.destination}`,
+                                destination: outbound.destination,
+                                price: parseFloat(cheapest.totalAmount),
+                                currency: cheapest.totalCurrency || "USD",
+                                startDate: outbound.departingAt
+                                  ? dayjs(outbound.departingAt).format(
+                                      "YYYY-MM-DD"
+                                    )
+                                  : "",
+                                metadata: {
+                                  flightId: cheapest.id,
+                                  stops: outbound.stops,
+                                },
+                              }}
+                              onSaveError={(msg) => antdMessage.error(msg)}
+                            />
+                            <button
+                              type="button"
+                              className={`sk-watch-btn${
+                                watchingId === cheapest.id ? " is-watching" : ""
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleWatchFlight(cheapest);
+                              }}
+                              title={
+                                watchingId === cheapest.id
+                                  ? "Stop watching price"
+                                  : "Watch price"
+                              }
+                            >
+                              {watchingId === cheapest.id ? (
+                                <>
+                                  <Bell
+                                    size={11}
+                                    style={{
+                                      marginRight: 3,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />{" "}
+                                  Watching
+                                </>
+                              ) : (
+                                <>
+                                  <BellOff
+                                    size={11}
+                                    style={{
+                                      marginRight: 3,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />{" "}
+                                  Watch
+                                </>
+                              )}
+                            </button>
+                            <Button
+                              className="sk-btn-orange"
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // FIX: previously skipped straight to
+                                // checkout when a group had only one
+                                // return option — inconsistent with
+                                // every other round-trip result, which
+                                // showed a review step. Now every
+                                // round-trip flight always goes through
+                                // "Choose your return flight," even if
+                                // there's only one option to confirm —
+                                // consistent with how the person
+                                // actually books, and it's still just
+                                // one extra click for the single-option
+                                // case.
+                                setSelectedOutboundGroupKey(group.key);
+                              }}
+                            >
+                              Select Flight
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="sk-tagRow">
+                          <span className="sk-tag sk-tag-good">
+                            {outbound.stops === 0
+                              ? "Nonstop"
+                              : `${outbound.stops} stop`}
+                          </span>
+                          <span className="sk-tag sk-tag-orange">
+                            {outbound.ownerCode}
+                          </span>
+                          {budgetSeed &&
+                            parseFloat(cheapest.totalAmount) <= budgetSeed && (
+                              <span className="sk-tag sk-tag-good">
+                                Within budget
+                              </span>
+                            )}
+                          <span className="sk-tag sk-tag-xp">
+                            <Zap
+                              size={11}
+                              style={{
+                                marginRight: 3,
+                                verticalAlign: "middle",
+                              }}
+                            />{" "}
+                            {getFlightXP(cheapest)} XP
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+
+            {/* Round-trip results, STEP 2 — return-flight picker for
+                the outbound flight chosen in step 1. Shown instead of
+                the outbound list entirely, with a way back up top,
+                the same way Google Flights/Expedia hand off from
+                "pick your departing flight" to "pick your return
+                flight" as two distinct screens. */}
+            {!isSearching &&
+              tab === "Flights" &&
+              hasReturnData &&
+              selectedGroup && (
+                <>
+                  {/* Restyled from a plain text link to a bordered
+                    button — the text link was easy to miss as an
+                    actual control. This is the primary way back if
+                    someone changes their mind about the departing
+                    flight after reaching the return-flight step. */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOutboundGroupKey(null)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: 10,
+                      color: "#fff",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      fontFamily: "inherit",
+                      padding: "9px 16px",
+                      marginBottom: 18,
+                      transition: "border-color .2s, background .2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor =
+                        "rgba(255,138,42,0.5)";
+                      e.currentTarget.style.background =
+                        "rgba(255,138,42,0.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor =
+                        "rgba(255,255,255,0.15)";
+                      e.currentTarget.style.background =
+                        "rgba(255,255,255,0.04)";
+                    }}
+                  >
+                    <ArrowLeftOutlined /> Back to departing flights
+                  </button>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "14px 18px",
+                      marginBottom: 20,
+                      borderRadius: 14,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "rgba(255,255,255,0.45)",
+                          letterSpacing: ".04em",
+                          textTransform: "uppercase",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Departing flight selected
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>
+                        {selectedGroup.options[0].owner} ·{" "}
+                        {selectedGroup.options[0].origin} →{" "}
+                        {selectedGroup.options[0].destination}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.55)",
+                          marginTop: 2,
+                        }}
+                      >
+                        {dayjs(selectedGroup.options[0].departingAt).format(
+                          "ddd, MMM D · h:mm A"
+                        )}{" "}
+                        →{" "}
+                        {dayjs(selectedGroup.options[0].arrivingAt).format(
+                          "h:mm A"
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOutboundGroupKey(null)}
+                      style={{
+                        background: "none",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 10,
+                        color: "rgba(255,255,255,0.75)",
+                        padding: "8px 14px",
+                        fontSize: 13,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        flexShrink: 0,
+                      }}
+                    >
+                      Change flight
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 800,
+                      marginBottom: 14,
+                    }}
+                  >
+                    Choose your return flight
+                  </div>
+
+                  {selectedGroup.options
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        new Date(a.returningAt) - new Date(b.returningAt)
+                    )
+                    .map((opt) => {
+                      const outbound = selectedGroup.options[0];
+                      const returnSlice = opt.slices?.[1];
+                      const retOrigin =
+                        returnSlice?.origin ?? outbound.destination;
+                      const retDestination =
+                        returnSlice?.destination ?? outbound.origin;
+                      const retStops = returnSlice?.stops ?? 0;
+
+                      return (
+                        <Card
+                          key={opt.id}
+                          variant="borderless"
+                          className={`sk-result-card${
+                            selectedResult.id === opt.id ? " is-selected" : ""
+                          }`}
+                          style={{ cursor: "pointer", marginBottom: 14 }}
+                          onClick={() => selectFlightForCheckout(opt)}
+                        >
+                          <div className="sk-resultRow">
+                            <div
+                              className="sk-thumb"
+                              style={
+                                outbound.ownerLogo
+                                  ? {
+                                      backgroundImage: `url(${outbound.ownerLogo})`,
+                                      backgroundSize: "60%",
+                                      backgroundRepeat: "no-repeat",
+                                      backgroundPosition: "center",
+                                      backgroundColor: "rgba(255,255,255,0.06)",
+                                    }
+                                  : undefined
+                              }
+                            />
+                            <div className="sk-resultMain">
+                              <div className="sk-resultTop">
+                                <div>
+                                  <div className="sk-resultTitle">
+                                    {opt.owner}
+                                  </div>
+                                  <div className="sk-resultMeta">
+                                    <span className="sk-metaItem">
+                                      <EnvironmentOutlined /> {retOrigin} →{" "}
+                                      {retDestination}
+                                    </span>
+                                    <span className="sk-metaDot">·</span>
+                                    <span className="sk-metaItem">
+                                      {retStops === 0
+                                        ? "Nonstop"
+                                        : `${retStops} stop${
+                                            retStops > 1 ? "s" : ""
+                                          }`}
+                                    </span>
+                                    {opt.returningAt && (
+                                      <>
+                                        <span className="sk-metaDot">·</span>
+                                        <span className="sk-metaItem">
+                                          {dayjs(opt.returningAt).format(
+                                            "MMM D · h:mm A"
+                                          )}
+                                          {opt.returnArrivingAt &&
+                                            ` → ${dayjs(
+                                              opt.returnArrivingAt
+                                            ).format("h:mm A")}`}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="sk-pickedWhy">
+                                    Total price for this trip
+                                  </div>
+                                </div>
+                                <div className="sk-resultRight">
+                                  <div className="sk-priceLine">
+                                    <span className="sk-priceAmt">
+                                      ${parseFloat(opt.totalAmount).toFixed(0)}
+                                    </span>
+                                    <span className="sk-priceSub">
+                                      {opt.totalCurrency}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    className="sk-btn-orange"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      selectFlightForCheckout(opt);
+                                    }}
+                                  >
+                                    Select
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="sk-tagRow">
+                                <span className="sk-tag sk-tag-good">
+                                  {retStops === 0
+                                    ? "Nonstop"
+                                    : `${retStops} stop`}
+                                </span>
+                                {budgetSeed &&
+                                  parseFloat(opt.totalAmount) <= budgetSeed && (
+                                    <span className="sk-tag sk-tag-good">
+                                      Within budget
+                                    </span>
+                                  )}
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                </>
+              )}
 
             {/* ── Hotel result cards ── */}
             {!isSearching &&
@@ -3545,11 +4117,11 @@ export default function BookingPage() {
                   View{" "}
                   {Math.min(
                     RESULTS_PER_PAGE,
-                    visibleFlights.length - visibleCount
+                    flightDisplayCount - visibleCount
                   )}{" "}
-                  more flights
+                  more {hasReturnData ? "departing flights" : "flights"}
                   <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
-                    {visibleCount} of {visibleFlights.length}
+                    {visibleCount} of {flightDisplayCount}
                   </span>
                 </button>
               </div>

@@ -63,6 +63,104 @@ router.get("/", authRequired, async (req, res) => {
 });
 
 /**
+ * POST /api/bookings/pending
+ *
+ * NEW — called by BookingCheckout.jsx right after LiteAPI's /prebook
+ * succeeds. Creates a lightweight "pending" Booking so we have a real
+ * bookingId to hand to /api/stripe/create-payment-intent (that endpoint,
+ * and the webhook logic in stripe.routes.js, are both built around
+ * bookingId — they need a Booking document to exist before payment).
+ *
+ * /api/flights/complete finalizes this same document (matched by
+ * prebookId) into status "confirmed" once payment succeeds — it should
+ * NOT create a second, separate Booking document. If /api/flights/complete
+ * currently does `new Booking(...)`, that needs to change to find this
+ * pending one by prebookId and update it instead.
+ *
+ * SECURITY NOTE: `total` is currently trusted from the client, same
+ * shape-of-problem the comment on /api/stripe/create-payment-intent
+ * already warns about. Once you confirm what LiteAPI's prebook response
+ * includes for price, re-derive `total` from that here instead of
+ * trusting req.body.total directly — otherwise a user could tamper with
+ * the amount before this pending booking (and therefore the PaymentIntent
+ * amount) is created.
+ *
+ * SCHEMA NOTE: this assumes `prebookId`, `offerId`, and `status` exist on
+ * the Booking model. `type` and `tripDetails` are already required fields
+ * per the POST / route above, so they're populated here the same way.
+ */
+router.post("/pending", authRequired, async (req, res) => {
+  try {
+    const {
+      prebookId,
+      offerId,
+      total,
+      currency = "usd",
+      passengers,
+      flightSummary,
+    } = req.body;
+
+    if (!prebookId || !offerId) {
+      return res.status(400).json({
+        ok: false,
+        message: "prebookId and offerId are required",
+      });
+    }
+
+    if (!total || total <= 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "A valid total is required to create a pending booking",
+      });
+    }
+
+    // Idempotency — if the user refreshes mid-checkout and this effect
+    // re-fires, reuse the existing pending booking instead of creating a
+    // duplicate (and a duplicate PaymentIntent downstream).
+    const existing = await Booking.findOne({
+      prebookId,
+      user: req.user.id,
+    });
+    if (existing) {
+      return res.json({ ok: true, bookingId: existing._id, reused: true });
+    }
+
+    const tripDetails =
+      flightSummary?.from && flightSummary?.to
+        ? `${flightSummary.from} → ${flightSummary.to}`
+        : "Flight booking";
+
+    const newBooking = new Booking({
+      user: req.user.id,
+      type: "Flight",
+      tripDetails,
+      prebookId,
+      offerId,
+      total,
+      totalCurrency: currency.toUpperCase(),
+      status: "pending",
+      flight: flightSummary || undefined,
+      // `travelers` on this schema is a headcount (Number), matching how
+      // the existing POST / route above uses it — NOT an array of
+      // passenger objects. Passenger names/types aren't needed on the
+      // Booking document itself for payment purposes; LiteAPI already
+      // has the full passenger data from /prebook, and /api/flights/complete
+      // can pull it from there if it needs to display names later.
+      travelers: Array.isArray(passengers) ? passengers.length : undefined,
+    });
+
+    await newBooking.save();
+
+    return res.json({ ok: true, bookingId: newBooking._id });
+  } catch (err) {
+    console.error("POST /api/bookings/pending error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to create pending booking" });
+  }
+});
+
+/**
  * POST /api/bookings
  */
 router.post("/", authRequired, async (req, res) => {
