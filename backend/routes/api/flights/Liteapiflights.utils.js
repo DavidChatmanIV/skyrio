@@ -236,6 +236,11 @@ export function normalizeFlightOffer(journey = {}, searchParams = {}) {
     provider: "liteapi",
     offerId: offer.offerId || offer.id,
     isCheapest: !!journey.isCheapest,
+    // Surfaced so the frontend can show a "price locked for N:NN"
+    // countdown — previously captured by LiteAPI but never passed
+    // through, so nobody could see a fare go stale before hitting
+    // /flights/verify at prebook time with no warning.
+    expiresAt: offer.expiration || null,
     price: {
       amount: display.total ?? display.amount ?? offer.totalAmount,
       currency: display.currency ?? offer.currency ?? "USD",
@@ -285,6 +290,7 @@ export function toFrontendFlightShape(offer = {}) {
     fareFamily: offer.fareFamily,
     seatsRemaining: offer.seatsRemaining,
     totalDurationMinutes: offer.totalDurationMinutes,
+    fareExpiresAt: offer.expiresAt || null,
     slices: offer.slices,
     raw: offer.raw,
   };

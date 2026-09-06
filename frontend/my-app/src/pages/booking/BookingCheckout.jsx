@@ -245,6 +245,7 @@ function buildFlight(flight) {
     currency: flight.totalCurrency || "USD",
     stops: flight.stops ?? 0,
     ownerCode: flight.ownerCode || "",
+    fareExpiresAt: flight.fareExpiresAt || null,
   };
 }
 
@@ -483,6 +484,117 @@ function StripeMarkIcon() {
       <line x1="2" y1="10" x2="22" y2="10" />
       <line x1="6" y1="15" x2="10" y2="15" />
     </svg>
+  );
+}
+
+function ClockIconSvg() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+// Shows a live "price locked for N:NN" countdown against the fare's
+// real expiration timestamp from LiteAPI (previously captured by the
+// backend but never surfaced — a fare could go stale mid-checkout with
+// no warning until /flights/verify silently failed at the Review & Pay
+// step). Turns to a warning color under 2 minutes, and to a blocking
+// "fare expired" state once time runs out, with a way back to search
+// again rather than letting the person hit a confusing late failure.
+function FareCountdown({ expiresAt, onExpired }) {
+  const [now, setNow] = useState(() => dayjs());
+  const hasFiredExpiry = useRef(false);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const iv = setInterval(() => setNow(dayjs()), 1000);
+    return () => clearInterval(iv);
+  }, [expiresAt]);
+
+  const expiry = expiresAt ? dayjs(expiresAt) : null;
+  const totalSeconds = expiry ? Math.max(0, expiry.diff(now, "second")) : null;
+  const expired = totalSeconds !== null && totalSeconds <= 0;
+
+  useEffect(() => {
+    if (expired && !hasFiredExpiry.current) {
+      hasFiredExpiry.current = true;
+      onExpired?.();
+    }
+  }, [expired, onExpired]);
+
+  if (!expiresAt) return null;
+
+  if (expired) {
+    return (
+      <div
+        style={{
+          marginBottom: 16,
+          padding: "12px 14px",
+          background: "rgba(248,113,113,.1)",
+          border: "1px solid rgba(248,113,113,.3)",
+          borderRadius: 10,
+          display: "flex",
+          gap: 8,
+          alignItems: "flex-start",
+        }}
+      >
+        <span style={{ color: G.danger, marginTop: 1 }}>
+          <AlertTriangle size={14} />
+        </span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: G.danger }}>
+            This fare has expired
+          </div>
+          <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
+            Prices can change — please go back and search again to get a current
+            price.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const mm = Math.floor(totalSeconds / 60);
+  const ss = totalSeconds % 60;
+  const isWarning = totalSeconds <= 120;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 16,
+        padding: "10px 14px",
+        borderRadius: 10,
+        background: isWarning
+          ? "rgba(248,113,113,.1)"
+          : "rgba(255,255,255,.04)",
+        border: `1px solid ${isWarning ? "rgba(248,113,113,.3)" : G.border}`,
+        color: isWarning ? G.danger : G.muted,
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      <ClockIconSvg />
+      <span>
+        Price locked for{" "}
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>
+          {mm}:{String(ss).padStart(2, "0")}
+        </span>
+      </span>
+    </div>
   );
 }
 
@@ -1097,6 +1209,7 @@ function TripSidebar({
             </div>
           )}
         </div>
+        <FareCountdown expiresAt={flight?.fareExpiresAt} />
         <div
           style={{
             display: "flex",
@@ -2684,6 +2797,51 @@ export default function BookingCheckout({
       style={{ position: "relative", minHeight: "calc(var(--vh, 1vh) * 100)" }}
     >
       <style>{css}</style>
+      {/* Fixed, always-visible back button — separate from the header's
+          own "← Back to results" link below. Pinned to the viewport
+          itself (not the page's scroll position or stacking order),
+          so it's guaranteed visible no matter what else is happening
+          with scroll or the site nav's z-index. Doesn't touch or
+          replace the existing header — just adds a second, foolproof
+          way back. */}
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to results"
+          style={{
+            position: "fixed",
+            top: 18,
+            left: 18,
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            background: "rgba(16,12,34,0.85)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 12,
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: "inherit",
+            padding: "10px 16px",
+            backdropFilter: "blur(8px)",
+            boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
+            transition: "border-color .2s, background .2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "rgba(255,138,42,0.5)";
+            e.currentTarget.style.background = "rgba(255,138,42,0.15)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+            e.currentTarget.style.background = "rgba(16,12,34,0.85)";
+          }}
+        >
+          ← Back
+        </button>
+      )}
       <div className="skc-bg">
         <div className="skc-bg__img" />
         <div className="skc-bg__fade" />
