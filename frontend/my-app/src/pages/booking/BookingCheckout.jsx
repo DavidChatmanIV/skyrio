@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import dayjs from "dayjs";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -598,6 +598,143 @@ function FareCountdown({ expiresAt, onExpired }) {
   );
 }
 
+// Replaces a step's primary action (Continue / Book) once the fare
+// has expired — rather than letting someone submit a stale offer and
+// hit a confusing failure at prebook/payment time, this blocks
+// forward progress right where they are and gives one clear way out:
+// back to results to search fresh. `onBackToResults` is the outer
+// checkout's own onBack (exits checkout entirely), distinct from the
+// per-step "← Back" that just moves to the previous step within
+// checkout — going back a step wouldn't fix a stale fare, since the
+// offer itself is what expired, not anything about the current step.
+function FareExpiredBlock({ onBackToResults }) {
+  return (
+    <div
+      style={{
+        padding: "16px 18px",
+        marginBottom: 20,
+        borderRadius: 14,
+        background: "rgba(248,113,113,.08)",
+        border: "1px solid rgba(248,113,113,.3)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          alignItems: "flex-start",
+          marginBottom: 14,
+        }}
+      >
+        <span style={{ color: G.danger, marginTop: 1 }}>
+          <AlertTriangle size={16} />
+        </span>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: G.danger }}>
+            This fare has expired
+          </div>
+          <div style={{ fontSize: 13, color: G.muted, marginTop: 3 }}>
+            Prices and availability can change. Please go back and search again
+            to get a current price before continuing.
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onBackToResults}
+        className="skc-btn-primary"
+        style={{ background: G.gradBtn }}
+      >
+        ← Back to results
+      </button>
+    </div>
+  );
+}
+
+// Confirms before discarding real progress — shown when either back
+// button is clicked while the person has typed passenger details
+// and/or already advanced past that step. A blank, just-opened
+// checkout skips this entirely (see hasProgress in the default
+// export below); there's nothing to protect in that case, and an
+// unnecessary confirm on every single back click would just be
+// annoying.
+function DiscardProgressModal({ onKeepEditing, onDiscard }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Discard your progress?"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2000000,
+        background: "rgba(8,6,18,0.72)",
+        backdropFilter: "blur(3px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+      onClick={onKeepEditing}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="skc-pop"
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          background: "#150f28",
+          border: `1px solid ${G.border}`,
+          borderRadius: 18,
+          padding: 24,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+            marginBottom: 18,
+          }}
+        >
+          <span style={{ color: G.orange, marginTop: 1 }}>
+            <AlertTriangle size={18} />
+          </span>
+          <div>
+            <div
+              style={{ fontFamily: "inherit", fontWeight: 800, fontSize: 17 }}
+            >
+              Discard your progress?
+            </div>
+            <div style={{ fontSize: 13, color: G.muted, marginTop: 6 }}>
+              You'll lose the traveler details you've entered. This can't be
+              undone.
+            </div>
+          </div>
+        </div>
+        <div className="skc-btn-row">
+          <button
+            type="button"
+            className="skc-btn-back"
+            onClick={onKeepEditing}
+          >
+            Keep editing
+          </button>
+          <button
+            type="button"
+            className="skc-btn-primary"
+            style={{ flex: 1, background: G.gradBtn }}
+            onClick={onDiscard}
+          >
+            Discard &amp; leave
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getCancellationEligibility(departureDateISO) {
   if (!departureDateISO) return { known: false };
   const departure = dayjs(departureDateISO);
@@ -1029,6 +1166,7 @@ function TripSidebar({
   bag,
   insurance,
   basePrice,
+  onFareExpired,
 }) {
   const fareTotal = passengers.reduce(
     (sum, p) => sum + basePrice * (FARE_MULTIPLIER[p.type] ?? 1),
@@ -1209,7 +1347,10 @@ function TripSidebar({
             </div>
           )}
         </div>
-        <FareCountdown expiresAt={flight?.fareExpiresAt} />
+        <FareCountdown
+          expiresAt={flight?.fareExpiresAt}
+          onExpired={onFareExpired}
+        />
         <div
           style={{
             display: "flex",
@@ -1230,9 +1371,30 @@ function TripSidebar({
   );
 }
 
-function StepPassengers({ onNext, flight, basePrice }) {
+function StepPassengers({
+  onNext,
+  flight,
+  basePrice,
+  fareExpired,
+  onFareExpired,
+  onBackToResults,
+  onFormDirty,
+}) {
   const [passengers, setPassengers] = useState([makePassenger(0)]);
   const [touched, setTouched] = useState({});
+
+  // Reports upward whenever the person has actually typed something —
+  // used by the parent to decide whether leaving checkout deserves a
+  // "discard your progress?" confirmation. A blank form (someone who
+  // just opened checkout and immediately hit back) has nothing worth
+  // protecting; real typed data does.
+  useEffect(() => {
+    const dirty = passengers.some(
+      (p) =>
+        p.firstName || p.lastName || p.dob || p.gender || p.email || p.phone
+    );
+    onFormDirty?.(dirty);
+  }, [passengers, onFormDirty]);
 
   const updatePassenger = (idx, patch) =>
     setPassengers((prev) =>
@@ -1650,13 +1812,17 @@ function StepPassengers({ onNext, flight, basePrice }) {
             <UserPlus size={15} /> Add another traveler
           </button>
 
-          <button
-            type="button"
-            className="skc-btn-primary"
-            onClick={handleContinue}
-          >
-            Continue to Seats &amp; Bags →
-          </button>
+          {fareExpired ? (
+            <FareExpiredBlock onBackToResults={onBackToResults} />
+          ) : (
+            <button
+              type="button"
+              className="skc-btn-primary"
+              onClick={handleContinue}
+            >
+              Continue to Seats &amp; Bags →
+            </button>
+          )}
           <div
             style={{
               display: "flex",
@@ -1681,6 +1847,7 @@ function StepPassengers({ onNext, flight, basePrice }) {
             bag="none"
             insurance={false}
             basePrice={basePrice}
+            onFareExpired={onFareExpired}
           />
         </div>
       </div>
@@ -1688,7 +1855,16 @@ function StepPassengers({ onNext, flight, basePrice }) {
   );
 }
 
-function StepSeatsBags({ onNext, onBack, basePrice, flight, passengers }) {
+function StepSeatsBags({
+  onNext,
+  onBack,
+  basePrice,
+  flight,
+  passengers,
+  fareExpired,
+  onFareExpired,
+  onBackToResults,
+}) {
   const [bag, setBag] = useState("none");
   const [insurance, setInsurance] = useState(false);
   const [selectedSeats, setSelectedSeats] = useState({});
@@ -1865,45 +2041,51 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight, passengers }) {
             insurance={insurance}
           />
 
-          <div className="skc-btn-row">
-            <button type="button" className="skc-btn-back" onClick={onBack}>
-              ← Back
-            </button>
-            <button
-              type="button"
-              className="skc-btn-primary"
-              style={{ flex: 1 }}
-              onClick={() =>
-                onNext({ selectedSeats, bag, insurance, seatsPrice })
-              }
-            >
-              Review &amp; Pay →
-            </button>
-          </div>
-          <div style={{ textAlign: "center", marginTop: 12 }}>
-            <button
-              type="button"
-              onClick={() =>
-                onNext({
-                  selectedSeats: {},
-                  bag: "none",
-                  insurance: false,
-                  seatsPrice: 0,
-                })
-              }
-              style={{
-                background: "none",
-                border: "none",
-                color: G.muted,
-                fontSize: 13,
-                fontFamily: "inherit",
-                cursor: "pointer",
-                textDecoration: "underline",
-              }}
-            >
-              Skip seats &amp; bags
-            </button>
-          </div>
+          {fareExpired ? (
+            <FareExpiredBlock onBackToResults={onBackToResults} />
+          ) : (
+            <>
+              <div className="skc-btn-row">
+                <button type="button" className="skc-btn-back" onClick={onBack}>
+                  ← Back
+                </button>
+                <button
+                  type="button"
+                  className="skc-btn-primary"
+                  style={{ flex: 1 }}
+                  onClick={() =>
+                    onNext({ selectedSeats, bag, insurance, seatsPrice })
+                  }
+                >
+                  Review &amp; Pay →
+                </button>
+              </div>
+              <div style={{ textAlign: "center", marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onNext({
+                      selectedSeats: {},
+                      bag: "none",
+                      insurance: false,
+                      seatsPrice: 0,
+                    })
+                  }
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: G.muted,
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Skip seats &amp; bags
+                </button>
+              </div>
+            </>
+          )}
         </div>
         <div className="skc-step-sidebar">
           <TripSidebar
@@ -1914,6 +2096,7 @@ function StepSeatsBags({ onNext, onBack, basePrice, flight, passengers }) {
             bag={bag}
             insurance={insurance}
             basePrice={basePrice}
+            onFareExpired={onFareExpired}
           />
         </div>
       </div>
@@ -1967,6 +2150,8 @@ function StripePayForm({
   setError,
   groupId,
   onGroupBookingComplete,
+  fareExpired,
+  onBookingSuccess,
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -1975,7 +2160,11 @@ function StripePayForm({
   const leadPassenger = passengers[0];
 
   const handleBook = async () => {
-    if (!stripe || !elements || !agreed) return;
+    // Belt-and-suspenders: StepReviewPay already unmounts this whole
+    // component once fareExpired flips true, but guarding here too
+    // costs nothing and protects against any future refactor that
+    // changes when/how this component gets unmounted.
+    if (fareExpired || !stripe || !elements || !agreed) return;
     setLoading(true);
     setError("");
     try {
@@ -2117,6 +2306,12 @@ function StripePayForm({
         onGroupBookingComplete?.(completeData.booking._id);
       }
 
+      // Tells the parent booking is real and complete — this is what
+      // prevents "discard your progress?" from firing if someone
+      // clicks a back button after having just successfully paid,
+      // which would otherwise be confusing since there's nothing left
+      // to lose at that point.
+      onBookingSuccess?.();
       setDone(true);
     } catch (err) {
       setError(err.message || "Something went wrong.");
@@ -2358,7 +2553,7 @@ function StripePayForm({
             cursor: agreed && stripe ? "pointer" : "not-allowed",
           }}
           onClick={handleBook}
-          disabled={!agreed || loading || !stripe}
+          disabled={fareExpired || !agreed || loading || !stripe}
         >
           {loading ? (
             <span className="skc-spinner" />
@@ -2395,6 +2590,10 @@ function StepReviewPay({
   groupId,
   groupMemberCount,
   onGroupBookingComplete,
+  fareExpired,
+  onFareExpired,
+  onBackToResults,
+  onBookingSuccess,
 }) {
   const [clientSecret, setClientSecret] = useState(null);
   const [prebookId, setPrebookId] = useState(null);
@@ -2437,6 +2636,17 @@ function StepReviewPay({
   useEffect(() => {
     if (hasInitialized.current) return;
     hasInitialized.current = true;
+
+    // If the fare already expired before this step even mounted (e.g.
+    // the person lingered on Passengers or Seats & Bags until time ran
+    // out), don't bother calling verify/prebook with a stale offer —
+    // that would likely just fail server-side anyway, but preempting
+    // it client-side is faster and clearer than waiting on a network
+    // round trip to find out.
+    if (fareExpired) {
+      setInitLoading(false);
+      return;
+    }
 
     (async () => {
       setInitLoading(true);
@@ -2669,7 +2879,10 @@ function StepReviewPay({
             bag={bag}
             insurance={insurance}
           />
-          {initLoading && (
+          {fareExpired && (
+            <FareExpiredBlock onBackToResults={onBackToResults} />
+          )}
+          {!fareExpired && initLoading && (
             <div
               style={{ textAlign: "center", padding: "40px 0", color: G.muted }}
             >
@@ -2684,7 +2897,7 @@ function StepReviewPay({
               </div>
             </div>
           )}
-          {!initLoading && error && (
+          {!fareExpired && !initLoading && error && (
             <div
               style={{
                 background: "rgba(248,113,113,.1)",
@@ -2718,7 +2931,7 @@ function StepReviewPay({
               </div>
             </div>
           )}
-          {!initLoading && clientSecret && (
+          {!fareExpired && !initLoading && clientSecret && (
             <Elements
               stripe={stripePromise}
               options={{ clientSecret, appearance: stripeAppearance }}
@@ -2737,6 +2950,8 @@ function StepReviewPay({
                 setError={setError}
                 groupId={groupId}
                 onGroupBookingComplete={onGroupBookingComplete}
+                fareExpired={fareExpired}
+                onBookingSuccess={onBookingSuccess}
               />
             </Elements>
           )}
@@ -2750,6 +2965,7 @@ function StepReviewPay({
             bag={bag}
             insurance={insurance}
             basePrice={basePrice}
+            onFareExpired={onFareExpired}
           />
         </div>
       </div>
@@ -2768,6 +2984,45 @@ export default function BookingCheckout({
   const [step, setStep] = useState(0);
   const [passengers, setPassengers] = useState([]);
   const [extras, setExtras] = useState(null);
+  // Shared across all three steps — once the countdown in any step's
+  // TripSidebar fires, this flips true everywhere at once (React state
+  // lives here, at the top, not per-step) and every step's primary
+  // action gets replaced with FareExpiredBlock, regardless of which
+  // step the person happens to be on when it happens.
+  const [fareExpired, setFareExpired] = useState(false);
+  const handleFareExpired = useCallback(() => setFareExpired(true), []);
+
+  // Whether the person has typed real passenger details on step 0 —
+  // reported up from StepPassengers. Combined with `step` below to
+  // decide whether leaving checkout is worth confirming first.
+  const [formDirty, setFormDirty] = useState(false);
+  // Flipped true once a booking actually completes (StripePayForm's
+  // success screen) — at that point there's no "progress" left to
+  // protect, and asking "discard your progress?" after someone just
+  // paid would be actively confusing, not protective.
+  const [bookingComplete, setBookingComplete] = useState(false);
+  const handleBookingSuccess = useCallback(() => setBookingComplete(true), []);
+
+  // "Progress worth protecting" = they've either advanced past the
+  // Passengers step (meaning it was filled in and submitted) or typed
+  // something into it without submitting yet — and haven't already
+  // completed the booking. A fresh, untouched checkout has neither, so
+  // both back buttons just exit immediately with no prompt.
+  const hasProgress = !bookingComplete && (step > 0 || formDirty);
+
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const requestExit = useCallback(() => {
+    if (hasProgress) {
+      setShowDiscardConfirm(true);
+    } else {
+      onBack?.();
+    }
+  }, [hasProgress, onBack]);
+  const confirmDiscard = useCallback(() => {
+    setShowDiscardConfirm(false);
+    onBack?.();
+  }, [onBack]);
+  const cancelDiscard = useCallback(() => setShowDiscardConfirm(false), []);
 
   useVhFix();
 
@@ -2807,7 +3062,7 @@ export default function BookingCheckout({
       {onBack && (
         <button
           type="button"
-          onClick={onBack}
+          onClick={requestExit}
           aria-label="Back to results"
           style={{
             position: "fixed",
@@ -2870,7 +3125,7 @@ export default function BookingCheckout({
             <>
               <button
                 type="button"
-                onClick={onBack}
+                onClick={requestExit}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -2943,6 +3198,10 @@ export default function BookingCheckout({
             }}
             flight={liveFlight}
             basePrice={liveFlight.basePrice}
+            fareExpired={fareExpired}
+            onFareExpired={handleFareExpired}
+            onBackToResults={onBack}
+            onFormDirty={setFormDirty}
           />
         )}
         {step === 1 && (
@@ -2955,6 +3214,9 @@ export default function BookingCheckout({
             basePrice={liveFlight.basePrice}
             flight={liveFlight}
             passengers={passengers}
+            fareExpired={fareExpired}
+            onFareExpired={handleFareExpired}
+            onBackToResults={onBack}
           />
         )}
         {step === 2 && (
@@ -2967,9 +3229,19 @@ export default function BookingCheckout({
             groupId={groupId}
             groupMemberCount={groupMemberCount}
             onGroupBookingComplete={onGroupBookingComplete}
+            fareExpired={fareExpired}
+            onFareExpired={handleFareExpired}
+            onBackToResults={onBack}
+            onBookingSuccess={handleBookingSuccess}
           />
         )}
       </div>
+      {showDiscardConfirm && (
+        <DiscardProgressModal
+          onKeepEditing={cancelDiscard}
+          onDiscard={confirmDiscard}
+        />
+      )}
     </div>
   );
 }
