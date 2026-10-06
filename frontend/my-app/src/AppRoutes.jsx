@@ -31,6 +31,15 @@ const JoinTripPage = lazy(() => import("./pages/JoinTripPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 
+// ✅ NEW: Flight checkout return page — Stripe sends the traveler here after
+// paying, and this page finalizes the booking with the airline.
+const FlightBookingComplete = lazy(() =>
+  import("./pages/booking/FlightBookingComplete")
+);
+// ✅ NEW: Group split payments — "pay your share" link sent to each member.
+// (Was only registered in the old, unused App.jsx, so these links 404'd.)
+const PayShare = lazy(() => import("./pages/booking/PayShare"));
+
 // ✅ s2: Public passport page — no auth required, drives signups
 const PublicPassportPage = lazy(() =>
   import("./pages/passport/PublicPassportPage")
@@ -40,6 +49,8 @@ const PublicPassportPage = lazy(() =>
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const SupportInbox = lazy(() => import("./pages/admin/SupportInbox"));
+// ✅ NEW: Admin booking search + management (cancel/refund, notes)
+const AdminBookings = lazy(() => import("./pages/admin/AdminBookings"));
 
 // ── Legal ──
 const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
@@ -97,6 +108,7 @@ function TrackedRoutes() {
       <Route path="admin/login" element={<AdminLogin />} />
       <Route path="admin" element={<AdminDashboard />} />
       <Route path="admin/support" element={<SupportInbox />} />
+      <Route path="admin/bookings" element={<AdminBookings />} />
 
       {/* ✅ s2: Public passport — outside AppLayout so it has its own nav/CTA bar */}
       <Route path="u/:username" element={<PublicPassportPage />} />
@@ -110,6 +122,23 @@ function TrackedRoutes() {
         <Route path="reset" element={<ForgotPasswordPage />} />
         <Route path="verify-email" element={<VerifyEmailPage />} />
         <Route path="booking" element={<BookingPage />} />
+
+        {/* ✅ NEW: Flight checkout return page. Not wrapped in ProtectedRoute
+            on purpose: a login redirect here could interrupt finishing a
+            booking that was already paid for. The page itself sends the
+            saved login token, and the backend rejects it if not signed in. */}
+        <Route
+          path="checkout/flight/complete"
+          element={<FlightBookingComplete />}
+        />
+
+        {/* ✅ NEW: Group "pay your share" links (public — PayShare handles
+            a logged-out visitor itself). */}
+        <Route
+          path="pay-share/:splitPaymentId/:shareId"
+          element={<PayShare />}
+        />
+
         <Route path="skyhub" element={<SkyHubPage />} />
         <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
         <Route path="feed" element={<Navigate to="/skyhub" replace />} />

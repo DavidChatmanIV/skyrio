@@ -4,22 +4,28 @@ import { Baby, PawPrint } from "lucide-react";
 /**
  * SkyrioSeatMap
  * ------------------------------------------------------------------
- * Matches BookingCheckout.jsx's existing G token palette (purple/orange
- * dark theme) instead of inventing a new one. Drop this file next to
- * BookingCheckout.jsx and it inherits the same visual language.
+ * Matches BookingCheckout.jsx's G token palette (purple/orange dark theme).
  *
  * Props:
- * - passengers: Passenger[]  { index, firstName, lastName, type: 'ADT'|'CHD'|'INF', hasPet, petLabel }
- * - seatServices: SeatService[]  from your seat inventory endpoint —
- *     each needs at least { seatNumber, serviceId, available, price? }
- *     TODO(api): replace the mock generator in BookingCheckout with a
- *     real GET to whatever endpoint returns this flight's seat map.
- * - selectedSeats: { [passengerIndex]: { seatNumber, serviceId, price } }
- * - knownOccupancy: { [seatNumber]: { type?, hasPet? } }  OPTIONAL —
- *     other Skyrio bookings on this same flight (Tier 2, add later)
+ * - passengers: Passenger[]  { index, firstName, lastName, type: 'ADT'|'CHD'|'INF', hasPet }
+ * - seatServices: SeatService[]  { seatNumber, serviceId, available, price?, tier?, segmentKey? }
+ *     (produced by parsePrebookSeatOptions on the backend)
+ * - selectedSeats: { [segmentKey]: { [passengerIndex]: { seatNumber, serviceId, price } } }
+ * - segments: [{ key, label, index, total, direction, flightNumber, departLabel }]
+ *     one entry per FLIGHT (a connecting trip has several per direction).
+ *     Tabs render when > 1. direction is "Outbound" | "Return" | null.
+ * - notice: string  short status message shown above the tabs (e.g. what was
+ *     just saved and which flight is shown next).
+ * - activeSegmentKey: string | null  which leg is currently being seated
+ * - onSetActiveSegment(segmentKey): void
+ * - knownOccupancy: { [segmentKey]: { [seatNumber]: { type?, hasPet? } } }  OPTIONAL
+ *     other Skyrio bookings on the same flight, per leg (Tier 2, add later)
  * - activePassengerIndex: number
  * - onSetActivePassenger(passengerIndex): void
- * - onSelectSeat(passengerIndex, seatNumber, serviceId, price): void
+ * - onSelectSeat(segmentKey, passengerIndex, seatNumber, serviceId, price): void
+ * - columns / rows / aisleAfter: OPTIONAL overrides. When omitted, they are
+ *     derived from the active leg's seat data (falling back to a 6-wide
+ *     11-15 mock layout when there is no data).
  * ------------------------------------------------------------------
  */
 
@@ -28,10 +34,19 @@ const G = {
   border: "rgba(255,255,255,0.10)",
   orange: "#f97316",
   muted: "rgba(255,255,255,0.5)",
+  exitRow: "#F2C200",
 };
+
+const DEFAULT_COLUMNS = ["A", "B", "C", "D", "E", "F"];
+const DEFAULT_ROWS = [11, 12, 13, 14, 15];
 
 function seatKey(row, col) {
   return `${row}${col}`;
+}
+
+function parseSeatNumber(seatNumber) {
+  const m = /^(\d+)([A-Za-z]+)$/.exec(String(seatNumber || "").trim());
+  return m ? { row: parseInt(m[1], 10), col: m[2].toUpperCase() } : null;
 }
 
 function fullName(p) {
@@ -47,33 +62,107 @@ function initials(p) {
   );
 }
 
+function tierLabel(tier) {
+  if (tier === "premium") return "Front row";
+  if (tier === "extra-legroom") return "Extra legroom";
+  if (tier === "exit-row") return "Exit row";
+  return "Standard";
+}
+
+function formatPrice(n) {
+  return Number.isInteger(n) ? `${n}` : n.toFixed(2);
+}
+
 export default function SkyrioSeatMap({
-  columns = ["A", "B", "C", "D", "E", "F"],
-  rows = [11, 12, 13, 14, 15],
-  aisleAfter = "C",
+  columns: columnsProp,
+  rows: rowsProp,
+  aisleAfter: aisleAfterProp,
   passengers = [],
   seatServices = [],
   selectedSeats = {},
   knownOccupancy = {},
+  segments = [],
+  activeSegmentKey = null,
+  notice = "",
+  onSetActiveSegment = () => {},
   activePassengerIndex = 0,
   onSetActivePassenger = () => {},
   onSelectSeat = () => {},
 }) {
   const [avoidKidsPets, setAvoidKidsPets] = useState(false);
+  const [hoveredSeat, setHoveredSeat] = useState(null);
+
+  // Everything below is scoped to one flight leg.
+  const segKey = activeSegmentKey ?? segments[0]?.key ?? "default";
+  const legSelected = selectedSeats[segKey] ?? {};
+  const legKnown = knownOccupancy[segKey] ?? {};
+
+  // Only filters when the data carries segmentKey values. One-way flights
+  // (or data without keys) fall through unfiltered, as before.
+  const scopedSeatServices = useMemo(() => {
+    const hasSegments = seatServices.some((s) => s.segmentKey);
+    if (!hasSegments) return seatServices;
+    return seatServices.filter((s) => s.segmentKey === segKey);
+  }, [seatServices, segKey]);
 
   const seatServiceByNumber = useMemo(() => {
     const map = new Map();
-    seatServices.forEach((s) => map.set(s.seatNumber, s));
+    scopedSeatServices.forEach((s) => map.set(s.seatNumber, s));
     return map;
-  }, [seatServices]);
+  }, [scopedSeatServices]);
+
+  // Derive the grid from real data so real cabins (more rows, different
+  // layouts per leg) don't fall off the map.
+  const { rows, columns } = useMemo(() => {
+    const rowSet = new Set();
+    const colSet = new Set();
+    scopedSeatServices.forEach((s) => {
+      const parsed = parseSeatNumber(s.seatNumber);
+      if (parsed) {
+        rowSet.add(parsed.row);
+        colSet.add(parsed.col);
+      }
+    });
+    const derivedRows = [...rowSet].sort((a, b) => a - b);
+    const derivedCols = [...colSet].sort();
+    return {
+      rows: rowsProp ?? (derivedRows.length ? derivedRows : DEFAULT_ROWS),
+      columns:
+        columnsProp ?? (derivedCols.length ? derivedCols : DEFAULT_COLUMNS),
+    };
+  }, [scopedSeatServices, rowsProp, columnsProp]);
+
+  // Aisle sits in the middle of the cabin unless explicitly overridden.
+  const aisleAfter =
+    aisleAfterProp ?? columns[Math.max(0, Math.ceil(columns.length / 2) - 1)];
+
+  // Legend prices come from the real services, not hardcoded numbers.
+  const tierPrices = useMemo(() => {
+    const out = {};
+    scopedSeatServices.forEach((s) => {
+      if (!s.tier || s.tier === "standard" || !(s.price > 0)) return;
+      out[s.tier] = Math.min(out[s.tier] ?? Infinity, s.price);
+    });
+    return out;
+  }, [scopedSeatServices]);
+
+  const rowTier = useMemo(() => {
+    const map = new Map();
+    rows.forEach((row) => {
+      const col = columns.find((c) => seatServiceByNumber.get(seatKey(row, c)));
+      const svc = col ? seatServiceByNumber.get(seatKey(row, col)) : null;
+      map.set(row, svc?.tier ?? "standard");
+    });
+    return map;
+  }, [rows, columns, seatServiceByNumber]);
 
   const partyOccupiedSeats = useMemo(() => {
     const map = new Map();
-    Object.entries(selectedSeats).forEach(([passengerIndex, sel]) => {
+    Object.entries(legSelected).forEach(([passengerIndex, sel]) => {
       if (sel?.seatNumber) map.set(sel.seatNumber, Number(passengerIndex));
     });
     return map;
-  }, [selectedSeats]);
+  }, [legSelected]);
 
   const flaggedSeats = useMemo(() => {
     const flagged = new Set();
@@ -82,21 +171,21 @@ export default function SkyrioSeatMap({
       if (p?.type === "CHD" || p?.type === "INF" || p?.hasPet)
         flagged.add(seat);
     });
-    Object.entries(knownOccupancy).forEach(([seat, occ]) => {
+    Object.entries(legKnown).forEach(([seat, occ]) => {
       if (occ?.type === "CHD" || occ?.type === "INF" || occ?.hasPet)
         flagged.add(seat);
     });
     return flagged;
-  }, [partyOccupiedSeats, passengers, knownOccupancy]);
+  }, [partyOccupiedSeats, passengers, legKnown]);
 
   const avoidZone = useMemo(() => {
     if (!avoidKidsPets) return new Set();
     const zone = new Set();
     flaggedSeats.forEach((seat) => {
-      const row = parseInt(seat, 10);
-      const col = seat.slice(String(row).length);
-      const colIdx = columns.indexOf(col);
-      for (let r = row - 1; r <= row + 1; r++) {
+      const parsed = parseSeatNumber(seat);
+      if (!parsed) return;
+      const colIdx = columns.indexOf(parsed.col);
+      for (let r = parsed.row - 1; r <= parsed.row + 1; r++) {
         for (let c = colIdx - 1; c <= colIdx + 1; c++) {
           if (columns[c]) zone.add(seatKey(r, columns[c]));
         }
@@ -115,7 +204,7 @@ export default function SkyrioSeatMap({
     const isOwnParty = ownPassengerIndex !== undefined;
     const ownPassenger = isOwnParty ? passengers[ownPassengerIndex] : null;
 
-    const known = knownOccupancy[seat];
+    const known = legKnown[seat];
     const isChild =
       ownPassenger?.type === "CHD" ||
       ownPassenger?.type === "INF" ||
@@ -124,7 +213,7 @@ export default function SkyrioSeatMap({
     const hasPet = ownPassenger?.hasPet === true || known?.hasPet === true;
 
     const isSelectedForActive =
-      selectedSeats[activePassengerIndex]?.seatNumber === seat;
+      legSelected[activePassengerIndex]?.seatNumber === seat;
     const isAvoided = avoidZone.has(seat) && !isOwnParty;
 
     const tierBorder =
@@ -132,6 +221,8 @@ export default function SkyrioSeatMap({
         ? "rgba(249,115,22,0.55)"
         : seatService?.tier === "extra-legroom"
         ? "rgba(124,58,237,0.55)"
+        : seatService?.tier === "exit-row"
+        ? "rgba(242,194,0,0.6)"
         : "transparent";
 
     let bg = G.bgCard;
@@ -153,6 +244,9 @@ export default function SkyrioSeatMap({
       ) : (
         initials(ownPassenger)
       );
+      // A seat already held by another traveler in this party can't be
+      // assigned to a second person on the same leg.
+      if (ownPassengerIndex !== activePassengerIndex) disabled = true;
     } else if (known) {
       bg = "rgba(255,255,255,0.02)";
       content = isChild ? (
@@ -171,6 +265,12 @@ export default function SkyrioSeatMap({
       content = <span style={{ opacity: 0.2 }}>—</span>;
     }
 
+    const isHovered = hoveredSeat === seat && !disabled && !isSelectedForActive;
+    if (isHovered) {
+      bg = "rgba(255,138,42,0.12)";
+      border = "rgba(255,138,42,0.5)";
+    }
+
     if (isSelectedForActive) {
       border = G.orange;
       bg = "#fff";
@@ -179,6 +279,7 @@ export default function SkyrioSeatMap({
     function handleClick() {
       if (disabled) return;
       onSelectSeat(
+        segKey,
         activePassengerIndex,
         seat,
         seatService.serviceId,
@@ -186,12 +287,27 @@ export default function SkyrioSeatMap({
       );
     }
 
+    const priceNote = seatService?.price ? ` — +$${seatService.price}` : "";
+    const accessibleLabel = isAvoided
+      ? `Seat ${seat}, too close to a flagged seat, unavailable`
+      : isOwnParty
+      ? `Seat ${seat}, assigned to ${fullName(ownPassenger)}`
+      : disabled
+      ? `Seat ${seat}, unavailable`
+      : `Seat ${seat}, ${tierLabel(seatService?.tier)}${priceNote}${
+          isSelectedForActive ? ", selected" : ""
+        }`;
+
     return (
       <button
         key={seat}
         type="button"
         disabled={disabled}
         onClick={handleClick}
+        onMouseEnter={() => !disabled && setHoveredSeat(seat)}
+        onMouseLeave={() => setHoveredSeat((s) => (s === seat ? null : s))}
+        aria-label={accessibleLabel}
+        aria-pressed={isSelectedForActive}
         title={
           isAvoided
             ? "Too close to a flagged seat"
@@ -226,7 +342,46 @@ export default function SkyrioSeatMap({
   }
 
   const activePassenger = passengers[activePassengerIndex];
-  const seatsChosenCount = Object.keys(selectedSeats).length;
+  const seatsChosenCount = Object.keys(legSelected).length;
+  const currentSeg = segments.find((s) => s.key === segKey) || null;
+  const multiFlight = segments.length > 1;
+  const flightsSeated = segments.filter((s) =>
+    passengers.length
+      ? passengers.every((p) => selectedSeats[s.key]?.[p.index])
+      : false
+  ).length;
+  // Cities where this trip changes planes, e.g. ["ATL"].
+  const layoverCities = [
+    ...new Set(segments.map((s) => s.layoverAt).filter(Boolean)),
+  ];
+  // Slightly brighter than G.muted so captions stay readable on the dark card.
+  const soft = "rgba(255,255,255,0.74)";
+
+  const columnHeader = (
+    <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
+      <span
+        style={{ width: 18, marginRight: 8, flexShrink: 0 }}
+        aria-hidden="true"
+      />
+      {columns.map((col) => (
+        <span
+          key={col}
+          aria-hidden="true"
+          style={{
+            width: 38,
+            marginRight: col === aisleAfter ? 16 : 5,
+            textAlign: "center",
+            fontSize: 10,
+            fontWeight: 700,
+            color: G.muted,
+            letterSpacing: 0.5,
+          }}
+        >
+          {col}
+        </span>
+      ))}
+    </div>
+  );
 
   return (
     <div>
@@ -255,14 +410,186 @@ export default function SkyrioSeatMap({
           SKYRIO EXCLUSIVE
         </span>
       </div>
+      {/* Plain-language orientation: what this step is and how many flights */}
+      <p style={{ color: soft, fontSize: 13, marginBottom: 12 }}>
+        {multiFlight
+          ? `Your trip has ${segments.length} flights${
+              layoverCities.length
+                ? ` because it connects through ${layoverCities.join(
+                    " and "
+                  )}, so each direction is split into separate flights, each with its own seat map`
+                : ""
+            }. Choose a seat on each flight you want one for. You can skip any flight, and the airline will assign a seat at check-in.`
+          : "Choose a seat for each traveler, or skip and the airline will assign one at check-in."}
+      </p>
+
+      {multiFlight && (
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: flightsSeated === segments.length ? "#34d399" : soft,
+            marginBottom: 10,
+          }}
+        >
+          Seats chosen on {flightsSeated} of {segments.length} flights
+        </div>
+      )}
+
+      {notice && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            padding: "10px 14px",
+            marginBottom: 12,
+            borderRadius: 10,
+            background: "rgba(52,211,153,.08)",
+            border: "1px solid rgba(52,211,153,.25)",
+            color: "#fff",
+            fontSize: 13,
+          }}
+        >
+          {notice}
+        </div>
+      )}
+
+      {/* One tab per flight. Each says which flight it is, the direction,
+          the route, and whether a seat is chosen yet. */}
+      {multiFlight && (
+        <div
+          role="tablist"
+          aria-label="Choose which flight to pick seats for"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: 8,
+            marginBottom: 16,
+          }}
+        >
+          {segments.map((s, i) => {
+            const seatedCount = passengers.filter(
+              (p) => selectedSeats[s.key]?.[p.index]
+            ).length;
+            const allSeated =
+              passengers.length > 0 && seatedCount === passengers.length;
+            const active = s.key === segKey;
+            const status = allSeated
+              ? passengers.length > 1
+                ? "✓ Seats chosen"
+                : "✓ Seat chosen"
+              : seatedCount > 0
+              ? `${seatedCount} of ${passengers.length} travelers seated`
+              : "No seat yet";
+            return (
+              <button
+                key={s.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onSetActiveSegment(s.key)}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  color: "#fff",
+                  border: `1px solid ${active ? G.orange : G.border}`,
+                  background: active ? "rgba(249,115,22,.10)" : G.bgCard,
+                }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: soft,
+                  }}
+                >
+                  {`Flight ${(s.index ?? i) + 1} of ${segments.length}`}
+                  {s.direction ? ` · ${s.direction}` : ""}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    marginTop: 2,
+                  }}
+                >
+                  {s.label}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    marginTop: 3,
+                    fontWeight: 600,
+                    color: allSeated ? "#34d399" : soft,
+                  }}
+                >
+                  {status}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Which flight and traveler the map below is for */}
+      {multiFlight && currentSeg && (
+        <div
+          style={{
+            padding: "12px 14px",
+            marginBottom: 16,
+            borderRadius: 12,
+            border: `1px solid ${G.border}`,
+            background: "rgba(255,255,255,0.03)",
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 600, color: soft }}>
+            {`Now choosing seats for flight ${(currentSeg.index ?? 0) + 1} of ${
+              segments.length
+            }`}
+            {currentSeg.direction ? ` · ${currentSeg.direction}` : ""}
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 700, marginTop: 2 }}>
+            {currentSeg.label}
+          </div>
+          {(currentSeg.layoverAt || currentSeg.connectingFrom) && (
+            <div style={{ fontSize: 12, color: soft, marginTop: 2 }}>
+              {currentSeg.layoverAt
+                ? `You change planes in ${currentSeg.layoverAt} after this flight.`
+                : `This is your connecting flight from ${currentSeg.connectingFrom}.`}
+            </div>
+          )}
+          {(currentSeg.departLabel || currentSeg.flightNumber) && (
+            <div style={{ fontSize: 12, color: soft, marginTop: 2 }}>
+              {[currentSeg.departLabel, currentSeg.flightNumber]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          )}
+          {activePassenger && (
+            <div style={{ fontSize: 13, marginTop: 8 }}>
+              Choosing a seat for <strong>{fullName(activePassenger)}</strong> (
+              {seatsChosenCount} of {passengers.length} traveler
+              {passengers.length !== 1 ? "s" : ""} seated on this flight)
+            </div>
+          )}
+        </div>
+      )}
+
+      {!multiFlight && activePassenger && (
+        <p style={{ color: soft, fontSize: 13, marginBottom: 12 }}>
+          Choosing a seat for <strong>{fullName(activePassenger)}</strong> (
+          {seatsChosenCount} of {passengers.length} chosen).
+        </p>
+      )}
+
       <p style={{ color: G.muted, fontSize: 12, marginBottom: 16 }}>
-        {activePassenger
-          ? `Picking a seat for ${fullName(
-              activePassenger
-            )} (${seatsChosenCount}/${
-              passengers.length
-            } chosen). We show kids and pets on the map — no other travel site does this.`
-          : "We show kids and pets on the map — no other travel site does this."}
+        We show kids and pets on the map — no other travel site does this.
       </p>
 
       {/* Passenger switcher — pick who you're seating */}
@@ -270,12 +597,13 @@ export default function SkyrioSeatMap({
         style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}
       >
         {passengers.map((p) => {
-          const seat = selectedSeats[p.index]?.seatNumber;
+          const seat = legSelected[p.index]?.seatNumber;
           return (
             <button
               key={p.index}
               type="button"
               onClick={() => onSetActivePassenger(p.index)}
+              aria-pressed={p.index === activePassengerIndex}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -365,6 +693,8 @@ export default function SkyrioSeatMap({
 
       {/* Grid */}
       <div
+        role="group"
+        aria-label="Aircraft seat map"
         style={{
           background: "rgba(255,255,255,0.02)",
           border: `1px solid ${G.border}`,
@@ -372,27 +702,91 @@ export default function SkyrioSeatMap({
           padding: 18,
           display: "flex",
           flexDirection: "column",
-          gap: 5,
           alignItems: "center",
           marginBottom: 16,
           overflowX: "auto",
         }}
       >
-        {rows.map((row) => (
-          <div key={row} style={{ display: "flex", alignItems: "center" }}>
-            <span
-              style={{
-                width: 18,
-                fontSize: 10,
-                color: G.muted,
-                marginRight: 8,
-              }}
-            >
-              {row}
-            </span>
-            {columns.map((col) => renderCell(row, col))}
-          </div>
-        ))}
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 1,
+            color: "rgba(255,255,255,0.35)",
+            marginBottom: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: 13 }}>▲</span> FRONT OF AIRCRAFT
+        </div>
+
+        {columnHeader}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {rows.map((row, i) => {
+            const prevRow = rows[i - 1];
+            const showDivider =
+              i > 0 && rowTier.get(prevRow) !== rowTier.get(row);
+            return (
+              <div key={row}>
+                {showDivider && (
+                  <div
+                    role="separator"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      margin: "6px 0",
+                      color: "rgba(255,255,255,0.3)",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: 0.6,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    <span
+                      style={{ flex: 1, height: 1, background: G.border }}
+                    />
+                    {tierLabel(rowTier.get(row))} begins
+                    <span
+                      style={{ flex: 1, height: 1, background: G.border }}
+                    />
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <span
+                    style={{
+                      width: 18,
+                      fontSize: 10,
+                      color: G.muted,
+                      marginRight: 8,
+                    }}
+                  >
+                    {row}
+                  </span>
+                  {columns.map((col) => renderCell(row, col))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 1,
+            color: "rgba(255,255,255,0.35)",
+            marginTop: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          REAR OF AIRCRAFT <span style={{ fontSize: 13 }}>▼</span>
+        </div>
       </div>
 
       {/* Legend */}
@@ -431,12 +825,29 @@ export default function SkyrioSeatMap({
         <LegendItem
           swatch="transparent"
           border="rgba(124,58,237,0.55)"
-          label="Extra legroom — +$29"
+          label={`Extra legroom${
+            tierPrices["extra-legroom"] != null
+              ? ` — from +$${formatPrice(tierPrices["extra-legroom"])}`
+              : ""
+          }`}
+        />
+        <LegendItem
+          swatch="transparent"
+          border={G.exitRow}
+          label={`Exit row${
+            tierPrices["exit-row"] != null
+              ? ` — from +$${formatPrice(tierPrices["exit-row"])}`
+              : ""
+          }`}
         />
         <LegendItem
           swatch="transparent"
           border="rgba(249,115,22,0.55)"
-          label="Front row — +$59"
+          label={`Front row${
+            tierPrices.premium != null
+              ? ` — from +$${formatPrice(tierPrices.premium)}`
+              : ""
+          }`}
         />
       </div>
     </div>

@@ -18,7 +18,10 @@
   --sk-border-warm: rgba(255, 138, 42, 0.22);
   --sk-text: rgba(255, 255, 255, 0.93);
   --sk-muted: rgba(255, 255, 255, 0.58);
-  --sk-muted-2: rgba(255, 255, 255, 0.38);
+  /* was 0.38 — 3.5:1 against this file's dark glass/panel backgrounds,
+     fails WCAG AA (4.5:1) for the small uppercase labels that use this
+     token (.sk-mc-field-label). Bumped to clear 4.5:1 with margin. */
+  --sk-muted-2: rgba(255, 255, 255, 0.48);
   --sk-radius: 16px;
   --sk-radius-lg: 22px;
   --sk-radius-pill: 999px;
@@ -400,7 +403,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 /* One-line description */
 .sk-pwc-desc {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.38);
+  /* was rgba(255,255,255,0.38) — 3.5:1, fails AA. Bumped to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.48);
   line-height: 1.45;
   padding-left: 1px;
 }
@@ -1258,7 +1262,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.35);
+  /* was rgba(255,255,255,0.35) — 3.1:1, fails AA. Bumped to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.48);
   margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -2050,7 +2055,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   display: block;
   font-size: 10px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.38);
+  /* was rgba(255,255,255,0.38) — 3.5:1, fails AA. Bumped to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.48);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   margin-bottom: 4px;
@@ -2205,7 +2211,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.38);
+  /* was rgba(255,255,255,0.38) — 3.5:1, fails AA. Bumped to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.48);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2370,7 +2377,9 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   display: flex;
   justify-content: space-between;
   font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.3);
+  /* was rgba(255,255,255,0.3) — 2.6:1, the worst offender in the file.
+     Needed a larger bump than the others to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.5);
   margin-top: -4px;
 }
 .skf-radio-row {
@@ -2434,7 +2443,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 }
 .skf-time-sub {
   font-size: 9.5px;
-  color: rgba(255, 255, 255, 0.35);
+  /* was rgba(255,255,255,0.35) — 3.1:1, fails AA. Bumped to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.48);
   line-height: 1;
 }
 .skf-time-tile--active .skf-time-name {
@@ -3321,7 +3331,9 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 
 .sk-room-cart-hint {
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.45);
+  /* was rgba(255,255,255,0.45) — 4.49:1, just under the 4.5:1 line.
+     Bumped to match the file's other fixes with margin. */
+  color: rgba(255, 255, 255, 0.48);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -3482,7 +3494,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 .sk-checkout-room-price-note {
   font-weight: 400;
   font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.4);
+  /* was rgba(255,255,255,0.4) — 3.8:1, fails AA. Bumped to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.48);
   margin-top: 2px;
 }
 
@@ -3623,7 +3636,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 .sk-city-suggest-country {
   margin-left: auto;
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.4);
+  /* was rgba(255,255,255,0.4) — 3.8:1, fails AA. Bumped to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.48);
   padding-left: 10px;
 }
 
@@ -3662,7 +3676,8 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 .sk-occupancy-label {
   font-size: 10px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.38);
+  /* was rgba(255,255,255,0.38) — 3.5:1, fails AA. Bumped to clear 4.5:1. */
+  color: rgba(255, 255, 255, 0.48);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   padding-left: 2px;
@@ -3778,7 +3793,9 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 }
 .sk-checkout-split-row-label {
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.45);
+  /* was rgba(255,255,255,0.45) — 4.49:1, just under the 4.5:1 line.
+     Bumped to match the file's other fixes with margin. */
+  color: rgba(255, 255, 255, 0.48);
 }
 
 .sk-checkout-split-row-amount {

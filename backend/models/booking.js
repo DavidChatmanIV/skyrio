@@ -72,9 +72,23 @@ const bookingSchema = new Schema(
     // Hotel, package, and place ARE populated in the routes file
     // (.populate("hotel"), .populate("package"), .populate("place")),
     // so they must be ObjectId refs to their respective models.
+    // LiteAPI hotel stays have no Hotel document — they use `hotelStay` below.
     hotel: { type: Schema.Types.ObjectId, ref: "Hotel" },
     package: { type: Schema.Types.ObjectId, ref: "Package" },
     place: { type: Schema.Types.ObjectId, ref: "Place" },
+
+    // ── LiteAPI hotel stay (NEW) ──
+    // { rooms: [{ name, roomName, boardName, address, checkin, checkout,
+    //             thumbnail, totalAmount, totalCurrency, offerId, hotelId }],
+    //   confirmation: [{ prebookId, bookingId, hotelConfirmationCode }] }
+    hotelStay: { type: Schema.Types.Mixed, default: undefined },
+
+    // ── Supplier references (NEW) ──
+    // Which supplier fulfilled the booking and its own IDs, needed for
+    // support, cancellations and reconciling against LiteAPI.
+    provider: { type: String, default: null }, // e.g. "liteapi"
+    providerBookingIds: { type: [String], default: [] },
+    confirmationCodes: { type: [String], default: [] },
 
     dates: { type: datesSchema, default: () => ({}) },
 
@@ -88,9 +102,31 @@ const bookingSchema = new Schema(
 
     status: {
       type: String,
-      enum: ["pending", "confirmed", "cancelled"],
+      // cancel_pending: the airline accepted a cancellation but hasn't
+      // finalized it yet (LiteAPI HTTP 202).
+      enum: ["pending", "confirmed", "cancel_pending", "cancelled"],
       default: "pending",
       index: true,
+    },
+
+    // ── Cancellation record (NEW) ──
+    // { at, by: "traveler"|"admin", byUserId, supplier: [...LiteAPI responses],
+    //   supplierRefund, cancellationFee, customerRefund, currency, stripeRefundId }
+    cancellation: { type: Schema.Types.Mixed, default: undefined },
+
+    // ── Admin notes (NEW) ── internal only, never shown to travelers
+    adminNotes: {
+      type: [
+        new Schema(
+          {
+            text: { type: String, required: true },
+            by: { type: String },
+            at: { type: Date, default: Date.now },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
     },
 
     // Referenced in admin.routes.js dashboard aggregation
@@ -116,7 +152,7 @@ const bookingSchema = new Schema(
     // ── Refund tracking ──
     refundStatus: {
       type: String,
-      enum: ["none", "succeeded", "failed"],
+      enum: ["none", "pending", "succeeded", "failed"],
       default: "none",
     },
     refundAmount: { type: Number, default: null },

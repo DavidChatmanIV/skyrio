@@ -1,24 +1,10 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import dayjs from "dayjs";
-import { loadStripe } from "@stripe/stripe-js";
-import {
-  Elements,
-  PaymentElement,
-  useStripe,
-  useElements,
-} from "@stripe/react-stripe-js";
 import {
   Check,
   Plane,
   AlertTriangle,
-  Shield,
-  ShieldCheck,
-  Armchair,
-  Briefcase,
   Luggage,
-  Package,
-  Backpack,
-  Medal,
   Baby,
   PawPrint,
   UserPlus,
@@ -26,8 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import SkyrioSeatMap from "./SkyrioSeatMap";
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+import LiteApiPayForm from "./LiteApiPayForm";
 
 const G = {
   bg: "#0d0b1a",
@@ -39,8 +24,9 @@ const G = {
   purpleLight: "#a78bfa",
   orange: "#f97316",
   orangeGlow: "rgba(249,115,22,0.35)",
-  faint: "rgba(255,255,255,0.25)",
-  muted: "rgba(255,255,255,0.5)",
+  // 0.42/0.62 clear WCAG AA (4.5:1) on this near-black background.
+  faint: "rgba(255,255,255,0.42)",
+  muted: "rgba(255,255,255,0.62)",
   white: "#ffffff",
   danger: "#f87171",
   success: "#34d399",
@@ -172,6 +158,196 @@ function useVhFix() {
   }, []);
 }
 
+// Persists in-progress checkout (step, passenger details, seat
+// selections, group context, prebook refs) to sessionStorage, keyed by
+// the offer, so an accidental refresh doesn't throw away what someone
+// just typed. sessionStorage (not localStorage) on purpose: survives a
+// refresh in the same tab but doesn't linger across visits with a fare
+// that may no longer be valid.
+//
+// NOTE: LiteAPI's Flight Booking Architecture guide recommends against
+// persisting offerId/prebookId/transactionId client-side in favor of a
+// server-side session store. This diverges deliberately (no server-side
+// session table exists yet). Worth revisiting once one does.
+//
+// v2: selectedSeats changed shape to { [segmentKey]: { [passengerIndex]: ... } }.
+// The prefix was bumped so a stored v1 snapshot is never restored into
+// the new shape.
+const CHECKOUT_PROGRESS_PREFIX = "skyrio_checkout_progress_v2:";
+
+function getProgressStorageKey(flight) {
+  const id = flight?.offerId || flight?.id;
+  return id ? `${CHECKOUT_PROGRESS_PREFIX}${id}` : null;
+}
+
+function readCheckoutProgress(key) {
+  if (!key || typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCheckoutProgress(key, data) {
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(data));
+  } catch {
+    // Storage can fail (private browsing, quota) — never worth breaking checkout over.
+  }
+}
+
+function clearCheckoutProgress(key) {
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Non-fatal.
+  }
+}
+
+// ---- Per-segment seat selection helpers -------------------------------
+// selectedSeats shape: { [segmentKey]: { [passengerIndex]: { seatNumber, serviceId, price } } }
+
+const anySeats = (selectedSeats) =>
+  Object.values(selectedSeats || {}).some(
+    (seg) => seg && Object.keys(seg).length > 0
+  );
+
+const sumSeatPrices = (selectedSeats) =>
+  Object.values(selectedSeats || {}).reduce(
+    (total, seg) =>
+      total + Object.values(seg || {}).reduce((s, x) => s + (x?.price || 0), 0),
+    0
+  );
+
+const collectServiceIds = (selectedSeats) =>
+  Object.values(selectedSeats || {})
+    .flatMap((seg) => Object.values(seg || {}))
+    .map((s) => s.serviceId)
+    .filter(Boolean);
+
+// ---- Flights (segments) a seat can be chosen on -----------------------
+// LiteAPI returns one seat map per FLIGHT (segment), not per direction.
+// A trip with one connection each way is 4 flights, so a customer must
+// never see anything like "Leg 3". Every flight gets a plain-language
+// description: which number it is, outbound or return, the route, the
+// time, and the flight number.
+//
+// Each flight is matched to LiteAPI's seat-map keys by ORDER (the n-th
+// distinct segmentKey is the n-th flight of the itinerary). That is only
+// trusted when the counts agree; otherwise flights are named
+// "Flight 1 of 4" without a route rather than showing a wrong route.
+function buildSeatSegments(seatServices, flight) {
+  const keys = [
+    ...new Set((seatServices || []).map((s) => s.segmentKey).filter(Boolean)),
+  ];
+  if (!keys.length) {
+    return [
+      {
+        key: "default",
+        index: 0,
+        total: 1,
+        label: "Your flight",
+        shortLabel: "Your flight",
+        direction: null,
+        flightNumber: "",
+        departLabel: "",
+      },
+    ];
+  }
+
+  const slices = Array.isArray(flight?.raw?.slices) ? flight.raw.slices : [];
+  const flat = slices.flatMap((slice, sliceIdx) =>
+    (Array.isArray(slice?.segments) ? slice.segments : []).map((seg) => ({
+      ...seg,
+      // Only name a direction when the itinerary really has two slices.
+      direction:
+        slices.length > 1 ? (sliceIdx === 0 ? "Outbound" : "Return") : null,
+      sliceIdx,
+    }))
+  );
+  const canMap = flat.length === keys.length;
+
+  return keys.map((key, i) => {
+    const seg = canMap ? flat[i] : null;
+    const prevSeg = canMap ? flat[i - 1] : null;
+    const nextSeg = canMap ? flat[i + 1] : null;
+    const route =
+      seg?.origin && seg?.destination
+        ? `${seg.origin} → ${seg.destination}`
+        : `Flight ${i + 1}`;
+    const flightNumber =
+      seg?.carrierCode && seg?.flightNumber
+        ? `${seg.carrierCode} ${seg.flightNumber}`
+        : "";
+    const departLabel =
+      seg?.departureTime && dayjs(seg.departureTime).isValid()
+        ? dayjs(seg.departureTime).format("ddd, MMM D · h:mm A")
+        : "";
+    return {
+      key,
+      index: i,
+      total: keys.length,
+      label: route,
+      shortLabel: route,
+      direction: seg?.direction ?? null,
+      flightNumber,
+      departLabel,
+      // Where the traveler changes planes after / arrives from, when this
+      // flight is one half of a connection within the same direction.
+      layoverAt:
+        seg && nextSeg && nextSeg.sliceIdx === seg.sliceIdx
+          ? seg.destination
+          : null,
+      connectingFrom:
+        seg && prevSeg && prevSeg.sliceIdx === seg.sliceIdx ? seg.origin : null,
+    };
+  });
+}
+
+// One entry per flight on which this traveler has a seat:
+// [{ label: "EWR → FLL", seat: "4B" }, ...]
+const seatLines = (selectedSeats, segments, passengerIndex) => {
+  const list = segments?.length
+    ? segments
+    : Object.keys(selectedSeats || {}).map((key) => ({
+        key,
+        shortLabel: "Flight",
+      }));
+  return list
+    .map((s) => {
+      const seat = selectedSeats?.[s.key]?.[passengerIndex]?.seatNumber;
+      return seat ? { label: s.shortLabel || s.label || "Flight", seat } : null;
+    })
+    .filter(Boolean);
+};
+
+// How many flights have a seat chosen for EVERY traveler.
+const countFlightsFullySeated = (selectedSeats, segments, passengers) =>
+  (segments || []).filter((s) =>
+    passengers.every((p) => selectedSeats?.[s.key]?.[p.index])
+  ).length;
+
+// Airports a connecting itinerary stops at, per direction: EWR → ATL → MIA
+// gives ["ATL"]. Comes from LiteAPI's own segments, so it is real data.
+const connectionCodes = (slice) =>
+  (Array.isArray(slice?.segments) ? slice.segments : [])
+    .slice(0, -1)
+    .map((seg) => seg?.destination)
+    .filter(Boolean);
+
+// "Nonstop" | "1 stop · via ATL" | "" when unknown
+const stopsText = (stops, via) => {
+  if (typeof stops !== "number") return "";
+  if (stops === 0) return "Nonstop";
+  return `${stops} stop${stops > 1 ? "s" : ""}${
+    via?.length ? ` · via ${via.join(", ")}` : ""
+  }`;
+};
+
 const MOCK_FLIGHT = {
   outbound: {
     from: "EWR",
@@ -223,6 +399,7 @@ function buildFlight(flight) {
       time: dep ? dayjs(dep).format("h:mm A") : "TBD",
       duration: fmt(dep, arr),
       airline,
+      via: connectionCodes(flight.slices?.[0]),
     },
     return: {
       from: to,
@@ -240,6 +417,11 @@ function buildFlight(flight) {
         ? fmt(flight.returningAt, flight.returnArrivingAt)
         : "--",
       airline,
+      stops:
+        typeof flight.slices?.[1]?.stops === "number"
+          ? flight.slices[1].stops
+          : null,
+      via: connectionCodes(flight.slices?.[1]),
     },
     basePrice: Number.isFinite(rawPrice) ? rawPrice : MOCK_FLIGHT.basePrice,
     currency: flight.totalCurrency || "USD",
@@ -248,37 +430,6 @@ function buildFlight(flight) {
     fareExpiresAt: flight.fareExpiresAt || null,
   };
 }
-
-const BAG_OPTIONS = [
-  {
-    id: "none",
-    label: "Personal item only",
-    price: 0,
-    desc: "Small backpack — included",
-    icon: <Backpack size={17} />,
-  },
-  {
-    id: "carryon",
-    label: "Add carry-on bag",
-    price: 69,
-    desc: "1 carry-on · limit per traveler",
-    icon: <Briefcase size={17} />,
-  },
-  {
-    id: "checked",
-    label: "Add checked bag",
-    price: 79,
-    desc: "Up to 50 lbs / 62 linear in.",
-    icon: <Luggage size={17} />,
-  },
-  {
-    id: "both",
-    label: "Carry-on + Checked bag",
-    price: 138,
-    desc: "Full luggage bundle",
-    icon: <Package size={17} />,
-  },
-];
 
 const PASSENGER_TYPES = [
   { id: "ADT", label: "Adult" },
@@ -373,35 +524,6 @@ function toLiteApiPassenger(p) {
         }
       : {}),
   };
-}
-
-const SEAT_ROWS = [11, 12, 13, 14, 15];
-const SEAT_COLUMNS = ["A", "B", "C", "D", "E", "F"];
-
-function rowPricing(row, firstRow, secondRow) {
-  if (row === firstRow) return { tier: "premium", price: 59 };
-  if (row === secondRow) return { tier: "extra-legroom", price: 29 };
-  return { tier: "standard", price: 0 };
-}
-
-function generateMockSeatServices(rows, columns) {
-  const unavailable = new Set(["12F", "14A", "15D"]);
-  const [firstRow, secondRow] = rows;
-  const services = [];
-  rows.forEach((row) => {
-    const { tier, price } = rowPricing(row, firstRow, secondRow);
-    columns.forEach((col) => {
-      const seatNumber = `${row}${col}`;
-      services.push({
-        seatNumber,
-        serviceId: `svc-${seatNumber}`,
-        available: !unavailable.has(seatNumber),
-        price,
-        tier,
-      });
-    });
-  });
-  return services;
 }
 
 function PlaneIconSvg({ size = 15 }) {
@@ -505,16 +627,15 @@ function ClockIconSvg() {
   );
 }
 
-// Shows a live "price locked for N:NN" countdown against the fare's
-// real expiration timestamp from LiteAPI (previously captured by the
-// backend but never surfaced — a fare could go stale mid-checkout with
-// no warning until /flights/verify silently failed at the Review & Pay
-// step). Turns to a warning color under 2 minutes, and to a blocking
-// "fare expired" state once time runs out, with a way back to search
-// again rather than letting the person hit a confusing late failure.
+// Live "price locked for N:NN" countdown against the fare's real
+// expiration from LiteAPI. Turns to a warning under 2 minutes and to a
+// blocking "fare expired" state at zero. Screen readers are told once at
+// each transition, not every tick.
 function FareCountdown({ expiresAt, onExpired }) {
   const [now, setNow] = useState(() => dayjs());
   const hasFiredExpiry = useRef(false);
+  const announcedRef = useRef(null);
+  const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
     if (!expiresAt) return;
@@ -525,6 +646,7 @@ function FareCountdown({ expiresAt, onExpired }) {
   const expiry = expiresAt ? dayjs(expiresAt) : null;
   const totalSeconds = expiry ? Math.max(0, expiry.diff(now, "second")) : null;
   const expired = totalSeconds !== null && totalSeconds <= 0;
+  const isWarning = totalSeconds !== null && totalSeconds <= 120 && !expired;
 
   useEffect(() => {
     if (expired && !hasFiredExpiry.current) {
@@ -533,7 +655,39 @@ function FareCountdown({ expiresAt, onExpired }) {
     }
   }, [expired, onExpired]);
 
+  useEffect(() => {
+    if (expired && announcedRef.current !== "expired") {
+      announcedRef.current = "expired";
+      setAnnouncement(
+        "This fare has expired. Please go back and search again."
+      );
+    } else if (isWarning && announcedRef.current !== "warning") {
+      announcedRef.current = "warning";
+      setAnnouncement("Less than two minutes left on this price.");
+    }
+  }, [expired, isWarning]);
+
   if (!expiresAt) return null;
+
+  const srOnlyLiveRegion = (
+    <span
+      role="status"
+      aria-live="polite"
+      style={{
+        position: "absolute",
+        width: 1,
+        height: 1,
+        padding: 0,
+        margin: -1,
+        overflow: "hidden",
+        clip: "rect(0,0,0,0)",
+        whiteSpace: "nowrap",
+        border: 0,
+      }}
+    >
+      {announcement}
+    </span>
+  );
 
   if (expired) {
     return (
@@ -549,7 +703,8 @@ function FareCountdown({ expiresAt, onExpired }) {
           alignItems: "flex-start",
         }}
       >
-        <span style={{ color: G.danger, marginTop: 1 }}>
+        {srOnlyLiveRegion}
+        <span style={{ color: G.danger, marginTop: 1 }} aria-hidden="true">
           <AlertTriangle size={14} />
         </span>
         <div>
@@ -567,7 +722,6 @@ function FareCountdown({ expiresAt, onExpired }) {
 
   const mm = Math.floor(totalSeconds / 60);
   const ss = totalSeconds % 60;
-  const isWarning = totalSeconds <= 120;
 
   return (
     <div
@@ -587,8 +741,11 @@ function FareCountdown({ expiresAt, onExpired }) {
         fontWeight: 600,
       }}
     >
-      <ClockIconSvg />
-      <span>
+      {srOnlyLiveRegion}
+      <span aria-hidden="true">
+        <ClockIconSvg />
+      </span>
+      <span aria-hidden="true">
         Price locked for{" "}
         <span style={{ fontVariantNumeric: "tabular-nums" }}>
           {mm}:{String(ss).padStart(2, "0")}
@@ -598,15 +755,8 @@ function FareCountdown({ expiresAt, onExpired }) {
   );
 }
 
-// Replaces a step's primary action (Continue / Book) once the fare
-// has expired — rather than letting someone submit a stale offer and
-// hit a confusing failure at prebook/payment time, this blocks
-// forward progress right where they are and gives one clear way out:
-// back to results to search fresh. `onBackToResults` is the outer
-// checkout's own onBack (exits checkout entirely), distinct from the
-// per-step "← Back" that just moves to the previous step within
-// checkout — going back a step wouldn't fix a stale fare, since the
-// offer itself is what expired, not anything about the current step.
+// Replaces a step's primary action once the fare has expired, with one
+// clear way out: back to results to search fresh.
 function FareExpiredBlock({ onBackToResults }) {
   return (
     <div
@@ -651,19 +801,26 @@ function FareExpiredBlock({ onBackToResults }) {
   );
 }
 
-// Confirms before discarding real progress — shown when either back
-// button is clicked while the person has typed passenger details
-// and/or already advanced past that step. A blank, just-opened
-// checkout skips this entirely (see hasProgress in the default
-// export below); there's nothing to protect in that case, and an
-// unnecessary confirm on every single back click would just be
-// annoying.
+// Confirms before discarding real progress. A blank, just-opened
+// checkout skips this entirely (see hasProgress in the default export).
 function DiscardProgressModal({ onKeepEditing, onDiscard }) {
+  const keepEditingRef = useRef(null);
+
+  useEffect(() => {
+    keepEditingRef.current?.focus();
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onKeepEditing();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onKeepEditing]);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Discard your progress?"
+      aria-labelledby="discard-progress-title"
+      aria-describedby="discard-progress-desc"
       style={{
         position: "fixed",
         inset: 0,
@@ -698,16 +855,20 @@ function DiscardProgressModal({ onKeepEditing, onDiscard }) {
             marginBottom: 18,
           }}
         >
-          <span style={{ color: G.orange, marginTop: 1 }}>
+          <span style={{ color: G.orange, marginTop: 1 }} aria-hidden="true">
             <AlertTriangle size={18} />
           </span>
           <div>
             <div
+              id="discard-progress-title"
               style={{ fontFamily: "inherit", fontWeight: 800, fontSize: 17 }}
             >
               Discard your progress?
             </div>
-            <div style={{ fontSize: 13, color: G.muted, marginTop: 6 }}>
+            <div
+              id="discard-progress-desc"
+              style={{ fontSize: 13, color: G.muted, marginTop: 6 }}
+            >
               You'll lose the traveler details you've entered. This can't be
               undone.
             </div>
@@ -715,6 +876,7 @@ function DiscardProgressModal({ onKeepEditing, onDiscard }) {
         </div>
         <div className="skc-btn-row">
           <button
+            ref={keepEditingRef}
             type="button"
             className="skc-btn-back"
             onClick={onKeepEditing}
@@ -839,9 +1001,10 @@ function CancellationBadge({ departureDateISO }) {
 }
 
 function ProgressBar({ step }) {
-  const steps = ["Passengers", "Seats & Bags", "Review & Pay"];
+  const steps = ["Passengers", "Seats", "Review & Pay"];
   return (
-    <div
+    <nav
+      aria-label="Checkout progress"
       style={{
         display: "flex",
         alignItems: "center",
@@ -856,6 +1019,7 @@ function ProgressBar({ step }) {
       {steps.map((s, i) => (
         <div
           key={s}
+          aria-current={i === step ? "step" : undefined}
           style={{
             display: "flex",
             alignItems: "center",
@@ -872,6 +1036,7 @@ function ProgressBar({ step }) {
             }}
           >
             <div
+              aria-hidden="true"
               style={{
                 width: 38,
                 height: 38,
@@ -910,6 +1075,24 @@ function ProgressBar({ step }) {
               }}
             >
               {s}
+              {i < step && (
+                <span
+                  style={{
+                    position: "absolute",
+                    width: 1,
+                    height: 1,
+                    padding: 0,
+                    margin: -1,
+                    overflow: "hidden",
+                    clip: "rect(0,0,0,0)",
+                    whiteSpace: "nowrap",
+                    border: 0,
+                  }}
+                >
+                  {" "}
+                  (completed)
+                </span>
+              )}
             </span>
           </div>
           {i < steps.length - 1 && (
@@ -927,21 +1110,12 @@ function ProgressBar({ step }) {
           )}
         </div>
       ))}
-    </div>
+    </nav>
   );
 }
 
-// FIX (Return TBD bug): this component previously rendered the literal
-// text "Return TBD" unconditionally whenever isReturn was true — it
-// never actually checked leg.time/leg.date, so even a flight object
-// with a correctly populated returningAt (from the backend leg-split
-// fix in Liteapiflights.utils.js) still showed the placeholder here.
-// buildFlight() above already computes the real return date/time
-// correctly into leg.date/leg.time (falling back to "Return TBD"/"--"
-// only when returningAt is genuinely missing) — this component just
-// wasn't reading that value for the return leg's second line. Now it
-// does, and only falls back to the placeholder when there's truly no
-// return time.
+// leg.time/leg.date come from buildFlight(); "Return TBD" only shows when
+// there is genuinely no return time.
 function FlightLeg({ leg, stops, ownerCode, isReturn }) {
   return (
     <div
@@ -996,9 +1170,9 @@ function FlightLeg({ leg, stops, ownerCode, isReturn }) {
           {leg.airline}
           {ownerCode ? ` · ${ownerCode}` : ""}
         </div>
-        {!isReturn && typeof stops === "number" && (
+        {stopsText(isReturn ? leg.stops : stops, leg.via) && (
           <div style={{ fontSize: 11, color: G.muted }}>
-            {stops === 0 ? "Nonstop" : `${stops} stop${stops > 1 ? "s" : ""}`}
+            {stopsText(isReturn ? leg.stops : stops, leg.via)}
           </div>
         )}
         {isReturn && (
@@ -1035,60 +1209,14 @@ function FlightCard({ flight }) {
   );
 }
 
-function OptionSelector({ options, selected, onSelect, name }) {
-  return (
-    <div role="radiogroup" aria-label={name}>
-      {options.map((opt) => (
-        <button
-          key={opt.id}
-          type="button"
-          className={`skc-opt${selected === opt.id ? " sel" : ""}`}
-          onClick={() => onSelect(opt.id)}
-          role="radio"
-          aria-checked={selected === opt.id}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div className="skc-radio" />
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                color: selected === opt.id ? G.orange : G.faint,
-              }}
-            >
-              {opt.icon}
-            </span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{opt.label}</div>
-              <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-                {opt.desc}
-              </div>
-            </div>
-          </div>
-          <div
-            style={{
-              fontWeight: 600,
-              fontSize: 14,
-              color: opt.price === 0 ? G.success : G.orange,
-              flexShrink: 0,
-            }}
-          >
-            {opt.price === 0 ? "Free" : `+$${opt.price}`}
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function PriceSummary({ base, passengers, seatsPrice = 0, bag, insurance }) {
+// Estimate shown before payment. The exact amount charged is read from the
+// payment itself on Review & Pay (see LiteApiPayForm).
+function PriceSummary({ base, passengers, seatsPrice = 0 }) {
   const fareTotal = passengers.reduce(
     (sum, p) => sum + base * (FARE_MULTIPLIER[p.type] ?? 1),
     0
   );
-  const bp = BAG_OPTIONS.find((o) => o.id === bag)?.price ?? 0;
-  const ip = insurance ? 28.25 : 0;
-  const total = fareTotal + seatsPrice + bp + ip;
+  const total = fareTotal + seatsPrice;
   const lines = [
     {
       label: `Fare (${passengers.length} traveler${
@@ -1097,8 +1225,6 @@ function PriceSummary({ base, passengers, seatsPrice = 0, bag, insurance }) {
       amt: fareTotal,
     },
     seatsPrice > 0 && { label: "Seat selection", amt: seatsPrice },
-    bp > 0 && { label: "Baggage", amt: bp },
-    ip > 0 && { label: "Travel protection", amt: ip },
   ].filter(Boolean);
   return (
     <div
@@ -1120,7 +1246,7 @@ function PriceSummary({ base, passengers, seatsPrice = 0, bag, insurance }) {
           marginBottom: 12,
         }}
       >
-        Price Summary
+        Estimated price
       </div>
       {lines.map((l) => (
         <div
@@ -1149,10 +1275,13 @@ function PriceSummary({ base, passengers, seatsPrice = 0, bag, insurance }) {
           fontSize: 17,
         }}
       >
-        <span>Total</span>
+        <span>Estimated total</span>
         <span style={{ color: "var(--cta, #ff8a2a)" }}>
           ${total.toFixed(2)}
         </span>
+      </div>
+      <div style={{ fontSize: 12, color: G.muted, marginTop: 8 }}>
+        The airline confirms the final price, shown before you pay.
       </div>
     </div>
   );
@@ -1163,19 +1292,16 @@ function TripSidebar({
   passengers,
   selectedSeats = {},
   seatsPrice = 0,
-  bag,
-  insurance,
   basePrice,
   onFareExpired,
+  segments = [],
 }) {
   const fareTotal = passengers.reduce(
     (sum, p) => sum + basePrice * (FARE_MULTIPLIER[p.type] ?? 1),
     0
   );
-  const bp = BAG_OPTIONS.find((o) => o.id === bag)?.price ?? 0;
-  const ip = insurance ? 28.25 : 0;
-  const total = fareTotal + seatsPrice + bp + ip;
-  const anySeatsChosen = Object.keys(selectedSeats).length > 0;
+  const total = fareTotal + seatsPrice;
+  const anySeatsChosen = anySeats(selectedSeats);
 
   return (
     <div
@@ -1212,7 +1338,7 @@ function TripSidebar({
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <div style={{ fontSize: 11, color: G.faint, marginBottom: 2 }}>
-            Total
+            Est. total
           </div>
           <div
             style={{
@@ -1255,7 +1381,7 @@ function TripSidebar({
             </div>
             <div style={{ fontSize: 12, color: G.muted }}>
               {flight.outbound.duration} ·{" "}
-              {flight.stops === 0 ? "Nonstop" : `${flight.stops} stops`}
+              {stopsText(flight.stops, flight.outbound.via) || "—"}
             </div>
             <div style={{ fontSize: 12, color: G.muted, marginBottom: 12 }}>
               {flight.outbound.airline}
@@ -1280,18 +1406,16 @@ function TripSidebar({
             >
               {flight.return.from} → {flight.return.to}
             </div>
-            {/* FIX (Return TBD bug): this line was hardcoded to the
-                literal string "Return TBD" regardless of whether real
-                return data existed. flight.return.date/time are already
-                computed correctly by buildFlight() above from
-                returningAt — dateISO is null specifically when that
-                value was genuinely missing, so it's used here as the
-                presence check instead of comparing display strings. */}
             <div style={{ fontSize: 12, color: G.muted }}>
               {flight.return.dateISO
                 ? `${flight.return.date} · ${flight.return.time}`
                 : "Return TBD"}
             </div>
+            {stopsText(flight.return.stops, flight.return.via) && (
+              <div style={{ fontSize: 12, color: G.muted }}>
+                {stopsText(flight.return.stops, flight.return.via)}
+              </div>
+            )}
           </div>
         )}
         <div
@@ -1310,37 +1434,53 @@ function TripSidebar({
           {anySeatsChosen && (
             <div
               style={{
-                marginTop: 8,
+                marginTop: 10,
                 display: "flex",
                 flexDirection: "column",
-                gap: 4,
+                gap: 12,
               }}
             >
+              <div style={{ fontSize: 11, color: G.faint }}>Your seats</div>
               {passengers.map((p) => {
-                const seat = selectedSeats[p.index]?.seatNumber;
-                if (!seat) return null;
+                const lines = seatLines(selectedSeats, segments, p.index);
+                if (!lines.length) return null;
                 return (
-                  <div
-                    key={p.index}
-                    style={{
-                      fontSize: 12,
-                      color: G.muted,
-                      display: "flex",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <span
-                      style={{ display: "flex", alignItems: "center", gap: 4 }}
+                  <div key={p.index}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#fff",
+                        fontWeight: 600,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        marginBottom: 4,
+                      }}
                     >
                       {(p.type === "CHD" || p.type === "INF") && (
                         <Baby size={11} />
                       )}
                       {p.hasPet && <PawPrint size={11} />}
                       {fullName(p) || `Traveler ${p.index + 1}`}
-                    </span>
-                    <span style={{ color: G.orange, fontWeight: 700 }}>
-                      {seat}
-                    </span>
+                    </div>
+                    {lines.map((l) => (
+                      <div
+                        key={l.label + l.seat}
+                        style={{
+                          fontSize: 12,
+                          color: G.muted,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          paddingLeft: 2,
+                        }}
+                      >
+                        <span>{l.label}</span>
+                        <span style={{ color: G.orange, fontWeight: 700 }}>
+                          {l.seat}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 );
               })}
@@ -1360,7 +1500,7 @@ function TripSidebar({
             fontSize: 16,
           }}
         >
-          <span>Total</span>
+          <span>Est. total</span>
           <span style={{ color: "var(--cta, #ff8a2a)" }}>
             ${total.toFixed(2)}
           </span>
@@ -1379,15 +1519,17 @@ function StepPassengers({
   onFareExpired,
   onBackToResults,
   onFormDirty,
+  initialPassengers,
+  onPassengersChange,
 }) {
-  const [passengers, setPassengers] = useState([makePassenger(0)]);
+  const [passengers, setPassengers] = useState(() =>
+    initialPassengers?.length ? initialPassengers : [makePassenger(0)]
+  );
   const [touched, setTouched] = useState({});
+  const [autofilled, setAutofilled] = useState(false);
 
-  // Reports upward whenever the person has actually typed something —
-  // used by the parent to decide whether leaving checkout deserves a
-  // "discard your progress?" confirmation. A blank form (someone who
-  // just opened checkout and immediately hit back) has nothing worth
-  // protecting; real typed data does.
+  // Reports upward whenever the person has typed something, so the parent
+  // can decide whether leaving deserves a "discard?" confirmation.
   useEffect(() => {
     const dirty = passengers.some(
       (p) =>
@@ -1395,6 +1537,59 @@ function StepPassengers({
     );
     onFormDirty?.(dirty);
   }, [passengers, onFormDirty]);
+
+  // Live-syncs every keystroke to the parent's `passengers` state, which
+  // is what gets persisted to sessionStorage.
+  useEffect(() => {
+    onPassengersChange?.(passengers);
+  }, [passengers, onPassengersChange]);
+
+  // Autofills the lead traveler's name/email from their Skyrio profile,
+  // only into fields that are still empty. GET /api/profile/me returns
+  // { ok, user: { name, email, ... } }; User has a single `name` field so
+  // it is split on the first space. There is no phone field on User or
+  // Profile, so phone is not autofilled.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        const API = import.meta.env?.VITE_API_URL || "";
+        const res = await fetch(`${API}/api/profile/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const user = data?.user || {};
+        const fullName = (user.name || "").trim();
+        const [firstName = "", ...rest] = fullName.split(/\s+/).filter(Boolean);
+        const lastName = rest.join(" ");
+        const email = user.email || "";
+        if (cancelled) return;
+        if (!firstName && !lastName && !email) return;
+        setAutofilled(true);
+        setPassengers((prev) =>
+          prev.map((p) =>
+            p.index === 0
+              ? {
+                  ...p,
+                  firstName: p.firstName || firstName,
+                  lastName: p.lastName || lastName,
+                  email: p.email || email,
+                }
+              : p
+          )
+        );
+      } catch {
+        // Non-fatal — autofill is a convenience.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updatePassenger = (idx, patch) =>
     setPassengers((prev) =>
@@ -1490,6 +1685,13 @@ function StepPassengers({
     onNext(passengers);
   };
 
+  const errStyle = {
+    color: G.danger,
+    fontSize: 12,
+    textTransform: "none",
+    letterSpacing: 0,
+  };
+
   return (
     <div className="skc-fade">
       <div className="skc-step-layout">
@@ -1529,12 +1731,35 @@ function StepPassengers({
               >
                 <div
                   style={{
-                    fontFamily: "inherit",
-                    fontWeight: 700,
-                    fontSize: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  {i === 0 ? "Lead traveler" : `Traveler ${i + 1}`}
+                  <div
+                    style={{
+                      fontFamily: "inherit",
+                      fontWeight: 700,
+                      fontSize: 14,
+                    }}
+                  >
+                    {i === 0 ? "Lead traveler" : `Traveler ${i + 1}`}
+                  </div>
+                  {i === 0 && autofilled && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: G.success,
+                        background: "rgba(52,211,153,.1)",
+                        border: "1px solid rgba(52,211,153,.25)",
+                        borderRadius: 20,
+                        padding: "3px 9px",
+                      }}
+                    >
+                      Filled from your profile
+                    </span>
+                  )}
                 </div>
                 {i > 0 && (
                   <button
@@ -1559,7 +1784,10 @@ function StepPassengers({
 
               <div className="skc-name-grid">
                 <label className="skc-label">
-                  First name <span style={{ color: G.orange }}>*</span>
+                  First name{" "}
+                  <span style={{ color: G.orange }} aria-hidden="true">
+                    *
+                  </span>
                   <input
                     className="skc-input"
                     value={p.firstName}
@@ -1569,22 +1797,29 @@ function StepPassengers({
                     onBlur={() => markTouched(p.index, "firstName")}
                     placeholder="First name"
                     autoComplete="given-name"
+                    aria-required="true"
+                    aria-invalid={!!errorFor(p.index, "firstName", p)}
+                    aria-describedby={
+                      errorFor(p.index, "firstName", p)
+                        ? `err-firstName-${p.index}`
+                        : undefined
+                    }
                   />
                   {errorFor(p.index, "firstName", p) && (
                     <span
-                      style={{
-                        color: G.danger,
-                        fontSize: 12,
-                        textTransform: "none",
-                        letterSpacing: 0,
-                      }}
+                      id={`err-firstName-${p.index}`}
+                      role="alert"
+                      style={errStyle}
                     >
                       {errorFor(p.index, "firstName", p)}
                     </span>
                   )}
                 </label>
                 <label className="skc-label">
-                  Last name <span style={{ color: G.orange }}>*</span>
+                  Last name{" "}
+                  <span style={{ color: G.orange }} aria-hidden="true">
+                    *
+                  </span>
                   <input
                     className="skc-input"
                     value={p.lastName}
@@ -1594,15 +1829,19 @@ function StepPassengers({
                     onBlur={() => markTouched(p.index, "lastName")}
                     placeholder="Last name"
                     autoComplete="family-name"
+                    aria-required="true"
+                    aria-invalid={!!errorFor(p.index, "lastName", p)}
+                    aria-describedby={
+                      errorFor(p.index, "lastName", p)
+                        ? `err-lastName-${p.index}`
+                        : undefined
+                    }
                   />
                   {errorFor(p.index, "lastName", p) && (
                     <span
-                      style={{
-                        color: G.danger,
-                        fontSize: 12,
-                        textTransform: "none",
-                        letterSpacing: 0,
-                      }}
+                      id={`err-lastName-${p.index}`}
+                      role="alert"
+                      style={errStyle}
                     >
                       {errorFor(p.index, "lastName", p)}
                     </span>
@@ -1615,7 +1854,10 @@ function StepPassengers({
               >
                 <div className="skc-name-grid">
                   <label className="skc-label">
-                    Date of birth <span style={{ color: G.orange }}>*</span>
+                    Date of birth{" "}
+                    <span style={{ color: G.orange }} aria-hidden="true">
+                      *
+                    </span>
                     <input
                       className="skc-input"
                       type="date"
@@ -1625,15 +1867,19 @@ function StepPassengers({
                       }
                       onBlur={() => markTouched(p.index, "dob")}
                       max={dayjs().subtract(1, "day").format("YYYY-MM-DD")}
+                      aria-required="true"
+                      aria-invalid={!!errorFor(p.index, "dob", p)}
+                      aria-describedby={
+                        errorFor(p.index, "dob", p)
+                          ? `err-dob-${p.index}`
+                          : undefined
+                      }
                     />
                     {errorFor(p.index, "dob", p) && (
                       <span
-                        style={{
-                          color: G.danger,
-                          fontSize: 12,
-                          textTransform: "none",
-                          letterSpacing: 0,
-                        }}
+                        id={`err-dob-${p.index}`}
+                        role="alert"
+                        style={errStyle}
                       >
                         {errorFor(p.index, "dob", p)}
                       </span>
@@ -1659,7 +1905,10 @@ function StepPassengers({
 
                 <div className="skc-name-grid">
                   <label className="skc-label">
-                    Gender <span style={{ color: G.orange }}>*</span>
+                    Gender{" "}
+                    <span style={{ color: G.orange }} aria-hidden="true">
+                      *
+                    </span>
                     <select
                       className="skc-input"
                       value={p.gender}
@@ -1667,6 +1916,13 @@ function StepPassengers({
                         updatePassenger(p.index, { gender: e.target.value })
                       }
                       onBlur={() => markTouched(p.index, "gender")}
+                      aria-required="true"
+                      aria-invalid={!!errorFor(p.index, "gender", p)}
+                      aria-describedby={
+                        errorFor(p.index, "gender", p)
+                          ? `err-gender-${p.index}`
+                          : undefined
+                      }
                     >
                       <option value="">Select</option>
                       <option value="M">Male</option>
@@ -1674,12 +1930,9 @@ function StepPassengers({
                     </select>
                     {errorFor(p.index, "gender", p) && (
                       <span
-                        style={{
-                          color: G.danger,
-                          fontSize: 12,
-                          textTransform: "none",
-                          letterSpacing: 0,
-                        }}
+                        id={`err-gender-${p.index}`}
+                        role="alert"
+                        style={errStyle}
                       >
                         {errorFor(p.index, "gender", p)}
                       </span>
@@ -1690,7 +1943,10 @@ function StepPassengers({
                 {i === 0 && (
                   <>
                     <label className="skc-label">
-                      Email <span style={{ color: G.orange }}>*</span>
+                      Email{" "}
+                      <span style={{ color: G.orange }} aria-hidden="true">
+                        *
+                      </span>
                       <input
                         className="skc-input"
                         type="email"
@@ -1701,22 +1957,29 @@ function StepPassengers({
                         onBlur={() => markTouched(p.index, "email")}
                         placeholder="you@email.com"
                         autoComplete="email"
+                        aria-required="true"
+                        aria-invalid={!!errorFor(p.index, "email", p)}
+                        aria-describedby={
+                          errorFor(p.index, "email", p)
+                            ? `err-email-${p.index}`
+                            : undefined
+                        }
                       />
                       {errorFor(p.index, "email", p) && (
                         <span
-                          style={{
-                            color: G.danger,
-                            fontSize: 12,
-                            textTransform: "none",
-                            letterSpacing: 0,
-                          }}
+                          id={`err-email-${p.index}`}
+                          role="alert"
+                          style={errStyle}
                         >
                           {errorFor(p.index, "email", p)}
                         </span>
                       )}
                     </label>
                     <label className="skc-label">
-                      Phone number <span style={{ color: G.orange }}>*</span>
+                      Phone number{" "}
+                      <span style={{ color: G.orange }} aria-hidden="true">
+                        *
+                      </span>
                       <input
                         className="skc-input"
                         type="tel"
@@ -1727,15 +1990,19 @@ function StepPassengers({
                         onBlur={() => markTouched(p.index, "phone")}
                         placeholder="+1 (555) 000-0000"
                         autoComplete="tel"
+                        aria-required="true"
+                        aria-invalid={!!errorFor(p.index, "phone", p)}
+                        aria-describedby={
+                          errorFor(p.index, "phone", p)
+                            ? `err-phone-${p.index}`
+                            : undefined
+                        }
                       />
                       {errorFor(p.index, "phone", p) && (
                         <span
-                          style={{
-                            color: G.danger,
-                            fontSize: 12,
-                            textTransform: "none",
-                            letterSpacing: 0,
-                          }}
+                          id={`err-phone-${p.index}`}
+                          role="alert"
+                          style={errStyle}
                         >
                           {errorFor(p.index, "phone", p)}
                         </span>
@@ -1820,7 +2087,7 @@ function StepPassengers({
               className="skc-btn-primary"
               onClick={handleContinue}
             >
-              Continue to Seats &amp; Bags →
+              Continue to Seats →
             </button>
           )}
           <div
@@ -1844,8 +2111,6 @@ function StepPassengers({
             passengers={passengers}
             selectedSeats={{}}
             seatsPrice={0}
-            bag="none"
-            insurance={false}
             basePrice={basePrice}
             onFareExpired={onFareExpired}
           />
@@ -1864,38 +2129,207 @@ function StepSeatsBags({
   fareExpired,
   onFareExpired,
   onBackToResults,
+  prebookId,
+  prebookLoading,
+  prebookError,
+  onServicesAttached,
+  onRetryPrebook,
 }) {
-  const [bag, setBag] = useState("none");
-  const [insurance, setInsurance] = useState(false);
+  // { [segmentKey]: { [passengerIndex]: { seatNumber, serviceId, price } } }
   const [selectedSeats, setSelectedSeats] = useState({});
   const [activePassengerIndex, setActivePassengerIndex] = useState(0);
+  const [activeSegmentKey, setActiveSegmentKey] = useState(null);
 
-  const seatServices = useMemo(
-    () => generateMockSeatServices(SEAT_ROWS, SEAT_COLUMNS),
-    []
+  // Real seat inventory for THIS prebook. LiteAPI ties seat/ancillary
+  // services to a prebookId, so the parent creates the prebook when
+  // Passengers submits and this effect waits for it.
+  const [seatServices, setSeatServices] = useState([]);
+  const [seatMapLoading, setSeatMapLoading] = useState(true);
+  const [seatMapUnavailable, setSeatMapUnavailable] = useState(false);
+
+  useEffect(() => {
+    if (!prebookId) return;
+    let cancelled = false;
+    (async () => {
+      setSeatMapLoading(true);
+      setSeatMapUnavailable(false);
+      try {
+        const token = localStorage.getItem("token");
+        const API = import.meta.env?.VITE_API_URL || "";
+        const res = await fetch(`${API}/api/flights/prebook/${prebookId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("seatmap request failed");
+        const data = await res.json();
+        if (cancelled) return;
+        if (!data.ok || !Array.isArray(data.seats)) {
+          throw new Error("seatmap not available");
+        }
+        setSeatServices(data.seats);
+      } catch {
+        // No fake fallback: showing fabricated seats/prices would be worse
+        // than saying seat selection isn't available.
+        if (!cancelled) {
+          setSeatServices([]);
+          setSeatMapUnavailable(true);
+        }
+      } finally {
+        if (!cancelled) setSeatMapLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [prebookId]);
+
+  // One entry per FLIGHT (not per direction) in the seat data, each with a
+  // plain-language description. See buildSeatSegments above.
+  const segments = useMemo(
+    () => buildSeatSegments(seatServices, flight),
+    [seatServices, flight]
   );
 
-  const seatsPrice = Object.values(selectedSeats).reduce(
-    (sum, s) => sum + (s.price || 0),
-    0
-  );
+  // Short message that tells the customer what just happened and what is
+  // next, so moving to another flight is never a surprise.
+  const [notice, setNotice] = useState("");
 
-  function handleSelectSeat(passengerIndex, seatNumber, serviceId, price) {
-    setSelectedSeats((prev) => {
-      const next = {
-        ...prev,
+  const segKey = segments.some((s) => s.key === activeSegmentKey)
+    ? activeSegmentKey
+    : segments[0].key;
+
+  const seatsPrice = sumSeatPrices(selectedSeats);
+
+  function handleSelectSeat(
+    segmentKey,
+    passengerIndex,
+    seatNumber,
+    serviceId,
+    price
+  ) {
+    const next = {
+      ...selectedSeats,
+      [segmentKey]: {
+        ...selectedSeats[segmentKey],
         [passengerIndex]: { seatNumber, serviceId, price },
-      };
-      const nextIndex = passengers.findIndex(
-        (p, i) => i > passengerIndex && !next[i]
+      },
+    };
+    setSelectedSeats(next);
+
+    // Advance to the next unseated passenger on this leg; if this leg is
+    // complete, jump to the next leg that still needs seats.
+    const thisSeg = segments.find((s) => s.key === segmentKey);
+    const thisName = thisSeg?.shortLabel || "this flight";
+    const pax = passengers[passengerIndex];
+    const who =
+      passengers.length > 1 ? ` for ${fullName(pax) || "your traveler"}` : "";
+
+    const nextPax = passengers.findIndex(
+      (p, i) => i > passengerIndex && !next[segmentKey][i]
+    );
+    if (nextPax !== -1) {
+      setActivePassengerIndex(nextPax);
+      const nextName = fullName(passengers[nextPax]) || "the next traveler";
+      setNotice(
+        `Seat ${seatNumber} saved${who} on ${thisName}. Now choose a seat for ${nextName}.`
       );
-      if (nextIndex !== -1) setActivePassengerIndex(nextIndex);
-      return next;
-    });
+    } else {
+      const nextSeg = segments.find(
+        (s) =>
+          s.key !== segmentKey &&
+          !passengers.every((p) => next[s.key]?.[p.index])
+      );
+      if (nextSeg) {
+        setActiveSegmentKey(nextSeg.key);
+        setActivePassengerIndex(0);
+        setNotice(
+          `Seat ${seatNumber} saved${who} on ${thisName}. Now showing your next flight: ${
+            nextSeg.shortLabel
+          }${nextSeg.direction ? ` (${nextSeg.direction.toLowerCase()})` : ""}.`
+        );
+      } else {
+        setNotice(
+          `Seat ${seatNumber} saved${who} on ${thisName}. Seats are chosen on every flight.`
+        );
+      }
+    }
   }
 
-  const allSeatsChosen = passengers.every((p) => selectedSeats[p.index]);
-  const someSeatsChosen = Object.keys(selectedSeats).length > 0;
+  const flightsSeated = countFlightsFullySeated(
+    selectedSeats,
+    segments,
+    passengers
+  );
+  const someSeatsChosen = anySeats(selectedSeats);
+  const notAllSeated =
+    !seatMapUnavailable &&
+    segments.length > 1 &&
+    someSeatsChosen &&
+    flightsSeated < segments.length;
+
+  // Reserves the chosen seats with the airline against the real prebook.
+  // Returns false on failure so the traveler stays on this step — they
+  // never pay for seats that weren't actually reserved.
+  async function attachSeatServices(seatsMap) {
+    if (!prebookId) return;
+    const serviceIds = collectServiceIds(seatsMap);
+    if (!serviceIds.length) return;
+    try {
+      const token = localStorage.getItem("token");
+      const API = import.meta.env?.VITE_API_URL || "";
+      const res = await fetch(
+        `${API}/api/flights/prebook/${prebookId}/services`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            selectedServices: Object.values(seatsMap || {}).flatMap((seg) =>
+              Object.entries(seg || {})
+                .filter(([, v]) => v?.serviceId)
+                .map(([pi, v]) => ({
+                  passengerIndex: Number(pi),
+                  serviceId: v.serviceId,
+                  quantity: 1,
+                }))
+            ),
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        console.error("[attach seat services] failed:", data);
+        setNotice(
+          "We couldn't reserve those seats with the airline. Pick different seats or skip seat selection."
+        );
+        return false;
+      }
+      // Per LiteAPI's Flight Booking Architecture guide, the
+      // transactionId/secretKey returned from attach-services SUPERSEDE
+      // the ones from the original prebook; /flights/bookings must use
+      // transactionId_v2.
+      const record = Array.isArray(data.data)
+        ? data.data[0]
+        : data.data || data;
+      const newTransactionId =
+        record?.transactionId || data.transactionId || null;
+      const newSecret =
+        record?.secretKey ||
+        record?.paymentData?.secretKey ||
+        record?.payment?.secretKey ||
+        data.secretKey ||
+        data.paymentData?.secretKey ||
+        null;
+      onServicesAttached?.(newTransactionId, newSecret);
+    } catch (err) {
+      console.error("[attach seat services] error:", err);
+      setNotice(
+        "We couldn't reserve those seats with the airline. Pick different seats or skip seat selection."
+      );
+      return false;
+    }
+  }
 
   return (
     <div className="skc-fade">
@@ -1909,142 +2343,210 @@ function StepSeatsBags({
               marginBottom: 24,
             }}
           >
-            Seats &amp; Bags
+            Seat selection
           </h2>
 
           <section style={{ marginBottom: 28 }}>
-            <SkyrioSeatMap
-              passengers={passengers}
-              seatServices={seatServices}
-              selectedSeats={selectedSeats}
-              activePassengerIndex={activePassengerIndex}
-              onSetActivePassenger={setActivePassengerIndex}
-              onSelectSeat={handleSelectSeat}
-            />
-          </section>
-
-          <section style={{ marginBottom: 28 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 14,
-              }}
-            >
-              <span style={{ color: G.orange }}>
-                <Luggage size={20} />
-              </span>
-              <div>
-                <div
-                  style={{
-                    fontFamily: "inherit",
-                    fontWeight: 700,
-                    fontSize: 16,
-                  }}
-                >
-                  Baggage
-                </div>
-                <div style={{ fontSize: 12, color: G.muted }}>
-                  Prices lower now than at airport · applies to the whole
-                  booking
-                </div>
-              </div>
-            </div>
-            <OptionSelector
-              options={BAG_OPTIONS}
-              selected={bag}
-              onSelect={setBag}
-              name="Baggage"
-            />
-          </section>
-
-          <section style={{ marginBottom: 28 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 14,
-              }}
-            >
-              <span style={{ color: G.orange }}>
-                <ShieldCheck size={20} />
-              </span>
-              <div>
-                <div
-                  style={{
-                    fontFamily: "inherit",
-                    fontWeight: 700,
-                    fontSize: 16,
-                  }}
-                >
-                  Travel protection
-                </div>
-                <div style={{ fontSize: 12, color: G.muted }}>
-                  Optional · $28.25 one-time
-                </div>
-              </div>
-            </div>
-            <button
-              type="button"
-              className={`skc-opt${insurance ? " sel" : ""}`}
-              onClick={() => setInsurance((v) => !v)}
-              role="checkbox"
-              aria-checked={insurance}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 4,
-                    border: `2px solid ${insurance ? G.orange : G.faint}`,
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: insurance ? G.orange : "transparent",
-                    color: "white",
-                    transition: ".2s",
-                  }}
-                >
-                  {insurance && <Check size={11} strokeWidth={3} />}
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>
-                    Add travel protection — $28.25
-                  </div>
-                  <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-                    Trip cancellation · Medical · Delay · Baggage loss
-                  </div>
-                </div>
-              </div>
+            {prebookLoading ? (
               <div
                 style={{
-                  fontWeight: 600,
-                  fontSize: 14,
-                  color: "var(--cta, #ff8a2a)",
-                  flexShrink: 0,
+                  textAlign: "center",
+                  padding: "32px 0",
+                  color: G.muted,
                 }}
               >
-                +$28.25
+                <span
+                  className="skc-spinner"
+                  style={{ width: 24, height: 24, borderWidth: 3 }}
+                />
+                <div style={{ marginTop: 12, fontSize: 13 }}>
+                  Reserving your fare…
+                </div>
               </div>
-            </button>
+            ) : prebookError ? (
+              <div
+                style={{
+                  padding: "16px 18px",
+                  borderRadius: 14,
+                  background: "rgba(248,113,113,.08)",
+                  border: "1px solid rgba(248,113,113,.3)",
+                  color: G.danger,
+                  fontSize: 13,
+                }}
+              >
+                We couldn't reserve this fare, so seat selection isn't
+                available. See the message below to go back and try again.
+              </div>
+            ) : seatMapLoading ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "32px 0",
+                  color: G.muted,
+                }}
+              >
+                <span
+                  className="skc-spinner"
+                  style={{ width: 24, height: 24, borderWidth: 3 }}
+                />
+                <div style={{ marginTop: 12, fontSize: 13 }}>
+                  Loading seat map…
+                </div>
+              </div>
+            ) : seatMapUnavailable ? (
+              <div
+                style={{
+                  padding: "16px 18px",
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.03)",
+                  border: `1px solid ${G.border}`,
+                  color: G.muted,
+                  fontSize: 13,
+                }}
+              >
+                Seat selection isn't available for this flight right now. You
+                can continue without picking seats — the airline will assign
+                them at check-in.
+              </div>
+            ) : (
+              <SkyrioSeatMap
+                passengers={passengers}
+                seatServices={seatServices}
+                selectedSeats={selectedSeats}
+                segments={segments}
+                activeSegmentKey={segKey}
+                notice={notice}
+                onSetActiveSegment={(k) => {
+                  setActiveSegmentKey(k);
+                  setActivePassengerIndex(0);
+                  setNotice("");
+                }}
+                activePassengerIndex={activePassengerIndex}
+                onSetActivePassenger={setActivePassengerIndex}
+                onSelectSeat={handleSelectSeat}
+              />
+            )}
+          </section>
+
+          <section
+            data-note="skyrio-bags-note"
+            style={{
+              marginBottom: 28,
+              padding: "14px 16px",
+              borderRadius: 12,
+              background: "rgba(255,255,255,0.04)",
+              border: `1px solid ${G.border}`,
+              display: "flex",
+              gap: 12,
+              alignItems: "flex-start",
+            }}
+          >
+            <span style={{ color: G.orange, marginTop: 2 }}>
+              <Luggage size={18} />
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                Bags are added with the airline
+              </div>
+              <div style={{ fontSize: 13, color: G.muted, lineHeight: 1.5 }}>
+                Your fare includes the bag allowance set by{" "}
+                {flight?.outbound?.airline || "the airline"}. To add checked or
+                carry-on bags, use your airline confirmation code on the
+                airline's website or at check-in after booking. Skyrio doesn't
+                sell bags, so you'll only ever pay the airline's own price.
+              </div>
+            </div>
           </section>
 
           <PriceSummary
             base={basePrice}
             passengers={passengers}
             seatsPrice={seatsPrice}
-            bag={bag}
-            insurance={insurance}
           />
 
           {fareExpired ? (
             <FareExpiredBlock onBackToResults={onBackToResults} />
+          ) : prebookError ? (
+            <div
+              style={{
+                padding: "16px 18px",
+                borderRadius: 14,
+                background: "rgba(248,113,113,.08)",
+                border: "1px solid rgba(248,113,113,.3)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  marginBottom: 14,
+                }}
+              >
+                <span style={{ color: G.danger, marginTop: 1 }}>
+                  <AlertTriangle size={16} />
+                </span>
+                <div style={{ fontSize: 13, color: G.danger }}>
+                  {prebookError}
+                </div>
+              </div>
+              {/* Temporary airline/LiteAPI hiccup → the SAME fare usually still
+                  works a moment later, so offer a retry first. Sold-out fares
+                  only get "Find another flight". */}
+              {onRetryPrebook &&
+                !/sold out|no longer available|expired/i.test(prebookError) && (
+                  <button
+                    type="button"
+                    onClick={onRetryPrebook}
+                    disabled={prebookLoading}
+                    className="skc-btn-primary"
+                    style={{ marginBottom: 10 }}
+                  >
+                    {prebookLoading ? "Trying again…" : "Try again"}
+                  </button>
+                )}
+              <button
+                type="button"
+                onClick={onBackToResults}
+                className={
+                  onRetryPrebook &&
+                  !/sold out|no longer available|expired/i.test(prebookError)
+                    ? "skc-btn-back"
+                    : "skc-btn-primary"
+                }
+                style={{ marginBottom: 10, width: "100%" }}
+              >
+                Find another flight →
+              </button>
+              <button
+                type="button"
+                onClick={onBack}
+                className="skc-btn-back"
+                style={{ width: "100%" }}
+              >
+                Edit travelers
+              </button>
+            </div>
           ) : (
             <>
+              {notAllSeated && (
+                <div
+                  role="status"
+                  style={{
+                    padding: "12px 14px",
+                    marginBottom: 14,
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,.04)",
+                    border: `1px solid ${G.border}`,
+                    color: G.muted,
+                    fontSize: 13,
+                  }}
+                >
+                  You've chosen seats on {flightsSeated} of {segments.length}{" "}
+                  flights. You can continue now — the airline will assign a seat
+                  on the other flights at check-in.
+                </div>
+              )}
               <div className="skc-btn-row">
                 <button type="button" className="skc-btn-back" onClick={onBack}>
                   ← Back
@@ -2053,24 +2555,31 @@ function StepSeatsBags({
                   type="button"
                   className="skc-btn-primary"
                   style={{ flex: 1 }}
-                  onClick={() =>
-                    onNext({ selectedSeats, bag, insurance, seatsPrice })
-                  }
+                  disabled={prebookLoading}
+                  onClick={async () => {
+                    if ((await attachSeatServices(selectedSeats)) === false)
+                      return;
+                    onNext({
+                      selectedSeats,
+                      seatsPrice,
+                      segments,
+                    });
+                  }}
                 >
-                  Review &amp; Pay →
+                  {prebookLoading ? "Reserving your fare…" : "Review & Pay →"}
                 </button>
               </div>
               <div style={{ textAlign: "center", marginTop: 12 }}>
                 <button
                   type="button"
-                  onClick={() =>
+                  disabled={prebookLoading}
+                  onClick={async () => {
+                    await attachSeatServices({});
                     onNext({
                       selectedSeats: {},
-                      bag: "none",
-                      insurance: false,
                       seatsPrice: 0,
-                    })
-                  }
+                    });
+                  }}
                   style={{
                     background: "none",
                     border: "none",
@@ -2081,7 +2590,7 @@ function StepSeatsBags({
                     textDecoration: "underline",
                   }}
                 >
-                  Skip seats &amp; bags
+                  Skip seat selection
                 </button>
               </div>
             </>
@@ -2093,10 +2602,9 @@ function StepSeatsBags({
             passengers={passengers}
             selectedSeats={selectedSeats}
             seatsPrice={seatsPrice}
-            bag={bag}
-            insurance={insurance}
             basePrice={basePrice}
             onFareExpired={onFareExpired}
+            segments={segments}
           />
         </div>
       </div>
@@ -2137,451 +2645,8 @@ function GroupPaymentBanner({ memberCount }) {
   );
 }
 
-function StripePayForm({
-  onBack,
-  passengers,
-  flight,
-  prebookId,
-  transactionId,
-  total,
-  loading,
-  setLoading,
-  error,
-  setError,
-  groupId,
-  onGroupBookingComplete,
-  fareExpired,
-  onBookingSuccess,
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [agreed, setAgreed] = useState(false);
-  const [done, setDone] = useState(false);
-  const leadPassenger = passengers[0];
-
-  const handleBook = async () => {
-    // Belt-and-suspenders: StepReviewPay already unmounts this whole
-    // component once fareExpired flips true, but guarding here too
-    // costs nothing and protects against any future refactor that
-    // changes when/how this component gets unmounted.
-    if (fareExpired || !stripe || !elements || !agreed) return;
-    setLoading(true);
-    setError("");
-    try {
-      const { error: stripeError, paymentIntent } = await stripe.confirmPayment(
-        {
-          elements,
-          confirmParams: {
-            return_url: `${window.location.origin}/booking-confirmed`,
-            receipt_email: leadPassenger.email,
-          },
-          redirect: "if_required",
-        }
-      );
-      if (stripeError) {
-        setError(stripeError.message);
-        setLoading(false);
-        return;
-      }
-
-      if (paymentIntent?.status !== "succeeded") {
-        switch (paymentIntent?.status) {
-          case "processing":
-            setError(
-              "Your payment is still processing. This can take a moment — please don't refresh or submit again. We'll email your confirmation once it clears."
-            );
-            break;
-          case "requires_action":
-            setError(
-              "Your bank requires additional verification to complete this payment. Please try again."
-            );
-            break;
-          case "requires_payment_method":
-            setError(
-              "That payment method couldn't be used. Please check your card details or try a different payment method."
-            );
-            break;
-          default:
-            setError(
-              "We couldn't confirm your payment status. Please check your email for a confirmation, or contact support before trying again."
-            );
-        }
-        setLoading(false);
-        return;
-      }
-
-      if (!prebookId || !transactionId) {
-        setError(
-          "Payment succeeded but we're missing your booking reference. Please contact support with this confirmation before booking again."
-        );
-        setLoading(false);
-        return;
-      }
-
-      const API = import.meta.env?.VITE_API_URL || "";
-      const token = localStorage.getItem("token");
-      const completeRes = await fetch(`${API}/api/flights/complete`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          prebookId: prebookId,
-          prebookID: prebookId,
-          payment: {
-            method: "TRANSACTION_ID",
-            // Use LiteAPI's own transactionId captured at prebook time —
-            // NOT paymentIntent.id. LiteAPI validates this against their
-            // own records tied to the prebook; an arbitrary Stripe
-            // PaymentIntent id from a different account fails with
-            // "transactionId does not match the prebook" (error 45020).
-            transactionId: transactionId,
-          },
-          ...(groupId && { groupId }),
-        }),
-      });
-      const completeData = await completeRes.json();
-
-      if (!completeRes.ok || !completeData.ok) {
-        console.error("[complete booking] failed:", completeData);
-        setError(
-          completeData.message ||
-            "Payment succeeded but we couldn't finalize your booking. Please contact support — you have not been double-charged."
-        );
-        setLoading(false);
-        return;
-      }
-
-      // NEW — group bookings: kick off reimbursement tracking now that
-      // the real LiteAPI booking exists. This does NOT touch the
-      // LiteAPI/Stripe payment that already succeeded above — it only
-      // starts the separate collection flow (PaymentShareCard /
-      // PaymentProgressPanel) against the Booking's own _id.
-      //
-      // UPDATED: fetch() only rejects on a network failure — never on a
-      // non-2xx HTTP status — so the previous version's try/catch never
-      // actually caught a real failure here (e.g. the backend rejecting
-      // because the booking has no price, or a 403 if groupId somehow
-      // didn't match this user as owner). It would silently look like
-      // the split started when it hadn't. Now checks response.ok and the
-      // parsed body's `ok` flag explicitly, same pattern used everywhere
-      // else in this file (see the /flights/complete check just above).
-      if (groupId && completeData.booking?._id) {
-        try {
-          const splitRes = await fetch(
-            `${API}/api/stripe/create-group-payment-intents`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                bookingId: completeData.booking._id,
-                groupId,
-              }),
-            }
-          );
-          const splitData = await splitRes.json();
-          if (!splitRes.ok || !splitData.ok) {
-            // Still non-fatal — the flight IS booked at this point — but
-            // now actually logged instead of silently assumed to have
-            // worked. Worst case, the trip leader opens Sync Together and
-            // the group payment split hasn't started yet; that can be
-            // retried from there.
-            console.error(
-              "[group booking] failed to start payment split:",
-              splitData
-            );
-          }
-        } catch (splitErr) {
-          // True network failure (offline, DNS, etc.) — same non-fatal
-          // handling as before.
-          console.error(
-            "[group booking] failed to start payment split:",
-            splitErr
-          );
-        }
-        onGroupBookingComplete?.(completeData.booking._id);
-      }
-
-      // Tells the parent booking is real and complete — this is what
-      // prevents "discard your progress?" from firing if someone
-      // clicks a back button after having just successfully paid,
-      // which would otherwise be confusing since there's nothing left
-      // to lose at that point.
-      onBookingSuccess?.();
-      setDone(true);
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-      setLoading(false);
-    }
-  };
-
-  if (done) {
-    return (
-      <div
-        className="skc-pop"
-        style={{ textAlign: "center", padding: "60px 20px" }}
-      >
-        <div
-          style={{
-            marginBottom: 20,
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Plane size={36} color="#1b1024" />
-          </div>
-        </div>
-        <h2
-          style={{
-            fontFamily: "inherit",
-            fontWeight: 800,
-            fontSize: 28,
-            marginBottom: 8,
-          }}
-        >
-          You're booked!
-        </h2>
-        <p style={{ color: G.muted, fontSize: 15, marginBottom: 28 }}>
-          Confirmation sent to{" "}
-          <strong style={{ color: "#fff" }}>{leadPassenger.email}</strong>
-        </p>
-        {groupId && (
-          <p style={{ color: G.muted, fontSize: 14, marginBottom: 20 }}>
-            Head back to your trip page to track who's reimbursed you.
-          </p>
-        )}
-        <div
-          style={{
-            background: G.bgCard,
-            border: `1px solid ${G.border}`,
-            borderRadius: 16,
-            padding: 24,
-            maxWidth: 380,
-            margin: "0 auto",
-            textAlign: "left",
-          }}
-        >
-          <div style={{ marginBottom: 8 }}>
-            {flight.outbound.from} → {flight.outbound.to} ·{" "}
-            {flight.outbound.date}
-          </div>
-          {flight.return?.date !== "Return TBD" && (
-            <div style={{ marginBottom: 8 }}>
-              {flight.return.from} → {flight.return.to} · {flight.return.date}
-            </div>
-          )}
-          <div
-            style={{
-              borderTop: `1px solid ${G.border}`,
-              paddingTop: 12,
-              marginTop: 8,
-              fontFamily: "inherit",
-              fontWeight: 800,
-              fontSize: 20,
-              color: "var(--cta, #ff8a2a)",
-            }}
-          >
-            Total: ${total.toFixed(2)}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <section style={{ marginBottom: 20 }}>
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: ".06em",
-            textTransform: "uppercase",
-            color: G.faint,
-            fontWeight: 600,
-            marginBottom: 14,
-          }}
-        >
-          Payment
-        </div>
-        <div
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: `1px solid ${G.border}`,
-            borderRadius: 14,
-            padding: "20px 16px",
-          }}
-        >
-          <PaymentElement
-            options={{
-              layout: "tabs",
-              paymentMethodOrder: ["card", "apple_pay", "google_pay"],
-            }}
-          />
-        </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            color: G.muted,
-            fontSize: 12,
-            marginTop: 10,
-          }}
-        >
-          <StripeMarkIcon />
-          <span>Payments securely processed by Stripe</span>
-        </div>
-      </section>
-
-      {error && (
-        <div
-          style={{
-            background: "rgba(248,113,113,.1)",
-            border: "1px solid rgba(248,113,113,.3)",
-            borderRadius: 10,
-            padding: "12px 16px",
-            color: G.danger,
-            fontSize: 13,
-            marginBottom: 16,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <AlertTriangle size={14} />
-          {error}
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setAgreed((v) => !v)}
-        role="checkbox"
-        aria-checked={agreed}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          width: "100%",
-          padding: "14px 16px",
-          borderRadius: 12,
-          border: `1px solid ${agreed ? G.orange : G.border}`,
-          background: agreed ? "rgba(249,115,22,.08)" : G.bgCard,
-          cursor: "pointer",
-          marginBottom: 20,
-          color: "#fff",
-          fontFamily: "inherit",
-          fontSize: 14,
-          transition: ".2s",
-          minHeight: 52,
-          touchAction: "manipulation",
-        }}
-      >
-        <div
-          style={{
-            width: 18,
-            height: 18,
-            borderRadius: 4,
-            border: `2px solid ${agreed ? G.orange : G.faint}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: agreed ? G.orange : "transparent",
-            color: "white",
-            flexShrink: 0,
-            transition: ".2s",
-          }}
-        >
-          {agreed && <Check size={11} strokeWidth={3} />}
-        </div>
-        <span>
-          I agree to the{" "}
-          <a
-            href="/terms"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            style={{ color: "var(--cta, #ff8a2a)", textDecoration: "none" }}
-          >
-            fare rules
-          </a>{" "}
-          and{" "}
-          <a
-            href="/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            style={{ color: "var(--cta, #ff8a2a)", textDecoration: "none" }}
-          >
-            privacy policy
-          </a>
-          .
-        </span>
-      </button>
-
-      <div className="skc-btn-row">
-        <button
-          type="button"
-          className="skc-btn-back"
-          onClick={onBack}
-          disabled={loading}
-        >
-          ← Back
-        </button>
-        <button
-          type="button"
-          className="skc-btn-primary"
-          style={{
-            flex: 1,
-            opacity: agreed && stripe ? 1 : 0.4,
-            cursor: agreed && stripe ? "pointer" : "not-allowed",
-          }}
-          onClick={handleBook}
-          disabled={fareExpired || !agreed || loading || !stripe}
-        >
-          {loading ? (
-            <span className="skc-spinner" />
-          ) : (
-            `Book · $${total.toFixed(2)}`
-          )}
-        </button>
-      </div>
-      <CancellationBadge departureDateISO={flight?.outbound?.dateISO} />
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          color: G.muted,
-          fontSize: 12,
-          justifyContent: "center",
-          marginTop: 14,
-        }}
-      >
-        <LockIcon />
-        <span>Your information is secure and encrypted</span>
-      </div>
-    </>
-  );
-}
-
 function StepReviewPay({
+  progressKey,
   onBack,
   passengers,
   extras,
@@ -2594,23 +2659,20 @@ function StepReviewPay({
   onFareExpired,
   onBackToResults,
   onBookingSuccess,
+  prebookId,
+  transactionId,
+  clientSecret,
+  prebookError,
 }) {
-  const [clientSecret, setClientSecret] = useState(null);
-  const [prebookId, setPrebookId] = useState(null);
-  const [transactionId, setTransactionId] = useState(null);
-  const [initLoading, setInitLoading] = useState(true);
-  const [payLoading, setPayLoading] = useState(false);
-  const [error, setError] = useState("");
-  const hasInitialized = useRef(false);
-
-  const { selectedSeats, bag, insurance, seatsPrice } = extras;
+  // verify + prebook happen in the parent right after Passengers submits;
+  // payment itself is handled by LiteApiPayForm.
+  const { selectedSeats, seatsPrice } = extras;
   const fareTotal = passengers.reduce(
     (sum, p) => sum + basePrice * (FARE_MULTIPLIER[p.type] ?? 1),
     0
   );
-  const bp = BAG_OPTIONS.find((o) => o.id === bag)?.price ?? 0;
-  const ip = insurance ? 28.25 : 0;
-  const total = fareTotal + seatsPrice + bp + ip;
+  // Estimate only — LiteApiPayForm reads the exact charge from the payment.
+  const total = fareTotal + seatsPrice;
 
   const recapRows = [
     {
@@ -2619,213 +2681,30 @@ function StepReviewPay({
         .map((p) => fullName(p) || `Traveler ${p.index + 1}`)
         .join(", "),
     },
-    Object.keys(selectedSeats).length > 0 && {
-      label: "Seats",
-      value: passengers
-        .map((p) => selectedSeats[p.index]?.seatNumber)
-        .filter(Boolean)
-        .join(", "),
-    },
-    bag !== "none" && {
-      label: "Baggage",
-      value: BAG_OPTIONS.find((o) => o.id === bag)?.label,
-    },
-    insurance && { label: "Protection", value: "Travel Guard" },
+    ...(extras?.segments?.length
+      ? extras.segments
+      : [{ key: "default", shortLabel: "Your flight" }]
+    )
+      .map((seg) => {
+        const bySeg = passengers
+          .map((p) => {
+            const seat = selectedSeats?.[seg.key]?.[p.index]?.seatNumber;
+            return seat
+              ? `${fullName(p) || `Traveler ${p.index + 1}`}: ${seat}`
+              : null;
+          })
+          .filter(Boolean);
+        return bySeg.length
+          ? {
+              label: `Seats · ${seg.shortLabel || seg.label}${
+                seg.direction ? ` (${seg.direction.toLowerCase()})` : ""
+              }`,
+              value: bySeg.join(", "),
+            }
+          : null;
+      })
+      .filter(Boolean),
   ].filter(Boolean);
-
-  useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
-
-    // If the fare already expired before this step even mounted (e.g.
-    // the person lingered on Passengers or Seats & Bags until time ran
-    // out), don't bother calling verify/prebook with a stale offer —
-    // that would likely just fail server-side anyway, but preempting
-    // it client-side is faster and clearer than waiting on a network
-    // round trip to find out.
-    if (fareExpired) {
-      setInitLoading(false);
-      return;
-    }
-
-    (async () => {
-      setInitLoading(true);
-      setError("");
-      try {
-        if (!flight.offerId) {
-          throw new Error(
-            "This flight is missing its offer reference — please go back and select it again from search results."
-          );
-        }
-
-        const token = localStorage.getItem("token");
-        const API = import.meta.env?.VITE_API_URL || "";
-        const authHeaders = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
-
-        // 1. Verify the fare is still available (unchanged)
-        const vRes = await fetch(`${API}/api/flights/verify`, {
-          method: "POST",
-          headers: authHeaders,
-          body: JSON.stringify({ offerId: flight.offerId }),
-        });
-        const vData = await vRes.json();
-        if (!vRes.ok || !vData.ok) {
-          throw new Error(
-            vData.message ||
-              "This fare is no longer available. Please go back and pick a fresh result."
-          );
-        }
-        const verifiedOfferId = vData.offerId || flight.offerId;
-
-        // 2. Prebook with LiteAPI — TESTING LiteAPI's own payment flow
-        //    (usePaymentSdk restored). LiteAPI returns BOTH a Stripe
-        //    `secretKey` (their PaymentIntent, on THEIR connected Stripe
-        //    account) AND a `transactionId` that's their internal
-        //    reference to that same PaymentIntent — the /complete step
-        //    requires that exact transactionId back, not an arbitrary
-        //    one. If our Skyrio Stripe account is properly Connect-linked
-        //    to LiteAPI's platform, our own publishable key should be
-        //    able to render Elements against their secretKey with no 401.
-        const leadPassenger = passengers[0];
-        const prebookBody = {
-          offerId: verifiedOfferId,
-          contact: {
-            email: leadPassenger.email,
-            firstName: leadPassenger.firstName,
-            lastName: leadPassenger.lastName,
-            phoneNumber: leadPassenger.phone,
-            phoneCountryCode: "1",
-          },
-          passengers: passengers.map(toLiteApiPassenger),
-          usePaymentSdk: true,
-          payment: { descriptorSuffix: "FLIGHT" },
-        };
-        console.log("[prebook] sending payload:", prebookBody);
-
-        const pRes = await fetch(`${API}/api/flights/prebook`, {
-          method: "POST",
-          headers: authHeaders,
-          body: JSON.stringify(prebookBody),
-        });
-        const pData = await pRes.json();
-        console.log("[prebook] FULL response:", JSON.stringify(pData, null, 2));
-        if (!pRes.ok || !pData.ok) {
-          throw new Error(
-            pData.message ||
-              "Could not reserve this fare. Please go back and try again."
-          );
-        }
-
-        const prebookRecord = Array.isArray(pData.data)
-          ? pData.data[0]
-          : pData.data || pData;
-
-        const newPrebookId =
-          prebookRecord?.prebookId ||
-          prebookRecord?.prebookID ||
-          prebookRecord?.id ||
-          pData.prebookId ||
-          pData.prebookID ||
-          pData.id;
-        if (!newPrebookId) {
-          console.error(
-            "[prebook] no prebookId found in response — full payload:",
-            pData
-          );
-          throw new Error(
-            "Fare was reserved but we didn't get a booking reference back. Please contact support."
-          );
-        }
-        setPrebookId(newPrebookId);
-
-        // Capture LiteAPI's own transactionId — THIS is what /complete
-        // needs back, not our own Stripe PaymentIntent id.
-        const newTransactionId =
-          prebookRecord?.transactionId || pData.transactionId || null;
-        if (!newTransactionId) {
-          console.error(
-            "[prebook] no transactionId found in response — full payload:",
-            pData
-          );
-          throw new Error(
-            "Fare was reserved but payment setup is missing a required reference. Please contact support."
-          );
-        }
-        setTransactionId(newTransactionId);
-
-        // Use LiteAPI's own secretKey directly — this is a PaymentIntent
-        // on LiteAPI's connected Stripe account, not ours.
-        const secret =
-          prebookRecord?.secretKey ||
-          prebookRecord?.paymentData?.secretKey ||
-          prebookRecord?.payment?.secretKey ||
-          pData.secretKey ||
-          pData.paymentData?.secretKey ||
-          null;
-
-        if (!secret) {
-          console.error(
-            "[prebook] no secretKey found in response — full payload:",
-            pData
-          );
-          throw new Error(
-            "Fare was reserved but payment setup failed. Please contact support before trying again."
-          );
-        }
-
-        setClientSecret(secret);
-      } catch (err) {
-        setError(
-          err.message ||
-            "Could not initialize payment. Please go back and try again."
-        );
-      }
-      setInitLoading(false);
-    })();
-  }, []); // eslint-disable-line
-
-  const stripeAppearance = {
-    theme: "night",
-    variables: {
-      colorPrimary: "#f97316",
-      colorBackground: "#100c22",
-      colorText: "#ffffff",
-      colorTextSecondary: "rgba(255,255,255,0.5)",
-      colorDanger: "#f87171",
-      borderRadius: "10px",
-      fontFamily: "inherit",
-      spacingUnit: "4px",
-    },
-    rules: {
-      ".Input": {
-        border: "1px solid rgba(255,255,255,0.10)",
-        backgroundColor: "rgba(255,255,255,0.06)",
-      },
-      ".Input:focus": {
-        border: "1px solid #f97316",
-        boxShadow: "0 0 0 3px rgba(249,115,22,0.35)",
-      },
-      ".Label": {
-        color: "rgba(255,255,255,0.5)",
-        fontSize: "12px",
-        fontWeight: "600",
-        letterSpacing: "0.05em",
-        textTransform: "uppercase",
-      },
-      ".Tab": {
-        border: "1px solid rgba(255,255,255,0.10)",
-        backgroundColor: "rgba(255,255,255,0.04)",
-      },
-      ".Tab:hover": { backgroundColor: "rgba(255,255,255,0.07)" },
-      ".Tab--selected": {
-        border: "1px solid #f97316",
-        backgroundColor: "rgba(249,115,22,0.08)",
-      },
-    },
-  };
 
   return (
     <div className="skc-fade">
@@ -2862,13 +2741,14 @@ function StepReviewPay({
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
+                  gap: 12,
                   padding: "9px 0",
                   borderBottom: `1px solid ${G.border}`,
                   fontSize: 14,
                 }}
               >
                 <span style={{ color: G.muted }}>{r.label}</span>
-                <span>{r.value}</span>
+                <span style={{ textAlign: "right" }}>{r.value}</span>
               </div>
             ))}
           </section>
@@ -2876,28 +2756,11 @@ function StepReviewPay({
             base={basePrice}
             passengers={passengers}
             seatsPrice={seatsPrice}
-            bag={bag}
-            insurance={insurance}
           />
           {fareExpired && (
             <FareExpiredBlock onBackToResults={onBackToResults} />
           )}
-          {!fareExpired && initLoading && (
-            <div
-              style={{ textAlign: "center", padding: "40px 0", color: G.muted }}
-            >
-              <div>
-                <span
-                  className="skc-spinner"
-                  style={{ width: 28, height: 28, borderWidth: 3 }}
-                />
-              </div>
-              <div style={{ marginTop: 14, fontSize: 13 }}>
-                Reserving your fare and setting up secure payment...
-              </div>
-            </div>
-          )}
-          {!fareExpired && !initLoading && error && (
+          {!fareExpired && prebookError && (
             <div
               style={{
                 background: "rgba(248,113,113,.1)",
@@ -2917,7 +2780,7 @@ function StepReviewPay({
                 style={{ marginTop: 1, flexShrink: 0 }}
               />
               <div>
-                {error}
+                {prebookError}
                 <div style={{ marginTop: 8 }}>
                   <button
                     type="button"
@@ -2931,29 +2794,37 @@ function StepReviewPay({
               </div>
             </div>
           )}
-          {!fareExpired && !initLoading && clientSecret && (
-            <Elements
-              stripe={stripePromise}
-              options={{ clientSecret, appearance: stripeAppearance }}
+          {!fareExpired && !prebookError && !clientSecret && (
+            <div
+              style={{ textAlign: "center", padding: "40px 0", color: G.muted }}
             >
-              <StripePayForm
-                onBack={onBack}
-                passengers={passengers}
-                basePrice={basePrice}
-                flight={flight}
+              <div>
+                <span
+                  className="skc-spinner"
+                  style={{ width: 28, height: 28, borderWidth: 3 }}
+                />
+              </div>
+              <div style={{ marginTop: 14, fontSize: 13 }}>
+                Setting up secure payment...
+              </div>
+            </div>
+          )}
+          {!fareExpired && !prebookError && clientSecret && (
+            <>
+              <LiteApiPayForm
+                clientSecret={clientSecret}
                 prebookId={prebookId}
                 transactionId={transactionId}
                 total={total}
-                loading={payLoading}
-                setLoading={setPayLoading}
-                error={error}
-                setError={setError}
+                flight={flight}
+                passengers={passengers}
                 groupId={groupId}
-                onGroupBookingComplete={onGroupBookingComplete}
+                progressKey={progressKey}
                 fareExpired={fareExpired}
-                onBookingSuccess={onBookingSuccess}
+                onBack={onBack}
               />
-            </Elements>
+              <CancellationBadge departureDateISO={flight?.outbound?.dateISO} />
+            </>
           )}
         </div>
         <div className="skc-step-sidebar">
@@ -2962,15 +2833,25 @@ function StepReviewPay({
             passengers={passengers}
             selectedSeats={selectedSeats}
             seatsPrice={seatsPrice}
-            bag={bag}
-            insurance={insurance}
             basePrice={basePrice}
             onFareExpired={onFareExpired}
+            segments={extras?.segments || []}
           />
         </div>
       </div>
     </div>
   );
+}
+
+// Turns raw LiteAPI errors into something a traveler understands.
+function friendlyFareError(raw = "") {
+  if (/sold out|52010|no longer available|expired/i.test(raw)) {
+    return "This fare just sold out with the airline. Let's find you another flight.";
+  }
+  if (/51099|unable to process|failed to search|timeout|timed out/i.test(raw)) {
+    return "The airline's system didn't respond. Please search again in a moment.";
+  }
+  return raw || "We couldn't reserve this fare. Please pick another flight.";
 }
 
 export default function BookingCheckout({
@@ -2981,67 +2862,296 @@ export default function BookingCheckout({
   onGroupBookingComplete,
 }) {
   const liveFlight = buildFlight(flight);
-  const [step, setStep] = useState(0);
-  const [passengers, setPassengers] = useState([]);
-  const [extras, setExtras] = useState(null);
-  // Shared across all three steps — once the countdown in any step's
-  // TripSidebar fires, this flips true everywhere at once (React state
-  // lives here, at the top, not per-step) and every step's primary
-  // action gets replaced with FareExpiredBlock, regardless of which
-  // step the person happens to be on when it happens.
+  const progressKey = getProgressStorageKey(liveFlight);
+  // Read once at mount so a refresh restores everything as one snapshot.
+  const [restoredProgress] = useState(() => readCheckoutProgress(progressKey));
+
+  const [step, setStep] = useState(() => restoredProgress?.step ?? 0);
+  const [passengers, setPassengers] = useState(
+    () => restoredProgress?.passengers ?? []
+  );
+  const [extras, setExtras] = useState(() => restoredProgress?.extras ?? null);
+
+  // Prebook happens right after Passengers submits (not at Review & Pay)
+  // because real seat/ancillary data only exists once a prebook exists.
+  // clientSecret is deliberately NOT persisted (short-lived; refetched on resume).
+  const [prebookId, setPrebookId] = useState(
+    () => restoredProgress?.prebookId ?? null
+  );
+  const [transactionId, setTransactionId] = useState(
+    () => restoredProgress?.transactionId ?? null
+  );
+  const [clientSecret, setClientSecret] = useState(null);
+  const [prebookLoading, setPrebookLoading] = useState(false);
+  const [prebookError, setPrebookError] = useState("");
+  const hasStartedPrebook = useRef(false);
+  // Blocks a second parallel prebook if Continue is tapped twice while
+  // verify+prebook are still in flight (state alone wouldn't stop it).
+  const prebookInFlightRef = useRef(false);
+
+  // Verify the fare, then prebook it.
+  const runPrebook = useCallback(
+    async (passengersList) => {
+      if (prebookInFlightRef.current) return;
+      prebookInFlightRef.current = true;
+      setPrebookLoading(true);
+      setPrebookError("");
+      try {
+        if (!liveFlight.offerId) {
+          throw new Error(
+            "This flight is missing its offer reference — please go back and select it again from search results."
+          );
+        }
+        const token = localStorage.getItem("token");
+        const API = import.meta.env?.VITE_API_URL || "";
+        const authHeaders = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        const vRes = await fetch(`${API}/api/flights/verify`, {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ offerId: liveFlight.offerId }),
+        });
+        const vData = await vRes.json().catch(() => ({}));
+        let verifiedOfferId = liveFlight.offerId;
+        if (vRes.ok && vData.ok) {
+          verifiedOfferId = vData.offerId || liveFlight.offerId;
+        } else if (vData.soldOut || vData.code === 52010) {
+          // The fare is really gone — stop here.
+          throw new Error(
+            vData.message ||
+              "This fare just sold out with the airline. Let's find you another flight."
+          );
+        } else if (
+          vRes.status >= 500 ||
+          [51099, 52099, "TIMEOUT"].includes(vData.code)
+        ) {
+          // LiteAPI's fare check itself failed (their side). It's only a
+          // safety step: prebook below re-checks price + availability, and
+          // the exact charge is shown before paying. So continue.
+          console.warn(
+            "[checkout] fare check unavailable — continuing to reservation",
+            vData
+          );
+        } else {
+          throw new Error(
+            vData.message ||
+              "This fare is no longer available. Please go back and pick a fresh result."
+          );
+        }
+
+        const leadPassenger = passengersList[0];
+        const prebookBody = {
+          offerId: verifiedOfferId,
+          contact: {
+            email: leadPassenger.email,
+            firstName: leadPassenger.firstName,
+            lastName: leadPassenger.lastName,
+            phoneNumber: leadPassenger.phone,
+            phoneCountryCode: "1",
+          },
+          passengers: passengersList.map(toLiteApiPassenger),
+          usePaymentSdk: true,
+          payment: { descriptorSuffix: "FLIGHT" },
+        };
+
+        const pRes = await fetch(`${API}/api/flights/prebook`, {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify(prebookBody),
+        });
+        const pData = await pRes.json();
+        if (!pRes.ok || !pData.ok) {
+          throw new Error(
+            pData.message ||
+              "Could not reserve this fare. Please go back and try again."
+          );
+        }
+
+        const prebookRecord = Array.isArray(pData.data)
+          ? pData.data[0]
+          : pData.data || pData;
+
+        const newPrebookId =
+          prebookRecord?.prebookId ||
+          prebookRecord?.prebookID ||
+          prebookRecord?.id ||
+          pData.prebookId ||
+          pData.prebookID ||
+          pData.id;
+        if (!newPrebookId) {
+          throw new Error(
+            "Fare was reserved but we didn't get a booking reference back. Please contact support."
+          );
+        }
+
+        const newTransactionId =
+          prebookRecord?.transactionId || pData.transactionId || null;
+        if (!newTransactionId) {
+          throw new Error(
+            "Fare was reserved but payment setup is missing a required reference. Please contact support."
+          );
+        }
+
+        const secret =
+          prebookRecord?.secretKey ||
+          prebookRecord?.paymentData?.secretKey ||
+          prebookRecord?.payment?.secretKey ||
+          pData.secretKey ||
+          pData.paymentData?.secretKey ||
+          null;
+        if (!secret) {
+          throw new Error(
+            "Fare was reserved but payment setup failed. Please contact support before trying again."
+          );
+        }
+
+        setPrebookId(newPrebookId);
+        setTransactionId(newTransactionId);
+        setClientSecret(secret);
+      } catch (err) {
+        setPrebookError(friendlyFareError(err.message));
+      } finally {
+        prebookInFlightRef.current = false;
+        setPrebookLoading(false);
+      }
+    },
+    [liveFlight.offerId]
+  );
+
+  // Resume after a refresh mid-checkout. StepSeatsBags refetches its own
+  // seat data on mount, so the only thing missing on resume is the Stripe
+  // client secret. With no prebookId (e.g. progress saved before this
+  // feature existed), a fresh prebook is created from restored passengers.
+  useEffect(() => {
+    if (hasStartedPrebook.current) return;
+    if (step === 0) return; // runPrebook fires from StepPassengers' onNext instead
+    hasStartedPrebook.current = true;
+
+    if (prebookId) {
+      (async () => {
+        setPrebookLoading(true);
+        try {
+          const API = import.meta.env?.VITE_API_URL || "";
+          const token = localStorage.getItem("token");
+          const res = await fetch(`${API}/api/flights/prebook/${prebookId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            throw new Error("Could not restore your reservation.");
+          }
+          // ASSUMPTION FLAGGED: the exact field name for the Stripe client
+          // secret in the raw prebook-details response is unconfirmed; this
+          // mirrors the fallback chain runPrebook uses. Also verify this
+          // returns the v2 secret after services were attached, otherwise
+          // a resumed session pairs a v2 transactionId with a v1 secret.
+          const secret =
+            data.raw?.secretKey ||
+            data.raw?.data?.[0]?.secretKey ||
+            data.raw?.data?.secretKey ||
+            data.raw?.paymentData?.secretKey ||
+            null;
+          if (!secret) {
+            throw new Error(
+              "Could not restore payment setup for this reservation — please go back and search again."
+            );
+          }
+          setClientSecret(secret);
+        } catch (err) {
+          setPrebookError(
+            err.message ||
+              "Could not restore your reservation — please go back and search again."
+          );
+        } finally {
+          setPrebookLoading(false);
+        }
+      })();
+    } else if (passengers.length) {
+      runPrebook(passengers);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Falls back to the persisted group context if the page that renders
+  // this component lost its own on refresh. The prop wins when present.
+  const effectiveGroupId = groupId ?? restoredProgress?.groupId ?? null;
+  const effectiveGroupMemberCount =
+    groupMemberCount ?? restoredProgress?.groupMemberCount ?? null;
+
+  // Shared across all three steps: once any TripSidebar countdown fires,
+  // every step's primary action is replaced with FareExpiredBlock.
   const [fareExpired, setFareExpired] = useState(false);
   const handleFareExpired = useCallback(() => setFareExpired(true), []);
 
-  // Whether the person has typed real passenger details on step 0 —
-  // reported up from StepPassengers. Combined with `step` below to
-  // decide whether leaving checkout is worth confirming first.
   const [formDirty, setFormDirty] = useState(false);
-  // Flipped true once a booking actually completes (StripePayForm's
-  // success screen) — at that point there's no "progress" left to
-  // protect, and asking "discard your progress?" after someone just
-  // paid would be actively confusing, not protective.
+  // True once a booking completes — nothing left to protect, and asking
+  // "discard your progress?" right after paying would be confusing.
   const [bookingComplete, setBookingComplete] = useState(false);
   const handleBookingSuccess = useCallback(() => setBookingComplete(true), []);
 
-  // "Progress worth protecting" = they've either advanced past the
-  // Passengers step (meaning it was filled in and submitted) or typed
-  // something into it without submitting yet — and haven't already
-  // completed the booking. A fresh, untouched checkout has neither, so
-  // both back buttons just exit immediately with no prompt.
   const hasProgress = !bookingComplete && (step > 0 || formDirty);
 
+  // Keeps sessionStorage in sync with live state; skipped once booking
+  // completes (the effect below clears the entry instead).
+  useEffect(() => {
+    if (!progressKey || bookingComplete) return;
+    writeCheckoutProgress(progressKey, {
+      step,
+      passengers,
+      extras,
+      groupId: effectiveGroupId,
+      groupMemberCount: effectiveGroupMemberCount,
+      prebookId,
+      transactionId,
+      savedAt: Date.now(),
+    });
+  }, [
+    progressKey,
+    bookingComplete,
+    step,
+    passengers,
+    extras,
+    effectiveGroupId,
+    effectiveGroupMemberCount,
+    prebookId,
+    transactionId,
+  ]);
+
+  useEffect(() => {
+    if (bookingComplete) clearCheckoutProgress(progressKey);
+  }, [bookingComplete, progressKey]);
+
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  // Every real exit clears the stored snapshot so nothing stale is resumed later.
+  const exitToResults = useCallback(() => {
+    clearCheckoutProgress(progressKey);
+    onBack?.();
+  }, [progressKey, onBack]);
   const requestExit = useCallback(() => {
     if (hasProgress) {
       setShowDiscardConfirm(true);
     } else {
-      onBack?.();
+      exitToResults();
     }
-  }, [hasProgress, onBack]);
+  }, [hasProgress, exitToResults]);
   const confirmDiscard = useCallback(() => {
     setShowDiscardConfirm(false);
-    onBack?.();
-  }, [onBack]);
+    exitToResults();
+  }, [exitToResults]);
   const cancelDiscard = useCallback(() => setShowDiscardConfirm(false), []);
 
   useVhFix();
 
-  // FIX: the checkout screen was inheriting whatever scroll position
-  // the person was at while browsing flight results. If they'd
-  // scrolled down at all before clicking into checkout, the very top
-  // of this screen — including the "← Back to results" button and
-  // the "Booking / Checkout" title — rendered above their current
-  // scroll position, effectively invisible with no obvious way to
-  // scroll up to it. Scrolling to top on mount guarantees the header
-  // (and its back button) is the first thing visible every time.
+  // Checkout would otherwise inherit the results page's scroll position
+  // and hide its own header/back button.
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
 
-  // Same fix, but for step changes within checkout — advancing from a
-  // long form (Passengers, Seats & Bags) would otherwise carry the
-  // same scrolled-down position into the next step, hiding its own
-  // header/progress bar the same way.
+  // Same fix for step changes within checkout.
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [step]);
@@ -3052,13 +3162,7 @@ export default function BookingCheckout({
       style={{ position: "relative", minHeight: "calc(var(--vh, 1vh) * 100)" }}
     >
       <style>{css}</style>
-      {/* Fixed, always-visible back button — separate from the header's
-          own "← Back to results" link below. Pinned to the viewport
-          itself (not the page's scroll position or stacking order),
-          so it's guaranteed visible no matter what else is happening
-          with scroll or the site nav's z-index. Doesn't touch or
-          replace the existing header — just adds a second, foolproof
-          way back. */}
+      {/* Fixed, always-visible back button, pinned to the viewport. */}
       {onBack && (
         <button
           type="button"
@@ -3166,7 +3270,7 @@ export default function BookingCheckout({
           >
             Checkout
           </span>
-          {groupId && (
+          {effectiveGroupId && (
             <span
               style={{
                 marginLeft: "auto",
@@ -3195,13 +3299,18 @@ export default function BookingCheckout({
             onNext={(p) => {
               setPassengers(p);
               setStep(1);
+              // Start the real reservation as Passengers is submitted so a
+              // prebookId (and real seat data) exists for the Seats step.
+              runPrebook(p);
             }}
             flight={liveFlight}
             basePrice={liveFlight.basePrice}
             fareExpired={fareExpired}
             onFareExpired={handleFareExpired}
-            onBackToResults={onBack}
+            onBackToResults={exitToResults}
             onFormDirty={setFormDirty}
+            initialPassengers={passengers}
+            onPassengersChange={setPassengers}
           />
         )}
         {step === 1 && (
@@ -3216,23 +3325,36 @@ export default function BookingCheckout({
             passengers={passengers}
             fareExpired={fareExpired}
             onFareExpired={handleFareExpired}
-            onBackToResults={onBack}
+            onBackToResults={exitToResults}
+            prebookId={prebookId}
+            prebookLoading={prebookLoading}
+            prebookError={prebookError}
+            onRetryPrebook={() => runPrebook(passengers)}
+            onServicesAttached={(newTransactionId, newSecret) => {
+              if (newTransactionId) setTransactionId(newTransactionId);
+              if (newSecret) setClientSecret(newSecret);
+            }}
           />
         )}
         {step === 2 && (
           <StepReviewPay
+            progressKey={progressKey}
             onBack={() => setStep(1)}
             passengers={passengers}
             extras={extras}
             basePrice={liveFlight.basePrice}
             flight={liveFlight}
-            groupId={groupId}
-            groupMemberCount={groupMemberCount}
+            groupId={effectiveGroupId}
+            groupMemberCount={effectiveGroupMemberCount}
             onGroupBookingComplete={onGroupBookingComplete}
             fareExpired={fareExpired}
             onFareExpired={handleFareExpired}
-            onBackToResults={onBack}
+            onBackToResults={exitToResults}
             onBookingSuccess={handleBookingSuccess}
+            prebookId={prebookId}
+            transactionId={transactionId}
+            clientSecret={clientSecret}
+            prebookError={prebookError}
           />
         )}
       </div>

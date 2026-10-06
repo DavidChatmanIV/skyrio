@@ -89,6 +89,16 @@ await mount("/stripe", "../stripe.routes.js");
 // per traveler). Sits alongside stripe.routes.js since it's also a
 // top-level payments module, not nested under /api/.
 await mount("/split-payments", "../splitPayments.routes.js");
+// NEW: Hotel checkout — Skyrio is merchant of record. Stripe authorizes
+// the card (manual capture), LiteAPI books with ACC_CREDIT_CARD, then we
+// capture on success or cancel the hold on failure.
+// POST /api/hotel-payments/intent, POST /api/hotel-payments/confirm
+await mount("/hotel-payments", "../hotelPayments.routes.js");
+// NEW: Flight checkout — LiteAPI payment SDK (usePaymentSdk: true).
+// Prebook → attach seats/bags → SDK takes payment → book with TRANSACTION_ID.
+// POST /api/flight-payments/prebook, POST /:sessionId/services,
+// POST /:sessionId/book, GET /:sessionId
+await mount("/flight-payments", "../flightPayments.routes.js");
 await mount("/verification", "../verificationRoutes.js");
 await mount("/referral", "./referral.routes.js");
 
@@ -120,6 +130,8 @@ api.get("/", (_req, res) => {
       "/feedback",
       "/support",
       "/split-payments",
+      "/hotel-payments",
+      "/flight-payments",
     ],
   });
 });

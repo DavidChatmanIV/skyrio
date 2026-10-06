@@ -12,8 +12,13 @@ import heroBeach from "@/assets/skyhub/beach.png";
 import "../styles/AppLayout.css";
 import "../styles/skyrio-theme.css";
 
+// Checkout pages (e.g. /checkout/flight/complete after the LiteAPI payment
+// redirect) share the booking look so the flow feels like one experience.
+const isBookingPath = (pathname) =>
+  pathname.startsWith("/booking") || pathname.startsWith("/checkout");
+
 function themeForPath(pathname) {
-  if (pathname.startsWith("/booking")) return "sk-theme-book";
+  if (isBookingPath(pathname)) return "sk-theme-book";
   if (pathname.startsWith("/passport")) return "sk-theme-passport";
   if (pathname.startsWith("/skyhub")) return "sk-theme-social";
   return "sk-theme-discover";
@@ -24,7 +29,7 @@ export default function AppLayout() {
 
   const isLanding = pathname === "/";
   const isSkyHub = pathname.startsWith("/skyhub");
-  const isBooking = pathname.startsWith("/booking");
+  const isBooking = isBookingPath(pathname);
 
   const shellClass = [
     "osq-shell",

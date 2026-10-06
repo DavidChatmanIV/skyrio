@@ -322,6 +322,112 @@ export function buildPrebookPayload({
   };
 }
 
+// ---------------------------------------------------------------------
+// Prebook details → seat options
+//
+// Confirmed against LiteAPI's own Flight Seat Map Implementation Guide
+// (docs.liteapi.travel/docs/flight-seat-map-implementation-guide): seat
+// services live at servicesAttachable.groups[].services[], each tagged
+// category: 'seat' (that array also carries other ancillary categories
+// — the filter is what isolates seats). An earlier version of this
+// function guessed at five different flat-array paths (available
+// Services.seats / services.seats / ancillaries.seats / seatMap /
+// seats) — none of which matched this nested shape, so the function
+// was ALWAYS falling through to the warning below and returning [] —
+// seat selection was silently unavailable in production regardless of
+// what LiteAPI actually returned.
+//
+// Per-field mapping is also corrected against the same doc:
+//   seatNumber → metadata.seat.seatNumber, with the documented
+//     fallback of parsing it from the `name` field ("Seat 12C") when
+//     metadata.seat is absent.
+//   available  → metadata.seat.available, defaulting to true when
+//     metadata.seat itself is absent (also documented).
+//   tier       → now prefers LiteAPI's own metadata.seat.seatType
+//     ("standard" / "extra_legroom" / "exit_row") over the old
+//     price-only guess, falling back to the price heuristic only when
+//     seatType is missing entirely. exit_row now maps to its own
+//     "exit-row" tier — SkyrioSeatMap.jsx (verified separately) has
+//     been updated to render it with its own color/legend entry
+//     rather than falling back to generic "Standard" styling.
+//   segmentKey → captured and passed through so SkyrioSeatMap can
+//     scope a round trip's seat map to one flight leg at a time and
+//     avoid seat-number collisions between outbound and return
+//     (verified separately — see SkyrioSeatMap.jsx's
+//     scopedSeatServices).
+//
+// serviceId and the price field were already correct in the earlier
+// version (s.serviceId and s.pricing?.display?.amount both match the
+// real shape) — unchanged here.
+// ---------------------------------------------------------------------
+export function parsePrebookSeatOptions(data) {
+  if (!data || typeof data !== "object") return [];
+
+  const record = Array.isArray(data.data) ? data.data[0] : data.data || data;
+
+  const groups = record?.servicesAttachable?.groups;
+  const candidates = Array.isArray(groups)
+    ? groups
+        .flatMap((g) => (Array.isArray(g?.services) ? g.services : []))
+        .filter((s) => s?.category === "seat")
+    : [];
+
+  if (!candidates.length) {
+    console.warn(
+      "[LiteAPI Flights] parsePrebookSeatOptions: no seat services found under servicesAttachable.groups[].services[]. Top-level keys:",
+      Object.keys(record || {})
+    );
+    return [];
+  }
+
+  return candidates
+    .map((s) => {
+      const meta = s.metadata?.seat;
+
+      // Documented fallback: if metadata.seat is absent, parse
+      // row/column from the `name` field (e.g. "Seat 12C").
+      let seatNumber = meta?.seatNumber;
+      if (!seatNumber && s.name) {
+        const m = /\b(\d+)([A-Za-z]+)\b/.exec(s.name);
+        if (m) seatNumber = `${m[1]}${m[2]}`;
+      }
+      if (!seatNumber) return null;
+
+      const serviceId = s.serviceId ?? seatNumber;
+      const price = Number(s.pricing?.display?.amount ?? 0) || 0;
+
+      // Documented default when metadata.seat is absent: treat as
+      // available. Otherwise trust the explicit flag.
+      const available = meta ? meta.available !== false : true;
+
+      // Prefer LiteAPI's own classification over the price guess
+      // where it's present. SkyrioSeatMap.jsx now has real support
+      // for all three tier values below.
+      const tier =
+        meta?.seatType === "extra_legroom"
+          ? "extra-legroom"
+          : meta?.seatType === "exit_row"
+          ? "exit-row"
+          : meta?.seatType === "standard"
+          ? "standard"
+          : price >= 50
+          ? "premium"
+          : price > 0
+          ? "extra-legroom"
+          : "standard";
+
+      return {
+        seatNumber: String(seatNumber),
+        serviceId: String(serviceId),
+        available: !!available,
+        price,
+        tier,
+        segmentKey: s.segmentKey || null,
+      };
+    })
+    .filter(Boolean);
+}
+
 export function buildAttachServicesPayload({
   selectedServices = [],
   voucherCode,

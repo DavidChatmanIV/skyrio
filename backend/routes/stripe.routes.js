@@ -6,6 +6,10 @@ import Notification from "../models/notification.js";
 import SyncGroup from "../models/SyncGroup.js";
 import SplitPayment from "../models/SplitPayment.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import {
+  sendRefundIssuedEmail,
+  formatMoney,
+} from "../services/bookingEmails.js";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -31,12 +35,12 @@ router.post(
     if (event.type === "payment_intent.succeeded") {
       const intent = event.data.object;
 
-      // NEW — group split-payment share. Tagged with kind: "split_share"
-      // at creation time (see create-group-payment-intents below) so it
-      // never falls into the solo-booking branch below: a group booking's
-      // bookingId is shared by every member's PaymentIntent, and running
-      // the solo "confirm this booking" logic once per share would be
-      // wrong (and would double-award XP/notifications per payer).
+      // Group split-payment share. Tagged with kind: "split_share" at
+      // creation time (see create-group-payment-intents below) so it never
+      // falls into the solo-booking branch: a group booking's bookingId is
+      // shared by every member's PaymentIntent, and running the solo
+      // "confirm this booking" logic once per share would double-award
+      // XP/notifications per payer.
       if (intent.metadata?.kind === "split_share") {
         const { splitPaymentId, shareId, groupId } = intent.metadata;
         try {
@@ -106,15 +110,17 @@ router.post(
         return res.json({ received: true });
       }
 
-      // ── Solo booking (existing behavior, unchanged) ──────────
+      // ── Solo booking ──────────────────────────────────────────
+      // Also covers hotel checkouts (metadata.kind "hotel_checkout"):
+      // hotels.controller.js writes bookingId onto the PaymentIntent and
+      // flips the booking pending → confirmed itself. Whichever runs first
+      // (that code or this webhook) confirms it; the other sees
+      // "confirmed" and skips, so XP and notifications happen once.
       const bookingId = intent.metadata?.bookingId;
       const userId = intent.metadata?.userId;
 
       try {
-        // Idempotency guard — Stripe can (and does) retry webhook
-        // deliveries. Without this check, a retried event would
-        // re-award XP and re-fire notifications for a booking
-        // that's already confirmed.
+        // Idempotency guard — Stripe retries webhook deliveries.
         if (bookingId) {
           const existing = await Booking.findById(bookingId).select("status");
           if (existing?.status === "confirmed") {
@@ -122,16 +128,20 @@ router.post(
           }
         }
 
-        // 1. Confirm booking + store BOTH payment ID fields
-        //    so Atlas can find it for refunds later
+        // 1. Confirm booking + store BOTH payment ID fields so Atlas can
+        //    find it for refunds later. amount_received = what was ACTUALLY
+        //    charged (hotel checkouts may capture less than was authorized
+        //    when only some rooms could be booked).
         if (bookingId) {
+          const charged = (intent.amount_received || intent.amount) / 100;
           await Booking.findByIdAndUpdate(bookingId, {
             $set: {
               status: "confirmed",
               paidAt: new Date(),
               paymentIntentId: intent.id,
               stripePaymentIntentId: intent.id,
-              totalAmount: intent.amount / 100,
+              total: charged,
+              totalAmount: charged,
               totalCurrency: intent.currency?.toUpperCase() || "USD",
             },
           });
@@ -163,7 +173,9 @@ router.post(
       }
     }
 
-    // ── Refund completed (fired by Atlas request_refund) ───────
+    // ── Refund completed ───────────────────────────────────────
+    // Fired for refunds issued by the cancel flow (hotels), Atlas
+    // request_refund, or manually in the Stripe dashboard.
     if (event.type === "charge.refunded") {
       const charge = event.data.object;
       const paymentIntentId = charge.payment_intent;
@@ -177,28 +189,59 @@ router.post(
         });
 
         if (booking) {
+          // amount_refunded is the running TOTAL refunded on this charge.
           const refundAmount = charge.amount_refunded / 100;
           const isFullRefund = charge.refunded === true;
+          const currency =
+            booking.totalCurrency ||
+            String(charge.currency || "usd").toUpperCase();
+
+          // Idempotency — Stripe retries webhooks. Only notify/email when
+          // this refund total is new.
+          const alreadyRecorded =
+            booking.refundStatus === "succeeded" &&
+            Number(booking.refundAmount) === refundAmount &&
+            booking.refundedAt;
 
           await Booking.findByIdAndUpdate(booking._id, {
             $set: {
               refundStatus: "succeeded",
               refundAmount: refundAmount,
-              refundedAt: new Date(),
+              refundedAt: booking.refundedAt || new Date(),
             },
           });
 
-          if (booking.user) {
-            await Notification.create({
-              user: booking.user,
-              type: "booking",
-              title: "Refund Processed 💰",
-              message: `Your ${
-                isFullRefund ? "full" : "partial"
-              } refund of $${refundAmount.toFixed(
-                2
-              )} has been processed. It may take 5-10 business days to appear on your statement.`,
-              link: "/saved-trips",
+          if (!alreadyRecorded) {
+            if (booking.user) {
+              await Notification.create({
+                user: booking.user,
+                type: "booking",
+                title: "Refund Processed 💰",
+                message: `Your ${
+                  isFullRefund ? "full" : "partial"
+                } refund of ${formatMoney(
+                  refundAmount,
+                  currency
+                )} has been processed. It may take 5-10 business days to appear on your statement.`,
+                link: "/saved-trips",
+              });
+            }
+
+            // Refund email — Stripe has confirmed the money went out.
+            let to = booking.email;
+            if (!to && booking.user) {
+              const u = await User.findById(booking.user)
+                .select("email")
+                .lean();
+              to = u?.email;
+            }
+            sendRefundIssuedEmail({
+              to,
+              name: (booking.name || "").split(" ")[0],
+              tripDetails: booking.tripDetails,
+              amount: refundAmount,
+              currency,
+              bookingId: String(booking._id),
             });
           }
         }
@@ -220,10 +263,16 @@ router.post(
           ],
         });
 
-        if (booking) {
+        if (booking && booking.refundStatus !== "failed") {
           await Booking.findByIdAndUpdate(booking._id, {
             $set: { refundStatus: "failed" },
           });
+          // Shows up in /admin/bookings as "Refund: … failed".
+          console.error(
+            "[webhook] REFUND FAILED — handle manually",
+            String(booking._id),
+            paymentIntentId
+          );
 
           if (booking.user) {
             await Notification.create({
@@ -245,8 +294,8 @@ router.post(
     if (event.type === "payment_intent.payment_failed") {
       const intent = event.data.object;
 
-      // NEW — group split share failed. Mark just that share failed;
-      // don't touch the Booking or the rest of the group.
+      // Group split share failed. Mark just that share failed; don't touch
+      // the Booking or the rest of the group.
       if (intent.metadata?.kind === "split_share") {
         const { splitPaymentId, shareId } = intent.metadata;
         try {
@@ -292,11 +341,9 @@ router.post(
 );
 
 // ─── POST /api/stripe/create-payment-intent ───────────────────
-// Now requires auth, verifies the booking actually belongs to the
-// requester, and derives the charge amount from the booking record
-// itself rather than trusting whatever the client sends. Trusting a
-// client-supplied `amount` here would let anyone pay whatever they
-// want for a booking, regardless of its real price.
+// Requires auth, verifies the booking belongs to the requester, and
+// derives the charge amount from the booking record itself rather than
+// trusting whatever the client sends.
 
 router.post("/create-payment-intent", requireAuth, async (req, res) => {
   try {
@@ -309,16 +356,13 @@ router.post("/create-payment-intent", requireAuth, async (req, res) => {
         .json({ ok: false, message: "bookingId is required" });
     }
 
-    // Ownership check — this booking must belong to the authenticated
-    // user, not whoever the client claims it belongs to.
+    // Ownership check — this booking must belong to the authenticated user.
     const booking = await Booking.findOne({ _id: bookingId, user: userId });
     if (!booking) {
       return res.status(404).json({ ok: false, message: "Booking not found" });
     }
 
-    // Confirmed from the Booking schema: the stored price lives in
-    // `total`. Never trust a client-supplied amount — a client could
-    // pay whatever they want for a booking otherwise.
+    // The stored price lives in `total`. Never trust a client-supplied amount.
     const amount = booking.total;
 
     if (!amount || amount <= 0) {
@@ -337,8 +381,8 @@ router.post("/create-payment-intent", requireAuth, async (req, res) => {
       },
     });
 
-    // Pre-link the PaymentIntent to the booking so Atlas can
-    // find it even before the webhook confirms payment
+    // Pre-link the PaymentIntent to the booking so Atlas can find it even
+    // before the webhook confirms payment.
     await Booking.findByIdAndUpdate(bookingId, {
       $set: {
         stripePaymentIntentId: paymentIntent.id,
@@ -360,15 +404,13 @@ router.post("/create-payment-intent", requireAuth, async (req, res) => {
 });
 
 // ─── POST /api/stripe/create-group-payment-intents ────────────
-// Called once, by BookingCheckout.jsx's StripePayForm, right after the
-// owner's own checkout succeeds and the real LiteAPI Booking exists.
-// Splits booking.total evenly across the owner + every group member,
-// creates one Stripe PaymentIntent per payer, and flips the group into
-// "payment_pending".
+// Called once, right after the owner's own checkout succeeds and the real
+// LiteAPI Booking exists. Splits booking.total evenly across the owner +
+// every group member, creates one Stripe PaymentIntent per payer, and
+// flips the group into "payment_pending".
 //
-// ASSUMPTION: even split (total / (members.length + 1)), not weighted
-// by each member's optional `budget` field. Flag if this should be
-// budget-weighted instead.
+// ASSUMPTION: even split (total / (members.length + 1)), not weighted by
+// each member's optional `budget` field.
 
 router.post("/create-group-payment-intents", requireAuth, async (req, res) => {
   try {
@@ -399,8 +441,7 @@ router.post("/create-group-payment-intents", requireAuth, async (req, res) => {
       });
     }
 
-    // Idempotency — BookingCheckout.jsx already treats this call as
-    // non-fatal/best-effort and could plausibly retry it.
+    // Idempotency — the caller treats this as best-effort and may retry.
     const existing = await SplitPayment.findOne({ booking: booking._id });
     if (existing) {
       await SyncGroup.findByIdAndUpdate(groupId, {
@@ -424,8 +465,8 @@ router.post("/create-group-payment-intents", requireAuth, async (req, res) => {
     const payerCount = group.members.length + 1; // + owner
     const totalCents = Math.round(amount * 100);
     const amountEachCents = Math.floor(totalCents / payerCount);
-    // Any leftover cents from the floor division go on the owner's
-    // share so the sum of all shares always equals the real charge.
+    // Leftover cents go on the owner's share so the shares always add up
+    // to the real charge.
     const remainderCents = totalCents - amountEachCents * payerCount;
 
     const owner = await User.findById(userId).select("name email").lean();
@@ -454,8 +495,8 @@ router.post("/create-group-payment-intents", requireAuth, async (req, res) => {
     });
     await split.save();
 
-    // One PaymentIntent per share, tagged so the webhook routes it
-    // to the split_share branch instead of the solo-booking branch.
+    // One PaymentIntent per share, tagged so the webhook routes it to the
+    // split_share branch instead of the solo-booking branch.
     for (const share of split.shares) {
       const intent = await stripe.paymentIntents.create({
         amount: share.amountOwed,
@@ -520,8 +561,8 @@ router.get("/split-status/:bookingId", requireAuth, async (req, res) => {
 });
 
 // ─── GET /api/stripe/my-split/:bookingId ───────────────────────
-// Powers PaymentShareCard — the CURRENT authenticated user's own share
-// of a group booking (owner or member).
+// Powers PaymentShareCard — the CURRENT authenticated user's own share of
+// a group booking (owner or member).
 
 router.get("/my-split/:bookingId", requireAuth, async (req, res) => {
   try {

@@ -1,40 +1,27 @@
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// Use your verified domain, or Resend's test domain to start
-const FROM_EMAIL = process.env.FROM_EMAIL || "Skyrio <onboarding@resend.dev>";
-
-// FRONTEND_ORIGIN intentionally holds every environment's URL as one
-// comma-separated list (local, Vercel preview, production domain) so the
-// same .env value works everywhere without editing it per-deploy — the
-// list itself is correct. What was wrong is picking blindly from it:
-// grabbing entry [0] always resolved to localhost, even in production,
-// which would have sent every real user a dead link.
+// backend/services/email.js
+// Account, group-trip and flight-confirmation emails. All use the shared
+// layout in ./emailLayout.js (light-first, solid colors, table layout) so
+// they stay readable in light mode AND dark mode on every mail app —
+// including Gmail on iPhone, which recolors emails itself in dark mode.
 //
-// Instead, pick the entry that actually matches where this code is
-// running right now:
-//   - production (NODE_ENV=production, set automatically by Vercel/Render)
-//     → the apex myskyrio.com domain, not the www or vercel preview one
-//   - anywhere else → whichever entry contains "localhost"
-// Falls back to the first entry if no match is found, so a missing/odd
-// NODE_ENV never leaves APP_URL empty.
-const rawOrigin =
-  process.env.FRONTEND_ORIGIN || "https://skyrio-iota.vercel.app";
-const origins = rawOrigin
-  .split(",")
-  .map((o) => o.trim())
-  .filter(Boolean);
-const isProduction = process.env.NODE_ENV === "production";
-const APP_URL =
-  (isProduction
-    ? origins.find((o) => o.includes("myskyrio.com") && !o.includes("www"))
-    : origins.find((o) => o.includes("localhost"))) ||
-  origins[0] ||
-  "https://skyrio-iota.vercel.app";
+// Exports and inputs are unchanged from the previous version.
+
+import {
+  renderEmail,
+  sendEmail,
+  detailBox,
+  bigLine,
+  subLine,
+  kvRow,
+  esc,
+  formatMoney,
+  APP_URL,
+} from "./emailLayout.js";
+
+const SIGNOFF = "\n\nSent by Skyrio - Plan smarter. Travel better.";
 
 /**
- * Send a trip invitation email
+ * Trip invitation
  */
 export async function sendTripInvite({
   to,
@@ -45,86 +32,29 @@ export async function sendTripInvite({
   memberNames,
 }) {
   const joinUrl = `${APP_URL}/sync-together/join/${inviteCode}`;
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="x-apple-disable-message-reformatting">
-<meta name="color-scheme" content="dark light">
-<meta name="supported-color-schemes" content="dark light">
-<style>
-  :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  @media (prefers-color-scheme: dark) {
-    body { background:#0f0520 !important; }
-    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    /* background-color:transparent on the text elements themselves stops
-       Gmail's dark-mode engine from injecting its own solid white patch
-       directly behind each heading/paragraph — that injected white square
-       (not the parent .sk-card background) is what was making white text
-       disappear, since the parent's dark background alone doesn't stop
-       a per-element override on the child. */
-    .sk-h1 { color:#fff !important; background-color:transparent !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
-    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
-    .sk-white { color:#fff !important; background-color:transparent !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
-    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
-  }
-</style>
-</head>
-<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
-    </div>
-    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
-        You're invited to a group trip!
-      </h1>
-      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        <strong class="sk-orange" style="color:#ff8a2a;">${inviterName}</strong> wants you to join a trip${
-    destination
-      ? ` to <strong class="sk-white" style="color:#fff;">${destination}</strong>`
-      : ""
-  }.
-      </p>
-      <div class="sk-detail-box" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:20px;margin-bottom:24px;">
-        <div class="sk-label" style="color:rgba(255,255,255,0.4);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">TRIP</div>
-        <div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:4px;">${
-          tripTitle || "Untitled Trip"
-        }${destination ? ` → ${destination}` : ""}</div>
-        ${
-          memberNames
-            ? `<div style="color:rgba(255,255,255,0.4);font-size:13px;margin-top:8px;">Travelers: ${memberNames}</div>`
-            : ""
-        }
-      </div>
-      <div style="text-align:center;">
-        <a href="${joinUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#FF8A2A 0%,#FF6000 100%);color:#fff;text-decoration:none;border-radius:14px;font-size:16px;font-weight:700;box-shadow:0 4px 20px rgba(255,138,42,0.4);">
-          View Trip & Join
-        </a>
-      </div>
-      <p class="sk-muted" style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:20px 0 0;">
-        Or use invite code: <strong style="color:rgba(255,255,255,0.5);">${inviteCode}</strong>
-      </p>
-    </div>
-    <div style="text-align:center;margin-top:32px;">
-      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;margin:0;">
-        Sent by Skyrio · Plan smarter. Travel better.
-      </p>
-      <p class="sk-muted2" style="color:rgba(255,255,255,0.15);font-size:11px;margin:8px 0 0;">
-        You received this because ${inviterName} added you to a group trip.
-      </p>
-    </div>
-  </div>
-</body>
-</html>`;
-
+  const html = renderEmail({
+    preheader: `${inviterName} invited you to a trip${
+      destination ? ` to ${destination}` : ""
+    }`,
+    title: "You're invited to a group trip!",
+    introHtml: `<strong>${esc(inviterName)}</strong> wants you to join a trip${
+      destination ? ` to <strong>${esc(destination)}</strong>` : ""
+    }.`,
+    bodyHtml: detailBox(
+      "TRIP",
+      bigLine(
+        `${esc(tripTitle || "Untitled Trip")}${
+          destination ? ` → ${esc(destination)}` : ""
+        }`
+      ) + (memberNames ? subLine(`Travelers: ${esc(memberNames)}`) : "")
+    ),
+    cta: { label: "View Trip &amp; Join", url: joinUrl },
+    footerNote: `Or use invite code: <strong>${esc(
+      inviteCode
+    )}</strong><br>You received this because ${esc(
+      inviterName
+    )} added you to a group trip.`,
+  });
   const text = `${inviterName} invited you to a trip${
     destination ? ` to ${destination}` : ""
   } on Skyrio.
@@ -132,36 +62,21 @@ export async function sendTripInvite({
 Trip: ${tripTitle || "Untitled Trip"}${destination ? ` -> ${destination}` : ""}
 ${memberNames ? `Travelers: ${memberNames}\n` : ""}
 View and join: ${joinUrl}
-Or use invite code: ${inviteCode}
+Or use invite code: ${inviteCode}${SIGNOFF}`;
 
-Sent by Skyrio - Plan smarter. Travel better.`;
-
-  try {
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: Array.isArray(to) ? to : [to],
-      subject: `${inviterName} invited you to a trip${
-        destination ? ` to ${destination}` : ""
-      } on Skyrio`,
-      html,
-      text,
-    });
-
-    if (error) {
-      console.error("[email] Send failed:", error);
-      return { ok: false, error };
-    }
-
-    console.log(`[email] Invite sent to ${to} (id: ${data?.id})`);
-    return { ok: true, id: data?.id };
-  } catch (err) {
-    console.error("[email] Error:", err.message);
-    return { ok: false, error: err.message };
-  }
+  return sendEmail({
+    to,
+    subject: `${inviterName} invited you to a trip${
+      destination ? ` to ${destination}` : ""
+    } on Skyrio`,
+    html,
+    text,
+    tag: "invite",
+  });
 }
 
 /**
- * Send a notification that the plan is ready for review
+ * Plan ready for review
  */
 export async function sendPlanReady({
   to,
@@ -170,98 +85,35 @@ export async function sendPlanReady({
   plannerName,
   groupUrl,
 }) {
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="x-apple-disable-message-reformatting">
-<meta name="color-scheme" content="dark light">
-<meta name="supported-color-schemes" content="dark light">
-<style>
-  :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  @media (prefers-color-scheme: dark) {
-    body { background:#0f0520 !important; }
-    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    /* background-color:transparent on the text elements themselves stops
-       Gmail's dark-mode engine from injecting its own solid white patch
-       directly behind each heading/paragraph — that injected white square
-       (not the parent .sk-card background) is what was making white text
-       disappear, since the parent's dark background alone doesn't stop
-       a per-element override on the child. */
-    .sk-h1 { color:#fff !important; background-color:transparent !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
-    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
-    .sk-white { color:#fff !important; background-color:transparent !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
-    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
-  }
-</style>
-</head>
-<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
-    </div>
-    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
-        Your trip plan is ready!
-      </h1>
-      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        <strong class="sk-orange" style="color:#ff8a2a;">${plannerName}</strong> generated a plan for
-        <strong class="sk-white" style="color:#fff;">${tripTitle}${
-    destination ? ` → ${destination}` : ""
-  }</strong>.
-        Review it and approve!
-      </p>
-      <div style="text-align:center;">
-        <a href="${groupUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#FF8A2A 0%,#FF6000 100%);color:#fff;text-decoration:none;border-radius:14px;font-size:16px;font-weight:700;box-shadow:0 4px 20px rgba(255,138,42,0.4);">
-          Review Plan
-        </a>
-      </div>
-    </div>
-    <div style="text-align:center;margin-top:32px;">
-      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
-    </div>
-  </div>
-</body>
-</html>`;
-
+  const html = renderEmail({
+    preheader: `A plan for ${tripTitle} is ready to review`,
+    title: "Your trip plan is ready!",
+    introHtml: `<strong>${esc(
+      plannerName
+    )}</strong> generated a plan for <strong>${esc(tripTitle)}${
+      destination ? ` → ${esc(destination)}` : ""
+    }</strong>. Review it and approve!`,
+    cta: { label: "Review Plan", url: groupUrl },
+  });
   const text = `${plannerName} generated a plan for ${tripTitle}${
     destination ? ` -> ${destination}` : ""
   }. Review it and approve!
 
-Review the plan: ${groupUrl}
+Review the plan: ${groupUrl}${SIGNOFF}`;
 
-Sent by Skyrio - Plan smarter. Travel better.`;
-
-  try {
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: Array.isArray(to) ? to : [to],
-      subject: `Trip plan ready: ${tripTitle}${
-        destination ? ` → ${destination}` : ""
-      }`,
-      html,
-      text,
-    });
-    if (error) {
-      console.error("[email] Plan ready send failed:", error);
-      return { ok: false, error };
-    }
-    console.log(`[email] Plan ready sent to ${to}`);
-    return { ok: true, id: data?.id };
-  } catch (err) {
-    console.error("[email] Error:", err.message);
-    return { ok: false, error: err.message };
-  }
+  return sendEmail({
+    to,
+    subject: `Trip plan ready: ${tripTitle}${
+      destination ? ` → ${destination}` : ""
+    }`,
+    html,
+    text,
+    tag: "plan-ready",
+  });
 }
 
 /**
- * Notify a member that a trip they were part of has been deleted
+ * A group trip was deleted
  */
 export async function sendTripDeleted({
   to,
@@ -269,91 +121,33 @@ export async function sendTripDeleted({
   destination,
   ownerName,
 }) {
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="x-apple-disable-message-reformatting">
-<meta name="color-scheme" content="dark light">
-<meta name="supported-color-schemes" content="dark light">
-<style>
-  :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  @media (prefers-color-scheme: dark) {
-    body { background:#0f0520 !important; }
-    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    /* background-color:transparent on the text elements themselves stops
-       Gmail's dark-mode engine from injecting its own solid white patch
-       directly behind each heading/paragraph — that injected white square
-       (not the parent .sk-card background) is what was making white text
-       disappear, since the parent's dark background alone doesn't stop
-       a per-element override on the child. */
-    .sk-h1 { color:#fff !important; background-color:transparent !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
-    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
-    .sk-white { color:#fff !important; background-color:transparent !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
-    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
-  }
-</style>
-</head>
-<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
-    </div>
-    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
-        This trip has been cancelled
-      </h1>
-      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        <strong class="sk-orange" style="color:#ff8a2a;">${ownerName}</strong> deleted
-        <strong class="sk-white" style="color:#fff;">${
-          tripTitle || "Untitled Trip"
-        }${destination ? ` → ${destination}` : ""}</strong>.
-        There's nothing further you need to do — this trip no longer exists.
-      </p>
-    </div>
-    <div style="text-align:center;margin-top:32px;">
-      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
-    </div>
-  </div>
-</body>
-</html>`;
-
+  const name = `${tripTitle || "Untitled Trip"}${
+    destination ? ` → ${destination}` : ""
+  }`;
+  const html = renderEmail({
+    preheader: `${ownerName} deleted ${tripTitle || "a trip"}`,
+    title: "This trip has been deleted",
+    introHtml: `<strong>${esc(ownerName)}</strong> deleted <strong>${esc(
+      name
+    )}</strong>. There's nothing further you need to do — this group trip no longer exists.`,
+  });
   const text = `${ownerName} deleted ${tripTitle || "Untitled Trip"}${
     destination ? ` -> ${destination}` : ""
   }.
 
-There's nothing further you need to do - this trip no longer exists.
+There's nothing further you need to do - this group trip no longer exists.${SIGNOFF}`;
 
-Sent by Skyrio - Plan smarter. Travel better.`;
-
-  try {
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: Array.isArray(to) ? to : [to],
-      subject: `Trip cancelled: ${tripTitle || "Untitled Trip"}`,
-      html,
-      text,
-    });
-    if (error) {
-      console.error("[email] Trip deleted send failed:", error);
-      return { ok: false, error };
-    }
-    console.log(`[email] Trip-deleted notice sent to ${to} (id: ${data?.id})`);
-    return { ok: true, id: data?.id };
-  } catch (err) {
-    console.error("[email] Error:", err.message);
-    return { ok: false, error: err.message };
-  }
+  return sendEmail({
+    to,
+    subject: `Trip deleted: ${tripTitle || "Untitled Trip"}`,
+    html,
+    text,
+    tag: "trip-deleted",
+  });
 }
 
 /**
- * Notify a member that they were removed from a trip
+ * Removed from a group trip
  */
 export async function sendMemberRemoved({
   to,
@@ -361,271 +155,330 @@ export async function sendMemberRemoved({
   destination,
   ownerName,
 }) {
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="x-apple-disable-message-reformatting">
-<meta name="color-scheme" content="dark light">
-<meta name="supported-color-schemes" content="dark light">
-<style>
-  :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  @media (prefers-color-scheme: dark) {
-    body { background:#0f0520 !important; }
-    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    /* background-color:transparent on the text elements themselves stops
-       Gmail's dark-mode engine from injecting its own solid white patch
-       directly behind each heading/paragraph — that injected white square
-       (not the parent .sk-card background) is what was making white text
-       disappear, since the parent's dark background alone doesn't stop
-       a per-element override on the child. */
-    .sk-h1 { color:#fff !important; background-color:transparent !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
-    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
-    .sk-white { color:#fff !important; background-color:transparent !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
-    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
-  }
-</style>
-</head>
-<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
-    </div>
-    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
-        You've been removed from a trip
-      </h1>
-      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        <strong class="sk-orange" style="color:#ff8a2a;">${ownerName}</strong> removed you from
-        <strong class="sk-white" style="color:#fff;">${
-          tripTitle || "Untitled Trip"
-        }${destination ? ` → ${destination}` : ""}</strong>.
-        You won't receive further updates about this trip.
-      </p>
-    </div>
-    <div style="text-align:center;margin-top:32px;">
-      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
-    </div>
-  </div>
-</body>
-</html>`;
-
+  const name = `${tripTitle || "Untitled Trip"}${
+    destination ? ` → ${destination}` : ""
+  }`;
+  const html = renderEmail({
+    preheader: `You were removed from ${tripTitle || "a trip"}`,
+    title: "You've been removed from a trip",
+    introHtml: `<strong>${esc(
+      ownerName
+    )}</strong> removed you from <strong>${esc(
+      name
+    )}</strong>. You won't receive further updates about this trip.`,
+  });
   const text = `${ownerName} removed you from ${tripTitle || "Untitled Trip"}${
     destination ? ` -> ${destination}` : ""
   }.
 
-You won't receive further updates about this trip.
+You won't receive further updates about this trip.${SIGNOFF}`;
 
-Sent by Skyrio - Plan smarter. Travel better.`;
-
-  try {
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: Array.isArray(to) ? to : [to],
-      subject: `You've been removed from ${tripTitle || "a trip"}`,
-      html,
-      text,
-    });
-    if (error) {
-      console.error("[email] Member removed send failed:", error);
-      return { ok: false, error };
-    }
-    console.log(
-      `[email] Member-removed notice sent to ${to} (id: ${data?.id})`
-    );
-    return { ok: true, id: data?.id };
-  } catch (err) {
-    console.error("[email] Error:", err.message);
-    return { ok: false, error: err.message };
-  }
+  return sendEmail({
+    to,
+    subject: `You've been removed from ${tripTitle || "a trip"}`,
+    html,
+    text,
+    tag: "member-removed",
+  });
 }
 
 /**
- * Send a password reset email
+ * Password reset
  */
 export async function sendPasswordReset({ to, resetUrl }) {
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="x-apple-disable-message-reformatting">
-<meta name="color-scheme" content="dark light">
-<meta name="supported-color-schemes" content="dark light">
-<style>
-  :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  @media (prefers-color-scheme: dark) {
-    body { background:#0f0520 !important; }
-    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    /* background-color:transparent on the text elements themselves stops
-       Gmail's dark-mode engine from injecting its own solid white patch
-       directly behind each heading/paragraph — that injected white square
-       (not the parent .sk-card background) is what was making white text
-       disappear, since the parent's dark background alone doesn't stop
-       a per-element override on the child. */
-    .sk-h1 { color:#fff !important; background-color:transparent !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
-    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
-    .sk-white { color:#fff !important; background-color:transparent !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
-    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
-  }
-</style>
-</head>
-<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
-    </div>
-    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
-        Reset your password
-      </h1>
-      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        Click the button below to reset your Skyrio password. This link expires in <strong class="sk-white" style="color:#fff;">1 hour</strong>.
-      </p>
-      <div style="text-align:center;">
-        <a href="${resetUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#FF8A2A 0%,#FF6000 100%);color:#fff;text-decoration:none;border-radius:14px;font-size:16px;font-weight:700;box-shadow:0 4px 20px rgba(255,138,42,0.4);">
-          Reset Password
-        </a>
-      </div>
-      <p class="sk-muted" style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:24px 0 0;">
-        If you didn't request this, you can safely ignore this email.
-      </p>
-    </div>
-    <div style="text-align:center;margin-top:32px;">
-      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
-    </div>
-  </div>
-</body>
-</html>`;
-
+  const html = renderEmail({
+    preheader: "Reset your Skyrio password (link expires in 1 hour)",
+    title: "Reset your password",
+    introHtml:
+      "Click the button below to reset your Skyrio password. This link expires in <strong>1 hour</strong>.",
+    cta: { label: "Reset Password", url: resetUrl },
+    footerNote: "If you didn't request this, you can safely ignore this email.",
+  });
   const text = `Reset your Skyrio password.
 
 Click the link below (expires in 1 hour):
 ${resetUrl}
 
-If you didn't request this, you can safely ignore this email.
+If you didn't request this, you can safely ignore this email.${SIGNOFF}`;
 
-Sent by Skyrio - Plan smarter. Travel better.`;
-
-  try {
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: Array.isArray(to) ? to : [to],
-      subject: "Reset your Skyrio password",
-      html,
-      text,
-    });
-    if (error) {
-      console.error("[email] Password reset send failed:", error);
-      return { ok: false, error };
-    }
-    console.log(`[email] Password reset sent to ${to} (id: ${data?.id})`);
-    return { ok: true, id: data?.id };
-  } catch (err) {
-    console.error("[email] Error:", err.message);
-    return { ok: false, error: err.message };
-  }
+  return sendEmail({
+    to,
+    subject: "Reset your Skyrio password",
+    html,
+    text,
+    tag: "password-reset",
+  });
 }
 
 /**
- * Send an email verification link
+ * Email verification
  */
 export async function sendVerificationEmail({ to, verifyUrl }) {
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="x-apple-disable-message-reformatting">
-<meta name="color-scheme" content="dark light">
-<meta name="supported-color-schemes" content="dark light">
-<style>
-  :root { color-scheme: dark light; supported-color-schemes: dark light; }
-  @media (prefers-color-scheme: dark) {
-    body { background:#0f0520 !important; }
-    .sk-card { background: linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%) !important; }
-    /* background-color:transparent on the text elements themselves stops
-       Gmail's dark-mode engine from injecting its own solid white patch
-       directly behind each heading/paragraph — that injected white square
-       (not the parent .sk-card background) is what was making white text
-       disappear, since the parent's dark background alone doesn't stop
-       a per-element override on the child. */
-    .sk-h1 { color:#fff !important; background-color:transparent !important; }
-    .sk-body { color:rgba(255,255,255,0.6) !important; background-color:transparent !important; }
-    .sk-orange { color:#ff8a2a !important; background-color:transparent !important; }
-    .sk-white { color:#fff !important; background-color:transparent !important; }
-    .sk-muted { color:rgba(255,255,255,0.3) !important; background-color:transparent !important; }
-    .sk-muted2 { color:rgba(255,255,255,0.15) !important; background-color:transparent !important; }
-    .sk-detail-box { background:rgba(255,255,255,0.05) !important; border-color:rgba(255,255,255,0.1) !important; }
-    .sk-label { color:rgba(255,255,255,0.4) !important; background-color:transparent !important; }
-  }
-</style>
-</head>
-<body bgcolor="#0f0520" style="margin:0;padding:0;background:#0f0520;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <span style="font-size:28px;font-weight:800;color:#ff8a2a;">✈ Skyrio</span>
-    </div>
-    <div class="sk-card" style="background:linear-gradient(160deg,#1a0a2e 0%,#2d1057 50%,#1e0b35 100%);border-radius:20px;padding:36px 28px;border:1px solid rgba(255,138,42,0.15);">
-      <h1 class="sk-h1" style="color:#fff;font-size:22px;font-weight:700;margin:0 0 8px;text-align:center;">
-        Verify your email ✈️
-      </h1>
-      <p class="sk-body" style="color:rgba(255,255,255,0.6);font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">
-        Click below to verify your Skyrio account. This link expires in <strong class="sk-white" style="color:#fff;">24 hours</strong>.
-      </p>
-      <div style="text-align:center;">
-        <a href="${verifyUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#FF8A2A 0%,#FF6000 100%);color:#fff;text-decoration:none;border-radius:14px;font-size:16px;font-weight:700;box-shadow:0 4px 20px rgba(255,138,42,0.4);">
-          Verify Email
-        </a>
-      </div>
-      <p class="sk-muted" style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:24px 0 0;">
-        If you didn't create a Skyrio account, ignore this email.
-      </p>
-    </div>
-    <div style="text-align:center;margin-top:32px;">
-      <p class="sk-muted" style="color:rgba(255,255,255,0.25);font-size:12px;">Sent by Skyrio · Plan smarter. Travel better.</p>
-    </div>
-  </div>
-</body>
-</html>`;
-
+  const html = renderEmail({
+    preheader: "Verify your Skyrio email (link expires in 24 hours)",
+    title: "Verify your email ✈️",
+    introHtml:
+      "Click below to verify your Skyrio account. This link expires in <strong>24 hours</strong>.",
+    cta: { label: "Verify Email", url: verifyUrl },
+    footerNote: "If you didn't create a Skyrio account, ignore this email.",
+  });
   const text = `Verify your Skyrio email.
 
 Click the link below (expires in 24 hours):
 ${verifyUrl}
 
-If you didn't create a Skyrio account, ignore this email.
+If you didn't create a Skyrio account, ignore this email.${SIGNOFF}`;
 
-Sent by Skyrio - Plan smarter. Travel better.`;
+  return sendEmail({
+    to,
+    subject: "Verify your Skyrio email",
+    html,
+    text,
+    tag: "verify",
+  });
+}
 
-  try {
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: Array.isArray(to) ? to : [to],
-      subject: "Verify your Skyrio email",
-      html,
-      text,
-    });
-    if (error) {
-      console.error("[email] Verification send failed:", error);
-      return { ok: false, error };
-    }
-    console.log(`[email] Verification sent to ${to} (id: ${data?.id})`);
-    return { ok: true, id: data?.id };
-  } catch (err) {
-    console.error("[email] Error:", err.message);
-    return { ok: false, error: err.message };
+// ─────────────────────────────────────────────────────────────
+// Flight booking confirmation (+ .ics calendar attachment)
+// ─────────────────────────────────────────────────────────────
+
+// Flight times arrive as local airport times with no timezone. They're
+// written as "floating" calendar times (no Z, no TZID): calendars show them
+// as-is in the viewer's clock — honestly imprecise rather than confidently
+// wrong, until airport timezone data is available.
+function toICSDateTime(isoLocal) {
+  return String(isoLocal).replace(/[-:]/g, "").split(".")[0].replace(/Z$/, "");
+}
+
+function escapeICSText(str = "") {
+  return String(str)
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\n/g, "\\n");
+}
+
+function buildFlightICS({
+  confirmationNumber,
+  airline,
+  flightNumber,
+  origin,
+  destination,
+  originName,
+  destinationName,
+  departureAt,
+  arrivalAt,
+  returnDepartureAt,
+  returnArrivalAt,
+  returnFlightNumber,
+}) {
+  const now = toICSDateTime(new Date().toISOString());
+  const events = [];
+
+  if (departureAt && arrivalAt) {
+    events.push(
+      [
+        "BEGIN:VEVENT",
+        `UID:${confirmationNumber}-outbound@myskyrio.com`,
+        `DTSTAMP:${now}Z`,
+        `DTSTART:${toICSDateTime(departureAt)}`,
+        `DTEND:${toICSDateTime(arrivalAt)}`,
+        `SUMMARY:${escapeICSText(
+          `Flight ${origin} → ${destination}${
+            flightNumber ? ` (${airline || ""} ${flightNumber})`.trim() : ""
+          }`
+        )}`,
+        `DESCRIPTION:${escapeICSText(
+          `Reference: ${confirmationNumber}\nAirline: ${
+            airline || "N/A"
+          }\nFlight: ${flightNumber || "N/A"}`
+        )}`,
+        `LOCATION:${escapeICSText(originName || origin)}`,
+        "END:VEVENT",
+      ].join("\r\n")
+    );
   }
+
+  if (returnDepartureAt && returnArrivalAt) {
+    events.push(
+      [
+        "BEGIN:VEVENT",
+        `UID:${confirmationNumber}-return@myskyrio.com`,
+        `DTSTAMP:${now}Z`,
+        `DTSTART:${toICSDateTime(returnDepartureAt)}`,
+        `DTEND:${toICSDateTime(returnArrivalAt)}`,
+        `SUMMARY:${escapeICSText(
+          `Flight ${destination} → ${origin}${
+            returnFlightNumber
+              ? ` (${airline || ""} ${returnFlightNumber})`.trim()
+              : ""
+          }`
+        )}`,
+        `DESCRIPTION:${escapeICSText(
+          `Reference: ${confirmationNumber}\nAirline: ${
+            airline || "N/A"
+          }\nFlight: ${returnFlightNumber || "N/A"}`
+        )}`,
+        `LOCATION:${escapeICSText(destinationName || destination)}`,
+        "END:VEVENT",
+      ].join("\r\n")
+    );
+  }
+
+  if (!events.length) return null;
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Skyrio//Booking Confirmation//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+}
+
+function formatDisplay(isoLocal) {
+  if (!isoLocal) return "";
+  // Treat as local airport time: strip any zone so it isn't shifted.
+  const d = new Date(String(isoLocal).replace(/Z$|[+-]\d{2}:?\d{2}$/, ""));
+  if (Number.isNaN(d.getTime())) return String(isoLocal);
+  return d.toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Flight booking confirmation.
+ * confirmationIsAirline: true when confirmationNumber is the airline's own
+ * code (PNR). Otherwise it's labeled "Booking reference" so travelers don't
+ * mistake an internal ID for the code the airline asks for.
+ */
+export async function sendBookingConfirmation({
+  to,
+  passengerName,
+  confirmationNumber,
+  confirmationIsAirline = false,
+  airline,
+  flightNumber,
+  returnFlightNumber,
+  origin,
+  destination,
+  originName,
+  destinationName,
+  departureAt,
+  arrivalAt,
+  returnDepartureAt,
+  returnArrivalAt,
+  totalAmount,
+  currency = "USD",
+  cabinClass,
+}) {
+  const isRoundTrip = Boolean(returnDepartureAt);
+  const total = totalAmount != null ? formatMoney(totalAmount, currency) : null;
+  const refLabel = confirmationIsAirline
+    ? "Airline confirmation"
+    : "Booking reference";
+
+  const legLine = (when, num) =>
+    subLine(
+      `${esc(formatDisplay(when))}${airline ? ` · ${esc(airline)}` : ""}${
+        num ? ` ${esc(num)}` : ""
+      }`
+    );
+
+  const bodyHtml =
+    detailBox(
+      "DEPARTING",
+      bigLine(`${esc(origin)} → ${esc(destination)}`) +
+        legLine(departureAt, flightNumber)
+    ) +
+    (isRoundTrip
+      ? detailBox(
+          "RETURNING",
+          bigLine(`${esc(destination)} → ${esc(origin)}`) +
+            legLine(returnDepartureAt, returnFlightNumber)
+        )
+      : "") +
+    detailBox(
+      "",
+      kvRow(refLabel, esc(confirmationNumber)) +
+        (cabinClass ? kvRow("Cabin", esc(cabinClass)) : "") +
+        (total ? kvRow("Total paid", esc(total), { highlight: true }) : "")
+    );
+
+  const ics = buildFlightICS({
+    confirmationNumber,
+    airline,
+    flightNumber,
+    origin,
+    destination,
+    originName,
+    destinationName,
+    departureAt,
+    arrivalAt,
+    returnDepartureAt,
+    returnArrivalAt,
+    returnFlightNumber,
+  });
+
+  const html = renderEmail({
+    preheader: `${origin} → ${destination}${
+      isRoundTrip ? " round trip" : ""
+    } is confirmed`,
+    title: "You're booked! ✈️",
+    introHtml: `Thanks${
+      passengerName ? `, <strong>${esc(passengerName)}</strong>` : ""
+    }! Your flight${isRoundTrip ? "s are" : " is"} confirmed.`,
+    bodyHtml,
+    cta: { label: "View my trips", url: `${APP_URL}/saved-trips` },
+    footerNote: ics
+      ? "Open the attached calendar file to add this trip to your calendar."
+      : "",
+  });
+
+  const text = `You're booked!${
+    passengerName ? ` Thanks, ${passengerName}.` : ""
+  }
+
+Departing: ${origin} -> ${destination}
+${formatDisplay(departureAt)}${airline ? ` · ${airline}` : ""}${
+    flightNumber ? ` ${flightNumber}` : ""
+  }
+${
+  isRoundTrip
+    ? `\nReturning: ${destination} -> ${origin}\n${formatDisplay(
+        returnDepartureAt
+      )}${airline ? ` · ${airline}` : ""}${
+        returnFlightNumber ? ` ${returnFlightNumber}` : ""
+      }\n`
+    : ""
+}
+${refLabel}: ${confirmationNumber}
+${cabinClass ? `Cabin: ${cabinClass}\n` : ""}${
+    total ? `Total paid: ${total}\n` : ""
+  }
+View your trips: ${APP_URL}/saved-trips${SIGNOFF}`;
+
+  return sendEmail({
+    to,
+    subject: `You're booked: ${origin} → ${destination}${
+      isRoundTrip ? " (round trip)" : ""
+    }`,
+    html,
+    text,
+    attachments: ics
+      ? [
+          {
+            filename: "flight-itinerary.ics",
+            content: Buffer.from(ics, "utf-8").toString("base64"),
+          },
+        ]
+      : undefined,
+    tag: "flight-confirmation",
+  });
 }

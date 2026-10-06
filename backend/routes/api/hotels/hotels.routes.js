@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireAuth } from "../../../middleware/requireAuth.js";
 import {
   searchHotels,
   prebookHotel,
@@ -27,10 +28,11 @@ router.post("/prebook", prebookHotel);
 // POST /api/hotels/book — standalone, manual testing (no payment)
 router.post("/book", bookHotel);
 
-// POST /api/hotels/checkout-intent — prebook + create Stripe PaymentIntent
-router.post("/checkout-intent", initHotelCheckout);
+// POST /api/hotels/checkout-intent — prebook + authorize-only Stripe PaymentIntent
+router.post("/checkout-intent", requireAuth, initHotelCheckout);
 
-// POST /api/hotels/confirm-booking — verify payment, then book with LiteAPI
-router.post("/confirm-booking", confirmHotelBooking);
+// POST /api/hotels/confirm-booking — verify authorization, book with LiteAPI,
+// then charge only for the rooms that were confirmed
+router.post("/confirm-booking", requireAuth, confirmHotelBooking);
 
 export default router;

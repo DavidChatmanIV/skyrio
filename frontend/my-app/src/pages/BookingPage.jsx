@@ -510,6 +510,27 @@ function getOutboundGroupKey(flight) {
   ].join("|");
 }
 
+// The airports a connecting itinerary stops at, for one direction:
+// EWR → ATL → MIA gives ["ATL"]. Every flight's own segments come from
+// LiteAPI, so this is real data — the customer just never saw it before.
+// Nonstop (or unknown) gives [].
+function getConnectionCodes(slice) {
+  const segs = Array.isArray(slice?.segments) ? slice.segments : [];
+  return segs
+    .slice(0, -1)
+    .map((s) => s?.destination)
+    .filter(Boolean);
+}
+
+// "Nonstop" | "1 stop · via ATL" | "2 stops · via ATL, DFW"
+function describeStops(stops, slice) {
+  if (!stops) return "Nonstop";
+  const via = getConnectionCodes(slice);
+  return `${stops} stop${stops > 1 ? "s" : ""}${
+    via.length ? ` · via ${via.join(", ")}` : ""
+  }`;
+}
+
 const EXAMPLE_PLANS = {
   japan: {
     destination: "Tokyo",
@@ -1164,6 +1185,8 @@ function FlightsForm({
   onOriginChange,
   onSearchStart,
   onSearchEnd,
+  onSearchError,
+  retryRef,
 }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
@@ -1191,31 +1214,18 @@ function FlightsForm({
     [onDatesChange]
   );
 
-  const handleSearch = async () => {
-    if (!originAirport)
-      return antdMessage.warning("Select a departure airport");
-    if (!destAirport)
-      return antdMessage.warning("Select a destination airport");
-    if (!dates[0]) return antdMessage.warning("Select a departure date");
-    if (tripType === "roundtrip" && !dates[1])
-      return antdMessage.warning("Select a return date, or switch to One way");
+  // Remember the last search so "Try again" can re-run it exactly, without
+  // the customer having to re-enter anything.
+  const lastQueryRef = useRef(null);
 
+  const runFlightSearch = async (query) => {
+    lastQueryRef.current = query;
     setLoading(true);
+    onSearchError?.(null);
     onSearchStart?.();
 
-    const params = new URLSearchParams({
-      from: originAirport.code,
-      to: destAirport.code,
-      departDate: dayjs(dates[0].toDate()).format("YYYY-MM-DD"),
-      adults: String(adults),
-      cabin,
-    });
-    if (tripType === "roundtrip" && dates[1]) {
-      params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
-    }
-
     try {
-      const res = await fetch(`${API}/api/flights/search?${params}`);
+      const res = await fetch(`${API}/api/flights/search?${query}`);
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
@@ -1234,11 +1244,42 @@ function FlightsForm({
       }
     } catch (err) {
       onSearch([]);
-      antdMessage.error(err.message || "Flight search failed");
+      onSearchError?.(err.message || "Flight search failed");
     } finally {
       setLoading(false);
       onSearchEnd?.();
     }
+  };
+
+  // Lets BookingPage's "Try again" button re-run the last search.
+  useEffect(() => {
+    if (!retryRef) return;
+    retryRef.current = () => {
+      if (lastQueryRef.current) runFlightSearch(lastQueryRef.current);
+    };
+  });
+
+  const handleSearch = () => {
+    if (!originAirport)
+      return antdMessage.warning("Select a departure airport");
+    if (!destAirport)
+      return antdMessage.warning("Select a destination airport");
+    if (!dates[0]) return antdMessage.warning("Select a departure date");
+    if (tripType === "roundtrip" && !dates[1])
+      return antdMessage.warning("Select a return date, or switch to One way");
+
+    const params = new URLSearchParams({
+      from: originAirport.code,
+      to: destAirport.code,
+      departDate: dayjs(dates[0].toDate()).format("YYYY-MM-DD"),
+      adults: String(adults),
+      cabin,
+    });
+    if (tripType === "roundtrip" && dates[1]) {
+      params.set("returnDate", dayjs(dates[1].toDate()).format("YYYY-MM-DD"));
+    }
+
+    runFlightSearch(params.toString());
   };
 
   const handleSwap = () => {
@@ -2095,6 +2136,9 @@ function FlightSkeleton({ destCity, fromCode }) {
           ? `Comparing options for ${fromCode} → ${destCity} based on timing, comfort & value.`
           : "Finding the best flights for your trip."}
       </div>
+      <div className="sk-search-loading__sub">
+        Live prices can take up to a minute to load.
+      </div>
       <div className="sk-search-loading__bar">
         <div className="sk-search-loading__bar-fill" />
       </div>
@@ -2236,6 +2280,10 @@ export default function BookingPage() {
   const [autoSearchDone, setAutoSearchDone] = useState(false);
   const [autoSearchLoading, setAutoSearchLoading] = useState(false);
   const [autoSearchError, setAutoSearchError] = useState(null);
+  // Manual flight-search failure (plain-language message from the API) and a
+  // handle that re-runs the last manual search from the "Try again" button.
+  const [searchError, setSearchError] = useState(null);
+  const flightRetryRef = useRef(null);
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
   const [originCity, setOriginCity] = useState("");
   const [manualSearchLoading, setManualSearchLoading] = useState(false);
@@ -2518,8 +2566,8 @@ export default function BookingPage() {
   const budgetSeed = prefillData?.budget ?? null;
   const tripDaySeed = prefillData?.tripDays ?? null;
 
-  useEffect(() => {
-    if (!prefillData?.iata || autoSearchDone) return;
+  const runAutoSearch = useCallback(() => {
+    if (!prefillData?.iata) return;
     const { iata, tripDays: days = 10 } = prefillData;
     const { departDate, returnDate } = getAutoSearchDates(days);
     setAutoSearchLoading(true);
@@ -2564,6 +2612,11 @@ export default function BookingPage() {
         antdMessage.error(`Flight search failed: ${err.message}`);
       })
       .finally(() => setAutoSearchLoading(false));
+  }, [prefillData, fromCode]);
+
+  useEffect(() => {
+    runAutoSearch();
+    // Runs once on mount, as before.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2755,6 +2808,8 @@ export default function BookingPage() {
             onOriginChange={setOriginCity}
             onSearchStart={() => setManualSearchLoading(true)}
             onSearchEnd={() => setManualSearchLoading(false)}
+            onSearchError={setSearchError}
+            retryRef={flightRetryRef}
           />
         );
       case "Stays":
@@ -3109,6 +3164,7 @@ export default function BookingPage() {
               setFlightResults([]);
               setHotelResults([]);
               setExcursionResults([]);
+              setSearchError(null);
               setSmartFilters(DEFAULT_FILTERS);
               setActiveFilters([]);
               setVisibleCount(RESULTS_PER_PAGE);
@@ -3258,11 +3314,24 @@ export default function BookingPage() {
                   type="button"
                   className="sk-search-retry"
                   onClick={() => {
-                    setAutoSearchDone(false);
                     setAutoSearchError(null);
+                    runAutoSearch();
                   }}
                 >
                   Retry
+                </button>
+              </div>
+            )}
+
+            {!isSearching && tab === "Flights" && searchError && (
+              <div className="sk-search-error" role="alert">
+                <IconWarning size={14} /> {searchError} —{" "}
+                <button
+                  type="button"
+                  className="sk-search-retry"
+                  onClick={() => flightRetryRef.current?.()}
+                >
+                  Try again
                 </button>
               </div>
             )}
@@ -3316,11 +3385,7 @@ export default function BookingPage() {
                             </span>
                             <span className="sk-metaDot">·</span>
                             <span className="sk-metaItem">
-                              {flight.stops === 0
-                                ? "Nonstop"
-                                : `${flight.stops} stop${
-                                    flight.stops > 1 ? "s" : ""
-                                  }`}
+                              {describeStops(flight.stops, flight.slices?.[0])}
                             </span>
                             {flight.departingAt && (
                               <>
@@ -3505,11 +3570,10 @@ export default function BookingPage() {
                               </span>
                               <span className="sk-metaDot">·</span>
                               <span className="sk-metaItem">
-                                {outbound.stops === 0
-                                  ? "Nonstop"
-                                  : `${outbound.stops} stop${
-                                      outbound.stops > 1 ? "s" : ""
-                                    }`}
+                                {describeStops(
+                                  outbound.stops,
+                                  outbound.slices?.[0]
+                                )}
                               </span>
                               {outbound.departingAt && (
                                 <>
@@ -3763,6 +3827,11 @@ export default function BookingPage() {
                         {dayjs(selectedGroup.options[0].arrivingAt).format(
                           "h:mm A"
                         )}
+                        {" · "}
+                        {describeStops(
+                          selectedGroup.options[0].stops,
+                          selectedGroup.options[0].slices?.[0]
+                        )}
                       </div>
                     </div>
                     <button
@@ -3847,11 +3916,7 @@ export default function BookingPage() {
                                     </span>
                                     <span className="sk-metaDot">·</span>
                                     <span className="sk-metaItem">
-                                      {retStops === 0
-                                        ? "Nonstop"
-                                        : `${retStops} stop${
-                                            retStops > 1 ? "s" : ""
-                                          }`}
+                                      {describeStops(retStops, returnSlice)}
                                     </span>
                                     {opt.returningAt && (
                                       <>
@@ -4156,7 +4221,8 @@ export default function BookingPage() {
             {!isSearching &&
               tab === "Flights" &&
               flightResults.length === 0 &&
-              !autoSearchError && (
+              !autoSearchError &&
+              !searchError && (
                 <div
                   style={{
                     textAlign: "center",

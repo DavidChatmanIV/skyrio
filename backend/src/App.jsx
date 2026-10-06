@@ -41,6 +41,10 @@ import JoinTripPage from "./pages/JoinTripPage";
 // payment link (e.g. from PaymentProgressPanel / a notification).
 import PayShare from "./pages/booking/PayShare";
 
+// Flight checkout — LiteAPI payment SDK redirects here after payment,
+// and this page finalizes the booking with the airline.
+import FlightBookingComplete from "./pages/booking/FlightBookingComplete";
+
 // ── Page title map ─────────────────────────────────────────────────────────────
 const PAGE_TITLES = {
   "/": "Skyrio — Plan Smarter. Travel Better.",
@@ -54,6 +58,7 @@ const PAGE_TITLES = {
   "/saved-trips": "Saved Trips — Skyrio",
   "/membership": "Membership — Skyrio",
   "/sync-together": "Sync Together — Skyrio",
+  "/checkout/flight/complete": "Confirming Your Flight — Skyrio",
   "/privacy": "Privacy Policy — Skyrio",
   "/terms": "Terms of Service — Skyrio",
   "/admin/login": "Admin Login — Skyrio",
@@ -182,6 +187,19 @@ function AppWithTracking() {
         <Route
           path="/pay-share/:splitPaymentId/:shareId"
           element={<PayShare />}
+        />
+
+        {/* Flight checkout return page — the LiteAPI payment SDK sends
+            the traveler here (?sid=<checkout session id>) after payment.
+            Protected because /api/flight-payments requires auth; the
+            token lives in localStorage so it survives the redirect. */}
+        <Route
+          path="/checkout/flight/complete"
+          element={
+            <PrivateRoute>
+              <FlightBookingComplete />
+            </PrivateRoute>
+          }
         />
       </Route>
     </Routes>
