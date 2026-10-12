@@ -110,6 +110,9 @@ export default function ExcursionResults({
   loading = false,
   error = null,
   destination = null,
+  // Optional: extra button under each card (Sync Together's
+  // "Suggest to group"). Gets the excursion, returns an element.
+  renderAction = null,
 }) {
   const hasResults = useMemo(
     () => Array.isArray(results) && results.length > 0,
@@ -166,13 +169,31 @@ export default function ExcursionResults({
       )}
 
       {hasResults &&
-        results.map((excursion) => (
-          <ExcursionCard
-            key={excursion.id}
-            excursion={excursion}
-            fallbackDestination={destination}
-          />
-        ))}
+        results.map((excursion) =>
+          renderAction ? (
+            <div key={excursion.id}>
+              <ExcursionCard
+                excursion={excursion}
+                fallbackDestination={destination}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  margin: "-4px 0 16px",
+                }}
+              >
+                {renderAction(excursion)}
+              </div>
+            </div>
+          ) : (
+            <ExcursionCard
+              key={excursion.id}
+              excursion={excursion}
+              fallbackDestination={destination}
+            />
+          )
+        )}
     </>
   );
 }

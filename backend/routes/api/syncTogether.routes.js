@@ -88,6 +88,54 @@ router.use((req, _res, next) => {
   setSyncIo(req.app.get("io"));
   next();
 });
+// ── Budgets are private ──
+// Every response that includes a group drops other people's budgets and
+// adds: myBudget (yours) and budgetSummary (the group's comfort level,
+// with no names). Budgets are personal — people shouldn't see each other's.
+function budgetSummaryFor(g) {
+  const going = (g.members || []).filter((m) => m.status !== "declined");
+  const values = [g.ownerBudget, ...going.map((m) => m.budget)]
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const travelers = going.length + 1;
+  if (!values.length) return { set: 0, travelers, comfortable: null };
+  // Round down to the nearest $50 so it reads as a range, not someone's exact number.
+  const lowest = Math.floor(Math.min(...values) / 50) * 50;
+  return { set: values.length, travelers, comfortable: Math.max(lowest, 50) };
+}
+function privateGroup(group, viewerId) {
+  if (!group || typeof group !== "object") return group;
+  const g = typeof group.toObject === "function" ? group.toObject() : { ...group };
+  const ownerId = String(g.owner?._id || g.owner || "");
+  const me = String(viewerId || "");
+  const mine =
+    ownerId === me
+      ? g.ownerBudget
+      : (g.members || []).find((m) => String(m.user?._id || m.user || "") === me)?.budget;
+  g.budgetSummary = budgetSummaryFor(g);
+  g.myBudget = Number.isFinite(Number(mine)) && Number(mine) > 0 ? Number(mine) : null;
+  delete g.ownerBudget;
+  if (Array.isArray(g.members)) g.members = g.members.map(({ budget, ...rest }) => rest);
+  return g;
+}
+router.use((req, res, next) => {
+  const send = res.json.bind(res);
+  res.json = (body) => {
+    if (body && (body.group || Array.isArray(body.groups))) {
+      try {
+        const viewer = req.user?.id ?? req.user?._id;
+        body = { ...body };
+        if (body.group) body.group = privateGroup(body.group, viewer);
+        if (Array.isArray(body.groups)) body.groups = body.groups.map((g) => privateGroup(g, viewer));
+      } catch {
+        /* never block a response over this */
+      }
+    }
+    return send(body);
+  };
+  next();
+});
+
 router.param("id", (req, res, next, id) =>
   validId(id) ? next() : res.status(404).json({ ok: false, error: "Group not found" })
 );
@@ -385,10 +433,12 @@ router.patch("/:id", async (req, res) => {
     if (!group)
       return res.status(404).json({ ok: false, error: "Group not found" });
 
-    if (!isGroupMember(group, userId)) {
+    // Only the organizer edits the trip itself (where, when, cabin).
+    // Members suggest changes with "Request a change".
+    if (String(group.owner) !== String(userId)) {
       return res
         .status(403)
-        .json({ ok: false, error: "Only group members can edit" });
+        .json({ ok: false, error: "Only the organizer can edit trip details. Use “Request a change” to suggest one." });
     }
 
     const {
@@ -399,8 +449,8 @@ router.patch("/:id", async (req, res) => {
       departureTime,
       dateRangeStart,
       dateRangeEnd,
-      budget,
     } = req.body;
+    // Budgets are set per person with PATCH /:id/my-budget.
     // `status` is no longer accepted here — it only changes through the
     // plan / approve / confirm steps, so members can't skip ahead.
 
@@ -412,11 +462,6 @@ router.patch("/:id", async (req, res) => {
     if (departureTime !== undefined) group.departureTime = departureTime;
     if (dateRangeStart !== undefined) group.dateRangeStart = dateRangeStart;
     if (dateRangeEnd !== undefined) group.dateRangeEnd = dateRangeEnd;
-    if (budget !== undefined) {
-      group.members.forEach((m) => {
-        m.budget = budget;
-      });
-    }
 
     await group.save();
 
@@ -1034,7 +1079,15 @@ router.get("/:id/chat", async (req, res) => {
     if (!isGroupMember(group, userId))
       return res.status(403).json({ ok: false, error: "Not a group member" });
 
-    return res.json({ ok: true, messages: group.chatMessages || [] });
+    // ?after=<ISO time> returns only newer messages (the page checks every
+    // few seconds, so this keeps each check tiny).
+    const after = req.query.after ? new Date(req.query.after) : null;
+    const all = group.chatMessages || [];
+    const messages =
+      after && !Number.isNaN(after.getTime())
+        ? all.filter((m) => new Date(m.createdAt) > after)
+        : all.slice(-200);
+    return res.json({ ok: true, messages });
   } catch (err) {
     console.error("[sync-together] chat fetch error:", err);
     return res
@@ -1090,6 +1143,7 @@ function shortlistForClient(group, viewerId) {
         note: it.note,
         hotel: it.kind === "hotel" ? it.hotel : undefined,
         flight: it.kind === "flight" ? it.flight : undefined,
+        activity: it.kind === "activity" ? it.activity : undefined,
         price: it.price,
         currency: it.currency,
         suggestedBy: people.get(String(it.suggestedBy)) || "Someone",
@@ -1220,6 +1274,7 @@ async function computeParts(group, viewerId) {
     bookingOpenedAt: group.bookingOpenedAt || null,
     groupHotel: group.groupHotel?.hotelId ? group.groupHotel : null,
     groupFlightKey: group.groupFlightKey || null,
+    budgetSummary: budgetSummaryFor(group),
     shortlist: shortlistForClient(group, viewerId),
     cabinClass: group.cabinClass || "economy",
     status: group.status,
@@ -1306,7 +1361,9 @@ router.post("/:id/shortlist", async (req, res) => {
     const group = await loadGroupForParts(req.params.id);
     if (!requireMember(group, userId, res)) return;
     const kind = req.body?.kind;
-    if (!["hotel", "flight"].includes(kind)) return res.status(400).json({ ok: false, error: "Suggest a flight or a hotel." });
+    if (!["hotel", "flight", "activity"].includes(kind)) {
+      return res.status(400).json({ ok: false, error: "Suggest a flight, a stay or an activity." });
+    }
 
     let item;
     if (kind === "hotel") {
@@ -1327,6 +1384,24 @@ router.post("/:id/shortlist", async (req, res) => {
           checkin: cleanStr(h.checkin, 10),
           checkout: cleanStr(h.checkout, 10),
           adults: cleanNum(h.adults),
+        },
+      };
+    } else if (kind === "activity") {
+      const a = req.body.activity || {};
+      if (!a.name || !(a.id || a.url)) return res.status(400).json({ ok: false, error: "Pick an activity from the results." });
+      const safeUrl = /^https:\/\//.test(String(a.url || "")) ? cleanStr(a.url, 600) : undefined;
+      item = {
+        kind,
+        key: `activity:${String(a.id || a.url).slice(0, 120)}`,
+        activity: {
+          id: cleanStr(a.id, 120),
+          name: cleanStr(a.name, 200),
+          image: /^https:\/\//.test(String(a.image || "")) ? cleanStr(a.image, 600) : undefined,
+          city: cleanStr(a.city, 120),
+          duration: cleanStr(a.duration, 60),
+          rating: cleanNum(a.rating),
+          reviews: cleanNum(a.reviews),
+          url: safeUrl,
         },
       };
     } else {
@@ -1377,7 +1452,11 @@ router.post("/:id/shortlist", async (req, res) => {
     });
     const added = group.shortlist[group.shortlist.length - 1];
     const label =
-      kind === "hotel" ? item.hotel.name || "a hotel" : `${item.flight.airline || "a flight"} ${item.flight.origin}→${item.flight.destination}`;
+      kind === "hotel"
+        ? item.hotel.name || "a hotel"
+        : kind === "activity"
+        ? item.activity.name || "an activity"
+        : `${item.flight.airline || "a flight"} ${item.flight.origin}→${item.flight.destination}`;
     const who = req.user?.name || req.user?.username || "Someone";
     logActivity(group, "shortlist_add", userId, `Suggested ${label}`);
     await group.save();
@@ -1389,7 +1468,7 @@ router.post("/:id/shortlist", async (req, res) => {
       others.map((u) => ({
         user: u,
         type: "booking",
-        title: `New ${kind} suggestion 🗳️`,
+        title: `New ${kind === "activity" ? "activity" : kind} suggestion 🗳️`,
         message: `${label} was added to the ${group.title || "trip"} shortlist. Vote for your favorite.`,
         link: `/sync-together/${group._id}`,
       }))
@@ -1451,9 +1530,11 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
     const it = validId(req.params.itemId) ? group.shortlist.id(req.params.itemId) : null;
     if (!it) return res.status(404).json({ ok: false, error: "That option isn't on the shortlist anymore." });
 
-    group.shortlist.forEach((s) => {
-      if (s.kind === it.kind) s.status = "open";
-    });
+    if (it.kind !== "activity") {
+      group.shortlist.forEach((s) => {
+        if (s.kind === it.kind) s.status = "open";
+      });
+    }
     it.status = "picked";
     let label;
     if (it.kind === "hotel") {
@@ -1467,6 +1548,10 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
         setAt: new Date(),
       };
       label = it.hotel.name || "the hotel";
+    } else if (it.kind === "activity") {
+      // Activities: several can be picked (it's a list of things to do).
+      it.status = "picked";
+      label = it.activity?.name || "the activity";
     } else {
       group.groupFlightKey = it.key;
       label = `${it.flight.airline || "the flight"} ${it.flight.origin}→${it.flight.destination}`;
@@ -1479,7 +1564,12 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
       others.map((u) => ({
         user: u,
         type: "booking",
-        title: it.kind === "hotel" ? "The group's hotel is picked 🏨" : "The group's flight is picked ✈️",
+        title:
+          it.kind === "hotel"
+            ? "The group's hotel is picked 🏨"
+            : it.kind === "activity"
+            ? "Added to the plan 🎟️"
+            : "The group's flight is picked ✈️",
         message: `${label} won. Book your part from the trip page.`,
         link: `/sync-together/${group._id}`,
       }))
@@ -1641,6 +1731,33 @@ router.post("/:id/rsvp", async (req, res) => {
     return res.json({ ok: true, group: populated });
   } catch (err) {
     return sendSyncError(res, err, "Couldn't save your answer");
+  }
+});
+
+/* PATCH /api/sync-together/:id/my-budget  { budget: number | null }
+   Your own budget per person. Only you see it; the group sees only the
+   comfort level (everyone's comfortable up to about $X). */
+router.patch("/:id/my-budget", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const raw = req.body?.budget;
+    const budget = raw === null || raw === "" ? null : Number(raw);
+    if (budget !== null && (!Number.isFinite(budget) || budget < 0 || budget > 1000000)) {
+      return res.status(400).json({ ok: false, error: "Enter a budget in dollars." });
+    }
+    if (String(group.owner) === String(userId)) {
+      group.ownerBudget = budget ? Math.round(budget) : null;
+    } else {
+      const m = group.members.find((x) => x.user && String(x.user) === String(userId));
+      if (!m) return res.status(403).json({ ok: false, error: "Not a group member" });
+      m.budget = budget ? Math.round(budget) : null;
+    }
+    await group.save();
+    return res.json({ ok: true, myBudget: budget ? Math.round(budget) : null, budgetSummary: budgetSummaryFor(group) });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't save your budget");
   }
 });
 

@@ -478,7 +478,9 @@ export default function SyncGroupPage() {
   const [cabinClass, setCabinClass] = useState("economy");
   const [departureTime, setDepartureTime] = useState("any");
   const [dateRange, setDateRange] = useState([null, null]);
+  // Your own budget per person — private, only you see it.
   const [budget, setBudget] = useState(null);
+  const [savingBudget, setSavingBudget] = useState(false);
   const [saving, setSaving] = useState(false);
   const [atlasPlan, setAtlasPlan] = useState("");
   const [planLoading, setPlanLoading] = useState(false);
@@ -491,6 +493,7 @@ export default function SyncGroupPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const chatEndRef = useRef(null);
+  const chatBoxRef = useRef(null);
   const [editingMyAirport, setEditingMyAirport] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
@@ -531,7 +534,7 @@ export default function SyncGroupPage() {
         setCabinClass(data.group.cabinClass || "economy");
         setDepartureTime(data.group.departureTime || "any");
         setChatMessages(data.group.chatMessages || []);
-        setBudget(data.group.members?.[0]?.budget || null);
+        setBudget(data.group.myBudget ?? null);
         if (data.group.plan) {
           setAtlasPlan(data.group.plan);
           setAtlasMessages(data.group.atlasMessages || []);
@@ -560,6 +563,9 @@ export default function SyncGroupPage() {
     (m) => m.user && String(m.user._id || m.user) === String(currentUserId)
   );
   const isMember = isOwner || !!myMember;
+  // What the whole group is comfortable spending (lowest budget, rounded,
+  // no names). Atlas plans to this so nobody gets priced out.
+  const groupBudget = group?.budgetSummary?.comfortable || null;
   const hasPlan = !!group?.plan;
   const isBooked = group?.status === "booked";
   const isPaymentPending = group?.status === "payment_pending";
@@ -623,7 +629,6 @@ export default function SyncGroupPage() {
         body.dateRangeStart = dateRange[0].toISOString();
         body.dateRangeEnd = dateRange[1].toISOString();
       }
-      if (budget) body.budget = budget;
       const res = await fetch(`${API_BASE}/sync-together/${id}`, {
         method: "PATCH",
         headers: authHeaders(),
@@ -731,7 +736,9 @@ export default function SyncGroupPage() {
           )}`
         : ""
     }${
-      budget ? `\n- Budget: $${budget}/person` : ""
+      groupBudget
+        ? `\n- Budget: keep it to about $${groupBudget.toLocaleString("en-US")} per person or less (the most everyone in the group is comfortable with)`
+        : ""
     }\n- ${count} travelers${crCtx}${bookingCtx}\n\nSearch different airports if they differ. Use commas in prices. Use ### headers.\n\n1. Real ${cabin} flights — prefer ${time}\n2. Best options with prices\n3. Accommodation\n4. Day-by-day itinerary\n5. Budget breakdown\n6. Weather\n7. Group tips${ATLAS_RULES}`;
     try {
       const res = await fetch(`${API_BASE}/atlas/chat`, {
@@ -739,7 +746,7 @@ export default function SyncGroupPage() {
         headers: authHeaders(),
         body: JSON.stringify({
           messages: [{ role: "user", content: prompt }],
-          context: { destination, budget, tripDays: days },
+          context: { destination, budget: groupBudget, tripDays: days },
         }),
       });
       const data = await res.json();
@@ -783,7 +790,7 @@ export default function SyncGroupPage() {
         headers: authHeaders(),
         body: JSON.stringify({
           messages: msgs,
-          context: { destination, budget },
+          context: { destination, budget: groupBudget },
         }),
       });
       const data = await res.json();
@@ -1099,12 +1106,11 @@ export default function SyncGroupPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        setChatMessages((p) => [...p, data.message]);
-        setChatInput("");
-        setTimeout(
-          () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }),
-          100
+        setChatMessages((p) =>
+          p.some((m) => String(m._id) === String(data.message?._id)) ? p : [...p, data.message]
         );
+        setChatInput("");
+        setTimeout(() => scrollChatToEnd(true), 100);
       } else antdMessage.error(data.error);
     } catch (err) {
       antdMessage.error("Failed to send");
@@ -1112,6 +1118,81 @@ export default function SyncGroupPage() {
       setChatSending(false);
     }
   };
+
+  const saveMyBudget = async (value) => {
+    setSavingBudget(true);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/my-budget`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ budget: value || null }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Couldn't save your budget");
+      setBudget(data.myBudget);
+      setGroup((g) => (g ? { ...g, myBudget: data.myBudget, budgetSummary: data.budgetSummary } : g));
+      antdMessage.success(data.myBudget ? "Budget saved — only you can see it." : "Budget cleared.");
+    } catch (err) {
+      antdMessage.error(err.message || "Couldn't save your budget");
+    } finally {
+      setSavingBudget(false);
+    }
+  };
+
+  /* ── Live group chat ──
+     Checks for new messages every few seconds while this tab is open and
+     visible, and right away when you come back to it. Only messages newer
+     than the last one you have are sent, so each check is tiny. */
+  const scrollChatToEnd = (force = false) => {
+    const box = chatBoxRef.current;
+    if (!box) return;
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    if (force || nearBottom) box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
+  };
+  const lastChatAtRef = useRef(null);
+  useEffect(() => {
+    const last = chatMessages[chatMessages.length - 1];
+    lastChatAtRef.current = last?.createdAt || lastChatAtRef.current;
+  }, [chatMessages]);
+  useEffect(() => {
+    if (!isMember || !id) return;
+    let alive = true;
+    let busy = false;
+    const check = async () => {
+      if (busy || document.visibilityState !== "visible") return;
+      busy = true;
+      try {
+        const after = lastChatAtRef.current;
+        const res = await fetch(
+          `${API_BASE}/sync-together/${id}/chat${after ? `?after=${encodeURIComponent(after)}` : ""}`,
+          { headers: authHeaders() }
+        );
+        const data = await res.json();
+        if (!alive || !data.ok || !data.messages?.length) return;
+        setChatMessages((prev) => {
+          const seen = new Set(prev.map((m) => String(m._id)));
+          const fresh = data.messages.filter((m) => !seen.has(String(m._id)));
+          return fresh.length ? [...prev, ...fresh] : prev;
+        });
+        setTimeout(() => scrollChatToEnd(false), 60);
+      } catch {
+        /* try again next tick */
+      } finally {
+        busy = false;
+      }
+    };
+    const timer = setInterval(check, 4000);
+    const onVisible = () => document.visibilityState === "visible" && check();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", check);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", check);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isMember]);
 
   /* ── Loading / Not Found ── */
   if (loading)
@@ -1354,13 +1435,13 @@ export default function SyncGroupPage() {
               ) : (
                 <span
                   onClick={() => {
-                    if (!isBooked && isMember) {
+                    if (!isBooked && isOwner) {
                       setTitleInput(group.title || "");
                       setEditingTitle(true);
                     }
                   }}
                   style={{
-                    cursor: !isBooked && isMember ? "pointer" : "default",
+                    cursor: !isBooked && isOwner ? "pointer" : "default",
                   }}
                 >
                   {group.title || "Untitled Trip"}
@@ -1815,7 +1896,7 @@ export default function SyncGroupPage() {
           right={
             !editing &&
             !isBooked &&
-            isMember && (
+            isOwner && (
               <Button
                 type="text"
                 icon={<EditOutlined />}
@@ -2013,27 +2094,6 @@ export default function SyncGroupPage() {
                 ))}
               </div>
             </div>
-            <div>
-              <label
-                style={{
-                  color: "rgba(255,255,255,0.4)",
-                  fontSize: 12,
-                  marginBottom: 4,
-                  display: "block",
-                }}
-              >
-                <DollarSign size={12} style={{ marginRight: 4 }} /> Budget per
-                person
-              </label>
-              <InputNumber
-                value={budget}
-                onChange={setBudget}
-                placeholder="e.g. 1500"
-                prefix="$"
-                min={0}
-                style={{ width: "100%" }}
-              />
-            </div>
             <div style={{ display: "flex", gap: 10 }}>
               <Button
                 className="sk-sync-cta-btn"
@@ -2148,7 +2208,7 @@ export default function SyncGroupPage() {
                     )}
                   </div>
                 )}
-                {group.members?.[0]?.budget && (
+                {groupBudget && (
                   <div
                     style={{
                       color: "rgba(255,255,255,0.5)",
@@ -2158,17 +2218,84 @@ export default function SyncGroupPage() {
                       gap: 6,
                     }}
                   >
-                    <DollarSign size={14} style={{ color: "#ff8a2a" }} /> $
-                    {Number(group.members[0].budget).toLocaleString("en-US")}
-                    /person
+                    <DollarSign size={14} style={{ color: "#ff8a2a" }} />
+                    Group budget: up to about $
+                    {Number(groupBudget).toLocaleString("en-US")}/person
                   </div>
                 )}
               </div>
             ) : (
               <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
-                No details yet — tap Edit to set your trip info.
+                {isOwner
+                  ? "No details yet — tap Edit to set your trip info."
+                  : "The organizer hasn't set the trip details yet. Share ideas in the group chat."}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Your budget — private to you. The group only sees the comfort level. */}
+        {isMember && !editing && (
+          <div
+            style={{
+              marginTop: 16,
+              paddingTop: 14,
+              borderTop: "1px solid rgba(255,255,255,0.07)",
+            }}
+          >
+            <label
+              htmlFor="sync-my-budget"
+              style={{
+                color: "rgba(255,255,255,0.75)",
+                fontSize: 13,
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 4,
+              }}
+            >
+              <DollarSign size={13} style={{ color: "#ff8a2a" }} /> Your budget per person
+              <span style={{ color: "rgba(255,255,255,0.35)", fontWeight: 400, fontSize: 12 }}>
+                · only you see this
+              </span>
+            </label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <InputNumber
+                id="sync-my-budget"
+                value={budget}
+                onChange={setBudget}
+                onPressEnter={() => saveMyBudget(budget)}
+                placeholder="e.g. 1,500"
+                prefix="$"
+                min={0}
+                step={50}
+                formatter={(v) => (v ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "")}
+                parser={(v) => (v ? v.replace(/[^\d]/g, "") : "")}
+                style={{ flex: "1 1 160px", maxWidth: 220 }}
+              />
+              <Button
+                onClick={() => saveMyBudget(budget)}
+                loading={savingBudget}
+                disabled={(budget || null) === (group.myBudget || null)}
+              >
+                Save
+              </Button>
+              {group.myBudget && (
+                <Button type="text" onClick={() => saveMyBudget(null)} style={{ color: "rgba(255,255,255,0.4)" }}>
+                  Clear
+                </Button>
+              )}
+            </div>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12.5, margin: "6px 0 0", lineHeight: 1.5 }}>
+              {group.budgetSummary?.comfortable
+                ? `Everyone who set a budget is comfortable up to about $${Number(
+                    group.budgetSummary.comfortable
+                  ).toLocaleString("en-US")} per person (${group.budgetSummary.set} of ${
+                    group.budgetSummary.travelers
+                  } set one). Nobody sees anyone else's number — Atlas plans to this.`
+                : "Nobody sees anyone else's number. The group only sees what everyone's comfortable with, and Atlas plans to it."}
+            </p>
           </div>
         )}
       </Section>
@@ -2872,6 +2999,8 @@ export default function SyncGroupPage() {
             Group Chat
           </SectionTitle>
           <div
+            ref={chatBoxRef}
+            aria-live="polite"
             style={{
               maxHeight: 360,
               overflowY: "auto",

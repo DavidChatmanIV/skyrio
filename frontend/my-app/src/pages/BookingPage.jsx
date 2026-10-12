@@ -2006,6 +2006,7 @@ function ExcursionsForm({
   onSearch,
   onSearchStart,
   onSearchEnd,
+  initial = null,
 }) {
   const [destDisplay, setDestDisplay] = useState("");
   const [dates, setDates] = useState([null, null]);
@@ -2030,23 +2031,43 @@ function ExcursionsForm({
     if (error) antdMessage.warning(error);
   }, [error]);
 
-  const handleSearch = async () => {
-    if (!destDisplay.trim())
-      return antdMessage.warning("Enter a destination city");
+  const handleSearch = async (opts = {}) => {
+    const dest = (opts.city ?? destDisplay).trim();
+    const range = opts.dates ?? dates;
+    if (!dest) return antdMessage.warning("Enter a destination city");
 
     onSearchStart?.();
     await runExcursionSearch({
-      destination: destDisplay.trim(),
-      startDate: dates[0]
-        ? dayjs(dates[0].toDate()).format("YYYY-MM-DD")
+      destination: dest,
+      startDate: range[0]
+        ? dayjs(range[0].toDate()).format("YYYY-MM-DD")
         : undefined,
-      endDate: dates[1]
-        ? dayjs(dates[1].toDate()).format("YYYY-MM-DD")
+      endDate: range[1]
+        ? dayjs(range[1].toDate()).format("YYYY-MM-DD")
         : undefined,
       category: category !== "any" ? category : undefined,
     });
     onSearchEnd?.();
   };
+
+  // Prefill from the link (e.g. "Find activities" on a Sync Together trip).
+  const excursionPrefilledRef = useRef(false);
+  useEffect(() => {
+    if (!initial || excursionPrefilledRef.current) return;
+    excursionPrefilledRef.current = true;
+    if (initial.city) {
+      setDestDisplay(initial.city);
+      onDestChange?.(initial.city);
+    }
+    const start = initial.start ? dayjs(initial.start) : null;
+    const end = initial.end ? dayjs(initial.end) : null;
+    const range = start?.isValid() && end?.isValid() ? [start, end] : [null, null];
+    setDates(range);
+    if (initial.autoSearch && initial.city) {
+      setTimeout(() => handleSearch({ city: initial.city, dates: range }), 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
 
   return (
     <div className="sk-search-bar">
@@ -2457,6 +2478,27 @@ export default function BookingPage() {
     ["flight", f.ownerCode || f.owner, f.origin, f.destination, f.departingAt, f.returningAt || ""]
       .map((x) => String(x || "").slice(0, 40))
       .join(":");
+  // Excursion results come from Viator; accept the common field names.
+  const activityFor = (ex) => ({
+    id: String(ex.productCode || ex.id || ex.code || ""),
+    name: ex.title || ex.name || "",
+    image:
+      ex.image ||
+      ex.imageUrl ||
+      ex.thumbnail ||
+      ex.images?.[0]?.url ||
+      ex.images?.[0]?.variants?.slice?.(-1)?.[0]?.url ||
+      (typeof ex.images?.[0] === "string" ? ex.images[0] : undefined),
+    city: ex.city || ex.destination || ex.location || syncInfo?.destination || undefined,
+    duration: ex.duration || ex.durationText || undefined,
+    rating: ex.rating ?? ex.reviews?.combinedAverageRating ?? undefined,
+    reviews: ex.reviewCount ?? ex.reviews?.totalReviews ?? (typeof ex.reviews === "number" ? ex.reviews : undefined),
+    url: ex.productUrl || ex.bookingUrl || ex.url || ex.link || undefined,
+  });
+  const activityKey = (ex) => {
+    const a = activityFor(ex);
+    return `activity:${String(a.id || a.url || "").slice(0, 120)}`;
+  };
   const shortlistKeys = useMemo(
     () => new Set((syncInfo?.shortlist || []).map((i) => i.key)),
     [syncInfo]
@@ -2466,12 +2508,21 @@ export default function BookingPage() {
     async (kind, data, e) => {
       e?.stopPropagation?.();
       if (!syncGroupId) return;
-      const key = kind === "hotel" ? `hotel:${data.hotelId}` : flightKey(data);
+      const key =
+        kind === "hotel" ? `hotel:${data.hotelId}` : kind === "activity" ? activityKey(data) : flightKey(data);
       setSuggesting(key);
       try {
         const token = localStorage.getItem("token");
         const body =
-          kind === "hotel"
+          kind === "activity"
+            ? {
+                kind,
+                price:
+                  parseFloat(data.price ?? data.fromPrice ?? data.pricing?.summary?.fromPrice ?? data.totalAmount) || null,
+                currency: data.currency || data.pricing?.currency || "USD",
+                activity: activityFor(data),
+              }
+            : kind === "hotel"
             ? {
                 kind,
                 price: data.totalAmount ?? null,
@@ -2528,15 +2579,18 @@ export default function BookingPage() {
         setSuggesting(null);
       }
     },
-    [syncGroupId]
+    [syncGroupId, syncInfo]
   );
   const SuggestBtn = ({ kind, data }) => {
     if (!syncGroupId) return null;
-    const key = kind === "hotel" ? `hotel:${data.hotelId}` : flightKey(data);
+    const key =
+      kind === "hotel" ? `hotel:${data.hotelId}` : kind === "activity" ? activityKey(data) : flightKey(data);
     const done = shortlistKeys.has(key);
     const isPick =
       (kind === "flight" && syncInfo?.groupFlightKey === key) ||
-      (kind === "hotel" && syncInfo?.groupHotel?.hotelId === data.hotelId);
+      (kind === "hotel" && syncInfo?.groupHotel?.hotelId === data.hotelId) ||
+      (kind === "activity" &&
+        (syncInfo?.shortlist || []).some((i) => i.key === key && i.status === "picked"));
     if (isPick) {
       return (
         <span
@@ -2615,6 +2669,16 @@ export default function BookingPage() {
       autoSearch,
     };
   }, [searchParams, hotelIdParam, syncInfo, autoSearch]);
+  const excursionInitial = useMemo(() => {
+    const city = searchParams.get("city") || searchParams.get("to");
+    if (!city) return null;
+    return {
+      city,
+      start: searchParams.get("depart"),
+      end: searchParams.get("return"),
+      autoSearch,
+    };
+  }, [searchParams, autoSearch]);
 
   const prefillData = useMemo(() => {
     const promptParam = searchParams.get("prompt");
@@ -3213,6 +3277,7 @@ export default function BookingPage() {
             }}
             onSearchStart={() => setManualSearchLoading(true)}
             onSearchEnd={() => setManualSearchLoading(false)}
+            initial={excursionInitial}
           />
         );
       case "Packages":
@@ -3222,7 +3287,10 @@ export default function BookingPage() {
       default:
         return null;
     }
-  }, [tab, handleDatesChange]);
+    // The initial values are listed so a link's prefill reaches the form even
+    // when it's ready a moment after the page (e.g. the group's hotel).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, handleDatesChange, flightInitial, stayInitial, excursionInitial]);
 
   const resultsTitle =
     tab === "Stays"
@@ -4626,6 +4694,9 @@ export default function BookingPage() {
                 results={excursionResults}
                 loading={isSearching}
                 destination={destCity}
+                renderAction={
+                  syncGroupId ? (ex) => <SuggestBtn kind="activity" data={ex} /> : undefined
+                }
               />
             )}
 

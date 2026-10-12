@@ -67,7 +67,7 @@ const ChangeRequestSchema = new Schema(
 // The group votes; the organizer picks the winner.
 const ShortlistItemSchema = new Schema(
   {
-    kind: { type: String, enum: ["hotel", "flight"], required: true },
+    kind: { type: String, enum: ["hotel", "flight", "activity"], required: true },
     key: { type: String, required: true }, // dedupe: hotelId, or airline+route+times
     suggestedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     note: { type: String, trim: true, maxlength: 200, default: "" },
@@ -100,6 +100,17 @@ const ShortlistItemSchema = new Schema(
       returnArriveAt: String,
       stops: Number,
       cabin: String,
+    },
+    // Activity / excursion
+    activity: {
+      id: String,
+      name: String,
+      image: String,
+      city: String,
+      duration: String,
+      rating: Number,
+      reviews: Number,
+      url: String,
     },
     price: { type: Number, default: null }, // as shown when suggested (per person for flights, per room for hotels)
     currency: { type: String, default: "USD" },
@@ -246,6 +257,10 @@ const SyncGroupSchema = new Schema(
     // The flight the organizer picked from the shortlist (people flying
     // from the same airport can book the same one).
     groupFlightKey: { type: String, default: null },
+
+    // The organizer's own private budget (members keep theirs on members[].budget).
+    // Nobody sees anyone else's number — the group sees only a comfort level.
+    ownerBudget: { type: Number, default: null, min: 0 },
 
     // Activity log
     activityLog: [

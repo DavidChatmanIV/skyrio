@@ -6,12 +6,16 @@
 //   3. The organizer picks the winner. A picked hotel becomes the group's
 //      hotel; a picked flight is marked as the group's flight.
 //   4. "Book this" opens that exact hotel, or the same route and dates.
+//      Activities (excursions) open their booking page; several activities
+//      can be picked, since they're a list of things to do.
+//   The list refreshes every 15 seconds while the page is open, so new
+//   suggestions and votes show up without reloading.
 // ─────────────────────────────────────────────────────────────
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Spin, message as antdMessage } from "antd";
-import { Plane, BedDouble, ThumbsUp, Trophy, Trash2, Search } from "lucide-react";
+import { Plane, BedDouble, Ticket, ThumbsUp, Trophy, Trash2, Search } from "lucide-react";
 import dayjs from "dayjs";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
@@ -49,13 +53,26 @@ const muted = { color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 1.5 };
 
 function Option({ it, rank, isOrganizer, onVote, onPick, onRemove, onBook, busy }) {
   const winner = it.status === "picked" || it.isGroupHotel || it.isGroupFlight;
-  const img = it.kind === "hotel" ? it.hotel?.thumbnail : it.flight?.logo;
+  const img = it.kind === "hotel" ? it.hotel?.thumbnail : it.kind === "activity" ? it.activity?.image : it.flight?.logo;
   const title =
     it.kind === "hotel"
       ? it.hotel?.name || "Hotel"
+      : it.kind === "activity"
+      ? it.activity?.name || "Activity"
       : `${it.flight?.airline || "Flight"} · ${it.flight?.origin} → ${it.flight?.destination}`;
   const lines =
-    it.kind === "hotel"
+    it.kind === "activity"
+      ? [
+          [
+            it.activity?.rating ? `★ ${Number(it.activity.rating).toFixed(1)}` : null,
+            it.activity?.reviews ? `${Number(it.activity.reviews).toLocaleString("en-US")} reviews` : null,
+            it.activity?.duration,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          it.activity?.city,
+        ]
+      : it.kind === "hotel"
       ? [
           [it.hotel?.stars ? `${it.hotel.stars}★` : null, it.hotel?.rating ? `${it.hotel.rating}/10` : null, it.hotel?.address].filter(Boolean).join(" · "),
           [it.hotel?.roomName, it.hotel?.boardName].filter(Boolean).join(" · "),
@@ -94,7 +111,14 @@ function Option({ it, rank, isOrganizer, onVote, onPick, onRemove, onBook, busy 
           justifyContent: "center",
         }}
       >
-        {!img && (it.kind === "hotel" ? <BedDouble size={22} color="#ff8a2a" /> : <Plane size={22} color="#ff8a2a" />)}
+        {!img &&
+          (it.kind === "hotel" ? (
+            <BedDouble size={22} color="#ff8a2a" />
+          ) : it.kind === "activity" ? (
+            <Ticket size={22} color="#ff8a2a" />
+          ) : (
+            <Plane size={22} color="#ff8a2a" />
+          ))}
       </div>
 
       <div style={{ flex: "1 1 220px", minWidth: 0 }}>
@@ -104,7 +128,7 @@ function Option({ it, rank, isOrganizer, onVote, onPick, onRemove, onBook, busy 
           )}
           {winner && (
             <span style={{ fontSize: 11, fontWeight: 800, color: "#52c41a", display: "inline-flex", gap: 4, alignItems: "center" }}>
-              <Trophy size={12} /> GROUP'S PICK
+              <Trophy size={12} /> {it.kind === "activity" ? "ON THE PLAN" : "GROUP'S PICK"}
             </span>
           )}
         </div>
@@ -124,7 +148,9 @@ function Option({ it, rank, isOrganizer, onVote, onPick, onRemove, onBook, busy 
         {money(it.price, it.currency) && (
           <div style={{ textAlign: "right" }}>
             <div style={{ color: "#ff8a2a", fontWeight: 800, fontSize: 16 }}>{money(it.price, it.currency)}</div>
-            <div style={{ ...muted, fontSize: 11 }}>{it.kind === "hotel" ? "per room, when suggested" : "per person, when suggested"}</div>
+            <div style={{ ...muted, fontSize: 11 }}>
+              {it.kind === "hotel" ? "per room, when suggested" : it.kind === "activity" ? "from, per person" : "per person, when suggested"}
+            </div>
           </div>
         )}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -161,7 +187,7 @@ function Option({ it, rank, isOrganizer, onVote, onPick, onRemove, onBook, busy 
               disabled={busy}
               style={{ background: "none", border: 0, color: "#52c41a", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, fontFamily: "inherit" }}
             >
-              Pick for the group
+              {it.kind === "activity" ? "Add to the plan" : "Pick for the group"}
             </button>
           )}
           {(it.suggestedByMe || isOrganizer) && (
@@ -200,7 +226,14 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
   useEffect(() => {
     const onFocus = () => load();
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    // New suggestions and votes from the group show up on their own.
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 15000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      clearInterval(timer);
+    };
   }, [load]);
 
   const items = useMemo(() => {
@@ -233,6 +266,12 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
   };
 
   const book = (it) => {
+    if (it.kind === "activity") {
+      // Excursions are booked on the provider's page (opens in a new tab).
+      if (it.activity?.url) window.open(it.activity.url, "_blank", "noopener,noreferrer");
+      else navigate(searchLink("Excursions", { to: it.activity?.city || data?.destination }));
+      return;
+    }
     if (it.kind === "hotel") {
       navigate(
         searchLink("Stays", {
@@ -268,7 +307,9 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
     all: data.shortlist?.length || 0,
     hotel: (data.shortlist || []).filter((i) => i.kind === "hotel").length,
     flight: (data.shortlist || []).filter((i) => i.kind === "flight").length,
+    activity: (data.shortlist || []).filter((i) => i.kind === "activity").length,
   };
+  const comfy = data.budgetSummary?.comfortable;
 
   return (
     <div style={card}>
@@ -276,12 +317,15 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700, color: "#fff" }}>
           🗳️ Group shortlist
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <Button size="small" icon={<Plane size={13} />} onClick={() => navigate(searchLink("Flights"))}>
             Find flights
           </Button>
           <Button size="small" icon={<BedDouble size={13} />} onClick={() => navigate(searchLink("Stays", { adults: 1 }))}>
             Find stays
+          </Button>
+          <Button size="small" icon={<Ticket size={13} />} onClick={() => navigate(searchLink("Excursions"))}>
+            Find activities
           </Button>
         </div>
       </div>
@@ -289,13 +333,19 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
         Search, tap <strong style={{ color: "#fff" }}>Suggest to group</strong> on anything you like, and vote here.
         {data.isOrganizer ? " Pick the winner when the group agrees — a picked hotel becomes where everyone stays." : " The organizer picks the winner."}
       </p>
+      {comfy && (
+        <p style={{ ...muted, marginTop: -4, fontSize: 12.5 }}>
+          💰 The group is comfortable up to about <strong style={{ color: "#fff" }}>{money(comfy)}</strong> per person for the trip.
+        </p>
+      )}
 
       {counts.all > 0 && (
-        <div style={{ display: "flex", gap: 6, margin: "10px 0 12px" }}>
+        <div style={{ display: "flex", gap: 6, margin: "10px 0 12px", flexWrap: "wrap" }}>
           {[
             ["all", `All (${counts.all})`],
             ["hotel", `Stays (${counts.hotel})`],
             ["flight", `Flights (${counts.flight})`],
+            ["activity", `Activities (${counts.activity})`],
           ].map(([v, l]) => (
             <button
               key={v}
@@ -331,7 +381,7 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
         >
           <Search size={18} style={{ marginBottom: 6 }} />
           <div style={{ color: "#fff", fontWeight: 600 }}>Nothing suggested yet</div>
-          <div>Find a flight or a stay you like and tap “Suggest to group” — it shows up here for everyone to vote on.</div>
+          <div>Find a flight, a stay or an activity you like and tap “Suggest to group” — it shows up here for everyone to vote on.</div>
         </div>
       ) : (
         items.map((it, i) => (
@@ -346,7 +396,11 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
             onPick={(x) =>
               run(
                 () => api(`/${groupId}/shortlist/${x.id}/pick`, { method: "POST" }),
-                x.kind === "hotel" ? "Picked — it's now where the group stays." : "Picked as the group's flight."
+                x.kind === "hotel"
+                  ? "Picked — it's now where the group stays."
+                  : x.kind === "activity"
+                  ? "Added to the group's plan."
+                  : "Picked as the group's flight."
               )
             }
             onRemove={(x) => run(() => api(`/${groupId}/shortlist/${x.id}`, { method: "DELETE" }), "Removed from the shortlist")}
