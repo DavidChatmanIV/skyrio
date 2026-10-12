@@ -1,6 +1,10 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import User from "../../models/user.js";
 import SyncGroup from "../../models/SyncGroup.js";
+import Booking from "../../models/booking.js";
+import SplitPayment from "../../models/SplitPayment.js";
+import Notification from "../../models/notification.js";
 import { auth as authRequired } from "../../middleware/auth.js";
 import {
   sendTripInvite,
@@ -8,8 +12,41 @@ import {
   sendTripDeleted,
   sendMemberRemoved,
 } from "../../services/email.js";
+import { sendGroupReminder } from "../../services/syncEmails.js";
+import { sendConfirmationFor } from "../../services/bookingConfirmations.js";
+import {
+  SyncError,
+  HOLD_HOURS,
+  setSyncIo,
+  isOrganizer,
+  travelersOf,
+  sharedRoomForClient,
+  createSharedRoom,
+  startShareHold,
+  confirmShareHold,
+  releaseSharedRoom,
+  releaseRoomsForUser,
+  expireDueSharedRooms,
+  sharedRoomCancelQuote,
+  cancelSharedRoom,
+  startSharedRoomJobs,
+} from "../../services/sharedRooms.js";
 
 const router = Router();
+
+// Releases shared-room holds whose deadline has passed (every 10 minutes).
+startSharedRoomJobs();
+
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const validId = (id) => mongoose.isValidObjectId(id);
+
+function sendSyncError(res, err, fallback) {
+  if (err instanceof SyncError) {
+    return res.status(err.status).json({ ok: false, error: err.message });
+  }
+  console.error(`[sync-together] ${fallback}:`, err);
+  return res.status(500).json({ ok: false, error: fallback });
+}
 
 /* ──────────────────────────────────────────────
    GET /api/sync-together/preview/:code
@@ -47,6 +84,13 @@ router.get("/preview/:code", async (req, res) => {
 });
 
 router.use(authRequired);
+router.use((req, _res, next) => {
+  setSyncIo(req.app.get("io"));
+  next();
+});
+router.param("id", (req, res, next, id) =>
+  validId(id) ? next() : res.status(404).json({ ok: false, error: "Group not found" })
+);
 
 /* ──────────────────────────────────────────────
    POST /api/sync-together/join/:code
@@ -74,12 +118,27 @@ router.post("/join/:code", async (req, res) => {
       .select("name username email")
       .lean();
 
-    group.members.push({
-      user: userId,
-      email: user?.email || null,
-      name: user?.name || user?.username || null,
-      status: "pending",
-    });
+    // Invited by email before they had an account? Claim that spot
+    // instead of adding them twice.
+    const emailInvite =
+      user?.email &&
+      group.members.find(
+        (m) => !m.user && m.email && m.email === String(user.email).toLowerCase()
+      );
+    if (emailInvite) {
+      emailInvite.user = userId;
+      emailInvite.name = emailInvite.name || user?.name || user?.username || null;
+      emailInvite.status = "accepted";
+      emailInvite.joinedAt = new Date();
+    } else {
+      group.members.push({
+        user: userId,
+        email: user?.email || null,
+        name: user?.name || user?.username || null,
+        status: "accepted",
+        joinedAt: new Date(),
+      });
+    }
 
     logActivity(
       group,
@@ -154,7 +213,7 @@ router.get("/search", async (req, res) => {
     const { q } = req.query;
     if (!q || q.trim().length < 2) return res.json({ ok: true, users: [] });
 
-    const regex = new RegExp(q.trim(), "i");
+    const regex = new RegExp(escapeRegex(q.trim().slice(0, 60)), "i");
     const selfId = req.user?.id ?? req.user?._id ?? null;
 
     const filter = {
@@ -296,10 +355,17 @@ router.post("/", async (req, res) => {
    ────────────────────────────────────────────── */
 router.get("/:id", async (req, res) => {
   try {
+    if (!validId(req.params.id))
+      return res.status(404).json({ ok: false, error: "Group not found" });
     const group = await fullPopulate(SyncGroup.findById(req.params.id)).lean();
 
     if (!group)
       return res.status(404).json({ ok: false, error: "Group not found" });
+    if (!isGroupMember(group, req.user?.id ?? req.user?._id)) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "You're not on this trip. Ask the organizer for an invite link." });
+    }
 
     return res.json({ ok: true, group });
   } catch (err) {
@@ -334,10 +400,11 @@ router.patch("/:id", async (req, res) => {
       dateRangeStart,
       dateRangeEnd,
       budget,
-      status,
     } = req.body;
+    // `status` is no longer accepted here — it only changes through the
+    // plan / approve / confirm steps, so members can't skip ahead.
 
-    if (title !== undefined) group.title = title;
+    if (title !== undefined) group.title = String(title).trim().slice(0, 120) || "Untitled Trip";
     if (destination !== undefined) group.destination = destination;
     if (departureAirport !== undefined)
       group.departureAirport = departureAirport;
@@ -345,7 +412,6 @@ router.patch("/:id", async (req, res) => {
     if (departureTime !== undefined) group.departureTime = departureTime;
     if (dateRangeStart !== undefined) group.dateRangeStart = dateRangeStart;
     if (dateRangeEnd !== undefined) group.dateRangeEnd = dateRangeEnd;
-    if (status !== undefined) group.status = status;
     if (budget !== undefined) {
       group.members.forEach((m) => {
         m.budget = budget;
@@ -487,6 +553,7 @@ router.post("/:id/approve", async (req, res) => {
 
     if (allApproved) {
       group.status = "confirmed";
+      group.bookingOpenedAt = group.bookingOpenedAt || new Date();
     }
 
     logActivity(
@@ -643,10 +710,30 @@ router.delete("/:id/member/:memberId", async (req, res) => {
     const removedMember = group.members[memberIndex];
     const removedEmail = removedMember.email;
     const removedUserId = removedMember.user;
+    const leavingSelf = removedUserId && String(removedUserId) === String(userId);
+
+    // The organizer can remove anyone; everyone else can only leave.
+    if (!leavingSelf && !isOrganizer(group, userId)) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can remove other travelers" });
+    }
+
+    // A shared room still collecting holds can't go ahead without them —
+    // release it so nobody is charged for a room that no longer adds up.
+    // Anything already booked stays theirs (they cancel it from My Trips).
+    if (removedUserId) await releaseRoomsForUser(group._id, removedUserId);
 
     group.members.splice(memberIndex, 1);
-    logActivity(group, "member_removed", userId, "A member was removed");
+    logActivity(
+      group,
+      leavingSelf ? "member_left" : "member_removed",
+      userId,
+      leavingSelf ? "Left the trip" : "A member was removed"
+    );
     await group.save();
+
+    if (leavingSelf) return res.json({ ok: true, left: true });
 
     // Notify the removed member (non-blocking)
     try {
@@ -786,6 +873,27 @@ router.delete("/:id", async (req, res) => {
         .json({ ok: false, error: "Only the organizer can delete this trip" });
     }
 
+    const liveRooms = await SplitPayment.countDocuments({
+      group: group._id,
+      kind: "shared_room",
+      status: { $in: ["booking", "booked"] },
+    });
+    if (liveRooms) {
+      return res.status(409).json({
+        ok: false,
+        error:
+          "This trip has a booked shared room. Cancel it from the trip page first — only you can cancel it.",
+      });
+    }
+    const collecting = await SplitPayment.find({
+      group: group._id,
+      kind: "shared_room",
+      status: "collecting",
+    })
+      .select("_id")
+      .lean();
+    for (const c of collecting) await releaseSharedRoom(c._id, "released");
+
     // Notify all members before the group is gone (non-blocking —
     // don't fail the delete if an email fails)
     try {
@@ -890,7 +998,7 @@ router.post("/:id/chat", async (req, res) => {
 
     group.chatMessages.push({
       user: userId,
-      message: message.trim(),
+      message: message.trim().slice(0, 2000),
     });
 
     await group.save();
@@ -923,6 +1031,8 @@ router.get("/:id/chat", async (req, res) => {
 
     if (!group)
       return res.status(404).json({ ok: false, error: "Group not found" });
+    if (!isGroupMember(group, userId))
+      return res.status(403).json({ ok: false, error: "Not a group member" });
 
     return res.json({ ok: true, messages: group.chatMessages || [] });
   } catch (err) {
@@ -930,6 +1040,526 @@ router.get("/:id/chat", async (req, res) => {
     return res
       .status(500)
       .json({ ok: false, error: "Failed to fetch messages" });
+  }
+});
+
+/* ══════════════════════════════════════════════
+   EVERYONE BOOKS THEIR OWN PART
+   Plan together, pay separately: each traveler books their own seat
+   and their own room (or a share of a shared room) and can cancel
+   their own part from My Trips. Only the organizer can cancel a
+   shared room.
+   ══════════════════════════════════════════════ */
+
+// Loads the group with the names/emails the trip-part tools need.
+async function loadGroupForParts(id) {
+  return SyncGroup.findById(id)
+    .populate("owner", "username name email avatar")
+    .populate("members.user", "username name email avatar");
+}
+
+function requireMember(group, userId, res) {
+  if (!group) {
+    res.status(404).json({ ok: false, error: "Group not found" });
+    return false;
+  }
+  if (!isGroupMember(group, userId)) {
+    res.status(403).json({ ok: false, error: "Not a group member" });
+    return false;
+  }
+  return true;
+}
+
+const REMIND_EVERY_MS = 12 * 60 * 60 * 1000;
+
+async function computeParts(group, viewerId) {
+  const travelers = travelersOf(group);
+  const userIds = travelers.map((t) => t.userId).filter(Boolean);
+
+  const [bookings, rooms] = await Promise.all([
+    Booking.find({
+      user: { $in: userIds },
+      $or: [{ syncGroup: group._id }, { "flight.groupId": String(group._id) }],
+    })
+      .select(
+        "user type status tripDetails total totalAmount totalCurrency dates sharedRoom createdAt confirmationEmail " +
+          "flight.origin flight.destination flight.airline flight.departureAt flight.arrivalAt " +
+          "flight.returnDepartureAt flight.returnArrivingAt"
+      )
+      .sort({ createdAt: -1 })
+      .lean(),
+    SplitPayment.find({ group: group._id, kind: "shared_room" }).sort({ createdAt: -1 }),
+  ]);
+
+  const pickLatest = (list) =>
+    list.find((b) => b.status !== "cancelled") || list[0] || null;
+  const slim = (b) =>
+    b && {
+      id: String(b._id),
+      status: b.status,
+      tripDetails: b.tripDetails,
+      total: b.totalAmount ?? b.total ?? null,
+      currency: b.totalCurrency || "USD",
+      // "sent" | "failed" | null (older bookings) — never the address itself
+      emailStatus: b.confirmationEmail?.status || null,
+    };
+  // Times are kept as the airline sends them (airport local time), so
+  // compare the first 16 characters ("YYYY-MM-DDTHH:mm") as text.
+  const localMinute = (v) => (v ? String(v).slice(0, 16) : null);
+  const win = group.arrivalWindow || {};
+  const flightInfo = (b) => {
+    if (!b) return null;
+    const f = b.flight || {};
+    const arrivesAt = localMinute(f.arrivalAt);
+    const outsideWindow =
+      Boolean(arrivesAt && b.status !== "cancelled" && (win.start || win.end)) &&
+      ((win.start && arrivesAt < win.start) || (win.end && arrivesAt > win.end));
+    return {
+      ...slim(b),
+      origin: f.origin || null,
+      destination: f.destination || null,
+      airline: f.airline || null,
+      departsAt: localMinute(f.departureAt),
+      arrivesAt,
+      returnDepartsAt: localMinute(f.returnDepartureAt),
+      returnArrivesAt: localMinute(f.returnArrivingAt),
+      outsideWindow: Boolean(outsideWindow),
+    };
+  };
+
+  const activeRooms = rooms.filter((r) => ["collecting", "booking", "booked"].includes(r.status));
+
+  const parts = travelers.map((t) => {
+    const mine = bookings.filter((b) => t.userId && String(b.user) === t.userId);
+    const flight = pickLatest(mine.filter((b) => b.type === "Flight"));
+    const ownStay = pickLatest(mine.filter((b) => b.type === "Hotel" && !b.sharedRoom));
+    const room = activeRooms.find((r) => r.shares.some((s) => String(s.user) === t.userId));
+    const share = room?.shares.find((s) => String(s.user) === t.userId);
+
+    let stay = null;
+    if (room) {
+      const rec = share?.booking ? mine.find((b) => String(b._id) === String(share.booking)) : null;
+      stay = {
+        kind: "shared",
+        sharedRoomId: String(room._id),
+        roomStatus: room.status,
+        shareStatus: share?.status,
+        hotel: room.room?.name,
+        id: rec ? String(rec._id) : null,
+        emailStatus: rec?.confirmationEmail?.status || null,
+      };
+    } else if (ownStay) {
+      stay = { kind: "own", ...slim(ownStay) };
+    }
+
+    const flightDone = flight && flight.status !== "cancelled";
+    const stayDone =
+      (stay?.kind === "own" && stay.status !== "cancelled") ||
+      (stay?.kind === "shared" && ["authorized", "paid"].includes(stay.shareStatus));
+    const needs = [];
+    if (t.rsvp === "pending" && !t.isOrganizer) needs.push("Say whether you're coming");
+    if (!flightDone) needs.push("Book your flight");
+    if (!stayDone)
+      needs.push(stay?.kind === "shared" ? "Hold your share of the room" : "Book your room (or join a shared room)");
+
+    return {
+      ...t,
+      email: undefined, // never sent to other travelers
+      isYou: t.userId && String(t.userId) === String(viewerId),
+      flight: flightInfo(flight),
+      stay,
+      needs,
+      done: needs.length === 0,
+      canRemind:
+        !t.isOrganizer &&
+        needs.length > 0 &&
+        (!t.lastRemindedAt || Date.now() - new Date(t.lastRemindedAt).getTime() > REMIND_EVERY_MS),
+    };
+  });
+
+  return {
+    holdHours: HOLD_HOURS,
+    allBookedAt: group.allBookedAt || null,
+    bookingOpenedAt: group.bookingOpenedAt || null,
+    groupHotel: group.groupHotel?.hotelId ? group.groupHotel : null,
+    cabinClass: group.cabinClass || "economy",
+    status: group.status,
+    hasPlan: Boolean(group.plan),
+    destination: group.destination || null,
+    dateRangeStart: group.dateRangeStart || null,
+    dateRangeEnd: group.dateRangeEnd || null,
+    arrivalWindow: { start: win.start || null, end: win.end || null, note: win.note || null },
+    declined: (group.members || [])
+      .filter((m) => m.status === "declined")
+      .map((m) => ({ memberId: String(m._id), name: m.user?.name || m.user?.username || m.name || m.email || "Traveler" })),
+    travelers: parts,
+    sharedRooms: rooms.map((r) => sharedRoomForClient(r, viewerId)),
+  };
+}
+
+/* GET /api/sync-together/:id/parts — the status board */
+router.get("/:id/parts", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    // Catch any room whose deadline passed since the job last ran.
+    await expireDueSharedRooms({ group: req.params.id }).catch(() => {});
+    const group = await loadGroupForParts(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const parts = await computeParts(group, userId);
+    return res.json({ ok: true, isOrganizer: isOrganizer(group, userId), ...parts });
+  } catch (err) {
+    return sendSyncError(res, err, "Failed to load trip parts");
+  }
+});
+
+/* POST /api/sync-together/:id/remind  { memberId } — organizer only */
+router.post("/:id/remind", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await loadGroupForParts(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    if (!isOrganizer(group, userId)) {
+      return res.status(403).json({ ok: false, error: "Only the organizer can send reminders" });
+    }
+    const member = validId(req.body?.memberId) ? group.members.id(req.body.memberId) : null;
+    if (!member) return res.status(404).json({ ok: false, error: "Traveler not found" });
+    if (member.lastRemindedAt && Date.now() - member.lastRemindedAt.getTime() < REMIND_EVERY_MS) {
+      return res.status(429).json({ ok: false, error: "You already reminded them recently. Try again later." });
+    }
+    const parts = await computeParts(group, userId);
+    const part = parts.travelers.find((t) => t.memberId === String(member._id));
+    if (!part?.needs?.length) {
+      return res.status(400).json({ ok: false, error: "They're all set — nothing to remind them about." });
+    }
+    const to = member.email || member.user?.email;
+    if (!to) return res.status(400).json({ ok: false, error: "We don't have an email for this traveler." });
+
+    const result = await sendGroupReminder({
+      to,
+      name: member.user?.name || member.name,
+      organizerName: group.owner?.name || group.owner?.username,
+      tripTitle: group.title,
+      destination: group.destination,
+      groupId: group._id,
+      needs: part.needs,
+    });
+    if (!result?.ok) {
+      return res.status(502).json({ ok: false, error: "The reminder email didn't send. Try again in a bit." });
+    }
+    member.lastRemindedAt = new Date();
+    logActivity(group, "reminder_sent", userId, `Sent ${member.user?.name || member.name || "a traveler"} a reminder`);
+    await group.save();
+    return res.json({ ok: true });
+  } catch (err) {
+    return sendSyncError(res, err, "Failed to send reminder");
+  }
+});
+
+/* POST /api/sync-together/:id/resend-confirmation  { bookingId }
+   Resends the confirmation email for a booking on this trip. You can
+   resend your own; the organizer can resend anyone's (it goes to that
+   traveler's own email). Once every 10 minutes per booking. */
+router.post("/:id/resend-confirmation", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const bookingId = req.body?.bookingId;
+    if (!validId(bookingId)) return res.status(400).json({ ok: false, error: "Pick a booking to resend." });
+    const booking = await Booking.findById(bookingId);
+    const onTrip =
+      booking &&
+      (String(booking.syncGroup) === String(group._id) || String(booking.flight?.groupId) === String(group._id));
+    if (!onTrip) return res.status(404).json({ ok: false, error: "That booking isn't on this trip." });
+    if (String(booking.user) !== String(userId) && !isOrganizer(group, userId)) {
+      return res.status(403).json({ ok: false, error: "You can only resend your own confirmation." });
+    }
+    const last = booking.confirmationEmail?.at ? new Date(booking.confirmationEmail.at).getTime() : 0;
+    if (booking.confirmationEmail?.status === "sent" && Date.now() - last < 10 * 60 * 1000) {
+      return res.status(429).json({ ok: false, error: "We just sent it. Check spam or promotions, or try again in a few minutes." });
+    }
+    const result = await sendConfirmationFor(booking);
+    if (!result?.ok) {
+      return res.status(502).json({ ok: false, error: "The email didn't send. Try again shortly, or contact support." });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't resend the confirmation");
+  }
+});
+
+/* PUT /api/sync-together/:id/group-hotel — organizer only
+   Body: { hotel: { hotelId, name, address, thumbnail, stars, rating } }
+   or { hotel: null } to clear. Everyone's "Book my room" then opens this
+   hotel's rooms, so the group stays together. */
+router.put("/:id/group-hotel", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    if (!isOrganizer(group, userId)) {
+      return res.status(403).json({ ok: false, error: "Only the organizer can pick the group's hotel." });
+    }
+    const h = req.body?.hotel;
+    if (h && !h.hotelId) return res.status(400).json({ ok: false, error: "Pick a hotel from the search results." });
+    const str = (v, n = 300) => (v == null ? null : String(v).slice(0, n));
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+    group.groupHotel = h
+      ? {
+          hotelId: str(h.hotelId, 64),
+          name: str(h.name, 200),
+          address: str(h.address),
+          thumbnail: /^https:\/\//.test(String(h.thumbnail || "")) ? str(h.thumbnail, 600) : null,
+          stars: num(h.stars),
+          rating: num(h.rating),
+          setAt: new Date(),
+        }
+      : { hotelId: null, name: null, address: null, thumbnail: null, stars: null, rating: null, setAt: null };
+    logActivity(group, "group_hotel", userId, h ? `Picked ${h.name || "a hotel"} for the group` : "Cleared the group's hotel");
+    await group.save();
+    if (h) {
+      const others = group.members
+        .filter((m) => m.user && m.status !== "declined")
+        .map((m) => m.user);
+      Notification.insertMany(
+        others.map((u) => ({
+          user: u,
+          type: "booking",
+          title: "The group's hotel is picked 🏨",
+          message: `Everyone's staying at ${h.name || "the group's hotel"}. Book your room from the trip page.`,
+          link: `/sync-together/${group._id}`,
+        }))
+      ).catch(() => {});
+    }
+    return res.json({ ok: true, groupHotel: group.groupHotel?.hotelId ? group.groupHotel : null });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't save the group's hotel");
+  }
+});
+
+/* POST /api/sync-together/:id/start-booking — organizer only.
+   For groups that already know what they want: skip the Atlas plan and
+   approvals and go straight to everyone booking their own part. */
+router.post("/:id/start-booking", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    if (!isOrganizer(group, userId)) {
+      return res.status(403).json({ ok: false, error: "Only the organizer can start booking." });
+    }
+    if (!group.destination) {
+      return res.status(400).json({ ok: false, error: "Set a destination first so everyone searches the same place." });
+    }
+    if (!["booked", "completed", "cancelled"].includes(group.status)) group.status = "confirmed";
+    group.bookingOpenedAt = group.bookingOpenedAt || new Date();
+    logActivity(group, "start_booking", userId, "Opened booking — everyone can book their own part");
+    await group.save();
+    const populated = await fullPopulate(SyncGroup.findById(group._id)).lean();
+    return res.json({ ok: true, group: populated });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't start booking");
+  }
+});
+
+/* POST /api/sync-together/:id/rsvp  { going: true|false }
+   An invited traveler says whether they're coming. Declining releases
+   any shared room still collecting holds that includes them. They can
+   change their answer later. */
+router.post("/:id/rsvp", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group) return res.status(404).json({ ok: false, error: "Group not found" });
+    const member = group.members.find((m) => m.user && String(m.user) === String(userId));
+    if (!member) {
+      return res.status(403).json({
+        ok: false,
+        error: isOrganizer(group, userId) ? "You're the organizer — you're already going." : "Not a group member",
+      });
+    }
+    if (typeof req.body?.going !== "boolean") {
+      return res.status(400).json({ ok: false, error: "Send going: true or false" });
+    }
+    const going = req.body.going;
+    const next = going ? "accepted" : "declined";
+    if (member.status !== next) {
+      member.status = next;
+      if (going) member.joinedAt = member.joinedAt || new Date();
+      else {
+        member.approved = false;
+        member.approvedAt = null;
+        await releaseRoomsForUser(group._id, userId);
+      }
+      const who = member.name || "A traveler";
+      logActivity(group, going ? "rsvp_yes" : "rsvp_no", userId, going ? `${who} is going` : `${who} can't make it`);
+      await group.save();
+      Notification.create({
+        user: group.owner,
+        type: "booking",
+        title: going ? "Someone's in 🎉" : "Someone can't make it",
+        message: `${who} ${going ? "is going on" : "can't make it to"} ${group.title || "your trip"}.`,
+        link: `/sync-together/${group._id}`,
+      }).catch(() => {});
+    }
+    const populated = await fullPopulate(SyncGroup.findById(group._id)).lean();
+    return res.json({ ok: true, group: populated });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't save your answer");
+  }
+});
+
+/* PATCH /api/sync-together/:id/arrival-window — organizer only
+   Body: { start: "YYYY-MM-DDTHH:mm" | null, end: … | null, note? }
+   Times are destination local time. Send nulls to clear. */
+const LOCAL_MINUTE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+router.patch("/:id/arrival-window", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group) return res.status(404).json({ ok: false, error: "Group not found" });
+    if (!isOrganizer(group, userId)) {
+      return res.status(403).json({ ok: false, error: "Only the organizer can set the arrival window" });
+    }
+    const start = req.body?.start || null;
+    const end = req.body?.end || null;
+    if ((start && !LOCAL_MINUTE.test(start)) || (end && !LOCAL_MINUTE.test(end))) {
+      return res.status(400).json({ ok: false, error: "Use a date and time for the window." });
+    }
+    if (start && end && start > end) {
+      return res.status(400).json({ ok: false, error: "The window has to end after it starts." });
+    }
+    group.arrivalWindow = {
+      start,
+      end,
+      note: req.body?.note ? String(req.body.note).trim().slice(0, 200) : null,
+    };
+    logActivity(group, "arrival_window", userId, start || end ? "Set the arrival window" : "Cleared the arrival window");
+    await group.save();
+    return res.json({ ok: true, arrivalWindow: group.arrivalWindow });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't save the arrival window");
+  }
+});
+
+/* POST /api/sync-together/:id/shared-rooms
+   Body: { room: {hotelId, offerId, name, roomName, boardName, address,
+                  thumbnail, checkin, checkout, adults},
+           userIds: [...], holder: {firstName, lastName, email} }
+   Organizer only. Checks the price with the hotel and starts collecting holds. */
+router.post("/:id/shared-rooms", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await loadGroupForParts(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const split = await createSharedRoom({
+      group,
+      actorUserId: userId,
+      room: req.body?.room,
+      userIds: req.body?.userIds,
+      holder: req.body?.holder,
+    });
+    return res.status(201).json({ ok: true, sharedRoom: sharedRoomForClient(split, userId) });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't set up the shared room");
+  }
+});
+
+async function loadRoomForGroup(req, res) {
+  const userId = req.user?.id ?? req.user?._id;
+  if (!validId(req.params.splitId)) {
+    res.status(404).json({ ok: false, error: "Shared room not found" });
+    return null;
+  }
+  const group = await loadGroupForParts(req.params.id);
+  if (!requireMember(group, userId, res)) return null;
+  const split = await SplitPayment.findOne({ _id: req.params.splitId, group: group._id, kind: "shared_room" });
+  if (!split) {
+    res.status(404).json({ ok: false, error: "Shared room not found" });
+    return null;
+  }
+  return { group, split, userId };
+}
+
+/* POST /:id/shared-rooms/:splitId/shares/:shareId/hold
+   Starts (or resumes) the card hold for YOUR share. Returns a clientSecret. */
+router.post("/:id/shared-rooms/:splitId/shares/:shareId/hold", async (req, res) => {
+  try {
+    const ctx = await loadRoomForGroup(req, res);
+    if (!ctx) return;
+    const out = await startShareHold({ splitId: ctx.split._id, shareId: req.params.shareId, userId: ctx.userId });
+    return res.json({ ok: true, ...out });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't start your card hold");
+  }
+});
+
+/* POST /:id/shared-rooms/:splitId/shares/:shareId/held
+   Called right after the card is authorized; verified with Stripe. */
+router.post("/:id/shared-rooms/:splitId/shares/:shareId/held", async (req, res) => {
+  try {
+    const ctx = await loadRoomForGroup(req, res);
+    if (!ctx) return;
+    await confirmShareHold({ splitId: ctx.split._id, shareId: req.params.shareId, userId: ctx.userId });
+    const fresh = await SplitPayment.findById(ctx.split._id);
+    return res.json({ ok: true, sharedRoom: sharedRoomForClient(fresh, ctx.userId) });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't confirm your card hold");
+  }
+});
+
+/* POST /:id/shared-rooms/:splitId/release — organizer only.
+   Lets every hold go; nobody is charged. */
+router.post("/:id/shared-rooms/:splitId/release", async (req, res) => {
+  try {
+    const ctx = await loadRoomForGroup(req, res);
+    if (!ctx) return;
+    if (!isOrganizer(ctx.group, ctx.userId)) {
+      return res.status(403).json({ ok: false, error: "Only the organizer can release a shared room" });
+    }
+    if (ctx.split.status !== "collecting") {
+      return res.status(409).json({ ok: false, error: "This room isn't collecting holds anymore." });
+    }
+    await releaseSharedRoom(ctx.split._id, "released");
+    return res.json({ ok: true });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't release the room");
+  }
+});
+
+/* GET /:id/shared-rooms/:splitId/cancel-quote — organizer only */
+router.get("/:id/shared-rooms/:splitId/cancel-quote", async (req, res) => {
+  try {
+    const ctx = await loadRoomForGroup(req, res);
+    if (!ctx) return;
+    if (!isOrganizer(ctx.group, ctx.userId)) {
+      return res.status(403).json({ ok: false, error: "Only the organizer can cancel a shared room" });
+    }
+    const quote = await sharedRoomCancelQuote(ctx.split);
+    return res.json({ ok: true, quote });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't get the cancellation terms");
+  }
+});
+
+/* POST /:id/shared-rooms/:splitId/cancel — organizer only.
+   Cancels with the hotel, then refunds each person their share of the
+   hotel's refund. */
+router.post("/:id/shared-rooms/:splitId/cancel", async (req, res) => {
+  try {
+    const ctx = await loadRoomForGroup(req, res);
+    if (!ctx) return;
+    if (!isOrganizer(ctx.group, ctx.userId)) {
+      return res.status(403).json({ ok: false, error: "Only the organizer can cancel a shared room" });
+    }
+    const out = await cancelSharedRoom({
+      split: ctx.split,
+      actorUserId: ctx.userId,
+      actorName: ctx.group.owner?.name || ctx.group.owner?.username,
+    });
+    return res.json({ ok: true, ...out });
+  } catch (err) {
+    return sendSyncError(res, err, "Cancellation failed");
   }
 });
 

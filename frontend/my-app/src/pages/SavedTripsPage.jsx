@@ -8,6 +8,7 @@ import {
   Hash,
   Receipt,
   AlertTriangle,
+  Clock,
 } from "lucide-react";
 import SavedTrips from "../components/SavedTrips";
 
@@ -52,6 +53,8 @@ function isUpcoming(b) {
   if (!end) return true;
   return new Date(end).getTime() >= Date.now() - 24 * 60 * 60 * 1000;
 }
+
+const hasOpenCancelRequest = (b) => b.cancelRequest?.status === "open";
 
 // ─────────────────────────────────────────────
 // One booked trip
@@ -180,37 +183,87 @@ function BookedTripCard({ b, onCancel }) {
               The airline is processing your cancellation.
             </div>
           )}
+          {b.status === "confirmed" && hasOpenCancelRequest(b) && (
+            <div
+              style={{
+                color: "#ffb347",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Clock size={13} />
+              Cancellation requested — our team will contact you before
+              anything is cancelled.
+            </div>
+          )}
         </div>
-        {onCancel && b.status === "confirmed" && isUpcoming(b) && (
-          <button
-            type="button"
-            onClick={() => onCancel(b)}
+        {b.sharedRoom && b.status === "confirmed" && (
+          <div
             style={{
               marginTop: 10,
-              background: "none",
-              border: "1px solid rgba(255,255,255,0.15)",
-              color: "rgba(255,255,255,0.75)",
-              borderRadius: 10,
-              padding: "7px 12px",
-              fontSize: 13,
-              cursor: "pointer",
-              fontFamily: "inherit",
+              fontSize: 12,
+              color: "rgba(255,255,255,0.55)",
+              lineHeight: 1.5,
             }}
           >
-            Cancel trip
-          </button>
+            Shared room ({b.sharedRoom.people} people). Only the trip organizer
+            can cancel it
+            {b.sharedRoom.groupId ? (
+              <>
+                {" "}
+                —{" "}
+                <a
+                  href={`/sync-together/${b.sharedRoom.groupId}`}
+                  style={{ color: "#ff8a2a" }}
+                >
+                  open the trip
+                </a>
+              </>
+            ) : null}
+            .
+          </div>
         )}
+        {onCancel &&
+          !b.sharedRoom &&
+          b.status === "confirmed" &&
+          isUpcoming(b) &&
+          !hasOpenCancelRequest(b) && (
+            <button
+              type="button"
+              onClick={() => onCancel(b)}
+              style={{
+                marginTop: 10,
+                background: "none",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "rgba(255,255,255,0.75)",
+                borderRadius: 10,
+                padding: "7px 12px",
+                fontSize: 13,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Cancel trip
+            </button>
+          )}
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────
-// Cancel flow — shows the real terms BEFORE anything is cancelled
+// Cancel flow — shows the real terms BEFORE anything is cancelled.
+// If the airline/hotel can't give terms automatically, the traveler can
+// send a cancellation REQUEST that a person handles — nothing is cancelled
+// until the terms are confirmed with them.
 // ─────────────────────────────────────────────
 function CancelTripModal({ booking, onClose, onDone }) {
   const [quote, setQuote] = useState(null);
   const [error, setError] = useState("");
+  const [canRequest, setCanRequest] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
+  const [requested, setRequested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const token = localStorage.getItem("token");
@@ -229,8 +282,10 @@ function CancelTripModal({ booking, onClose, onDone }) {
           { headers }
         );
         const data = await res.json().catch(() => ({}));
-        if (!res.ok)
+        if (!res.ok) {
+          if (!cancelled) setCanRequest(Boolean(data.canRequest));
           throw new Error(data.message || "Couldn't load cancellation terms.");
+        }
         if (!cancelled) setQuote(data);
       } catch (e) {
         if (!cancelled) setError(e.message);
@@ -263,6 +318,29 @@ function CancelTripModal({ booking, onClose, onDone }) {
     }
   };
 
+  const sendRequest = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `${API}/api/bookings/${booking._id}/cancel-request`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ reason: requestNote }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Couldn't send your request.");
+      setRequested(true);
+      onDone?.(data.booking);
+    } catch (e) {
+      setError(e.message);
+      setCanRequest(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const box = {
     maxWidth: 460,
     width: "100%",
@@ -272,6 +350,39 @@ function CancelTripModal({ booking, onClose, onDone }) {
     padding: 24,
     color: "#fff",
   };
+  const doneBtn = {
+    width: "100%",
+    padding: 12,
+    borderRadius: 12,
+    border: "none",
+    background: "linear-gradient(135deg,#f97316,#ec4899)",
+    color: "#fff",
+    fontWeight: 700,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  };
+  const keepBtn = {
+    flex: 1,
+    padding: 12,
+    borderRadius: 12,
+    background: "none",
+    border: "1px solid rgba(255,255,255,0.15)",
+    color: "#fff",
+    cursor: "pointer",
+    fontFamily: "inherit",
+  };
+  const dangerBtn = (disabled) => ({
+    flex: 1,
+    padding: 12,
+    borderRadius: 12,
+    border: "1px solid rgba(248,113,113,.5)",
+    background: "rgba(248,113,113,.12)",
+    color: "#f87171",
+    fontWeight: 700,
+    cursor: disabled ? "default" : "pointer",
+    fontFamily: "inherit",
+    opacity: disabled ? 0.5 : 1,
+  });
 
   return (
     <div
@@ -291,7 +402,7 @@ function CancelTripModal({ booking, onClose, onDone }) {
     >
       <div onClick={(e) => e.stopPropagation()} style={box}>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>
-          Cancel this trip?
+          {requested ? "Request sent" : "Cancel this trip?"}
         </div>
         <div
           style={{
@@ -303,7 +414,20 @@ function CancelTripModal({ booking, onClose, onDone }) {
           {booking.tripDetails}
         </div>
 
-        {result ? (
+        {requested ? (
+          <>
+            <div style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 18 }}>
+              We've received your cancellation request and emailed you a
+              confirmation. Your trip is <strong>not cancelled yet</strong> —
+              our team will confirm the cancellation terms and any refund with
+              the {booking.type === "Hotel" ? "hotel" : "airline"}, then
+              contact you before anything is cancelled.
+            </div>
+            <button type="button" onClick={onClose} style={doneBtn}>
+              Done
+            </button>
+          </>
+        ) : result ? (
           <>
             <div style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 18 }}>
               {result.pending
@@ -317,21 +441,7 @@ function CancelTripModal({ booking, onClose, onDone }) {
                   )} is on its way to your card (usually 5–10 business days).`
                 : "Cancelled. Under the policy for this booking, no refund applies."}
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 12,
-                border: "none",
-                background: "linear-gradient(135deg,#f97316,#ec4899)",
-                color: "#fff",
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
+            <button type="button" onClick={onClose} style={doneBtn}>
               Done
             </button>
           </>
@@ -381,55 +491,93 @@ function CancelTripModal({ booking, onClose, onDone }) {
             {error && (
               <div
                 style={{
-                  color: "#f87171",
+                  color: canRequest ? "#ffb347" : "#f87171",
                   fontSize: 13,
                   marginBottom: 14,
                   display: "flex",
                   gap: 6,
                 }}
               >
-                <AlertTriangle size={14} /> {error}
+                <AlertTriangle size={14} style={{ flexShrink: 0 }} /> {error}
               </div>
             )}
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={busy}
-                style={{
-                  flex: 1,
-                  padding: 12,
-                  borderRadius: 12,
-                  background: "none",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                Keep my trip
-              </button>
-              <button
-                type="button"
-                onClick={confirmCancel}
-                disabled={busy || !quote || quote.cancellable === false}
-                style={{
-                  flex: 1,
-                  padding: 12,
-                  borderRadius: 12,
-                  border: "1px solid rgba(248,113,113,.5)",
-                  background: "rgba(248,113,113,.12)",
-                  color: "#f87171",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  opacity:
-                    busy || !quote || quote.cancellable === false ? 0.5 : 1,
-                }}
-              >
-                {busy ? "Cancelling…" : "Cancel trip"}
-              </button>
-            </div>
+
+            {canRequest ? (
+              <>
+                <div
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    color: "rgba(255,255,255,0.75)",
+                    marginBottom: 12,
+                  }}
+                >
+                  You can still send a cancellation request. Our team will
+                  confirm the terms and any refund with the{" "}
+                  {booking.type === "Hotel" ? "hotel" : "airline"} and contact
+                  you <strong>before</strong> anything is cancelled.
+                </div>
+                <textarea
+                  value={requestNote}
+                  onChange={(e) => setRequestNote(e.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder="Anything we should know? (optional)"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,.06)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    color: "#fff",
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                    resize: "vertical",
+                    marginBottom: 14,
+                  }}
+                />
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={busy}
+                    style={keepBtn}
+                  >
+                    Keep my trip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={sendRequest}
+                    disabled={busy}
+                    style={dangerBtn(busy)}
+                  >
+                    {busy ? "Sending…" : "Request cancellation"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={busy}
+                  style={keepBtn}
+                >
+                  Keep my trip
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmCancel}
+                  disabled={busy || !quote || quote.cancellable === false}
+                  style={dangerBtn(
+                    busy || !quote || quote.cancellable === false
+                  )}
+                >
+                  {busy ? "Cancelling…" : "Cancel trip"}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

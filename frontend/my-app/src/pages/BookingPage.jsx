@@ -1187,6 +1187,7 @@ function FlightsForm({
   onSearchEnd,
   onSearchError,
   retryRef,
+  initial = null,
 }) {
   const [originAirport, setOriginAirport] = useState(null);
   const [destAirport, setDestAirport] = useState(null);
@@ -1214,6 +1215,67 @@ function FlightsForm({
     [onDatesChange]
   );
 
+  // ── Prefill from the link (e.g. a Sync Together trip): from/to airport
+  // codes or a city name, and dates. Runs once; the traveler can change
+  // anything before searching.
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    if (!initial || prefilledRef.current) return;
+    prefilledRef.current = true;
+    const asAirport = (a, fallback) => {
+      const code = a?.code || a?.iata || a?.iataCode || a?.iata_code;
+      if (!code) return null;
+      return { ...a, code, city: a.city || a.cityName || a.city_name || a.name || fallback || code };
+    };
+    const lookup = async (q) => {
+      if (!q) return null;
+      if (/^[A-Za-z]{3}$/.test(q.trim())) return { code: q.trim().toUpperCase(), city: q.trim().toUpperCase() };
+      try {
+        const res = await fetch(`${API}/api/airports?q=${encodeURIComponent(q.trim())}`);
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data?.airports || data?.data || data?.results || [];
+        return asAirport(list[0], q.trim());
+      } catch {
+        return null;
+      }
+    };
+    (async () => {
+      const [o, d] = await Promise.all([lookup(initial.from), lookup(initial.to)]);
+      if (o) {
+        setOriginAirport(o);
+        setOriginDisplay(`${o.city} (${o.code})`);
+        onOriginChange?.(o.city);
+      }
+      if (d) {
+        setDestAirport(d);
+        setDestDisplay(`${d.city} (${d.code})`);
+        onDestChange?.(d.city);
+      }
+      // From the trip page: run the search right away.
+      const depart = initial.depart ? dayjs(initial.depart) : null;
+      if (initial.autoSearch && o && d && depart?.isValid()) {
+        const q = new URLSearchParams({
+          from: o.code,
+          to: d.code,
+          departDate: depart.format("YYYY-MM-DD"),
+          adults: "1",
+          cabin: initial.cabin || "economy",
+        });
+        const back = initial.ret ? dayjs(initial.ret) : null;
+        if (back?.isValid()) q.set("returnDate", back.format("YYYY-MM-DD"));
+        if (initial.cabin) setCabin(initial.cabin);
+        runFlightSearch(q.toString());
+      }
+    })();
+    const start = initial.depart ? dayjs(initial.depart) : null;
+    const end = initial.ret ? dayjs(initial.ret) : null;
+    if (start?.isValid()) {
+      handleDatesChange([start, end?.isValid() ? end : null]);
+      if (!end?.isValid()) setTripType("oneway");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
+
   // Remember the last search so "Try again" can re-run it exactly, without
   // the customer having to re-enter anything.
   const lastQueryRef = useRef(null);
@@ -1234,6 +1296,14 @@ function FlightsForm({
 
       const flights = data.flights ?? [];
       onSearch(flights);
+
+      // The airline's system failed, so the server returned this exact
+      // search from a few minutes ago. Say so plainly.
+      if (data.stale) {
+        antdMessage.info(
+          "Showing results from a few minutes ago — the exact price is confirmed before you pay."
+        );
+      }
 
       if (flights.length === 0) {
         antdMessage.info(
@@ -1409,6 +1479,7 @@ function StaysForm({
   onDatesChange,
   onSearchStart,
   onSearchEnd,
+  initial = null,
 }) {
   const [cityName, setCityName] = useState("");
   const [countryCode, setCountryCode] = useState("US");
@@ -1428,6 +1499,39 @@ function StaysForm({
   const [adults, setAdults] = useState(2);
   const [numRooms, setNumRooms] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  // Prefill city, dates and guests from the link (e.g. a Sync Together trip).
+  const stayPrefilledRef = useRef(false);
+  useEffect(() => {
+    if (!initial || stayPrefilledRef.current) return;
+    stayPrefilledRef.current = true;
+    if (initial.city) {
+      setCityName(initial.city);
+      onDestChange?.(initial.city);
+    }
+    const start = initial.checkin ? dayjs(initial.checkin) : null;
+    const end = initial.checkout ? dayjs(initial.checkout) : null;
+    if (start?.isValid() && end?.isValid()) {
+      setDates([start, end]);
+      onDatesChange?.({ dates: [start, end], nights: end.diff(start, "day") });
+    }
+    const n = Number(initial.adults);
+    if (Number.isInteger(n) && n >= 1 && n <= 9) setAdults(n);
+    // From the trip page: show results immediately — no extra Search tap.
+    if (initial.autoSearch && start?.isValid() && end?.isValid() && (initial.city || initial.hotel)) {
+      setTimeout(
+        () =>
+          handleSearch({
+            city: initial.city || "",
+            dates: [start, end],
+            adults: Number.isInteger(n) ? n : undefined,
+            hotel: initial.hotel || null,
+          }),
+        0
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
 
   // ── Location autocomplete, backed by LiteAPI's own /data/places
   // endpoint (via /api/hotels/places) — NOT /data/hotels. This is a
@@ -1570,10 +1674,17 @@ function StaysForm({
     [onDatesChange]
   );
 
-  const handleSearch = async () => {
-    if (!cityName.trim())
+  // opts lets a prefilled link run the search right away with its own
+  // values (state updates aren't visible until the next render), and
+  // `hotel` searches just one hotel — the Sync Together group's hotel.
+  const handleSearch = async (opts = {}) => {
+    const qCity = typeof opts.city === "string" ? opts.city : cityName;
+    const qDates = Array.isArray(opts.dates) ? opts.dates : dates;
+    const qAdults = Number(opts.adults) || adults;
+    const pinned = opts.hotel?.hotelId ? opts.hotel : null;
+    if (!pinned && !qCity.trim())
       return antdMessage.warning("Enter a destination city");
-    if (!dates[0] || !dates[1])
+    if (!qDates[0] || !qDates[1])
       return antdMessage.warning("Select check-in and check-out dates");
 
     setLoading(true);
@@ -1590,16 +1701,29 @@ function StaysForm({
         ? new URLSearchParams({ placeId: selectedPlace.placeId, limit: "20" })
         : new URLSearchParams({
             countryCode,
-            cityName: cityName.trim(),
+            cityName: qCity.trim(),
             limit: "20",
           });
 
-      const lookupRes = await fetch(`${API}/api/hotels/lookup?${lookupParams}`);
-      const lookupData = await lookupRes.json();
-      if (!lookupRes.ok || !lookupData.ok)
-        throw new Error(lookupData.message || "Couldn't find that destination");
-
-      const hotelsFound = lookupData.hotels ?? [];
+      let hotelsFound;
+      if (pinned) {
+        hotelsFound = [
+          {
+            id: pinned.hotelId,
+            name: pinned.name,
+            main_photo: pinned.thumbnail,
+            address: pinned.address,
+            stars: pinned.stars,
+            rating: pinned.rating,
+          },
+        ];
+      } else {
+        const lookupRes = await fetch(`${API}/api/hotels/lookup?${lookupParams}`);
+        const lookupData = await lookupRes.json();
+        if (!lookupRes.ok || !lookupData.ok)
+          throw new Error(lookupData.message || "Couldn't find that destination");
+        hotelsFound = lookupData.hotels ?? [];
+      }
       if (!hotelsFound.length) {
         antdMessage.info("No hotels found for that destination.");
         onSearch([]);
@@ -1613,9 +1737,9 @@ function StaysForm({
       // ── Step 2: get live rates for those hotels ──
       const searchParams = new URLSearchParams({
         hotelIds: hotelIds.join(","),
-        checkin: dayjs(dates[0].toDate()).format("YYYY-MM-DD"),
-        checkout: dayjs(dates[1].toDate()).format("YYYY-MM-DD"),
-        adults: String(adults),
+        checkin: dayjs(qDates[0].toDate()).format("YYYY-MM-DD"),
+        checkout: dayjs(qDates[1].toDate()).format("YYYY-MM-DD"),
+        adults: String(qAdults),
         rooms: String(numRooms),
       });
       const searchRes = await fetch(`${API}/api/hotels/search?${searchParams}`);
@@ -1637,16 +1761,19 @@ function StaysForm({
 
       // Attach the search dates to every result so HotelCheckout
       // can show real check-in/check-out instead of "Dates TBD"
-      const checkinISO = dayjs(dates[0].toDate()).format("YYYY-MM-DD");
-      const checkoutISO = dayjs(dates[1].toDate()).format("YYYY-MM-DD");
+      const checkinISO = dayjs(qDates[0].toDate()).format("YYYY-MM-DD");
+      const checkoutISO = dayjs(qDates[1].toDate()).format("YYYY-MM-DD");
       const withDates = enriched.map((h) => ({
         ...h,
         checkin: checkinISO,
         checkout: checkoutISO,
+        // Guests each room was priced for — Sync Together shared rooms
+        // check this against how many people are sharing.
+        adults: numRooms > 1 ? Math.floor(qAdults / numRooms) : qAdults,
       }));
 
       onSearch(withDates);
-      onDestChange?.(cityName.trim());
+      onDestChange?.(pinned ? pinned.name : qCity.trim());
       antdMessage.success(`Found ${withDates.length} room options`);
     } catch (err) {
       antdMessage.error(err.message || "Hotel search failed");
@@ -2108,6 +2235,24 @@ function SavedForm() {
 // ─────────────────────────────────────────────
 function FlightSkeleton({ destCity, fromCode }) {
   const [stepIdx, setStepIdx] = useState(0);
+  // Seconds since this search started — drives the honest "still
+  // searching" messages below so a slow airline response never looks frozen.
+  const [waitedSec, setWaitedSec] = useState(0);
+  useEffect(() => {
+    const startedAt = Date.now();
+    const t = setInterval(
+      () => setWaitedSec(Math.floor((Date.now() - startedAt) / 1000)),
+      1000
+    );
+    return () => clearInterval(t);
+  }, []);
+  const providers = fromCode ? "Airlines" : "Hotels";
+  const waitMessage =
+    waitedSec >= 50
+      ? `Taking longer than usual — we're checking with the ${fromCode ? "airline" : "hotels"} again…`
+      : waitedSec >= 20
+      ? `Still searching — ${providers} can be slow to respond. Hang tight…`
+      : "Live prices can take up to a minute to load.";
   useEffect(() => {
     const iv = setInterval(
       () => setStepIdx((i) => (i + 1) % ATLAS_LOADING_STEPS.length),
@@ -2136,8 +2281,8 @@ function FlightSkeleton({ destCity, fromCode }) {
           ? `Comparing options for ${fromCode} → ${destCity} based on timing, comfort & value.`
           : "Finding the best flights for your trip."}
       </div>
-      <div className="sk-search-loading__sub">
-        Live prices can take up to a minute to load.
+      <div className="sk-search-loading__sub" role="status" aria-live="polite">
+        {waitMessage}
       </div>
       <div className="sk-search-loading__bar">
         <div className="sk-search-loading__bar-fill" />
@@ -2234,6 +2379,119 @@ export default function BookingPage() {
 
   const fromCode = searchParams.get("from") || "EWR";
 
+  // ── Sync Together: booking your own part of a group trip ──
+  // /booking?groupId=… comes from the trip page. Kept in sessionStorage so
+  // it survives switching tabs/searches until checkout.
+  const syncGroupId = useMemo(() => {
+    const fromUrl = searchParams.get("groupId");
+    try {
+      if (fromUrl) window.sessionStorage.setItem("skyrio_sync_group", fromUrl);
+      return fromUrl || window.sessionStorage.getItem("skyrio_sync_group") || null;
+    } catch {
+      return fromUrl || null;
+    }
+  }, [searchParams]);
+  const leaveSyncGroup = useCallback(() => {
+    try {
+      window.sessionStorage.removeItem("skyrio_sync_group");
+    } catch {
+      /* non-fatal */
+    }
+    window.location.assign("/booking");
+  }, []);
+  const tabParam = searchParams.get("tab");
+  // ── Sync Together trip info: is this person the organizer, and has the
+  // group picked a hotel? (Lets the organizer pick it from these results.)
+  const [syncInfo, setSyncInfo] = useState(null);
+  const [savingGroupHotel, setSavingGroupHotel] = useState(null);
+  useEffect(() => {
+    if (!syncGroupId) return;
+    let alive = true;
+    const token = localStorage.getItem("token");
+    fetch(`${API}/api/sync-together/${syncGroupId}/parts`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => r.json())
+      .then((d) => alive && d.ok && setSyncInfo(d))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [syncGroupId]);
+  const groupHotelId = syncInfo?.groupHotel?.hotelId || null;
+  const makeGroupHotel = useCallback(
+    async (hotel) => {
+      if (!syncGroupId) return;
+      setSavingGroupHotel(hotel.hotelId);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API}/api/sync-together/${syncGroupId}/group-hotel`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            hotel: {
+              hotelId: hotel.hotelId,
+              name: hotel.name,
+              address: hotel.address,
+              thumbnail: hotel.thumbnail,
+              stars: hotel.stars,
+              rating: hotel.rating,
+            },
+          }),
+        });
+        const d = await res.json();
+        if (!res.ok || !d.ok) throw new Error(d.error || "Couldn't save the group's hotel");
+        setSyncInfo((prev) => ({ ...(prev || {}), groupHotel: d.groupHotel }));
+        antdMessage.success(`${hotel.name} is now the group's hotel. Everyone's "Book my room" opens here.`);
+      } catch (e) {
+        antdMessage.error(e.message);
+      } finally {
+        setSavingGroupHotel(null);
+      }
+    },
+    [syncGroupId]
+  );
+
+  // Prefill for the search forms (/booking?to=Miami&depart=2026-10-23&return=…).
+  // auto=1 runs the search right away so results are waiting.
+  const autoSearch = searchParams.get("auto") === "1";
+  const flightInitial = useMemo(() => {
+    const to = searchParams.get("to");
+    const depart = searchParams.get("depart");
+    if (!to && !depart) return null;
+    return {
+      from: searchParams.get("from"),
+      to,
+      depart,
+      ret: searchParams.get("return"),
+      cabin: searchParams.get("cabin") || undefined,
+      autoSearch,
+    };
+  }, [searchParams, autoSearch]);
+  const hotelIdParam = searchParams.get("hotelId");
+  const stayInitial = useMemo(() => {
+    const city = searchParams.get("city") || searchParams.get("to");
+    const checkin = searchParams.get("depart");
+    if (!city && !checkin && !hotelIdParam) return null;
+    // Opening the group's hotel: wait until we know its name and photo.
+    let hotel = null;
+    if (hotelIdParam) {
+      if (!syncInfo) return null;
+      hotel =
+        syncInfo.groupHotel?.hotelId === hotelIdParam
+          ? syncInfo.groupHotel
+          : { hotelId: hotelIdParam, name: "Your group's hotel" };
+    }
+    return {
+      city,
+      checkin,
+      checkout: searchParams.get("return"),
+      adults: searchParams.get("adults"),
+      hotel,
+      autoSearch,
+    };
+  }, [searchParams, hotelIdParam, syncInfo, autoSearch]);
+
   const prefillData = useMemo(() => {
     const promptParam = searchParams.get("prompt");
     const planParam = searchParams.get("plan");
@@ -2265,7 +2523,10 @@ export default function BookingPage() {
     return null;
   }, [searchParams]);
 
-  const [tab, setTab] = useState(prefillData?.tab ?? "Flights");
+  const [tab, setTab] = useState(
+    prefillData?.tab ??
+      (["Flights", "Stays", "Excursions"].includes(tabParam) ? tabParam : "Flights")
+  );
   const [flightResults, setFlightResults] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
   const [excursionResults, setExcursionResults] = useState([]);
@@ -2468,19 +2729,6 @@ export default function BookingPage() {
     });
   }, []);
 
-  // "Book Now" on a single card. This now folds the room into the same
-  // cart instead of bypassing it — that's what let a solo "Book Now"
-  // dead-end with no way to add a second room for a teammate/family
-  // member. It still opens checkout immediately for a fast one-room
-  // booking, but since the room joined the cart, hitting "Back to
-  // results" from checkout (below) lands back on Stays with that room
-  // still selected, ready to add more.
-  //
-  // Reads `roomCart` directly and depends on it (rather than nesting
-  // setSelectedHotelOffer/setCheckoutRooms inside the setRoomCart
-  // updater) — calling other components' setState from inside a
-  // different state's updater function is non-idiomatic React and can
-  // cause those updates to fire more than once for a single click.
   // "Book Now" on a single card. Folds the room into the same cart
   // instead of bypassing it — that's what let a solo "Book Now"
   // dead-end with no way to add a second room for a teammate/family
@@ -2810,6 +3058,7 @@ export default function BookingPage() {
             onSearchEnd={() => setManualSearchLoading(false)}
             onSearchError={setSearchError}
             retryRef={flightRetryRef}
+            initial={flightInitial}
           />
         );
       case "Stays":
@@ -2823,6 +3072,7 @@ export default function BookingPage() {
             onDatesChange={handleDatesChange}
             onSearchStart={() => setManualSearchLoading(true)}
             onSearchEnd={() => setManualSearchLoading(false)}
+            initial={stayInitial}
           />
         );
       case "Cars":
@@ -2900,6 +3150,7 @@ export default function BookingPage() {
       >
         <BookingCheckout
           flight={selectedFlight}
+          groupId={syncGroupId}
           onBack={() => {
             setShowCheckout(false);
             setSelectedFlight(null);
@@ -2917,6 +3168,7 @@ export default function BookingPage() {
           // reading a single-offer prop — always the first room in the set.
           hotel={selectedHotelOffer}
           destCity={destCity}
+          groupId={syncGroupId}
           onBack={handleHotelCheckoutBack}
           onBookingComplete={handleHotelBookingComplete}
         />
@@ -2926,6 +3178,44 @@ export default function BookingPage() {
   return (
     <>
       {checkoutOverlay}
+      {syncGroupId && !checkoutOverlay && (
+        <div
+          role="status"
+          style={{
+            position: "relative",
+            zIndex: 5,
+            maxWidth: 960,
+            margin: "12px auto 0",
+            padding: "10px 16px",
+            borderRadius: 12,
+            background: "rgba(124,58,237,0.14)",
+            border: "1px solid rgba(124,58,237,0.35)",
+            color: "#fff",
+            fontSize: 13,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>
+            Booking your part of a Sync Together trip — it'll show up on the trip page.
+          </span>
+          <span style={{ display: "flex", gap: 12 }}>
+            <Link to={`/sync-together/${syncGroupId}`} style={{ color: "#ffb347" }}>
+              Back to the trip
+            </Link>
+            <button
+              type="button"
+              onClick={leaveSyncGroup}
+              style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", padding: 0, fontSize: 13 }}
+            >
+              Book something else
+            </button>
+          </span>
+        </div>
+      )}
       <div
         className="sk-booking"
         style={{
@@ -4151,9 +4441,40 @@ export default function BookingPage() {
                               {hotel.roomCount} rooms in this rate
                             </span>
                           )}
+                          {groupHotelId && hotel.hotelId === groupHotelId && (
+                            <span className="sk-tag sk-tag-xp">
+                              <Users size={11} style={{ marginRight: 3, verticalAlign: "middle" }} />
+                              Your group's hotel
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
+                    {syncInfo?.isOrganizer && hotel.hotelId !== groupHotelId && (
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            makeGroupHotel(hotel);
+                          }}
+                          disabled={savingGroupHotel === hotel.hotelId}
+                          style={{
+                            background: "rgba(124,58,237,0.14)",
+                            border: "1px solid rgba(124,58,237,0.4)",
+                            color: "#fff",
+                            borderRadius: 10,
+                            padding: "7px 12px",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          {savingGroupHotel === hotel.hotelId ? "Saving…" : "Make this the group's hotel"}
+                        </button>
+                      </div>
+                    )}
                   </Card>
                 );
               })}

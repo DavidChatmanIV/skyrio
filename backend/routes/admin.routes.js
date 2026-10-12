@@ -52,8 +52,12 @@ function readAdminFromCookie(req) {
   }
 }
 
-// ── Header-based fallback for localhost cross-port dev ──
+// ── Header-based fallback for localhost cross-port dev ONLY ──
+// SECURITY: this trusts nothing but an email in a request header — anyone
+// who knows ADMIN_EMAIL could send it. It must never work in production,
+// where the signed, httpOnly admin cookie is the only accepted proof.
 function readAdminFromHeader(req) {
+  if (process.env.NODE_ENV === "production") return null;
   const email = req.headers?.["x-admin-email"];
   const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
   if (!email || !ADMIN_EMAIL) return null;
@@ -62,12 +66,17 @@ function readAdminFromHeader(req) {
   return { isAdmin: true, email };
 }
 
+/**
+ * The admin-dashboard session on this request, or null.
+ * Exported so other route files (bookings.routes.js) accept the same admin
+ * login without duplicating — and drifting from — this logic.
+ */
+export function readAdminSession(req) {
+  return readAdminFromCookie(req) || readAdminFromHeader(req);
+}
+
 // ✅ Exported so other route files (challenges.routes.js) can reuse this
-// exact auth logic instead of duplicating it — duplicating it would mean
-// it silently drifts out of sync the next time this changes, the same
-// failure pattern this whole project has been cleaning up elsewhere.
-// Internal usage below (router.get("/users", verifyAdmin, ...) etc.) is
-// completely unaffected by adding this export.
+// exact auth logic instead of duplicating it.
 export function verifyAdmin(req, res, next) {
   if (!JWT_SECRET) {
     return res
@@ -76,7 +85,7 @@ export function verifyAdmin(req, res, next) {
   }
 
   // Try cookie first (production), then header fallback (local dev)
-  const admin = readAdminFromCookie(req) || readAdminFromHeader(req);
+  const admin = readAdminSession(req);
 
   if (!admin) {
     return res.status(401).json({ ok: false, error: "Admin unauthorized" });
@@ -131,7 +140,7 @@ router.post("/logout", (req, res) => {
 });
 
 router.get("/me", (req, res) => {
-  const admin = readAdminFromCookie(req) || readAdminFromHeader(req);
+  const admin = readAdminSession(req);
   if (!admin) return res.status(401).json({ ok: false, isAdmin: false });
   return res.json({ ok: true, isAdmin: true, admin: { email: admin.email } });
 });
@@ -277,9 +286,7 @@ router.get("/dashboard", verifyAdmin, async (_req, res) => {
 
    Note: D7 return rate is intentionally NOT included here — there's no
    login/session timestamp tracked anywhere on User yet (no lastActiveAt
-   field), so it can't be computed accurately. Add a lastActiveAt field
-   to User, update it on authenticated requests, then this endpoint can
-   be extended to include it.
+   field), so it can't be computed accurately.
 ========================= */
 router.get("/growth-metrics", verifyAdmin, async (_req, res) => {
   try {
@@ -290,7 +297,6 @@ router.get("/growth-metrics", verifyAdmin, async (_req, res) => {
       totalBookings,
       cancelledBookings,
     ] = await Promise.all([
-      // Group bookings by user, get each user's booking count
       Booking.aggregate([
         { $group: { _id: "$user", bookingCount: { $sum: 1 } } },
       ]),

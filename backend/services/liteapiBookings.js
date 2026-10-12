@@ -88,3 +88,44 @@ export function pickAmount(obj, keys, depth = 0) {
   }
   return null;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Reading IDs out of LiteAPI's flight booking response.
+// The response nests these differently than the top level, so search
+// the whole object (bounded depth) for the first matching key.
+// ─────────────────────────────────────────────────────────────
+function deepFind(obj, keys, depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 6) return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (
+      v != null &&
+      v !== "" &&
+      (typeof v === "string" || typeof v === "number")
+    )
+      return String(v);
+  }
+  for (const v of Object.values(obj)) {
+    const found = deepFind(v, keys, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** LiteAPI's booking ID for a completed flight booking (needed to cancel). */
+export function extractFlightBookingId(record) {
+  return deepFind(record, ["bookingId", "booking_id", "flightBookingId"]);
+}
+
+/** The airline's own confirmation code (PNR), if LiteAPI returned one. */
+export function extractFlightPnr(record) {
+  return deepFind(record, [
+    "pnr",
+    "PNR",
+    "bookingRef",
+    "bookingReference",
+    "recordLocator",
+    "airlineReference",
+    "airlineConfirmationCode",
+  ]);
+}

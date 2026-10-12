@@ -265,3 +265,77 @@ ${bookingId ? `Skyrio booking ID: ${bookingId}` : ""}${textFooter}`;
     tag: "refund",
   });
 }
+
+/**
+ * Cancellation REQUEST received — automatic terms weren't available, so a
+ * person will confirm the terms. Nothing has been cancelled yet.
+ */
+export async function sendCancellationRequestEmail({
+  to,
+  name,
+  tripDetails,
+  bookingId,
+}) {
+  const html = renderEmail({
+    preheader: `We received your cancellation request for ${tripDetails}`,
+    title: "We received your cancellation request",
+    introHtml: `${
+      name ? `Hi ${esc(name)}, ` : ""
+    }we've received your request to cancel <strong>${esc(
+      tripDetails
+    )}</strong>.`,
+    bodyHtml: detailBox(
+      "WHAT HAPPENS NEXT",
+      subLine(
+        "Your trip is <strong>not cancelled yet</strong>. Our team will confirm the cancellation terms and any refund with the airline or hotel, then contact you before anything is cancelled."
+      ) + (bookingId ? noteLine(`Skyrio booking ID: ${esc(bookingId)}`) : "")
+    ),
+    cta: { label: "View my trips", url: TRIPS_URL },
+  });
+  const text = `We received your cancellation request.
+
+${
+  name ? `Hi ${name}, ` : ""
+}we've received your request to cancel ${tripDetails}.
+
+Your trip is NOT cancelled yet. Our team will confirm the cancellation terms and any refund with the airline or hotel, then contact you before anything is cancelled.
+${bookingId ? `Skyrio booking ID: ${bookingId}` : ""}${textFooter}`;
+  return sendEmail({
+    to,
+    subject: `Cancellation request received: ${tripDetails}`,
+    html,
+    text,
+    tag: "cancel-request",
+  });
+}
+
+/** Internal alert to the support inbox about a new cancellation request. */
+export async function sendCancellationRequestAlert({
+  booking,
+  travelerEmail,
+  reason,
+}) {
+  const supportTo = process.env.SUPPORT_EMAIL;
+  if (!supportTo) return { ok: false, error: "SUPPORT_EMAIL not set" };
+  const text = `New cancellation request — action needed.
+
+Trip: ${booking.tripDetails}
+Type: ${booking.type}
+Skyrio booking ID: ${booking._id}
+Traveler: ${booking.name || "—"} <${travelerEmail || "—"}>
+Paid: ${booking.totalAmount ?? booking.total ?? "—"} ${
+    booking.totalCurrency || ""
+  }
+Traveler's note: ${reason || "(none)"}
+
+Automatic cancellation terms weren't available. Confirm terms with the supplier, contact the traveler, then cancel and mark the request resolved in /admin/bookings.`;
+  return sendEmail({
+    to: supportTo,
+    subject: `[Action needed] Cancellation request: ${booking.tripDetails}`,
+    html: `<pre style="font-family:Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap">${esc(
+      text
+    )}</pre>`,
+    text,
+    tag: "cancel-request-alert",
+  });
+}

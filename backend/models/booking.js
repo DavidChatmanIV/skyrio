@@ -83,6 +83,20 @@ const bookingSchema = new Schema(
     //   confirmation: [{ prebookId, bookingId, hotelConfirmationCode }] }
     hotelStay: { type: Schema.Types.Mixed, default: undefined },
 
+    // ── Sync Together ──
+    // The group trip this booking belongs to (each member books their own
+    // seat / room). Set only when the traveler is a member of that group.
+    syncGroup: { type: Schema.Types.ObjectId, ref: "SyncGroup", default: null, index: true },
+    // Set when this record is ONE PERSON'S share of a room shared with the
+    // group. Only the organizer can cancel a shared room (from the trip page).
+    // { splitPaymentId, groupId, shareId, people, roomTotal, shareAmount }
+    sharedRoom: { type: Schema.Types.Mixed, default: undefined },
+
+    // ── Confirmation email ── whether the traveler's confirmation went out.
+    // { status: "sent"|"failed", to, at, error }
+    confirmationEmail: { type: Schema.Types.Mixed, default: undefined },
+    confirmationEmailAttempts: { type: Number, default: 0 },
+
     // ── Supplier references (NEW) ──
     // Which supplier fulfilled the booking and its own IDs, needed for
     // support, cancellations and reconciling against LiteAPI.
@@ -113,6 +127,12 @@ const bookingSchema = new Schema(
     // { at, by: "traveler"|"admin", byUserId, supplier: [...LiteAPI responses],
     //   supplierRefund, cancellationFee, customerRefund, currency, stripeRefundId }
     cancellation: { type: Schema.Types.Mixed, default: undefined },
+
+    // ── Cancellation request ── used when automatic cancellation terms
+    // aren't available. Nothing is cancelled by a request; Skyrio confirms
+    // terms with the supplier and the traveler first.
+    // { status: "open"|"resolved", at, byUserId, reason, resolvedAt, resolvedBy, resolution }
+    cancelRequest: { type: Schema.Types.Mixed, default: undefined },
 
     // ── Admin notes (NEW) ── internal only, never shown to travelers
     adminNotes: {

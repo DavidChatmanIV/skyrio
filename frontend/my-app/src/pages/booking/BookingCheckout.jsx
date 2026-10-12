@@ -14,6 +14,7 @@ import {
 import SkyrioSeatMap from "./SkyrioSeatMap";
 import LiteApiPayForm from "./LiteApiPayForm";
 
+
 const G = {
   bg: "#0d0b1a",
   bgCard: "rgba(255,255,255,0.04)",
@@ -2288,11 +2289,7 @@ function StepSeatsBags({
             selectedServices: Object.values(seatsMap || {}).flatMap((seg) =>
               Object.entries(seg || {})
                 .filter(([, v]) => v?.serviceId)
-                .map(([pi, v]) => ({
-                  passengerIndex: Number(pi),
-                  serviceId: v.serviceId,
-                  quantity: 1,
-                }))
+                .map(([pi, v]) => ({ passengerIndex: Number(pi), serviceId: v.serviceId, quantity: 1 }))
             ),
           }),
         }
@@ -2300,9 +2297,7 @@ function StepSeatsBags({
       const data = await res.json();
       if (!res.ok || !data.ok) {
         console.error("[attach seat services] failed:", data);
-        setNotice(
-          "We couldn't reserve those seats with the airline. Pick different seats or skip seat selection."
-        );
+        setNotice("We couldn't reserve those seats with the airline. Pick different seats or skip seat selection.");
         return false;
       }
       // Per LiteAPI's Flight Booking Architecture guide, the
@@ -2324,9 +2319,7 @@ function StepSeatsBags({
       onServicesAttached?.(newTransactionId, newSecret);
     } catch (err) {
       console.error("[attach seat services] error:", err);
-      setNotice(
-        "We couldn't reserve those seats with the airline. Pick different seats or skip seat selection."
-      );
+      setNotice("We couldn't reserve those seats with the airline. Pick different seats or skip seat selection.");
       return false;
     }
   }
@@ -2493,24 +2486,22 @@ function StepSeatsBags({
               {/* Temporary airline/LiteAPI hiccup → the SAME fare usually still
                   works a moment later, so offer a retry first. Sold-out fares
                   only get "Find another flight". */}
-              {onRetryPrebook &&
-                !/sold out|no longer available|expired/i.test(prebookError) && (
-                  <button
-                    type="button"
-                    onClick={onRetryPrebook}
-                    disabled={prebookLoading}
-                    className="skc-btn-primary"
-                    style={{ marginBottom: 10 }}
-                  >
-                    {prebookLoading ? "Trying again…" : "Try again"}
-                  </button>
-                )}
+              {onRetryPrebook && !/sold out|no longer available|expired/i.test(prebookError) && (
+                <button
+                  type="button"
+                  onClick={onRetryPrebook}
+                  disabled={prebookLoading}
+                  className="skc-btn-primary"
+                  style={{ marginBottom: 10 }}
+                >
+                  {prebookLoading ? "Trying again…" : "Try again"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onBackToResults}
                 className={
-                  onRetryPrebook &&
-                  !/sold out|no longer available|expired/i.test(prebookError)
+                  onRetryPrebook && !/sold out|no longer available|expired/i.test(prebookError)
                     ? "skc-btn-back"
                     : "skc-btn-primary"
                 }
@@ -2557,8 +2548,7 @@ function StepSeatsBags({
                   style={{ flex: 1 }}
                   disabled={prebookLoading}
                   onClick={async () => {
-                    if ((await attachSeatServices(selectedSeats)) === false)
-                      return;
+                    if ((await attachSeatServices(selectedSeats)) === false) return;
                     onNext({
                       selectedSeats,
                       seatsPrice,
@@ -2631,14 +2621,12 @@ function GroupPaymentBanner({ memberCount }) {
       </span>
       <div>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
-          You're booking for the whole group
+          You're booking your own seat for a group trip
         </div>
         <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-          Your card covers the full amount now, exactly like a solo booking.
-          Once confirmed, Sync Together will collect each traveler's share so
-          you get reimbursed — you'll see a live payment tracker on the trip
-          page.
-          {memberCount ? ` ${memberCount} travelers total.` : ""}
+          Everyone in Sync Together books and pays for their own seat, so you
+          only pay for yourself. It'll show on the trip page, and you can
+          cancel it from My Trips.
         </div>
       </div>
     </div>
@@ -2843,13 +2831,14 @@ function StepReviewPay({
   );
 }
 
+
 // Turns raw LiteAPI errors into something a traveler understands.
 function friendlyFareError(raw = "") {
   if (/sold out|52010|no longer available|expired/i.test(raw)) {
     return "This fare just sold out with the airline. Let's find you another flight.";
   }
-  if (/51099|unable to process|failed to search|timeout|timed out/i.test(raw)) {
-    return "The airline's system didn't respond. Please search again in a moment.";
+  if (/51099|52099|53099|unable to process|failed to search|failed to create prebook|timeout|timed out|didn't respond/i.test(raw)) {
+    return "The airline's system didn't respond. Please try again in a moment.";
   }
   return raw || "We couldn't reserve this fare. Please pick another flight.";
 }
@@ -2924,17 +2913,11 @@ export default function BookingCheckout({
             vData.message ||
               "This fare just sold out with the airline. Let's find you another flight."
           );
-        } else if (
-          vRes.status >= 500 ||
-          [51099, 52099, "TIMEOUT"].includes(vData.code)
-        ) {
+        } else if (vRes.status >= 500 || [51099, 52099, "TIMEOUT"].includes(vData.code)) {
           // LiteAPI's fare check itself failed (their side). It's only a
           // safety step: prebook below re-checks price + availability, and
           // the exact charge is shown before paying. So continue.
-          console.warn(
-            "[checkout] fare check unavailable — continuing to reservation",
-            vData
-          );
+          console.warn("[checkout] fare check unavailable — continuing to reservation", vData);
         } else {
           throw new Error(
             vData.message ||

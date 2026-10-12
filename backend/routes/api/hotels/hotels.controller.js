@@ -14,6 +14,8 @@ import Booking from "../../../models/booking.js";
 import User from "../../../models/user.js";
 import Notification from "../../../models/notification.js";
 import { sendHotelConfirmation } from "../../../services/bookingEmails.js";
+import { memberGroupId } from "../../../services/sharedRooms.js";
+import { recordEmailResult, onGroupBookingSaved } from "../../../services/bookingConfirmations.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -482,9 +484,11 @@ async function createPendingHotelBooking({
   bookings,
   trip,
   amountCents,
+  groupId,
 }) {
   try {
     if (!userId) throw new Error("no authenticated user on request");
+    const syncGroup = await memberGroupId(groupId, userId);
     const rooms = Array.isArray(trip) ? trip : [];
     const first = rooms[0] || {};
     const holder = bookings[0].holder;
@@ -500,9 +504,7 @@ async function createPendingHotelBooking({
 
     const nights =
       first.checkin && first.checkout
-        ? `${String(first.checkin).slice(0, 10)} → ${String(
-            first.checkout
-          ).slice(0, 10)}`
+        ? `${String(first.checkin).slice(0, 10)} → ${String(first.checkout).slice(0, 10)}`
         : null;
     const tripDetails = [
       first.name || "Hotel stay",
@@ -516,6 +518,7 @@ async function createPendingHotelBooking({
 
     return await Booking.create({
       user: userId,
+      syncGroup,
       name: `${holder.firstName} ${holder.lastName}`,
       email: holder.email,
       tripDetails,
@@ -606,7 +609,7 @@ async function markHotelBookingPaid(booking) {
 // ─────────────────────────────────────────────────────────────
 export async function confirmHotelBooking(req, res) {
   try {
-    const { paymentIntentId, trip } = req.body;
+    const { paymentIntentId, trip, groupId } = req.body;
 
     const bookings = Array.isArray(req.body.bookings)
       ? req.body.bookings
@@ -662,29 +665,21 @@ export async function confirmHotelBooking(req, res) {
     }
 
     const userId = String(req.user?._id || req.user?.id || "");
-    if (
-      intent.metadata?.userId &&
-      userId &&
-      intent.metadata.userId !== userId
-    ) {
+    if (intent.metadata?.userId && userId && intent.metadata.userId !== userId) {
       return res.status(403).json({
         ok: false,
         message: "This payment belongs to a different account.",
       });
     }
 
-    const metaIds = (intent.metadata?.prebookIds || "")
-      .split(",")
-      .filter(Boolean);
+    const metaIds = (intent.metadata?.prebookIds || "").split(",").filter(Boolean);
     const metaCents = (intent.metadata?.prebookCents || "")
       .split(",")
       .map((n) => Number(n));
     const actualPrebookIds = bookings.map((b) => b.prebookId);
     const setsMatch =
       metaIds.length === actualPrebookIds.length &&
-      [...metaIds]
-        .sort()
-        .every((id, i) => id === [...actualPrebookIds].sort()[i]);
+      [...metaIds].sort().every((id, i) => id === [...actualPrebookIds].sort()[i]);
 
     if (!setsMatch) {
       return res.status(400).json({
@@ -717,21 +712,15 @@ export async function confirmHotelBooking(req, res) {
         results,
         bookings,
         trip,
-        amountCents: authorized
-          ? amountToCapture
-          : intent.amount_received || intent.amount,
+        amountCents: authorized ? amountToCapture : intent.amount_received || intent.amount,
+        groupId,
       });
       if (saved && authorized) {
         // Lets the Stripe webhook find this booking (metadata merges).
         await stripe.paymentIntents
-          .update(paymentIntentId, {
-            metadata: { bookingId: String(saved._id) },
-          })
+          .update(paymentIntentId, { metadata: { bookingId: String(saved._id) } })
           .catch((e) =>
-            console.error(
-              "[hotels/confirm] metadata update failed:",
-              e?.message
-            )
+            console.error("[hotels/confirm] metadata update failed:", e?.message)
           );
       }
     }
@@ -739,11 +728,9 @@ export async function confirmHotelBooking(req, res) {
     // ── Charge only for what was booked ──
     if (authorized) {
       if (!results.length) {
-        await stripe.paymentIntents
-          .cancel(paymentIntentId)
-          .catch((e) =>
-            console.error("[hotels/confirm] cancel failed:", e?.message)
-          );
+        await stripe.paymentIntents.cancel(paymentIntentId).catch((e) =>
+          console.error("[hotels/confirm] cancel failed:", e?.message)
+        );
         return res.status(409).json({
           ok: false,
           message:
@@ -782,9 +769,7 @@ export async function confirmHotelBooking(req, res) {
     // ── Confirmation email (never blocks or undoes the booking) ──
     if (results.length) {
       const tripRooms = Array.isArray(trip) ? trip : [];
-      const chargedCents = authorized
-        ? amountToCapture
-        : intent.amount_received || intent.amount;
+      const chargedCents = authorized ? amountToCapture : intent.amount_received || intent.amount;
       const emailRooms = bookings
         .map((b, i) => {
           const r = results.find((x) => x.prebookId === b.prebookId);
@@ -810,7 +795,12 @@ export async function confirmHotelBooking(req, res) {
         totalAmount: chargedCents / 100,
         currency: String(intent.currency || "usd").toUpperCase(),
         bookingId: saved?._id ? String(saved._id) : null,
-      });
+      })
+        .then((r) => saved && recordEmailResult(saved._id, bookings[0].holder.email, r))
+        .catch(() => {})
+        .finally(() => {
+          if (saved?.syncGroup) onGroupBookingSaved(saved);
+        });
     }
 
     if (failures.length > 0) {

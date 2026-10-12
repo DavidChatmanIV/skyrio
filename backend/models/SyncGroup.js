@@ -26,7 +26,9 @@ const MemberSchema = new Schema(
     // friend-group members who each vote independently.
     familyUnit: { type: String, trim: true, default: null },
 
-    // ── NEW: split-payment tracking ──
+    // ── Legacy split-payment field ── (the old "organizer pays, everyone
+    // reimburses" flow). Sync Together now has each person book and pay for
+    // their own part; shared rooms track holds on models/SplitPayment.js.
     // Mirrors the status of this member's share on the group's active
     // SplitPayment document (see models/SplitPayment.js). Kept here too,
     // denormalized, so the frontend can read it directly off the group
@@ -39,6 +41,10 @@ const MemberSchema = new Schema(
       enum: ["unpaid", "paid", "failed"],
       default: "unpaid",
     },
+
+    // Last time the organizer tapped "Remind" for this person (limits
+    // reminders to one every 12 hours).
+    lastRemindedAt: { type: Date, default: null },
   },
   { _id: true }
 );
@@ -140,6 +146,34 @@ const SyncGroupSchema = new Schema(
     dateRangeStart: { type: Date, default: null },
     dateRangeEnd: { type: Date, default: null },
 
+    // When the organizer wants everyone to land, in destination local time
+    // ("YYYY-MM-DDTHH:mm"). Flights arriving outside it are flagged.
+    // Set the first time every traveler has booked a flight and a room
+    // (the "everyone's booked" email goes out once).
+    allBookedAt: { type: Date, default: null },
+    // Set once booking opens (everyone approved, or the organizer skipped
+    // ahead). The booking tools stay visible after that, even if the plan
+    // is regenerated later.
+    bookingOpenedAt: { type: Date, default: null },
+
+    // The hotel the organizer picked so everyone stays together. Members'
+    // "Book my room" opens straight to this hotel's rooms.
+    groupHotel: {
+      hotelId: { type: String, default: null },
+      name: { type: String, default: null },
+      address: { type: String, default: null },
+      thumbnail: { type: String, default: null },
+      stars: { type: Number, default: null },
+      rating: { type: Number, default: null },
+      setAt: { type: Date, default: null },
+    },
+
+    arrivalWindow: {
+      start: { type: String, default: null },
+      end: { type: String, default: null },
+      note: { type: String, trim: true, default: null },
+    },
+
     // ── NEW: split-payment linkage ──
     // Set once the owner completes checkout in BookingCheckout.jsx
     // (POST /api/stripe/create-group-payment-intents). References the
@@ -202,6 +236,7 @@ SyncGroupSchema.methods.toSafeJSON = function () {
     departureTime: this.departureTime,
     dateRangeStart: this.dateRangeStart,
     dateRangeEnd: this.dateRangeEnd,
+    arrivalWindow: this.arrivalWindow,
     bookingId: this.bookingId,
     tripComposition: this.tripComposition,
     plan: this.plan,

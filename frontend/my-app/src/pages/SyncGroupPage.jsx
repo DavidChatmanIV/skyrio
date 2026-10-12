@@ -16,8 +16,7 @@ import {
   message as antdMessage,
 } from "antd";
 import SkyrioPicker from "./booking/SkyrioPicker";
-import PaymentShareCard from "./PaymentShareCard";
-import PaymentProgressPanel from "./PaymentProgressPanel";
+import GroupTripPanel from "./GroupTripPanel";
 import {
   ArrowLeftOutlined,
   SyncOutlined,
@@ -227,9 +226,39 @@ function formatNumbers(t) {
     (_, i, d) => `$${parseInt(i).toLocaleString("en-US")}${d || ""}`
   );
 }
-function AtlasPlanRenderer({ plan }) {
+// Atlas only suggests — it can't book anything. Older plans (and the odd
+// new one) sometimes claimed "Confirmed" or invented a confirmation
+// number, which reads like a real booking. Strip those out on display.
+const FAKE_CONFIRMATION = /confirmation\s*(#|no\.?|number|code)\s*[:\-]?\s*\**[A-Z0-9][A-Z0-9-]{3,}/i;
+const BOOKED_CLAIM = /\b(confirmed|booked|locked in|reserved)\b/i;
+function sanitizePlan(text) {
+  return String(text || "")
+    .split("\n")
+    .filter((line) => !FAKE_CONFIRMATION.test(line))
+    .map((line) => {
+      const t = line.trim();
+      const isHeading = /^#{1,4}\s/.test(t) || /^\*\*[^*]+\*\*\s*:?\s*$/.test(t);
+      if (isHeading && BOOKED_CLAIM.test(t)) {
+        // "### ✅ Accommodation Confirmed" → "### Suggested accommodation"
+        const words = t
+          .replace(/^#{1,4}\s*|\*\*/g, "")
+          .replace(/[✅✔️☑️]/gu, "")
+          .replace(/\b(confirmed|booked|locked in|reserved)\b/gi, "")
+          .replace(/[:\-–—]+\s*$/, "")
+          .trim();
+        return `### Suggested ${words.toLowerCase() || "option"}`;
+      }
+      // Sentences claiming the trip is booked become suggestions.
+      return line
+        .replace(/(flights?|hotels?|rooms?|stay|accommodation|everything|it|they)( and [a-z ]+?)? (are|is) (now )?(locked in|booked|confirmed)/gi, "$1$2 $3 ready to book")
+        .replace(/\byou'?re (all )?booked\b/gi, "you're ready to book");
+    })
+    .join("\n");
+}
+
+function AtlasPlanRenderer({ plan, onSearch }) {
   if (!plan) return null;
-  const lines = plan.split("\n"),
+  const lines = sanitizePlan(plan).split("\n"),
     sections = [];
   let cur = null;
   for (const raw of lines) {
@@ -258,6 +287,15 @@ function AtlasPlanRenderer({ plan }) {
       return <DollarSign size={15} />;
     if (l.includes("tip") || l.includes("coord")) return <Users size={15} />;
     return <Info size={15} />;
+  };
+  const sectionSearch = (t) => {
+    const l = String(t || "").toLowerCase();
+    if (l.includes("flight")) return { tab: "Flights", label: "Search these flights" };
+    if (l.includes("hotel") || l.includes("accommodat") || l.includes("stay"))
+      return { tab: "Stays", label: "Search stays" };
+    if (l.includes("activit") || l.includes("excursion") || l.includes("things to do"))
+      return { tab: "Excursions", label: "Find things to do" };
+    return null;
   };
   const renderLine = (raw, idx) => {
     const line = formatNumbers(raw);
@@ -352,6 +390,29 @@ function AtlasPlanRenderer({ plan }) {
           )}
           <div style={{ padding: "14px 16px" }}>
             {s.lines.map((l, li) => renderLine(l, li))}
+            {onSearch && sectionSearch(s.title) && (
+              <button
+                type="button"
+                onClick={() => onSearch(sectionSearch(s.title).tab)}
+                style={{
+                  marginTop: 8,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "rgba(255,138,42,0.1)",
+                  border: "1px solid rgba(255,138,42,0.35)",
+                  color: "#ff8a2a",
+                  borderRadius: 10,
+                  padding: "7px 12px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                <SearchOutlined /> {sectionSearch(s.title).label}
+              </button>
+            )}
           </div>
         </div>
       ))}
@@ -503,8 +564,32 @@ export default function SyncGroupPage() {
   const isPaymentPending = group?.status === "payment_pending";
   const openCRs =
     group?.changeRequests?.filter((cr) => cr.status === "open") || [];
-  const approvedCount = group?.members?.filter((m) => m.approved).length || 0;
-  const totalMembers = group?.members?.length || 0;
+  // People who said they can't make it don't count toward approvals.
+  const goingMembers =
+    group?.members?.filter((m) => m.status !== "declined") || [];
+  const approvedCount = goingMembers.filter((m) => m.approved).length;
+  const totalMembers = goingMembers.length;
+  const myRsvp = myMember?.status || null;
+  const [rsvpSaving, setRsvpSaving] = useState(false);
+  const answerRsvp = async (going) => {
+    setRsvpSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/rsvp`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ going }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        antdMessage.success(going ? "You're in!" : "Got it — we let the organizer know.");
+      } else antdMessage.error(data.error);
+    } catch (err) {
+      antdMessage.error("Couldn't save your answer");
+    } finally {
+      setRsvpSaving(false);
+    }
+  };
   const allApproved = totalMembers > 0 && approvedCount === totalMembers;
   const myApproval = myMember?.approved || false;
 
@@ -553,6 +638,33 @@ export default function SyncGroupPage() {
       antdMessage.error("Failed to save");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // What Atlas must always know: it suggests, people book. Plus who has
+  // actually booked what, so it never guesses.
+  const ATLAS_RULES =
+    "\n\nRULES:\n- You are SUGGESTING options. Nothing is booked until each traveler books it themselves in Skyrio (each person books their own flight and room).\n- Never say anything is booked, confirmed, reserved or locked in, and never invent confirmation numbers.\n- Show prices as estimates (\"about $X\").\n- Only describe real bookings from the BOOKED SO FAR list.";
+  const fetchBookingContext = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/parts`, {
+        headers: authHeaders(),
+      });
+      const d = await res.json();
+      if (!d.ok) return "";
+      const lines = (d.travelers || []).map((t) => {
+        const f = t.flight && t.flight.status !== "cancelled" ? `flight booked (${t.flight.tripDetails})` : "no flight yet";
+        const st =
+          t.stay?.kind === "shared"
+            ? `shared room ${t.stay.roomStatus === "booked" ? "booked" : "pending holds"}`
+            : t.stay && t.stay.status !== "cancelled"
+            ? `room booked (${t.stay.tripDetails})`
+            : "no room yet";
+        return `- ${t.name}: ${f}; ${st}`;
+      });
+      return lines.length ? `\n\nBOOKED SO FAR (real Skyrio bookings):\n${lines.join("\n")}` : "";
+    } catch {
+      return "";
     }
   };
 
@@ -607,6 +719,7 @@ export default function SyncGroupPage() {
 
     // NEW: trip-composition guidance (family / friends / multi-family / etc)
     const compositionNote = buildCompositionInstructions(group);
+    const bookingCtx = await fetchBookingContext();
 
     const prompt = `Plan a group trip to ${destination} with ${count} travelers (me + ${names}).\n\nTRAVELER COMPOSITION:\n${compositionNote}\n\nDETAILS:\n- Organizer: ${home}\n- Destination: ${destination}\n- Cabin: ${cabin}\n- Time: ${time}\n- Airports:\n  - Me: ${home}\n${airports}\n${
       days ? `- ${days} days` : ""
@@ -618,7 +731,7 @@ export default function SyncGroupPage() {
         : ""
     }${
       budget ? `\n- Budget: $${budget}/person` : ""
-    }\n- ${count} travelers${crCtx}\n\nSearch different airports if they differ. Use commas in prices. Use ### headers.\n\n1. Real ${cabin} flights — prefer ${time}\n2. Best options with prices\n3. Accommodation\n4. Day-by-day itinerary\n5. Budget breakdown\n6. Weather\n7. Group tips`;
+    }\n- ${count} travelers${crCtx}${bookingCtx}\n\nSearch different airports if they differ. Use commas in prices. Use ### headers.\n\n1. Real ${cabin} flights — prefer ${time}\n2. Best options with prices\n3. Accommodation\n4. Day-by-day itinerary\n5. Budget breakdown\n6. Weather\n7. Group tips${ATLAS_RULES}`;
     try {
       const res = await fetch(`${API_BASE}/atlas/chat`, {
         method: "POST",
@@ -650,15 +763,17 @@ export default function SyncGroupPage() {
     }
   };
 
-  const askFollowUp = async () => {
-    if (!followUp.trim()) return;
+  const askFollowUp = async (preset) => {
+    const ask = (typeof preset === "string" ? preset : followUp).trim();
+    if (!ask) return;
     setFollowUpLoading(true);
+    const bookingCtx = await fetchBookingContext();
     const msgs = [
       ...atlasMessages,
       {
         role: "user",
         content:
-          followUp.trim() + "\n\nFormat prices with commas. Use ### headers.",
+          ask + "\n\nFormat prices with commas. Use ### headers." + bookingCtx + ATLAS_RULES,
       },
     ];
     try {
@@ -760,7 +875,45 @@ export default function SyncGroupPage() {
     if (group.departureAirport)
       params.set("departureAirport", group.departureAirport);
     if (group.cabinClass) params.set("cabinClass", group.cabinClass);
-    navigate(`/book?${params.toString()}`);
+    navigate(`/booking?${params.toString()}`);
+  };
+
+  // Manual search: opens Book with the trip's destination, dates and your
+  // airport already filled in.
+  const searchLink = (tab) => {
+    const params = new URLSearchParams({ groupId: group._id, tab, auto: "1" });
+    if (tab === "Flights" && group.cabinClass) params.set("cabin", group.cabinClass);
+    if (tab === "Stays" && group.groupHotel?.hotelId) params.set("hotelId", group.groupHotel.hotelId);
+    const myAirport =
+      (isOwner ? group.departureAirport : myMember?.departureAirport) ||
+      group.departureAirport;
+    if (tab === "Flights" && myAirport) params.set("from", myAirport);
+    if (group.destination) params.set("to", group.destination);
+    if (group.dateRangeStart) params.set("depart", dayjs(group.dateRangeStart).format("YYYY-MM-DD"));
+    if (group.dateRangeEnd) params.set("return", dayjs(group.dateRangeEnd).format("YYYY-MM-DD"));
+    return `/booking?${params.toString()}`;
+  };
+  const openSearch = (tab) => navigate(searchLink(tab));
+
+  const [planMode, setPlanMode] = useState(null); // null | "self"
+  const [startingBooking, setStartingBooking] = useState(false);
+  const startBooking = async () => {
+    setStartingBooking(true);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/start-booking`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setGroup(data.group);
+        antdMessage.success("Booking is open — everyone can book their own part.");
+      } else antdMessage.error(data.error);
+    } catch {
+      antdMessage.error("Couldn't start booking");
+    } finally {
+      setStartingBooking(false);
+    }
   };
 
   const deleteGroup = async () => {
@@ -893,7 +1046,10 @@ export default function SyncGroupPage() {
         headers: authHeaders(),
       });
       const data = await res.json();
-      if (data.ok) {
+      if (data.ok && data.left) {
+        antdMessage.success("You left the trip");
+        navigate("/sync-together");
+      } else if (data.ok) {
         setGroup(data.group);
         antdMessage.success(`${name} removed`);
       } else antdMessage.error(data.error);
@@ -1105,6 +1261,54 @@ export default function SyncGroupPage() {
           </div>
         );
       })()}
+
+      {/* ═══ RSVP — are you coming? ═══ */}
+      {myMember && (myRsvp === "pending" || myRsvp === "declined") && (
+        <Section mt={12}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>
+                {myRsvp === "pending"
+                  ? `${group.owner?.name || "The organizer"} invited you. Are you coming?`
+                  : "You said you can't make it."}
+              </div>
+              <div
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 13,
+                  marginTop: 2,
+                }}
+              >
+                {myRsvp === "pending"
+                  ? "Your answer tells the group who to plan and book for."
+                  : "Plans change — you can still join if there's room."}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button
+                className="sk-sync-cta-btn"
+                loading={rsvpSaving}
+                onClick={() => answerRsvp(true)}
+              >
+                I'm in
+              </Button>
+              {myRsvp === "pending" && (
+                <Button disabled={rsvpSaving} onClick={() => answerRsvp(false)}>
+                  Can't make it
+                </Button>
+              )}
+            </div>
+          </div>
+        </Section>
+      )}
 
       {/* ═══ HEADER ═══ */}
       <Section mt={0}>
@@ -1397,8 +1601,13 @@ export default function SyncGroupPage() {
                       {m.status}
                     </span>
                   )}
-                  {!isBooked && isMember && (
+                  {!isBooked &&
+                    (isOwner ||
+                      (m.user &&
+                        String(m.user._id || m.user) ===
+                          String(currentUserId))) && (
                     <button
+                      title={isOwner ? "Remove from trip" : "Leave this trip"}
                       onClick={() =>
                         removeMember(m._id, m.user?.name || m.name || m.email)
                       }
@@ -2055,22 +2264,79 @@ export default function SyncGroupPage() {
           <>
             <p
               style={{
-                color: "rgba(255,255,255,0.3)",
+                color: "rgba(255,255,255,0.45)",
                 fontSize: 14,
-                marginBottom: 16,
+                marginBottom: 14,
               }}
             >
-              Set your trip details, then let Atlas build the plan.
+              {destination
+                ? "Let Atlas suggest flights, stays and a day-by-day plan — or search everything yourself."
+                : "Set a destination and dates above first, then choose how you want to plan."}
             </p>
-            <Button
-              className="sk-sync-cta-btn"
-              icon={<Sparkles size={14} />}
-              onClick={askAtlasToPlan}
-              loading={planLoading}
-              disabled={!destination}
-            >
-              {planLoading ? "Atlas is searching..." : "Ask Atlas to Plan"}
-            </Button>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button
+                className="sk-sync-cta-btn"
+                icon={<Sparkles size={14} />}
+                onClick={askAtlasToPlan}
+                loading={planLoading}
+                disabled={!destination}
+              >
+                {planLoading ? "Atlas is searching..." : "Ask Atlas to plan"}
+              </Button>
+              <Button
+                className="sk-sync-add-btn"
+                icon={<SearchOutlined />}
+                disabled={!destination}
+                onClick={() => setPlanMode(planMode === "self" ? null : "self")}
+              >
+                I'll plan it myself
+              </Button>
+            </div>
+            {planMode === "self" && destination && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 14,
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
+                  Search {destination} yourself
+                </div>
+                <div
+                  style={{
+                    color: "rgba(255,255,255,0.45)",
+                    fontSize: 13,
+                    margin: "2px 0 12px",
+                  }}
+                >
+                  Opens Book with your trip's destination and dates filled in. Share what you find in the group chat.
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Button icon={<Plane size={14} />} onClick={() => openSearch("Flights")}>
+                    Flights
+                  </Button>
+                  <Button icon={<Hotel size={14} />} onClick={() => openSearch("Stays")}>
+                    Stays
+                  </Button>
+                  <Button icon={<Compass size={14} />} onClick={() => openSearch("Excursions")}>
+                    Things to do
+                  </Button>
+                </div>
+                {isOwner && !group.bookingOpenedAt && (
+                  <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12 }}>
+                    <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13, marginBottom: 8 }}>
+                      Already know the plan? Skip Atlas and approvals and let everyone book their own part now.
+                    </div>
+                    <Button className="sk-sync-cta-btn" loading={startingBooking} onClick={startBooking}>
+                      Start booking now
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
         {hasPlan && (
@@ -2109,22 +2375,72 @@ export default function SyncGroupPage() {
                   </span>
                 )}
               </div>
-              <AtlasPlanRenderer plan={atlasPlan} />
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
+                  padding: "10px 12px",
+                  marginBottom: 14,
+                  borderRadius: 10,
+                  background: "rgba(24,144,255,0.08)",
+                  border: "1px solid rgba(24,144,255,0.2)",
+                  color: "rgba(255,255,255,0.75)",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                <Info size={15} style={{ flexShrink: 0, marginTop: 2, color: "#69b1ff" }} />
+                <span>
+                  These are Atlas's suggestions — nothing is booked until each person books their own part. Prices can change; you'll see the real price before you pay.
+                </span>
+              </div>
+              <AtlasPlanRenderer plan={atlasPlan} onSearch={openSearch} />
             </div>
             {!isBooked && isMember && (
-              <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+              <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  "Find cheaper options",
+                  "Nonstop flights only",
+                  "Make a day-by-day itinerary",
+                  "Add group activities",
+                  "Stay closer to the center",
+                ].map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    disabled={followUpLoading}
+                    onClick={() => askFollowUp(q)}
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      color: "rgba(255,255,255,0.8)",
+                      borderRadius: 999,
+                      padding: "6px 12px",
+                      fontSize: 12.5,
+                      cursor: followUpLoading ? "wait" : "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!isBooked && isMember && (
+              <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
                 <Input
                   className="sk-sync-input"
                   value={followUp}
                   onChange={(e) => setFollowUp(e.target.value)}
-                  onPressEnter={askFollowUp}
+                  onPressEnter={() => askFollowUp()}
                   placeholder="Ask Atlas to adjust..."
                   style={{ flex: 1 }}
                 />
                 <Button
                   className="sk-sync-add-btn"
                   icon={<SendOutlined />}
-                  onClick={askFollowUp}
+                  onClick={() => askFollowUp()}
                   loading={followUpLoading}
                 >
                   Send
@@ -2351,70 +2667,44 @@ export default function SyncGroupPage() {
                   color: "#52c41a",
                   fontWeight: 600,
                   fontSize: 14,
-                  marginBottom: isOwner ? 12 : 0,
+                  marginBottom: 0,
                 }}
               >
                 <CheckCircleOutlined style={{ marginRight: 6 }} />
                 Everyone approved!
               </p>
-              {isOwner ? (
-                <Button
-                  className="sk-sync-cta-btn"
-                  icon={<Plane size={14} />}
-                  onClick={goToGroupBooking}
-                >
-                  Book Flights & Hotels
-                </Button>
-              ) : (
-                <p
-                  style={{
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: 13,
-                    marginTop: 4,
-                  }}
-                >
-                  Waiting on {group.owner?.name || "the organizer"} to book —
-                  you'll be asked to pay your share once they do.
-                </p>
-              )}
+              <p
+                style={{
+                  color: "rgba(255,255,255,0.45)",
+                  fontSize: 13,
+                  marginTop: 4,
+                }}
+              >
+                Now everyone books their own flight and room below.
+              </p>
             </div>
           )}
         </Section>
       )}
 
-      {/* ═══ PAYMENT — split payment collection ═══
-          Owner sees the live progress panel; every member (including
-          the owner, since they're also a payer) sees their own
-          "pay your share" card until their share is marked paid. */}
-      {isPaymentPending && isMember && (
-        <>
-          {isOwner && (
-            <PaymentProgressPanel
-              bookingId={group.bookingId}
-              groupId={group._id}
-              members={group.members}
-              owner={group.owner}
-              onAllPaid={fetchGroup}
-            />
-          )}
-          {myMember?.paymentStatus !== "paid" && (
-            <PaymentShareCard bookingId={group.bookingId} onPaid={fetchGroup} />
-          )}
-        </>
-      )}
-
-      {isBooked && (
-        <Section>
-          <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <CheckCircleOutlined style={{ fontSize: 48, color: "#52c41a" }} />
-            <h3 style={{ color: "#fff", marginTop: 16, fontSize: 20 }}>
-              Trip Confirmed!
-            </h3>
-            <p style={{ color: "rgba(255,255,255,0.4)", marginTop: 8 }}>
-              The plan is locked in.
-            </p>
-          </div>
-        </Section>
+      {/* ═══ BOOKING — plan together, pay separately ═══
+          Each traveler books their own seat and room (or holds their share
+          of a shared room) and cancels their own part from My Trips. */}
+      {isMember &&
+        myRsvp !== "declined" &&
+        (allApproved ||
+          isBooked ||
+          group.status === "confirmed" ||
+          group.bookingOpenedAt) && (
+        <GroupTripPanel
+          groupId={group._id}
+          myAirport={
+            (isOwner ? group.departureAirport : myMember?.departureAirport) ||
+            group.departureAirport ||
+            undefined
+          }
+          onChanged={fetchGroup}
+        />
       )}
 
       {/* ═══ WEATHER ═══ */}

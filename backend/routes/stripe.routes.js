@@ -3,13 +3,15 @@ import Stripe from "stripe";
 import Booking from "../models/booking.js";
 import User from "../models/user.js";
 import Notification from "../models/notification.js";
-import SyncGroup from "../models/SyncGroup.js";
 import SplitPayment from "../models/SplitPayment.js";
-import { requireAuth } from "../middleware/requireAuth.js";
 import {
-  sendRefundIssuedEmail,
-  formatMoney,
-} from "../services/bookingEmails.js";
+  SHARE_KIND,
+  setSyncIo,
+  markShareAuthorized,
+  markShareFailed,
+} from "../services/sharedRooms.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { sendRefundIssuedEmail, formatMoney } from "../services/bookingEmails.js";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -35,78 +37,15 @@ router.post(
     if (event.type === "payment_intent.succeeded") {
       const intent = event.data.object;
 
-      // Group split-payment share. Tagged with kind: "split_share" at
-      // creation time (see create-group-payment-intents below) so it never
-      // falls into the solo-booking branch: a group booking's bookingId is
-      // shared by every member's PaymentIntent, and running the solo
-      // "confirm this booking" logic once per share would double-award
-      // XP/notifications per payer.
+      // Shared-room shares (Sync Together) are charged by
+      // services/sharedRooms.js when the room is booked — that code writes
+      // each person's My Trips record. Never run the solo branch for them.
+      if (intent.metadata?.kind === SHARE_KIND) {
+        return res.json({ received: true });
+      }
+      // Legacy "organizer pays, everyone reimburses" shares — retired.
       if (intent.metadata?.kind === "split_share") {
-        const { splitPaymentId, shareId, groupId } = intent.metadata;
-        try {
-          const split = await SplitPayment.findById(splitPaymentId);
-          if (!split) {
-            console.error(
-              "[webhook] split_share succeeded but SplitPayment not found:",
-              splitPaymentId
-            );
-            return res.json({ received: true });
-          }
-
-          const share = split.shares.id(shareId);
-          if (!share) {
-            console.error(
-              "[webhook] split_share succeeded but share not found:",
-              shareId
-            );
-            return res.json({ received: true });
-          }
-
-          // Idempotency — Stripe retries webhook deliveries.
-          if (share.status !== "paid") {
-            share.status = "paid";
-            share.paidAt = new Date();
-            share.stripePaymentIntentId = intent.id;
-            await split.save();
-
-            // Mirror onto the SyncGroup member for the frontend fields
-            // SyncGroupPage.jsx already reads directly off the group.
-            if (share.member) {
-              await SyncGroup.updateOne(
-                { _id: groupId, "members._id": share.member },
-                { $set: { "members.$.paymentStatus": "paid" } }
-              );
-            }
-          }
-
-          const populated = await SplitPayment.findById(splitPaymentId);
-          const allPaid = populated.allPaid();
-
-          if (allPaid) {
-            await Booking.findByIdAndUpdate(populated.booking, {
-              $set: { status: "confirmed", paidAt: new Date() },
-            });
-            await SyncGroup.findByIdAndUpdate(groupId, {
-              $set: { status: "booked" },
-            });
-          }
-
-          // Live update — same room pattern PaymentProgressPanel expects
-          // (socket.emit("join-group", groupId) on the client side).
-          const io = req.app.get("io");
-          if (io) {
-            io.to(`group:${groupId}`).emit("payment:update", {
-              bookingId: String(populated.booking),
-              splitPayments: populated.shares.map((s) => ({
-                memberId: s.member ? String(s.member) : null,
-                status: s.status,
-              })),
-              allPaid,
-            });
-          }
-        } catch (err) {
-          console.error("[webhook] split_share processing error:", err);
-        }
+        console.warn("[webhook] legacy split_share succeeded — no action", intent.id);
         return res.json({ received: true });
       }
 
@@ -193,8 +132,7 @@ router.post(
           const refundAmount = charge.amount_refunded / 100;
           const isFullRefund = charge.refunded === true;
           const currency =
-            booking.totalCurrency ||
-            String(charge.currency || "usd").toUpperCase();
+            booking.totalCurrency || String(charge.currency || "usd").toUpperCase();
 
           // Idempotency — Stripe retries webhooks. Only notify/email when
           // this refund total is new.
@@ -230,9 +168,7 @@ router.post(
             // Refund email — Stripe has confirmed the money went out.
             let to = booking.email;
             if (!to && booking.user) {
-              const u = await User.findById(booking.user)
-                .select("email")
-                .lean();
+              const u = await User.findById(booking.user).select("email").lean();
               to = u?.email;
             }
             sendRefundIssuedEmail({
@@ -290,24 +226,67 @@ router.post(
       }
     }
 
+    // ── Card held (authorize-only) ─────────────────────────────
+    // Shared-room shares: the hold is in. When the last one lands, the
+    // room is booked and every hold is charged.
+    if (event.type === "payment_intent.amount_capturable_updated") {
+      const intent = event.data.object;
+      if (intent.metadata?.kind === SHARE_KIND && intent.status === "requires_capture") {
+        setSyncIo(req.app.get("io"));
+        await markShareAuthorized({
+          splitId: intent.metadata.splitPaymentId,
+          shareId: intent.metadata.shareId,
+          paymentIntentId: intent.id,
+        }).catch((err) => console.error("[webhook] shared share hold error:", err));
+      }
+      return res.json({ received: true });
+    }
+
+    // ── Hold released / expired ────────────────────────────────
+    // A held card that Stripe let go (e.g. it expired) can't be charged,
+    // so that share goes back to "not held yet".
+    if (event.type === "payment_intent.canceled") {
+      const intent = event.data.object;
+      if (intent.metadata?.kind === SHARE_KIND) {
+        await SplitPayment.updateOne(
+          {
+            _id: intent.metadata.splitPaymentId,
+            status: "collecting",
+            shares: {
+              $elemMatch: {
+                _id: intent.metadata.shareId,
+                stripePaymentIntentId: intent.id,
+                status: "authorized",
+              },
+            },
+          },
+          {
+            $set: {
+              "shares.$.status": "unpaid",
+              "shares.$.lastError": "Your card hold was released. Please hold your share again.",
+            },
+          }
+        ).catch((err) => console.error("[webhook] shared share cancel error:", err));
+      }
+      return res.json({ received: true });
+    }
+
     // ── Payment failed ─────────────────────────────────────────
     if (event.type === "payment_intent.payment_failed") {
       const intent = event.data.object;
 
-      // Group split share failed. Mark just that share failed; don't touch
-      // the Booking or the rest of the group.
-      if (intent.metadata?.kind === "split_share") {
+      // Shared-room share: the card was declined. Only that person's share
+      // is marked; they can try another card before the deadline.
+      if (intent.metadata?.kind === SHARE_KIND) {
         const { splitPaymentId, shareId } = intent.metadata;
-        try {
-          const split = await SplitPayment.findById(splitPaymentId);
-          const share = split?.shares.id(shareId);
-          if (share) {
-            share.status = "failed";
-            await split.save();
-          }
-        } catch (err) {
-          console.error("[webhook] split_share failure error:", err);
-        }
+        await markShareFailed({
+          splitId: splitPaymentId,
+          shareId,
+          message: intent.last_payment_error?.message,
+        }).catch((err) => console.error("[webhook] shared share failure error:", err));
+        return res.json({ received: true });
+      }
+      if (intent.metadata?.kind === "split_share") {
         return res.json({ received: true });
       }
 
@@ -403,213 +382,17 @@ router.post("/create-payment-intent", requireAuth, async (req, res) => {
   }
 });
 
-// ─── POST /api/stripe/create-group-payment-intents ────────────
-// Called once, right after the owner's own checkout succeeds and the real
-// LiteAPI Booking exists. Splits booking.total evenly across the owner +
-// every group member, creates one Stripe PaymentIntent per payer, and
-// flips the group into "payment_pending".
-//
-// ASSUMPTION: even split (total / (members.length + 1)), not weighted by
-// each member's optional `budget` field.
-
-router.post("/create-group-payment-intents", requireAuth, async (req, res) => {
-  try {
-    const { bookingId, groupId, currency = "usd" } = req.body;
-    const userId = req.user?.id ?? req.user?._id;
-
-    if (!bookingId || !groupId) {
-      return res
-        .status(400)
-        .json({ ok: false, message: "bookingId and groupId are required" });
-    }
-
-    const [booking, group] = await Promise.all([
-      Booking.findOne({ _id: bookingId, user: userId }),
-      SyncGroup.findById(groupId),
-    ]);
-
-    if (!booking) {
-      return res.status(404).json({ ok: false, message: "Booking not found" });
-    }
-    if (!group) {
-      return res.status(404).json({ ok: false, message: "Group not found" });
-    }
-    if (String(group.owner) !== String(userId)) {
-      return res.status(403).json({
-        ok: false,
-        message: "Only the trip organizer can start group payment",
-      });
-    }
-
-    // Idempotency — the caller treats this as best-effort and may retry.
-    const existing = await SplitPayment.findOne({ booking: booking._id });
-    if (existing) {
-      await SyncGroup.findByIdAndUpdate(groupId, {
-        $set: { bookingId: booking._id, status: "payment_pending" },
-      });
-      return res.json({
-        ok: true,
-        splitPaymentId: existing._id,
-        alreadyExists: true,
-      });
-    }
-
-    const amount = booking.total;
-    if (!amount || amount <= 0) {
-      return res.status(400).json({
-        ok: false,
-        message: "This booking has no valid price on file",
-      });
-    }
-
-    const payerCount = group.members.length + 1; // + owner
-    const totalCents = Math.round(amount * 100);
-    const amountEachCents = Math.floor(totalCents / payerCount);
-    // Leftover cents go on the owner's share so the shares always add up
-    // to the real charge.
-    const remainderCents = totalCents - amountEachCents * payerCount;
-
-    const owner = await User.findById(userId).select("name email").lean();
-
-    const split = new SplitPayment({
-      booking: booking._id,
-      group: group._id,
-      shares: [
-        {
-          member: null,
-          user: userId,
-          name: owner?.name || "Organizer",
-          email: owner?.email || null,
-          amountOwed: amountEachCents + remainderCents,
-          currency,
-        },
-        ...group.members.map((m) => ({
-          member: m._id,
-          user: m.user || null,
-          name: m.user?.name || m.name || null,
-          email: m.email || null,
-          amountOwed: amountEachCents,
-          currency,
-        })),
-      ],
-    });
-    await split.save();
-
-    // One PaymentIntent per share, tagged so the webhook routes it to the
-    // split_share branch instead of the solo-booking branch.
-    for (const share of split.shares) {
-      const intent = await stripe.paymentIntents.create({
-        amount: share.amountOwed,
-        currency: share.currency,
-        metadata: {
-          kind: "split_share",
-          splitPaymentId: String(split._id),
-          shareId: String(share._id),
-          bookingId: String(booking._id),
-          groupId: String(group._id),
-        },
-      });
-      share.stripePaymentIntentId = intent.id;
-    }
-    await split.save();
-
-    group.bookingId = booking._id;
-    group.status = "payment_pending";
-    group.members.forEach((m) => {
-      m.paymentStatus = "unpaid";
-    });
-    await group.save();
-
-    return res.json({ ok: true, splitPaymentId: split._id });
-  } catch (err) {
-    console.error("[stripe] create-group-payment-intents error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, message: "Failed to start group payment" });
-  }
-});
-
-// ─── GET /api/stripe/split-status/:bookingId ──────────────────
-// Polling fallback + initial load for PaymentProgressPanel.
-
-router.get("/split-status/:bookingId", requireAuth, async (req, res) => {
-  try {
-    const split = await SplitPayment.findOne({
-      booking: req.params.bookingId,
-    }).lean();
-    if (!split) {
-      return res
-        .status(404)
-        .json({ ok: false, message: "No split payment for this booking" });
-    }
-    const allPaid =
-      split.shares.length > 0 && split.shares.every((s) => s.status === "paid");
-    return res.json({
-      ok: true,
-      splitPayments: split.shares.map((s) => ({
-        memberId: s.member ? String(s.member) : null,
-        status: s.status,
-      })),
-      allPaid,
-    });
-  } catch (err) {
-    console.error("[stripe] split-status error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, message: "Failed to load payment status" });
-  }
-});
-
-// ─── GET /api/stripe/my-split/:bookingId ───────────────────────
-// Powers PaymentShareCard — the CURRENT authenticated user's own share of
-// a group booking (owner or member).
-
-router.get("/my-split/:bookingId", requireAuth, async (req, res) => {
-  try {
-    const userId = req.user?.id ?? req.user?._id;
-    const split = await SplitPayment.findOne({
-      booking: req.params.bookingId,
-    });
-    if (!split) {
-      return res
-        .status(404)
-        .json({ ok: false, message: "No split payment for this booking" });
-    }
-
-    const share = split.shares.find((s) => String(s.user) === String(userId));
-    if (!share) {
-      return res
-        .status(404)
-        .json({ ok: false, message: "You're not on this payment split" });
-    }
-
-    if (share.status === "paid") {
-      return res.json({
-        ok: true,
-        status: "paid",
-        amountOwed: share.amountOwed,
-        clientSecret: null,
-      });
-    }
-
-    // Fetch fresh from Stripe rather than persisting the client secret —
-    // it can rotate if the PaymentIntent is updated.
-    const intent = await stripe.paymentIntents.retrieve(
-      share.stripePaymentIntentId
-    );
-
-    return res.json({
-      ok: true,
-      status: share.status,
-      amountOwed: share.amountOwed,
-      clientSecret: intent.client_secret,
-    });
-  } catch (err) {
-    console.error("[stripe] my-split error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, message: "Failed to load your payment share" });
-  }
-});
+// ─── Retired: group reimbursement split ───────────────────────
+// Sync Together no longer has one person pay for everyone. Each traveler
+// books and pays for their own part; shared rooms use per-person holds
+// (see routes/api/syncTogether.routes.js → /:id/shared-rooms).
+const retired = (_req, res) =>
+  res.status(410).json({
+    ok: false,
+    message: "Group payments changed: everyone now books their own part from the trip page.",
+  });
+router.post("/create-group-payment-intents", requireAuth, retired);
+router.get("/split-status/:bookingId", requireAuth, retired);
+router.get("/my-split/:bookingId", requireAuth, retired);
 
 export default router;

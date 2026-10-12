@@ -4,7 +4,8 @@
 // Find any booking fast: search by traveler name or email, airline/hotel
 // confirmation code, LiteAPI booking ID, Stripe payment ID, route, or Skyrio
 // booking ID. Open one to see everything, check its live status with
-// LiteAPI, get a cancellation quote, cancel + refund, and keep notes.
+// LiteAPI, get a cancellation quote, cancel + refund, handle cancellation
+// requests, and keep notes.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -18,6 +19,7 @@ import {
   AlertTriangle,
   StickyNote,
   ExternalLink,
+  Clock,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -38,16 +40,24 @@ const C = {
   amber: "#ffb347",
 };
 
+// Sends both logins the server accepts here: the admin-dashboard session
+// (cookie, plus x-admin-email for local dev) and a regular Skyrio login.
 const authHeaders = () => {
   const token = localStorage.getItem("token");
+  const adminEmail = localStorage.getItem("admin_email");
   return {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...(adminEmail && { "x-admin-email": adminEmail }),
   };
 };
 
 async function api(path, opts = {}) {
-  const res = await fetch(`${API}${path}`, { headers: authHeaders(), ...opts });
+  const res = await fetch(`${API}${path}`, {
+    headers: authHeaders(),
+    credentials: "include",
+    ...opts,
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok && res.status !== 202 && res.status !== 207) {
     const err = new Error(data.message || `Request failed (${res.status})`);
@@ -89,6 +99,7 @@ const codeOf = (b) =>
   b.hotelStay?.confirmation?.find((c) => c?.hotelConfirmationCode)
     ?.hotelConfirmationCode ||
   null;
+const openRequest = (b) => b?.cancelRequest?.status === "open";
 
 const STATUS_COLOR = {
   confirmed: C.green,
@@ -115,6 +126,26 @@ function StatusBadge({ status }) {
       }}
     >
       {String(status || "unknown").replace("_", " ")}
+    </span>
+  );
+}
+
+function RequestFlag() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 10,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: ".04em",
+        color: C.amber,
+        marginTop: 4,
+      }}
+    >
+      <Clock size={11} /> Cancel requested
     </span>
   );
 }
@@ -200,12 +231,13 @@ function Section({ title, children, right }) {
   );
 }
 
-const btn = (variant = "ghost") => ({
+const btn = (variant = "ghost", disabled = false) => ({
+  opacity: disabled ? 0.45 : 1,
+  cursor: disabled ? "not-allowed" : "pointer",
   padding: "9px 14px",
   borderRadius: 10,
   fontSize: 13,
   fontWeight: 600,
-  cursor: "pointer",
   fontFamily: "inherit",
   display: "inline-flex",
   alignItems: "center",
@@ -229,6 +261,217 @@ const btn = (variant = "ghost") => ({
       }),
 });
 
+const inputStyle = {
+  flex: 1,
+  padding: "9px 12px",
+  borderRadius: 10,
+  background: "rgba(255,255,255,.06)",
+  border: `1px solid ${C.border}`,
+  color: C.text,
+  fontFamily: "inherit",
+};
+
+// ─────────────────────────────────────────────
+// Manual tools — for when automation can't do it
+// ─────────────────────────────────────────────
+const labelStyle = { fontSize: 12, color: C.muted, marginBottom: 4 };
+
+function ManualCancel({ b, id, busy, run, onDone }) {
+  const isHotel = b.type === "Hotel";
+  const paid = Number(b.totalAmount ?? b.total) || 0;
+  const cur = b.totalCurrency || "USD";
+  const canStripe = Boolean(b.stripePaymentIntentId);
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [ref, setRef] = useState("");
+  const [method, setMethod] = useState(canStripe ? "stripe" : "supplier");
+  const [amount, setAmount] = useState("");
+  const [notify, setNotify] = useState(true);
+  const amt = Number(amount);
+  const amountOk =
+    method === "none" ||
+    (Number.isFinite(amt) && amt > 0 && amt <= paid);
+  const ready = note.trim() && amountOk && !busy;
+
+  if (!open) {
+    return (
+      <button type="button" style={btn()} onClick={() => setOpen(true)}>
+        Cancel manually…
+      </button>
+    );
+  }
+  return (
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: 14,
+        fontSize: 13,
+      }}
+    >
+      <div style={{ color: C.muted, lineHeight: 1.6, marginBottom: 12 }}>
+        Use this after you've cancelled with the{" "}
+        {isHotel ? "hotel" : "airline"} or LiteAPI support yourself (phone,
+        email, ticket). Skyrio marks the trip cancelled, handles the refund
+        the way you choose, and notifies the traveler.
+      </div>
+
+      <div style={labelStyle}>What happened? (required)</div>
+      <textarea
+        rows={2}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="e.g. Cancelled via LiteAPI support ticket; airline confirmed full refund"
+        style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 10 }}
+      />
+
+      <div style={labelStyle}>Supplier reference (optional)</div>
+      <input
+        value={ref}
+        onChange={(e) => setRef(e.target.value)}
+        placeholder="LiteAPI ticket #, hotel cancellation code…"
+        style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+      />
+
+      <div style={labelStyle}>Refund to the traveler</div>
+      <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
+        {[
+          canStripe && ["stripe", "Skyrio refunds their card now (Stripe)"],
+          ["supplier", "Refunded by the airline / LiteAPI"],
+          ["none", "No refund"],
+        ]
+          .filter(Boolean)
+          .map(([value, label]) => (
+            <label key={value} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name={`refund-method-${id}`}
+                checked={method === value}
+                onChange={() => setMethod(value)}
+              />
+              {label}
+            </label>
+          ))}
+      </div>
+
+      {method !== "none" && (
+        <>
+          <div style={labelStyle}>
+            Refund amount ({cur}) — paid {money(paid, cur)}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              style={inputStyle}
+            />
+            <button type="button" style={btn()} onClick={() => setAmount(String(paid))}>
+              Full amount
+            </button>
+          </div>
+        </>
+      )}
+
+      <label style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, cursor: "pointer" }}>
+        <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+        Email and notify the traveler
+      </label>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="button" style={btn()} onClick={() => setOpen(false)} disabled={!!busy}>
+          Close
+        </button>
+        <button
+          type="button"
+          style={btn("danger", !ready)}
+          disabled={!ready}
+          onClick={() => {
+            const refundText =
+              method === "none" ? "no refund" : `a ${money(amt, cur)} refund`;
+            if (!window.confirm(`Mark this trip cancelled with ${refundText}? This can't be undone.`)) return;
+            run("manual-cancel", async () => {
+              const { data } = await api(`/api/bookings/admin/${id}/manual-cancel`, {
+                method: "POST",
+                body: JSON.stringify({
+                  note,
+                  supplierReference: ref,
+                  refundMethod: method,
+                  refundAmount: method === "none" ? 0 : amt,
+                  notifyTraveler: notify,
+                }),
+              });
+              setOpen(false);
+              await onDone();
+              if (data?.ok === false && data?.message) throw new Error(data.message);
+            });
+          }}
+        >
+          {busy === "manual-cancel" ? "Saving…" : "Mark cancelled"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ManualRefund({ b, id, busy, run, onDone }) {
+  const cur = b.totalCurrency || "USD";
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const amt = Number(amount);
+  const ready = Number.isFinite(amt) && amt > 0 && reason.trim() && !busy;
+  return (
+    <div>
+      <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 8 }}>
+        Refund part or all of this booking to the traveler's card through
+        Stripe — for goodwill credits or a refund that failed. Already
+        refunded: {money(b.refundAmount || 0, cur)}. The traveler gets the
+        refund email once Stripe confirms it.
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder={`Amount (${cur})`}
+          style={{ ...inputStyle, flex: "0 1 160px" }}
+        />
+        <input
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Reason (required)"
+          style={{ ...inputStyle, flex: "1 1 220px" }}
+        />
+        <button
+          type="button"
+          style={btn("primary", !ready)}
+          disabled={!ready}
+          onClick={() => {
+            if (!window.confirm(`Refund ${money(amt, cur)} to the traveler's card?`)) return;
+            run("refund", async () => {
+              await api(`/api/bookings/admin/${id}/refund`, {
+                method: "POST",
+                body: JSON.stringify({ amount: amt, reason }),
+              });
+              setAmount("");
+              setReason("");
+              await onDone();
+            });
+          }}
+        >
+          {busy === "refund" ? "Refunding…" : "Issue refund"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────
 // Booking detail drawer
 // ─────────────────────────────────────────────
@@ -239,6 +482,7 @@ function BookingDetail({ id, onClose, onChanged }) {
   const [quote, setQuote] = useState(null);
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
+  const [resolution, setResolution] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [showRaw, setShowRaw] = useState(false);
 
@@ -272,6 +516,8 @@ function BookingDetail({ id, onClose, onChanged }) {
   const cur = b?.totalCurrency || "USD";
   const isHotel = b?.type === "Hotel";
   const canCancel = b && b.status === "confirmed";
+  // Typed confirmation, any capitalization ("cancel", "Cancel", "CANCEL").
+  const cancelConfirmed = confirmText.trim().toUpperCase() === "CANCEL";
 
   return (
     <div
@@ -356,6 +602,90 @@ function BookingDetail({ id, onClose, onChanged }) {
 
         {b && (
           <>
+            {b.cancelRequest && (
+              <Section title="Cancellation request">
+                <div
+                  style={{
+                    background: openRequest(b)
+                      ? "rgba(255,179,71,.08)"
+                      : C.card,
+                    border: `1px solid ${
+                      openRequest(b) ? `${C.amber}55` : C.border
+                    }`,
+                    borderRadius: 12,
+                    padding: 14,
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <div
+                    style={{
+                      color: openRequest(b) ? C.amber : C.green,
+                      fontWeight: 700,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {openRequest(b)
+                      ? "Open — the traveler is waiting to hear from you"
+                      : "Resolved"}
+                  </div>
+                  <div>Requested {when(b.cancelRequest.at, true)}</div>
+                  <div style={{ color: C.muted }}>
+                    Traveler's note: {b.cancelRequest.reason || "(none)"}
+                  </div>
+                  {!openRequest(b) && (
+                    <div style={{ color: C.muted }}>
+                      Resolved {when(b.cancelRequest.resolvedAt, true)}:{" "}
+                      {b.cancelRequest.resolution}
+                    </div>
+                  )}
+                  {openRequest(b) && (
+                    <>
+                      <div style={{ color: C.muted, margin: "8px 0" }}>
+                        Confirm the terms with{" "}
+                        {isHotel ? "the hotel" : "the airline / LiteAPI support"}
+                        , contact the traveler, then cancel below (that closes
+                        this request automatically) — or mark it resolved if
+                        they decided to keep the trip.
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          value={resolution}
+                          onChange={(e) => setResolution(e.target.value)}
+                          placeholder="e.g. Traveler decided to keep the trip"
+                          style={inputStyle}
+                        />
+                        <button
+                          type="button"
+                          style={btn("ghost", !resolution.trim() || !!busy)}
+                          disabled={!resolution.trim() || !!busy}
+                          onClick={() =>
+                            run("resolve", async () => {
+                              const { data } = await api(
+                                `/api/bookings/admin/${id}/cancel-request/resolve`,
+                                {
+                                  method: "POST",
+                                  body: JSON.stringify({ resolution }),
+                                }
+                              );
+                              setBooking((prev) => ({
+                                ...data.booking,
+                                user: prev?.user,
+                              }));
+                              setResolution("");
+                              onChanged?.();
+                            })
+                          }
+                        >
+                          {busy === "resolve" ? "Saving…" : "Mark resolved"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </Section>
+            )}
+
             <Section title="Traveler">
               <Row label="Name">{travelerName(b)}</Row>
               <Row label="Contact email">
@@ -484,7 +814,16 @@ function BookingDetail({ id, onClose, onChanged }) {
                     {b.cancellation.partial
                       ? " · PARTIAL — needs attention"
                       : ""}
+                    {b.cancellation.manual ? " · handled by hand" : ""}
                   </div>
+                  {b.cancellation.manual && (
+                    <div style={{ color: C.muted }}>
+                      {b.cancellation.note}
+                      {b.cancellation.supplierReference
+                        ? ` · Ref: ${b.cancellation.supplierReference}`
+                        : ""}
+                    </div>
+                  )}
                   <div style={{ color: C.muted }}>
                     Supplier refund {money(b.cancellation.supplierRefund, cur)}{" "}
                     · fee {money(b.cancellation.cancellationFee, cur)} · to
@@ -638,27 +977,19 @@ function BookingDetail({ id, onClose, onChanged }) {
                       ? "refunds the traveler's card through Stripe for whatever the hotel refunds"
                       : "the airline refunds the traveler's card through LiteAPI"}
                     . The traveler gets a notification. Type{" "}
-                    <strong>CANCEL</strong> to confirm.
+                    <strong>cancel</strong> to confirm.
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input
                       value={confirmText}
                       onChange={(e) => setConfirmText(e.target.value)}
-                      placeholder="Type CANCEL"
-                      style={{
-                        flex: 1,
-                        padding: "9px 12px",
-                        borderRadius: 10,
-                        background: "rgba(255,255,255,.06)",
-                        border: `1px solid ${C.border}`,
-                        color: C.text,
-                        fontFamily: "inherit",
-                      }}
+                      placeholder="Type cancel to confirm"
+                      style={inputStyle}
                     />
                     <button
                       type="button"
-                      style={btn("danger")}
-                      disabled={confirmText !== "CANCEL" || !!busy}
+                      style={btn("danger", !cancelConfirmed || !!busy)}
+                      disabled={!cancelConfirmed || !!busy}
                       onClick={() =>
                         run("cancel", async () => {
                           const { data } = await api(
@@ -680,6 +1011,103 @@ function BookingDetail({ id, onClose, onChanged }) {
                 </>
               )}
             </Section>
+
+            {b.sharedRoom && b.status === "confirmed" && (
+              <Section title="Shared room (Sync Together)">
+                <div style={{ fontSize: 13, opacity: 0.8, lineHeight: 1.5, marginBottom: 10 }}>
+                  This is one person's share of a room shared by {b.sharedRoom.people} people
+                  (room total {money(b.sharedRoom.roomTotal, b.totalCurrency)}). The normal
+                  cancel would cancel everyone's room but refund only this person, so it's
+                  blocked. Cancel the whole room here instead — every person gets their share
+                  of the hotel's refund.
+                </div>
+                <button
+                  type="button"
+                  style={btn("danger", Boolean(busy))}
+                  disabled={Boolean(busy)}
+                  onClick={() => {
+                    if (!window.confirm("Cancel the WHOLE shared room for everyone and refund each person their share?")) return;
+                    run("shared-cancel", async () => {
+                      const { data } = await api(`/api/bookings/admin/${id}/shared-room/cancel`, { method: "POST" });
+                      if (data?.message) setError("");
+                      await load();
+                      onChanged?.();
+                    });
+                  }}
+                >
+                  {busy === "shared-cancel" ? "Cancelling…" : "Cancel whole shared room"}
+                </button>
+              </Section>
+            )}
+
+            {["confirmed", "cancel_pending"].includes(b.status) && (
+              <Section title="Handle by hand">
+                <ManualCancel
+                  b={b}
+                  id={id}
+                  busy={busy}
+                  run={run}
+                  onDone={async () => {
+                    await load();
+                    onChanged?.();
+                  }}
+                />
+              </Section>
+            )}
+
+            {b.stripePaymentIntentId &&
+              ["confirmed", "cancelled"].includes(b.status) && (
+                <Section title="Issue a refund">
+                  <ManualRefund
+                    b={b}
+                    id={id}
+                    busy={busy}
+                    run={run}
+                    onDone={async () => {
+                      await load();
+                      onChanged?.();
+                    }}
+                  />
+                </Section>
+              )}
+
+            {b.status === "pending" && !b.paidAt && (
+              <Section title="Abandoned checkout">
+                <div
+                  style={{
+                    color: C.muted,
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    marginBottom: 10,
+                  }}
+                >
+                  This checkout was started but never paid, so nothing was
+                  booked and no one was charged. Removing it only deletes
+                  Skyrio's record. (Records from the last hour can't be
+                  removed, in case the traveler is still checking out.)
+                </div>
+                <button
+                  type="button"
+                  style={btn("danger", !!busy)}
+                  disabled={!!busy}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Remove this unpaid checkout record? This can't be undone."
+                      )
+                    )
+                      return;
+                    run("delete", async () => {
+                      await api(`/api/bookings/${id}`, { method: "DELETE" });
+                      onChanged?.();
+                      onClose();
+                    });
+                  }}
+                >
+                  {busy === "delete" ? "Removing…" : "Remove record"}
+                </button>
+              </Section>
+            )}
 
             <Section title="Changes (names, dates, flights)">
               <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.6 }}>
@@ -713,6 +1141,7 @@ function BookingDetail({ id, onClose, onChanged }) {
                     style={{ color: C.faint, fontSize: 11, marginBottom: 3 }}
                   >
                     {when(n.at, true)}
+                    {n.by === "system" ? " · automatic" : ""}
                   </div>
                   <div style={{ whiteSpace: "pre-wrap" }}>{n.text}</div>
                 </div>
@@ -723,20 +1152,11 @@ function BookingDetail({ id, onClose, onChanged }) {
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="e.g. Called traveler 10/2, name corrected via LiteAPI ticket #123"
                   rows={2}
-                  style={{
-                    flex: 1,
-                    padding: "9px 12px",
-                    borderRadius: 10,
-                    background: "rgba(255,255,255,.06)",
-                    border: `1px solid ${C.border}`,
-                    color: C.text,
-                    fontFamily: "inherit",
-                    resize: "vertical",
-                  }}
+                  style={{ ...inputStyle, resize: "vertical" }}
                 />
                 <button
                   type="button"
-                  style={btn("primary")}
+                  style={btn("primary", !note.trim() || !!busy)}
                   disabled={!note.trim() || !!busy}
                   onClick={() =>
                     run("note", async () => {
@@ -835,7 +1255,7 @@ export default function AdminBookings() {
         if (!cancelled)
           setError(
             e.status === 403 || e.status === 401
-              ? "Admin access required. Log in with your admin account."
+              ? "Admin access required. Log in at /admin/login first."
               : e.message
           );
       } finally {
@@ -936,6 +1356,7 @@ export default function AdminBookings() {
             style={selectStyle}
           >
             <option value="">All statuses</option>
+            <option value="cancel_requested">Cancellation requested</option>
             <option value="confirmed">Confirmed</option>
             <option value="pending">Pending</option>
             <option value="cancel_pending">Cancel pending</option>
@@ -982,11 +1403,13 @@ export default function AdminBookings() {
               style={{
                 width: "100%",
                 display: "grid",
-                gridTemplateColumns: "28px 1.6fr 1.4fr 1fr 110px 100px",
+                gridTemplateColumns: "28px 1.6fr 1.4fr 1fr 110px 120px",
                 gap: 12,
                 alignItems: "center",
                 padding: "12px 14px",
-                background: "transparent",
+                background: openRequest(b)
+                  ? "rgba(255,179,71,.05)"
+                  : "transparent",
                 border: "none",
                 borderBottom: `1px solid ${C.border}`,
                 color: C.text,
@@ -1042,8 +1465,9 @@ export default function AdminBookings() {
               </span>
               <span style={{ color: C.muted }}>{when(b.createdAt)}</span>
               <span>{money(b.totalAmount ?? b.total, b.totalCurrency)}</span>
-              <span>
+              <span style={{ display: "flex", flexDirection: "column" }}>
                 <StatusBadge status={b.status} />
+                {openRequest(b) && <RequestFlag />}
               </span>
             </button>
           ))}
