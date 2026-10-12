@@ -12,7 +12,7 @@ import {
   sendTripDeleted,
   sendMemberRemoved,
 } from "../../services/email.js";
-import { sendGroupReminder } from "../../services/syncEmails.js";
+import { sendGroupReminder, groupUrl as groupLink } from "../../services/syncEmails.js";
 import { sendConfirmationFor } from "../../services/bookingConfirmations.js";
 import {
   SyncError,
@@ -478,9 +478,9 @@ router.post("/:id/plan", async (req, res) => {
         .select("name username")
         .lean();
       const plannerName = planner?.name || planner?.username || "Someone";
-      const groupUrl = `${
-        process.env.FRONTEND_ORIGIN || "https://skyrio-iota.vercel.app"
-      }/sync-together/${group._id}`;
+      // FRONTEND_ORIGIN is a comma-separated list, so never paste it into a
+      // link directly — use the one shared link builder.
+      const groupUrl = groupLink(group._id);
 
       for (const m of group.members) {
         // Skip notifying the person who just generated the plan

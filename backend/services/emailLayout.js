@@ -15,20 +15,20 @@
 import { Resend } from "resend";
 
 export const resend = new Resend(process.env.RESEND_API_KEY);
-export const FROM_EMAIL =
-  process.env.FROM_EMAIL || "Skyrio <onboarding@resend.dev>";
-export const SUPPORT_EMAIL =
-  process.env.SUPPORT_EMAIL || "support@skyrioofficial.com";
+export const FROM_EMAIL = process.env.FROM_EMAIL || "Skyrio <onboarding@resend.dev>";
+export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@skyrioofficial.com";
 
 // FRONTEND_ORIGIN holds every environment's URL as a comma-separated list.
 // Pick the one matching where this code runs (production → apex domain).
-const origins = (
-  process.env.FRONTEND_ORIGIN || "https://skyrio-iota.vercel.app"
-)
+const origins = (process.env.FRONTEND_ORIGIN || "https://skyrio-iota.vercel.app")
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
+// APP_URL (optional) wins outright — set it to the address people should
+// land on from emails, e.g. https://myskyrio.com in production, or your
+// Mac's network address (http://192.168.1.20:5273) to test on your phone.
 export const APP_URL =
+  (process.env.APP_URL && process.env.APP_URL.trim().replace(/\/+$/, "")) ||
   (process.env.NODE_ENV === "production"
     ? origins.find((o) => o.includes("myskyrio.com") && !o.includes("www"))
     : origins.find((o) => o.includes("localhost"))) ||
@@ -61,23 +61,14 @@ export const esc = (v) =>
 
 export const formatMoney = (amount, currency = "USD") =>
   Number.isFinite(Number(amount))
-    ? new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: currency || "USD",
-      }).format(Number(amount))
+    ? new Intl.NumberFormat("en-US", { style: "currency", currency: currency || "USD" }).format(Number(amount))
     : null;
 
 // ── Building blocks ──
 export function detailBox(label, innerHtml) {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="sk-box" style="background:${
-    C.box
-  };border:1px solid ${C.boxBorder};border-radius:12px;margin:0 0 14px;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="sk-box" style="background:${C.box};border:1px solid ${C.boxBorder};border-radius:12px;margin:0 0 14px;">
   <tr><td style="padding:18px 20px;">
-    ${
-      label
-        ? `<div class="sk-label" style="color:${C.label};font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;">${label}</div>`
-        : ""
-    }
+    ${label ? `<div class="sk-label" style="color:${C.label};font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;">${label}</div>` : ""}
     ${innerHtml}
   </td></tr>
 </table>`;
@@ -94,14 +85,8 @@ export function subLine(text) {
 export function kvRow(label, valueHtml, { highlight = false } = {}) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;">
   <tr>
-    <td class="sk-label" valign="top" style="color:${
-      C.label
-    };font-size:13px;padding:0 12px 0 0;white-space:nowrap;">${label}</td>
-    <td class="${
-      highlight ? "sk-accent" : "sk-heading"
-    }" valign="top" align="right" style="color:${
-    highlight ? C.accent : C.heading
-  };font-size:14px;font-weight:700;word-break:break-all;">${valueHtml}</td>
+    <td class="sk-label" valign="top" style="color:${C.label};font-size:13px;padding:0 12px 0 0;white-space:nowrap;">${label}</td>
+    <td class="${highlight ? "sk-accent" : "sk-heading"}" valign="top" align="right" style="color:${highlight ? C.accent : C.heading};font-size:14px;font-weight:700;word-break:break-all;">${valueHtml}</td>
   </tr>
 </table>`;
 }
@@ -122,14 +107,7 @@ export function button(label, url) {
  * Full email document.
  * preheader: short preview text shown in the inbox list.
  */
-export function renderEmail({
-  preheader = "",
-  title,
-  introHtml = "",
-  bodyHtml = "",
-  cta,
-  footerNote = "",
-}) {
+export function renderEmail({ preheader = "", title, introHtml = "", bodyHtml = "", cta, footerNote = "" }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -165,50 +143,24 @@ export function renderEmail({
   }
 </style>
 </head>
-<body class="sk-page" bgcolor="${
-    C.page
-  }" style="margin:0;padding:0;background:${
-    C.page
-  };font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(
-    preheader
-  )}</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="sk-page" bgcolor="${
-    C.page
-  }" style="background:${C.page};">
+<body class="sk-page" bgcolor="${C.page}" style="margin:0;padding:0;background:${C.page};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="sk-page" bgcolor="${C.page}" style="background:${C.page};">
     <tr><td align="center" style="padding:32px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
         <tr><td align="center" style="padding:0 0 22px;">
-          <span style="font-size:26px;font-weight:800;color:${
-            C.button
-          };letter-spacing:-0.5px;">✈ Skyrio</span>
+          <span style="font-size:26px;font-weight:800;color:${C.button};letter-spacing:-0.5px;">✈ Skyrio</span>
         </td></tr>
-        <tr><td class="sk-card sk-pad" bgcolor="${C.card}" style="background:${
-    C.card
-  };border:1px solid ${C.cardBorder};border-radius:18px;padding:34px 28px;">
-          <h1 class="sk-heading" style="color:${
-            C.heading
-          };font-size:22px;font-weight:800;margin:0 0 10px;text-align:center;line-height:1.3;">${title}</h1>
-          ${
-            introHtml
-              ? `<p class="sk-text" style="color:${C.text};font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">${introHtml}</p>`
-              : ""
-          }
+        <tr><td class="sk-card sk-pad" bgcolor="${C.card}" style="background:${C.card};border:1px solid ${C.cardBorder};border-radius:18px;padding:34px 28px;">
+          <h1 class="sk-heading" style="color:${C.heading};font-size:22px;font-weight:800;margin:0 0 10px;text-align:center;line-height:1.3;">${title}</h1>
+          ${introHtml ? `<p class="sk-text" style="color:${C.text};font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px;">${introHtml}</p>` : ""}
           ${bodyHtml}
           ${cta ? button(cta.label, cta.url) : ""}
-          ${
-            footerNote
-              ? `<p class="sk-label" style="color:${C.label};font-size:12px;line-height:1.5;text-align:center;margin:20px 0 0;">${footerNote}</p>`
-              : ""
-          }
+          ${footerNote ? `<p class="sk-label" style="color:${C.label};font-size:12px;line-height:1.5;text-align:center;margin:20px 0 0;">${footerNote}</p>` : ""}
         </td></tr>
         <tr><td align="center" style="padding:24px 8px 0;">
-          <p class="sk-footer" style="color:${
-            C.footer
-          };font-size:12px;line-height:1.6;margin:0;">
-            Questions? Email <a href="mailto:${SUPPORT_EMAIL}" style="color:${
-    C.accent
-  };text-decoration:underline;">${SUPPORT_EMAIL}</a><br>
+          <p class="sk-footer" style="color:${C.footer};font-size:12px;line-height:1.6;margin:0;">
+            Questions? Email <a href="mailto:${SUPPORT_EMAIL}" style="color:${C.accent};text-decoration:underline;">${SUPPORT_EMAIL}</a><br>
             Sent by Skyrio · Plan smarter. Travel better.
           </p>
         </td></tr>
@@ -222,14 +174,7 @@ export function renderEmail({
 /**
  * Send through Resend. Never throws — returns { ok, id } or { ok:false, error }.
  */
-export async function sendEmail({
-  to,
-  subject,
-  html,
-  text,
-  attachments,
-  tag = "email",
-}) {
+export async function sendEmail({ to, subject, html, text, attachments, tag = "email" }) {
   if (!to) {
     console.error(`[email:${tag}] no recipient — not sent`);
     return { ok: false, error: "no recipient" };
