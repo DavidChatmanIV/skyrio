@@ -65,8 +65,8 @@ router.get("/mine/list", requireAuth, async (req, res) => {
 });
 
 // ─── GET /api/follow/:userId/followers ───────────────────────
-// Public — returns users who follow this person
-router.get("/:userId/followers", async (req, res) => {
+// Logged-in travelers only — returns users who follow this person
+router.get("/:userId/followers", requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -91,8 +91,8 @@ router.get("/:userId/followers", async (req, res) => {
 });
 
 // ─── GET /api/follow/:userId/following ───────────────────────
-// Public — returns users this person follows
-router.get("/:userId/following", async (req, res) => {
+// Logged-in travelers only — returns users this person follows
+router.get("/:userId/following", requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
 

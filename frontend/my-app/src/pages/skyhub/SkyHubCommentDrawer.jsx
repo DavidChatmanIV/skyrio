@@ -1,9 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { Avatar, Button, Drawer, Empty, Input, Spin, message } from "antd";
-import { SendOutlined } from "@ant-design/icons";
+import { Avatar, Button, Drawer, Dropdown, Empty, Input, Modal, Radio, Spin, message } from "antd";
+import { SendOutlined, MoreOutlined, DeleteOutlined, FlagOutlined } from "@ant-design/icons";
 import { apiUrl } from "@/lib/api";
 
 const { TextArea } = Input;
+
+// Sends your login with every SkyHub request (comments need it).
+function skyFetch(path, opts = {}) {
+  const token = localStorage.getItem("token");
+  return fetch(apiUrl(path), {
+    credentials: "include",
+    ...opts,
+    headers: { ...(opts.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+}
+
+const REASONS = [
+  { value: "spam", label: "Spam or ads" },
+  { value: "harassment", label: "Harassment or bullying" },
+  { value: "hate", label: "Hate speech" },
+  { value: "scam", label: "Scam or fraud" },
+  { value: "other", label: "Something else" },
+];
 
 export default function SkyHubCommentDrawer({
   open,
@@ -25,9 +43,7 @@ export default function SkyHubCommentDrawer({
   const fetchComments = async () => {
     try {
       setLoadingComments(true);
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${post.id}/comments`), {
-        credentials: "include",
-      });
+      const res = await skyFetch(`/api/skyhub/posts/${post.id}/comments`);
 
       const data = await res.json();
       if (!res.ok) {
@@ -44,6 +60,10 @@ export default function SkyHubCommentDrawer({
   };
 
   const handlePostComment = async () => {
+    if (!localStorage.getItem("token")) {
+      message.info("Log in to comment.");
+      return;
+    }
     if (!commentText.trim()) {
       message.warning("Write a comment first.");
       return;
@@ -52,12 +72,11 @@ export default function SkyHubCommentDrawer({
     try {
       setPostingComment(true);
 
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${post.id}/comments`), {
+      const res = await skyFetch(`/api/skyhub/posts/${post.id}/comments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include",
         body: JSON.stringify({
           text: commentText.trim(),
         }),
@@ -79,6 +98,45 @@ export default function SkyHubCommentDrawer({
       setPostingComment(false);
     }
   };
+
+  const deleteComment = (comment) =>
+    Modal.confirm({
+      title: "Delete this comment?",
+      okText: "Delete",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const res = await skyFetch(`/api/skyhub/comments/${comment._id}`, { method: "DELETE" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || "Couldn't delete the comment.");
+          setComments((list) => list.filter((c) => c._id !== comment._id));
+          refreshPostComments?.(post.id, data.commentCount);
+        } catch (err) {
+          message.error(err.message);
+        }
+      },
+    });
+
+  const [reporting, setReporting] = useState(null);
+  const [reason, setReason] = useState("spam");
+  const sendReport = async () => {
+    try {
+      const res = await skyFetch(`/api/skyhub/comments/${reporting._id}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Couldn't report the comment.");
+      message.success(data.message || "Thanks for reporting.");
+      setReporting(null);
+    } catch (err) {
+      message.error(err.message);
+    }
+  };
+
+  // You can delete your own comments, and any comment on your own post.
+  const canDelete = (c) => c.isMine || post?.isMine;
 
   return (
     <Drawer
@@ -103,7 +161,10 @@ export default function SkyHubCommentDrawer({
           <TextArea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Write a helpful reply..."
+            placeholder={
+              localStorage.getItem("token") ? "Write a helpful reply..." : "Log in to reply"
+            }
+            maxLength={600}
             autoSize={{ minRows: 3, maxRows: 6 }}
           />
 
@@ -129,9 +190,13 @@ export default function SkyHubCommentDrawer({
                 key={comment._id || comment.id}
                 className="skyhub-commentItem"
               >
-                <Avatar className="skyhub-commentAvatar">
-                  {comment.avatar || "U"}
-                </Avatar>
+                {typeof comment.avatar === "string" && comment.avatar.startsWith("http") ? (
+                  <Avatar className="skyhub-commentAvatar" src={comment.avatar} alt="" />
+                ) : (
+                  <Avatar className="skyhub-commentAvatar">
+                    {(comment.author || "U").slice(0, 2).toUpperCase()}
+                  </Avatar>
+                )}
 
                 <div className="skyhub-commentContent">
                   <div className="skyhub-commentMeta">
@@ -141,6 +206,55 @@ export default function SkyHubCommentDrawer({
                     <span className="skyhub-commentTime">
                       {comment.timeAgo || "now"}
                     </span>
+                    <Dropdown
+                      trigger={["click"]}
+                      placement="bottomRight"
+                      menu={{
+                        items: [
+                          ...(canDelete(comment)
+                            ? [
+                                {
+                                  key: "delete",
+                                  icon: <DeleteOutlined />,
+                                  label: "Delete",
+                                  danger: true,
+                                  onClick: () => deleteComment(comment),
+                                },
+                              ]
+                            : []),
+                          ...(!comment.isMine
+                            ? [
+                                {
+                                  key: "report",
+                                  icon: <FlagOutlined />,
+                                  label: "Report",
+                                  onClick: () => {
+                                    if (!localStorage.getItem("token")) return message.info("Log in to report.");
+                                    setReason("spam");
+                                    setReporting(comment);
+                                  },
+                                },
+                              ]
+                            : []),
+                        ],
+                      }}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Comment options"
+                        style={{
+                          marginLeft: "auto",
+                          background: "none",
+                          border: 0,
+                          color: "inherit",
+                          opacity: 0.6,
+                          cursor: "pointer",
+                          padding: 2,
+                        }}
+                      >
+                        <MoreOutlined />
+                      </button>
+                    </Dropdown>
                   </div>
 
                   <p className="skyhub-commentText">{comment.text}</p>
@@ -152,6 +266,28 @@ export default function SkyHubCommentDrawer({
           )}
         </div>
       </div>
+
+      <Modal
+        open={!!reporting}
+        title="Report this comment"
+        onCancel={() => setReporting(null)}
+        onOk={sendReport}
+        okText="Send report"
+        okButtonProps={{ danger: true }}
+        destroyOnClose
+      >
+        <Radio.Group
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          style={{ display: "flex", flexDirection: "column", gap: 8 }}
+        >
+          {REASONS.map((r) => (
+            <Radio key={r.value} value={r.value}>
+              {r.label}
+            </Radio>
+          ))}
+        </Radio.Group>
+      </Modal>
     </Drawer>
   );
 }

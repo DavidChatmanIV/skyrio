@@ -52,6 +52,7 @@ const SupportInbox = lazy(() => import("./pages/admin/SupportInbox"));
 // ✅ NEW: Admin booking search + management (cancel/refund, notes)
 const AdminBookings = lazy(() => import("./pages/admin/AdminBookings"));
 
+const AdminSkyHub = lazy(() => import("./pages/admin/AdminSkyHub"));
 // ── Legal ──
 const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
@@ -110,6 +111,7 @@ function TrackedRoutes() {
       <Route path="admin/support" element={<SupportInbox />} />
       <Route path="admin/bookings" element={<AdminBookings />} />
 
+      <Route path="admin/skyhub" element={<AdminSkyHub />} />
       {/* ✅ s2: Public passport — outside AppLayout so it has its own nav/CTA bar */}
       <Route path="u/:username" element={<PublicPassportPage />} />
 

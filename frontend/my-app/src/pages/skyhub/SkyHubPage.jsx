@@ -6,7 +6,7 @@ import React, {
   useRef,
   useContext,
 } from "react";
-import { Badge, Button, Input, message } from "antd";
+import { Badge, Button, Input, Modal, Radio, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   GlobalOutlined,
@@ -28,11 +28,39 @@ import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import { apiUrl } from "@/lib/api";
 import { AuthContext } from "@/context/AuthContext";
 
+/* ── Logged-in requests ─────────────────────────────────────────
+   SkyHub knows who you are from the same login token the rest of
+   Skyrio uses — without it every action was anonymous. */
+function authHeaders(extra = {}) {
+  const token = localStorage.getItem("token");
+  return { ...extra, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
+function skyFetch(path, opts = {}) {
+  return fetch(apiUrl(path), {
+    credentials: "include",
+    ...opts,
+    headers: authHeaders(opts.headers || {}),
+  });
+}
+
+const REPORT_REASONS = [
+  { value: "spam", label: "Spam or ads" },
+  { value: "scam", label: "Scam or fraud" },
+  { value: "harassment", label: "Harassment or bullying" },
+  { value: "hate", label: "Hate speech" },
+  { value: "nudity", label: "Nudity or sexual content" },
+  { value: "violence", label: "Violence or threats" },
+  { value: "misinformation", label: "False or misleading info" },
+  { value: "other", label: "Something else" },
+];
+
 /* ── Data helpers ─────────────────────────────────────────────── */
 function mapBackendPost(post) {
   return {
     id: post._id,
     authorId: post.authorId || post.userId || null,
+    isMine: !!post.isMine,
+    underReview: !!post.underReview,
     author: post.authorName || "Traveler",
     username: post.username ? `@${post.username}` : "@traveler",
     avatar: post.avatar || null,
@@ -553,9 +581,7 @@ export default function SkyHubPage() {
   const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
-      const res = await fetch(apiUrl("/api/skyhub/feed"), {
-        credentials: "include",
-      });
+      const res = await skyFetch("/api/skyhub/feed");
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to load feed");
       setPosts(Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : []);
@@ -678,9 +704,13 @@ export default function SkyHubPage() {
 
   /* Handlers */
   const handleCreatePost = async () => {
+    if (!currentUser) {
+      message.info("Log in to post on SkyHub.");
+      return false;
+    }
     if (!composerText.trim() && composerPhotos.length === 0) {
       message.warning("Write something or add a photo before posting.");
-      return;
+      return false;
     }
     try {
       setCreatingPost(true);
@@ -691,7 +721,7 @@ export default function SkyHubPage() {
           composerPhotos.map(async (file) => {
             const fd = new FormData();
             fd.append("file", file);
-            const r = await fetch(apiUrl("/api/uploads/image"), {
+            const r = await fetch(apiUrl("/api/uploads/image?purpose=post"), {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
               credentials: "include",
@@ -709,10 +739,9 @@ export default function SkyHubPage() {
             `${bad} photo${bad > 1 ? "s" : ""} failed to upload.`
           );
       }
-      const res = await fetch(apiUrl("/api/skyhub/posts"), {
+      const res = await skyFetch("/api/skyhub/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           text: composerText.trim(),
           type: activePostType,
@@ -738,8 +767,10 @@ export default function SkyHubPage() {
       setActivePostType("Tip");
       setComposerPhotos([]);
       message.success("Posted to SkyHub!");
+      return true;
     } catch (err) {
       message.error(err.message || "Could not create post.");
+      return false;
     } finally {
       setCreatingPost(false);
     }
@@ -747,10 +778,8 @@ export default function SkyHubPage() {
 
   const handleToggleLike = async (id) => {
     try {
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${id}/like`), {
-        method: "POST",
-        credentials: "include",
-      });
+      if (!currentUser) return message.info("Log in to like posts.");
+      const res = await skyFetch(`/api/skyhub/posts/${id}/like`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
       setPosts((p) =>
@@ -767,10 +796,8 @@ export default function SkyHubPage() {
 
   const handleToggleSave = async (id) => {
     try {
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${id}/save`), {
-        method: "POST",
-        credentials: "include",
-      });
+      if (!currentUser) return message.info("Log in to save posts.");
+      const res = await skyFetch(`/api/skyhub/posts/${id}/save`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
       setPosts((p) =>
@@ -786,41 +813,83 @@ export default function SkyHubPage() {
     }
   };
 
-  const handleDeletePost = async (id) => {
-    setPosts((prev) => prev.filter((p) => p.id !== id));
-    message.success("Post deleted.");
-    try {
-      await fetch(apiUrl(`/api/skyhub/posts/${id}`), {
-        method: "DELETE",
-        credentials: "include",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
-      });
-    } catch {
-      /* UI already updated optimistically */
-    }
-  };
+  const handleDeletePost = (id) =>
+    Modal.confirm({
+      title: "Delete this post?",
+      content: "It and its comments will be removed for everyone.",
+      okText: "Delete",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const res = await skyFetch(`/api/skyhub/posts/${id}`, { method: "DELETE" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || "Couldn't delete the post.");
+          setPosts((prev) => prev.filter((p) => p.id !== id));
+          message.success("Post deleted.");
+        } catch (err) {
+          message.error(err.message);
+        }
+      },
+    });
 
   const handleOpenComments = (post) => {
     setActiveCommentPost(post);
     setCommentDrawerOpen(true);
   };
 
-  const handleReportPost = async (post) => {
+  // Report: pick a reason first, so the team knows what to look for.
+  const [reportPost, setReportPost] = useState(null);
+  const [reportReason, setReportReason] = useState("spam");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportSending, setReportSending] = useState(false);
+  const handleReportPost = (post) => {
+    if (!currentUser) return message.info("Log in to report posts.");
+    setReportReason("spam");
+    setReportDetails("");
+    setReportPost(post);
+  };
+  const submitReport = async () => {
+    if (!reportPost) return;
+    setReportSending(true);
     try {
-      const res = await fetch(apiUrl(`/api/skyhub/posts/${post.id}/report`), {
+      const res = await skyFetch(`/api/skyhub/posts/${reportPost.id}/report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ reason: "User reported this post" }),
+        body: JSON.stringify({ reason: reportReason, details: reportDetails.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message);
-      message.success("Post reported. Thanks for keeping SkyHub safe.");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Could not report post.");
+      message.success(data.message || "Thanks for reporting. Our team will review it.");
+      setReportPost(null);
     } catch (err) {
-      message.error(err.message || "Could not report post.");
+      message.error(err.message);
+    } finally {
+      setReportSending(false);
     }
+  };
+
+  // Block: you won't see each other's posts or comments anymore.
+  const handleBlockUser = (post) => {
+    if (!currentUser) return message.info("Log in to block travelers.");
+    if (!post.authorId) return;
+    Modal.confirm({
+      title: `Block ${post.author}?`,
+      content:
+        "You won't see each other's posts or comments on SkyHub, and you'll both be unfollowed. They won't be told. You can unblock anytime.",
+      okText: "Block",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const res = await skyFetch(`/api/skyhub/users/${post.authorId}/block`, { method: "POST" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || "Couldn't block this traveler.");
+          setPosts((prev) => prev.filter((p) => String(p.authorId) !== String(post.authorId)));
+          message.success(`${post.author} is blocked.`);
+        } catch (err) {
+          message.error(err.message);
+        }
+      },
+    });
   };
 
   const refreshPostComments = (id, count) =>
@@ -1116,6 +1185,7 @@ export default function SkyHubPage() {
                       onOpenComments={handleOpenComments}
                       onReportPost={handleReportPost}
                       onDeletePost={handleDeletePost}
+                      onBlockUser={handleBlockUser}
                     />
                   ))
                 ) : (
@@ -1179,6 +1249,40 @@ export default function SkyHubPage() {
           </aside>
         </section>
       </main>
+
+      <Modal
+        open={!!reportPost}
+        title="Report this post"
+        onCancel={() => setReportPost(null)}
+        onOk={submitReport}
+        okText="Send report"
+        okButtonProps={{ loading: reportSending, danger: true }}
+        destroyOnClose
+      >
+        <p style={{ marginBottom: 12, opacity: 0.75 }}>
+          What's wrong with it? Reports are anonymous — the person won't know it was you.
+        </p>
+        <Radio.Group
+          value={reportReason}
+          onChange={(e) => setReportReason(e.target.value)}
+          style={{ display: "flex", flexDirection: "column", gap: 8 }}
+        >
+          {REPORT_REASONS.map((r) => (
+            <Radio key={r.value} value={r.value}>
+              {r.label}
+            </Radio>
+          ))}
+        </Radio.Group>
+        <Input.TextArea
+          id="skyhub-report-details"
+          value={reportDetails}
+          onChange={(e) => setReportDetails(e.target.value)}
+          maxLength={500}
+          rows={3}
+          placeholder="Anything else we should know? (optional)"
+          style={{ marginTop: 14 }}
+        />
+      </Modal>
 
       <SkyHubCommentDrawer
         open={commentDrawerOpen}

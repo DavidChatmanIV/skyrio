@@ -2,92 +2,47 @@ import mongoose from "mongoose";
 
 const skyHubPostSchema = new mongoose.Schema(
   {
-    author: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: false,
-    },
-    authorName: {
-      type: String,
-      default: "Traveler",
-      trim: true,
-    },
-    username: {
-      type: String,
-      default: "traveler",
-      trim: true,
-    },
-    avatar: {
-      type: String,
-      default: "TR",
-    },
-    verified: {
-      type: Boolean,
-      default: false,
-    },
+    author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: false, index: true },
+    authorName: { type: String, default: "Traveler", trim: true },
+    username: { type: String, default: "traveler", trim: true },
+    avatar: { type: String, default: "TR" },
+    verified: { type: Boolean, default: false },
     type: {
       type: String,
-      enum: ["Travel Tip", "Question", "Story", "Photo Drop", "Join Trip"],
+      // "Tip" / "Photo" are what the composer sends; the long names are older values.
+      enum: ["Tip", "Travel Tip", "Question", "Story", "Photo", "Photo Drop", "Join Trip"],
       default: "Story",
     },
-    destination: {
-      type: String,
-      default: "",
-      trim: true,
-    },
-    text: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 1200,
-    },
-    image: {
-      type: String,
-      default: "",
-    },
-    tags: {
-      type: [String],
-      default: [],
-    },
-    budget: {
-      type: String,
-      default: "",
-    },
-    helpful: {
-      type: Boolean,
-      default: false,
-    },
-    likes: {
-      type: [String],
-      default: [],
-    },
-    saves: {
-      type: [String],
-      default: [],
-    },
+    destination: { type: String, default: "", trim: true, maxlength: 120 },
+    text: { type: String, required: true, trim: true, maxlength: 1200 },
+    image: { type: String, default: "" },
+    // Up to 4 photos, all uploaded through /api/uploads/image?purpose=post
+    images: { type: [String], default: [] },
+    tags: { type: [String], default: [] },
+    budget: { type: String, default: "" },
+    helpful: { type: Boolean, default: false },
+    likes: { type: [String], default: [] },
+    saves: { type: [String], default: [] },
+
+    // ── Moderation ──
+    // Legacy per-post reports (new reports live in SkyHubReport).
     reports: {
-      type: [
-        {
-          userId: String,
-          reason: String,
-          createdAt: {
-            type: Date,
-            default: Date.now,
-          },
-        },
-      ],
+      type: [{ userId: String, reason: String, createdAt: { type: Date, default: Date.now } }],
       default: [],
     },
-    commentsCount: {
-      type: Number,
-      default: 0,
-    },
-    sharesCount: {
-      type: Number,
-      default: 0,
-    },
+    reportCount: { type: Number, default: 0 },
+    // hidden: kept out of the feed. "review" = auto-hidden after several
+    // reports until an admin looks; "removed" = taken down by an admin.
+    hidden: { type: Boolean, default: false, index: true },
+    hiddenReason: { type: String, enum: [null, "review", "removed"], default: null },
+    hiddenAt: { type: Date, default: null },
+
+    commentsCount: { type: Number, default: 0 },
+    sharesCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
 
-export default mongoose.model("SkyHubPost", skyHubPostSchema);
+skyHubPostSchema.index({ hidden: 1, createdAt: -1 });
+
+export default mongoose.models.SkyHubPost || mongoose.model("SkyHubPost", skyHubPostSchema);

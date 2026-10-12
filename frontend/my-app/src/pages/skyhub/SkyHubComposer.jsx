@@ -8,6 +8,8 @@ import {
 } from "@ant-design/icons";
 
 const POST_TYPES = ["Tip", "Question", "Story", "Photo", "Join Trip"];
+const MAX_PHOTO_MB = 8;
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
 export default function SkyHubComposer({
   composerText,
@@ -40,7 +42,25 @@ export default function SkyHubComposer({
       message.warning("Max 4 photos per post.");
       return;
     }
-    const accepted = incoming.slice(0, remaining);
+    // Same rules the server uses, so people find out right away.
+    const usable = incoming.filter((f) => {
+      const typeOk = PHOTO_TYPES.includes(f.type) || /\.(heic|heif)$/i.test(f.name);
+      if (!typeOk) {
+        message.warning(`${f.name} isn't a photo (JPG, PNG, WebP or HEIC).`);
+        return false;
+      }
+      if (f.size > MAX_PHOTO_MB * 1024 * 1024) {
+        message.warning(`${f.name} is over ${MAX_PHOTO_MB} MB.`);
+        return false;
+      }
+      return true;
+    });
+    if (incoming.length > remaining) message.info("Only the first 4 photos were added.");
+    const accepted = usable.slice(0, remaining);
+    if (!accepted.length) {
+      e.target.value = "";
+      return;
+    }
     const newPreviews = accepted.map((f) => URL.createObjectURL(f));
     const nextFiles = [...files, ...accepted];
     const nextPreviews = [...previews, ...newPreviews];
@@ -59,18 +79,25 @@ export default function SkyHubComposer({
     onPhotosChange?.(nextFiles);
   };
 
-  const handlePost = () => {
+  // Photos are only cleared once the post actually goes through, so a
+  // failed post (no signal, rate limit) doesn't lose them.
+  const handlePost = async () => {
     if (!composerText.trim() && files.length === 0) {
       message.warning("Write something or add a photo.");
       return;
     }
-    onCreatePost?.();
+    const ok = await onCreatePost?.();
+    if (ok === false) return;
     previews.forEach(URL.revokeObjectURL);
     setFiles([]);
     setPreviews([]);
+    onPhotosChange?.([]);
+    setFocused(false);
   };
 
-  const charsLeft = 280 - composerText.length;
+  const MAX_CHARS = 1200;
+  const charsLeft = MAX_CHARS - composerText.length;
+  const signedIn = Boolean(user && (user.id || user.username));
   const canPost =
     (composerText.trim().length > 0 || files.length > 0) && !creatingPost;
 
@@ -185,9 +212,14 @@ export default function SkyHubComposer({
             value={composerText}
             onChange={(e) => setComposerText(e.target.value)}
             onFocus={() => setFocused(true)}
-            placeholder="Share a travel tip, story, question, or meetup idea..."
+            placeholder={
+              signedIn
+                ? "Share a travel tip, story, question, or meetup idea..."
+                : "Log in to share a tip, story or question with travelers"
+            }
+            aria-label="Write a SkyHub post"
             rows={focused ? 3 : 2}
-            maxLength={280}
+            maxLength={MAX_CHARS}
             style={{
               width: "100%",
               border: "none",
@@ -258,6 +290,8 @@ export default function SkyHubComposer({
                     }}
                   />
                   <button
+                    type="button"
+                    aria-label={`Remove photo ${i + 1}`}
                     onClick={() => removePhoto(i)}
                     style={{
                       position: "absolute",
@@ -306,6 +340,7 @@ export default function SkyHubComposer({
                   transition: "color 0.15s",
                 }}
                 title="Add photos"
+                aria-label="Add photos"
               >
                 <CameraOutlined />
               </button>
@@ -322,7 +357,7 @@ export default function SkyHubComposer({
                   style={{
                     fontSize: 12,
                     color:
-                      charsLeft < 30
+                      charsLeft < 100
                         ? charsLeft < 0
                           ? "#ff4d4f"
                           : "#ff8a2a"
@@ -330,7 +365,7 @@ export default function SkyHubComposer({
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {charsLeft}
+                  {charsLeft < 200 ? charsLeft : ""}
                 </span>
               )}
             </div>
