@@ -2452,6 +2452,130 @@ export default function BookingPage() {
     [syncGroupId]
   );
 
+  // ── Group shortlist: "Suggest to group" on any flight or hotel ──
+  const flightKey = (f) =>
+    ["flight", f.ownerCode || f.owner, f.origin, f.destination, f.departingAt, f.returningAt || ""]
+      .map((x) => String(x || "").slice(0, 40))
+      .join(":");
+  const shortlistKeys = useMemo(
+    () => new Set((syncInfo?.shortlist || []).map((i) => i.key)),
+    [syncInfo]
+  );
+  const [suggesting, setSuggesting] = useState(null);
+  const suggestToGroup = useCallback(
+    async (kind, data, e) => {
+      e?.stopPropagation?.();
+      if (!syncGroupId) return;
+      const key = kind === "hotel" ? `hotel:${data.hotelId}` : flightKey(data);
+      setSuggesting(key);
+      try {
+        const token = localStorage.getItem("token");
+        const body =
+          kind === "hotel"
+            ? {
+                kind,
+                price: data.totalAmount ?? null,
+                currency: data.totalCurrency || "USD",
+                hotel: {
+                  hotelId: data.hotelId,
+                  name: data.name,
+                  address: data.address,
+                  thumbnail: data.thumbnail,
+                  stars: data.stars,
+                  rating: data.rating,
+                  roomName: data.roomName,
+                  boardName: data.boardName,
+                  checkin: data.checkin,
+                  checkout: data.checkout,
+                  adults: data.adults,
+                },
+              }
+            : {
+                kind,
+                price: parseFloat(data.totalAmount) || null,
+                currency: data.totalCurrency || "USD",
+                flight: {
+                  airline: data.owner,
+                  airlineCode: data.ownerCode,
+                  logo: data.ownerLogo,
+                  origin: data.origin,
+                  destination: data.destination,
+                  departAt: data.departingAt,
+                  arriveAt: data.arrivingAt,
+                  returnDepartAt: data.returningAt,
+                  returnArriveAt: data.returnArrivingAt,
+                  stops: data.stops,
+                  cabin: data.cabinClass || data.cabin,
+                },
+              };
+        const res = await fetch(`${API}/api/sync-together/${syncGroupId}/shortlist`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify(body),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || !d.ok) throw new Error(d.error || "Couldn't add it to the shortlist");
+        setSyncInfo((prev) => ({
+          ...(prev || {}),
+          shortlist: [...(prev?.shortlist || []), { key, kind }],
+        }));
+        antdMessage.success(
+          d.alreadyListed ? "Already on the shortlist — we added your vote." : "Added to the group shortlist. The group can vote on it."
+        );
+      } catch (err) {
+        antdMessage.error(err.message);
+      } finally {
+        setSuggesting(null);
+      }
+    },
+    [syncGroupId]
+  );
+  const SuggestBtn = ({ kind, data }) => {
+    if (!syncGroupId) return null;
+    const key = kind === "hotel" ? `hotel:${data.hotelId}` : flightKey(data);
+    const done = shortlistKeys.has(key);
+    const isPick =
+      (kind === "flight" && syncInfo?.groupFlightKey === key) ||
+      (kind === "hotel" && syncInfo?.groupHotel?.hotelId === data.hotelId);
+    if (isPick) {
+      return (
+        <span
+          style={{
+            background: "rgba(82,196,26,0.14)",
+            border: "1px solid rgba(82,196,26,0.45)",
+            color: "#52c41a",
+            borderRadius: 10,
+            padding: "7px 12px",
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          🏆 The group's pick
+        </span>
+      );
+    }
+    return (
+      <button
+        type="button"
+        disabled={done || suggesting === key}
+        onClick={(e) => suggestToGroup(kind, data, e)}
+        style={{
+          background: done ? "rgba(82,196,26,0.12)" : "rgba(255,138,42,0.12)",
+          border: `1px solid ${done ? "rgba(82,196,26,0.4)" : "rgba(255,138,42,0.45)"}`,
+          color: done ? "#52c41a" : "#ff8a2a",
+          borderRadius: 10,
+          padding: "7px 12px",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: done ? "default" : "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        {done ? "✓ On the shortlist" : suggesting === key ? "Adding…" : "🗳️ Suggest to group"}
+      </button>
+    );
+  };
+
   // Prefill for the search forms (/booking?to=Miami&depart=2026-10-23&return=…).
   // auto=1 runs the search right away so results are waiting.
   const autoSearch = searchParams.get("auto") === "1";
@@ -3200,7 +3324,7 @@ export default function BookingPage() {
           }}
         >
           <span>
-            Booking your part of a Sync Together trip — it'll show up on the trip page.
+            Planning a Sync Together trip — tap “Suggest to group” on anything you like so everyone can vote, or book your own part.
           </span>
           <span style={{ display: "flex", gap: 12 }}>
             <Link to={`/sync-together/${syncGroupId}`} style={{ color: "#ffb347" }}>
@@ -3798,6 +3922,11 @@ export default function BookingPage() {
                       </div>
                     </div>
                   </div>
+                  {syncGroupId && (
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                      <SuggestBtn kind="flight" data={flight} />
+                    </div>
+                  )}
                 </Card>
               ))}
 
@@ -4019,6 +4148,11 @@ export default function BookingPage() {
                         </div>
                       </div>
                     </div>
+                    {syncGroupId && (
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                        <SuggestBtn kind="flight" data={cheapest} />
+                      </div>
+                    )}
                   </Card>
                 );
               })}
@@ -4263,6 +4397,11 @@ export default function BookingPage() {
                               </div>
                             </div>
                           </div>
+                          {syncGroupId && (
+                            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                              <SuggestBtn kind="flight" data={opt} />
+                            </div>
+                          )}
                         </Card>
                       );
                     })}
@@ -4450,8 +4589,10 @@ export default function BookingPage() {
                         </div>
                       </div>
                     </div>
-                    {syncInfo?.isOrganizer && hotel.hotelId !== groupHotelId && (
-                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                    {syncGroupId && (
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                        <SuggestBtn kind="hotel" data={hotel} />
+                        {syncInfo?.isOrganizer && hotel.hotelId !== groupHotelId && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -4473,6 +4614,7 @@ export default function BookingPage() {
                         >
                           {savingGroupHotel === hotel.hotelId ? "Saving…" : "Make this the group's hotel"}
                         </button>
+                        )}
                       </div>
                     )}
                   </Card>

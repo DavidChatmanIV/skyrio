@@ -25,6 +25,7 @@ import SkyHubCommentDrawer from "./SkyHubCommentDrawer";
 import SkyHubPassportCard from "./SkyHubPassportCard";
 import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
+import SkyHubStanding from "./SkyHubStanding";
 import { apiUrl } from "@/lib/api";
 import { AuthContext } from "@/context/AuthContext";
 
@@ -1127,6 +1128,8 @@ export default function SkyHubPage() {
               />
             )}
 
+            <SkyHubStanding signedIn={!!currentUser} />
+
             <SkyHubComposer
               composerText={composerText}
               setComposerText={setComposerText}
@@ -1151,7 +1154,17 @@ export default function SkyHubPage() {
                       ? `${visiblePosts.length} result${
                           visiblePosts.length !== 1 ? "s" : ""
                         } for "${debouncedSearch}"`
-                      : "Travel-first posts with real community insights."}
+                      : "Travel-first posts with real community insights."}{" "}
+                    <a
+                      href="/skyhub/guidelines"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate("/skyhub/guidelines");
+                      }}
+                      style={{ color: "var(--sh-orange2, #ff9555)", whiteSpace: "nowrap" }}
+                    >
+                      Community guidelines
+                    </a>
                   </p>
                 </div>
                 <Badge

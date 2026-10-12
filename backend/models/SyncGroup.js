@@ -63,6 +63,50 @@ const ChangeRequestSchema = new Schema(
   { timestamps: true }
 );
 
+// ── Group shortlist ── flights and hotels someone suggested from search.
+// The group votes; the organizer picks the winner.
+const ShortlistItemSchema = new Schema(
+  {
+    kind: { type: String, enum: ["hotel", "flight"], required: true },
+    key: { type: String, required: true }, // dedupe: hotelId, or airline+route+times
+    suggestedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    note: { type: String, trim: true, maxlength: 200, default: "" },
+    votes: { type: [Schema.Types.ObjectId], default: [] },
+    status: { type: String, enum: ["open", "picked"], default: "open" },
+    // Hotel
+    hotel: {
+      hotelId: String,
+      name: String,
+      address: String,
+      thumbnail: String,
+      stars: Number,
+      rating: Number,
+      roomName: String,
+      boardName: String,
+      checkin: String,
+      checkout: String,
+      adults: Number,
+    },
+    // Flight
+    flight: {
+      airline: String,
+      airlineCode: String,
+      logo: String,
+      origin: String,
+      destination: String,
+      departAt: String,
+      arriveAt: String,
+      returnDepartAt: String,
+      returnArriveAt: String,
+      stops: Number,
+      cabin: String,
+    },
+    price: { type: Number, default: null }, // as shown when suggested (per person for flights, per room for hotels)
+    currency: { type: String, default: "USD" },
+  },
+  { timestamps: true }
+);
+
 const ChatMessageSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
@@ -196,6 +240,12 @@ const SyncGroupSchema = new Schema(
 
     // Group chat
     chatMessages: [ChatMessageSchema],
+
+    // Group shortlist (suggest → vote → pick)
+    shortlist: { type: [ShortlistItemSchema], default: [] },
+    // The flight the organizer picked from the shortlist (people flying
+    // from the same airport can book the same one).
+    groupFlightKey: { type: String, default: null },
 
     // Activity log
     activityLog: [

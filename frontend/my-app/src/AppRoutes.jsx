@@ -9,6 +9,7 @@ import CookieBanner from "./components/CookieBanner";
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
 const SkyHubPage = lazy(() => import("./pages/skyhub/SkyHubPage"));
+const SkyHubGuidelines = lazy(() => import("./pages/skyhub/SkyHubGuidelines"));
 const DigitalPassportPage = lazy(() =>
   import("./pages/passport/DigitalPassportPage")
 );
@@ -142,6 +143,7 @@ function TrackedRoutes() {
         />
 
         <Route path="skyhub" element={<SkyHubPage />} />
+      <Route path="skyhub/guidelines" element={<SkyHubGuidelines />} />
         <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
         <Route path="feed" element={<Navigate to="/skyhub" replace />} />
         <Route path="passport" element={<DigitalPassportPage />} />

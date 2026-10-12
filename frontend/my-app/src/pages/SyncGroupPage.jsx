@@ -17,6 +17,7 @@ import {
 } from "antd";
 import SkyrioPicker from "./booking/SkyrioPicker";
 import GroupTripPanel from "./GroupTripPanel";
+import GroupShortlist from "./GroupShortlist";
 import {
   ArrowLeftOutlined,
   SyncOutlined,
@@ -2312,7 +2313,8 @@ export default function SyncGroupPage() {
                     margin: "2px 0 12px",
                   }}
                 >
-                  Opens Book with your trip's destination and dates filled in. Share what you find in the group chat.
+                  Results open with your trip's destination and dates. Tap “Suggest to group” on anything you like — it lands in the
+                  shortlist below for everyone to vote on.
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <Button icon={<Plane size={14} />} onClick={() => openSearch("Flights")}>
@@ -2465,6 +2467,19 @@ export default function SyncGroupPage() {
           </>
         )}
       </Section>
+
+      {/* ═══ GROUP SHORTLIST — suggest → vote → pick ═══ */}
+      {isMember && myRsvp !== "declined" && group.destination && (
+        <GroupShortlist
+          groupId={group._id}
+          cabinClass={group.cabinClass}
+          myAirport={
+            (isOwner ? group.departureAirport : myMember?.departureAirport) ||
+            group.departureAirport ||
+            undefined
+          }
+        />
+      )}
 
       {/* ═══ REVIEW & APPROVE ═══ */}
       {hasPlan && !isBooked && !isPaymentPending && isMember && (

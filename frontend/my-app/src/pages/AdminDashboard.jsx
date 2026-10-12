@@ -29,6 +29,17 @@ import {
 import dayjs from "dayjs";
 import { apiUrl } from "@/lib/api";
 
+
+/* skyhub-login */
+const skyAuthFetch = (url, opts = {}) => {
+  const token = localStorage.getItem("token");
+  return fetch(url, {
+    credentials: "include",
+    ...opts,
+    headers: { ...(opts.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+};
+
 const CHALLENGE_ICONS = [
   { key: "trophy", label: "Trophy", Icon: TrophyOutlined },
   { key: "flag", label: "Flag", Icon: FlagOutlined },
@@ -357,7 +368,7 @@ function StatCard({ icon, label, value, color, dim }) {
 function useSupportCount() {
   const [count, setCount] = useState(0);
   useEffect(() => {
-    fetch(apiUrl("/api/support?status=open&limit=200"), {
+    skyAuthFetch(apiUrl("/api/support?status=open&limit=200"), {
       credentials: "include",
       headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
     })
@@ -377,7 +388,7 @@ function useCancelRequestCount() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    fetch(apiUrl("/api/bookings/admin/search?status=cancel_requested&limit=1"), {
+    skyAuthFetch(apiUrl("/api/bookings/admin/search?status=cancel_requested&limit=1"), {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : null))
@@ -387,6 +398,26 @@ function useCancelRequestCount() {
   return count;
 }
 
+// Reports + appeals waiting in SkyHub moderation.
+function useSkyHubModerationCount() {
+  const [counts, setCounts] = useState({ reports: 0, appeals: 0 });
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const adminEmail = localStorage.getItem("admin_email");
+    skyAuthFetch(apiUrl("/api/skyhub/admin/open-counts"), {
+      credentials: "include",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(adminEmail ? { "x-admin-email": adminEmail } : {}),
+      },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j && setCounts({ reports: j.reports || 0, appeals: j.appeals || 0 }))
+      .catch(() => {});
+  }, []);
+  return counts;
+}
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -394,6 +425,7 @@ const AdminDashboard = () => {
   const [error, setError] = useState("");
   const [lastRefresh, setLastRefresh] = useState(null);
   const openTickets = useSupportCount();
+  const skyhubQueue = useSkyHubModerationCount();
   const cancelRequests = useCancelRequestCount();
 
   const [growthMetrics, setGrowthMetrics] = useState(null);
@@ -410,7 +442,7 @@ const AdminDashboard = () => {
   const fetchChallenges = useCallback(async () => {
     setChallengesLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/challenges/admin"), {
+      const res = await skyAuthFetch(apiUrl("/api/challenges/admin"), {
         credentials: "include",
         headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
       });
@@ -473,7 +505,7 @@ const AdminDashboard = () => {
         : apiUrl("/api/challenges");
       const method = editingChallenge ? "PATCH" : "POST";
 
-      const res = await fetch(url, {
+      const res = await skyAuthFetch(url, {
         method,
         credentials: "include",
         headers: {
@@ -502,7 +534,7 @@ const AdminDashboard = () => {
 
   const handleEndChallenge = async (challenge) => {
     try {
-      const res = await fetch(apiUrl(`/api/challenges/${challenge.id}`), {
+      const res = await skyAuthFetch(apiUrl(`/api/challenges/${challenge.id}`), {
         method: "DELETE",
         credentials: "include",
         headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
@@ -528,7 +560,7 @@ const AdminDashboard = () => {
   const fetchRewardItems = useCallback(async () => {
     setRewardItemsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/rewards/items/admin"), {
+      const res = await skyAuthFetch(apiUrl("/api/rewards/items/admin"), {
         credentials: "include",
         headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
       });
@@ -585,7 +617,7 @@ const AdminDashboard = () => {
           }
         : values;
 
-      const res = await fetch(url, {
+      const res = await skyAuthFetch(url, {
         method,
         credentials: "include",
         headers: {
@@ -612,7 +644,7 @@ const AdminDashboard = () => {
 
   const handleRemoveReward = async (item) => {
     try {
-      const res = await fetch(apiUrl(`/api/rewards/items/${item.itemId}`), {
+      const res = await skyAuthFetch(apiUrl(`/api/rewards/items/${item.itemId}`), {
         method: "DELETE",
         credentials: "include",
         headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
@@ -637,7 +669,7 @@ const AdminDashboard = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(apiUrl("/api/admin/dashboard"), {
+      const res = await skyAuthFetch(apiUrl("/api/admin/dashboard"), {
         credentials: "include",
         headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
       });
@@ -660,7 +692,7 @@ const AdminDashboard = () => {
   const fetchGrowthMetrics = useCallback(async () => {
     setGrowthLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/admin/growth-metrics"), {
+      const res = await skyAuthFetch(apiUrl("/api/admin/growth-metrics"), {
         credentials: "include",
         headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
       });
@@ -680,7 +712,7 @@ const AdminDashboard = () => {
   }, [fetchData, fetchChallenges, fetchRewardItems, fetchGrowthMetrics]);
 
   const handleLogout = async () => {
-    await fetch(apiUrl("/api/admin/logout"), {
+    await skyAuthFetch(apiUrl("/api/admin/logout"), {
       method: "POST",
       credentials: "include",
     });
@@ -815,6 +847,39 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div className="sk-admin__support-arrow">→</div>
+        </div>
+
+        <div
+          className="sk-admin__support-banner"
+          onClick={() => navigate("/admin/skyhub")}
+        >
+          <div className="sk-admin__support-banner-left">
+            <div className="sk-admin__support-icon">🛡️</div>
+            <div>
+              <div className="sk-admin__support-title">
+                SkyHub reports
+                {skyhubQueue.reports + skyhubQueue.appeals > 0 && (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      background: "#ef4444",
+                      color: "#fff",
+                      borderRadius: 99,
+                      padding: "1px 8px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {skyhubQueue.reports + skyhubQueue.appeals}
+                  </span>
+                )}
+              </div>
+              <div className="sk-admin__support-sub">
+                {skyhubQueue.reports} to review · {skyhubQueue.appeals} appeal{skyhubQueue.appeals === 1 ? "" : "s"}
+              </div>
+            </div>
+          </div>
+          <span className="sk-admin__support-arrow">→</span>
         </div>
 
         <div className="sk-admin__section-title">Overview</div>

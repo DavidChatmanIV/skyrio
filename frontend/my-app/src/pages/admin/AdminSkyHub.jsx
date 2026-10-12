@@ -2,9 +2,10 @@
 // Route: /admin/skyhub  (admin-only — the backend enforces it)
 //
 // SkyHub moderation: everything travelers reported, grouped so each post,
-// comment or traveler appears once with all its reasons. From here you can
-// dismiss a report, hide or remove the content, and pause someone's SkyHub
-// account for a while. Suspensions are listed at the bottom.
+// comment or traveler appears once with all its reasons. Actions follow the
+// strike ladder (warning → 24h → 7 days → 30 days → permanent), set in
+// backend/services/skyhubModeration.js. Appeals and paused accounts have
+// their own tabs.
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -64,34 +65,46 @@ const btn = (variant = "ghost", disabled = false) => ({
   color: variant === "danger" ? C.red : variant === "primary" ? "#1b1024" : C.text,
 });
 
+const consequence = (days) =>
+  days === null || days === undefined ? "permanent ban" : days === 0 ? "warning" : `${days}-day pause`;
+
 const when = (d) =>
   d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
-function ReportItem({ item, onDone }) {
+function ReportItem({ item, onDone, readOnly }) {
   const [busy, setBusy] = useState("");
-  const [days, setDays] = useState("7");
   const [error, setError] = useState("");
+  const [result, setResult] = useState("");
   const [showReports, setShowReports] = useState(false);
+  const [reason, setReason] = useState(item.topReason || "other");
+  const [note, setNote] = useState("");
+  const [confirmBan, setConfirmBan] = useState(false);
 
   const act = async (action) => {
     setBusy(action);
     setError("");
     try {
-      await api("/api/skyhub/admin/resolve", {
+      const out = await api("/api/skyhub/admin/resolve", {
         method: "POST",
         body: JSON.stringify({
           targetType: item.targetType,
           targetId: item.targetId,
           action,
-          days: action === "suspend" ? Number(days) || null : undefined,
-          note: action === "suspend" ? Object.keys(item.reasons).join(", ") : undefined,
+          reason,
+          note: note.trim() || undefined,
         }),
       });
-      onDone?.();
+      if (out.strike) {
+        setResult(
+          `Strike ${out.strike.strikeNumber} — ${consequence(out.strike.action === "ban" ? null : out.strike.days || 0)}. They've been emailed.`
+        );
+        setTimeout(() => onDone?.(), 1600);
+      } else onDone?.();
     } catch (e) {
       setError(e.message);
     } finally {
       setBusy("");
+      setConfirmBan(false);
     }
   };
 
@@ -106,6 +119,11 @@ function ReportItem({ item, onDone }) {
           {item.targetUser && (
             <span style={{ color: C.muted }}>
               by {item.targetUser.name} @{item.targetUser.username}
+            </span>
+          )}
+          {item.targetUser && (
+            <span style={{ color: item.activeStrikes ? C.amber : C.muted, fontSize: 12 }}>
+              · {item.activeStrikes || 0} active strike{item.activeStrikes === 1 ? "" : "s"}
             </span>
           )}
           {item.suspendedUntil && (
@@ -169,35 +187,149 @@ function ReportItem({ item, onDone }) {
       )}
 
       {error && <div role="alert" style={{ color: C.red, fontSize: 13 }}>{error}</div>}
+      {result && <div role="status" style={{ color: C.green, fontSize: 13 }}>{result}</div>}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" style={btn("ghost", !!busy)} disabled={!!busy} onClick={() => act("dismiss")}>
-          {busy === "dismiss" ? "…" : c?.hidden ? "Dismiss & restore" : "Dismiss"}
-        </button>
-        {item.targetType !== "user" && !c?.deleted && (
-          <button type="button" style={btn("danger", !!busy)} disabled={!!busy} onClick={() => act("remove")}>
-            {busy === "remove" ? "…" : `Remove ${typeLabel.toLowerCase()}`}
-          </button>
-        )}
-        {item.targetUser && (
-          <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-            <select
-              id={`days-${item.key}`}
-              value={days}
-              onChange={(e) => setDays(e.target.value)}
-              style={{ background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 8px" }}
-            >
-              <option value="1">1 day</option>
-              <option value="7">7 days</option>
-              <option value="30">30 days</option>
-              <option value="0">Until lifted</option>
-            </select>
-            <button type="button" style={btn("danger", !!busy)} disabled={!!busy} onClick={() => act("suspend")}>
-              {busy === "suspend" ? "…" : item.targetType === "user" ? "Pause account" : "Remove & pause account"}
+      {!readOnly && !result && (
+        <>
+          {item.targetUser && (
+            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+              <label style={{ fontSize: 12, color: C.muted }}>
+                Guideline broken
+                <select
+                  id={`reason-${item.key}`}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  style={{ display: "block", width: "100%", marginTop: 4, background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 8px" }}
+                >
+                  {Object.entries(REASON_LABEL).map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ fontSize: 12, color: C.muted }}>
+                Note to the traveler (optional)
+                <input
+                  id={`note-${item.key}`}
+                  value={note}
+                  maxLength={500}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="e.g. Please don't post referral links"
+                  style={{ display: "block", width: "100%", marginTop: 4, background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 8px", fontFamily: "inherit" }}
+                />
+              </label>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <button type="button" style={btn("ghost", !!busy)} disabled={!!busy} onClick={() => act("dismiss")}>
+              {busy === "dismiss" ? "…" : c?.hidden ? "Not a problem — restore" : "Not a problem"}
             </button>
-          </span>
-        )}
+            {item.targetType !== "user" && !c?.deleted && (
+              <button type="button" style={btn("ghost", !!busy)} disabled={!!busy} onClick={() => act("remove")}>
+                {busy === "remove" ? "…" : "Remove only (no strike)"}
+              </button>
+            )}
+            {item.targetUser && (
+              <>
+                <button type="button" style={btn("danger", !!busy)} disabled={!!busy} onClick={() => act("strike")}>
+                  {busy === "strike" ? "…" : `${item.targetType === "user" ? "Strike" : "Remove + strike"} → ${consequence(item.next?.standard)}`}
+                </button>
+                <button
+                  type="button"
+                  style={{ ...btn("danger", !!busy), fontWeight: item.suggestSevere ? 800 : 600 }}
+                  disabled={!!busy}
+                  onClick={() => act("severe")}
+                  title="For threats, hate speech, scams or sexual content — skips the warning"
+                >
+                  {busy === "severe" ? "…" : `Severe → ${consequence(item.next?.severe)}`}
+                </button>
+                {!confirmBan ? (
+                  <button type="button" style={btn("ghost", !!busy)} disabled={!!busy} onClick={() => setConfirmBan(true)}>
+                    Ban…
+                  </button>
+                ) : (
+                  <button type="button" style={btn("danger", !!busy)} disabled={!!busy} onClick={() => act("ban")}>
+                    {busy === "ban" ? "…" : "Confirm permanent ban"}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          {item.suggestSevere && item.targetUser && (
+            <div style={{ fontSize: 12, color: C.amber }}>Reported as {REASON_LABEL[item.topReason]?.toLowerCase()} — this is usually treated as severe.</div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AppealItem({ a, onDone, readOnly }) {
+  const [response, setResponse] = useState("");
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const decide = async (approve) => {
+    setBusy(approve ? "approve" : "deny");
+    setError("");
+    try {
+      await api(`/api/skyhub/admin/appeals/${a.id}`, {
+        method: "POST",
+        body: JSON.stringify({ approve, response: response.trim() }),
+      });
+      onDone?.();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: 16, display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontWeight: 800 }}>
+          {a.user?.name} <span style={{ color: C.muted, fontWeight: 400 }}>@{a.user?.username}</span>
+        </div>
+        <div style={{ color: C.muted, fontSize: 12 }}>appealed {when(a.appeal?.at)}</div>
       </div>
+      <div style={{ fontSize: 13, color: C.muted }}>
+        Strike for <strong style={{ color: C.text }}>{REASON_LABEL[a.reason] || a.reason}</strong>
+        {a.severity === "severe" ? " (severe)" : ""} · {a.action === "ban" ? "permanent ban" : a.action === "suspension" ? `${a.suspensionDays}-day pause` : "warning"} · {when(a.strikeAt)}
+        {a.by ? ` · by ${a.by}` : ""}
+      </div>
+      {a.snippet && <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: 10, whiteSpace: "pre-wrap" }}>“{a.snippet}”</div>}
+      <div>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Their appeal</div>
+        <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{a.appeal?.message}</div>
+      </div>
+      {readOnly ? (
+        <div style={{ fontSize: 13, color: C.muted }}>
+          {a.appeal?.status === "approved" ? "Approved" : "Denied"} by {a.appeal?.resolvedBy} · {when(a.appeal?.resolvedAt)}
+          {a.appeal?.response ? <div style={{ marginTop: 4 }}>“{a.appeal.response}”</div> : null}
+        </div>
+      ) : (
+        <>
+          <textarea
+            id={`appeal-${a.id}`}
+            value={response}
+            onChange={(e) => setResponse(e.target.value)}
+            maxLength={1000}
+            rows={2}
+            placeholder="Reply to the traveler (included in their email)"
+            style={{ background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: 8, fontFamily: "inherit" }}
+          />
+          {error && <div role="alert" style={{ color: C.red, fontSize: 13 }}>{error}</div>}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" style={btn("primary", !!busy)} disabled={!!busy} onClick={() => decide(true)}>
+              {busy === "approve" ? "…" : "Approve — remove strike"}
+            </button>
+            <button type="button" style={btn("ghost", !!busy)} disabled={!!busy} onClick={() => decide(false)}>
+              {busy === "deny" ? "…" : "Deny — keep strike"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -206,6 +338,8 @@ export default function AdminSkyHub() {
   const [status, setStatus] = useState("open");
   const [items, setItems] = useState([]);
   const [suspensions, setSuspensions] = useState([]);
+  const [appeals, setAppeals] = useState([]);
+  const [counts, setCounts] = useState({ reports: 0, appeals: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -213,12 +347,24 @@ export default function AdminSkyHub() {
     setLoading(true);
     setError("");
     try {
-      const [r, s] = await Promise.all([
-        api(`/api/skyhub/admin/reports?status=${status}`),
+      const isAppeals = status.startsWith("appeals");
+      const appealStatus = status === "appeals" ? "pending" : status.replace("appeals-", "");
+      const [r, s, c] = await Promise.all([
+        isAppeals
+          ? api(`/api/skyhub/admin/appeals?status=${appealStatus}`)
+          : api(`/api/skyhub/admin/reports?status=${status}`),
         api("/api/skyhub/admin/suspensions"),
+        api("/api/skyhub/admin/open-counts").catch(() => ({ reports: 0, appeals: 0 })),
       ]);
-      setItems(r.items || []);
+      if (isAppeals) {
+        setAppeals(r.appeals || []);
+        setItems([]);
+      } else {
+        setItems(r.items || []);
+        setAppeals([]);
+      }
       setSuspensions(s.suspensions || []);
+      setCounts({ reports: c.reports || 0, appeals: c.appeals || 0 });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -245,14 +391,19 @@ export default function AdminSkyHub() {
         <Link to="/admin" style={{ color: C.muted, fontSize: 13 }}>← Admin dashboard</Link>
         <h1 style={{ fontSize: 26, margin: "8px 0 4px" }}>SkyHub reports</h1>
         <p style={{ color: C.muted, margin: "0 0 18px" }}>
-          Posts and comments hide automatically after 3 different people report them, until you decide.
+          Posts and comments hide automatically after 3 different people report them, until you decide. Strikes follow the
+          ladder: warning → 24-hour pause → 7 days → 30 days → permanent. Severe violations skip the warning. Strikes expire after
+          90 days.
         </p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
           {[
-            ["open", "Needs review"],
+            ["open", `Needs review${counts.reports ? ` (${counts.reports})` : ""}`],
+            ["appeals", `Appeals${counts.appeals ? ` (${counts.appeals})` : ""}`],
             ["actioned", "Actioned"],
             ["dismissed", "Dismissed"],
+            ["appeals-approved", "Approved appeals"],
+            ["appeals-denied", "Denied appeals"],
           ].map(([v, l]) => (
             <button key={v} type="button" style={btn(status === v ? "primary" : "ghost")} onClick={() => setStatus(v)}>
               {l}
@@ -266,6 +417,18 @@ export default function AdminSkyHub() {
         {error && <div role="alert" style={{ color: C.red, marginBottom: 12 }}>{error}</div>}
         {loading ? (
           <div style={{ color: C.muted }}>Loading…</div>
+        ) : status.startsWith("appeals") ? (
+          appeals.length === 0 ? (
+            <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: 20, color: C.muted }}>
+              {status === "appeals" ? "No appeals waiting." : "Nothing here yet."}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {appeals.map((a) => (
+                <AppealItem key={a.id} a={a} onDone={load} readOnly={status !== "appeals"} />
+              ))}
+            </div>
+          )
         ) : items.length === 0 ? (
           <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: 20, color: C.muted }}>
             {status === "open" ? "Nothing to review. SkyHub is quiet." : "Nothing here yet."}
@@ -273,7 +436,7 @@ export default function AdminSkyHub() {
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             {items.map((it) => (
-              <ReportItem key={it.key} item={it} onDone={load} />
+              <ReportItem key={it.key} item={it} onDone={load} readOnly={status !== "open"} />
             ))}
           </div>
         )}
@@ -293,7 +456,7 @@ export default function AdminSkyHub() {
                     {s.name} <span style={{ color: C.muted, fontWeight: 400 }}>@{s.username}</span>
                   </div>
                   <div style={{ color: C.muted, fontSize: 13 }}>
-                    {s.until ? `Until ${when(s.until)}` : "Until lifted"}
+                    {s.until ? `Until ${when(s.until)}` : "Permanent"}
                     {s.reason ? ` · ${s.reason}` : ""}
                     {s.by ? ` · by ${s.by}` : ""}
                   </div>

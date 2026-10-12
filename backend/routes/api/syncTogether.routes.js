@@ -1072,6 +1072,43 @@ function requireMember(group, userId, res) {
 
 const REMIND_EVERY_MS = 12 * 60 * 60 * 1000;
 
+// Shortlist as the trip page shows it: most votes first, names attached.
+function shortlistForClient(group, viewerId) {
+  const people = new Map();
+  if (group.owner?._id) people.set(String(group.owner._id), group.owner.name || group.owner.username);
+  for (const m of group.members || []) {
+    if (m.user?._id) people.set(String(m.user._id), m.user.name || m.user.username || m.name);
+  }
+  return (group.shortlist || [])
+    .map((it) => {
+      const votes = (it.votes || []).map(String);
+      return {
+        id: String(it._id),
+        kind: it.kind,
+        key: it.key,
+        status: it.status,
+        note: it.note,
+        hotel: it.kind === "hotel" ? it.hotel : undefined,
+        flight: it.kind === "flight" ? it.flight : undefined,
+        price: it.price,
+        currency: it.currency,
+        suggestedBy: people.get(String(it.suggestedBy)) || "Someone",
+        suggestedByMe: String(it.suggestedBy) === String(viewerId),
+        votes: votes.length,
+        voters: votes.map((v) => people.get(v)).filter(Boolean),
+        votedByMe: votes.includes(String(viewerId)),
+        isGroupHotel: it.kind === "hotel" && it.hotel?.hotelId && it.hotel.hotelId === group.groupHotel?.hotelId,
+        isGroupFlight: it.kind === "flight" && it.key === group.groupFlightKey,
+        at: it.createdAt,
+      };
+    })
+    .sort((a, b) => b.votes - a.votes || new Date(b.at) - new Date(a.at));
+}
+
+const cleanStr = (v, n = 200) => (v == null || v === "" ? undefined : String(v).trim().slice(0, n));
+const cleanNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
+const SHORTLIST_MAX = 30;
+
 async function computeParts(group, viewerId) {
   const travelers = travelersOf(group);
   const userIds = travelers.map((t) => t.userId).filter(Boolean);
@@ -1182,6 +1219,8 @@ async function computeParts(group, viewerId) {
     allBookedAt: group.allBookedAt || null,
     bookingOpenedAt: group.bookingOpenedAt || null,
     groupHotel: group.groupHotel?.hotelId ? group.groupHotel : null,
+    groupFlightKey: group.groupFlightKey || null,
+    shortlist: shortlistForClient(group, viewerId),
     cabinClass: group.cabinClass || "economy",
     status: group.status,
     hasPlan: Boolean(group.plan),
@@ -1252,6 +1291,202 @@ router.post("/:id/remind", async (req, res) => {
     return res.json({ ok: true });
   } catch (err) {
     return sendSyncError(res, err, "Failed to send reminder");
+  }
+});
+
+/* ══════════════════════════════════════════════
+   GROUP SHORTLIST — suggest → vote → pick
+   ══════════════════════════════════════════════ */
+
+/* POST /api/sync-together/:id/shortlist
+   Body: { kind: "hotel"|"flight", note?, price?, currency?, hotel?: {...}, flight?: {...} } */
+router.post("/:id/shortlist", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await loadGroupForParts(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const kind = req.body?.kind;
+    if (!["hotel", "flight"].includes(kind)) return res.status(400).json({ ok: false, error: "Suggest a flight or a hotel." });
+
+    let item;
+    if (kind === "hotel") {
+      const h = req.body.hotel || {};
+      if (!h.hotelId) return res.status(400).json({ ok: false, error: "Pick a hotel from the search results." });
+      item = {
+        kind,
+        key: `hotel:${String(h.hotelId).slice(0, 64)}`,
+        hotel: {
+          hotelId: cleanStr(h.hotelId, 64),
+          name: cleanStr(h.name),
+          address: cleanStr(h.address, 300),
+          thumbnail: /^https:\/\//.test(String(h.thumbnail || "")) ? cleanStr(h.thumbnail, 600) : undefined,
+          stars: cleanNum(h.stars),
+          rating: cleanNum(h.rating),
+          roomName: cleanStr(h.roomName),
+          boardName: cleanStr(h.boardName, 100),
+          checkin: cleanStr(h.checkin, 10),
+          checkout: cleanStr(h.checkout, 10),
+          adults: cleanNum(h.adults),
+        },
+      };
+    } else {
+      const f = req.body.flight || {};
+      if (!f.origin || !f.destination || !f.departAt) {
+        return res.status(400).json({ ok: false, error: "Pick a flight from the search results." });
+      }
+      const key = ["flight", f.airlineCode || f.airline, f.origin, f.destination, f.departAt, f.returnDepartAt || ""]
+        .map((x) => String(x || "").slice(0, 40))
+        .join(":");
+      item = {
+        kind,
+        key,
+        flight: {
+          airline: cleanStr(f.airline, 80),
+          airlineCode: cleanStr(f.airlineCode, 8),
+          logo: /^https:\/\//.test(String(f.logo || "")) ? cleanStr(f.logo, 600) : undefined,
+          origin: cleanStr(f.origin, 8),
+          destination: cleanStr(f.destination, 8),
+          departAt: cleanStr(f.departAt, 40),
+          arriveAt: cleanStr(f.arriveAt, 40),
+          returnDepartAt: cleanStr(f.returnDepartAt, 40),
+          returnArriveAt: cleanStr(f.returnArriveAt, 40),
+          stops: cleanNum(f.stops),
+          cabin: cleanStr(f.cabin, 20),
+        },
+      };
+    }
+
+    const existing = group.shortlist.find((s) => s.key === item.key);
+    if (existing) {
+      // Suggesting something already on the list counts as a vote.
+      if (!existing.votes.map(String).includes(String(userId))) existing.votes.push(userId);
+      await group.save();
+      return res.json({ ok: true, alreadyListed: true, itemId: String(existing._id) });
+    }
+    if (group.shortlist.filter((s) => s.status === "open").length >= SHORTLIST_MAX) {
+      return res.status(409).json({ ok: false, error: "The shortlist is full. Remove a few options first." });
+    }
+
+    group.shortlist.push({
+      ...item,
+      suggestedBy: userId,
+      note: cleanStr(req.body?.note, 200) || "",
+      votes: [userId], // suggesting = your vote
+      price: cleanNum(req.body?.price) ?? null,
+      currency: cleanStr(req.body?.currency, 3) || "USD",
+    });
+    const added = group.shortlist[group.shortlist.length - 1];
+    const label =
+      kind === "hotel" ? item.hotel.name || "a hotel" : `${item.flight.airline || "a flight"} ${item.flight.origin}→${item.flight.destination}`;
+    const who = req.user?.name || req.user?.username || "Someone";
+    logActivity(group, "shortlist_add", userId, `Suggested ${label}`);
+    await group.save();
+
+    const others = [group.owner?._id, ...group.members.filter((m) => m.user && m.status !== "declined").map((m) => m.user._id)].filter(
+      (id) => id && String(id) !== String(userId)
+    );
+    Notification.insertMany(
+      others.map((u) => ({
+        user: u,
+        type: "booking",
+        title: `New ${kind} suggestion 🗳️`,
+        message: `${label} was added to the ${group.title || "trip"} shortlist. Vote for your favorite.`,
+        link: `/sync-together/${group._id}`,
+      }))
+    ).catch(() => {});
+
+    return res.status(201).json({ ok: true, itemId: String(added._id) });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't add that to the shortlist");
+  }
+});
+
+/* POST /api/sync-together/:id/shortlist/:itemId/vote — toggles your vote */
+router.post("/:id/shortlist/:itemId/vote", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const it = validId(req.params.itemId) ? group.shortlist.id(req.params.itemId) : null;
+    if (!it) return res.status(404).json({ ok: false, error: "That option isn't on the shortlist anymore." });
+    const voted = it.votes.map(String).includes(String(userId));
+    if (voted) it.votes = it.votes.filter((v) => String(v) !== String(userId));
+    else it.votes.push(userId);
+    await group.save();
+    return res.json({ ok: true, voted: !voted, votes: it.votes.length });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't save your vote");
+  }
+});
+
+/* DELETE /api/sync-together/:id/shortlist/:itemId — the person who suggested it, or the organizer */
+router.delete("/:id/shortlist/:itemId", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const it = validId(req.params.itemId) ? group.shortlist.id(req.params.itemId) : null;
+    if (!it) return res.json({ ok: true });
+    if (String(it.suggestedBy) !== String(userId) && !isOrganizer(group, userId)) {
+      return res.status(403).json({ ok: false, error: "Only the person who suggested it or the organizer can remove it." });
+    }
+    if (it.key === group.groupFlightKey) group.groupFlightKey = null;
+    it.deleteOne();
+    await group.save();
+    return res.json({ ok: true });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't remove that option");
+  }
+});
+
+/* POST /api/sync-together/:id/shortlist/:itemId/pick — organizer picks the winner.
+   Hotel → becomes the group's hotel (everyone's "Book my room here" opens it).
+   Flight → marked as the group's flight. */
+router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await loadGroupForParts(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    if (!isOrganizer(group, userId)) return res.status(403).json({ ok: false, error: "Only the organizer can pick the winner." });
+    const it = validId(req.params.itemId) ? group.shortlist.id(req.params.itemId) : null;
+    if (!it) return res.status(404).json({ ok: false, error: "That option isn't on the shortlist anymore." });
+
+    group.shortlist.forEach((s) => {
+      if (s.kind === it.kind) s.status = "open";
+    });
+    it.status = "picked";
+    let label;
+    if (it.kind === "hotel") {
+      group.groupHotel = {
+        hotelId: it.hotel.hotelId,
+        name: it.hotel.name,
+        address: it.hotel.address,
+        thumbnail: it.hotel.thumbnail,
+        stars: it.hotel.stars,
+        rating: it.hotel.rating,
+        setAt: new Date(),
+      };
+      label = it.hotel.name || "the hotel";
+    } else {
+      group.groupFlightKey = it.key;
+      label = `${it.flight.airline || "the flight"} ${it.flight.origin}→${it.flight.destination}`;
+    }
+    logActivity(group, "shortlist_pick", userId, `Picked ${label} for the group`);
+    await group.save();
+
+    const others = group.members.filter((m) => m.user && m.status !== "declined").map((m) => m.user._id);
+    Notification.insertMany(
+      others.map((u) => ({
+        user: u,
+        type: "booking",
+        title: it.kind === "hotel" ? "The group's hotel is picked 🏨" : "The group's flight is picked ✈️",
+        message: `${label} won. Book your part from the trip page.`,
+        link: `/sync-together/${group._id}`,
+      }))
+    ).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't pick that option");
   }
 });
 

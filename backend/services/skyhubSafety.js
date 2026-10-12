@@ -211,11 +211,15 @@ export async function suspensionFor(userId) {
 export async function requireNotSuspended(req, res, next) {
   const s = await suspensionFor(req.skyUser?.id);
   if (s) {
+    const permanent = s.permanent || !s.until;
     const when = s.until
-      ? ` until ${new Date(s.until).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+      ? ` until ${new Date(s.until).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
       : "";
     return res.status(403).json({
-      message: `Your SkyHub account is paused${when} for breaking the community guidelines. You can still book trips.`,
+      paused: true,
+      message: permanent
+        ? "Your SkyHub account is suspended for breaking the community guidelines. You can still search and book trips."
+        : `Your SkyHub account is paused${when} for breaking the community guidelines. You can still search and book trips.`,
     });
   }
   next();
