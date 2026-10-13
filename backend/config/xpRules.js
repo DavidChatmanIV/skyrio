@@ -11,12 +11,18 @@
  *   Globetrotter→ Elite    : power user (multiple bookings)
  *   Elite     → Legend     : dedicated long-term user
  *
- * PASSIVE XP (SkyHub activity — /api/xp/activity):
- *   Fired automatically by the frontend activity tracker.
- *   Subject to XP_DAILY_CAP.
+ * ANTI-CHEAT RULES (enforced in services/xpService.js — never in the browser):
+ *   1. Booking XP is PENDING until the trip starts AND 24h have passed.
+ *      Cancel/refund before then → it never counts. Rank uses confirmed XP only.
+ *   2. All SkyHub + passive XP shares ENGAGEMENT_CAPS (30/day, 100/week),
+ *      so a full week of SkyHub always earns less than one booking (150).
+ *   3. Every grant is a ledger row keyed by (user, rule, source, actor):
+ *      unlike→re-like, delete→repost, save→unsave→save can't pay twice.
+ *   4. The client may only REPORT activity (/api/xp/activity). The server decides
+ *      whether it counts, and computes streaks from its own records.
  *
- * ACTIVE XP (explicit user actions — called at event points):
- *   Call addXP(userId, XP_RULES.ACTION_KEY.xp) at the right moment.
+ * Use awardXP() / awardBookingXp() / awardPassiveActivity() from xpService.
+ * Do NOT call addXP(userId, amount) or $inc user.xp directly anymore.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -156,13 +162,14 @@ export const XP_PASSIVE = {
     iconKey: "flame",
     dailyLimit: 1,
   },
-  STREAK_WEEK: { xp: 50, label: "7-day streak bonus", iconKey: "flame" },
-  STREAK_MONTH: { xp: 150, label: "30-day streak bonus", iconKey: "crown" },
+  STREAK_WEEK: { xp: 25, label: "7-day streak bonus", iconKey: "flame" },
+  STREAK_MONTH: { xp: 75, label: "30-day streak bonus", iconKey: "crown" },
 };
 
 // ─── Active: Explicit User Actions ───────────────────────────────────────────
 export const XP_RULES = {
-  BOOKING_CONFIRMED: { xp: 100, label: "Booking confirmed", iconKey: "plane" },
+  // Booking rules are always granted as PENDING (see BOOKING_HOLD_HOURS).
+  BOOKING_CONFIRMED: { xp: 150, label: "Booking confirmed", iconKey: "plane" },
   FIRST_BOOKING: {
     xp: 50,
     label: "First booking ever",
@@ -191,34 +198,40 @@ export const XP_RULES = {
     xp: 20,
     label: "Submitted feedback",
     iconKey: "chat",
-    dailyLimit: 2,
+    dailyLimit: 1,
   },
   POST_CREATED: {
     xp: 10,
     label: "Created a post",
     iconKey: "broadcast",
-    dailyLimit: 10,
+    dailyLimit: 3,
   },
   COMMENT_CREATED: {
     xp: 5,
     label: "Commented",
     iconKey: "chat",
-    dailyLimit: 20,
+    dailyLimit: 5,
   },
   POST_LIKED_RECEIVED: {
     xp: 2,
     label: "Your post got a like",
     iconKey: "star",
-    dailyLimit: 25,
+    dailyLimit: 10,
+    perPostCap: 10, // max XP (before multiplier) from likes on any single post
   },
   SHARE_SKYSTREAM: {
     xp: 8,
     label: "Shared on SkyStream",
     iconKey: "broadcast",
-    dailyLimit: 5,
+    dailyLimit: 3,
   },
+  // Granted PENDING; confirms only when the referred friend's first booking confirms.
   REFER_FRIEND: { xp: 60, label: "Referred a friend", iconKey: "handshake" },
   SEASONAL_AWARD: { xp: 0, label: "Seasonal award", iconKey: "gift" },
+  // Amount comes from Challenge.bonusXP; pays once per challenge per user.
+  CHALLENGE_COMPLETED: { xp: 0, label: "Challenge complete", iconKey: "gift" },
+  // Only used by the old addXP(userId, amount) shim while callers are migrated.
+  LEGACY_ADD: { xp: 0, label: "XP earned", iconKey: "star" },
   ADMIN_GRANT: { xp: 0, label: "Admin grant", iconKey: "wrench" },
   ELITE_MONTHLY_BONUS: {
     xp: 150,
@@ -229,8 +242,70 @@ export const XP_RULES = {
 };
 
 // ─── Guardrails ───────────────────────────────────────────────────────────────
+/** @deprecated replaced by ENGAGEMENT_CAPS — 400/day let SkyHub out-earn bookings ~3x */
 export const XP_DAILY_CAP = 400;
 export const XP_MAX_SINGLE_AWARD = 500;
+
+// Shared ceiling (BASE XP, before plan multiplier) for everything that isn't a booking.
+// Max week of SkyHub + passive (100) + streak bonuses < one booking (150) + first-booking (50).
+export const ENGAGEMENT_CAPS = { daily: 30, weekly: 100 };
+export const ENGAGEMENT_RULE_KEYS = [
+  "DAILY_SESSION",
+  "ACTIVE_INTERVAL",
+  "PAGE_VISIT",
+  "STREAK_DAY",
+  "POST_CREATED",
+  "COMMENT_CREATED",
+  "POST_LIKED_RECEIVED",
+  "SHARE_SKYSTREAM",
+  "SAVED_TRIP",
+  "FEEDBACK_SUBMITTED",
+];
+
+// Booking XP stays pending until the trip starts AND this many hours have passed.
+export const BOOKING_HOLD_HOURS = 24;
+export const DEAD_BOOKING_STATUSES = [
+  "cancelled",
+  "canceled",
+  "refunded",
+  "failed",
+  "voided",
+];
+
+// Quality gates
+export const MIN_POST_TEXT_LENGTH = 20; // or at least one photo
+export const MIN_COMMENT_TEXT_LENGTH = 10;
+export const MIN_LIKER_ACCOUNT_AGE_DAYS = 3;
+
+// ─── Booking XP per flight ───────────────────────────────────────────────────
+// ONE formula, used by BOTH the flight cards (frontend) and awardBookingXp
+// (backend), so the XP shown on a card is exactly what the booking grants.
+// Nonstop flights earn the most. Hotels/excursions earn the flat BOOKING_CONFIRMED amount.
+export const FLIGHT_XP_BY_STOPS = { 0: 150, 1: 135, more: 120 };
+
+export function getBookingXP({ kind = "flight", stops } = {}) {
+  if (kind !== "flight" || stops == null) return XP_RULES.BOOKING_CONFIRMED.xp;
+  if (stops === 0) return FLIGHT_XP_BY_STOPS[0];
+  if (stops === 1) return FLIGHT_XP_BY_STOPS[1];
+  return FLIGHT_XP_BY_STOPS.more;
+}
+
+// Options for the booking page's "XP Value" filter — every option can actually match.
+export const XP_FILTER_OPTIONS = [
+  { value: "any", label: "Any XP" },
+  { value: 135, label: "High XP (135+)" },
+  { value: 150, label: "Max XP (150)" },
+];
+
+// Pages that can earn PAGE_VISIT XP (anything else the client reports is ignored)
+export const XP_PAGE_WHITELIST = [
+  "/discover",
+  "/booking",
+  "/skyhub",
+  "/passport",
+  "/sync",
+  "/rewards",
+];
 
 // ─── Core Helper: getLevel ────────────────────────────────────────────────────
 export function getLevel(xp) {

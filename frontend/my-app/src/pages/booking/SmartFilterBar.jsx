@@ -208,7 +208,14 @@ function Bolt({ size = 13, color = "currentColor" }) {
 // ─────────────────────────────────────────────
 // Filter dropdown wrapper
 // ─────────────────────────────────────────────
-function FilterDropdown({ label, active, badge, children, onOpen }) {
+export function FilterDropdown({
+  label,
+  active,
+  badge,
+  children,
+  onOpen,
+  align = "left",
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -217,8 +224,15 @@ function FilterDropdown({ label, active, badge, children, onOpen }) {
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   const toggle = () => {
@@ -228,10 +242,18 @@ function FilterDropdown({ label, active, badge, children, onOpen }) {
   };
 
   return (
-    <div style={{ position: "relative" }} ref={ref}>
+    // When open, this wrapper is lifted above the Sort row and quick chips below it.
+    // Those use backdrop-filter, which creates their own stacking layers — without
+    // this, the panel's z-index only counted inside its own row and text showed through.
+    <div
+      style={{ position: "relative", zIndex: open ? 1000 : "auto" }}
+      ref={ref}
+    >
       <button
         type="button"
         onClick={toggle}
+        aria-haspopup="true"
+        aria-expanded={open}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -273,17 +295,27 @@ function FilterDropdown({ label, active, badge, children, onOpen }) {
             {badge}
           </span>
         )}
-        <span
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          aria-hidden="true"
           style={{
-            fontSize: 9,
-            opacity: 0.55,
+            opacity: 0.6,
             transform: open ? "rotate(180deg)" : "none",
             transition: "transform 0.15s",
-            display: "inline-block",
+            flexShrink: 0,
           }}
         >
-          ▾
-        </span>
+          <path
+            d="M2 3.5L5 6.5L8 3.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       {open && (
@@ -291,16 +323,16 @@ function FilterDropdown({ label, active, badge, children, onOpen }) {
           style={{
             position: "absolute",
             top: "calc(100% + 8px)",
-            left: 0,
-            zIndex: 999,
+            ...(align === "right" ? { right: 0 } : { left: 0 }),
+            zIndex: 1000,
             minWidth: 200,
-            background: "rgba(22, 14, 36, 0.97)",
-            border: "1px solid rgba(255,255,255,0.1)",
+            maxWidth: "calc(100vw - 32px)",
+            // Solid, not translucent — nothing behind it should show through.
+            background: "#160e24",
+            border: "1px solid rgba(255,255,255,0.12)",
             borderRadius: 14,
             boxShadow:
-              "0 8px 32px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.06) inset",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
+              "0 12px 40px rgba(0,0,0,0.65), 0 1px 0 rgba(255,255,255,0.06) inset",
             overflow: "hidden",
             padding: "16px",
           }}
@@ -315,7 +347,7 @@ function FilterDropdown({ label, active, badge, children, onOpen }) {
 // ─────────────────────────────────────────────
 // Apply button
 // ─────────────────────────────────────────────
-function ApplyBtn({ onClick }) {
+export function ApplyBtn({ onClick }) {
   return (
     <button
       type="button"
@@ -342,7 +374,7 @@ function ApplyBtn({ onClick }) {
 // ─────────────────────────────────────────────
 // Panel label
 // ─────────────────────────────────────────────
-function PanelLabel({ children }) {
+export function PanelLabel({ children }) {
   return (
     <div
       style={{
@@ -362,7 +394,7 @@ function PanelLabel({ children }) {
 // ─────────────────────────────────────────────
 // Radio option row
 // ─────────────────────────────────────────────
-function RadioRow({ checked, onClick, children }) {
+export function RadioRow({ checked, onClick, children }) {
   return (
     <button
       type="button"
@@ -573,6 +605,18 @@ function AirlinePanel({ value, onChange, close, airlines }) {
       <RadioRow checked={local === "any"} onClick={() => setLocal("any")}>
         Any airline
       </RadioRow>
+      {airlines.length === 0 && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "rgba(255,255,255,0.45)",
+            padding: "6px 4px 0",
+            lineHeight: 1.4,
+          }}
+        >
+          Search for flights to choose from the airlines on your route.
+        </div>
+      )}
       {airlines.map((a) => (
         <RadioRow key={a} checked={local === a} onClick={() => setLocal(a)}>
           {a}
@@ -596,9 +640,11 @@ function XPPanel({ value, onChange, close }) {
       label: "Any XP",
       icon: null,
     },
+    // Must match getBookingXP() in config/xpRules.js:
+    // nonstop = 150, 1 stop = 135, 2+ stops = 120 (before plan multiplier).
     {
-      val: 60,
-      label: "High XP (60+)",
+      val: 135,
+      label: "High XP (135+)",
       icon: (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
           <Bolt size={13} color="#FFB347" />
@@ -606,18 +652,8 @@ function XPPanel({ value, onChange, close }) {
       ),
     },
     {
-      val: 100,
-      label: "Epic XP (100+)",
-      icon: (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
-          <Bolt size={13} color="#FFB347" />
-          <Bolt size={13} color="#FFB347" />
-        </span>
-      ),
-    },
-    {
       val: 150,
-      label: "Legend tier (150+)",
+      label: "Max XP (150)",
       icon: (
         <svg
           width={14}
@@ -664,6 +700,16 @@ function XPPanel({ value, onChange, close }) {
   return (
     <>
       <PanelLabel>Minimum XP Value</PanelLabel>
+      <div
+        style={{
+          fontSize: 11,
+          color: "rgba(255,255,255,0.45)",
+          margin: "-6px 0 8px",
+          lineHeight: 1.4,
+        }}
+      >
+        XP you earn for booking. Nonstop flights earn the most.
+      </div>
       {opts.map((o) => (
         <RadioRow
           key={o.val}
@@ -697,8 +743,8 @@ export default function SmartFilterBar({
   flightResults = [],
   visible = true,
 }) {
-  if (!visible) return null;
-
+  // All hooks run BEFORE the `visible` check. Returning early above them made the
+  // hook count change when switching Flights ↔ Stays, which React treats as a crash.
   const airlines = useMemo(() => {
     const set = new Set(flightResults.map((f) => f.owner).filter(Boolean));
     return [...set].sort();
@@ -706,8 +752,9 @@ export default function SmartFilterBar({
 
   const update = (key) => (val) => onChange({ ...filters, [key]: val });
 
+  // Labels: just the filter name when nothing is picked; "Name · value" when it is.
   const timeLabel = useMemo(() => {
-    if (filters.time === "any") return "Time ·";
+    if (filters.time === "any") return "Time";
     const map = {
       morning: "Morning",
       afternoon: "Afternoon",
@@ -717,19 +764,20 @@ export default function SmartFilterBar({
   }, [filters.time]);
 
   const priceLabel = useMemo(() => {
-    if (filters.price === "any") return "Price ·";
-    return `Price · <$${Number(filters.price).toLocaleString()}`;
+    if (filters.price === "any") return "Price";
+    return `Price · Under $${Number(filters.price).toLocaleString()}`;
   }, [filters.price]);
 
   const stopsLabel = useMemo(() => {
-    if (filters.stops === "any") return "Stops ·";
-    if (filters.stops === 0) return "Stops · Nonstop";
-    if (filters.stops === 2) return "Stops · 2+";
-    return `Stops · ${filters.stops}`;
+    if (filters.stops === "any") return "Stops";
+    const s = Number(filters.stops);
+    if (s === 0) return "Stops · Nonstop";
+    if (s === 1) return "Stops · 1 or fewer";
+    return "Stops · 2+";
   }, [filters.stops]);
 
   const airlineLabel = useMemo(() => {
-    if (filters.airline === "any") return "Airline ·";
+    if (filters.airline === "any") return "Airline";
     return `Airline · ${filters.airline}`;
   }, [filters.airline]);
 
@@ -737,15 +785,18 @@ export default function SmartFilterBar({
     if (filters.xp === "any")
       return (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          XP Value <Bolt size={12} color="currentColor" /> ·
+          XP Value <Bolt size={12} color="currentColor" />
         </span>
       );
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-        XP <Bolt size={12} color="#FFB347" /> {filters.xp}+
+        XP <Bolt size={12} color="#FFB347" />{" "}
+        {Number(filters.xp) >= 150 ? "150" : `${filters.xp}+`}
       </span>
     );
   }, [filters.xp]);
+
+  if (!visible) return null;
 
   return (
     <div
@@ -802,7 +853,11 @@ export default function SmartFilterBar({
         )}
       </FilterDropdown>
 
-      <FilterDropdown label={airlineLabel} active={filters.airline !== "any"}>
+      <FilterDropdown
+        label={airlineLabel}
+        active={filters.airline !== "any"}
+        align="right"
+      >
         {(close) => (
           <AirlinePanel
             value={filters.airline}
@@ -813,7 +868,11 @@ export default function SmartFilterBar({
         )}
       </FilterDropdown>
 
-      <FilterDropdown label={xpLabel} active={filters.xp !== "any"}>
+      <FilterDropdown
+        label={xpLabel}
+        active={filters.xp !== "any"}
+        align="right"
+      >
         {(close) => (
           <XPPanel value={filters.xp} onChange={update("xp")} close={close} />
         )}

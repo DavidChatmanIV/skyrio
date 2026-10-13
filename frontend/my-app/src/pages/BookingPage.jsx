@@ -37,6 +37,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import heroImg from "@/assets/Booking/skyrio-hero.jpg";
 import skyrioLogo from "@/assets/logo/skyrio-logo-transparent.png";
 import "@/styles/BookingPage.css";
+import "@/styles/stays-search.css";
 
 import BookingCheckout from "@/pages/booking/BookingCheckout";
 import HotelCheckout from "@/pages/booking/HotelCheckout";
@@ -44,6 +45,12 @@ import SaveTripButton from "@/components/trips/SaveTripButton";
 import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
 import SmartFilterBar from "@/pages/booking/SmartFilterBar";
+import HotelFilterBar, {
+  DEFAULT_HOTEL_FILTERS,
+  applyHotelFilters,
+  HOTEL_SORT_OPTIONS,
+  compareHotels,
+} from "@/pages/booking/HotelFilterBar";
 import SkyrioPicker from "@/pages/booking/SkyrioPicker";
 import HeroPlanner from "@/pages/booking/HeroPlanner";
 import TripTypeSelector from "@/components/Atlas/TripTypeSelector";
@@ -453,14 +460,35 @@ const ATLAS_LOADING_STEPS = [
   "Almost there…",
 ];
 
+// The XP this flight ACTUALLY earns when booked (before the plan multiplier).
+// Must match getBookingXP() in the backend config/xpRules.js — the server grants
+// exactly this, so the badge on the card is never a made-up number.
+// (Previously 40–90 XP, while bookings really granted 100+, and the
+// "Epic 100+" / "Legend 150+" filters could never match anything.)
 function getFlightXP(flight) {
-  let xp = 40;
-  if (flight.stops === 0) xp += 30;
-  else if (flight.stops === 1) xp += 10;
-  const price = parseFloat(flight.totalAmount);
-  if (price < 300) xp += 20;
-  else if (price < 600) xp += 10;
-  return xp;
+  if (flight.stops === 0) return 150;
+  if (flight.stops === 1) return 135;
+  return 120;
+}
+
+// Sort options for the "Sort:" button — it cycles through these.
+const SORT_OPTIONS = [
+  { key: "price", label: "Cheapest" },
+  { key: "stops", label: "Fewest stops" },
+  { key: "depart", label: "Earliest departure" },
+];
+
+function compareFlights(sortKey) {
+  const price = (f) => parseFloat(f.totalAmount) || Infinity;
+  const depart = (f) =>
+    f.departingAt ? dayjs(f.departingAt).valueOf() : Infinity;
+  if (sortKey === "stops") {
+    return (a, b) => (a.stops ?? 9) - (b.stops ?? 9) || price(a) - price(b);
+  }
+  if (sortKey === "depart") {
+    return (a, b) => depart(a) - depart(b) || price(a) - price(b);
+  }
+  return (a, b) => price(a) - price(b);
 }
 
 function getFlightTimeSlot(flight) {
@@ -474,15 +502,19 @@ function getFlightTimeSlot(flight) {
 function applyFilters(flights, filters) {
   return flights.filter((f) => {
     const price = parseFloat(f.totalAmount);
-    if (filters.price !== "any" && price > filters.price) return false;
+    if (filters.price !== "any" && price > Number(filters.price)) return false;
     if (filters.stops !== "any") {
-      if (filters.stops === 2 && f.stops < 2) return false;
-      if (filters.stops !== 2 && f.stops !== filters.stops) return false;
+      const s = Number(filters.stops);
+      // 0 = Nonstop only · 1 = 1 stop OR FEWER (keeps nonstops) · 2 = 2+ stops
+      if (s === 0 && f.stops !== 0) return false;
+      if (s === 1 && f.stops > 1) return false;
+      if (s >= 2 && f.stops < 2) return false;
     }
     if (filters.time !== "any" && getFlightTimeSlot(f) !== filters.time)
       return false;
     if (filters.airline !== "any" && f.owner !== filters.airline) return false;
-    if (filters.xp !== "any" && getFlightXP(f) < filters.xp) return false;
+    if (filters.xp !== "any" && getFlightXP(f) < Number(filters.xp))
+      return false;
     return true;
   });
 }
@@ -1225,22 +1257,34 @@ function FlightsForm({
     const asAirport = (a, fallback) => {
       const code = a?.code || a?.iata || a?.iataCode || a?.iata_code;
       if (!code) return null;
-      return { ...a, code, city: a.city || a.cityName || a.city_name || a.name || fallback || code };
+      return {
+        ...a,
+        code,
+        city: a.city || a.cityName || a.city_name || a.name || fallback || code,
+      };
     };
     const lookup = async (q) => {
       if (!q) return null;
-      if (/^[A-Za-z]{3}$/.test(q.trim())) return { code: q.trim().toUpperCase(), city: q.trim().toUpperCase() };
+      if (/^[A-Za-z]{3}$/.test(q.trim()))
+        return { code: q.trim().toUpperCase(), city: q.trim().toUpperCase() };
       try {
-        const res = await fetch(`${API}/api/airports?q=${encodeURIComponent(q.trim())}`);
+        const res = await fetch(
+          `${API}/api/airports?q=${encodeURIComponent(q.trim())}`
+        );
         const data = await res.json();
-        const list = Array.isArray(data) ? data : data?.airports || data?.data || data?.results || [];
+        const list = Array.isArray(data)
+          ? data
+          : data?.airports || data?.data || data?.results || [];
         return asAirport(list[0], q.trim());
       } catch {
         return null;
       }
     };
     (async () => {
-      const [o, d] = await Promise.all([lookup(initial.from), lookup(initial.to)]);
+      const [o, d] = await Promise.all([
+        lookup(initial.from),
+        lookup(initial.to),
+      ]);
       if (o) {
         setOriginAirport(o);
         setOriginDisplay(`${o.city} (${o.code})`);
@@ -1382,44 +1426,66 @@ function FlightsForm({
       <div className="sk-trip-type-row">
         <TripTypeToggle value={tripType} onChange={setTripType} />
       </div>
-      <div className="sk-field-row">
-        <div className="sk-field--airport-pair">
-          <div className="sk-field sk-field--airport">
-            <AirportInput
-              value={originDisplay}
-              placeholder="From: City or airport"
-              onChange={(ap) => {
-                setOriginAirport(ap);
-                setOriginDisplay(`${ap.city} (${ap.code})`);
-                onOriginChange?.(ap.city);
-              }}
-            />
-          </div>
+      <div className="sk-pass sk-pass--flights">
+        <div className="sk-pass-seg sk-pass-seg--from sk-pass-flat">
+          <span className="sk-pass-label">
+            <PlaneIcon
+              size={12}
+              aria-hidden="true"
+              style={{ transform: "rotate(45deg)" }}
+            />{" "}
+            From
+          </span>
+          <AirportInput
+            value={originDisplay}
+            placeholder="City or airport"
+            onChange={(ap) => {
+              setOriginAirport(ap);
+              setOriginDisplay(`${ap.city} (${ap.code})`);
+              onOriginChange?.(ap.city);
+            }}
+          />
+        </div>
+
+        <div className="sk-pass-seg sk-pass-seg--to sk-pass-flat">
           <button
             type="button"
-            className="sk-swap-btn"
+            className="sk-pass-swap"
             onClick={handleSwap}
-            aria-label="Swap airports"
+            aria-label="Swap departure and destination"
+            title="Swap"
           >
             <SwapOutlined />
           </button>
-          <div className="sk-field sk-field--airport">
-            <AirportInput
-              value={destDisplay}
-              placeholder="To: City or airport"
-              onChange={(ap) => {
-                setDestAirport(ap);
-                setDestDisplay(`${ap.city} (${ap.code})`);
-                onDestChange?.(ap.city);
-              }}
-            />
-          </div>
+          <span className="sk-pass-label">
+            <MapPin size={12} aria-hidden="true" /> To
+          </span>
+          <AirportInput
+            value={destDisplay}
+            placeholder="City or airport"
+            onChange={(ap) => {
+              setDestAirport(ap);
+              setDestDisplay(`${ap.city} (${ap.code})`);
+              onDestChange?.(ap.city);
+            }}
+          />
         </div>
 
-        <div className="sk-field sk-field--date">
+        <div className="sk-pass-seg sk-pass-seg--when sk-pass-flat">
+          <span className="sk-pass-label">
+            <Calendar size={12} aria-hidden="true" />
+            {tripType === "roundtrip" ? "Depart → Return" : "Depart"}
+            {tripType === "roundtrip" && dates[0] && dates[1] && (
+              <span className="sk-pass-nights">
+                · {dates[1].diff(dates[0], "day")} night
+                {dates[1].diff(dates[0], "day") !== 1 ? "s" : ""}
+              </span>
+            )}
+          </span>
           {tripType === "roundtrip" ? (
             <SkyrioPicker
               className="sk-orange-picker"
+              value={dates}
               onChange={handleDatesChange}
               placeholder={["Depart", "Return"]}
               disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
@@ -1428,6 +1494,8 @@ function FlightsForm({
             <DatePicker
               className="sk-orange-picker"
               placeholder="Departure date"
+              value={dates[0]}
+              format="ddd, MMM D"
               disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
               onChange={(date) => {
                 const nd = [date, null];
@@ -1438,35 +1506,459 @@ function FlightsForm({
           )}
         </div>
 
-        <div className="sk-field sk-field--select">
-          <Select
-            className="sk-select-cabin"
-            value={cabin}
-            onChange={setCabin}
-            classNames={{ popup: { root: "sk-select-popup" } }}
-          >
-            <Option value="economy">Economy</Option>
-            <Option value="premium_economy">Premium Economy</Option>
-            <Option value="business">Business</Option>
-            <Option value="first">First Class</Option>
-          </Select>
-        </div>
-
-        <div className="sk-field sk-field--num">
-          <InputNumber
-            className="sk-input-travelers"
-            min={1}
-            max={9}
-            value={adults}
-            onChange={(v) => setAdults(v ?? 1)}
-            placeholder="Travelers"
+        <div className="sk-pass-seg sk-pass-seg--who">
+          <span className="sk-pass-label">
+            <Users size={12} aria-hidden="true" /> Who
+          </span>
+          <TravelersCabinPicker
+            adults={adults}
+            cabin={cabin}
+            onChange={({ adults: a, cabin: c }) => {
+              setAdults(a);
+              setCabin(c);
+            }}
           />
         </div>
 
-        <SearchBtn onClick={handleSearch} loading={loading} />
+        <button
+          type="button"
+          className="sk-pass-go"
+          onClick={handleSearch}
+          disabled={loading}
+          aria-label="Search flights"
+        >
+          {loading ? <LoadingOutlined /> : <SearchOutlined />}
+          <span className="sk-pass-go-text">
+            {loading ? "Searching…" : "Search flights"}
+          </span>
+        </button>
       </div>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────
+// Stays search helpers
+// ─────────────────────────────────────────────
+
+// Only used when someone types a city WITHOUT picking a suggestion
+// (a picked suggestion has an exact placeId, so country doesn't matter).
+const STAY_COUNTRIES = [
+  ["US", "United States"],
+  ["CA", "Canada"],
+  ["MX", "Mexico"],
+  ["GB", "United Kingdom"],
+  ["IE", "Ireland"],
+  ["FR", "France"],
+  ["ES", "Spain"],
+  ["PT", "Portugal"],
+  ["IT", "Italy"],
+  ["DE", "Germany"],
+  ["NL", "Netherlands"],
+  ["GR", "Greece"],
+  ["CH", "Switzerland"],
+  ["AT", "Austria"],
+  ["TR", "Turkey"],
+  ["AE", "United Arab Emirates"],
+  ["EG", "Egypt"],
+  ["MA", "Morocco"],
+  ["ZA", "South Africa"],
+  ["KE", "Kenya"],
+  ["NG", "Nigeria"],
+  ["GH", "Ghana"],
+  ["JP", "Japan"],
+  ["KR", "South Korea"],
+  ["CN", "China"],
+  ["TH", "Thailand"],
+  ["SG", "Singapore"],
+  ["ID", "Indonesia"],
+  ["VN", "Vietnam"],
+  ["PH", "Philippines"],
+  ["IN", "India"],
+  ["AU", "Australia"],
+  ["NZ", "New Zealand"],
+  ["BR", "Brazil"],
+  ["AR", "Argentina"],
+  ["CO", "Colombia"],
+  ["PE", "Peru"],
+  ["CR", "Costa Rica"],
+  ["DO", "Dominican Republic"],
+  ["JM", "Jamaica"],
+  ["BS", "Bahamas"],
+  ["PR", "Puerto Rico"],
+];
+
+// Picks the country out of a suggestion's secondary text ("Florida, USA" → US).
+const COUNTRY_ALIASES = { USA: "US", "U.S.": "US", UK: "GB", UAE: "AE" };
+function countryFromText(text = "") {
+  const t = text.toLowerCase();
+  const alias = Object.entries(COUNTRY_ALIASES).find(([a]) =>
+    new RegExp(`\\b${a.replace(/\./g, "\\.").toLowerCase()}\\b`).test(t)
+  );
+  if (alias) return alias[1];
+  return (
+    STAY_COUNTRIES.find(([, name]) => t.includes(name.toLowerCase()))?.[0] ??
+    null
+  );
+}
+
+const POPULAR_STAYS = [
+  { city: "Miami", country: "US" },
+  { city: "New York", country: "US" },
+  { city: "Las Vegas", country: "US" },
+  { city: "Orlando", country: "US" },
+  { city: "Cancun", country: "MX" },
+  { city: "London", country: "GB" },
+  { city: "Paris", country: "FR" },
+  { city: "Tokyo", country: "JP" },
+];
+
+// Recent stay searches — a per-browser convenience only, so every read/write is guarded.
+const RECENT_STAYS_KEY = "skyrio:recentStays";
+function loadRecentStays() {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_STAYS_KEY) || "[]");
+    return Array.isArray(list) ? list.slice(0, 4) : [];
+  } catch {
+    return [];
+  }
+}
+function saveRecentStay(entry) {
+  try {
+    const key = (e) =>
+      `${(e.placeId || e.city).toLowerCase()}|${e.checkin}|${e.checkout}`;
+    const next = [
+      entry,
+      ...loadRecentStays().filter((e) => key(e) !== key(entry)),
+    ].slice(0, 4);
+    localStorage.setItem(RECENT_STAYS_KEY, JSON.stringify(next));
+    return next;
+  } catch {
+    return loadRecentStays();
+  }
+}
+
+// XP a stay booking earns (before plan multiplier). Must match getBookingXP()
+// for hotels in the backend config/xpRules.js — currently the flat 150.
+const STAY_BOOKING_XP = 150;
+
+// ── Place suggestions ──
+// Splits a LiteAPI /data/places result into a bold name line and a region
+// line ("Miami Beach" / "Florida, United States"), and works out what kind
+// of place it is so the dropdown can show the right icon.
+function normalizePlace(p) {
+  let name = String(
+    p.displayName ?? p.name ?? p.formattedAddress ?? "Unknown place"
+  );
+  const full = String(p.formattedAddress ?? "");
+  let secondary = String(p.secondaryText ?? "");
+  if (!secondary && full) {
+    secondary = full.toLowerCase().startsWith(name.toLowerCase())
+      ? full.slice(name.length).replace(/^[\s,–-]+/, "")
+      : full === name
+      ? ""
+      : full;
+  }
+  if (!secondary && name.includes(", ")) {
+    const [first, ...rest] = name.split(", ");
+    name = first;
+    secondary = rest.join(", ");
+  }
+  if (!secondary && p.country) secondary = String(p.country);
+  const types = []
+    .concat(p.types ?? p.type ?? [])
+    .map((t) => String(t).toLowerCase());
+  return {
+    placeId: p.placeId ?? p.id,
+    displayName: name,
+    secondaryText: secondary,
+    types,
+  };
+}
+
+const CITY_TYPES = [
+  "locality",
+  "sublocality",
+  "neighborhood",
+  "administrative_area",
+  "postal_town",
+  "colloquial_area",
+  "city",
+  "political",
+  "country",
+];
+function placeKind(types = []) {
+  if (types.some((t) => t.includes("lodging") || t.includes("hotel")))
+    return "hotel";
+  if (types.some((t) => CITY_TYPES.some((c) => t.startsWith(c)))) return "city";
+  if (types.length === 0) return "city";
+  return "poi";
+}
+
+function PlaceKindIcon({ kind, size = 20 }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.7,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+  };
+  if (kind === "hotel") {
+    return (
+      <svg {...common}>
+        <path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5" />
+        <circle cx="7" cy="11" r="1.6" />
+      </svg>
+    );
+  }
+  if (kind === "poi") {
+    return (
+      <svg {...common}>
+        <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+        <circle cx="12" cy="10" r="2.3" />
+      </svg>
+    );
+  }
+  if (kind === "recent") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.5V12l3 2" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="M4 21V5.5L10 3v18M10 21V9l10 3v9M3 21h18" />
+      <path d="M6.5 8h1M6.5 11.5h1M6.5 15h1M13 14h1M16.5 14h1M13 17.5h1M16.5 17.5h1" />
+    </svg>
+  );
+}
+
+// "2 travelers, 1 room" in a single control, like the big travel sites.
+function GuestsRoomsPicker({ adults, rooms, maxRooms, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const Stepper = ({ label, sub, value, min, max, onSet }) => (
+    <div className="sk-guests-row">
+      <div>
+        <div className="sk-guests-row-label">{label}</div>
+        {sub && <div className="sk-guests-row-sub">{sub}</div>}
+      </div>
+      <div className="sk-guests-stepper">
+        <button
+          type="button"
+          onClick={() => onSet(value - 1)}
+          disabled={value <= min}
+          aria-label={`Fewer ${label.toLowerCase()}`}
+        >
+          −
+        </button>
+        <span aria-live="polite">{value}</span>
+        <button
+          type="button"
+          onClick={() => onSet(value + 1)}
+          disabled={value >= max}
+          aria-label={`More ${label.toLowerCase()}`}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="sk-guests" ref={ref}>
+      <button
+        type="button"
+        className="sk-guests-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <Users size={17} style={{ opacity: 0.7, flexShrink: 0 }} />
+        <span>
+          {adults} traveler{adults !== 1 ? "s" : ""}, {rooms} room
+          {rooms !== 1 ? "s" : ""}
+        </span>
+      </button>
+      {open && (
+        <div
+          className="sk-guests-pop"
+          role="dialog"
+          aria-label="Travelers and rooms"
+        >
+          {Stepper({
+            label: "Travelers",
+            sub: "Adults",
+            value: adults,
+            min: Math.max(1, rooms),
+            max: 40,
+            onSet: (v) => onChange({ adults: v, rooms }),
+          })}
+          {Stepper({
+            label: "Rooms",
+            sub: "Each room needs at least 1 traveler",
+            value: rooms,
+            min: 1,
+            max: Math.min(maxRooms, adults),
+            onSet: (v) => onChange({ adults, rooms: v }),
+          })}
+          <button
+            type="button"
+            className="sk-guests-done"
+            onClick={() => setOpen(false)}
+          >
+            Done
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CABINS = [
+  { value: "economy", label: "Economy" },
+  { value: "premium_economy", label: "Premium Economy" },
+  { value: "business", label: "Business" },
+  { value: "first", label: "First Class" },
+];
+
+// "1 traveler · Economy" in one control for the Flights pass.
+function TravelersCabinPicker({ adults, cabin, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const cabinLabel = CABINS.find((c) => c.value === cabin)?.label ?? "Economy";
+
+  return (
+    <div className="sk-guests" ref={ref}>
+      <button
+        type="button"
+        className="sk-guests-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <Users size={17} style={{ opacity: 0.7, flexShrink: 0 }} />
+        <span>
+          {adults} traveler{adults !== 1 ? "s" : ""} · {cabinLabel}
+        </span>
+      </button>
+      {open && (
+        <div
+          className="sk-guests-pop"
+          role="dialog"
+          aria-label="Travelers and cabin"
+        >
+          <div className="sk-guests-row">
+            <div>
+              <div className="sk-guests-row-label">Travelers</div>
+              <div className="sk-guests-row-sub">Adults · up to 9</div>
+            </div>
+            <div className="sk-guests-stepper">
+              <button
+                type="button"
+                onClick={() => onChange({ adults: adults - 1, cabin })}
+                disabled={adults <= 1}
+                aria-label="Fewer travelers"
+              >
+                −
+              </button>
+              <span aria-live="polite">{adults}</span>
+              <button
+                type="button"
+                onClick={() => onChange({ adults: adults + 1, cabin })}
+                disabled={adults >= 9}
+                aria-label="More travelers"
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <div className="sk-guests-row sk-guests-row--stack">
+            <div className="sk-guests-row-label">Cabin</div>
+            <div
+              className="sk-cabin-options"
+              role="radiogroup"
+              aria-label="Cabin"
+            >
+              {CABINS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={cabin === c.value}
+                  className={`sk-cabin-opt${
+                    cabin === c.value ? " is-active" : ""
+                  }`}
+                  onClick={() => onChange({ adults, cabin: c.value })}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="sk-guests-done"
+            onClick={() => setOpen(false)}
+          >
+            Done
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Weekend shortcuts: Friday → Sunday (or Saturday → Sunday if it's already Saturday).
+function weekendRange(weeksAhead = 0) {
+  const today = dayjs().startOf("day");
+  const dow = today.day(); // 0 Sun … 6 Sat
+  let start;
+  if (dow === 6) {
+    // Saturday: "this weekend" starts today; later weekends start on the coming Fridays.
+    start =
+      weeksAhead === 0 ? today : today.add(6 + 7 * (weeksAhead - 1), "day");
+  } else {
+    start = today.day(5).add(7 * weeksAhead, "day");
+  }
+  const end = start.day() === 6 ? start.add(1, "day") : start.add(2, "day");
+  return [start, end];
 }
 
 // ─────────────────────────────────────────────
@@ -1518,7 +2010,12 @@ function StaysForm({
     const n = Number(initial.adults);
     if (Number.isInteger(n) && n >= 1 && n <= 9) setAdults(n);
     // From the trip page: show results immediately — no extra Search tap.
-    if (initial.autoSearch && start?.isValid() && end?.isValid() && (initial.city || initial.hotel)) {
+    if (
+      initial.autoSearch &&
+      start?.isValid() &&
+      end?.isValid() &&
+      (initial.city || initial.hotel)
+    ) {
       setTimeout(
         () =>
           handleSearch({
@@ -1546,19 +2043,24 @@ function StaysForm({
   const suggestDebounceRef = useRef(null);
   const suggestAbortRef = useRef(null);
   const cityFieldRef = useRef(null);
+  const cityInputRef = useRef(null);
+  // Recent + popular destinations, shown when the box is focused and empty.
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
 
   // Close the dropdown on outside click — same pattern as the
   // "More" tab menu elsewhere in this file.
   useEffect(() => {
-    if (!suggestOpen) return;
+    if (!suggestOpen && !quickMenuOpen) return;
     const handler = (e) => {
       if (cityFieldRef.current && !cityFieldRef.current.contains(e.target)) {
         setSuggestOpen(false);
+        setQuickMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [suggestOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestOpen, quickMenuOpen]);
 
   const fetchPlaceSuggestions = useCallback((query) => {
     if (suggestDebounceRef.current) clearTimeout(suggestDebounceRef.current);
@@ -1602,12 +2104,7 @@ function StaysForm({
         // /api/hotels/places response — LiteAPI's own wiring docs
         // reference storing `{ placeId, displayName }`, but the raw
         // shape may nest displayName differently or use `name`.
-        const places = (data.places ?? []).slice(0, 8).map((p) => ({
-          placeId: p.placeId ?? p.id,
-          displayName:
-            p.displayName ?? p.name ?? p.formattedAddress ?? "Unknown place",
-          secondaryText: p.secondaryText ?? p.country ?? "",
-        }));
+        const places = (data.places ?? []).slice(0, 8).map(normalizePlace);
 
         setSuggestions(places);
         setSuggestOpen(places.length > 0);
@@ -1630,21 +2127,95 @@ function StaysForm({
     // for something else — don't silently keep searching the old place.
     if (selectedPlace) setSelectedPlace(null);
     setHighlightedIndex(-1);
+    setQuickMenuOpen(!val.trim());
     fetchPlaceSuggestions(val);
   };
 
-  const handleSelectPlaceSuggestion = (place) => {
-    setCityName(place.displayName);
-    setSelectedPlace(place);
+  const clearCity = () => {
+    setCityName("");
+    setSelectedPlace(null);
     setSuggestions([]);
     setSuggestOpen(false);
     setHighlightedIndex(-1);
+    setQuickMenuOpen(true);
+    cityInputRef.current?.focus();
+  };
+
+  const handleSelectPlaceSuggestion = (place) => {
+    // Show the full place in the box: "Miami Beach, Florida, United States".
+    setCityName(
+      place.secondaryText
+        ? `${place.displayName}, ${place.secondaryText}`
+        : place.displayName
+    );
+    setSelectedPlace(place);
+    setQuickMenuOpen(false);
+    // Keep the fallback country in step with the place they picked.
+    const cc = countryFromText(place.secondaryText);
+    if (cc) setCountryCode(cc);
+    setSuggestions([]);
+    setSuggestOpen(false);
+    setHighlightedIndex(-1);
+  };
+
+  const [recentStays, setRecentStays] = useState(loadRecentStays);
+
+  // Popular destination chip → fill the city and look it up, so the search
+  // can use the exact place instead of guessing by name.
+  const handlePickPopular = ({ city, country }) => {
+    setCityName(city);
+    setSelectedPlace(null);
+    setCountryCode(country);
+    setQuickMenuOpen(false);
+    fetchPlaceSuggestions(city);
+    cityInputRef.current?.focus();
+  };
+
+  // Recent search chip → restore it. If its dates are still ahead, search right away.
+  const handlePickRecent = (r) => {
+    const place = r.placeId
+      ? {
+          placeId: r.placeId,
+          displayName: r.city,
+          secondaryText: r.secondaryText || "",
+        }
+      : null;
+    setCityName(r.secondaryText ? `${r.city}, ${r.secondaryText}` : r.city);
+    setSelectedPlace(place);
+    setQuickMenuOpen(false);
+    if (r.countryCode) setCountryCode(r.countryCode);
+    if (r.adults) setAdults(r.adults);
+    if (r.rooms) setNumRooms(r.rooms);
+    const start = dayjs(r.checkin);
+    const end = dayjs(r.checkout);
+    if (start.isValid() && end.isValid() && !start.isBefore(dayjs(), "day")) {
+      handleDatesChange([start, end]);
+      handleSearch({
+        city: r.city,
+        dates: [start, end],
+        adults: r.adults,
+        place,
+      });
+    } else {
+      antdMessage.info(
+        "Pick new dates for this trip — the old ones have passed."
+      );
+    }
   };
 
   // Arrow-key + Enter/Escape navigation — same interaction pattern as
   // the airport search on Flights, so this dropdown doesn't feel like
   // a different, lesser control.
   const handleCityInputKeyDown = (e) => {
+    if (e.key === "Escape" || e.key === "Tab") setQuickMenuOpen(false);
+    if (e.key === "Tab") setSuggestOpen(false);
+    // Enter with nothing highlighted runs the search.
+    if (e.key === "Enter" && (!suggestOpen || highlightedIndex < 0)) {
+      e.preventDefault();
+      setSuggestOpen(false);
+      handleSearch();
+      return;
+    }
     if (!suggestOpen || suggestions.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -1686,6 +2257,29 @@ function StaysForm({
       return antdMessage.warning("Enter a destination city");
     if (!qDates[0] || !qDates[1])
       return antdMessage.warning("Select check-in and check-out dates");
+    if (!pinned && numRooms > qAdults)
+      return antdMessage.warning(
+        "Each room needs at least one traveler — add travelers or remove a room"
+      );
+
+    // Use the exact place whenever we have one: the picked suggestion, or —
+    // if they typed a city and hit Search without picking — the suggestion
+    // that matches what they typed. Name-only lookups often return nothing.
+    // Compare against the name part only ("miami beach" from "Miami Beach, Florida…").
+    const typed = qCity.split(",")[0].trim().toLowerCase();
+    const place =
+      opts.place !== undefined
+        ? opts.place
+        : selectedPlace ??
+          suggestions.find((s) =>
+            s.displayName.toLowerCase().startsWith(typed)
+          ) ??
+          suggestions.find((s) =>
+            s.displayName.toLowerCase().includes(typed)
+          ) ??
+          null;
+    if (place && place !== selectedPlace) setSelectedPlace(place);
+    setSuggestOpen(false);
 
     setLoading(true);
     onSearchStart?.();
@@ -1697,11 +2291,11 @@ function StaysForm({
       // only if the user typed a destination without picking a
       // suggestion (LiteAPI's docs note this fallback needs an exact
       // string match and can return zero results for larger cities).
-      const lookupParams = selectedPlace
-        ? new URLSearchParams({ placeId: selectedPlace.placeId, limit: "20" })
+      const lookupParams = place
+        ? new URLSearchParams({ placeId: place.placeId, limit: "20" })
         : new URLSearchParams({
             countryCode,
-            cityName: qCity.trim(),
+            cityName: qCity.split(",")[0].trim(),
             limit: "20",
           });
 
@@ -1718,14 +2312,22 @@ function StaysForm({
           },
         ];
       } else {
-        const lookupRes = await fetch(`${API}/api/hotels/lookup?${lookupParams}`);
+        const lookupRes = await fetch(
+          `${API}/api/hotels/lookup?${lookupParams}`
+        );
         const lookupData = await lookupRes.json();
         if (!lookupRes.ok || !lookupData.ok)
-          throw new Error(lookupData.message || "Couldn't find that destination");
+          throw new Error(
+            lookupData.message || "Couldn't find that destination"
+          );
         hotelsFound = lookupData.hotels ?? [];
       }
       if (!hotelsFound.length) {
-        antdMessage.info("No hotels found for that destination.");
+        antdMessage.info(
+          place
+            ? "No hotels found for that destination."
+            : "No hotels found — pick your city from the suggestions list for an exact match."
+        );
         onSearch([]);
         return;
       }
@@ -1773,8 +2375,24 @@ function StaysForm({
       }));
 
       onSearch(withDates);
-      onDestChange?.(pinned ? pinned.name : qCity.trim());
+      // Short name for headings/weather ("Miami Beach", not the full region line).
+      onDestChange?.(pinned ? pinned.name : place?.displayName || qCity.trim());
       antdMessage.success(`Found ${withDates.length} room options`);
+
+      if (!pinned && withDates.length > 0) {
+        setRecentStays(
+          saveRecentStay({
+            city: place?.displayName || qCity.trim(),
+            placeId: place?.placeId || null,
+            secondaryText: place?.secondaryText || "",
+            countryCode,
+            checkin: checkinISO,
+            checkout: checkoutISO,
+            adults: qAdults,
+            rooms: numRooms,
+          })
+        );
+      }
     } catch (err) {
       antdMessage.error(err.message || "Hotel search failed");
     } finally {
@@ -1785,106 +2403,232 @@ function StaysForm({
 
   return (
     <div className="sk-search-bar">
-      <div className="sk-field-row">
+      <div className="sk-pass">
         <div
-          className="sk-field sk-field--airport sk-city-autocomplete"
+          className={`sk-pass-seg sk-pass-seg--where${
+            suggestOpen || quickMenuOpen ? " is-active" : ""
+          }`}
           ref={cityFieldRef}
+          onClick={() => cityInputRef.current?.focus()}
         >
-          <Input
-            className="sk-orange-picker"
-            placeholder="Where to? City name"
-            value={cityName}
-            onChange={handleCityInputChange}
-            onKeyDown={handleCityInputKeyDown}
-            onFocus={() => {
-              if (suggestions.length > 0) setSuggestOpen(true);
-            }}
-            autoComplete="off"
-          />
+          <label className="sk-pass-label" htmlFor="sk-where-input">
+            <MapPin size={12} aria-hidden="true" /> Where
+          </label>
+          <div className="sk-where-box">
+            <input
+              id="sk-where-input"
+              ref={cityInputRef}
+              className="sk-where-input"
+              placeholder="Where to?"
+              value={cityName}
+              onChange={handleCityInputChange}
+              onKeyDown={handleCityInputKeyDown}
+              onFocus={() => {
+                if (!cityName.trim()) setQuickMenuOpen(true);
+                else if (suggestions.length > 0 && !selectedPlace)
+                  setSuggestOpen(true);
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              role="combobox"
+              aria-expanded={suggestOpen || quickMenuOpen}
+              aria-controls="sk-where-menu"
+              aria-autocomplete="list"
+              aria-label="Where to? City, landmark or hotel"
+            />
+            {cityName && (
+              <button
+                type="button"
+                className="sk-where-clear"
+                onClick={clearCity}
+                aria-label="Clear destination"
+              >
+                <CloseOutlined />
+              </button>
+            )}
+          </div>
+
+          {/* Typing: live place suggestions */}
           {suggestOpen && (
-            <div className="sk-city-suggest-menu">
-              {suggestLoading && (
-                <div className="sk-city-suggest-item sk-city-suggest-loading">
-                  <LoadingOutlined /> Searching…
+            <div className="sk-where-menu" id="sk-where-menu" role="listbox">
+              {suggestLoading && suggestions.length === 0 && (
+                <div className="sk-where-status">
+                  <LoadingOutlined /> Searching places…
                 </div>
               )}
-              {!suggestLoading &&
-                suggestions.map((s, i) => (
+              {suggestions.map((s, i) => {
+                const kind = placeKind(s.types);
+                return (
                   <button
                     type="button"
                     key={s.placeId}
-                    className={`sk-city-suggest-item${
+                    role="option"
+                    aria-selected={i === highlightedIndex}
+                    className={`sk-where-item${
                       i === highlightedIndex ? " is-highlighted" : ""
                     }`}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSelectPlaceSuggestion(s)}
                     onMouseEnter={() => setHighlightedIndex(i)}
                   >
-                    <EnvironmentOutlined
-                      style={{ marginRight: 8, opacity: 0.6 }}
-                    />
-                    <span>{s.displayName}</span>
-                    {s.secondaryText && (
-                      <span className="sk-city-suggest-country">
-                        {s.secondaryText}
+                    <span className="sk-where-icon">
+                      <PlaceKindIcon kind={kind} />
+                    </span>
+                    <span className="sk-where-text">
+                      <span className="sk-where-name">{s.displayName}</span>
+                      {s.secondaryText && (
+                        <span className="sk-where-sub">{s.secondaryText}</span>
+                      )}
+                    </span>
+                    {i === highlightedIndex && (
+                      <span className="sk-where-xp">
+                        <Zap size={11} /> {STAY_BOOKING_XP} XP
                       </span>
                     )}
                   </button>
-                ))}
+                );
+              })}
               {!suggestLoading && suggestions.length === 0 && (
-                <div className="sk-city-suggest-item sk-city-suggest-empty">
-                  No matches
+                <div className="sk-where-status">
+                  No places match “{cityName}”. Try a city, neighborhood or
+                  hotel name.
                 </div>
               )}
             </div>
           )}
+
+          {/* Empty box: recent searches + popular destinations */}
+          {quickMenuOpen && !suggestOpen && !cityName.trim() && (
+            <div className="sk-where-menu" id="sk-where-menu">
+              {recentStays.length > 0 && (
+                <>
+                  <div className="sk-where-heading">Recent searches</div>
+                  {recentStays.map((r) => (
+                    <button
+                      type="button"
+                      key={`${r.placeId || r.city}-${r.checkin}`}
+                      className="sk-where-item"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handlePickRecent(r)}
+                    >
+                      <span className="sk-where-icon">
+                        <PlaceKindIcon kind="recent" />
+                      </span>
+                      <span className="sk-where-text">
+                        <span className="sk-where-name">{r.city}</span>
+                        <span className="sk-where-sub">
+                          {dayjs(r.checkin).format("MMM D")} –{" "}
+                          {dayjs(r.checkout).format("MMM D")} · {r.adults}{" "}
+                          traveler{r.adults !== 1 ? "s" : ""}, {r.rooms} room
+                          {r.rooms !== 1 ? "s" : ""}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+              <div className="sk-where-heading">Popular destinations</div>
+              {POPULAR_STAYS.map((p) => (
+                <button
+                  type="button"
+                  key={p.city}
+                  className="sk-where-item"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handlePickPopular(p)}
+                >
+                  <span className="sk-where-icon">
+                    <PlaceKindIcon kind="city" />
+                  </span>
+                  <span className="sk-where-text">
+                    <span className="sk-where-name">{p.city}</span>
+                    <span className="sk-where-sub">
+                      {STAY_COUNTRIES.find(([cc]) => cc === p.country)?.[1] ??
+                        p.country}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="sk-field sk-field--select">
-          <Select
-            className="sk-select-cabin"
-            value={countryCode}
-            onChange={setCountryCode}
-            classNames={{ popup: { root: "sk-select-popup" } }}
-          >
-            <Option value="US">United States</Option>
-            <Option value="GB">United Kingdom</Option>
-            <Option value="FR">France</Option>
-            <Option value="JP">Japan</Option>
-            <Option value="MX">Mexico</Option>
-          </Select>
-        </div>
-        <div className="sk-field sk-field--date">
+        <div className="sk-pass-seg sk-pass-seg--when">
+          <span className="sk-pass-label">
+            <Calendar size={12} aria-hidden="true" /> When
+            {dates[0] && dates[1] && (
+              <span className="sk-pass-nights">
+                · {dates[1].diff(dates[0], "day")} night
+                {dates[1].diff(dates[0], "day") !== 1 ? "s" : ""}
+              </span>
+            )}
+          </span>
           <SkyrioPicker
             className="sk-orange-picker"
             placeholder={["Check-in", "Check-out"]}
+            value={dates}
             onChange={handleDatesChange}
             disabledDate={(d) => d && d.isBefore(dayjs(), "day")}
           />
         </div>
-        <div className="sk-field sk-field--occupancy">
-          <div className="sk-occupancy-group">
-            <div className="sk-occupancy-field">
-              <span className="sk-occupancy-label">Travelers</span>
-              <InputNumber
-                className="sk-input-travelers sk-occupancy-input"
-                min={1}
-                max={40}
-                value={adults}
-                onChange={(v) => setAdults(v ?? 1)}
-              />
-            </div>
-            <div className="sk-occupancy-field">
-              <span className="sk-occupancy-label">Rooms</span>
-              <InputNumber
-                className="sk-input-travelers sk-occupancy-input"
-                min={1}
-                max={MAX_ROOMS_PER_TRIP}
-                value={numRooms}
-                onChange={(v) => setNumRooms(v ?? 1)}
-              />
-            </div>
-          </div>
+        <div className="sk-pass-seg sk-pass-seg--who">
+          <span className="sk-pass-label">
+            <Users size={12} aria-hidden="true" /> Who
+          </span>
+          <GuestsRoomsPicker
+            adults={adults}
+            rooms={numRooms}
+            maxRooms={MAX_ROOMS_PER_TRIP}
+            onChange={({ adults: a, rooms: r }) => {
+              setAdults(a);
+              setNumRooms(r);
+            }}
+          />
         </div>
-        <SearchBtn onClick={handleSearch} loading={loading} />
+        <button
+          type="button"
+          className="sk-pass-go"
+          onClick={() => handleSearch()}
+          disabled={loading}
+          aria-label="Search stays"
+        >
+          {loading ? <LoadingOutlined /> : <SearchOutlined />}
+          <span className="sk-pass-go-text">
+            {loading ? "Searching…" : "Search"}
+          </span>
+        </button>
+      </div>
+
+      {/* ── Date shortcuts ── */}
+      <div className="sk-stay-shortcuts">
+        <div className="sk-stay-shortcut-row">
+          <span className="sk-stay-shortcut-label">Dates</span>
+          <button
+            type="button"
+            className="sk-stay-chip"
+            onClick={() => handleDatesChange(weekendRange(0))}
+          >
+            This weekend
+          </button>
+          <button
+            type="button"
+            className="sk-stay-chip"
+            onClick={() => handleDatesChange(weekendRange(1))}
+          >
+            Next weekend
+          </button>
+          <button
+            type="button"
+            className="sk-stay-chip"
+            onClick={() => {
+              const start =
+                dates[0] && !dates[0].isBefore(dayjs(), "day")
+                  ? dates[0]
+                  : dayjs().add(14, "day").startOf("day");
+              handleDatesChange([start, start.add(7, "day")]);
+            }}
+          >
+            1 week
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2061,7 +2805,8 @@ function ExcursionsForm({
     }
     const start = initial.start ? dayjs(initial.start) : null;
     const end = initial.end ? dayjs(initial.end) : null;
-    const range = start?.isValid() && end?.isValid() ? [start, end] : [null, null];
+    const range =
+      start?.isValid() && end?.isValid() ? [start, end] : [null, null];
     setDates(range);
     if (initial.autoSearch && initial.city) {
       setTimeout(() => handleSearch({ city: initial.city, dates: range }), 0);
@@ -2270,7 +3015,9 @@ function FlightSkeleton({ destCity, fromCode }) {
   const providers = fromCode ? "Airlines" : "Hotels";
   const waitMessage =
     waitedSec >= 50
-      ? `Taking longer than usual — we're checking with the ${fromCode ? "airline" : "hotels"} again…`
+      ? `Taking longer than usual — we're checking with the ${
+          fromCode ? "airline" : "hotels"
+        } again…`
       : waitedSec >= 20
       ? `Still searching — ${providers} can be slow to respond. Hang tight…`
       : "Live prices can take up to a minute to load.";
@@ -2407,7 +3154,9 @@ export default function BookingPage() {
     const fromUrl = searchParams.get("groupId");
     try {
       if (fromUrl) window.sessionStorage.setItem("skyrio_sync_group", fromUrl);
-      return fromUrl || window.sessionStorage.getItem("skyrio_sync_group") || null;
+      return (
+        fromUrl || window.sessionStorage.getItem("skyrio_sync_group") || null
+      );
     } catch {
       return fromUrl || null;
     }
@@ -2446,24 +3195,33 @@ export default function BookingPage() {
       setSavingGroupHotel(hotel.hotelId);
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch(`${API}/api/sync-together/${syncGroupId}/group-hotel`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({
-            hotel: {
-              hotelId: hotel.hotelId,
-              name: hotel.name,
-              address: hotel.address,
-              thumbnail: hotel.thumbnail,
-              stars: hotel.stars,
-              rating: hotel.rating,
+        const res = await fetch(
+          `${API}/api/sync-together/${syncGroupId}/group-hotel`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-          }),
-        });
+            body: JSON.stringify({
+              hotel: {
+                hotelId: hotel.hotelId,
+                name: hotel.name,
+                address: hotel.address,
+                thumbnail: hotel.thumbnail,
+                stars: hotel.stars,
+                rating: hotel.rating,
+              },
+            }),
+          }
+        );
         const d = await res.json();
-        if (!res.ok || !d.ok) throw new Error(d.error || "Couldn't save the group's hotel");
+        if (!res.ok || !d.ok)
+          throw new Error(d.error || "Couldn't save the group's hotel");
         setSyncInfo((prev) => ({ ...(prev || {}), groupHotel: d.groupHotel }));
-        antdMessage.success(`${hotel.name} is now the group's hotel. Everyone's "Book my room" opens here.`);
+        antdMessage.success(
+          `${hotel.name} is now the group's hotel. Everyone's "Book my room" opens here.`
+        );
       } catch (e) {
         antdMessage.error(e.message);
       } finally {
@@ -2475,7 +3233,14 @@ export default function BookingPage() {
 
   // ── Group shortlist: "Suggest to group" on any flight or hotel ──
   const flightKey = (f) =>
-    ["flight", f.ownerCode || f.owner, f.origin, f.destination, f.departingAt, f.returningAt || ""]
+    [
+      "flight",
+      f.ownerCode || f.owner,
+      f.origin,
+      f.destination,
+      f.departingAt,
+      f.returningAt || "",
+    ]
       .map((x) => String(x || "").slice(0, 40))
       .join(":");
   // Excursion results come from Viator; accept the common field names.
@@ -2489,10 +3254,18 @@ export default function BookingPage() {
       ex.images?.[0]?.url ||
       ex.images?.[0]?.variants?.slice?.(-1)?.[0]?.url ||
       (typeof ex.images?.[0] === "string" ? ex.images[0] : undefined),
-    city: ex.city || ex.destination || ex.location || syncInfo?.destination || undefined,
+    city:
+      ex.city ||
+      ex.destination ||
+      ex.location ||
+      syncInfo?.destination ||
+      undefined,
     duration: ex.duration || ex.durationText || undefined,
     rating: ex.rating ?? ex.reviews?.combinedAverageRating ?? undefined,
-    reviews: ex.reviewCount ?? ex.reviews?.totalReviews ?? (typeof ex.reviews === "number" ? ex.reviews : undefined),
+    reviews:
+      ex.reviewCount ??
+      ex.reviews?.totalReviews ??
+      (typeof ex.reviews === "number" ? ex.reviews : undefined),
     url: ex.productUrl || ex.bookingUrl || ex.url || ex.link || undefined,
   });
   const activityKey = (ex) => {
@@ -2509,7 +3282,11 @@ export default function BookingPage() {
       e?.stopPropagation?.();
       if (!syncGroupId) return;
       const key =
-        kind === "hotel" ? `hotel:${data.hotelId}` : kind === "activity" ? activityKey(data) : flightKey(data);
+        kind === "hotel"
+          ? `hotel:${data.hotelId}`
+          : kind === "activity"
+          ? activityKey(data)
+          : flightKey(data);
       setSuggesting(key);
       try {
         const token = localStorage.getItem("token");
@@ -2518,7 +3295,12 @@ export default function BookingPage() {
             ? {
                 kind,
                 price:
-                  parseFloat(data.price ?? data.fromPrice ?? data.pricing?.summary?.fromPrice ?? data.totalAmount) || null,
+                  parseFloat(
+                    data.price ??
+                      data.fromPrice ??
+                      data.pricing?.summary?.fromPrice ??
+                      data.totalAmount
+                  ) || null,
                 currency: data.currency || data.pricing?.currency || "USD",
                 activity: activityFor(data),
               }
@@ -2559,19 +3341,28 @@ export default function BookingPage() {
                   cabin: data.cabinClass || data.cabin,
                 },
               };
-        const res = await fetch(`${API}/api/sync-together/${syncGroupId}/shortlist`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify(body),
-        });
+        const res = await fetch(
+          `${API}/api/sync-together/${syncGroupId}/shortlist`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(body),
+          }
+        );
         const d = await res.json().catch(() => ({}));
-        if (!res.ok || !d.ok) throw new Error(d.error || "Couldn't add it to the shortlist");
+        if (!res.ok || !d.ok)
+          throw new Error(d.error || "Couldn't add it to the shortlist");
         setSyncInfo((prev) => ({
           ...(prev || {}),
           shortlist: [...(prev?.shortlist || []), { key, kind }],
         }));
         antdMessage.success(
-          d.alreadyListed ? "Already on the shortlist — we added your vote." : "Added to the group shortlist. The group can vote on it."
+          d.alreadyListed
+            ? "Already on the shortlist — we added your vote."
+            : "Added to the group shortlist. The group can vote on it."
         );
       } catch (err) {
         antdMessage.error(err.message);
@@ -2584,13 +3375,19 @@ export default function BookingPage() {
   const SuggestBtn = ({ kind, data }) => {
     if (!syncGroupId) return null;
     const key =
-      kind === "hotel" ? `hotel:${data.hotelId}` : kind === "activity" ? activityKey(data) : flightKey(data);
+      kind === "hotel"
+        ? `hotel:${data.hotelId}`
+        : kind === "activity"
+        ? activityKey(data)
+        : flightKey(data);
     const done = shortlistKeys.has(key);
     const isPick =
       (kind === "flight" && syncInfo?.groupFlightKey === key) ||
       (kind === "hotel" && syncInfo?.groupHotel?.hotelId === data.hotelId) ||
       (kind === "activity" &&
-        (syncInfo?.shortlist || []).some((i) => i.key === key && i.status === "picked"));
+        (syncInfo?.shortlist || []).some(
+          (i) => i.key === key && i.status === "picked"
+        ));
     if (isPick) {
       return (
         <span
@@ -2615,7 +3412,9 @@ export default function BookingPage() {
         onClick={(e) => suggestToGroup(kind, data, e)}
         style={{
           background: done ? "rgba(82,196,26,0.12)" : "rgba(255,138,42,0.12)",
-          border: `1px solid ${done ? "rgba(82,196,26,0.4)" : "rgba(255,138,42,0.45)"}`,
+          border: `1px solid ${
+            done ? "rgba(82,196,26,0.4)" : "rgba(255,138,42,0.45)"
+          }`,
           color: done ? "#52c41a" : "#ff8a2a",
           borderRadius: 10,
           padding: "7px 12px",
@@ -2625,7 +3424,11 @@ export default function BookingPage() {
           fontFamily: "inherit",
         }}
       >
-        {done ? "✓ On the shortlist" : suggesting === key ? "Adding…" : "🗳️ Suggest to group"}
+        {done
+          ? "✓ On the shortlist"
+          : suggesting === key
+          ? "Adding…"
+          : "🗳️ Suggest to group"}
       </button>
     );
   };
@@ -2713,7 +3516,9 @@ export default function BookingPage() {
 
   const [tab, setTab] = useState(
     prefillData?.tab ??
-      (["Flights", "Stays", "Excursions"].includes(tabParam) ? tabParam : "Flights")
+      (["Flights", "Stays", "Excursions"].includes(tabParam)
+        ? tabParam
+        : "Flights")
   );
   const [flightResults, setFlightResults] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
@@ -2737,6 +3542,9 @@ export default function BookingPage() {
   const [originCity, setOriginCity] = useState("");
   const [manualSearchLoading, setManualSearchLoading] = useState(false);
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
+  const [sortBy, setSortBy] = useState("price");
+  const [hotelFilters, setHotelFilters] = useState(DEFAULT_HOTEL_FILTERS);
+  const [hotelSortBy, setHotelSortBy] = useState("price");
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
@@ -3070,8 +3878,9 @@ export default function BookingPage() {
   }, [editPrompt, editBudget, editDays, destCity]);
 
   const visibleFlights = useMemo(
-    () => applyFilters(flightResults, smartFilters),
-    [flightResults, smartFilters]
+    () =>
+      applyFilters(flightResults, smartFilters).sort(compareFlights(sortBy)),
+    [flightResults, smartFilters, sortBy]
   );
 
   // Round-trip searches return one priced "journey" per outbound+return
@@ -3104,12 +3913,8 @@ export default function BookingPage() {
           options[0]
         ),
       }))
-      .sort(
-        (a, b) =>
-          parseFloat(a.cheapest.totalAmount) -
-          parseFloat(b.cheapest.totalAmount)
-      );
-  }, [visibleFlights, hasReturnData]);
+      .sort((a, b) => compareFlights(sortBy)(a.cheapest, b.cheapest));
+  }, [visibleFlights, hasReturnData, sortBy]);
 
   // The group the person committed to in step 1, if any. Falls back to
   // null automatically if a filter change makes that group disappear.
@@ -3138,16 +3943,32 @@ export default function BookingPage() {
   );
 
   // Hotels — pagination mirrors flights (no separate filter set yet)
-  const paginatedHotels = useMemo(
-    () => hotelResults.slice(0, visibleCount),
-    [hotelResults, visibleCount]
+  const visibleHotels = useMemo(
+    () =>
+      applyHotelFilters(hotelResults, hotelFilters).sort(
+        compareHotels(hotelSortBy)
+      ),
+    [hotelResults, hotelFilters, hotelSortBy]
   );
-  const hotelHasMore = visibleCount < hotelResults.length;
+  const activeHotelFilterCount = useMemo(
+    () => Object.values(hotelFilters).filter((v) => v !== "any").length,
+    [hotelFilters]
+  );
+  const paginatedHotels = useMemo(
+    () => visibleHotels.slice(0, visibleCount),
+    [visibleHotels, visibleCount]
+  );
+  const hotelHasMore = visibleCount < visibleHotels.length;
+
+  // A new hotel search starts with clean filters (the old hotel pick won't exist).
+  useEffect(() => {
+    setHotelFilters(DEFAULT_HOTEL_FILTERS);
+  }, [hotelResults]);
 
   useEffect(() => {
     setVisibleCount(RESULTS_PER_PAGE);
     setSelectedOutboundGroupKey(null);
-  }, [flightResults, hotelResults, smartFilters]);
+  }, [flightResults, hotelResults, smartFilters, hotelFilters, hotelSortBy]);
 
   // Only the destination's weather is surfaced anywhere in the booking flow —
   // origin weather (e.g. "Newark · Avg 58°/44°") was dropped since the user
@@ -3166,16 +3987,27 @@ export default function BookingPage() {
     ? `${selectedNights} night${selectedNights !== 1 ? "s" : ""}`
     : "";
 
+  // Quick chips are shortcuts into the SAME smartFilters the dropdowns use, so a
+  // chip and its dropdown always agree. (The old Luxury / Unwind / Adventure /
+  // Romantic chips only toggled their own highlight — flight data has nothing to
+  // filter those on, so they were removed rather than left as fake controls.)
   const quickFilters = useMemo(
-    () => ["Under $500", "Luxury", "Unwind", "Adventure", "Romantic"],
+    () => [
+      { label: "Under $500", key: "price", value: 500 },
+      { label: "Nonstop", key: "stops", value: 0 },
+      { label: "Morning", key: "time", value: "morning" },
+      { label: "Max XP", key: "xp", value: 150 },
+    ],
     []
   );
-  const [activeFilters, setActiveFilters] = useState([]);
-  const toggleFilter = (label) =>
-    setActiveFilters((prev) =>
-      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
-    );
-  const clearFilters = () => setActiveFilters([]);
+  const isQuickActive = (qf) =>
+    String(smartFilters[qf.key]) === String(qf.value);
+  const toggleFilter = (qf) =>
+    setSmartFilters((prev) => ({
+      ...prev,
+      [qf.key]: String(prev[qf.key]) === String(qf.value) ? "any" : qf.value,
+    }));
+  const clearFilters = () => setSmartFilters(DEFAULT_FILTERS);
 
   const [selectedResult, setSelectedResult] = useState({
     id: "",
@@ -3297,9 +4129,11 @@ export default function BookingPage() {
       ? isSearching
         ? "Searching hotels…"
         : hotelResults.length > 0
-        ? `${hotelResults.length} Room Option${
-            hotelResults.length !== 1 ? "s" : ""
-          } Found`
+        ? activeHotelFilterCount > 0
+          ? `${visibleHotels.length} of ${hotelResults.length} Room Options`
+          : `${hotelResults.length} Room Option${
+              hotelResults.length !== 1 ? "s" : ""
+            } Found`
         : "Results"
       : tab === "Excursions"
       ? isSearching
@@ -3392,16 +4226,27 @@ export default function BookingPage() {
           }}
         >
           <span>
-            Planning a Sync Together trip — tap “Suggest to group” on anything you like so everyone can vote, or book your own part.
+            Planning a Sync Together trip — tap “Suggest to group” on anything
+            you like so everyone can vote, or book your own part.
           </span>
           <span style={{ display: "flex", gap: 12 }}>
-            <Link to={`/sync-together/${syncGroupId}`} style={{ color: "#ffb347" }}>
+            <Link
+              to={`/sync-together/${syncGroupId}`}
+              style={{ color: "#ffb347" }}
+            >
               Back to the trip
             </Link>
             <button
               type="button"
               onClick={leaveSyncGroup}
-              style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", padding: 0, fontSize: 13 }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "rgba(255,255,255,0.6)",
+                cursor: "pointer",
+                padding: 0,
+                fontSize: 13,
+              }}
             >
               Book something else
             </button>
@@ -3563,7 +4408,7 @@ export default function BookingPage() {
               <div className="sk-pwc-xp">
                 <Zap size={13} className="sk-pwc-xp-icon" />
                 <span className="sk-pwc-xp-label">
-                  Earn <strong>60 XP</strong> on booking
+                  Earn up to <strong>150 XP</strong> on booking
                 </span>
               </div>
               <button
@@ -3648,7 +4493,9 @@ export default function BookingPage() {
               setExcursionResults([]);
               setSearchError(null);
               setSmartFilters(DEFAULT_FILTERS);
-              setActiveFilters([]);
+              setSortBy("price");
+              setHotelFilters(DEFAULT_HOTEL_FILTERS);
+              setHotelSortBy("price");
               setVisibleCount(RESULTS_PER_PAGE);
               // Leaving Stays clears any in-progress room cart so a
               // half-built trip from a previous search doesn't linger
@@ -3667,8 +4514,43 @@ export default function BookingPage() {
             visible={tab === "Flights"}
           />
 
+          <HotelFilterBar
+            filters={hotelFilters}
+            onChange={setHotelFilters}
+            hotelResults={hotelResults}
+            visible={tab === "Stays"}
+          />
+
           <Space className="sk-action-row" wrap>
-            <Button className="sk-btn-orange">Sort: Recommended</Button>
+            {tab === "Flights" && (
+              <Button
+                className="sk-btn-orange"
+                onClick={() => {
+                  const i = SORT_OPTIONS.findIndex((o) => o.key === sortBy);
+                  setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length].key);
+                }}
+                title="Click to change sort"
+              >
+                Sort: {SORT_OPTIONS.find((o) => o.key === sortBy)?.label}
+              </Button>
+            )}
+            {tab === "Stays" && (
+              <Button
+                className="sk-btn-orange"
+                onClick={() => {
+                  const i = HOTEL_SORT_OPTIONS.findIndex(
+                    (o) => o.key === hotelSortBy
+                  );
+                  setHotelSortBy(
+                    HOTEL_SORT_OPTIONS[(i + 1) % HOTEL_SORT_OPTIONS.length].key
+                  );
+                }}
+                title="Click to change sort"
+              >
+                Sort:{" "}
+                {HOTEL_SORT_OPTIONS.find((o) => o.key === hotelSortBy)?.label}
+              </Button>
+            )}
             <Link to="/sync-together">
               <Button className="sk-btn-sync" icon={<SyncOutlined />}>
                 Sync Together
@@ -3691,19 +4573,18 @@ export default function BookingPage() {
 
           {tab === "Flights" && (
             <Space className="sk-filters" wrap>
-              {quickFilters.map((f) => (
+              {quickFilters.map((qf) => (
                 <button
-                  key={f}
+                  key={qf.label}
                   type="button"
-                  className={`sk-qf${
-                    activeFilters.includes(f) ? " is-active" : ""
-                  }`}
-                  onClick={() => toggleFilter(f)}
+                  className={`sk-qf${isQuickActive(qf) ? " is-active" : ""}`}
+                  aria-pressed={isQuickActive(qf)}
+                  onClick={() => toggleFilter(qf)}
                 >
-                  {f}
+                  {qf.label}
                 </button>
               ))}
-              {activeFilters.length > 0 && (
+              {activeFilterCount > 0 && (
                 <button
                   type="button"
                   className="sk-qf sk-qf-clear"
@@ -3991,7 +4872,13 @@ export default function BookingPage() {
                     </div>
                   </div>
                   {syncGroupId && (
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        marginTop: 10,
+                      }}
+                    >
                       <SuggestBtn kind="flight" data={flight} />
                     </div>
                   )}
@@ -4217,7 +5104,13 @@ export default function BookingPage() {
                       </div>
                     </div>
                     {syncGroupId && (
-                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          marginTop: 10,
+                        }}
+                      >
                         <SuggestBtn kind="flight" data={cheapest} />
                       </div>
                     )}
@@ -4466,7 +5359,13 @@ export default function BookingPage() {
                             </div>
                           </div>
                           {syncGroupId && (
-                            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "flex-end",
+                                marginTop: 10,
+                              }}
+                            >
                               <SuggestBtn kind="flight" data={opt} />
                             </div>
                           )}
@@ -4546,6 +5445,25 @@ export default function BookingPage() {
                                 {hotel.totalCurrency}
                               </span>
                             </div>
+                            {(() => {
+                              const nights =
+                                hotel.checkin && hotel.checkout
+                                  ? dayjs(hotel.checkout).diff(
+                                      dayjs(hotel.checkin),
+                                      "day"
+                                    )
+                                  : 0;
+                              const total = Number(hotel.totalAmount);
+                              if (!(nights > 0) || !Number.isFinite(total))
+                                return null;
+                              return (
+                                <div className="sk-pernight">
+                                  ${Math.round(total / nights).toLocaleString()}
+                                  /night · {nights} night
+                                  {nights !== 1 ? "s" : ""} total
+                                </div>
+                              );
+                            })()}
                             <SaveTripButton
                               size="small"
                               variant="ghost"
@@ -4650,7 +5568,13 @@ export default function BookingPage() {
                           )}
                           {groupHotelId && hotel.hotelId === groupHotelId && (
                             <span className="sk-tag sk-tag-xp">
-                              <Users size={11} style={{ marginRight: 3, verticalAlign: "middle" }} />
+                              <Users
+                                size={11}
+                                style={{
+                                  marginRight: 3,
+                                  verticalAlign: "middle",
+                                }}
+                              />
                               Your group's hotel
                             </span>
                           )}
@@ -4658,31 +5582,42 @@ export default function BookingPage() {
                       </div>
                     </div>
                     {syncGroupId && (
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          gap: 8,
+                          flexWrap: "wrap",
+                          marginTop: 10,
+                        }}
+                      >
                         <SuggestBtn kind="hotel" data={hotel} />
-                        {syncInfo?.isOrganizer && hotel.hotelId !== groupHotelId && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            makeGroupHotel(hotel);
-                          }}
-                          disabled={savingGroupHotel === hotel.hotelId}
-                          style={{
-                            background: "rgba(124,58,237,0.14)",
-                            border: "1px solid rgba(124,58,237,0.4)",
-                            color: "#fff",
-                            borderRadius: 10,
-                            padding: "7px 12px",
-                            fontSize: 13,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          {savingGroupHotel === hotel.hotelId ? "Saving…" : "Make this the group's hotel"}
-                        </button>
-                        )}
+                        {syncInfo?.isOrganizer &&
+                          hotel.hotelId !== groupHotelId && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                makeGroupHotel(hotel);
+                              }}
+                              disabled={savingGroupHotel === hotel.hotelId}
+                              style={{
+                                background: "rgba(124,58,237,0.14)",
+                                border: "1px solid rgba(124,58,237,0.4)",
+                                color: "#fff",
+                                borderRadius: 10,
+                                padding: "7px 12px",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              {savingGroupHotel === hotel.hotelId
+                                ? "Saving…"
+                                : "Make this the group's hotel"}
+                            </button>
+                          )}
                       </div>
                     )}
                   </Card>
@@ -4695,7 +5630,9 @@ export default function BookingPage() {
                 loading={isSearching}
                 destination={destCity}
                 renderAction={
-                  syncGroupId ? (ex) => <SuggestBtn kind="activity" data={ex} /> : undefined
+                  syncGroupId
+                    ? (ex) => <SuggestBtn kind="activity" data={ex} />
+                    : undefined
                 }
               />
             )}
@@ -4742,15 +5679,50 @@ export default function BookingPage() {
                   View{" "}
                   {Math.min(
                     RESULTS_PER_PAGE,
-                    hotelResults.length - visibleCount
+                    visibleHotels.length - visibleCount
                   )}{" "}
                   more rooms
                   <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
-                    {visibleCount} of {hotelResults.length}
+                    {visibleCount} of {visibleHotels.length}
                   </span>
                 </button>
               </div>
             )}
+
+            {!isSearching &&
+              tab === "Stays" &&
+              hotelResults.length > 0 &&
+              visibleHotels.length === 0 && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "40px 24px",
+                    color: "rgba(255,255,255,0.55)",
+                    fontSize: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 16,
+                      color: "rgba(255,255,255,0.8)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    No rooms match these filters
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    Try a higher price or fewer filters.
+                  </div>
+                  <button
+                    type="button"
+                    className="sk-clear-filters-cta"
+                    onClick={() => setHotelFilters(DEFAULT_HOTEL_FILTERS)}
+                  >
+                    Clear all filters
+                  </button>
+                </div>
+              )}
 
             {!isSearching &&
               tab === "Flights" &&
