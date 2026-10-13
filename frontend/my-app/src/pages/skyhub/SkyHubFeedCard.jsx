@@ -283,9 +283,10 @@ export default function SkyHubFeedCard({
         <Dropdown
           trigger={["click"]}
           placement="bottomRight"
+          overlayClassName="skyhub-menu"
           menu={{ items: menuItems }}
         >
-          <button className="skyhub-feedCard__menu">
+          <button className="skyhub-feedCard__menu" aria-label="Post options">
             <MoreOutlined />
           </button>
         </Dropdown>

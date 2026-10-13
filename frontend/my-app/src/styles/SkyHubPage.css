@@ -994,6 +994,204 @@
 }
 
 /* ================================================================
+   ⋮ MENUS — post and comment options
+   Same issue as the popups: rendered outside the page, so the
+   text came out black. Every SkyHub dropdown gets overlayClassName="skyhub-menu".
+================================================================ */
+.skyhub-menu .ant-dropdown-menu {
+  background: var(--sh-s2) !important;
+  border: 1px solid var(--sh-line3);
+  border-radius: 14px !important;
+  padding: 6px !important;
+  min-width: 190px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55) !important;
+}
+.skyhub-menu .ant-dropdown-menu-item {
+  color: var(--sh-text) !important;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px !important;
+  font-weight: 600;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  gap: 4px;
+}
+.skyhub-menu .ant-dropdown-menu-item .anticon {
+  color: var(--sh-muted) !important;
+  font-size: 15px !important;
+}
+.skyhub-menu .ant-dropdown-menu-item:hover,
+.skyhub-menu .ant-dropdown-menu-item-active {
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #fff !important;
+}
+.skyhub-menu .ant-dropdown-menu-item:hover .anticon {
+  color: var(--sh-orange2) !important;
+}
+/* Delete / Block stay red */
+.skyhub-menu .ant-dropdown-menu-item-danger,
+.skyhub-menu .ant-dropdown-menu-item-danger .anticon {
+  color: #f87171 !important;
+}
+.skyhub-menu .ant-dropdown-menu-item-danger:hover {
+  background: rgba(248, 113, 113, 0.12) !important;
+  color: #fca5a5 !important;
+}
+.skyhub-menu .ant-dropdown-menu-item-divider {
+  background: var(--sh-line2) !important;
+}
+
+/* ================================================================
+   COMMENTS PANEL
+================================================================ */
+.skyhub-drawer .ant-drawer-content,
+.skyhub-drawer .ant-drawer-body {
+  background: #1a1233 !important;
+  color: var(--sh-text);
+}
+.skyhub-drawer .ant-drawer-header {
+  background: #1a1233 !important;
+  border-bottom: 1px solid var(--sh-line2) !important;
+  /* clear the iPhone notch / status bar */
+  padding-top: max(16px, env(safe-area-inset-top)) !important;
+}
+.skyhub-drawer .ant-drawer-title {
+  color: #fff !important;
+  font-family: "Sora", sans-serif;
+  font-weight: 700 !important;
+}
+.skyhub-drawer .ant-drawer-close {
+  color: var(--sh-soft) !important;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.skyhub-drawer .ant-drawer-close:hover {
+  background: var(--sh-ghost);
+  color: #fff !important;
+}
+.skyhub-drawer .ant-drawer-body {
+  padding: 16px 18px max(24px, env(safe-area-inset-bottom)) !important;
+}
+
+/* The post you're replying to */
+.skyhub-drawerPreview {
+  padding: 14px;
+  margin-bottom: 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--sh-line2);
+}
+.skyhub-drawerPreview__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+}
+.skyhub-drawerPreview__author {
+  font-weight: 700;
+  color: #fff;
+}
+.skyhub-drawerPreview__dest {
+  color: var(--sh-orange2);
+  font-weight: 600;
+}
+.skyhub-drawerPreview__time {
+  color: var(--sh-muted);
+}
+.skyhub-drawerPreview__body {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 8px;
+}
+.skyhub-drawerPreview__text {
+  flex: 1;
+  margin: 0;
+  color: var(--sh-soft);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.skyhub-drawerPreview__photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-left: auto;
+  border: 1px solid var(--sh-line2);
+}
+
+/* Reply box */
+.skyhub-drawer .skyhub-commentComposer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.skyhub-drawer .skyhub-commentComposer textarea.ant-input {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid var(--sh-line3) !important;
+  border-radius: 12px !important;
+  color: #fff !important;
+  font-size: 16px !important; /* 16px stops iPhone zooming in when you tap it */
+}
+.skyhub-drawer .skyhub-commentComposer textarea.ant-input::placeholder {
+  color: var(--sh-muted) !important;
+}
+.skyhub-drawer .skyhub-commentComposer textarea.ant-input:focus {
+  border-color: var(--sh-orange) !important;
+  box-shadow: 0 0 0 3px var(--sh-odim) !important;
+}
+.skyhub-drawer .skyhub-commentComposer .ant-btn {
+  align-self: flex-end;
+}
+
+/* Comment list */
+.skyhub-drawer .skyhub-commentItem {
+  border-bottom: 1px solid var(--sh-line);
+}
+.skyhub-drawer .skyhub-commentItem:last-child {
+  border-bottom: none;
+}
+.skyhub-drawer .skyhub-commentText {
+  color: var(--sh-soft);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+/* Nothing yet */
+.skyhub-drawerEmpty {
+  text-align: center;
+  padding: 40px 16px;
+}
+.skyhub-drawerEmpty__icon {
+  font-size: 34px;
+  margin-bottom: 10px;
+  opacity: 0.8;
+}
+.skyhub-drawerEmpty__title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  font-family: "Sora", sans-serif;
+}
+.skyhub-drawerEmpty__sub {
+  color: var(--sh-muted);
+  font-size: 13.5px;
+  margin-top: 4px;
+}
+
+/* ================================================================
    RESPONSIVE
 ================================================================ */
 @media (max-width: 1100px) {

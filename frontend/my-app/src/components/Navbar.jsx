@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Avatar, Button, Space, Tooltip } from "antd";
 import {
   LogoutOutlined,
@@ -7,9 +13,12 @@ import {
   CloseOutlined,
   HeartFilled,
   HeartOutlined,
+  DownOutlined,
+  UpOutlined,
 } from "@ant-design/icons";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
+import { apiUrl } from "@/lib/api";
 import skyrioLogo from "@/assets/logo/skyrio-logo-transparent.png";
 import Notifications from "@/components/Notifications";
 import "@/styles/Navbar.css";
@@ -33,6 +42,12 @@ function getActiveKey(pathname) {
 // ── Admin email — only this account sees the admin link ──
 const ADMIN_EMAIL = "skyrioofficial@gmail.com";
 
+// ── Auth helper (same as Notifications.jsx) ──
+const authHeaders = () => {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -40,8 +55,13 @@ export default function Navbar() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const menuRef = useRef(null);
+
+  // ── Mobile notifications state ──
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifItems, setNotifItems] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
 
   const activeKey = useMemo(
     () => getActiveKey(location.pathname),
@@ -89,29 +109,61 @@ export default function Navbar() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  // ── Fetch unread count for mobile menu badge ──
+  // Collapse the notifications list whenever the mobile menu closes
+  useEffect(() => {
+    if (!mobileOpen) setNotifOpen(false);
+  }, [mobileOpen]);
+
+  // ── Fetch notifications (same endpoint the desktop bell uses) ──
+  const fetchNotifs = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/api/notifications/mine"), {
+        credentials: "include",
+        headers: { ...authHeaders() },
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setUnreadCount(Number(data?.unread || 0));
+      setNotifItems(Array.isArray(data?.items) ? data.items.slice(0, 10) : []);
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Poll for the mobile badge
   useEffect(() => {
     if (!isAuthed) return;
-    const fetchUnread = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL || ""}/api/notifications?limit=1`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            credentials: "include",
-          }
-        );
-        const data = await res.json();
-        setUnreadCount(data?.unreadCount ?? 0);
-      } catch {
-        /* ignore */
-      }
-    };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 60000);
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 60000);
     return () => clearInterval(interval);
-  }, [isAuthed]);
+  }, [isAuthed, fetchNotifs]);
+
+  // ── Tap "Notifications": show the list, then mark everything read ──
+  const toggleMobileNotifs = async () => {
+    if (notifOpen) {
+      setNotifOpen(false);
+      return;
+    }
+    setNotifOpen(true);
+    setNotifLoading(true);
+    await fetchNotifs(); // load fresh list first so NEW tags still show
+    setNotifLoading(false);
+
+    // Optimistic clear — badge drops immediately
+    setUnreadCount(0);
+    try {
+      const res = await fetch(apiUrl("/api/notifications/read-all"), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { ...authHeaders() },
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Server didn't save it — restore the real count
+      fetchNotifs();
+    }
+  };
 
   const handleNavigate = (path) => {
     navigate(path);
@@ -283,35 +335,130 @@ export default function Navbar() {
                 </button>
               )}
 
-              {/* Notifications in mobile menu */}
+              {/* Notifications in mobile menu — expands inline */}
               {isAuthed && (
-                <button
-                  type="button"
-                  className="sk-mobile-link"
-                  onClick={() => {
-                    setMobileOpen(false);
-                    navigate("/passport");
-                  }}
-                  style={{ display: "flex", alignItems: "center", gap: 8 }}
-                >
-                  <span style={{ fontSize: 16 }}>🔔</span>
-                  Notifications
-                  {unreadCount > 0 && (
-                    <span
+                <>
+                  <button
+                    type="button"
+                    className={`sk-mobile-link ${notifOpen ? "active" : ""}`}
+                    onClick={toggleMobileNotifs}
+                    aria-expanded={notifOpen}
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <span style={{ fontSize: 16 }}>🔔</span>
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span
+                        style={{
+                          background: "#ff4d6d",
+                          color: "#fff",
+                          borderRadius: 99,
+                          fontSize: 10,
+                          padding: "1px 6px",
+                          marginLeft: 4,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {unreadCount}
+                      </span>
+                    )}
+                    <span style={{ marginLeft: "auto", fontSize: 12 }}>
+                      {notifOpen ? <UpOutlined /> : <DownOutlined />}
+                    </span>
+                  </button>
+
+                  {notifOpen && (
+                    <div
                       style={{
-                        background: "#ff4d6d",
-                        color: "#fff",
-                        borderRadius: 99,
-                        fontSize: 10,
-                        padding: "1px 6px",
-                        marginLeft: 4,
-                        fontWeight: 700,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                        padding: "4px 4px 8px",
+                        maxHeight: 280,
+                        overflowY: "auto",
                       }}
                     >
-                      {unreadCount}
-                    </span>
+                      {notifLoading && !notifItems.length ? (
+                        <div
+                          style={{
+                            color: "rgba(255,255,255,.65)",
+                            fontSize: 13,
+                            padding: 10,
+                          }}
+                        >
+                          Loading…
+                        </div>
+                      ) : !notifItems.length ? (
+                        <div
+                          style={{
+                            color: "rgba(255,255,255,.70)",
+                            fontSize: 13,
+                            padding: 10,
+                          }}
+                        >
+                          You're all caught up ✅
+                        </div>
+                      ) : (
+                        notifItems.map((n) => (
+                          <button
+                            key={n._id}
+                            type="button"
+                            onClick={() => handleNavigate(n.link || "/")}
+                            style={{
+                              textAlign: "left",
+                              width: "100%",
+                              padding: 12,
+                              borderRadius: 14,
+                              border: "1px solid rgba(255,255,255,.10)",
+                              background: !n.isRead
+                                ? "linear-gradient(180deg, rgba(255,138,42,.18), rgba(18,14,34,.95))"
+                                : "rgba(18,14,34,.95)",
+                              color: "rgba(255,255,255,.92)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontWeight: 700,
+                                fontSize: 14,
+                              }}
+                            >
+                              {n.title || "Notification"}
+                              {!n.isRead && (
+                                <span
+                                  style={{
+                                    background: "#ff8a2a",
+                                    color: "#1a1030",
+                                    borderRadius: 6,
+                                    fontSize: 10,
+                                    padding: "1px 6px",
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  NEW
+                                </span>
+                              )}
+                            </div>
+                            {n.message && (
+                              <div
+                                style={{
+                                  marginTop: 4,
+                                  fontSize: 13,
+                                  color: "rgba(255,255,255,.75)",
+                                }}
+                              >
+                                {n.message}
+                              </div>
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
                   )}
-                </button>
+                </>
               )}
 
               {/* Admin in mobile menu — only for admin email */}

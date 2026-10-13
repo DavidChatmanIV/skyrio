@@ -4,7 +4,6 @@ import {
   Button,
   Drawer,
   Dropdown,
-  Empty,
   Input,
   Modal,
   Radio,
@@ -49,6 +48,14 @@ export default function SkyHubCommentDrawer({
   refreshPostComments,
 }) {
   const [comments, setComments] = useState([]);
+  const [isPhone, setIsPhone] = useState(
+    typeof window !== "undefined" && window.innerWidth < 600
+  );
+  useEffect(() => {
+    const onResize = () => setIsPhone(window.innerWidth < 600);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [postingComment, setPostingComment] = useState(false);
@@ -165,22 +172,56 @@ export default function SkyHubCommentDrawer({
   // You can delete your own comments, and any comment on your own post.
   const canDelete = (c) => c.isMine || post?.isMine;
 
+  const previewPhoto = post?.images?.[0] || post?.image || "";
+  const commentCount = comments.length;
+
   return (
     <Drawer
-      title={
-        post ? `Comments • ${post.destination || post.author}` : "Comments"
-      }
+      title={commentCount ? `Comments (${commentCount})` : "Comments"}
       placement="right"
-      width={420}
+      // Full screen on phones, side panel on desktop.
+      width={isPhone ? "100%" : 440}
+      // Above the Skyrio top bar, which was covering the header and close button.
+      zIndex={2000}
       onClose={onClose}
       open={open}
-      className="skyhub-commentDrawer"
+      className="skyhub-commentDrawer skyhub-drawer"
+      rootClassName="skyhub-drawer"
+      destroyOnClose
     >
       <div className="skyhub-commentDrawerInner">
         {post ? (
-          <div className="skyhub-commentPostPreview">
-            <div className="skyhub-commentPreviewAuthor">{post.author}</div>
-            <p className="skyhub-commentPreviewText">{post.text}</p>
+          <div className="skyhub-commentPostPreview skyhub-drawerPreview">
+            <div className="skyhub-drawerPreview__head">
+              <span className="skyhub-drawerPreview__author">
+                {post.author}
+              </span>
+              {post.destination && (
+                <span className="skyhub-drawerPreview__dest">
+                  📍 {post.destination}
+                </span>
+              )}
+              {post.timeAgo && (
+                <span className="skyhub-drawerPreview__time">
+                  · {post.timeAgo}
+                </span>
+              )}
+            </div>
+            <div className="skyhub-drawerPreview__body">
+              {post.text && (
+                <p className="skyhub-drawerPreview__text">{post.text}</p>
+              )}
+              {previewPhoto && (
+                <img
+                  className="skyhub-drawerPreview__photo"
+                  src={previewPhoto}
+                  alt=""
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              )}
+            </div>
           </div>
         ) : null}
 
@@ -272,6 +313,7 @@ export default function SkyHubCommentDrawer({
                     <Dropdown
                       trigger={["click"]}
                       placement="bottomRight"
+                      overlayClassName="skyhub-menu"
                       menu={{
                         items: [
                           ...(canDelete(comment)
@@ -335,7 +377,16 @@ export default function SkyHubCommentDrawer({
               </div>
             ))
           ) : (
-            <Empty description="No comments yet" />
+            <div className="skyhub-drawerEmpty">
+              <div className="skyhub-drawerEmpty__icon" aria-hidden="true">
+                💬
+              </div>
+              <div className="skyhub-drawerEmpty__title">No comments yet</div>
+              <div className="skyhub-drawerEmpty__sub">
+                Be the first to reply
+                {post?.author ? ` to ${post.author.split(" ")[0]}` : ""}.
+              </div>
+            </div>
           )}
         </div>
       </div>
