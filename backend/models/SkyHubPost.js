@@ -76,6 +76,9 @@ const skyHubPostSchema = new mongoose.Schema(
       default: null,
     },
     hiddenAt: { type: Date, default: null },
+    // Evidence hold (child-safety reports go to NCMEC and must be kept for
+    // a year). While set, the author's "delete" only hides the post.
+    legalHoldUntil: { type: Date, default: null },
 
     commentsCount: { type: Number, default: 0 },
     sharesCount: { type: Number, default: 0 },

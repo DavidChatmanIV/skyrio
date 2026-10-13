@@ -10,7 +10,6 @@ import { Badge, Button, Input, Modal, Radio, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   GlobalOutlined,
-  SearchOutlined,
   FireOutlined,
   EnvironmentOutlined,
   QuestionCircleOutlined,
@@ -20,6 +19,8 @@ import "@/styles/SkyHubPage.css";
 import heroBeach from "@/assets/skyhub/beach.png";
 import { skyhubFilters, skyhubTabs } from "./skyhubData";
 import SkyHubComposer from "./SkyHubComposer";
+import SkyHubSearch from "./SkyHubSearch";
+import SkyHubLocalBanner from "./SkyHubLocalBanner";
 import SkyHubFeedCard from "./SkyHubFeedCard";
 import SkyHubCommentDrawer from "./SkyHubCommentDrawer";
 import SkyHubPassportCard from "./SkyHubPassportCard";
@@ -64,16 +65,89 @@ function uploadErrorMessage(status, data) {
   return "Upload failed.";
 }
 
+// Keep in sync with REPORT_REASONS in backend/services/skyhubModeration.js
 const REPORT_REASONS = [
   { value: "spam", label: "Spam or ads" },
-  { value: "scam", label: "Scam or fraud" },
+  { value: "scam", label: "Scam or fake tour" },
   { value: "harassment", label: "Harassment or bullying" },
   { value: "hate", label: "Hate speech" },
-  { value: "nudity", label: "Nudity or sexual content" },
   { value: "violence", label: "Violence or threats" },
+  { value: "nudity", label: "Nudity or sexual content" },
+  {
+    value: "intimate_image",
+    label: "Intimate image shared without consent",
+    urgent: true,
+  },
+  { value: "child_safety", label: "Involves a child's safety", urgent: true },
+  { value: "self_harm", label: "Someone may hurt themselves" },
   { value: "misinformation", label: "False or misleading info" },
   { value: "other", label: "Something else" },
 ];
+
+// Shown under the reasons when one needs extra context.
+const REASON_HINTS = {
+  intimate_image: (
+    <>
+      We'll hide it right away. If it's an image of you, you can also send a{" "}
+      <a href="/skyhub/report-content" style={{ color: "#ff9555" }}>
+        formal removal request
+      </a>
+      . We act on those within 48 hours.
+    </>
+  ),
+  child_safety: (
+    <>
+      We'll hide it right away and review it urgently. Please don't share or
+      download it. If a child is in immediate danger, call 911. You can also
+      report to the{" "}
+      <a
+        href="https://report.cybertip.org"
+        target="_blank"
+        rel="noreferrer"
+        style={{ color: "#ff9555" }}
+      >
+        NCMEC CyberTipline
+      </a>
+      .
+    </>
+  ),
+  self_harm: (
+    <>
+      We'll reach out to them with support, not a penalty. If someone is in
+      immediate danger, call 911. In the US you can call or text <b>988</b> any
+      time.
+    </>
+  ),
+};
+
+// Plain-English reasons a post didn't earn XP (from the anti-cheat service).
+const XP_REASONS = {
+  too_short:
+    "No XP this time: write a little more (or add a photo) to earn XP.",
+  daily_cap:
+    "You've reached today's XP limit for posts. Keep sharing, it resets tomorrow.",
+  cap: "You've reached today's XP limit for posts. Keep sharing, it resets tomorrow.",
+  cap_reached:
+    "You've reached today's XP limit for posts. Keep sharing, it resets tomorrow.",
+  duplicate: "You already earned XP for this post.",
+  already_awarded: "You already earned XP for this post.",
+};
+
+// Is a post's destination in or around your city? Matches the city name,
+// or its state/region ("Newark, NJ" counts as near "Orange, NJ").
+function isNear(destination, city) {
+  const d = ` ${(destination || "").toLowerCase()} `;
+  if (!d.trim() || !city?.name) return false;
+  if (d.includes(city.name.toLowerCase())) return true;
+  if (
+    city.region &&
+    city.region.length > 3 &&
+    d.includes(city.region.toLowerCase())
+  )
+    return true;
+  const code = (city.regionCode || "").toLowerCase();
+  return code.length === 2 && new RegExp(`[ ,]${code}[ ,.]`).test(d);
+}
 
 /* ── Data helpers ─────────────────────────────────────────────── */
 // Photos saved on our own server come back as "/uploads/..."; the page runs
@@ -566,11 +640,20 @@ export default function SkyHubPage() {
   const auth = useContext(AuthContext);
   const authUser = auth?.user;
 
+  // The page's own copy of your XP. The server sends the new total after
+  // every post/delete, so the hero pill and Passport card update instantly
+  // even if AuthContext has no way to update the user.
+  const [liveXp, setLiveXp] = useState(null);
+  useEffect(() => setLiveXp(null), [authUser?._id, authUser?.id]);
+
   // Puts the server's new XP total into the logged-in user so the hero pill
   // and Passport card update right away (no refresh needed).
   const applyXp = useCallback(
     (xp) => {
       if (!xp || typeof xp.total !== "number") return;
+      setLiveXp(xp.total);
+      // Lets the navbar or any other XP display listen in.
+      window.dispatchEvent(new CustomEvent("skyrio:xp", { detail: xp }));
       if (typeof auth?.setUser === "function") {
         auth.setUser((prev) =>
           prev
@@ -606,7 +689,7 @@ export default function SkyHubPage() {
           authUser.profilePicture ||
           authUser.profileImage ||
           null,
-        xp: authUser.xp || authUser.passport || 0,
+        xp: liveXp ?? (authUser.xp || authUser.passport || 0),
         badge: authUser.badge || "Explorer",
       }
     : null;
@@ -614,6 +697,27 @@ export default function SkyHubPage() {
   const [activeTab, setActiveTab] = useState("forYou");
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchValue, setSearchValue] = useState("");
+  const [searchScope, setSearchScope] = useState("all");
+
+  // Where you're exploring from — drives the Radar chip and the Nearby tab.
+  // Kept in this browser only (a convenience, not account data).
+  const [localCity, setLocalCity] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("skyhub.city") || "null");
+    } catch {
+      return null;
+    }
+  });
+  const [cityPickerSignal, setCityPickerSignal] = useState(0);
+  const changeCity = (c) => {
+    setLocalCity(c);
+    try {
+      localStorage.setItem("skyhub.city", JSON.stringify(c));
+    } catch {
+      /* fine — it just won't be remembered */
+    }
+    if (c) message.success(`Exploring from ${c.label || c.name}`);
+  };
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [composerText, setComposerText] = useState("");
   const [destination, setDestination] = useState("");
@@ -676,13 +780,25 @@ export default function SkyHubPage() {
   const visiblePosts = useMemo(
     () =>
       posts.filter((post) => {
-        const s = debouncedSearch.toLowerCase();
+        const s = debouncedSearch.trim().toLowerCase();
+        const inText = (post.text || "").toLowerCase().includes(s);
+        const inPlace = (post.destination || "").toLowerCase().includes(s);
+        const inPerson =
+          (post.author || "").toLowerCase().includes(s) ||
+          (post.username || "").toLowerCase().includes(s.replace(/^@?/, "@"));
+        const inTags = (post.tags || [])
+          .join(" ")
+          .toLowerCase()
+          .includes(s.replace(/^#/, ""));
         const ms =
           !s ||
-          (post.text || "").toLowerCase().includes(s) ||
-          (post.destination || "").toLowerCase().includes(s) ||
-          (post.author || "").toLowerCase().includes(s) ||
-          (post.tags || []).join(" ").toLowerCase().includes(s);
+          (searchScope === "places"
+            ? inPlace
+            : searchScope === "travelers"
+            ? inPerson
+            : searchScope === "tips"
+            ? inText || inTags
+            : inText || inPlace || inPerson || inTags);
         const mf =
           activeFilter === "All" ||
           (post.tags || []).some(
@@ -699,7 +815,9 @@ export default function SkyHubPage() {
               (post.username || "").replace("@", "").toLowerCase() === "you";
             break;
           case "nearby":
-            mt = !!post.destination?.trim();
+            mt = localCity
+              ? isNear(post.destination, localCity)
+              : !!post.destination?.trim();
             break;
           case "questions":
             mt = post.type === "Question";
@@ -712,7 +830,16 @@ export default function SkyHubPage() {
         }
         return ms && mf && mt;
       }),
-    [posts, debouncedSearch, activeFilter, activeTab, myUsername, myId]
+    [
+      posts,
+      debouncedSearch,
+      searchScope,
+      activeFilter,
+      activeTab,
+      myUsername,
+      myId,
+      localCity,
+    ]
   );
 
   // Empty-state copy: invites the first post/question/etc. without
@@ -730,12 +857,19 @@ export default function SkyHubPage() {
       sub: "Nothing posted yet — once you share something, it'll appear in this tab.",
       cta: "Create a post",
     },
-    nearby: {
-      icon: "pin",
-      title: "No destination posts yet",
-      sub: "Be the first to tag a destination and help other travelers find it.",
-      cta: "Post about a destination",
-    },
+    nearby: localCity
+      ? {
+          icon: "pin",
+          title: `Nothing near ${localCity.name} yet`,
+          sub: `Know a spot in ${localCity.name}? Share it and be the local everyone follows.`,
+          cta: `Post about ${localCity.name}`,
+        }
+      : {
+          icon: "pin",
+          title: "No destination posts yet",
+          sub: "Be the first to tag a destination and help other travelers find it.",
+          cta: "Post about a destination",
+        },
     questions: {
       icon: "chat",
       title: "No questions yet",
@@ -754,7 +888,7 @@ export default function SkyHubPage() {
   const FEED_TITLES = {
     forYou: "Community Feed",
     following: "Your Posts",
-    nearby: "Destination Posts",
+    nearby: localCity ? `Near ${localCity.name}` : "Destination Posts",
     questions: "Questions",
     trips: "Trips & Stories",
   };
@@ -849,6 +983,10 @@ export default function SkyHubPage() {
         message.success(`Posted to SkyHub! +${data.xp.amount} XP`);
       } else {
         message.success("Posted to SkyHub!");
+        const why = XP_REASONS[data.xp?.reason];
+        if (why) message.info(why, 4);
+        if (data.xp?.reason)
+          console.info("[skyhub] post earned no XP:", data.xp.reason);
       }
       if (data.xp?.rankUp) {
         const rank =
@@ -1181,19 +1319,21 @@ export default function SkyHubPage() {
           </div>
 
           <div className="skyhub-headerActions">
-            <Input
-              allowClear
-              size="large"
-              placeholder="Search destinations, tips, travelers..."
-              prefix={<SearchOutlined />}
+            <SkyHubSearch
               value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              onPressEnter={scrollToFeed}
-              className="skyhub-searchInput"
+              onChange={setSearchValue}
+              scope={searchScope}
+              onScopeChange={setSearchScope}
+              onSubmit={() => {
+                setDebouncedSearch(searchValue);
+                setTimeout(scrollToFeed, 60);
+              }}
+              posts={posts}
+              trending={trendingDestinations}
+              resultCount={debouncedSearch ? visiblePosts.length : undefined}
+              city={localCity}
+              onCityClick={() => setCityPickerSignal((n) => n + 1)}
             />
-            {/* "Explore SkyHub" button removed — it scrolled to content
-                that's now one shrunk-hero away, making the button
-                redundant. Pressing Enter in search still jumps to feed. */}
           </div>
         </div>
 
@@ -1281,6 +1421,17 @@ export default function SkyHubPage() {
                 }}
               />
             )}
+
+            <SkyHubLocalBanner
+              city={localCity}
+              onCityChange={(c) => {
+                changeCity(c);
+                setActiveTab("nearby");
+                setActiveFilter("All");
+              }}
+              suggestions={trendingDestinations.map((t) => t.name)}
+              openSignal={cityPickerSignal}
+            />
 
             <SkyHubStanding signedIn={!!currentUser} />
 
@@ -1485,9 +1636,15 @@ export default function SkyHubPage() {
           {REPORT_REASONS.map((r) => (
             <Radio key={r.value} value={r.value}>
               {r.label}
+              {r.urgent && (
+                <span className="shReport__urgent">Hidden right away</span>
+              )}
             </Radio>
           ))}
         </Radio.Group>
+        {REASON_HINTS[reportReason] && (
+          <div className="shReport__hint">{REASON_HINTS[reportReason]}</div>
+        )}
         <Input.TextArea
           id="skyhub-report-details"
           value={reportDetails}

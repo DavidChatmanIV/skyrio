@@ -37,7 +37,10 @@ const REASONS = [
   { value: "spam", label: "Spam or ads" },
   { value: "harassment", label: "Harassment or bullying" },
   { value: "hate", label: "Hate speech" },
+  { value: "violence", label: "Violence or threats" },
   { value: "scam", label: "Scam or fraud" },
+  { value: "child_safety", label: "Involves a child's safety" },
+  { value: "self_harm", label: "Someone may hurt themselves" },
   { value: "other", label: "Something else" },
 ];
 

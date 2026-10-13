@@ -29,14 +29,16 @@ import {
 import dayjs from "dayjs";
 import { apiUrl } from "@/lib/api";
 
-
 /* skyhub-login */
 const skyAuthFetch = (url, opts = {}) => {
   const token = localStorage.getItem("token");
   return fetch(url, {
     credentials: "include",
     ...opts,
-    headers: { ...(opts.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      ...(opts.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 };
 
@@ -388,9 +390,12 @@ function useCancelRequestCount() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    skyAuthFetch(apiUrl("/api/bookings/admin/search?status=cancel_requested&limit=1"), {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    skyAuthFetch(
+      apiUrl("/api/bookings/admin/search?status=cancel_requested&limit=1"),
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    )
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => setCount(json?.total || 0))
       .catch(() => setCount(0));
@@ -398,24 +403,380 @@ function useCancelRequestCount() {
   return count;
 }
 
-// Reports + appeals waiting in SkyHub moderation.
+const adminHeaders = (extra = {}) => {
+  const adminEmail = localStorage.getItem("admin_email");
+  return { ...extra, ...(adminEmail ? { "x-admin-email": adminEmail } : {}) };
+};
+
+// Reports + appeals + legal removal requests waiting in SkyHub moderation.
 function useSkyHubModerationCount() {
-  const [counts, setCounts] = useState({ reports: 0, appeals: 0 });
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const adminEmail = localStorage.getItem("admin_email");
+  const [counts, setCounts] = useState({
+    reports: 0,
+    appeals: 0,
+    critical: 0,
+    takedowns: 0,
+    overdueTakedowns: 0,
+  });
+  const load = useCallback(() => {
     skyAuthFetch(apiUrl("/api/skyhub/admin/open-counts"), {
       credentials: "include",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(adminEmail ? { "x-admin-email": adminEmail } : {}),
-      },
+      headers: adminHeaders(),
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => j && setCounts({ reports: j.reports || 0, appeals: j.appeals || 0 }))
+      .then(
+        (j) =>
+          j &&
+          setCounts({
+            reports: j.reports || 0,
+            appeals: j.appeals || 0,
+            critical: j.critical || 0,
+            takedowns: j.takedowns || 0,
+            overdueTakedowns: j.overdueTakedowns || 0,
+          })
+      )
       .catch(() => {});
   }, []);
-  return counts;
+  useEffect(() => {
+    load();
+    // Legal clocks are running — keep the count fresh while the page is open.
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, [load]);
+  return { ...counts, reload: load };
+}
+
+/* ── Removal requests (TAKE IT DOWN Act + DMCA) ───────────── */
+function hoursLabel(t) {
+  if (t.kind !== "intimate" || t.hoursLeft == null) return null;
+  if (t.overdue)
+    return { text: `OVERDUE ${Math.abs(t.hoursLeft)}h`, color: C.red };
+  if (t.hoursLeft <= 12) return { text: `${t.hoursLeft}h left`, color: C.red };
+  return { text: `${t.hoursLeft}h left`, color: C.orange };
+}
+
+function TakedownQueue({ onChange }) {
+  const [status, setStatus] = useState("received");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState(null); // { t, action }
+  const [note, setNote] = useState("");
+  const [posts, setPosts] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await skyAuthFetch(
+        apiUrl(`/api/skyhub/admin/takedowns?status=${status}`),
+        {
+          credentials: "include",
+          headers: adminHeaders(),
+        }
+      );
+      const j = await r.json().catch(() => ({}));
+      setRows(j.ok ? j.takedowns || [] : []);
+    } catch {
+      setRows([]);
+    }
+    setLoading(false);
+  }, [status]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const submit = async () => {
+    if (!acting) return;
+    if (acting.action === "reject" && !note.trim()) {
+      message.warning("Add a short reason, since the requester will see it.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await skyAuthFetch(
+        apiUrl(`/api/skyhub/admin/takedowns/${acting.t.id}`),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: adminHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            action: acting.action,
+            note: note.trim(),
+            posts,
+          }),
+        }
+      );
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || "Couldn't update the request.");
+      message.success(
+        acting.action === "remove"
+          ? "Removed. The requester can see it's done."
+          : acting.action === "reject"
+          ? "Rejected."
+          : "Restored."
+      );
+      setActing(null);
+      load();
+      onChange?.();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const open = (t, action) => {
+    setActing({ t, action });
+    setNote("");
+    setPosts("");
+  };
+
+  return (
+    <div className="sk-admin__card" style={{ marginBottom: 24 }}>
+      <div className="sk-admin__card-head">
+        <span className="sk-admin__card-title">⚖️ Removal requests</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[
+            ["received", "Waiting"],
+            ["removed", "Removed"],
+            ["rejected", "Rejected"],
+            ["restored", "Restored"],
+          ].map(([v, l]) => (
+            <button
+              key={v}
+              type="button"
+              className="sk-admin__challenge-action-btn"
+              style={
+                status === v
+                  ? { borderColor: C.orange, color: C.orange }
+                  : undefined
+              }
+              onClick={() => setStatus(v)}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && (
+        <div className="sk-admin__empty">
+          <span className="sk-admin__spinner" />
+        </div>
+      )}
+      {!loading && rows.length === 0 && (
+        <div className="sk-admin__empty">
+          {status === "received"
+            ? "No removal requests waiting. You're all caught up."
+            : "Nothing here yet."}
+        </div>
+      )}
+
+      {rows.map((t) => {
+        const clock = hoursLabel(t);
+        const counterDue =
+          t.counter && !t.counter.restored
+            ? new Date(t.counter.restoreAfter)
+            : null;
+        return (
+          <div
+            key={t.id}
+            className="sk-admin__row"
+            style={{ alignItems: "flex-start", gap: 16 }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                className="sk-admin__name"
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span
+                  style={{ fontFamily: "monospace", letterSpacing: "0.05em" }}
+                >
+                  {t.ticket}
+                </span>
+                <span
+                  className="sk-admin__pill"
+                  style={{
+                    background: t.kind === "intimate" ? C.redDim : C.blueDim,
+                    color: t.kind === "intimate" ? C.red : C.blue,
+                  }}
+                >
+                  {t.kind === "intimate" ? "Intimate image" : "Copyright"}
+                </span>
+                {clock && (
+                  <span
+                    className="sk-admin__pill"
+                    style={{
+                      background: clock.color + "22",
+                      color: clock.color,
+                    }}
+                  >
+                    {clock.text}
+                  </span>
+                )}
+                {counterDue && (
+                  <span
+                    className="sk-admin__pill"
+                    style={{ background: C.purpleDim, color: C.purple }}
+                  >
+                    Counter-notice · restore after{" "}
+                    {counterDue.toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+              <div className="sk-admin__sub" style={{ marginTop: 4 }}>
+                {t.requesterName} · {t.requesterEmail} · {t.relationship} ·{" "}
+                {timeAgo(t.createdAt)}
+              </div>
+              {t.copyrightedWork && (
+                <div className="sk-admin__feed-text" style={{ marginTop: 6 }}>
+                  <b>Work:</b> {t.copyrightedWork}
+                </div>
+              )}
+              {(t.contentLinks || t.description) && (
+                <div
+                  className="sk-admin__feed-text"
+                  style={{ marginTop: 4, wordBreak: "break-word" }}
+                >
+                  {t.contentLinks && (
+                    <>
+                      <b>Where:</b> {t.contentLinks}
+                      <br />
+                    </>
+                  )}
+                  {t.description}
+                </div>
+              )}
+              <div className="sk-admin__sub" style={{ marginTop: 4 }}>
+                {t.posts?.length
+                  ? `${t.posts.length} post${
+                      t.posts.length > 1 ? "s" : ""
+                    } matched${
+                      t.kind === "intimate" && t.status === "received"
+                        ? " · already hidden"
+                        : ""
+                    }`
+                  : "No post matched yet. Find it and paste the post ID when you remove it."}
+                {t.duplicatesRemoved
+                  ? ` · ${t.duplicatesRemoved} cop${
+                      t.duplicatesRemoved > 1 ? "ies" : "y"
+                    } also hidden`
+                  : ""}
+              </div>
+              {t.decisionNote && t.status !== "received" && (
+                <div className="sk-admin__sub" style={{ marginTop: 4 }}>
+                  Decision: {t.decisionNote}
+                </div>
+              )}
+            </div>
+            <div
+              className="sk-admin__challenge-actions"
+              style={{ flexShrink: 0 }}
+            >
+              {t.status === "received" && (
+                <>
+                  <button
+                    type="button"
+                    className="sk-admin__challenge-action-btn sk-admin__challenge-action-btn--danger"
+                    onClick={() => open(t, "remove")}
+                  >
+                    Remove
+                  </button>
+                  <button
+                    type="button"
+                    className="sk-admin__challenge-action-btn"
+                    onClick={() => open(t, "reject")}
+                  >
+                    Reject
+                  </button>
+                </>
+              )}
+              {t.status === "removed" && counterDue && (
+                <button
+                  type="button"
+                  className="sk-admin__challenge-action-btn"
+                  onClick={() => open(t, "restore")}
+                >
+                  Restore
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      <Modal
+        open={!!acting}
+        title={
+          acting?.action === "remove"
+            ? `Remove content for ${acting?.t.ticket}`
+            : acting?.action === "reject"
+            ? `Reject ${acting?.t.ticket}`
+            : `Restore content for ${acting?.t.ticket}`
+        }
+        onCancel={() => setActing(null)}
+        onOk={submit}
+        okText={
+          acting?.action === "remove"
+            ? "Remove"
+            : acting?.action === "reject"
+            ? "Reject"
+            : "Restore"
+        }
+        okButtonProps={{ danger: acting?.action === "remove", loading: busy }}
+        className="sk-challenge-modal"
+        destroyOnClose
+      >
+        {acting?.action === "remove" && (
+          <>
+            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
+              Removes the matched posts and any post using the same photo. The
+              poster is notified
+              {acting.t.kind === "copyright"
+                ? " and can send a counter-notice"
+                : ""}
+              .
+            </p>
+            <div style={{ fontSize: 12, color: C.muted, margin: "10px 0 4px" }}>
+              Extra post IDs or links you found (optional)
+            </div>
+            <Input.TextArea
+              rows={2}
+              value={posts}
+              onChange={(e) => setPosts(e.target.value)}
+              placeholder="Paste post IDs or links, one per line"
+            />
+          </>
+        )}
+        {acting?.action === "restore" && (
+          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
+            Only restore if the waiting period is over and the claimant hasn't
+            told you they filed a lawsuit.
+          </p>
+        )}
+        <div style={{ fontSize: 12, color: C.muted, margin: "10px 0 4px" }}>
+          {acting?.action === "reject"
+            ? "Reason (the requester sees this)"
+            : "Note to the requester (optional)"}
+        </div>
+        <Input.TextArea
+          rows={3}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder={
+            acting?.action === "reject"
+              ? "e.g. We couldn't find this content on SkyHub. Reply with a post link and we'll look again."
+              : "e.g. We removed the post and one copy."
+          }
+        />
+      </Modal>
+    </div>
+  );
 }
 
 const AdminDashboard = () => {
@@ -534,11 +895,16 @@ const AdminDashboard = () => {
 
   const handleEndChallenge = async (challenge) => {
     try {
-      const res = await skyAuthFetch(apiUrl(`/api/challenges/${challenge.id}`), {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
-      });
+      const res = await skyAuthFetch(
+        apiUrl(`/api/challenges/${challenge.id}`),
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            "x-admin-email": localStorage.getItem("admin_email") || "",
+          },
+        }
+      );
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) {
         throw new Error(json.message || "Failed to end challenge.");
@@ -644,11 +1010,16 @@ const AdminDashboard = () => {
 
   const handleRemoveReward = async (item) => {
     try {
-      const res = await skyAuthFetch(apiUrl(`/api/rewards/items/${item.itemId}`), {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
-      });
+      const res = await skyAuthFetch(
+        apiUrl(`/api/rewards/items/${item.itemId}`),
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            "x-admin-email": localStorage.getItem("admin_email") || "",
+          },
+        }
+      );
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) {
         throw new Error(json.message || "Failed to remove item.");
@@ -858,6 +1229,22 @@ const AdminDashboard = () => {
             <div>
               <div className="sk-admin__support-title">
                 SkyHub reports
+                {skyhubQueue.critical > 0 && (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      background: "#7f1d1d",
+                      color: "#fecaca",
+                      border: "1px solid #ef4444",
+                      borderRadius: 99,
+                      padding: "1px 8px",
+                      fontSize: 11,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {skyhubQueue.critical} URGENT
+                  </span>
+                )}
                 {skyhubQueue.reports + skyhubQueue.appeals > 0 && (
                   <span
                     style={{
@@ -875,12 +1262,42 @@ const AdminDashboard = () => {
                 )}
               </div>
               <div className="sk-admin__support-sub">
-                {skyhubQueue.reports} to review · {skyhubQueue.appeals} appeal{skyhubQueue.appeals === 1 ? "" : "s"}
+                {skyhubQueue.critical > 0 && (
+                  <span style={{ color: "#fca5a5", fontWeight: 700 }}>
+                    {skyhubQueue.critical} child-safety / intimate-image report
+                    {skyhubQueue.critical === 1 ? "" : "s"} first ·{" "}
+                  </span>
+                )}
+                {skyhubQueue.reports} to review · {skyhubQueue.appeals} appeal
+                {skyhubQueue.appeals === 1 ? "" : "s"}
               </div>
             </div>
           </div>
           <span className="sk-admin__support-arrow">→</span>
         </div>
+
+        {skyhubQueue.overdueTakedowns > 0 && (
+          <div
+            role="alert"
+            style={{
+              background: C.redDim,
+              border: `1px solid ${C.red}`,
+              borderRadius: 12,
+              padding: "12px 18px",
+              color: "#fecaca",
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 20,
+            }}
+          >
+            ⏰ {skyhubQueue.overdueTakedowns} intimate-image removal request
+            {skyhubQueue.overdueTakedowns === 1 ? " is" : "s are"} past the
+            48-hour legal deadline. Handle{" "}
+            {skyhubQueue.overdueTakedowns === 1 ? "it" : "them"} below now.
+          </div>
+        )}
+
+        <TakedownQueue onChange={skyhubQueue.reload} />
 
         <div className="sk-admin__section-title">Overview</div>
         <div className="sk-admin__stats">

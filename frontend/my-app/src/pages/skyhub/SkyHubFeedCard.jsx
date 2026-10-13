@@ -326,6 +326,18 @@ export default function SkyHubFeedCard({
           </div>
         )}
 
+        {/* Meetups with strangers: a quiet safety reminder (Couchsurfing-style) */}
+        {post.type === "Join Trip" && !isOwner && (
+          <div className="shMeetTip" role="note">
+            <span aria-hidden="true">🛡️</span>
+            <span>
+              Meeting up? Pick a public place, tell a friend your plans, and
+              keep your hotel and room number to yourself.{" "}
+              <a href="/skyhub/guidelines#meetups">Meetup safety</a>
+            </span>
+          </div>
+        )}
+
         {/* Image grid — uses images[] array */}
         <ImageGrid images={post.images} />
 

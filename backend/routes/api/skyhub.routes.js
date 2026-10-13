@@ -1,5 +1,8 @@
 import { Router } from "express";
+import crypto from "crypto";
 import mongoose from "mongoose";
+import SkyHubTakedown from "../../models/SkyHubTakedown.js";
+import Notification from "../../models/notification.js";
 import SkyHubPost from "../../models/SkyHubPost.js";
 import SkyHubComment from "../../models/SkyHubComment.js";
 import SkyHubReport from "../../models/SkyHubReport.js";
@@ -16,6 +19,11 @@ import {
   activeStrikes,
   resolveAppeal,
   decide,
+  REPORT_REASON_KEYS,
+  severityOf,
+  severityRank,
+  reasonLabel,
+  LEGAL,
 } from "../../services/skyhubModeration.js";
 import { sendReportAlert } from "../../services/moderationEmails.js";
 // Namespace import: if a helper is ever renamed, XP just skips instead of
@@ -51,16 +59,74 @@ const POST_TYPES = [
   "Photo Drop",
   "Join Trip",
 ];
-const REPORT_REASONS = [
-  "spam",
-  "harassment",
-  "hate",
-  "nudity",
-  "scam",
-  "violence",
-  "misinformation",
-  "other",
-];
+const REPORT_REASONS = REPORT_REASON_KEYS;
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+
+// In-app notice to a traveler (never blocks the request if it fails).
+function notifyUser(userId, title, msg, link = "/skyhub?standing=1") {
+  if (!userId) return;
+  Notification.create({
+    user: userId,
+    type: "system",
+    title,
+    message: msg,
+    link,
+  }).catch(() => {});
+}
+
+const newTicket = () =>
+  `SKY-${crypto.randomBytes(4).toString("hex").slice(0, 6).toUpperCase()}`;
+
+// Pulls post ids out of whatever the requester pasted (links, ids, text).
+function postIdsFrom(text) {
+  const ids = String(text || "").match(/\b[a-f0-9]{24}\b/gi) || [];
+  return [...new Set(ids.map((s) => s.toLowerCase()))]
+    .filter(validId)
+    .slice(0, 20);
+}
+
+// Hides the given posts, plus any other post that reuses the same photo
+// (the TAKE IT DOWN Act also covers identical copies). Returns how many.
+async function hidePostsAndCopies(
+  postIds,
+  { reason = "review", holdDays = 0 } = {}
+) {
+  if (!postIds.length) return { hidden: 0, duplicates: 0 };
+  const posts = await SkyHubPost.find({ _id: { $in: postIds } })
+    .select("images image author")
+    .lean();
+  const urls = [
+    ...new Set(
+      posts.flatMap((p) => [...(p.images || []), p.image]).filter(Boolean)
+    ),
+  ];
+  const set = {
+    hidden: true,
+    hiddenReason: reason,
+    hiddenAt: new Date(),
+    ...(holdDays
+      ? { legalHoldUntil: new Date(Date.now() + holdDays * DAY) }
+      : {}),
+  };
+  await SkyHubPost.updateMany({ _id: { $in: postIds } }, { $set: set });
+  let duplicates = 0;
+  if (urls.length) {
+    const r = await SkyHubPost.updateMany(
+      {
+        _id: { $nin: postIds },
+        $or: [{ images: { $in: urls } }, { image: { $in: urls } }],
+      },
+      { $set: set }
+    );
+    duplicates = r.modifiedCount || 0;
+  }
+  return {
+    hidden: posts.length,
+    duplicates,
+    authors: posts.map((p) => p.author).filter(Boolean),
+  };
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 function getTimeAgo(date) {
@@ -98,9 +164,17 @@ async function xpSummary(userId, result) {
     .select("xp pendingXp")
     .lean()
     .catch(() => null);
+  const awarded = Boolean(result?.awarded ?? (result && result.amount > 0));
+  if (result && !awarded)
+    console.info(`[skyhub] no post XP for ${userId}:`, result.reason || result);
   return {
-    awarded: Boolean(result?.awarded),
+    awarded,
     amount: result?.amount || 0,
+    // Why nothing was awarded (too_short, daily_cap, ...). "xp_unavailable"
+    // means the XP service itself didn't run — check the server log.
+    reason: awarded
+      ? null
+      : result?.reason || (result ? "not_awarded" : "xp_unavailable"),
     rankUp: result?.rankUp || null,
     total: u?.xp ?? null,
     pending: u?.pendingXp ?? null,
@@ -392,6 +466,16 @@ router.delete("/posts/:id", requireViewer, async (req, res) => {
         .status(403)
         .json({ message: "You can only delete your own posts." });
     }
+    // Under an evidence hold: take it off SkyHub but keep the record.
+    if (post.legalHoldUntil && post.legalHoldUntil > new Date()) {
+      await SkyHubPost.updateOne(
+        { _id: id },
+        {
+          $set: { hidden: true, hiddenReason: "removed", hiddenAt: new Date() },
+        }
+      );
+      return res.json({ success: true, message: "Post deleted." });
+    }
     await Promise.all([
       SkyHubPost.deleteOne({ _id: id }),
       SkyHubComment.deleteMany({ post: id }),
@@ -593,6 +677,12 @@ async function fileReport(req, res, targetType) {
     return res.status(400).json({ message: "You can't report yourself." });
   }
 
+  const severity = severityOf(reason);
+  const dueBy =
+    reason === "intimate_image"
+      ? new Date(Date.now() + LEGAL.intimateImageHours * HOUR)
+      : null;
+
   try {
     await SkyHubReport.create({
       targetType,
@@ -601,6 +691,8 @@ async function fileReport(req, res, targetType) {
       targetUser,
       reporter: me,
       reason,
+      severity,
+      dueBy,
       details,
     });
   } catch (e) {
@@ -616,11 +708,13 @@ async function fileReport(req, res, targetType) {
     targetId: id,
     status: "open",
   });
+  // Critical reasons (child safety, intimate images) hide on the FIRST report.
+  const threshold = severity === "critical" ? 1 : AUTO_HIDE_REPORTS;
   let autoHidden = false;
   if (targetType !== "user") {
     const Model = targetType === "post" ? SkyHubPost : SkyHubComment;
     const update = { reportCount: count };
-    if (count >= AUTO_HIDE_REPORTS && !doc.hidden) {
+    if (count >= threshold && !doc.hidden) {
       autoHidden = true;
       Object.assign(update, {
         hidden: true,
@@ -628,11 +722,45 @@ async function fileReport(req, res, targetType) {
         ...(targetType === "post" ? { hiddenAt: new Date() } : {}),
       });
     }
+    // Child-safety: preserve the evidence so a quick "delete" can't erase it.
+    if (reason === "child_safety" && targetType === "post") {
+      update.legalHoldUntil = new Date(
+        Date.now() + LEGAL.childSafetyHoldDays * DAY
+      );
+    }
     await Model.updateOne({ _id: id }, { $set: update });
+
+    // Intimate image on a post: also hide identical copies elsewhere.
+    if (reason === "intimate_image" && targetType === "post") {
+      await hidePostsAndCopies([id]).catch(() => {});
+    }
   }
 
-  // Tell the Skyrio team: on the first report, and when it auto-hides.
-  if (count === 1 || autoHidden) {
+  // Tell the author their post is hidden while we review — but never tip
+  // off someone reported for child safety.
+  if (autoHidden && targetUser && reason !== "child_safety") {
+    notifyUser(
+      targetUser,
+      `Your SkyHub ${targetType} is hidden for review`,
+      `It was reported for ${reasonLabel(
+        reason
+      ).toLowerCase()}. Only you can see it until our team reviews it. We'll let you know what we decide.`
+    );
+  }
+
+  // Someone is worried about the poster: reach out with support, not a penalty.
+  if (reason === "self_harm" && count === 1 && targetUser) {
+    notifyUser(
+      targetUser,
+      "Someone on SkyHub is thinking of you",
+      "A traveler who saw your post wanted to make sure you're okay. If you're going through something hard, you can call or text 988 (Suicide & Crisis Lifeline, US) any time, or visit findahelpline.com outside the US. You're not in trouble.",
+      "/skyhub/guidelines#support"
+    );
+  }
+
+  // Tell the Skyrio team: on the first report, when it auto-hides, and
+  // EVERY time for critical reasons.
+  if (count === 1 || autoHidden || severity === "critical") {
     const author = targetUser
       ? await User.findById(targetUser).select("name username").lean()
       : null;
@@ -641,14 +769,34 @@ async function fileReport(req, res, targetType) {
       reason,
       count,
       autoHidden,
-      snippet: doc.text || "",
+      // Never put reported child-safety content into an email.
+      snippet:
+        reason === "child_safety"
+          ? "[CHILD SAFETY — open the admin queue. Do not download or forward the content.]"
+          : `${
+              severity === "critical"
+                ? `[URGENT${
+                    dueBy ? ` — remove by ${dueBy.toISOString()}` : ""
+                  }] `
+                : ""
+            }${doc.text || ""}`,
       authorName: author?.name || doc.authorName,
       authorUsername: author?.username || doc.username,
     }).catch(() => {});
   }
-  return res
-    .status(201)
-    .json({ message: "Thanks for reporting. Our team will review it." });
+
+  const messages = {
+    child_safety:
+      "Thank you. We've hidden it and our team is reviewing it now. If a child is in immediate danger, call 911.",
+    intimate_image:
+      "Thank you. We've hidden it while we review. If it's an image of you, you can also file a formal removal request at /skyhub/report-content.",
+    self_harm:
+      "Thank you for looking out for them. We've reached out with support resources. If someone is in immediate danger, call 911.",
+  };
+  return res.status(201).json({
+    message:
+      messages[reason] || "Thanks for reporting. Our team will review it.",
+  });
 }
 
 router.post(
@@ -920,9 +1068,14 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
           reports: [],
           firstAt: r.createdAt,
           lastAt: r.createdAt,
+          severity: "standard",
+          dueBy: null,
         });
       }
       const g = groups.get(key);
+      const sev = r.severity || severityOf(r.reason);
+      if (severityRank(sev) < severityRank(g.severity)) g.severity = sev;
+      if (r.dueBy && (!g.dueBy || r.dueBy < g.dueBy)) g.dueBy = r.dueBy;
       g.reasons[r.reason] = (g.reasons[r.reason] || 0) + 1;
       g.reports.push({
         id: String(r._id),
@@ -1013,9 +1166,19 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
         standard: decide(g.activeStrikes, "standard"),
         severe: decide(g.activeStrikes, "severe"),
       };
+      g.overdue = Boolean(g.dueBy && new Date(g.dueBy) < new Date());
+      // The admin page should blur photos for these instead of showing them.
+      g.blurMedia = g.severity === "critical";
+      if (g.reasons.child_safety) g.childSafety = true;
     }
+    // Critical first, then the nearest legal deadline, then most reported.
     list.sort(
-      (a, b) => b.count - a.count || new Date(b.lastAt) - new Date(a.lastAt)
+      (a, b) =>
+        severityRank(a.severity) - severityRank(b.severity) ||
+        (a.dueBy ? new Date(a.dueBy).getTime() : Infinity) -
+          (b.dueBy ? new Date(b.dueBy).getTime() : Infinity) ||
+        b.count - a.count ||
+        new Date(b.lastAt) - new Date(a.lastAt)
     );
     return res.json({ ok: true, items: list });
   } catch (err) {
@@ -1097,8 +1260,37 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
             { $inc: { commentsCount: 1 } }
           );
         }
+        // Tell the author it's back.
+        if (doc?.author && wasRemoved) {
+          notifyUser(
+            doc.author,
+            `Your SkyHub ${targetType} is back`,
+            "We reviewed it and it doesn't break the community guidelines. It's visible again."
+          );
+        }
       } else if (takeDown && doc) {
         const alreadyRemoved = doc.hidden && doc.hiddenReason === "removed";
+        // Removed without a strike: still tell the author which guideline it broke.
+        // (Strikes send their own notice. Child safety: no notice.)
+        if (action === "remove" && doc.author && !alreadyRemoved) {
+          const open = await SkyHubReport.find({
+            targetType,
+            targetId,
+            status: "open",
+          })
+            .select("reason")
+            .lean();
+          const top = open.map((r) => r.reason)[0] || "other";
+          if (top !== "child_safety") {
+            notifyUser(
+              doc.author,
+              `We removed your SkyHub ${targetType}`,
+              `It broke the community guidelines (${reasonLabel(
+                top
+              ).toLowerCase()}). This isn't a strike on your account.`
+            );
+          }
+        }
         await Model.updateOne(
           { _id: targetId },
           {
@@ -1267,11 +1459,27 @@ router.post("/admin/appeals/:id", adminOnly, async (req, res) => {
 
 // GET /api/skyhub/admin/open-counts — reports + appeals waiting (dashboard badge)
 router.get("/admin/open-counts", adminOnly, async (_req, res) => {
-  const [ids, appeals] = await Promise.all([
+  const [ids, appeals, critical, takedowns, overdue] = await Promise.all([
     SkyHubReport.distinct("targetId", { status: "open" }).catch(() => []),
     SkyHubStrike.countDocuments({ "appeal.status": "pending" }).catch(() => 0),
+    SkyHubReport.distinct("targetId", {
+      status: "open",
+      severity: "critical",
+    }).catch(() => []),
+    SkyHubTakedown.countDocuments({ status: "received" }).catch(() => 0),
+    SkyHubTakedown.countDocuments({
+      status: "received",
+      dueBy: { $lt: new Date() },
+    }).catch(() => 0),
   ]);
-  res.json({ ok: true, reports: ids.length, appeals });
+  res.json({
+    ok: true,
+    reports: ids.length,
+    appeals,
+    critical: critical.length,
+    takedowns,
+    overdueTakedowns: overdue,
+  });
 });
 
 // GET/DELETE /api/skyhub/admin/suspensions — see and lift suspensions
@@ -1300,6 +1508,412 @@ router.delete("/admin/suspensions/:userId", adminOnly, async (req, res) => {
     return res.status(400).json({ message: "Invalid traveler." });
   await SkyHubRestriction.deleteOne({ user: req.params.userId });
   res.json({ ok: true });
+});
+
+/* ═════════════════════════════════════════════════════════════
+   FORMAL REMOVAL REQUESTS — no Skyrio account needed
+   POST /api/skyhub/takedown
+   kind "intimate"  (TAKE IT DOWN Act) — hidden right away, 48-hour clock
+   kind "copyright" (DMCA §512(c))      — reviewed by the team
+═════════════════════════════════════════════════════════════ */
+router.post("/takedown", rateLimit("report"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const kind = b.kind === "copyright" ? "copyright" : "intimate";
+    const name = cleanText(b.name, 120);
+    const email = cleanText(b.email, 200).toLowerCase();
+    const signature = cleanText(b.signature, 120);
+    const contentLinks = cleanText(b.contentLinks, 2000);
+    const description = cleanText(b.description, 2000);
+
+    // What the law requires a request to include.
+    const missing = [];
+    if (!name) missing.push("your name");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      missing.push("a valid email");
+    if (!contentLinks && !description) missing.push("where the content is");
+    if (!signature) missing.push("your signature (type your full name)");
+    if (!b.goodFaith) missing.push("the good-faith statement");
+    if (kind === "copyright") {
+      if (!cleanText(b.copyrightedWork, 1000)) missing.push("the work you own");
+      if (!b.accuracyUnderPenalty) missing.push("the accuracy statement");
+    }
+    if (missing.length)
+      return res
+        .status(400)
+        .json({ message: `Please add ${missing.join(", ")}.` });
+
+    const posts = postIdsFrom(`${contentLinks} ${description}`);
+    const doc = await SkyHubTakedown.create({
+      ticket: newTicket(),
+      kind,
+      requesterName: name,
+      requesterEmail: email,
+      requesterUser: req.skyUser?.id || null,
+      relationship: ["self", "authorized", "owner", "agent"].includes(
+        b.relationship
+      )
+        ? b.relationship
+        : "self",
+      contentLinks,
+      posts,
+      description,
+      copyrightedWork:
+        kind === "copyright" ? cleanText(b.copyrightedWork, 1000) : "",
+      goodFaith: true,
+      accuracyUnderPenalty: Boolean(b.accuracyUnderPenalty),
+      signature,
+      dueBy:
+        kind === "intimate"
+          ? new Date(Date.now() + LEGAL.intimateImageHours * HOUR)
+          : null,
+    });
+
+    // Intimate images: hide now, in good faith, while the team confirms.
+    if (kind === "intimate" && posts.length) {
+      const r = await hidePostsAndCopies(posts);
+      doc.duplicatesRemoved = r.duplicates;
+      await doc.save();
+    }
+
+    sendReportAlert({
+      targetType: "post",
+      reason: kind === "intimate" ? "intimate_image" : "other",
+      count: 1,
+      autoHidden: kind === "intimate" && posts.length > 0,
+      snippet: `[${
+        kind === "intimate" ? "URGENT TAKE IT DOWN" : "DMCA"
+      } REQUEST ${doc.ticket}${
+        doc.dueBy ? ` — remove by ${doc.dueBy.toISOString()}` : ""
+      }] ${
+        posts.length
+          ? `${posts.length} post(s) found.`
+          : "No post link found — locate manually."
+      } ${description.slice(0, 300)}`,
+      authorName: name,
+      authorUsername: email,
+    }).catch(() => {});
+
+    return res.status(201).json({
+      ok: true,
+      ticket: doc.ticket,
+      dueBy: doc.dueBy,
+      message:
+        kind === "intimate"
+          ? `Request ${doc.ticket} received. ${
+              posts.length ? "We've hidden the content while we review. " : ""
+            }We act on these within 48 hours.`
+          : `Request ${doc.ticket} received. We'll review it and update its status.`,
+    });
+  } catch (err) {
+    console.error("[skyhub] takedown error:", err);
+    return res
+      .status(500)
+      .json({ message: "Couldn't send your request. Please try again." });
+  }
+});
+
+// GET /api/skyhub/takedown/:ticket?email=  — check a request's status
+router.get("/takedown/:ticket", rateLimit("report"), async (req, res) => {
+  const t = await SkyHubTakedown.findOne({
+    ticket: String(req.params.ticket || "").toUpperCase(),
+    requesterEmail: String(req.query.email || "").toLowerCase(),
+  }).lean();
+  if (!t)
+    return res
+      .status(404)
+      .json({ message: "No request matches that number and email." });
+  return res.json({
+    ok: true,
+    ticket: t.ticket,
+    kind: t.kind,
+    status: t.status,
+    receivedAt: t.createdAt,
+    dueBy: t.dueBy,
+    decisionNote: t.decisionNote,
+    resolvedAt: t.resolvedAt,
+  });
+});
+
+// GET /api/skyhub/me/copyright-removals — your posts removed for copyright
+router.get("/me/copyright-removals", requireViewer, async (req, res) => {
+  const mine = await SkyHubPost.find({ author: req.skyUser.id })
+    .select("_id")
+    .lean();
+  const rows = await SkyHubTakedown.find({
+    kind: "copyright",
+    status: "removed",
+    posts: { $in: mine.map((p) => p._id) },
+  })
+    .select("ticket createdAt resolvedAt copyrightedWork counter")
+    .lean();
+  res.json({
+    ok: true,
+    removals: rows.map((r) => ({
+      ticket: r.ticket,
+      removedAt: r.resolvedAt,
+      claim: r.copyrightedWork,
+      counterSent: Boolean(r.counter),
+    })),
+  });
+});
+
+// POST /api/skyhub/takedown/:ticket/counter — DMCA counter-notice from the poster
+router.post(
+  "/takedown/:ticket/counter",
+  requireViewer,
+  rateLimit("report"),
+  async (req, res) => {
+    try {
+      const t = await SkyHubTakedown.findOne({
+        ticket: String(req.params.ticket).toUpperCase(),
+        kind: "copyright",
+      });
+      if (!t || t.status !== "removed")
+        return res
+          .status(404)
+          .json({ message: "Nothing to dispute for that request." });
+      const owns = await SkyHubPost.exists({
+        _id: { $in: t.posts },
+        author: req.skyUser.id,
+      });
+      if (!owns)
+        return res
+          .status(403)
+          .json({ message: "Only the person who posted it can dispute this." });
+      if (t.counter)
+        return res
+          .status(409)
+          .json({ message: "You've already sent a counter-notice." });
+
+      const b = req.body || {};
+      const c = {
+        fullName: cleanText(b.fullName, 120),
+        address: cleanText(b.address, 300),
+        phone: cleanText(b.phone, 40),
+        email: cleanText(b.email, 200),
+        statement: cleanText(b.statement, 1500),
+        consentsToJurisdiction: Boolean(b.consentsToJurisdiction),
+        signature: cleanText(b.signature, 120),
+      };
+      if (
+        !c.fullName ||
+        !c.address ||
+        !c.phone ||
+        !c.statement ||
+        !c.signature ||
+        !c.consentsToJurisdiction ||
+        !b.underPenalty
+      ) {
+        return res.status(400).json({
+          message: "A counter-notice needs every field and both statements.",
+        });
+      }
+      // DMCA: restore in 10–14 business days unless the claimant files suit.
+      t.counter = {
+        ...c,
+        at: new Date(),
+        restoreAfter: new Date(Date.now() + 14 * DAY),
+      };
+      await t.save();
+      sendReportAlert({
+        targetType: "post",
+        reason: "other",
+        count: 1,
+        autoHidden: false,
+        snippet: `[DMCA COUNTER-NOTICE ${t.ticket}] Forward to ${
+          t.requesterEmail
+        }. Restore after ${t.counter.restoreAfter.toDateString()} unless they've filed suit.`,
+        authorName: c.fullName,
+        authorUsername: req.skyUser.username,
+      }).catch(() => {});
+      res.json({
+        ok: true,
+        message:
+          "Counter-notice sent. If the claimant doesn't take legal action, your post comes back in about 2 weeks.",
+      });
+    } catch (err) {
+      console.error("[skyhub] counter-notice error:", err);
+      res.status(500).json({ message: "Couldn't send your counter-notice." });
+    }
+  }
+);
+
+/* ── Admin: removal requests ───────────────────────────────── */
+// GET /api/skyhub/admin/takedowns?status=received|removed|rejected|restored
+router.get("/admin/takedowns", adminOnly, async (req, res) => {
+  const status = ["received", "removed", "rejected", "restored"].includes(
+    req.query.status
+  )
+    ? req.query.status
+    : "received";
+  const rows = await SkyHubTakedown.find({ status })
+    .sort({ dueBy: 1, createdAt: 1 })
+    .limit(200)
+    .lean();
+  const now = Date.now();
+  res.json({
+    ok: true,
+    takedowns: rows.map((t) => ({
+      ...t,
+      id: String(t._id),
+      hoursLeft: t.dueBy
+        ? Math.round((new Date(t.dueBy).getTime() - now) / HOUR)
+        : null,
+      overdue: Boolean(
+        t.dueBy && new Date(t.dueBy).getTime() < now && t.status === "received"
+      ),
+    })),
+  });
+});
+
+// POST /api/skyhub/admin/takedowns/:id  { action: "remove"|"reject"|"restore", note, posts? }
+router.post("/admin/takedowns/:id", adminOnly, async (req, res) => {
+  try {
+    if (!validId(req.params.id))
+      return res.status(400).json({ message: "Invalid request." });
+    const t = await SkyHubTakedown.findById(req.params.id);
+    if (!t) return res.status(404).json({ message: "Request not found." });
+    const action = req.body?.action;
+    const note = cleanText(req.body?.note, 1000);
+    // Admin can attach the posts they located by hand.
+    const extra = postIdsFrom(req.body?.posts);
+    if (extra.length)
+      t.posts = [...new Set([...t.posts.map(String), ...extra])];
+
+    if (action === "remove") {
+      const r = await hidePostsAndCopies(t.posts.map(String), {
+        reason: "removed",
+      });
+      t.status = "removed";
+      t.duplicatesRemoved += r.duplicates;
+      t.decisionNote = note || "We removed the content you reported.";
+      for (const a of new Set((r.authors || []).map(String))) {
+        notifyUser(
+          a,
+          "We removed one of your SkyHub posts",
+          t.kind === "copyright"
+            ? `We received a copyright complaint (${t.ticket}) about it. If you believe it was removed by mistake, you can send a counter-notice from your account standing page.`
+            : "It was removed after a removal request under our intimate-image policy."
+        );
+        // DMCA repeat-infringer policy.
+        if (t.kind === "copyright") {
+          const mine = await SkyHubPost.find({ author: a })
+            .select("_id")
+            .lean();
+          const upheld = await SkyHubTakedown.countDocuments({
+            kind: "copyright",
+            status: "removed",
+            posts: { $in: mine.map((p) => p._id) },
+            _id: { $ne: t._id },
+          });
+          if (upheld + 1 >= LEGAL.repeatInfringerLimit) {
+            await issueStrike({
+              userId: a,
+              reason: "other",
+              severity: "severe",
+              note: "Repeated copyright infringement",
+              by: adminName(req),
+              forceBan: true,
+            });
+          }
+        }
+      }
+    } else if (action === "reject") {
+      // Intimate-image request rejected: put any good-faith hides back.
+      if (t.kind === "intimate" && t.posts.length) {
+        await SkyHubPost.updateMany(
+          { _id: { $in: t.posts }, hiddenReason: "review" },
+          { $set: { hidden: false, hiddenReason: null } }
+        );
+      }
+      t.status = "rejected";
+      if (!note)
+        return res
+          .status(400)
+          .json({ message: "Add a short reason — the requester will see it." });
+      t.decisionNote = note;
+    } else if (action === "restore") {
+      // After a DMCA counter-notice waiting period.
+      await SkyHubPost.updateMany(
+        { _id: { $in: t.posts } },
+        { $set: { hidden: false, hiddenReason: null } }
+      );
+      t.status = "restored";
+      if (t.counter) t.counter.restored = true;
+      t.decisionNote =
+        note || "The content was restored after a counter-notice.";
+    } else {
+      return res.status(400).json({ message: "Unknown action." });
+    }
+    t.resolvedBy = adminName(req);
+    t.resolvedAt = new Date();
+    await t.save();
+    res.json({ ok: true, status: t.status });
+  } catch (err) {
+    console.error("[skyhub/admin] takedown resolve error:", err);
+    res.status(500).json({ message: "Couldn't update that request." });
+  }
+});
+
+/* ── Admin: confirmed child sexual abuse material ──────────────
+   POST /api/skyhub/admin/child-safety/:postId  { ncmecReportId }
+   1. Report it at report.cybertip.org FIRST (required by 18 U.S.C. §2258A).
+   2. Then call this: keeps the post as evidence for a year, takes it
+      off SkyHub, and permanently bans the account WITHOUT notifying them. */
+router.post("/admin/child-safety/:postId", adminOnly, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    if (!validId(postId))
+      return res.status(400).json({ message: "Invalid post." });
+    const ncmecReportId = cleanText(req.body?.ncmecReportId, 60);
+    if (!ncmecReportId)
+      return res
+        .status(400)
+        .json({ message: "Add the CyberTipline report number first." });
+    const post = await SkyHubPost.findById(postId).select("author");
+    if (!post) return res.status(404).json({ message: "Post not found." });
+
+    await hidePostsAndCopies([postId], {
+      reason: "removed",
+      holdDays: LEGAL.childSafetyHoldDays,
+    });
+    if (post.author) {
+      await SkyHubRestriction.updateOne(
+        { user: post.author },
+        {
+          $set: {
+            user: post.author,
+            until: null,
+            permanent: true,
+            reason: "Child safety",
+            by: adminName(req),
+          },
+        },
+        { upsert: true }
+      );
+    }
+    await SkyHubReport.updateMany(
+      { targetType: "post", targetId: postId, status: "open" },
+      {
+        $set: {
+          status: "actioned",
+          resolution: `child safety — NCMEC ${ncmecReportId}`,
+          resolvedBy: adminName(req),
+          resolvedAt: new Date(),
+        },
+      }
+    );
+    console.warn(
+      `[skyhub/admin] child-safety action on post ${postId}, NCMEC ${ncmecReportId}, by ${adminName(
+        req
+      )}`
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[skyhub/admin] child-safety error:", err);
+    res.status(500).json({ message: "Couldn't apply that action." });
+  }
 });
 
 export default router;

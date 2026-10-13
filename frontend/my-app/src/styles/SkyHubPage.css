@@ -994,6 +994,930 @@
 }
 
 /* ================================================================
+   SKYHUB RADAR — search
+================================================================ */
+/* The hero column was sized for the old plain box */
+.skyhub-topHeaderInner {
+  grid-template-columns: 1fr minmax(340px, 400px);
+}
+/* The radar is its own card now; the old wrapper just holds it */
+.skyhub-headerActions {
+  padding: 0 !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.shRadar {
+  position: relative;
+  padding: 14px 16px 14px;
+  border-radius: 22px;
+  background: radial-gradient(
+      120% 140% at 100% 0%,
+      rgba(255, 107, 43, 0.16),
+      transparent 55%
+    ),
+    radial-gradient(
+      100% 120% at 0% 100%,
+      rgba(147, 51, 234, 0.2),
+      transparent 60%
+    ),
+    rgba(16, 11, 34, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: border-color var(--t-med), box-shadow var(--t-med);
+  z-index: 5;
+}
+.shRadar.is-focused {
+  border-color: rgba(255, 107, 43, 0.5);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45),
+    0 0 0 4px rgba(255, 107, 43, 0.12), 0 0 40px rgba(255, 107, 43, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+/* Ticket notches — same family as the Boarding Pass search on Book */
+.shRadar::before,
+.shRadar::after {
+  content: "";
+  position: absolute;
+  top: 46px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #120c28;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+}
+.shRadar::before {
+  left: -8px;
+  clip-path: inset(0 0 0 50%);
+}
+.shRadar::after {
+  right: -8px;
+  clip-path: inset(0 50% 0 0);
+}
+
+.shRadar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
+}
+.shRadar__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Sora", sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sh-orange2);
+}
+.shRadar__ping {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sh-orange);
+}
+.shRadar__ping::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid var(--sh-orange);
+  animation: shRadarPing 2s ease-out infinite;
+}
+.shRadar__meta {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--sh-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.shRadar__field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 10px 0 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: text;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.shRadar.is-focused .shRadar__field {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 107, 43, 0.35);
+}
+.shRadar__icon {
+  flex-shrink: 0;
+  color: var(--sh-orange2);
+}
+.shRadar__sweep {
+  transform-origin: 12px 12px;
+}
+.shRadar__icon.is-spinning .shRadar__sweep {
+  animation: shRadarSweep 1.6s linear infinite;
+}
+
+.shRadar__inputWrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.shRadar__input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px; /* 16px = no iPhone zoom */
+  font-weight: 500;
+  caret-color: var(--sh-orange);
+}
+.shRadar__input::placeholder {
+  color: var(--sh-muted);
+}
+.shRadar__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.shRadar__prefix {
+  color: var(--sh-muted);
+  font-size: 15px;
+}
+/* Split-flap departures board */
+.shRadar__flap {
+  display: inline-flex;
+  gap: 2px;
+  perspective: 300px;
+}
+.shRadar__flapChar {
+  display: inline-block;
+  min-width: 0.62em;
+  padding: 2px 1px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #2a2050 0 49%, #221a44 51% 100%);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #ffd2b5;
+  font-family: "Sora", ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  text-transform: uppercase;
+  transform-origin: 50% 50%;
+  animation: shRadarFlip 0.42s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+
+.shRadar__clear,
+.shRadar__kbd {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.shRadar__kbd {
+  font-family: "Sora", monospace;
+  color: var(--sh-muted);
+  border: 1px solid var(--sh-line3);
+  background: rgba(255, 255, 255, 0.04);
+}
+.shRadar__clear {
+  border: none;
+  cursor: pointer;
+  color: var(--sh-soft);
+  background: rgba(255, 255, 255, 0.08);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.shRadar__clear:hover {
+  background: rgba(255, 107, 43, 0.2);
+  color: #fff;
+}
+
+.shRadar__scopes {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.shRadar__scope {
+  flex: 1;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sh-muted);
+  font-family: "DM Sans", sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.shRadar__scope:hover {
+  color: #fff;
+}
+.shRadar__scope.is-on {
+  background: linear-gradient(135deg, var(--sh-orange), #ff9966);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 107, 43, 0.35);
+}
+
+.shRadar__trending {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 11px;
+}
+.shRadar__trendLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sh-faint);
+  margin-right: 2px;
+}
+.shRadar__trendChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 6px 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 107, 43, 0.25);
+  background: rgba(255, 107, 43, 0.08);
+  color: #ffd2b5;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--t-fast), transform var(--t-fast);
+}
+.shRadar__trendChip span {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 107, 43, 0.22);
+  color: #fff;
+  font-size: 10.5px;
+  line-height: 18px;
+}
+.shRadar__trendChip:hover {
+  background: rgba(255, 107, 43, 0.18);
+  transform: translateY(-1px);
+}
+
+/* Suggestions */
+.shRadar__drop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 18px;
+  background: #1a1233;
+  border: 1px solid var(--sh-line3);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+  animation: fadeSlideUp 0.16s var(--ease2) both;
+}
+.shRadar__groupTitle {
+  padding: 8px 10px 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-faint);
+}
+.shRadar__opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.shRadar__opt.is-active {
+  background: rgba(255, 107, 43, 0.13);
+}
+.shRadar__optIcon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sh-orange2);
+  font-weight: 800;
+  font-size: 14px;
+  overflow: hidden;
+}
+.shRadar__optIcon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.shRadar__optText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.shRadar__optLabel {
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shRadar__optSub {
+  color: var(--sh-muted);
+  font-size: 12px;
+}
+.shRadar__optCount {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--sh-muted);
+  font-variant-numeric: tabular-nums;
+}
+.shRadar__none {
+  padding: 18px 12px;
+  text-align: center;
+  color: var(--sh-soft);
+  font-size: 13.5px;
+}
+.shRadar__none span {
+  display: block;
+  margin-top: 3px;
+  color: var(--sh-muted);
+  font-size: 12.5px;
+}
+
+/* Radar top row: label + count on the left, city chip on the right */
+.shRadar__labelWrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.shRadar__city {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 55%;
+  height: 26px;
+  padding: 0 9px 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.shRadar__city:hover {
+  border-color: rgba(255, 107, 43, 0.5);
+  background: rgba(255, 107, 43, 0.1);
+}
+.shRadar__city.is-empty {
+  border-style: dashed;
+  color: var(--sh-orange2);
+}
+.shRadar__cityName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shRadar__cityCaret {
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+/* ── "Landed somewhere new?" card ── */
+.shLocal {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 44px 16px 16px;
+  border-radius: 18px;
+  background: repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.025) 0 10px,
+      transparent 10px 20px
+    ),
+    linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(147, 51, 234, 0.14));
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  animation: fadeSlideUp 0.25s var(--ease2) both;
+}
+/* Passport-stamp badge */
+.shLocal__stamp {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  border: 2px dashed rgba(125, 211, 252, 0.55);
+  background: rgba(56, 189, 248, 0.1);
+  transform: rotate(-8deg);
+}
+.shLocal__body {
+  flex: 1;
+  min-width: 0;
+}
+.shLocal__title {
+  color: #fff;
+  font-family: "Sora", sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.shLocal__text {
+  margin: 4px 0 0;
+  color: var(--sh-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.shLocal__actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.shLocal__primary {
+  height: 34px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--sh-orange), #ff9966);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(255, 107, 43, 0.3);
+  transition: transform var(--t-fast), opacity var(--t-fast);
+}
+.shLocal__primary:hover {
+  transform: translateY(-1px);
+}
+.shLocal__primary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.shLocal__link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #7dd3fc;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.shLocal__link:hover {
+  text-decoration: underline;
+}
+.shLocal__picker {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.shLocal__input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--sh-line3);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 16px;
+  outline: none;
+}
+.shLocal__input:focus {
+  border-color: var(--sh-orange);
+  box-shadow: 0 0 0 3px var(--sh-odim);
+}
+.shLocal__go {
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: #fff;
+  color: #1a1233;
+  font-weight: 800;
+  cursor: pointer;
+}
+.shLocal__go:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.shLocal__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.shLocal__chip {
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--sh-line3);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sh-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.shLocal__chip:hover {
+  border-color: rgba(255, 107, 43, 0.5);
+}
+.shLocal__chip.is-gps {
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.35);
+}
+.shLocal__error {
+  margin-top: 8px;
+  color: #fca5a5;
+  font-size: 12.5px;
+}
+.shLocal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--sh-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.shLocal__close:hover {
+  background: var(--sh-ghost);
+  color: #fff;
+}
+
+/* ── Report popup extras ── */
+.shReport__urgent {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+  font-size: 10.5px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+.shReport__hint {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--sh-line2);
+  color: var(--sh-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Join Trip safety tip ── */
+.shMeetTip {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  color: var(--sh-soft);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.shMeetTip a {
+  color: #c4b5fd;
+  font-weight: 700;
+}
+
+/* ── /skyhub/report-content ── */
+.shReq {
+  padding: calc(var(--sh-nav-h) + 28px) 16px 80px;
+}
+.shReq__wrap {
+  max-width: 680px;
+  margin: 0 auto;
+}
+.shReq__back {
+  border: none;
+  background: none;
+  color: var(--sh-muted);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 14px;
+}
+.shReq__back:hover {
+  color: #fff;
+}
+.shReq__title {
+  font-family: "Sora", sans-serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 6px;
+}
+.shReq__lead {
+  color: var(--sh-soft);
+  margin: 0 0 20px;
+  line-height: 1.55;
+}
+.shReq__kinds {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.shReq__kind {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--sh-line2);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sh-text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.shReq__kind strong {
+  font-size: 13.5px;
+}
+.shReq__kind span {
+  font-size: 12px;
+  color: var(--sh-muted);
+}
+.shReq__kind.is-on {
+  border-color: var(--sh-orange);
+  background: rgba(255, 107, 43, 0.1);
+}
+.shReq__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(16, 11, 34, 0.88);
+  border: 1px solid var(--sh-line3);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+.shReq__note {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: var(--sh-soft);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.shReq__note a,
+.shReq__muted a {
+  color: #7dd3fc;
+}
+.shReq__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.shReq__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--sh-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+.shReq__field input,
+.shReq__field textarea,
+.shReq__field select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--sh-line3);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  outline: none;
+  resize: vertical;
+}
+.shReq__field select option {
+  background: #1a1233;
+}
+.shReq__field input:focus,
+.shReq__field textarea:focus,
+.shReq__field select:focus {
+  border-color: var(--sh-orange);
+  box-shadow: 0 0 0 3px var(--sh-odim);
+}
+.shReq__check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: var(--sh-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.shReq__check input {
+  margin-top: 3px;
+  width: 17px;
+  height: 17px;
+  accent-color: var(--sh-orange);
+  flex-shrink: 0;
+}
+.shReq__submit {
+  height: 46px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--sh-orange), #ff9966);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px var(--sh-oglow);
+}
+.shReq__submit:disabled {
+  opacity: 0.6;
+}
+.shReq__error {
+  color: #fca5a5;
+  font-size: 13.5px;
+}
+.shReq__muted {
+  color: var(--sh-muted);
+  font-size: 12.5px;
+  margin: 0;
+}
+.shReq__done {
+  align-items: center;
+  text-align: center;
+}
+.shReq__done h2 {
+  color: #fff;
+  font-family: "Sora", sans-serif;
+  margin: 0;
+}
+.shReq__done p {
+  color: var(--sh-soft);
+  margin: 0;
+}
+.shReq__stamp {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px dashed rgba(52, 211, 153, 0.6);
+  color: #34d399;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(-8deg);
+}
+.shReq__ticket {
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sh-soft);
+}
+.shReq__ticket b {
+  color: #fff;
+  font-family: "Sora", monospace;
+  letter-spacing: 0.08em;
+  margin-left: 6px;
+}
+.shReq__status {
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sh-soft);
+}
+.shReq__statusRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: "Sora", sans-serif;
+  color: #fff;
+}
+.shReq__statusRow b.is-removed,
+.shReq__statusRow b.is-restored {
+  color: #34d399;
+}
+.shReq__statusRow b.is-rejected {
+  color: #fca5a5;
+}
+.shReq__statusRow b.is-received {
+  color: #fbbf24;
+}
+@media (max-width: 640px) {
+  .shReq__kinds,
+  .shReq__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@keyframes shRadarSweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes shRadarPing {
+  from {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+@keyframes shRadarFlip {
+  0% {
+    transform: rotateX(-90deg);
+    opacity: 0;
+  }
+  60% {
+    transform: rotateX(12deg);
+    opacity: 1;
+  }
+  100% {
+    transform: rotateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shRadar__flapChar,
+  .shRadar__ping::after,
+  .shRadar__icon.is-spinning .shRadar__sweep {
+    animation: none !important;
+  }
+}
+@media (max-width: 1024px) {
+  .skyhub-topHeaderInner {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 420px) {
+  .shRadar {
+    padding: 12px;
+  }
+  .shRadar__scope {
+    font-size: 11.5px;
+  }
+}
+
+/* ================================================================
    ⋮ MENUS — post and comment options
    Same issue as the popups: rendered outside the page, so the
    text came out black. Every SkyHub dropdown gets overlayClassName="skyhub-menu".
