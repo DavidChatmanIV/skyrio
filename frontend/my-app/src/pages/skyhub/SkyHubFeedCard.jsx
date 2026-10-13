@@ -4,6 +4,7 @@ import {
   MoreOutlined,
   FlagOutlined,
   DeleteOutlined,
+  EditOutlined,
   EnvironmentOutlined,
   StopOutlined,
   EyeInvisibleOutlined,
@@ -149,6 +150,7 @@ export default function SkyHubFeedCard({
   onToggleSave,
   onOpenComments,
   onReportPost,
+  onEditPost,
   onDeletePost,
   onBlockUser,
 }) {
@@ -169,6 +171,12 @@ export default function SkyHubFeedCard({
   const menuItems = [
     ...(isOwner
       ? [
+          {
+            key: "edit",
+            icon: <EditOutlined />,
+            label: "Edit post",
+            onClick: () => onEditPost?.(post),
+          },
           {
             key: "delete",
             icon: <DeleteOutlined />,
@@ -225,7 +233,21 @@ export default function SkyHubFeedCard({
                 {post.badge}
               </span>
             )}
-            <span className="skyhub-feedCard__time">{post.timeAgo}</span>
+            <span className="skyhub-feedCard__time">
+              {post.timeAgo}
+              {post.edited && (
+                <span
+                  title={
+                    post.editedAt
+                      ? `Edited ${new Date(post.editedAt).toLocaleString()}`
+                      : "Edited"
+                  }
+                  style={{ marginLeft: 6 }}
+                >
+                  · edited
+                </span>
+              )}
+            </span>
           </div>
 
           {(post.destination || post.type) && (
@@ -291,7 +313,7 @@ export default function SkyHubFeedCard({
       )}
 
       <div className="skyhub-feedCard__body">
-        <p className="skyhub-feedCard__text">{post.text}</p>
+        {post.text && <p className="skyhub-feedCard__text">{post.text}</p>}
 
         {post.tags?.length > 0 && (
           <div className="skyhub-feedCard__tags">

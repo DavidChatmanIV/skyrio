@@ -32,13 +32,17 @@ export async function readViewer(req, _res, next) {
       const token = tokenFrom(req);
       if (token && process.env.JWT_SECRET) {
         const d = jwt.verify(token, process.env.JWT_SECRET);
-        const id = String(d.userId || d.id || d._id || d.sub || d.user?.id || d.user?._id || "");
+        const id = String(
+          d.userId || d.id || d._id || d.sub || d.user?.id || d.user?._id || ""
+        );
         if (mongoose.isValidObjectId(id)) req.skyUserId = id;
       }
     }
     if (req.skyUserId) {
       const u = await User.findById(req.skyUserId)
-        .select("name username avatar profilePicture verified verifiedTier isActive role isAdmin")
+        .select(
+          "name username avatar profilePicture verified verifiedTier isActive role isAdmin"
+        )
         .lean();
       if (u && u.isActive !== false) {
         req.skyUser = {
@@ -99,7 +103,9 @@ export function rateLimit(action) {
         const oldest = list.filter((t) => now - t < r.ms)[0];
         const waitMin = Math.max(1, Math.ceil((r.ms - (now - oldest)) / 60000));
         return res.status(429).json({
-          message: `You're doing that a lot. Try again in about ${waitMin} minute${waitMin === 1 ? "" : "s"}.`,
+          message: `You're doing that a lot. Try again in about ${waitMin} minute${
+            waitMin === 1 ? "" : "s"
+          }.`,
         });
       }
     }
@@ -123,13 +129,17 @@ const LINK_RE = /(https?:\/\/|www\.)\S+/gi;
 const CONTROL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F​-‏‪-‮]/g;
 
 export function cleanText(s, max) {
-  return String(s || "").replace(CONTROL_RE, "").trim().slice(0, max);
+  return String(s || "")
+    .replace(CONTROL_RE, "")
+    .trim()
+    .slice(0, max);
 }
 
 export function checkSpam(text, { maxLinks = 2 } = {}) {
   const links = (text.match(LINK_RE) || []).length;
   if (links > maxLinks) return `Posts can include up to ${maxLinks} links.`;
-  if (/(.)\1{14,}/.test(text)) return "That looks like spam. Please edit and try again.";
+  if (/(.)\1{14,}/.test(text))
+    return "That looks like spam. Please edit and try again.";
   const letters = text.replace(/[^A-Za-z]/g, "");
   if (letters.length > 40 && letters === letters.toUpperCase()) {
     return "Please don't write the whole post in capital letters.";
@@ -139,33 +149,91 @@ export function checkSpam(text, { maxLinks = 2 } = {}) {
 
 export async function isRepeatPost(userId, text) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const same = await SkyHubPost.exists({ author: userId, text, createdAt: { $gte: since } });
+  const same = await SkyHubPost.exists({
+    author: userId,
+    text,
+    createdAt: { $gte: since },
+  });
   return Boolean(same);
 }
 
-// Only photos uploaded through Skyrio (Cloudinary) can be attached.
-export function safeImageUrls(list, max = 4) {
+// Only photos uploaded through Skyrio can be attached:
+//   • Cloudinary:   https://res.cloudinary.com/<CLOUDINARY_CLOUD_NAME>/...
+//   • Our own server's /uploads/ folder (relative "/uploads/..." or a full
+//     link on this API's own host, e.g. http://localhost:4000/uploads/...)
+// Anything else is dropped, and the reason is logged so a "missing photo"
+// is never a mystery again.
+const OWN_HOSTS = [
+  process.env.PUBLIC_API_URL,
+  process.env.API_URL,
+  process.env.BACKEND_URL,
+]
+  .filter(Boolean)
+  .map((u) => {
+    try {
+      return new URL(u).host;
+    } catch {
+      return null;
+    }
+  })
+  .filter(Boolean);
+
+function isOwnUploadPath(pathname) {
+  return pathname.startsWith("/uploads/") && !pathname.includes("..");
+}
+
+function imageUrlProblem(u) {
   const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+  // Relative link to our own uploads folder.
+  if (u.startsWith("/"))
+    return isOwnUploadPath(u) ? null : "relative link outside /uploads/";
+  let url;
+  try {
+    url = new URL(u);
+  } catch {
+    return "not a valid link";
+  }
+  if (url.hostname === "res.cloudinary.com") {
+    if (url.protocol !== "https:") return "Cloudinary link isn't https";
+    if (cloud && !url.pathname.startsWith(`/${cloud}/`)) {
+      return `Cloudinary account doesn't match CLOUDINARY_CLOUD_NAME (${cloud})`;
+    }
+    return null;
+  }
+  const isLocalDev =
+    process.env.NODE_ENV !== "production" &&
+    ["localhost", "127.0.0.1"].includes(url.hostname);
+  if (
+    (OWN_HOSTS.includes(url.host) || isLocalDev) &&
+    isOwnUploadPath(url.pathname)
+  ) {
+    if (process.env.NODE_ENV === "production" && url.protocol !== "https:")
+      return "own upload isn't https";
+    return null;
+  }
+  return `host ${url.hostname} isn't Cloudinary or this server`;
+}
+
+export function safeImageUrls(list, max = 4) {
   return (Array.isArray(list) ? list : [])
-    .filter((u) => typeof u === "string")
+    .filter((u) => typeof u === "string" && u.trim())
+    .map((u) => u.trim())
     .filter((u) => {
-      try {
-        const url = new URL(u);
-        return (
-          url.protocol === "https:" &&
-          url.hostname === "res.cloudinary.com" &&
-          (!cloud || url.pathname.startsWith(`/${cloud}/`))
-        );
-      } catch {
-        return false;
-      }
+      const problem = imageUrlProblem(u);
+      if (problem)
+        console.warn(`[skyhub] photo dropped (${problem}): ${u.slice(0, 160)}`);
+      return !problem;
     })
     .slice(0, max);
 }
 
 export function cleanTags(tags) {
   return (Array.isArray(tags) ? tags : [])
-    .map((t) => cleanText(t, 30).replace(/^#/, "").replace(/[^\p{L}\p{N}_ -]/gu, ""))
+    .map((t) =>
+      cleanText(t, 30)
+        .replace(/^#/, "")
+        .replace(/[^\p{L}\p{N}_ -]/gu, "")
+    )
     .filter(Boolean)
     .slice(0, 6);
 }
@@ -174,12 +242,16 @@ export function cleanTags(tags) {
 // Everyone this viewer shouldn't see: people they blocked + people who blocked them.
 export async function hiddenAuthorIds(viewerId) {
   if (!viewerId) return [];
-  const rows = await SkyHubBlock.find({ $or: [{ blocker: viewerId }, { blocked: viewerId }] })
+  const rows = await SkyHubBlock.find({
+    $or: [{ blocker: viewerId }, { blocked: viewerId }],
+  })
     .select("blocker blocked")
     .lean();
   const ids = new Set();
   for (const r of rows) {
-    ids.add(String(String(r.blocker) === String(viewerId) ? r.blocked : r.blocker));
+    ids.add(
+      String(String(r.blocker) === String(viewerId) ? r.blocked : r.blocker)
+    );
   }
   return [...ids];
 }
@@ -213,7 +285,12 @@ export async function requireNotSuspended(req, res, next) {
   if (s) {
     const permanent = s.permanent || !s.until;
     const when = s.until
-      ? ` until ${new Date(s.until).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+      ? ` until ${new Date(s.until).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })}`
       : "";
     return res.status(403).json({
       paused: true,

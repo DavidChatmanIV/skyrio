@@ -18,6 +18,9 @@ import {
   decide,
 } from "../../services/skyhubModeration.js";
 import { sendReportAlert } from "../../services/moderationEmails.js";
+// Namespace import: if a helper is ever renamed, XP just skips instead of
+// crashing the whole server on boot.
+import * as xpService from "../../services/xpService.js";
 import {
   readViewer,
   requireViewer,
@@ -39,17 +42,69 @@ const router = Router();
 router.use(readViewer);
 
 const validId = (id) => mongoose.Types.ObjectId.isValid(id);
-const POST_TYPES = ["Tip", "Travel Tip", "Question", "Story", "Photo", "Photo Drop", "Join Trip"];
-const REPORT_REASONS = ["spam", "harassment", "hate", "nudity", "scam", "violence", "misinformation", "other"];
+const POST_TYPES = [
+  "Tip",
+  "Travel Tip",
+  "Question",
+  "Story",
+  "Photo",
+  "Photo Drop",
+  "Join Trip",
+];
+const REPORT_REASONS = [
+  "spam",
+  "harassment",
+  "hate",
+  "nudity",
+  "scam",
+  "violence",
+  "misinformation",
+  "other",
+];
 
 // ── Helpers ───────────────────────────────────────────────────
 function getTimeAgo(date) {
   const diffMin = Math.floor((Date.now() - new Date(date).getTime()) / 60000);
-  if (diffMin < 1) return "now";
-  if (diffMin < 60) return `${diffMin}m`;
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h`;
-  return `${Math.floor(diffHr / 24)}d`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+// Runs an XP helper without ever letting an XP problem break the post itself.
+async function runXp(name, args) {
+  const fn = xpService[name];
+  if (typeof fn !== "function") {
+    console.warn(`[skyhub] xpService.${name} not found — XP skipped`);
+    return null;
+  }
+  try {
+    return await fn(args);
+  } catch (err) {
+    console.error(`[skyhub] ${name} failed:`, err);
+    return null;
+  }
+}
+
+// What the browser needs to update the XP shown on screen.
+async function xpSummary(userId, result) {
+  const u = await User.findById(userId)
+    .select("xp pendingXp")
+    .lean()
+    .catch(() => null);
+  return {
+    awarded: Boolean(result?.awarded),
+    amount: result?.amount || 0,
+    rankUp: result?.rankUp || null,
+    total: u?.xp ?? null,
+    pending: u?.pendingXp ?? null,
+  };
 }
 
 function mapPost(post, viewerId, xpByAuthorId = new Map()) {
@@ -83,6 +138,9 @@ function mapPost(post, viewerId, xpByAuthorId = new Map()) {
     // Only the author ever receives a hidden post (see /feed).
     underReview: Boolean(post.hidden && post.hiddenReason === "review"),
     timeAgo: getTimeAgo(post.createdAt),
+    createdAt: post.createdAt,
+    edited: Boolean(post.editedAt),
+    editedAt: post.editedAt || null,
   };
 }
 
@@ -101,9 +159,13 @@ function mapComment(comment, viewerId) {
 }
 
 async function xpMapFor(posts) {
-  const ids = [...new Set(posts.map((p) => p.author?.toString()).filter(Boolean))];
+  const ids = [
+    ...new Set(posts.map((p) => p.author?.toString()).filter(Boolean)),
+  ];
   if (!ids.length) return new Map();
-  const authors = await User.find({ _id: { $in: ids } }).select("xp").lean();
+  const authors = await User.find({ _id: { $in: ids } })
+    .select("xp")
+    .lean();
   return new Map(authors.map((a) => [a._id.toString(), a.xp || 0]));
 }
 
@@ -124,7 +186,8 @@ function isAdmin(req) {
   return Boolean(readAdminSession(req) || req.skyUser?.isAdmin);
 }
 function adminOnly(req, res, next) {
-  if (!isAdmin(req)) return res.status(403).json({ message: "Admin access required." });
+  if (!isAdmin(req))
+    return res.status(403).json({ message: "Admin access required." });
   next();
 }
 function adminName(req) {
@@ -141,7 +204,12 @@ router.get("/feed", async (req, res) => {
     const viewerId = req.skyUser?.id || null;
     const hide = await hiddenAuthorIds(viewerId);
     const visible = viewerId
-      ? { $or: [{ hidden: { $ne: true } }, { author: viewerId, hiddenReason: "review" }] }
+      ? {
+          $or: [
+            { hidden: { $ne: true } },
+            { author: viewerId, hiddenReason: "review" },
+          ],
+        }
       : { hidden: { $ne: true } };
     const posts = await SkyHubPost.find({
       ...visible,
@@ -161,49 +229,151 @@ router.get("/feed", async (req, res) => {
 /* ─────────────────────────────────────────────────────────────
    POST /api/skyhub/posts   (logged in, not suspended, rate-limited)
 ───────────────────────────────────────────────────────────── */
-router.post("/posts", requireViewer, requireNotSuspended, rateLimit("post"), async (req, res) => {
-  try {
-    const me = req.skyUser;
-    const text = cleanText(req.body?.text, 1200);
-    const images = safeImageUrls(req.body?.images?.length ? req.body.images : [req.body?.image].filter(Boolean));
-    if (!text && !images.length) return res.status(400).json({ message: "Write something or add a photo." });
-    if (!text) return res.status(400).json({ message: "Add a caption to your photo." });
+router.post(
+  "/posts",
+  requireViewer,
+  requireNotSuspended,
+  rateLimit("post"),
+  async (req, res) => {
+    try {
+      const me = req.skyUser;
+      const text = cleanText(req.body?.text, 1200);
+      const images = safeImageUrls(
+        req.body?.images?.length
+          ? req.body.images
+          : [req.body?.image].filter(Boolean)
+      );
+      // Photo-only posts are allowed. If photos were sent but none survived the
+      // safety check, say so instead of a confusing "write something".
+      const sentImages = (
+        req.body?.images?.length ? req.body.images : [req.body?.image]
+      ).filter(Boolean).length;
+      if (!text && !images.length) {
+        return res.status(400).json({
+          message: sentImages
+            ? "Your photo couldn't be attached. Try uploading it again."
+            : "Write something or add a photo.",
+        });
+      }
 
-    const spam = checkSpam(text);
-    if (spam) return res.status(400).json({ message: spam });
-    if (await isRepeatPost(me.id, text)) {
-      return res.status(409).json({ message: "You already posted this today." });
+      if (text) {
+        const spam = checkSpam(text);
+        if (spam) return res.status(400).json({ message: spam });
+        if (await isRepeatPost(me.id, text)) {
+          return res
+            .status(409)
+            .json({ message: "You already posted this today." });
+        }
+      }
+
+      const type = POST_TYPES.includes(req.body?.type)
+        ? req.body.type
+        : "Story";
+      const destination = cleanText(req.body?.destination, 120);
+      const tags = cleanTags(req.body?.tags);
+
+      const newPost = await SkyHubPost.create({
+        author: me.id,
+        authorName: me.name,
+        username: me.username,
+        avatar: me.avatar,
+        verified: me.verified,
+        type,
+        destination,
+        text,
+        image: images[0] || "",
+        images,
+        helpful: type === "Tip" || type === "Travel Tip",
+        tags: tags.length ? tags : destination ? ["Travel"] : [],
+      });
+
+      // XP goes through the anti-cheat service (ledger, daily caps, min length).
+      const award = await runXp("awardPostXp", {
+        userId: me.id,
+        postId: newPost._id,
+        text,
+        mediaCount: images.length,
+      });
+      const xpResult = await xpSummary(me.id, award);
+
+      const xp = await xpMapFor([newPost]);
+      return res.status(201).json({
+        message: "Post created.",
+        post: mapPost(newPost.toObject(), me.id, xp),
+        xp: xpResult,
+      });
+    } catch (err) {
+      console.error("[skyhub] create post error:", err);
+      return res.status(500).json({ message: "Failed to create post." });
     }
-
-    const type = POST_TYPES.includes(req.body?.type) ? req.body.type : "Story";
-    const destination = cleanText(req.body?.destination, 120);
-    const tags = cleanTags(req.body?.tags);
-
-    const newPost = await SkyHubPost.create({
-      author: me.id,
-      authorName: me.name,
-      username: me.username,
-      avatar: me.avatar,
-      verified: me.verified,
-      type,
-      destination,
-      text,
-      image: images[0] || "",
-      images,
-      helpful: type === "Tip" || type === "Travel Tip",
-      tags: tags.length ? tags : destination ? ["Travel"] : [],
-    });
-
-    const xp = await xpMapFor([newPost]);
-    return res.status(201).json({
-      message: "Post created.",
-      post: mapPost(newPost.toObject(), me.id, xp),
-    });
-  } catch (err) {
-    console.error("[skyhub] create post error:", err);
-    return res.status(500).json({ message: "Failed to create post." });
   }
-});
+);
+
+/* ─────────────────────────────────────────────────────────────
+   PATCH /api/skyhub/posts/:id   (the author only)
+   Body: { text?, destination? }  — photos stay as they were.
+───────────────────────────────────────────────────────────── */
+router.patch(
+  "/posts/:id",
+  requireViewer,
+  requireNotSuspended,
+  rateLimit("post"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!validId(id))
+        return res.status(400).json({ message: "Invalid post id." });
+      const post = await SkyHubPost.findById(id);
+      if (!post) return res.status(404).json({ message: "Post not found." });
+      if (String(post.author) !== req.skyUser.id) {
+        return res
+          .status(403)
+          .json({ message: "You can only edit your own posts." });
+      }
+      if (post.hidden && post.hiddenReason === "removed") {
+        return res
+          .status(403)
+          .json({ message: "This post was removed and can't be edited." });
+      }
+
+      const text =
+        req.body?.text !== undefined
+          ? cleanText(req.body.text, 1200)
+          : post.text;
+      const destination =
+        req.body?.destination !== undefined
+          ? cleanText(req.body.destination, 120)
+          : post.destination;
+      const hasPhotos = (post.images?.length || 0) > 0 || Boolean(post.image);
+      if (!text && !hasPhotos)
+        return res
+          .status(400)
+          .json({ message: "A post needs text or a photo." });
+
+      if (text && text !== post.text) {
+        const spam = checkSpam(text);
+        if (spam) return res.status(400).json({ message: spam });
+      }
+
+      const changed = text !== post.text || destination !== post.destination;
+      if (changed) {
+        post.text = text;
+        post.destination = destination;
+        post.editedAt = new Date();
+        await post.save();
+      }
+
+      const xp = await xpMapFor([post]);
+      return res.json({
+        message: changed ? "Post updated." : "No changes.",
+        post: mapPost(post.toObject(), req.skyUser.id, xp),
+      });
+    } catch (err) {
+      console.error("[skyhub] edit post error:", err);
+      return res.status(500).json({ message: "Failed to update post." });
+    }
+  }
+);
 
 /* ─────────────────────────────────────────────────────────────
    DELETE /api/skyhub/posts/:id   (the author, or an admin)
@@ -211,16 +381,25 @@ router.post("/posts", requireViewer, requireNotSuspended, rateLimit("post"), asy
 router.delete("/posts/:id", requireViewer, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!validId(id)) return res.status(400).json({ message: "Invalid post id." });
+    if (!validId(id))
+      return res.status(400).json({ message: "Invalid post id." });
     const post = await SkyHubPost.findById(id);
     if (!post) return res.status(404).json({ message: "Post not found." });
 
     const mine = post.author && String(post.author) === req.skyUser.id;
     if (!mine && !isAdmin(req)) {
-      return res.status(403).json({ message: "You can only delete your own posts." });
+      return res
+        .status(403)
+        .json({ message: "You can only delete your own posts." });
     }
-    await Promise.all([SkyHubPost.deleteOne({ _id: id }), SkyHubComment.deleteMany({ post: id })]);
-    return res.json({ success: true, message: "Post deleted." });
+    await Promise.all([
+      SkyHubPost.deleteOne({ _id: id }),
+      SkyHubComment.deleteMany({ post: id }),
+    ]);
+    // Take back the post's XP (and its like XP) so delete-and-repost can't farm.
+    await runXp("reversePostXp", id);
+    const xpResult = mine ? await xpSummary(req.skyUser.id, null) : null;
+    return res.json({ success: true, message: "Post deleted.", xp: xpResult });
   } catch (err) {
     console.error("[skyhub] delete post error:", err);
     return res.status(500).json({ message: "Failed to delete post." });
@@ -237,7 +416,10 @@ async function toggle(req, res, field) {
     return null;
   }
   const me = req.skyUser.id;
-  const post = await SkyHubPost.findOne({ _id: id, hidden: { $ne: true } }).select(`${field} author`);
+  const post = await SkyHubPost.findOne({
+    _id: id,
+    hidden: { $ne: true },
+  }).select(`${field} author`);
   if (!post || (await isBlockedBetween(me, post.author))) {
     res.status(404).json({ message: "Post not found." });
     return null;
@@ -251,25 +433,35 @@ async function toggle(req, res, field) {
   return { on: !has, count: updated[field].length };
 }
 
-router.post("/posts/:id/like", requireViewer, rateLimit("react"), async (req, res) => {
-  try {
-    const r = await toggle(req, res, "likes");
-    if (r) res.json({ liked: r.on, likesCount: r.count });
-  } catch (err) {
-    console.error("[skyhub] like error:", err);
-    res.status(500).json({ message: "Failed to update like." });
+router.post(
+  "/posts/:id/like",
+  requireViewer,
+  rateLimit("react"),
+  async (req, res) => {
+    try {
+      const r = await toggle(req, res, "likes");
+      if (r) res.json({ liked: r.on, likesCount: r.count });
+    } catch (err) {
+      console.error("[skyhub] like error:", err);
+      res.status(500).json({ message: "Failed to update like." });
+    }
   }
-});
+);
 
-router.post("/posts/:id/save", requireViewer, rateLimit("react"), async (req, res) => {
-  try {
-    const r = await toggle(req, res, "saves");
-    if (r) res.json({ saved: r.on, savesCount: r.count });
-  } catch (err) {
-    console.error("[skyhub] save error:", err);
-    res.status(500).json({ message: "Failed to update save." });
+router.post(
+  "/posts/:id/save",
+  requireViewer,
+  rateLimit("react"),
+  async (req, res) => {
+    try {
+      const r = await toggle(req, res, "saves");
+      if (r) res.json({ saved: r.on, savesCount: r.count });
+    } catch (err) {
+      console.error("[skyhub] save error:", err);
+      res.status(500).json({ message: "Failed to update save." });
+    }
   }
-});
+);
 
 /* ─────────────────────────────────────────────────────────────
    Comments
@@ -277,7 +469,8 @@ router.post("/posts/:id/save", requireViewer, rateLimit("react"), async (req, re
 router.get("/posts/:id/comments", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!validId(id)) return res.status(400).json({ message: "Invalid post id." });
+    if (!validId(id))
+      return res.status(400).json({ message: "Invalid post id." });
     return res.json({ comments: await visibleComments(id, req.skyUser?.id) });
   } catch (err) {
     console.error("[skyhub] get comments error:", err);
@@ -294,16 +487,20 @@ router.post(
     try {
       const { id } = req.params;
       const me = req.skyUser;
-      if (!validId(id)) return res.status(400).json({ message: "Invalid post id." });
+      if (!validId(id))
+        return res.status(400).json({ message: "Invalid post id." });
       const text = cleanText(req.body?.text, 600);
-      if (!text) return res.status(400).json({ message: "Comment text is required." });
+      if (!text)
+        return res.status(400).json({ message: "Comment text is required." });
       const spam = checkSpam(text, { maxLinks: 1 });
       if (spam) return res.status(400).json({ message: spam });
 
       const post = await SkyHubPost.findOne({ _id: id, hidden: { $ne: true } });
       if (!post) return res.status(404).json({ message: "Post not found." });
       if (await isBlockedBetween(me.id, post.author)) {
-        return res.status(403).json({ message: "You can't comment on this post." });
+        return res
+          .status(403)
+          .json({ message: "You can't comment on this post." });
       }
 
       await SkyHubComment.create({
@@ -314,7 +511,11 @@ router.post(
         avatar: me.avatar,
         text,
       });
-      const fresh = await SkyHubPost.findByIdAndUpdate(id, { $inc: { commentsCount: 1 } }, { new: true });
+      const fresh = await SkyHubPost.findByIdAndUpdate(
+        id,
+        { $inc: { commentsCount: 1 } },
+        { new: true }
+      );
 
       return res.status(201).json({
         message: "Comment added.",
@@ -332,13 +533,19 @@ router.post(
 router.delete("/comments/:id", requireViewer, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!validId(id)) return res.status(400).json({ message: "Invalid comment id." });
+    if (!validId(id))
+      return res.status(400).json({ message: "Invalid comment id." });
     const c = await SkyHubComment.findById(id);
     if (!c) return res.status(404).json({ message: "Comment not found." });
     const post = await SkyHubPost.findById(c.post).select("author");
     const allowed =
-      String(c.author) === req.skyUser.id || String(post?.author) === req.skyUser.id || isAdmin(req);
-    if (!allowed) return res.status(403).json({ message: "You can't delete this comment." });
+      String(c.author) === req.skyUser.id ||
+      String(post?.author) === req.skyUser.id ||
+      isAdmin(req);
+    if (!allowed)
+      return res
+        .status(403)
+        .json({ message: "You can't delete this comment." });
     await SkyHubComment.deleteOne({ _id: id });
     const fresh = await SkyHubPost.findOneAndUpdate(
       { _id: c.post, commentsCount: { $gt: 0 } },
@@ -361,7 +568,9 @@ async function fileReport(req, res, targetType) {
   const { id } = req.params;
   if (!validId(id)) return res.status(400).json({ message: "Invalid id." });
   const me = req.skyUser.id;
-  const reason = REPORT_REASONS.includes(req.body?.reason) ? req.body.reason : "other";
+  const reason = REPORT_REASONS.includes(req.body?.reason)
+    ? req.body.reason
+    : "other";
   const details = cleanText(req.body?.details, 500);
 
   let doc = null;
@@ -385,27 +594,48 @@ async function fileReport(req, res, targetType) {
   }
 
   try {
-    await SkyHubReport.create({ targetType, targetId: id, post, targetUser, reporter: me, reason, details });
+    await SkyHubReport.create({
+      targetType,
+      targetId: id,
+      post,
+      targetUser,
+      reporter: me,
+      reason,
+      details,
+    });
   } catch (e) {
-    if (e?.code === 11000) return res.json({ message: "You already reported this. Thanks — we're on it." });
+    if (e?.code === 11000)
+      return res.json({
+        message: "You already reported this. Thanks — we're on it.",
+      });
     throw e;
   }
 
-  const count = await SkyHubReport.countDocuments({ targetType, targetId: id, status: "open" });
+  const count = await SkyHubReport.countDocuments({
+    targetType,
+    targetId: id,
+    status: "open",
+  });
   let autoHidden = false;
   if (targetType !== "user") {
     const Model = targetType === "post" ? SkyHubPost : SkyHubComment;
     const update = { reportCount: count };
     if (count >= AUTO_HIDE_REPORTS && !doc.hidden) {
       autoHidden = true;
-      Object.assign(update, { hidden: true, hiddenReason: "review", ...(targetType === "post" ? { hiddenAt: new Date() } : {}) });
+      Object.assign(update, {
+        hidden: true,
+        hiddenReason: "review",
+        ...(targetType === "post" ? { hiddenAt: new Date() } : {}),
+      });
     }
     await Model.updateOne({ _id: id }, { $set: update });
   }
 
   // Tell the Skyrio team: on the first report, and when it auto-hides.
   if (count === 1 || autoHidden) {
-    const author = targetUser ? await User.findById(targetUser).select("name username").lean() : null;
+    const author = targetUser
+      ? await User.findById(targetUser).select("name username").lean()
+      : null;
     sendReportAlert({
       targetType,
       reason,
@@ -416,26 +646,40 @@ async function fileReport(req, res, targetType) {
       authorUsername: author?.username || doc.username,
     }).catch(() => {});
   }
-  return res.status(201).json({ message: "Thanks for reporting. Our team will review it." });
+  return res
+    .status(201)
+    .json({ message: "Thanks for reporting. Our team will review it." });
 }
 
-router.post("/posts/:id/report", requireViewer, rateLimit("report"), (req, res) =>
-  fileReport(req, res, "post").catch((err) => {
-    console.error("[skyhub] report post error:", err);
-    res.status(500).json({ message: "Failed to report post." });
-  })
+router.post(
+  "/posts/:id/report",
+  requireViewer,
+  rateLimit("report"),
+  (req, res) =>
+    fileReport(req, res, "post").catch((err) => {
+      console.error("[skyhub] report post error:", err);
+      res.status(500).json({ message: "Failed to report post." });
+    })
 );
-router.post("/comments/:id/report", requireViewer, rateLimit("report"), (req, res) =>
-  fileReport(req, res, "comment").catch((err) => {
-    console.error("[skyhub] report comment error:", err);
-    res.status(500).json({ message: "Failed to report comment." });
-  })
+router.post(
+  "/comments/:id/report",
+  requireViewer,
+  rateLimit("report"),
+  (req, res) =>
+    fileReport(req, res, "comment").catch((err) => {
+      console.error("[skyhub] report comment error:", err);
+      res.status(500).json({ message: "Failed to report comment." });
+    })
 );
-router.post("/users/:id/report", requireViewer, rateLimit("report"), (req, res) =>
-  fileReport(req, res, "user").catch((err) => {
-    console.error("[skyhub] report user error:", err);
-    res.status(500).json({ message: "Failed to report traveler." });
-  })
+router.post(
+  "/users/:id/report",
+  requireViewer,
+  rateLimit("report"),
+  (req, res) =>
+    fileReport(req, res, "user").catch((err) => {
+      console.error("[skyhub] report user error:", err);
+      res.status(500).json({ message: "Failed to report traveler." });
+    })
 );
 
 /* ─────────────────────────────────────────────────────────────
@@ -460,49 +704,82 @@ router.get("/blocks", requireViewer, async (req, res) => {
     });
   } catch (err) {
     console.error("[skyhub] blocks error:", err);
-    return res.status(500).json({ message: "Failed to load blocked travelers." });
+    return res
+      .status(500)
+      .json({ message: "Failed to load blocked travelers." });
   }
 });
 
-router.post("/users/:id/block", requireViewer, rateLimit("block"), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const me = req.skyUser.id;
-    if (!validId(id)) return res.status(400).json({ message: "Invalid traveler." });
-    if (id === me) return res.status(400).json({ message: "You can't block yourself." });
-    const target = await User.findById(id).select("_id isOfficial");
-    if (!target) return res.status(404).json({ message: "Traveler not found." });
-    if (target.isOfficial) return res.status(400).json({ message: "You can mute Skyrio updates instead." });
+router.post(
+  "/users/:id/block",
+  requireViewer,
+  rateLimit("block"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const me = req.skyUser.id;
+      if (!validId(id))
+        return res.status(400).json({ message: "Invalid traveler." });
+      if (id === me)
+        return res.status(400).json({ message: "You can't block yourself." });
+      const target = await User.findById(id).select("_id isOfficial");
+      if (!target)
+        return res.status(404).json({ message: "Traveler not found." });
+      if (target.isOfficial)
+        return res
+          .status(400)
+          .json({ message: "You can mute Skyrio updates instead." });
 
-    await SkyHubBlock.updateOne({ blocker: me, blocked: id }, { $setOnInsert: { blocker: me, blocked: id } }, { upsert: true });
+      await SkyHubBlock.updateOne(
+        { blocker: me, blocked: id },
+        { $setOnInsert: { blocker: me, blocked: id } },
+        { upsert: true }
+      );
 
-    // Blocking also unfollows both ways (both follow systems, best effort).
-    await Promise.all([
-      User.updateOne({ _id: me, following: id }, { $pull: { following: id }, $inc: { followingCount: -1 } }),
-      User.updateOne({ _id: id, followers: me }, { $pull: { followers: me }, $inc: { followersCount: -1 } }),
-      User.updateOne({ _id: id, following: me }, { $pull: { following: me }, $inc: { followingCount: -1 } }),
-      User.updateOne({ _id: me, followers: id }, { $pull: { followers: id }, $inc: { followersCount: -1 } }),
-      mongoose.models.Follow
-        ? mongoose.models.Follow.deleteMany({
-            $or: [
-              { followerId: me, followingId: id },
-              { followerId: id, followingId: me },
-            ],
-          })
-        : null,
-    ]).catch(() => {});
+      // Blocking also unfollows both ways (both follow systems, best effort).
+      await Promise.all([
+        User.updateOne(
+          { _id: me, following: id },
+          { $pull: { following: id }, $inc: { followingCount: -1 } }
+        ),
+        User.updateOne(
+          { _id: id, followers: me },
+          { $pull: { followers: me }, $inc: { followersCount: -1 } }
+        ),
+        User.updateOne(
+          { _id: id, following: me },
+          { $pull: { following: me }, $inc: { followingCount: -1 } }
+        ),
+        User.updateOne(
+          { _id: me, followers: id },
+          { $pull: { followers: id }, $inc: { followersCount: -1 } }
+        ),
+        mongoose.models.Follow
+          ? mongoose.models.Follow.deleteMany({
+              $or: [
+                { followerId: me, followingId: id },
+                { followerId: id, followingId: me },
+              ],
+            })
+          : null,
+      ]).catch(() => {});
 
-    return res.json({ ok: true, message: "Blocked. You won't see each other on SkyHub." });
-  } catch (err) {
-    console.error("[skyhub] block error:", err);
-    return res.status(500).json({ message: "Failed to block traveler." });
+      return res.json({
+        ok: true,
+        message: "Blocked. You won't see each other on SkyHub.",
+      });
+    } catch (err) {
+      console.error("[skyhub] block error:", err);
+      return res.status(500).json({ message: "Failed to block traveler." });
+    }
   }
-});
+);
 
 router.delete("/users/:id/block", requireViewer, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!validId(id)) return res.status(400).json({ message: "Invalid traveler." });
+    if (!validId(id))
+      return res.status(400).json({ message: "Invalid traveler." });
     await SkyHubBlock.deleteOne({ blocker: req.skyUser.id, blocked: id });
     return res.json({ ok: true, message: "Unblocked." });
   } catch (err) {
@@ -519,10 +796,16 @@ router.get("/stats", async (_req, res) => {
     const visible = { hidden: { $ne: true } };
     const [posts, destinations, authors] = await Promise.all([
       SkyHubPost.countDocuments(visible),
-      SkyHubPost.distinct("destination", visible).then((d) => d.filter(Boolean)),
+      SkyHubPost.distinct("destination", visible).then((d) =>
+        d.filter(Boolean)
+      ),
       SkyHubPost.distinct("author", visible).then((a) => a.filter(Boolean)),
     ]);
-    return res.json({ travelers: authors.length, posts, countries: destinations.length });
+    return res.json({
+      travelers: authors.length,
+      posts,
+      countries: destinations.length,
+    });
   } catch (err) {
     console.error("[skyhub] stats error:", err);
     return res.status(500).json({ message: "Failed to load stats." });
@@ -537,41 +820,67 @@ router.get("/me/standing", requireViewer, async (req, res) => {
     return res.json({ ok: true, ...(await standingFor(req.skyUser.id)) });
   } catch (err) {
     console.error("[skyhub] standing error:", err);
-    return res.status(500).json({ message: "Couldn't load your account standing." });
+    return res
+      .status(500)
+      .json({ message: "Couldn't load your account standing." });
   }
 });
 
 // POST /api/skyhub/strikes/:id/appeal  { message }
-router.post("/strikes/:id/appeal", requireViewer, rateLimit("report"), async (req, res) => {
-  try {
-    if (!validId(req.params.id)) return res.status(400).json({ message: "Invalid strike." });
-    const message = cleanText(req.body?.message, 1000);
-    if (message.length < 10) return res.status(400).json({ message: "Tell us a bit more about why we got it wrong." });
-    const strike = await SkyHubStrike.findOne({ _id: req.params.id, user: req.skyUser.id });
-    if (!strike) return res.status(404).json({ message: "Strike not found." });
-    if (strike.voided) return res.status(409).json({ message: "This strike was already removed." });
-    if (strike.appeal?.status !== "none") return res.status(409).json({ message: "You've already appealed this strike." });
-    const windowMs = STRIKE_POLICY.appealWindowDays * 24 * 60 * 60 * 1000;
-    if (Date.now() - strike.createdAt.getTime() > windowMs) {
-      return res.status(409).json({ message: `Appeals are accepted within ${STRIKE_POLICY.appealWindowDays} days.` });
+router.post(
+  "/strikes/:id/appeal",
+  requireViewer,
+  rateLimit("report"),
+  async (req, res) => {
+    try {
+      if (!validId(req.params.id))
+        return res.status(400).json({ message: "Invalid strike." });
+      const message = cleanText(req.body?.message, 1000);
+      if (message.length < 10)
+        return res
+          .status(400)
+          .json({ message: "Tell us a bit more about why we got it wrong." });
+      const strike = await SkyHubStrike.findOne({
+        _id: req.params.id,
+        user: req.skyUser.id,
+      });
+      if (!strike)
+        return res.status(404).json({ message: "Strike not found." });
+      if (strike.voided)
+        return res
+          .status(409)
+          .json({ message: "This strike was already removed." });
+      if (strike.appeal?.status !== "none")
+        return res
+          .status(409)
+          .json({ message: "You've already appealed this strike." });
+      const windowMs = STRIKE_POLICY.appealWindowDays * 24 * 60 * 60 * 1000;
+      if (Date.now() - strike.createdAt.getTime() > windowMs) {
+        return res.status(409).json({
+          message: `Appeals are accepted within ${STRIKE_POLICY.appealWindowDays} days.`,
+        });
+      }
+      strike.appeal = { status: "pending", message, at: new Date() };
+      await strike.save();
+      sendReportAlert({
+        targetType: "user",
+        reason: strike.reason,
+        count: 1,
+        autoHidden: false,
+        snippet: `APPEAL from @${req.skyUser.username}: ${message}`,
+        authorName: req.skyUser.name,
+        authorUsername: req.skyUser.username,
+      }).catch(() => {});
+      return res.json({
+        ok: true,
+        message: "Appeal sent. We'll email you when we've reviewed it.",
+      });
+    } catch (err) {
+      console.error("[skyhub] appeal error:", err);
+      return res.status(500).json({ message: "Couldn't send your appeal." });
     }
-    strike.appeal = { status: "pending", message, at: new Date() };
-    await strike.save();
-    sendReportAlert({
-      targetType: "user",
-      reason: strike.reason,
-      count: 1,
-      autoHidden: false,
-      snippet: `APPEAL from @${req.skyUser.username}: ${message}`,
-      authorName: req.skyUser.name,
-      authorUsername: req.skyUser.username,
-    }).catch(() => {});
-    return res.json({ ok: true, message: "Appeal sent. We'll email you when we've reviewed it." });
-  } catch (err) {
-    console.error("[skyhub] appeal error:", err);
-    return res.status(500).json({ message: "Couldn't send your appeal." });
   }
-});
+);
 
 /* ═════════════════════════════════════════════════════════════
    ADMIN — moderation queue (admin dashboard login or admin account)
@@ -581,7 +890,9 @@ router.post("/strikes/:id/appeal", requireViewer, rateLimit("report"), async (re
 // Grouped: one row per reported thing, with every reason and reporter count.
 router.get("/admin/reports", adminOnly, async (req, res) => {
   try {
-    const status = ["open", "dismissed", "actioned"].includes(req.query.status) ? req.query.status : "open";
+    const status = ["open", "dismissed", "actioned"].includes(req.query.status)
+      ? req.query.status
+      : "open";
     const reports = await SkyHubReport.find({ status })
       .sort({ createdAt: -1 })
       .limit(500)
@@ -627,17 +938,35 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
 
     // Attach the content itself.
     const list = [...groups.values()];
-    const postIds = list.filter((g) => g.targetType === "post").map((g) => g.targetId);
-    const commentIds = list.filter((g) => g.targetType === "comment").map((g) => g.targetId);
+    const postIds = list
+      .filter((g) => g.targetType === "post")
+      .map((g) => g.targetId);
+    const commentIds = list
+      .filter((g) => g.targetType === "comment")
+      .map((g) => g.targetId);
     const [posts, comments, suspended] = await Promise.all([
-      SkyHubPost.find({ _id: { $in: postIds } }).select("text images destination type hidden hiddenReason createdAt").lean(),
-      SkyHubComment.find({ _id: { $in: commentIds } }).select("text post hidden hiddenReason createdAt").lean(),
-      SkyHubRestriction.find({ user: { $in: list.map((g) => g.targetUser?.id).filter(Boolean) } }).lean(),
+      SkyHubPost.find({ _id: { $in: postIds } })
+        .select("text images destination type hidden hiddenReason createdAt")
+        .lean(),
+      SkyHubComment.find({ _id: { $in: commentIds } })
+        .select("text post hidden hiddenReason createdAt")
+        .lean(),
+      SkyHubRestriction.find({
+        user: { $in: list.map((g) => g.targetUser?.id).filter(Boolean) },
+      }).lean(),
     ]);
-    const userIds = [...new Set(list.map((g) => g.targetUser?.id).filter(Boolean))];
+    const userIds = [
+      ...new Set(list.map((g) => g.targetUser?.id).filter(Boolean)),
+    ];
     const strikeRows = userIds.length
       ? await SkyHubStrike.aggregate([
-          { $match: { user: { $in: userIds.map((u) => new mongoose.Types.ObjectId(u)) }, voided: { $ne: true }, expiresAt: { $gt: new Date() } } },
+          {
+            $match: {
+              user: { $in: userIds.map((u) => new mongoose.Types.ObjectId(u)) },
+              voided: { $ne: true },
+              expiresAt: { $gt: new Date() },
+            },
+          },
           { $group: { _id: "$user", n: { $sum: 1 } } },
         ])
       : [];
@@ -646,7 +975,12 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
     const cById = new Map(comments.map((c) => [String(c._id), c]));
     const sByUser = new Map(suspended.map((s) => [String(s.user), s]));
     for (const g of list) {
-      const c = g.targetType === "post" ? pById.get(g.targetId) : g.targetType === "comment" ? cById.get(g.targetId) : null;
+      const c =
+        g.targetType === "post"
+          ? pById.get(g.targetId)
+          : g.targetType === "comment"
+          ? cById.get(g.targetId)
+          : null;
       g.content = c
         ? {
             text: c.text,
@@ -654,7 +988,11 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
             destination: c.destination || null,
             hidden: Boolean(c.hidden),
             hiddenReason: c.hiddenReason || null,
-            postId: c.post ? String(c.post) : g.targetType === "post" ? g.targetId : null,
+            postId: c.post
+              ? String(c.post)
+              : g.targetType === "post"
+              ? g.targetId
+              : null,
           }
         : g.targetType === "user"
         ? null
@@ -662,14 +1000,23 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
       g.count = g.reports.length;
       const s = g.targetUser ? sByUser.get(g.targetUser.id) : null;
       g.suspendedUntil = s ? s.until || "indefinite" : null;
-      g.activeStrikes = g.targetUser ? strikesByUser.get(g.targetUser.id) || 0 : 0;
+      g.activeStrikes = g.targetUser
+        ? strikesByUser.get(g.targetUser.id) || 0
+        : 0;
       // Most-reported reason — the admin page pre-selects it for a strike.
-      g.topReason = Object.entries(g.reasons).sort((a, b) => b[1] - a[1])[0]?.[0] || "other";
+      g.topReason =
+        Object.entries(g.reasons).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+        "other";
       g.suggestSevere = STRIKE_POLICY.severeReasons.includes(g.topReason);
       // What a strike would do to this person right now (days: 0 warning, null ban).
-      g.next = { standard: decide(g.activeStrikes, "standard"), severe: decide(g.activeStrikes, "severe") };
+      g.next = {
+        standard: decide(g.activeStrikes, "standard"),
+        severe: decide(g.activeStrikes, "severe"),
+      };
     }
-    list.sort((a, b) => b.count - a.count || new Date(b.lastAt) - new Date(a.lastAt));
+    list.sort(
+      (a, b) => b.count - a.count || new Date(b.lastAt) - new Date(a.lastAt)
+    );
     return res.json({ ok: true, items: list });
   } catch (err) {
     console.error("[skyhub/admin] reports error:", err);
@@ -679,7 +1026,9 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
 
 // GET /api/skyhub/admin/open-count — for the admin dashboard badge
 router.get("/admin/open-count", adminOnly, async (_req, res) => {
-  const ids = await SkyHubReport.distinct("targetId", { status: "open" }).catch(() => []);
+  const ids = await SkyHubReport.distinct("targetId", { status: "open" }).catch(
+    () => []
+  );
   res.json({ ok: true, count: ids.length });
 });
 
@@ -701,36 +1050,70 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
     const { targetType, targetId } = req.body || {};
     let action = req.body?.action;
     if (action === "suspend") action = "strike"; // older admin page
-    if (!["post", "comment", "user"].includes(targetType) || !validId(targetId)) {
+    if (
+      !["post", "comment", "user"].includes(targetType) ||
+      !validId(targetId)
+    ) {
       return res.status(400).json({ message: "Pick a reported item." });
     }
-    if (!["dismiss", "remove", "strike", "severe", "ban", "restore"].includes(action)) {
+    if (
+      !["dismiss", "remove", "strike", "severe", "ban", "restore"].includes(
+        action
+      )
+    ) {
       return res.status(400).json({ message: "Unknown action." });
     }
     const by = adminName(req);
-    const Model = targetType === "post" ? SkyHubPost : targetType === "comment" ? SkyHubComment : null;
+    const Model =
+      targetType === "post"
+        ? SkyHubPost
+        : targetType === "comment"
+        ? SkyHubComment
+        : null;
     const takeDown = ["remove", "strike", "severe", "ban"].includes(action);
 
     let targetUser = targetType === "user" ? targetId : null;
     let snippet = "";
     if (Model) {
-      const doc = await Model.findById(targetId).select("author post text hidden hiddenReason");
+      const doc = await Model.findById(targetId).select(
+        "author post text hidden hiddenReason"
+      );
       targetUser = doc?.author || null;
       snippet = doc?.text || "";
       if (action === "dismiss" || action === "restore") {
         const wasRemoved = doc?.hidden;
-        await Model.updateOne({ _id: targetId }, { $set: { hidden: false, hiddenReason: null } });
-        if (targetType === "comment" && doc?.post && wasRemoved && doc.hiddenReason === "removed") {
-          await SkyHubPost.updateOne({ _id: doc.post }, { $inc: { commentsCount: 1 } });
+        await Model.updateOne(
+          { _id: targetId },
+          { $set: { hidden: false, hiddenReason: null } }
+        );
+        if (
+          targetType === "comment" &&
+          doc?.post &&
+          wasRemoved &&
+          doc.hiddenReason === "removed"
+        ) {
+          await SkyHubPost.updateOne(
+            { _id: doc.post },
+            { $inc: { commentsCount: 1 } }
+          );
         }
       } else if (takeDown && doc) {
         const alreadyRemoved = doc.hidden && doc.hiddenReason === "removed";
         await Model.updateOne(
           { _id: targetId },
-          { $set: { hidden: true, hiddenReason: "removed", ...(targetType === "post" ? { hiddenAt: new Date() } : {}) } }
+          {
+            $set: {
+              hidden: true,
+              hiddenReason: "removed",
+              ...(targetType === "post" ? { hiddenAt: new Date() } : {}),
+            },
+          }
         );
         if (targetType === "comment" && doc.post && !alreadyRemoved) {
-          await SkyHubPost.updateOne({ _id: doc.post, commentsCount: { $gt: 0 } }, { $inc: { commentsCount: -1 } });
+          await SkyHubPost.updateOne(
+            { _id: doc.post, commentsCount: { $gt: 0 } },
+            { $inc: { commentsCount: -1 } }
+          );
         }
       }
     }
@@ -738,11 +1121,26 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
     // Strike (warning → pause → ban), following STRIKE_POLICY.
     let strikeResult = null;
     if (["strike", "severe", "ban"].includes(action)) {
-      if (!targetUser) return res.status(400).json({ message: "This content has no account to strike." });
-      const open = await SkyHubReport.find({ targetType, targetId, status: "open" }).select("reason").lean();
-      const counts = open.reduce((m, r) => ((m[r.reason] = (m[r.reason] || 0) + 1), m), {});
-      const topReason = Object.entries(counts).sort((x, y) => y[1] - x[1])[0]?.[0] || "other";
-      const reason = REPORT_REASONS.includes(req.body?.reason) ? req.body.reason : topReason;
+      if (!targetUser)
+        return res
+          .status(400)
+          .json({ message: "This content has no account to strike." });
+      const open = await SkyHubReport.find({
+        targetType,
+        targetId,
+        status: "open",
+      })
+        .select("reason")
+        .lean();
+      const counts = open.reduce(
+        (m, r) => ((m[r.reason] = (m[r.reason] || 0) + 1), m),
+        {}
+      );
+      const topReason =
+        Object.entries(counts).sort((x, y) => y[1] - x[1])[0]?.[0] || "other";
+      const reason = REPORT_REASONS.includes(req.body?.reason)
+        ? req.body.reason
+        : topReason;
       strikeResult = await issueStrike({
         userId: targetUser,
         reason,
@@ -756,13 +1154,27 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
       });
     }
 
-    const resolution = { dismiss: "dismissed", restore: "restored", remove: "removed", strike: "strike", severe: "severe strike", ban: "banned" }[action];
+    const resolution = {
+      dismiss: "dismissed",
+      restore: "restored",
+      remove: "removed",
+      strike: "strike",
+      severe: "severe strike",
+      ban: "banned",
+    }[action];
     await SkyHubReport.updateMany(
       { targetType, targetId, status: "open" },
       {
         $set: {
-          status: action === "dismiss" || action === "restore" ? "dismissed" : "actioned",
-          resolution: strikeResult ? `${resolution} (${strikeResult.action}${strikeResult.days ? ` ${strikeResult.days}d` : ""})` : resolution,
+          status:
+            action === "dismiss" || action === "restore"
+              ? "dismissed"
+              : "actioned",
+          resolution: strikeResult
+            ? `${resolution} (${strikeResult.action}${
+                strikeResult.days ? ` ${strikeResult.days}d` : ""
+              })`
+            : resolution,
           resolvedBy: by,
           resolvedAt: new Date(),
         },
@@ -772,7 +1184,12 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
       ok: true,
       resolution,
       strike: strikeResult
-        ? { action: strikeResult.action, days: strikeResult.days, strikeNumber: strikeResult.strikeNumber, until: strikeResult.until }
+        ? {
+            action: strikeResult.action,
+            days: strikeResult.days,
+            strikeNumber: strikeResult.strikeNumber,
+            until: strikeResult.until,
+          }
         : null,
     });
   } catch (err) {
@@ -784,11 +1201,14 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
 // GET /api/skyhub/admin/users/:id/history — a traveler's strikes and reports
 router.get("/admin/users/:id/history", adminOnly, async (req, res) => {
   try {
-    if (!validId(req.params.id)) return res.status(400).json({ message: "Invalid traveler." });
+    if (!validId(req.params.id))
+      return res.status(400).json({ message: "Invalid traveler." });
     const [standing, reports, user] = await Promise.all([
       standingFor(req.params.id),
       SkyHubReport.countDocuments({ targetUser: req.params.id }),
-      User.findById(req.params.id).select("name username email createdAt").lean(),
+      User.findById(req.params.id)
+        .select("name username email createdAt")
+        .lean(),
     ]);
     return res.json({ ok: true, user, reportsAgainst: reports, ...standing });
   } catch (err) {
@@ -799,7 +1219,9 @@ router.get("/admin/users/:id/history", adminOnly, async (req, res) => {
 
 // GET /api/skyhub/admin/appeals?status=pending|approved|denied
 router.get("/admin/appeals", adminOnly, async (req, res) => {
-  const status = ["pending", "approved", "denied"].includes(req.query.status) ? req.query.status : "pending";
+  const status = ["pending", "approved", "denied"].includes(req.query.status)
+    ? req.query.status
+    : "pending";
   const rows = await SkyHubStrike.find({ "appeal.status": status })
     .sort({ "appeal.at": -1 })
     .limit(200)
@@ -809,7 +1231,13 @@ router.get("/admin/appeals", adminOnly, async (req, res) => {
     ok: true,
     appeals: rows.map((s) => ({
       id: String(s._id),
-      user: s.user ? { id: String(s.user._id), name: s.user.name || s.user.username, username: s.user.username } : null,
+      user: s.user
+        ? {
+            id: String(s.user._id),
+            name: s.user.name || s.user.username,
+            username: s.user.username,
+          }
+        : null,
       reason: s.reason,
       severity: s.severity,
       action: s.action,
@@ -825,7 +1253,8 @@ router.get("/admin/appeals", adminOnly, async (req, res) => {
 
 // POST /api/skyhub/admin/appeals/:id  { approve: true|false, response }
 router.post("/admin/appeals/:id", adminOnly, async (req, res) => {
-  if (!validId(req.params.id)) return res.status(400).json({ message: "Invalid appeal." });
+  if (!validId(req.params.id))
+    return res.status(400).json({ message: "Invalid appeal." });
   const out = await resolveAppeal({
     strikeId: req.params.id,
     approve: req.body?.approve === true,
@@ -867,7 +1296,8 @@ router.get("/admin/suspensions", adminOnly, async (_req, res) => {
 });
 
 router.delete("/admin/suspensions/:userId", adminOnly, async (req, res) => {
-  if (!validId(req.params.userId)) return res.status(400).json({ message: "Invalid traveler." });
+  if (!validId(req.params.userId))
+    return res.status(400).json({ message: "Invalid traveler." });
   await SkyHubRestriction.deleteOne({ user: req.params.userId });
   res.json({ ok: true });
 });

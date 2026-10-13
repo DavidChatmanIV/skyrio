@@ -1,6 +1,22 @@
 import React, { useEffect, useState } from "react";
-import { Avatar, Button, Drawer, Dropdown, Empty, Input, Modal, Radio, Spin, message } from "antd";
-import { SendOutlined, MoreOutlined, DeleteOutlined, FlagOutlined } from "@ant-design/icons";
+import {
+  Avatar,
+  Button,
+  Drawer,
+  Dropdown,
+  Empty,
+  Input,
+  Modal,
+  Radio,
+  Spin,
+  message,
+} from "antd";
+import {
+  SendOutlined,
+  MoreOutlined,
+  DeleteOutlined,
+  FlagOutlined,
+} from "@ant-design/icons";
 import { apiUrl } from "@/lib/api";
 
 const { TextArea } = Input;
@@ -11,7 +27,10 @@ function skyFetch(path, opts = {}) {
   return fetch(apiUrl(path), {
     credentials: "include",
     ...opts,
-    headers: { ...(opts.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      ...(opts.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 }
 
@@ -101,14 +120,18 @@ export default function SkyHubCommentDrawer({
 
   const deleteComment = (comment) =>
     Modal.confirm({
+      className: "skyhub-modal",
       title: "Delete this comment?",
       okText: "Delete",
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          const res = await skyFetch(`/api/skyhub/comments/${comment._id}`, { method: "DELETE" });
+          const res = await skyFetch(`/api/skyhub/comments/${comment._id}`, {
+            method: "DELETE",
+          });
           const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data?.message || "Couldn't delete the comment.");
+          if (!res.ok)
+            throw new Error(data?.message || "Couldn't delete the comment.");
           setComments((list) => list.filter((c) => c._id !== comment._id));
           refreshPostComments?.(post.id, data.commentCount);
         } catch (err) {
@@ -121,13 +144,17 @@ export default function SkyHubCommentDrawer({
   const [reason, setReason] = useState("spam");
   const sendReport = async () => {
     try {
-      const res = await skyFetch(`/api/skyhub/comments/${reporting._id}/report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
+      const res = await skyFetch(
+        `/api/skyhub/comments/${reporting._id}/report`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        }
+      );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || "Couldn't report the comment.");
+      if (!res.ok)
+        throw new Error(data?.message || "Couldn't report the comment.");
       message.success(data.message || "Thanks for reporting.");
       setReporting(null);
     } catch (err) {
@@ -162,7 +189,9 @@ export default function SkyHubCommentDrawer({
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             placeholder={
-              localStorage.getItem("token") ? "Write a helpful reply..." : "Log in to reply"
+              localStorage.getItem("token")
+                ? "Write a helpful reply..."
+                : "Log in to reply"
             }
             maxLength={600}
             autoSize={{ minRows: 3, maxRows: 6 }}
@@ -189,22 +218,56 @@ export default function SkyHubCommentDrawer({
               <div
                 key={comment._id || comment.id}
                 className="skyhub-commentItem"
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  padding: "12px 0",
+                }}
               >
-                {typeof comment.avatar === "string" && comment.avatar.startsWith("http") ? (
-                  <Avatar className="skyhub-commentAvatar" src={comment.avatar} alt="" />
+                {typeof comment.avatar === "string" &&
+                comment.avatar.startsWith("http") ? (
+                  <Avatar
+                    className="skyhub-commentAvatar"
+                    src={comment.avatar}
+                    alt=""
+                  />
                 ) : (
                   <Avatar className="skyhub-commentAvatar">
                     {(comment.author || "U").slice(0, 2).toUpperCase()}
                   </Avatar>
                 )}
 
-                <div className="skyhub-commentContent">
-                  <div className="skyhub-commentMeta">
-                    <span className="skyhub-commentAuthor">
-                      {comment.author || "User"}
+                <div
+                  className="skyhub-commentContent"
+                  style={{ flex: 1, minWidth: 0 }}
+                >
+                  <div
+                    className="skyhub-commentMeta"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span
+                      className="skyhub-commentAuthor"
+                      style={{ fontWeight: 700, color: "#fff" }}
+                    >
+                      {comment.author || "Traveler"}
                     </span>
-                    <span className="skyhub-commentTime">
-                      {comment.timeAgo || "now"}
+                    <span
+                      aria-hidden="true"
+                      style={{ color: "rgba(255,255,255,0.35)" }}
+                    >
+                      ·
+                    </span>
+                    <span
+                      className="skyhub-commentTime"
+                      style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}
+                    >
+                      {comment.timeAgo || "just now"}
                     </span>
                     <Dropdown
                       trigger={["click"]}
@@ -229,7 +292,8 @@ export default function SkyHubCommentDrawer({
                                   icon: <FlagOutlined />,
                                   label: "Report",
                                   onClick: () => {
-                                    if (!localStorage.getItem("token")) return message.info("Log in to report.");
+                                    if (!localStorage.getItem("token"))
+                                      return message.info("Log in to report.");
                                     setReason("spam");
                                     setReporting(comment);
                                   },
@@ -257,7 +321,16 @@ export default function SkyHubCommentDrawer({
                     </Dropdown>
                   </div>
 
-                  <p className="skyhub-commentText">{comment.text}</p>
+                  <p
+                    className="skyhub-commentText"
+                    style={{
+                      margin: "4px 0 0",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {comment.text}
+                  </p>
                 </div>
               </div>
             ))
@@ -270,6 +343,7 @@ export default function SkyHubCommentDrawer({
       <Modal
         open={!!reporting}
         title="Report this comment"
+        className="skyhub-modal"
         onCancel={() => setReporting(null)}
         onOk={sendReport}
         okText="Send report"

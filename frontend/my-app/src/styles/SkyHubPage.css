@@ -916,6 +916,84 @@
 }
 
 /* ================================================================
+   POPUPS — delete / block / edit / report
+   Ant Design renders these outside .skyhub-page, so they didn't pick
+   up the light text color and showed dark text on a dark card.
+   Every SkyHub modal gets className="skyhub-modal".
+================================================================ */
+.skyhub-modal .ant-modal-content,
+.skyhub-modal .ant-modal-header {
+  background: var(--sh-s3) !important;
+  color: var(--sh-text) !important;
+}
+.skyhub-modal .ant-modal-content {
+  border: 1px solid var(--sh-line3);
+  border-radius: var(--r-lg) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6) !important;
+}
+.skyhub-modal .ant-modal-title,
+.skyhub-modal .ant-modal-confirm-title {
+  color: #fff !important;
+  font-family: "Sora", sans-serif;
+  font-weight: 700 !important;
+}
+.skyhub-modal .ant-modal-body,
+.skyhub-modal .ant-modal-confirm-content,
+.skyhub-modal .ant-radio-wrapper,
+.skyhub-modal p {
+  color: var(--sh-soft) !important;
+}
+.skyhub-modal .ant-modal-close,
+.skyhub-modal .ant-modal-close-x {
+  color: var(--sh-muted) !important;
+}
+.skyhub-modal .ant-modal-close:hover {
+  color: #fff !important;
+  background: var(--sh-ghost) !important;
+}
+
+/* Cancel button: readable on the dark card */
+.skyhub-modal .ant-btn-default:not(.ant-btn-dangerous) {
+  background: transparent !important;
+  border-color: var(--sh-line3) !important;
+  color: #fff !important;
+}
+.skyhub-modal .ant-btn-default:not(.ant-btn-dangerous):hover {
+  border-color: var(--sh-orange) !important;
+  color: var(--sh-orange2) !important;
+}
+/* Main action (Delete / Save / Send report): the SkyHub orange */
+.skyhub-modal .ant-btn-primary {
+  background: linear-gradient(135deg, var(--sh-orange), #ff9966) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+/* Text fields inside popups (edit post, report details) */
+.skyhub-modal .ant-input,
+.skyhub-modal .ant-input-affix-wrapper,
+.skyhub-modal textarea.ant-input {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: var(--sh-line3) !important;
+  color: #fff !important;
+}
+.skyhub-modal .ant-input-affix-wrapper .ant-input {
+  background: transparent !important;
+}
+.skyhub-modal .ant-input::placeholder {
+  color: var(--sh-muted) !important;
+}
+.skyhub-modal .ant-input:focus,
+.skyhub-modal .ant-input-affix-wrapper-focused {
+  border-color: var(--sh-orange) !important;
+  box-shadow: 0 0 0 3px var(--sh-odim) !important;
+}
+.skyhub-modal .ant-input-data-count,
+.skyhub-modal .ant-input-show-count-suffix {
+  color: var(--sh-muted) !important;
+}
+
+/* ================================================================
    RESPONSIVE
 ================================================================ */
 @media (max-width: 1100px) {

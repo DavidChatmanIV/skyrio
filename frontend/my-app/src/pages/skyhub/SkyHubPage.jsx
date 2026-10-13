@@ -44,6 +44,26 @@ function skyFetch(path, opts = {}) {
   });
 }
 
+// Reads a response even when the server sent back HTML or nothing
+// (e.g. a 413 "file too large" page), so we can show a real reason.
+async function readJson(res) {
+  const raw = await res.text().catch(() => "");
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return { message: raw && raw.length < 200 ? raw : "" };
+  }
+}
+
+function uploadErrorMessage(status, data) {
+  if (data?.message || data?.error) return data.message || data.error;
+  if (status === 413) return "That photo is too large.";
+  if (status === 401 || status === 403) return "Log in again to upload photos.";
+  if (status === 404) return "Photo upload isn't available right now.";
+  if (status === 429) return "Too many uploads — wait a minute and try again.";
+  return "Upload failed.";
+}
+
 const REPORT_REASONS = [
   { value: "spam", label: "Spam or ads" },
   { value: "scam", label: "Scam or fraud" },
@@ -56,6 +76,11 @@ const REPORT_REASONS = [
 ];
 
 /* ── Data helpers ─────────────────────────────────────────────── */
+// Photos saved on our own server come back as "/uploads/..."; the page runs
+// on a different port, so point them at the API.
+const photoUrl = (u) =>
+  typeof u === "string" && u.startsWith("/") ? apiUrl(u) : u;
+
 function mapBackendPost(post) {
   return {
     id: post._id,
@@ -69,15 +94,17 @@ function mapBackendPost(post) {
     badge: post.authorBadge || "Explorer",
     type: post.type || "Story",
     destination: post.destination || "",
-    timeAgo: post.timeAgo || "now",
+    timeAgo: post.timeAgo || "just now",
+    edited: !!post.edited,
+    editedAt: post.editedAt || null,
     text: post.text || "",
-    image: post.image || "",
-    images:
-      Array.isArray(post.images) && post.images.length > 0
-        ? post.images
-        : post.image
-        ? [post.image]
-        : [],
+    image: photoUrl(post.image || ""),
+    images: (Array.isArray(post.images) && post.images.length > 0
+      ? post.images
+      : post.image
+      ? [post.image]
+      : []
+    ).map(photoUrl),
     likes: post.likesCount || 0,
     comments: post.commentsCount || 0,
     shares: post.sharesCount || 0,
@@ -536,7 +563,36 @@ function TrendingTagsWidget({ tags }) {
 /* ── Main ─────────────────────────────────────────────────────── */
 export default function SkyHubPage() {
   const navigate = useNavigate();
-  const { user: authUser } = useContext(AuthContext);
+  const auth = useContext(AuthContext);
+  const authUser = auth?.user;
+
+  // Puts the server's new XP total into the logged-in user so the hero pill
+  // and Passport card update right away (no refresh needed).
+  const applyXp = useCallback(
+    (xp) => {
+      if (!xp || typeof xp.total !== "number") return;
+      if (typeof auth?.setUser === "function") {
+        auth.setUser((prev) =>
+          prev
+            ? { ...prev, xp: xp.total, pendingXp: xp.pending ?? prev.pendingXp }
+            : prev
+        );
+      } else if (typeof auth?.updateUser === "function") {
+        auth.updateUser({ xp: xp.total, pendingXp: xp.pending });
+      }
+      try {
+        const saved = JSON.parse(localStorage.getItem("user") || "null");
+        if (saved)
+          localStorage.setItem(
+            "user",
+            JSON.stringify({ ...saved, xp: xp.total })
+          );
+      } catch {
+        /* storage unavailable — the context update is enough */
+      }
+    },
+    [auth]
+  );
 
   const currentUser = authUser
     ? {
@@ -717,27 +773,45 @@ export default function SkyHubPage() {
       setCreatingPost(true);
       let urls = [];
       if (composerPhotos.length > 0) {
-        const token = localStorage.getItem("token");
         const res = await Promise.allSettled(
           composerPhotos.map(async (file) => {
             const fd = new FormData();
             fd.append("file", file);
-            const r = await fetch(apiUrl("/api/uploads/image?purpose=post"), {
+            // No Content-Type header here — the browser must set it for FormData.
+            const r = await skyFetch("/api/uploads/image?purpose=post", {
               method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-              credentials: "include",
               body: fd,
             });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.message || "Upload failed");
-            return d.url;
+            const d = await readJson(r);
+            if (!r.ok) throw new Error(uploadErrorMessage(r.status, d));
+            const url =
+              d.url || d.secure_url || d.location || d.file?.url || d.data?.url;
+            if (!url)
+              throw new Error("Upload finished but no photo link came back.");
+            return url;
           })
         );
         urls = res.filter((r) => r.status === "fulfilled").map((r) => r.value);
-        const bad = res.filter((r) => r.status === "rejected").length;
-        if (bad)
+        const failures = res.filter((r) => r.status === "rejected");
+        failures.forEach((f) =>
+          console.error("[skyhub] photo upload failed:", f.reason)
+        );
+
+        // Every photo failed: stop here so the photos stay in the composer
+        // and nothing gets posted without them.
+        if (!urls.length) {
+          message.error(
+            failures[0]?.reason?.message || "Your photo couldn't be uploaded."
+          );
+          return false;
+        }
+        if (failures.length)
           message.warning(
-            `${bad} photo${bad > 1 ? "s" : ""} failed to upload.`
+            `${failures.length} photo${
+              failures.length > 1 ? "s" : ""
+            } failed to upload: ${
+              failures[0].reason?.message || "unknown error"
+            }`
           );
       }
       const res = await skyFetch("/api/skyhub/posts", {
@@ -751,12 +825,15 @@ export default function SkyHubPage() {
           image: urls[0] || "",
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data?.message || "Failed to create post");
+      // Use the photos the server actually saved, so what you see now is
+      // what everyone sees after a refresh.
+      if (urls.length && !(data.post.images || []).length) {
+        message.warning("Your photo didn't save with the post.");
+      }
       const enriched = {
         ...data.post,
-        images: urls.length ? urls : data.post.images || [],
-        image: urls[0] || data.post.image || "",
         authorName: currentUser?.name || data.post.authorName,
         username: currentUser?.username || data.post.username,
         avatar: currentUser?.avatar || data.post.avatar,
@@ -767,7 +844,17 @@ export default function SkyHubPage() {
       setDestination("");
       setActivePostType("Tip");
       setComposerPhotos([]);
-      message.success("Posted to SkyHub!");
+      applyXp(data.xp);
+      if (data.xp?.awarded && data.xp.amount > 0) {
+        message.success(`Posted to SkyHub! +${data.xp.amount} XP`);
+      } else {
+        message.success("Posted to SkyHub!");
+      }
+      if (data.xp?.rankUp) {
+        const rank =
+          data.xp.rankUp.name || data.xp.rankUp.label || data.xp.rankUp;
+        message.success(`New rank unlocked: ${rank} 🎉`, 4);
+      }
       return true;
     } catch (err) {
       message.error(err.message || "Could not create post.");
@@ -780,7 +867,9 @@ export default function SkyHubPage() {
   const handleToggleLike = async (id) => {
     try {
       if (!currentUser) return message.info("Log in to like posts.");
-      const res = await skyFetch(`/api/skyhub/posts/${id}/like`, { method: "POST" });
+      const res = await skyFetch(`/api/skyhub/posts/${id}/like`, {
+        method: "POST",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
       setPosts((p) =>
@@ -798,7 +887,9 @@ export default function SkyHubPage() {
   const handleToggleSave = async (id) => {
     try {
       if (!currentUser) return message.info("Log in to save posts.");
-      const res = await skyFetch(`/api/skyhub/posts/${id}/save`, { method: "POST" });
+      const res = await skyFetch(`/api/skyhub/posts/${id}/save`, {
+        method: "POST",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
       setPosts((p) =>
@@ -814,18 +905,69 @@ export default function SkyHubPage() {
     }
   };
 
+  // ── Edit ──
+  const [editingPost, setEditingPost] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [editDestination, setEditDestination] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const handleEditPost = (post) => {
+    setEditText(post.text || "");
+    setEditDestination(post.destination || "");
+    setEditingPost(post);
+  };
+  const saveEdit = async () => {
+    if (!editingPost) return;
+    const hasPhotos = (editingPost.images || []).length > 0;
+    if (!editText.trim() && !hasPhotos) {
+      message.warning("A post needs text or a photo.");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const res = await skyFetch(`/api/skyhub/posts/${editingPost.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: editText.trim(),
+          destination: editDestination.trim(),
+        }),
+      });
+      const data = await readJson(res);
+      if (!res.ok)
+        throw new Error(data?.message || "Couldn't save your changes.");
+      const updated = mapBackendPost({
+        ...data.post,
+        authorName: data.post.authorName || editingPost.author,
+      });
+      setPosts((prev) =>
+        prev.map((p) => (p.id === editingPost.id ? { ...p, ...updated } : p))
+      );
+      setEditingPost(null);
+      message.success("Post updated.");
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleDeletePost = (id) =>
     Modal.confirm({
+      className: "skyhub-modal",
       title: "Delete this post?",
       content: "It and its comments will be removed for everyone.",
       okText: "Delete",
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          const res = await skyFetch(`/api/skyhub/posts/${id}`, { method: "DELETE" });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data?.message || "Couldn't delete the post.");
+          const res = await skyFetch(`/api/skyhub/posts/${id}`, {
+            method: "DELETE",
+          });
+          const data = await readJson(res);
+          if (!res.ok)
+            throw new Error(data?.message || "Couldn't delete the post.");
           setPosts((prev) => prev.filter((p) => p.id !== id));
+          applyXp(data.xp);
           message.success("Post deleted.");
         } catch (err) {
           message.error(err.message);
@@ -856,11 +998,16 @@ export default function SkyHubPage() {
       const res = await skyFetch(`/api/skyhub/posts/${reportPost.id}/report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: reportReason, details: reportDetails.trim() }),
+        body: JSON.stringify({
+          reason: reportReason,
+          details: reportDetails.trim(),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Could not report post.");
-      message.success(data.message || "Thanks for reporting. Our team will review it.");
+      message.success(
+        data.message || "Thanks for reporting. Our team will review it."
+      );
       setReportPost(null);
     } catch (err) {
       message.error(err.message);
@@ -874,6 +1021,7 @@ export default function SkyHubPage() {
     if (!currentUser) return message.info("Log in to block travelers.");
     if (!post.authorId) return;
     Modal.confirm({
+      className: "skyhub-modal",
       title: `Block ${post.author}?`,
       content:
         "You won't see each other's posts or comments on SkyHub, and you'll both be unfollowed. They won't be told. You can unblock anytime.",
@@ -881,10 +1029,16 @@ export default function SkyHubPage() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          const res = await skyFetch(`/api/skyhub/users/${post.authorId}/block`, { method: "POST" });
+          const res = await skyFetch(
+            `/api/skyhub/users/${post.authorId}/block`,
+            { method: "POST" }
+          );
           const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data?.message || "Couldn't block this traveler.");
-          setPosts((prev) => prev.filter((p) => String(p.authorId) !== String(post.authorId)));
+          if (!res.ok)
+            throw new Error(data?.message || "Couldn't block this traveler.");
+          setPosts((prev) =>
+            prev.filter((p) => String(p.authorId) !== String(post.authorId))
+          );
           message.success(`${post.author} is blocked.`);
         } catch (err) {
           message.error(err.message);
@@ -1161,7 +1315,10 @@ export default function SkyHubPage() {
                         e.preventDefault();
                         navigate("/skyhub/guidelines");
                       }}
-                      style={{ color: "var(--sh-orange2, #ff9555)", whiteSpace: "nowrap" }}
+                      style={{
+                        color: "var(--sh-orange2, #ff9555)",
+                        whiteSpace: "nowrap",
+                      }}
                     >
                       Community guidelines
                     </a>
@@ -1197,6 +1354,7 @@ export default function SkyHubPage() {
                       onToggleSave={handleToggleSave}
                       onOpenComments={handleOpenComments}
                       onReportPost={handleReportPost}
+                      onEditPost={handleEditPost}
                       onDeletePost={handleDeletePost}
                       onBlockUser={handleBlockUser}
                     />
@@ -1264,8 +1422,51 @@ export default function SkyHubPage() {
       </main>
 
       <Modal
+        open={!!editingPost}
+        title="Edit post"
+        className="skyhub-modal"
+        onCancel={() => setEditingPost(null)}
+        onOk={saveEdit}
+        okText="Save"
+        okButtonProps={{ loading: savingEdit }}
+        destroyOnClose
+      >
+        <Input.TextArea
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          maxLength={1200}
+          showCount
+          autoSize={{ minRows: 4, maxRows: 10 }}
+          placeholder="What do you want to say?"
+          aria-label="Post text"
+        />
+        <Input
+          value={editDestination}
+          onChange={(e) => setEditDestination(e.target.value)}
+          maxLength={120}
+          prefix={<EnvironmentOutlined style={{ color: "#ff8a2a" }} />}
+          placeholder="Destination or city"
+          aria-label="Destination"
+          style={{ marginTop: 16 }}
+        />
+        {(editingPost?.images || []).length > 0 && (
+          <p
+            style={{
+              marginTop: 12,
+              marginBottom: 0,
+              fontSize: 12,
+              opacity: 0.6,
+            }}
+          >
+            Photos can't be changed after posting.
+          </p>
+        )}
+      </Modal>
+
+      <Modal
         open={!!reportPost}
         title="Report this post"
+        className="skyhub-modal"
         onCancel={() => setReportPost(null)}
         onOk={submitReport}
         okText="Send report"
@@ -1273,7 +1474,8 @@ export default function SkyHubPage() {
         destroyOnClose
       >
         <p style={{ marginBottom: 12, opacity: 0.75 }}>
-          What's wrong with it? Reports are anonymous — the person won't know it was you.
+          What's wrong with it? Reports are anonymous — the person won't know it
+          was you.
         </p>
         <Radio.Group
           value={reportReason}
