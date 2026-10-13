@@ -32,6 +32,7 @@ import {
   ArrowLeftOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
+import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 
 import heroImg from "@/assets/Booking/skyrio-hero.jpg";
@@ -912,18 +913,50 @@ const MORE_TABS = [
 
 function BookingTabBar({ value, onChange }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState(null);
   const moreRef = useRef(null);
+  const menuRef = useRef(null);
   const isMoreActive = MORE_TABS.some((t) => t.key === value);
+
+  // The menu is rendered on <body> (a portal) and placed under the More
+  // button. Inside the tab bar it got clipped on phones, where the bar
+  // scrolls sideways — so More looked dead.
+  const placeMenu = useCallback(() => {
+    const r = moreRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const width = 220;
+    const left = Math.max(
+      12,
+      Math.min(r.right - width, window.innerWidth - width - 12)
+    );
+    setMenuPos({ top: r.bottom + 8, left, width });
+  }, []);
 
   useEffect(() => {
     if (!moreOpen) return;
-    const handler = (e) => {
-      if (moreRef.current && !moreRef.current.contains(e.target))
-        setMoreOpen(false);
+    placeMenu();
+    const outside = (e) => {
+      if (
+        moreRef.current?.contains(e.target) ||
+        menuRef.current?.contains(e.target)
+      )
+        return;
+      setMoreOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [moreOpen]);
+    const close = () => setMoreOpen(false);
+    const onKey = (e) => e.key === "Escape" && close();
+    // pointerdown covers mouse AND touch
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", placeMenu, true);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", placeMenu, true);
+    };
+  }, [moreOpen, placeMenu]);
 
   const handleSelect = (t) => {
     if (t.comingSoon) {
@@ -953,7 +986,12 @@ function BookingTabBar({ value, onChange }) {
           className={`sk-tab-more-btn${moreOpen ? " is-open" : ""}${
             isMoreActive ? " has-active" : ""
           }`}
-          onClick={() => setMoreOpen((v) => !v)}
+          onClick={() => {
+            if (!moreOpen) placeMenu();
+            setMoreOpen((v) => !v);
+          }}
+          aria-haspopup="menu"
+          aria-expanded={moreOpen}
         >
           {isMoreActive
             ? MORE_TABS.find((t) => t.key === value)?.label
@@ -970,30 +1008,44 @@ function BookingTabBar({ value, onChange }) {
             ▾
           </span>
         </button>
-        {moreOpen && (
-          <div className="sk-tab-more-menu">
-            {MORE_TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                className={`sk-tab-more-item${
-                  value === t.key ? " is-active" : ""
-                }${t.comingSoon ? " is-disabled" : ""}`}
-                onClick={() => handleSelect(t)}
-                aria-disabled={t.comingSoon || undefined}
-                title={t.comingSoon ? `${t.label} — coming soon` : undefined}
-              >
-                <span className="sk-tab-more-item-label">{t.label}</span>
-                {t.comingSoon && (
-                  <span className="sk-soon-badge">
-                    <Clock size={9} className="sk-soon-badge-icon" />
-                    Soon
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
+        {moreOpen &&
+          menuPos &&
+          createPortal(
+            <div
+              ref={menuRef}
+              className="sk-tab-more-menu sk-tab-more-menu--portal"
+              role="menu"
+              style={{
+                position: "fixed",
+                top: menuPos.top,
+                left: menuPos.left,
+                width: menuPos.width,
+              }}
+            >
+              {MORE_TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="menuitem"
+                  className={`sk-tab-more-item${
+                    value === t.key ? " is-active" : ""
+                  }${t.comingSoon ? " is-disabled" : ""}`}
+                  onClick={() => handleSelect(t)}
+                  aria-disabled={t.comingSoon || undefined}
+                  title={t.comingSoon ? `${t.label} — coming soon` : undefined}
+                >
+                  <span className="sk-tab-more-item-label">{t.label}</span>
+                  {t.comingSoon && (
+                    <span className="sk-soon-badge">
+                      <Clock size={9} className="sk-soon-badge-icon" />
+                      Soon
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>,
+            document.body
+          )}
       </div>
     </div>
   );

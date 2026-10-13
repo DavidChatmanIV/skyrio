@@ -902,3 +902,220 @@
     justify-content: flex-start;
   }
 }
+
+/* ─────────────────────────────────────────────
+   Hardening — keeps the pass clean on every screen.
+   Your page/global styles (and the pickers' own styles) were
+   re-boxing the WHEN and WHO parts on phones. These selectors
+   are deliberately stronger so the pass always wins.
+   Popups/menus inside a segment are left alone.
+   ───────────────────────────────────────────── */
+
+/* Everything that draws a box inside WHEN / FROM / TO / WHERE (not labels, not menus) */
+.sk-pass.sk-pass
+  :is(.sk-pass-seg--when, .sk-pass-flat)
+  *:not(.sk-pass-label):not(.sk-pass-label *):not(.sk-pass-swap):not(
+    .sk-pass-swap *
+  ):not(.sk-where-menu):not(.sk-where-menu *):not([class*="popup"]):not(
+    [class*="popup"] *
+  ):not([class*="dropdown"]):not([class*="dropdown"] *):not(
+    [class*="suggest"]
+  ):not([class*="suggest"] *):not([class*="menu"]):not([class*="menu"] *):not(
+    [class*="panel"]
+  ):not([class*="panel"] *):not([role="listbox"]):not([role="listbox"] *):not(
+    [role="dialog"]
+  ):not([role="dialog"] *) {
+  border-color: transparent !important;
+  border-width: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+}
+
+/* No inner padding on the trigger itself (two levels deep) */
+.sk-pass.sk-pass
+  :is(.sk-pass-seg--when, .sk-pass-flat)
+  > :not(.sk-pass-label):not(.sk-pass-swap),
+.sk-pass.sk-pass
+  :is(.sk-pass-seg--when, .sk-pass-flat)
+  > :not(.sk-pass-label):not(.sk-pass-swap)
+  > :not([class*="popup"]):not([class*="dropdown"]):not([class*="suggest"]):not(
+    [class*="menu"]
+  ):not([role="listbox"]) {
+  padding: 0 !important;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+}
+
+.sk-pass.sk-pass :is(.sk-pass-seg--when, .sk-pass-flat) input {
+  padding: 0 !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* The label already shows a calendar — hide the picker's own icon */
+.sk-pass.sk-pass .sk-pass-seg--when > :not(.sk-pass-label) > svg,
+.sk-pass.sk-pass .sk-pass-seg--when > :not(.sk-pass-label) > .anticon,
+.sk-pass.sk-pass
+  .sk-pass-seg--when
+  > :not(.sk-pass-label)
+  > span:first-child
+  > svg {
+  display: none !important;
+}
+
+/* WHO: plain left-aligned ticket text, never a centered big button */
+.sk-pass.sk-pass .sk-guests,
+.sk-pass.sk-pass .sk-guests-btn {
+  width: 100%;
+}
+.sk-pass.sk-pass .sk-guests-btn {
+  display: flex !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sk-pass.sk-pass .sk-guests-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Segments size to their content — nothing can spill over a tear line */
+.sk-pass.sk-pass .sk-pass-seg {
+  height: auto;
+  overflow: visible;
+}
+
+/* Search stub: same size on every tab */
+.sk-pass.sk-pass .sk-pass-go {
+  width: auto;
+  min-height: 0;
+  font-size: 22px;
+}
+
+/* ── "More" tab menu, now rendered on <body> so it can't be clipped ── */
+.sk-tab-more-menu--portal {
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #160e24;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
+  transform: none;
+}
+.sk-tab-more-menu--portal .sk-tab-more-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sk-tab-more-menu--portal .sk-tab-more-item:hover,
+.sk-tab-more-menu--portal .sk-tab-more-item.is-active {
+  background: rgba(255, 179, 71, 0.12);
+  color: #ffb347;
+}
+.sk-tab-more-menu--portal .sk-tab-more-item.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ── Phones: tighter, cleaner pass ── */
+@media (max-width: 760px) {
+  .sk-pass.sk-pass {
+    border-radius: 20px;
+  }
+  /* stacked: every segment takes its natural height (flex:1 1 0 would collapse them) */
+  .sk-pass.sk-pass .sk-pass-seg {
+    flex: 0 0 auto !important;
+    min-height: auto;
+    padding: 12px 18px 12px;
+    gap: 4px;
+  }
+  .sk-pass.sk-pass .sk-pass-label {
+    font-size: 10px;
+  }
+  .sk-pass.sk-pass
+    :is(.sk-pass-seg--when, .sk-pass-flat)
+    > :not(.sk-pass-label):not(.sk-pass-swap),
+  .sk-pass.sk-pass :is(.sk-pass-seg--when, .sk-pass-flat) input,
+  .sk-pass.sk-pass .sk-guests-btn,
+  .sk-pass-value,
+  .sk-where-input {
+    font-size: 16px !important; /* 16px stops iPhone zooming in on tap */
+  }
+  .sk-pass.sk-pass .sk-pass-go {
+    min-height: 52px;
+    font-size: 18px;
+  }
+  /* swap button sits on the FROM/TO line, right edge, smaller */
+  .sk-pass.sk-pass .sk-pass-swap {
+    width: 34px;
+    height: 34px;
+    right: 16px;
+    background: #2a1a3a;
+  }
+  .sk-stay-shortcut-row {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sk-stay-shortcut-row::-webkit-scrollbar {
+    display: none;
+  }
+  .sk-stay-chip {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Swap button: always a 34px circle, whatever the page's button styles say */
+.sk-pass.sk-pass .sk-pass-swap {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  border-radius: 50% !important;
+}
