@@ -70,6 +70,7 @@ import { apiUrl } from "@/lib/api";
 import OnboardingModal from "@/components/onboarding/OnboardingModal";
 import ShareRankPrompt from "./ShareRankPrompt";
 import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
+import TravelJourneys from "./TravelJourneys";
 
 const { Title, Text } = Typography;
 
@@ -1708,26 +1709,8 @@ export default function DigitalPassportPage() {
                     </Card>
                   )}
 
-                  <Card
-                    variant="borderless"
-                    className="pp-card pp-journeysCard"
-                  >
-                    <div className="pp-journeysHeader">
-                      <div className="pp-journeysTitle">Travel Journeys</div>
-                    </div>
-                    <div className="pp-journeysEmpty">
-                      <div
-                        style={{
-                          padding: "32px 16px",
-                          textAlign: "center",
-                          opacity: 0.5,
-                          fontSize: 14,
-                        }}
-                      >
-                        Your journeys will appear here after your first booking
-                      </div>
-                    </div>
-                  </Card>
+                  {/* ── Travel Journeys — loads real bookings (was hardcoded empty) ── */}
+                  <TravelJourneys token={token} />
                 </div>
 
                 {/* ── Sidebar ── */}

@@ -1,12 +1,7 @@
-// backend/routes/flightPayments.routes.js
-// Mounted in routes/api/index.js:  await mount("/flight-payments", "../flightPayments.routes.js");
-// => POST /api/flight-payments/prebook
-//    POST /api/flight-payments/:sessionId/services
-//    POST /api/flight-payments/:sessionId/book
-//    GET  /api/flight-payments/:sessionId
-//
 // Payment runs through LiteAPI's payment SDK (usePaymentSdk: true) — no Nuitee approval needed.
-// Env: LITEAPI_KEY, LITEAPI_FLIGHTS_BASE (same base URL your working flights verify call uses)
+// Env: LITEAPI_ENV ("sandbox" | "production") picks LITEAPI_SANDBOX_KEY or
+//      LITEAPI_PRODUCTION_KEY, same as every other LiteAPI file. LITEAPI_KEY is
+//      only a fallback. LITEAPI_FLIGHTS_BASE = same base URL the verify call uses.
 
 import { Router } from "express";
 import mongoose from "mongoose";
@@ -19,12 +14,23 @@ router.use(requireAuth);
 const BASE =
   process.env.LITEAPI_FLIGHTS_BASE || "https://api.liteapi.travel/v3.0";
 
+// Same key choice as every other LiteAPI file: LITEAPI_ENV decides.
+function liteApiKey() {
+  const env = String(process.env.LITEAPI_ENV || "sandbox").toLowerCase();
+  return (
+    (env === "production"
+      ? process.env.LITEAPI_PRODUCTION_KEY
+      : process.env.LITEAPI_SANDBOX_KEY) || process.env.LITEAPI_KEY
+  );
+}
+
 async function liteFlights(method, path, body) {
-  if (!process.env.LITEAPI_KEY) throw new Error("LITEAPI_KEY is not set");
+  const key = liteApiKey();
+  if (!key) throw new Error("No LiteAPI key set for this environment");
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
-      "X-API-Key": process.env.LITEAPI_KEY,
+      "X-API-Key": key,
       "Content-Type": "application/json",
       accept: "application/json",
     },
