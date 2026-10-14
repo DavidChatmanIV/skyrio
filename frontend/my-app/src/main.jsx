@@ -43,6 +43,48 @@ window.addEventListener("pageshow", (event) => {
   }
 });
 
+// ── Stale chunk fix ───────────────────────────────────────────────────────────
+// After a new deploy, Vite's hashed chunk names change (e.g.
+// BookingPage-XXXX.css). A visitor still on the old version who navigates to a
+// lazy-loaded page asks for a chunk that no longer exists, which caused the
+// "Unable to preload CSS" and "'text/html' is not a valid JavaScript MIME type"
+// errors in Sentry. Reload once to pick up the new build. The session flag
+// stops an endless reload loop if something else is actually broken.
+const CHUNK_RELOAD_KEY = "skyrio-chunk-reload";
+
+window.addEventListener("vite:preloadError", (event) => {
+  let alreadyReloaded = false;
+  try {
+    alreadyReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
+  } catch {
+    // storage blocked (private mode etc.) — fall through and reload once
+  }
+
+  if (!alreadyReloaded) {
+    event.preventDefault(); // don't report this one to Sentry; we're handling it
+    try {
+      sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  }
+  // If we already reloaded once and it still fails, let the error through
+  // so Sentry captures a real problem.
+});
+
+// Clear the flag once the app has loaded fine, so the next deploy can
+// trigger a reload again during this same tab session.
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    try {
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, 10000);
+});
+
 // ── Mount ─────────────────────────────────────────────────────────────────────
 const rootEl = document.getElementById("root");
 

@@ -5,7 +5,7 @@
       "destination": "https://skyrio.onrender.com/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|assets/).*)",
       "destination": "/index.html"
     }
   ],
