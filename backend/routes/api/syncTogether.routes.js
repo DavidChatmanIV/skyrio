@@ -12,7 +12,10 @@ import {
   sendTripDeleted,
   sendMemberRemoved,
 } from "../../services/email.js";
-import { sendGroupReminder, groupUrl as groupLink } from "../../services/syncEmails.js";
+import {
+  sendGroupReminder,
+  groupUrl as groupLink,
+} from "../../services/syncEmails.js";
 import { sendConfirmationFor } from "../../services/bookingConfirmations.js";
 import {
   SyncError,
@@ -105,17 +108,22 @@ function budgetSummaryFor(g) {
 }
 function privateGroup(group, viewerId) {
   if (!group || typeof group !== "object") return group;
-  const g = typeof group.toObject === "function" ? group.toObject() : { ...group };
+  const g =
+    typeof group.toObject === "function" ? group.toObject() : { ...group };
   const ownerId = String(g.owner?._id || g.owner || "");
   const me = String(viewerId || "");
   const mine =
     ownerId === me
       ? g.ownerBudget
-      : (g.members || []).find((m) => String(m.user?._id || m.user || "") === me)?.budget;
+      : (g.members || []).find(
+          (m) => String(m.user?._id || m.user || "") === me
+        )?.budget;
   g.budgetSummary = budgetSummaryFor(g);
-  g.myBudget = Number.isFinite(Number(mine)) && Number(mine) > 0 ? Number(mine) : null;
+  g.myBudget =
+    Number.isFinite(Number(mine)) && Number(mine) > 0 ? Number(mine) : null;
   delete g.ownerBudget;
-  if (Array.isArray(g.members)) g.members = g.members.map(({ budget, ...rest }) => rest);
+  if (Array.isArray(g.members))
+    g.members = g.members.map(({ budget, ...rest }) => rest);
   return g;
 }
 router.use((req, res, next) => {
@@ -126,7 +134,8 @@ router.use((req, res, next) => {
         const viewer = req.user?.id ?? req.user?._id;
         body = { ...body };
         if (body.group) body.group = privateGroup(body.group, viewer);
-        if (Array.isArray(body.groups)) body.groups = body.groups.map((g) => privateGroup(g, viewer));
+        if (Array.isArray(body.groups))
+          body.groups = body.groups.map((g) => privateGroup(g, viewer));
       } catch {
         /* never block a response over this */
       }
@@ -137,7 +146,9 @@ router.use((req, res, next) => {
 });
 
 router.param("id", (req, res, next, id) =>
-  validId(id) ? next() : res.status(404).json({ ok: false, error: "Group not found" })
+  validId(id)
+    ? next()
+    : res.status(404).json({ ok: false, error: "Group not found" })
 );
 
 /* ──────────────────────────────────────────────
@@ -171,11 +182,13 @@ router.post("/join/:code", async (req, res) => {
     const emailInvite =
       user?.email &&
       group.members.find(
-        (m) => !m.user && m.email && m.email === String(user.email).toLowerCase()
+        (m) =>
+          !m.user && m.email && m.email === String(user.email).toLowerCase()
       );
     if (emailInvite) {
       emailInvite.user = userId;
-      emailInvite.name = emailInvite.name || user?.name || user?.username || null;
+      emailInvite.name =
+        emailInvite.name || user?.name || user?.username || null;
       emailInvite.status = "accepted";
       emailInvite.joinedAt = new Date();
     } else {
@@ -410,9 +423,10 @@ router.get("/:id", async (req, res) => {
     if (!group)
       return res.status(404).json({ ok: false, error: "Group not found" });
     if (!isGroupMember(group, req.user?.id ?? req.user?._id)) {
-      return res
-        .status(403)
-        .json({ ok: false, error: "You're not on this trip. Ask the organizer for an invite link." });
+      return res.status(403).json({
+        ok: false,
+        error: "You're not on this trip. Ask the organizer for an invite link.",
+      });
     }
 
     return res.json({ ok: true, group });
@@ -436,9 +450,11 @@ router.patch("/:id", async (req, res) => {
     // Only the organizer edits the trip itself (where, when, cabin).
     // Members suggest changes with "Request a change".
     if (String(group.owner) !== String(userId)) {
-      return res
-        .status(403)
-        .json({ ok: false, error: "Only the organizer can edit trip details. Use “Request a change” to suggest one." });
+      return res.status(403).json({
+        ok: false,
+        error:
+          "Only the organizer can edit trip details. Use “Request a change” to suggest one.",
+      });
     }
 
     const {
@@ -454,7 +470,8 @@ router.patch("/:id", async (req, res) => {
     // `status` is no longer accepted here — it only changes through the
     // plan / approve / confirm steps, so members can't skip ahead.
 
-    if (title !== undefined) group.title = String(title).trim().slice(0, 120) || "Untitled Trip";
+    if (title !== undefined)
+      group.title = String(title).trim().slice(0, 120) || "Untitled Trip";
     if (destination !== undefined) group.destination = destination;
     if (departureAirport !== undefined)
       group.departureAirport = departureAirport;
@@ -755,13 +772,15 @@ router.delete("/:id/member/:memberId", async (req, res) => {
     const removedMember = group.members[memberIndex];
     const removedEmail = removedMember.email;
     const removedUserId = removedMember.user;
-    const leavingSelf = removedUserId && String(removedUserId) === String(userId);
+    const leavingSelf =
+      removedUserId && String(removedUserId) === String(userId);
 
     // The organizer can remove anyone; everyone else can only leave.
     if (!leavingSelf && !isOrganizer(group, userId)) {
-      return res
-        .status(403)
-        .json({ ok: false, error: "Only the organizer can remove other travelers" });
+      return res.status(403).json({
+        ok: false,
+        error: "Only the organizer can remove other travelers",
+      });
     }
 
     // A shared room still collecting holds can't go ahead without them —
@@ -916,6 +935,20 @@ router.delete("/:id", async (req, res) => {
       return res
         .status(403)
         .json({ ok: false, error: "Only the organizer can delete this trip" });
+    }
+
+    // NEW: travelers' real bookings point at this trip — don't delete it
+    // out from under them.
+    const linkedBookings = await Booking.countDocuments({
+      status: { $in: ["confirmed", "cancel_pending"] },
+      ...linkedToGroup(group._id),
+    });
+    if (linkedBookings) {
+      return res.status(409).json({
+        ok: false,
+        error:
+          "Travelers have already booked parts of this trip. Each person can take their booking off the trip (or cancel it from My Trips) before it can be deleted.",
+      });
     }
 
     const liveRooms = await SplitPayment.countDocuments({
@@ -1128,9 +1161,14 @@ const REMIND_EVERY_MS = 12 * 60 * 60 * 1000;
 // Shortlist as the trip page shows it: most votes first, names attached.
 function shortlistForClient(group, viewerId) {
   const people = new Map();
-  if (group.owner?._id) people.set(String(group.owner._id), group.owner.name || group.owner.username);
+  if (group.owner?._id)
+    people.set(
+      String(group.owner._id),
+      group.owner.name || group.owner.username
+    );
   for (const m of group.members || []) {
-    if (m.user?._id) people.set(String(m.user._id), m.user.name || m.user.username || m.name);
+    if (m.user?._id)
+      people.set(String(m.user._id), m.user.name || m.user.username || m.name);
   }
   return (group.shortlist || [])
     .map((it) => {
@@ -1151,7 +1189,10 @@ function shortlistForClient(group, viewerId) {
         votes: votes.length,
         voters: votes.map((v) => people.get(v)).filter(Boolean),
         votedByMe: votes.includes(String(viewerId)),
-        isGroupHotel: it.kind === "hotel" && it.hotel?.hotelId && it.hotel.hotelId === group.groupHotel?.hotelId,
+        isGroupHotel:
+          it.kind === "hotel" &&
+          it.hotel?.hotelId &&
+          it.hotel.hotelId === group.groupHotel?.hotelId,
         isGroupFlight: it.kind === "flight" && it.key === group.groupFlightKey,
         at: it.createdAt,
       };
@@ -1159,7 +1200,8 @@ function shortlistForClient(group, viewerId) {
     .sort((a, b) => b.votes - a.votes || new Date(b.at) - new Date(a.at));
 }
 
-const cleanStr = (v, n = 200) => (v == null || v === "" ? undefined : String(v).trim().slice(0, n));
+const cleanStr = (v, n = 200) =>
+  v == null || v === "" ? undefined : String(v).trim().slice(0, n);
 const cleanNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
 const SHORTLIST_MAX = 30;
 
@@ -1179,7 +1221,9 @@ async function computeParts(group, viewerId) {
       )
       .sort({ createdAt: -1 })
       .lean(),
-    SplitPayment.find({ group: group._id, kind: "shared_room" }).sort({ createdAt: -1 }),
+    SplitPayment.find({ group: group._id, kind: "shared_room" }).sort({
+      createdAt: -1,
+    }),
   ]);
 
   const pickLatest = (list) =>
@@ -1203,8 +1247,11 @@ async function computeParts(group, viewerId) {
     const f = b.flight || {};
     const arrivesAt = localMinute(f.arrivalAt);
     const outsideWindow =
-      Boolean(arrivesAt && b.status !== "cancelled" && (win.start || win.end)) &&
-      ((win.start && arrivesAt < win.start) || (win.end && arrivesAt > win.end));
+      Boolean(
+        arrivesAt && b.status !== "cancelled" && (win.start || win.end)
+      ) &&
+      ((win.start && arrivesAt < win.start) ||
+        (win.end && arrivesAt > win.end));
     return {
       ...slim(b),
       origin: f.origin || null,
@@ -1218,18 +1265,28 @@ async function computeParts(group, viewerId) {
     };
   };
 
-  const activeRooms = rooms.filter((r) => ["collecting", "booking", "booked"].includes(r.status));
+  const activeRooms = rooms.filter((r) =>
+    ["collecting", "booking", "booked"].includes(r.status)
+  );
 
   const parts = travelers.map((t) => {
-    const mine = bookings.filter((b) => t.userId && String(b.user) === t.userId);
+    const mine = bookings.filter(
+      (b) => t.userId && String(b.user) === t.userId
+    );
     const flight = pickLatest(mine.filter((b) => b.type === "Flight"));
-    const ownStay = pickLatest(mine.filter((b) => b.type === "Hotel" && !b.sharedRoom));
-    const room = activeRooms.find((r) => r.shares.some((s) => String(s.user) === t.userId));
+    const ownStay = pickLatest(
+      mine.filter((b) => b.type === "Hotel" && !b.sharedRoom)
+    );
+    const room = activeRooms.find((r) =>
+      r.shares.some((s) => String(s.user) === t.userId)
+    );
     const share = room?.shares.find((s) => String(s.user) === t.userId);
 
     let stay = null;
     if (room) {
-      const rec = share?.booking ? mine.find((b) => String(b._id) === String(share.booking)) : null;
+      const rec = share?.booking
+        ? mine.find((b) => String(b._id) === String(share.booking))
+        : null;
       stay = {
         kind: "shared",
         sharedRoomId: String(room._id),
@@ -1246,12 +1303,18 @@ async function computeParts(group, viewerId) {
     const flightDone = flight && flight.status !== "cancelled";
     const stayDone =
       (stay?.kind === "own" && stay.status !== "cancelled") ||
-      (stay?.kind === "shared" && ["authorized", "paid"].includes(stay.shareStatus));
+      (stay?.kind === "shared" &&
+        ["authorized", "paid"].includes(stay.shareStatus));
     const needs = [];
-    if (t.rsvp === "pending" && !t.isOrganizer) needs.push("Say whether you're coming");
+    if (t.rsvp === "pending" && !t.isOrganizer)
+      needs.push("Say whether you're coming");
     if (!flightDone) needs.push("Book your flight");
     if (!stayDone)
-      needs.push(stay?.kind === "shared" ? "Hold your share of the room" : "Book your room (or join a shared room)");
+      needs.push(
+        stay?.kind === "shared"
+          ? "Hold your share of the room"
+          : "Book your room (or join a shared room)"
+      );
 
     return {
       ...t,
@@ -1264,7 +1327,8 @@ async function computeParts(group, viewerId) {
       canRemind:
         !t.isOrganizer &&
         needs.length > 0 &&
-        (!t.lastRemindedAt || Date.now() - new Date(t.lastRemindedAt).getTime() > REMIND_EVERY_MS),
+        (!t.lastRemindedAt ||
+          Date.now() - new Date(t.lastRemindedAt).getTime() > REMIND_EVERY_MS),
     };
   });
 
@@ -1282,10 +1346,18 @@ async function computeParts(group, viewerId) {
     destination: group.destination || null,
     dateRangeStart: group.dateRangeStart || null,
     dateRangeEnd: group.dateRangeEnd || null,
-    arrivalWindow: { start: win.start || null, end: win.end || null, note: win.note || null },
+    arrivalWindow: {
+      start: win.start || null,
+      end: win.end || null,
+      note: win.note || null,
+    },
     declined: (group.members || [])
       .filter((m) => m.status === "declined")
-      .map((m) => ({ memberId: String(m._id), name: m.user?.name || m.user?.username || m.name || m.email || "Traveler" })),
+      .map((m) => ({
+        memberId: String(m._id),
+        name:
+          m.user?.name || m.user?.username || m.name || m.email || "Traveler",
+      })),
     travelers: parts,
     sharedRooms: rooms.map((r) => sharedRoomForClient(r, viewerId)),
   };
@@ -1300,7 +1372,11 @@ router.get("/:id/parts", async (req, res) => {
     const group = await loadGroupForParts(req.params.id);
     if (!requireMember(group, userId, res)) return;
     const parts = await computeParts(group, userId);
-    return res.json({ ok: true, isOrganizer: isOrganizer(group, userId), ...parts });
+    return res.json({
+      ok: true,
+      isOrganizer: isOrganizer(group, userId),
+      ...parts,
+    });
   } catch (err) {
     return sendSyncError(res, err, "Failed to load trip parts");
   }
@@ -1313,20 +1389,38 @@ router.post("/:id/remind", async (req, res) => {
     const group = await loadGroupForParts(req.params.id);
     if (!requireMember(group, userId, res)) return;
     if (!isOrganizer(group, userId)) {
-      return res.status(403).json({ ok: false, error: "Only the organizer can send reminders" });
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can send reminders" });
     }
-    const member = validId(req.body?.memberId) ? group.members.id(req.body.memberId) : null;
-    if (!member) return res.status(404).json({ ok: false, error: "Traveler not found" });
-    if (member.lastRemindedAt && Date.now() - member.lastRemindedAt.getTime() < REMIND_EVERY_MS) {
-      return res.status(429).json({ ok: false, error: "You already reminded them recently. Try again later." });
+    const member = validId(req.body?.memberId)
+      ? group.members.id(req.body.memberId)
+      : null;
+    if (!member)
+      return res.status(404).json({ ok: false, error: "Traveler not found" });
+    if (
+      member.lastRemindedAt &&
+      Date.now() - member.lastRemindedAt.getTime() < REMIND_EVERY_MS
+    ) {
+      return res.status(429).json({
+        ok: false,
+        error: "You already reminded them recently. Try again later.",
+      });
     }
     const parts = await computeParts(group, userId);
     const part = parts.travelers.find((t) => t.memberId === String(member._id));
     if (!part?.needs?.length) {
-      return res.status(400).json({ ok: false, error: "They're all set — nothing to remind them about." });
+      return res.status(400).json({
+        ok: false,
+        error: "They're all set — nothing to remind them about.",
+      });
     }
     const to = member.email || member.user?.email;
-    if (!to) return res.status(400).json({ ok: false, error: "We don't have an email for this traveler." });
+    if (!to)
+      return res.status(400).json({
+        ok: false,
+        error: "We don't have an email for this traveler.",
+      });
 
     const result = await sendGroupReminder({
       to,
@@ -1338,10 +1432,18 @@ router.post("/:id/remind", async (req, res) => {
       needs: part.needs,
     });
     if (!result?.ok) {
-      return res.status(502).json({ ok: false, error: "The reminder email didn't send. Try again in a bit." });
+      return res.status(502).json({
+        ok: false,
+        error: "The reminder email didn't send. Try again in a bit.",
+      });
     }
     member.lastRemindedAt = new Date();
-    logActivity(group, "reminder_sent", userId, `Sent ${member.user?.name || member.name || "a traveler"} a reminder`);
+    logActivity(
+      group,
+      "reminder_sent",
+      userId,
+      `Sent ${member.user?.name || member.name || "a traveler"} a reminder`
+    );
     await group.save();
     return res.json({ ok: true });
   } catch (err) {
@@ -1362,13 +1464,18 @@ router.post("/:id/shortlist", async (req, res) => {
     if (!requireMember(group, userId, res)) return;
     const kind = req.body?.kind;
     if (!["hotel", "flight", "activity"].includes(kind)) {
-      return res.status(400).json({ ok: false, error: "Suggest a flight, a stay or an activity." });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Suggest a flight, a stay or an activity." });
     }
 
     let item;
     if (kind === "hotel") {
       const h = req.body.hotel || {};
-      if (!h.hotelId) return res.status(400).json({ ok: false, error: "Pick a hotel from the search results." });
+      if (!h.hotelId)
+        return res
+          .status(400)
+          .json({ ok: false, error: "Pick a hotel from the search results." });
       item = {
         kind,
         key: `hotel:${String(h.hotelId).slice(0, 64)}`,
@@ -1376,7 +1483,9 @@ router.post("/:id/shortlist", async (req, res) => {
           hotelId: cleanStr(h.hotelId, 64),
           name: cleanStr(h.name),
           address: cleanStr(h.address, 300),
-          thumbnail: /^https:\/\//.test(String(h.thumbnail || "")) ? cleanStr(h.thumbnail, 600) : undefined,
+          thumbnail: /^https:\/\//.test(String(h.thumbnail || ""))
+            ? cleanStr(h.thumbnail, 600)
+            : undefined,
           stars: cleanNum(h.stars),
           rating: cleanNum(h.rating),
           roomName: cleanStr(h.roomName),
@@ -1388,15 +1497,22 @@ router.post("/:id/shortlist", async (req, res) => {
       };
     } else if (kind === "activity") {
       const a = req.body.activity || {};
-      if (!a.name || !(a.id || a.url)) return res.status(400).json({ ok: false, error: "Pick an activity from the results." });
-      const safeUrl = /^https:\/\//.test(String(a.url || "")) ? cleanStr(a.url, 600) : undefined;
+      if (!a.name || !(a.id || a.url))
+        return res
+          .status(400)
+          .json({ ok: false, error: "Pick an activity from the results." });
+      const safeUrl = /^https:\/\//.test(String(a.url || ""))
+        ? cleanStr(a.url, 600)
+        : undefined;
       item = {
         kind,
         key: `activity:${String(a.id || a.url).slice(0, 120)}`,
         activity: {
           id: cleanStr(a.id, 120),
           name: cleanStr(a.name, 200),
-          image: /^https:\/\//.test(String(a.image || "")) ? cleanStr(a.image, 600) : undefined,
+          image: /^https:\/\//.test(String(a.image || ""))
+            ? cleanStr(a.image, 600)
+            : undefined,
           city: cleanStr(a.city, 120),
           duration: cleanStr(a.duration, 60),
           rating: cleanNum(a.rating),
@@ -1407,9 +1523,18 @@ router.post("/:id/shortlist", async (req, res) => {
     } else {
       const f = req.body.flight || {};
       if (!f.origin || !f.destination || !f.departAt) {
-        return res.status(400).json({ ok: false, error: "Pick a flight from the search results." });
+        return res
+          .status(400)
+          .json({ ok: false, error: "Pick a flight from the search results." });
       }
-      const key = ["flight", f.airlineCode || f.airline, f.origin, f.destination, f.departAt, f.returnDepartAt || ""]
+      const key = [
+        "flight",
+        f.airlineCode || f.airline,
+        f.origin,
+        f.destination,
+        f.departAt,
+        f.returnDepartAt || "",
+      ]
         .map((x) => String(x || "").slice(0, 40))
         .join(":");
       item = {
@@ -1418,7 +1543,9 @@ router.post("/:id/shortlist", async (req, res) => {
         flight: {
           airline: cleanStr(f.airline, 80),
           airlineCode: cleanStr(f.airlineCode, 8),
-          logo: /^https:\/\//.test(String(f.logo || "")) ? cleanStr(f.logo, 600) : undefined,
+          logo: /^https:\/\//.test(String(f.logo || ""))
+            ? cleanStr(f.logo, 600)
+            : undefined,
           origin: cleanStr(f.origin, 8),
           destination: cleanStr(f.destination, 8),
           departAt: cleanStr(f.departAt, 40),
@@ -1434,12 +1561,22 @@ router.post("/:id/shortlist", async (req, res) => {
     const existing = group.shortlist.find((s) => s.key === item.key);
     if (existing) {
       // Suggesting something already on the list counts as a vote.
-      if (!existing.votes.map(String).includes(String(userId))) existing.votes.push(userId);
+      if (!existing.votes.map(String).includes(String(userId)))
+        existing.votes.push(userId);
       await group.save();
-      return res.json({ ok: true, alreadyListed: true, itemId: String(existing._id) });
+      return res.json({
+        ok: true,
+        alreadyListed: true,
+        itemId: String(existing._id),
+      });
     }
-    if (group.shortlist.filter((s) => s.status === "open").length >= SHORTLIST_MAX) {
-      return res.status(409).json({ ok: false, error: "The shortlist is full. Remove a few options first." });
+    if (
+      group.shortlist.filter((s) => s.status === "open").length >= SHORTLIST_MAX
+    ) {
+      return res.status(409).json({
+        ok: false,
+        error: "The shortlist is full. Remove a few options first.",
+      });
     }
 
     group.shortlist.push({
@@ -1456,20 +1593,27 @@ router.post("/:id/shortlist", async (req, res) => {
         ? item.hotel.name || "a hotel"
         : kind === "activity"
         ? item.activity.name || "an activity"
-        : `${item.flight.airline || "a flight"} ${item.flight.origin}→${item.flight.destination}`;
+        : `${item.flight.airline || "a flight"} ${item.flight.origin}→${
+            item.flight.destination
+          }`;
     const who = req.user?.name || req.user?.username || "Someone";
     logActivity(group, "shortlist_add", userId, `Suggested ${label}`);
     await group.save();
 
-    const others = [group.owner?._id, ...group.members.filter((m) => m.user && m.status !== "declined").map((m) => m.user._id)].filter(
-      (id) => id && String(id) !== String(userId)
-    );
+    const others = [
+      group.owner?._id,
+      ...group.members
+        .filter((m) => m.user && m.status !== "declined")
+        .map((m) => m.user._id),
+    ].filter((id) => id && String(id) !== String(userId));
     Notification.insertMany(
       others.map((u) => ({
         user: u,
         type: "booking",
         title: `New ${kind === "activity" ? "activity" : kind} suggestion 🗳️`,
-        message: `${label} was added to the ${group.title || "trip"} shortlist. Vote for your favorite.`,
+        message: `${label} was added to the ${
+          group.title || "trip"
+        } shortlist. Vote for your favorite.`,
         link: `/sync-together/${group._id}`,
       }))
     ).catch(() => {});
@@ -1486,8 +1630,14 @@ router.post("/:id/shortlist/:itemId/vote", async (req, res) => {
     const userId = req.user?.id ?? req.user?._id;
     const group = await SyncGroup.findById(req.params.id);
     if (!requireMember(group, userId, res)) return;
-    const it = validId(req.params.itemId) ? group.shortlist.id(req.params.itemId) : null;
-    if (!it) return res.status(404).json({ ok: false, error: "That option isn't on the shortlist anymore." });
+    const it = validId(req.params.itemId)
+      ? group.shortlist.id(req.params.itemId)
+      : null;
+    if (!it)
+      return res.status(404).json({
+        ok: false,
+        error: "That option isn't on the shortlist anymore.",
+      });
     const voted = it.votes.map(String).includes(String(userId));
     if (voted) it.votes = it.votes.filter((v) => String(v) !== String(userId));
     else it.votes.push(userId);
@@ -1504,10 +1654,19 @@ router.delete("/:id/shortlist/:itemId", async (req, res) => {
     const userId = req.user?.id ?? req.user?._id;
     const group = await SyncGroup.findById(req.params.id);
     if (!requireMember(group, userId, res)) return;
-    const it = validId(req.params.itemId) ? group.shortlist.id(req.params.itemId) : null;
+    const it = validId(req.params.itemId)
+      ? group.shortlist.id(req.params.itemId)
+      : null;
     if (!it) return res.json({ ok: true });
-    if (String(it.suggestedBy) !== String(userId) && !isOrganizer(group, userId)) {
-      return res.status(403).json({ ok: false, error: "Only the person who suggested it or the organizer can remove it." });
+    if (
+      String(it.suggestedBy) !== String(userId) &&
+      !isOrganizer(group, userId)
+    ) {
+      return res.status(403).json({
+        ok: false,
+        error:
+          "Only the person who suggested it or the organizer can remove it.",
+      });
     }
     if (it.key === group.groupFlightKey) group.groupFlightKey = null;
     it.deleteOne();
@@ -1526,9 +1685,18 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
     const userId = req.user?.id ?? req.user?._id;
     const group = await loadGroupForParts(req.params.id);
     if (!requireMember(group, userId, res)) return;
-    if (!isOrganizer(group, userId)) return res.status(403).json({ ok: false, error: "Only the organizer can pick the winner." });
-    const it = validId(req.params.itemId) ? group.shortlist.id(req.params.itemId) : null;
-    if (!it) return res.status(404).json({ ok: false, error: "That option isn't on the shortlist anymore." });
+    if (!isOrganizer(group, userId))
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can pick the winner." });
+    const it = validId(req.params.itemId)
+      ? group.shortlist.id(req.params.itemId)
+      : null;
+    if (!it)
+      return res.status(404).json({
+        ok: false,
+        error: "That option isn't on the shortlist anymore.",
+      });
 
     if (it.kind !== "activity") {
       group.shortlist.forEach((s) => {
@@ -1554,12 +1722,21 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
       label = it.activity?.name || "the activity";
     } else {
       group.groupFlightKey = it.key;
-      label = `${it.flight.airline || "the flight"} ${it.flight.origin}→${it.flight.destination}`;
+      label = `${it.flight.airline || "the flight"} ${it.flight.origin}→${
+        it.flight.destination
+      }`;
     }
-    logActivity(group, "shortlist_pick", userId, `Picked ${label} for the group`);
+    logActivity(
+      group,
+      "shortlist_pick",
+      userId,
+      `Picked ${label} for the group`
+    );
     await group.save();
 
-    const others = group.members.filter((m) => m.user && m.status !== "declined").map((m) => m.user._id);
+    const others = group.members
+      .filter((m) => m.user && m.status !== "declined")
+      .map((m) => m.user._id);
     Notification.insertMany(
       others.map((u) => ({
         user: u,
@@ -1590,22 +1767,47 @@ router.post("/:id/resend-confirmation", async (req, res) => {
     const group = await SyncGroup.findById(req.params.id);
     if (!requireMember(group, userId, res)) return;
     const bookingId = req.body?.bookingId;
-    if (!validId(bookingId)) return res.status(400).json({ ok: false, error: "Pick a booking to resend." });
+    if (!validId(bookingId))
+      return res
+        .status(400)
+        .json({ ok: false, error: "Pick a booking to resend." });
     const booking = await Booking.findById(bookingId);
     const onTrip =
       booking &&
-      (String(booking.syncGroup) === String(group._id) || String(booking.flight?.groupId) === String(group._id));
-    if (!onTrip) return res.status(404).json({ ok: false, error: "That booking isn't on this trip." });
-    if (String(booking.user) !== String(userId) && !isOrganizer(group, userId)) {
-      return res.status(403).json({ ok: false, error: "You can only resend your own confirmation." });
+      (String(booking.syncGroup) === String(group._id) ||
+        String(booking.flight?.groupId) === String(group._id));
+    if (!onTrip)
+      return res
+        .status(404)
+        .json({ ok: false, error: "That booking isn't on this trip." });
+    if (
+      String(booking.user) !== String(userId) &&
+      !isOrganizer(group, userId)
+    ) {
+      return res.status(403).json({
+        ok: false,
+        error: "You can only resend your own confirmation.",
+      });
     }
-    const last = booking.confirmationEmail?.at ? new Date(booking.confirmationEmail.at).getTime() : 0;
-    if (booking.confirmationEmail?.status === "sent" && Date.now() - last < 10 * 60 * 1000) {
-      return res.status(429).json({ ok: false, error: "We just sent it. Check spam or promotions, or try again in a few minutes." });
+    const last = booking.confirmationEmail?.at
+      ? new Date(booking.confirmationEmail.at).getTime()
+      : 0;
+    if (
+      booking.confirmationEmail?.status === "sent" &&
+      Date.now() - last < 10 * 60 * 1000
+    ) {
+      return res.status(429).json({
+        ok: false,
+        error:
+          "We just sent it. Check spam or promotions, or try again in a few minutes.",
+      });
     }
     const result = await sendConfirmationFor(booking);
     if (!result?.ok) {
-      return res.status(502).json({ ok: false, error: "The email didn't send. Try again shortly, or contact support." });
+      return res.status(502).json({
+        ok: false,
+        error: "The email didn't send. Try again shortly, or contact support.",
+      });
     }
     return res.json({ ok: true });
   } catch (err) {
@@ -1623,10 +1825,16 @@ router.put("/:id/group-hotel", async (req, res) => {
     const group = await SyncGroup.findById(req.params.id);
     if (!requireMember(group, userId, res)) return;
     if (!isOrganizer(group, userId)) {
-      return res.status(403).json({ ok: false, error: "Only the organizer can pick the group's hotel." });
+      return res.status(403).json({
+        ok: false,
+        error: "Only the organizer can pick the group's hotel.",
+      });
     }
     const h = req.body?.hotel;
-    if (h && !h.hotelId) return res.status(400).json({ ok: false, error: "Pick a hotel from the search results." });
+    if (h && !h.hotelId)
+      return res
+        .status(400)
+        .json({ ok: false, error: "Pick a hotel from the search results." });
     const str = (v, n = 300) => (v == null ? null : String(v).slice(0, n));
     const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
     group.groupHotel = h
@@ -1634,13 +1842,30 @@ router.put("/:id/group-hotel", async (req, res) => {
           hotelId: str(h.hotelId, 64),
           name: str(h.name, 200),
           address: str(h.address),
-          thumbnail: /^https:\/\//.test(String(h.thumbnail || "")) ? str(h.thumbnail, 600) : null,
+          thumbnail: /^https:\/\//.test(String(h.thumbnail || ""))
+            ? str(h.thumbnail, 600)
+            : null,
           stars: num(h.stars),
           rating: num(h.rating),
           setAt: new Date(),
         }
-      : { hotelId: null, name: null, address: null, thumbnail: null, stars: null, rating: null, setAt: null };
-    logActivity(group, "group_hotel", userId, h ? `Picked ${h.name || "a hotel"} for the group` : "Cleared the group's hotel");
+      : {
+          hotelId: null,
+          name: null,
+          address: null,
+          thumbnail: null,
+          stars: null,
+          rating: null,
+          setAt: null,
+        };
+    logActivity(
+      group,
+      "group_hotel",
+      userId,
+      h
+        ? `Picked ${h.name || "a hotel"} for the group`
+        : "Cleared the group's hotel"
+    );
     await group.save();
     if (h) {
       const others = group.members
@@ -1651,12 +1876,17 @@ router.put("/:id/group-hotel", async (req, res) => {
           user: u,
           type: "booking",
           title: "The group's hotel is picked 🏨",
-          message: `Everyone's staying at ${h.name || "the group's hotel"}. Book your room from the trip page.`,
+          message: `Everyone's staying at ${
+            h.name || "the group's hotel"
+          }. Book your room from the trip page.`,
           link: `/sync-together/${group._id}`,
         }))
       ).catch(() => {});
     }
-    return res.json({ ok: true, groupHotel: group.groupHotel?.hotelId ? group.groupHotel : null });
+    return res.json({
+      ok: true,
+      groupHotel: group.groupHotel?.hotelId ? group.groupHotel : null,
+    });
   } catch (err) {
     return sendSyncError(res, err, "Couldn't save the group's hotel");
   }
@@ -1671,14 +1901,25 @@ router.post("/:id/start-booking", async (req, res) => {
     const group = await SyncGroup.findById(req.params.id);
     if (!requireMember(group, userId, res)) return;
     if (!isOrganizer(group, userId)) {
-      return res.status(403).json({ ok: false, error: "Only the organizer can start booking." });
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can start booking." });
     }
     if (!group.destination) {
-      return res.status(400).json({ ok: false, error: "Set a destination first so everyone searches the same place." });
+      return res.status(400).json({
+        ok: false,
+        error: "Set a destination first so everyone searches the same place.",
+      });
     }
-    if (!["booked", "completed", "cancelled"].includes(group.status)) group.status = "confirmed";
+    if (!["booked", "completed", "cancelled"].includes(group.status))
+      group.status = "confirmed";
     group.bookingOpenedAt = group.bookingOpenedAt || new Date();
-    logActivity(group, "start_booking", userId, "Opened booking — everyone can book their own part");
+    logActivity(
+      group,
+      "start_booking",
+      userId,
+      "Opened booking — everyone can book their own part"
+    );
     await group.save();
     const populated = await fullPopulate(SyncGroup.findById(group._id)).lean();
     return res.json({ ok: true, group: populated });
@@ -1695,16 +1936,23 @@ router.post("/:id/rsvp", async (req, res) => {
   try {
     const userId = req.user?.id ?? req.user?._id;
     const group = await SyncGroup.findById(req.params.id);
-    if (!group) return res.status(404).json({ ok: false, error: "Group not found" });
-    const member = group.members.find((m) => m.user && String(m.user) === String(userId));
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+    const member = group.members.find(
+      (m) => m.user && String(m.user) === String(userId)
+    );
     if (!member) {
       return res.status(403).json({
         ok: false,
-        error: isOrganizer(group, userId) ? "You're the organizer — you're already going." : "Not a group member",
+        error: isOrganizer(group, userId)
+          ? "You're the organizer — you're already going."
+          : "Not a group member",
       });
     }
     if (typeof req.body?.going !== "boolean") {
-      return res.status(400).json({ ok: false, error: "Send going: true or false" });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Send going: true or false" });
     }
     const going = req.body.going;
     const next = going ? "accepted" : "declined";
@@ -1717,13 +1965,20 @@ router.post("/:id/rsvp", async (req, res) => {
         await releaseRoomsForUser(group._id, userId);
       }
       const who = member.name || "A traveler";
-      logActivity(group, going ? "rsvp_yes" : "rsvp_no", userId, going ? `${who} is going` : `${who} can't make it`);
+      logActivity(
+        group,
+        going ? "rsvp_yes" : "rsvp_no",
+        userId,
+        going ? `${who} is going` : `${who} can't make it`
+      );
       await group.save();
       Notification.create({
         user: group.owner,
         type: "booking",
         title: going ? "Someone's in 🎉" : "Someone can't make it",
-        message: `${who} ${going ? "is going on" : "can't make it to"} ${group.title || "your trip"}.`,
+        message: `${who} ${going ? "is going on" : "can't make it to"} ${
+          group.title || "your trip"
+        }.`,
         link: `/sync-together/${group._id}`,
       }).catch(() => {});
     }
@@ -1744,18 +1999,30 @@ router.patch("/:id/my-budget", async (req, res) => {
     if (!requireMember(group, userId, res)) return;
     const raw = req.body?.budget;
     const budget = raw === null || raw === "" ? null : Number(raw);
-    if (budget !== null && (!Number.isFinite(budget) || budget < 0 || budget > 1000000)) {
-      return res.status(400).json({ ok: false, error: "Enter a budget in dollars." });
+    if (
+      budget !== null &&
+      (!Number.isFinite(budget) || budget < 0 || budget > 1000000)
+    ) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Enter a budget in dollars." });
     }
     if (String(group.owner) === String(userId)) {
       group.ownerBudget = budget ? Math.round(budget) : null;
     } else {
-      const m = group.members.find((x) => x.user && String(x.user) === String(userId));
-      if (!m) return res.status(403).json({ ok: false, error: "Not a group member" });
+      const m = group.members.find(
+        (x) => x.user && String(x.user) === String(userId)
+      );
+      if (!m)
+        return res.status(403).json({ ok: false, error: "Not a group member" });
       m.budget = budget ? Math.round(budget) : null;
     }
     await group.save();
-    return res.json({ ok: true, myBudget: budget ? Math.round(budget) : null, budgetSummary: budgetSummaryFor(group) });
+    return res.json({
+      ok: true,
+      myBudget: budget ? Math.round(budget) : null,
+      budgetSummary: budgetSummaryFor(group),
+    });
   } catch (err) {
     return sendSyncError(res, err, "Couldn't save your budget");
   }
@@ -1769,24 +2036,40 @@ router.patch("/:id/arrival-window", async (req, res) => {
   try {
     const userId = req.user?.id ?? req.user?._id;
     const group = await SyncGroup.findById(req.params.id);
-    if (!group) return res.status(404).json({ ok: false, error: "Group not found" });
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
     if (!isOrganizer(group, userId)) {
-      return res.status(403).json({ ok: false, error: "Only the organizer can set the arrival window" });
+      return res.status(403).json({
+        ok: false,
+        error: "Only the organizer can set the arrival window",
+      });
     }
     const start = req.body?.start || null;
     const end = req.body?.end || null;
-    if ((start && !LOCAL_MINUTE.test(start)) || (end && !LOCAL_MINUTE.test(end))) {
-      return res.status(400).json({ ok: false, error: "Use a date and time for the window." });
+    if (
+      (start && !LOCAL_MINUTE.test(start)) ||
+      (end && !LOCAL_MINUTE.test(end))
+    ) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Use a date and time for the window." });
     }
     if (start && end && start > end) {
-      return res.status(400).json({ ok: false, error: "The window has to end after it starts." });
+      return res
+        .status(400)
+        .json({ ok: false, error: "The window has to end after it starts." });
     }
     group.arrivalWindow = {
       start,
       end,
       note: req.body?.note ? String(req.body.note).trim().slice(0, 200) : null,
     };
-    logActivity(group, "arrival_window", userId, start || end ? "Set the arrival window" : "Cleared the arrival window");
+    logActivity(
+      group,
+      "arrival_window",
+      userId,
+      start || end ? "Set the arrival window" : "Cleared the arrival window"
+    );
     await group.save();
     return res.json({ ok: true, arrivalWindow: group.arrivalWindow });
   } catch (err) {
@@ -1811,7 +2094,9 @@ router.post("/:id/shared-rooms", async (req, res) => {
       userIds: req.body?.userIds,
       holder: req.body?.holder,
     });
-    return res.status(201).json({ ok: true, sharedRoom: sharedRoomForClient(split, userId) });
+    return res
+      .status(201)
+      .json({ ok: true, sharedRoom: sharedRoomForClient(split, userId) });
   } catch (err) {
     return sendSyncError(res, err, "Couldn't set up the shared room");
   }
@@ -1825,7 +2110,11 @@ async function loadRoomForGroup(req, res) {
   }
   const group = await loadGroupForParts(req.params.id);
   if (!requireMember(group, userId, res)) return null;
-  const split = await SplitPayment.findOne({ _id: req.params.splitId, group: group._id, kind: "shared_room" });
+  const split = await SplitPayment.findOne({
+    _id: req.params.splitId,
+    group: group._id,
+    kind: "shared_room",
+  });
   if (!split) {
     res.status(404).json({ ok: false, error: "Shared room not found" });
     return null;
@@ -1835,30 +2124,47 @@ async function loadRoomForGroup(req, res) {
 
 /* POST /:id/shared-rooms/:splitId/shares/:shareId/hold
    Starts (or resumes) the card hold for YOUR share. Returns a clientSecret. */
-router.post("/:id/shared-rooms/:splitId/shares/:shareId/hold", async (req, res) => {
-  try {
-    const ctx = await loadRoomForGroup(req, res);
-    if (!ctx) return;
-    const out = await startShareHold({ splitId: ctx.split._id, shareId: req.params.shareId, userId: ctx.userId });
-    return res.json({ ok: true, ...out });
-  } catch (err) {
-    return sendSyncError(res, err, "Couldn't start your card hold");
+router.post(
+  "/:id/shared-rooms/:splitId/shares/:shareId/hold",
+  async (req, res) => {
+    try {
+      const ctx = await loadRoomForGroup(req, res);
+      if (!ctx) return;
+      const out = await startShareHold({
+        splitId: ctx.split._id,
+        shareId: req.params.shareId,
+        userId: ctx.userId,
+      });
+      return res.json({ ok: true, ...out });
+    } catch (err) {
+      return sendSyncError(res, err, "Couldn't start your card hold");
+    }
   }
-});
+);
 
 /* POST /:id/shared-rooms/:splitId/shares/:shareId/held
    Called right after the card is authorized; verified with Stripe. */
-router.post("/:id/shared-rooms/:splitId/shares/:shareId/held", async (req, res) => {
-  try {
-    const ctx = await loadRoomForGroup(req, res);
-    if (!ctx) return;
-    await confirmShareHold({ splitId: ctx.split._id, shareId: req.params.shareId, userId: ctx.userId });
-    const fresh = await SplitPayment.findById(ctx.split._id);
-    return res.json({ ok: true, sharedRoom: sharedRoomForClient(fresh, ctx.userId) });
-  } catch (err) {
-    return sendSyncError(res, err, "Couldn't confirm your card hold");
+router.post(
+  "/:id/shared-rooms/:splitId/shares/:shareId/held",
+  async (req, res) => {
+    try {
+      const ctx = await loadRoomForGroup(req, res);
+      if (!ctx) return;
+      await confirmShareHold({
+        splitId: ctx.split._id,
+        shareId: req.params.shareId,
+        userId: ctx.userId,
+      });
+      const fresh = await SplitPayment.findById(ctx.split._id);
+      return res.json({
+        ok: true,
+        sharedRoom: sharedRoomForClient(fresh, ctx.userId),
+      });
+    } catch (err) {
+      return sendSyncError(res, err, "Couldn't confirm your card hold");
+    }
   }
-});
+);
 
 /* POST /:id/shared-rooms/:splitId/release — organizer only.
    Lets every hold go; nobody is charged. */
@@ -1867,10 +2173,16 @@ router.post("/:id/shared-rooms/:splitId/release", async (req, res) => {
     const ctx = await loadRoomForGroup(req, res);
     if (!ctx) return;
     if (!isOrganizer(ctx.group, ctx.userId)) {
-      return res.status(403).json({ ok: false, error: "Only the organizer can release a shared room" });
+      return res.status(403).json({
+        ok: false,
+        error: "Only the organizer can release a shared room",
+      });
     }
     if (ctx.split.status !== "collecting") {
-      return res.status(409).json({ ok: false, error: "This room isn't collecting holds anymore." });
+      return res.status(409).json({
+        ok: false,
+        error: "This room isn't collecting holds anymore.",
+      });
     }
     await releaseSharedRoom(ctx.split._id, "released");
     return res.json({ ok: true });
@@ -1885,7 +2197,10 @@ router.get("/:id/shared-rooms/:splitId/cancel-quote", async (req, res) => {
     const ctx = await loadRoomForGroup(req, res);
     if (!ctx) return;
     if (!isOrganizer(ctx.group, ctx.userId)) {
-      return res.status(403).json({ ok: false, error: "Only the organizer can cancel a shared room" });
+      return res.status(403).json({
+        ok: false,
+        error: "Only the organizer can cancel a shared room",
+      });
     }
     const quote = await sharedRoomCancelQuote(ctx.split);
     return res.json({ ok: true, quote });
@@ -1902,7 +2217,10 @@ router.post("/:id/shared-rooms/:splitId/cancel", async (req, res) => {
     const ctx = await loadRoomForGroup(req, res);
     if (!ctx) return;
     if (!isOrganizer(ctx.group, ctx.userId)) {
-      return res.status(403).json({ ok: false, error: "Only the organizer can cancel a shared room" });
+      return res.status(403).json({
+        ok: false,
+        error: "Only the organizer can cancel a shared room",
+      });
     }
     const out = await cancelSharedRoom({
       split: ctx.split,
@@ -1912,6 +2230,272 @@ router.post("/:id/shared-rooms/:splitId/cancel", async (req, res) => {
     return res.json({ ok: true, ...out });
   } catch (err) {
     return sendSyncError(res, err, "Cancellation failed");
+  }
+});
+
+/* ══════════════════════════════════════════════
+   BOOKING PROGRESS + ADDING BOOKINGS TO A TRIP
+   A booking only counts toward a trip when it is linked to that trip
+   (booking.syncGroup, or flight.groupId set by group checkout). Nothing
+   is ever matched by destination or dates, so personal trips stay
+   private unless the traveler adds them on purpose.
+   ══════════════════════════════════════════════ */
+
+// Everyone going on the trip: the organizer plus every member who
+// hasn't declined. null = invited by email, no account yet (still a
+// traveler, just can't book until they sign up).
+function goingTravelerIds(group) {
+  const ids = [String(group.owner?._id || group.owner)];
+  for (const m of group.members || []) {
+    if (m.status === "declined") continue;
+    ids.push(m.user ? String(m.user._id || m.user) : null);
+  }
+  return ids;
+}
+
+// Mongo filter for bookings that belong to this trip.
+function linkedToGroup(groupId) {
+  return {
+    $or: [{ syncGroup: groupId }, { "flight.groupId": String(groupId) }],
+  };
+}
+
+// What the trip page needs for the stepper and the status badge.
+async function bookingProgressFor(group) {
+  const ids = goingTravelerIds(group);
+  const userIds = ids.filter(Boolean);
+  const bookings = await Booking.find({
+    user: { $in: userIds },
+    status: "confirmed",
+    ...linkedToGroup(group._id),
+  })
+    .select("user type")
+    .lean();
+
+  const withFlight = new Set();
+  const withStay = new Set();
+  for (const b of bookings) {
+    if (b.type === "Flight") withFlight.add(String(b.user));
+    if (b.type === "Hotel") withStay.add(String(b.user));
+  }
+  const bookedCount = userIds.filter(
+    (u) => withFlight.has(u) || withStay.has(u)
+  ).length;
+  const fullyBooked = userIds.filter(
+    (u) => withFlight.has(u) && withStay.has(u)
+  ).length;
+  const travelers = ids.length;
+
+  return {
+    travelers,
+    flightsBooked: withFlight.size,
+    staysBooked: withStay.size,
+    bookedCount, // travelers with at least one part booked
+    anyBooked: bookedCount > 0,
+    // Same rule as the trip panel: done = a flight AND a room.
+    allBooked: travelers > 0 && fullyBooked === travelers,
+  };
+}
+
+/* GET /api/sync-together/:id/progress */
+router.get("/:id/progress", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id).lean();
+    if (!requireMember(group, userId, res)) return;
+    return res.json({ ok: true, progress: await bookingProgressFor(group) });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't load booking progress");
+  }
+});
+
+/* GET /api/sync-together/:id/attachable-bookings
+   Only YOUR bookings. `available` = confirmed, upcoming, not on any trip.
+   `onThisTrip` = ones linked to this trip (so you can take one off). */
+router.get("/:id/attachable-bookings", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id).lean();
+    if (!requireMember(group, userId, res)) return;
+
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [available, onThisTrip] = await Promise.all([
+      Booking.find({
+        user: userId,
+        status: "confirmed",
+        type: { $in: ["Flight", "Hotel"] },
+        syncGroup: null,
+        sharedRoom: { $exists: false },
+        "flight.groupId": { $in: [null, ""] },
+        "dates.start": { $gte: yesterday },
+      })
+        .sort({ "dates.start": 1 })
+        .limit(20)
+        .lean(),
+      Booking.find({
+        user: userId,
+        status: "confirmed",
+        sharedRoom: { $exists: false },
+        ...linkedToGroup(group._id),
+      })
+        .sort({ "dates.start": 1 })
+        .lean(),
+    ]);
+
+    // "Matches your trip dates" hint only. Never used to link anything.
+    const DAY = 24 * 60 * 60 * 1000;
+    const tripStart = group.dateRangeStart
+      ? new Date(group.dateRangeStart).getTime() - 2 * DAY
+      : null;
+    const tripEnd = group.dateRangeEnd
+      ? new Date(group.dateRangeEnd).getTime() + 2 * DAY
+      : null;
+    const slim = (b) => {
+      const start = b.dates?.start ? new Date(b.dates.start).getTime() : null;
+      return {
+        id: String(b._id),
+        type: b.type,
+        tripDetails: b.tripDetails,
+        start: b.dates?.start || null,
+        end: b.dates?.end || null,
+        airline: b.flight?.airline || null,
+        confirmation: b.confirmationCodes?.[0] || null,
+        // Bookings linked by group checkout can't be taken off here.
+        removable: String(b.syncGroup || "") === String(group._id),
+        datesMatch: Boolean(
+          start &&
+            tripStart &&
+            tripEnd &&
+            start >= tripStart &&
+            start <= tripEnd
+        ),
+      };
+    };
+    const list = available
+      .map(slim)
+      .sort((a, b) => Number(b.datesMatch) - Number(a.datesMatch));
+    return res.json({
+      ok: true,
+      available: list,
+      onThisTrip: onThisTrip.map(slim),
+    });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't load your bookings");
+  }
+});
+
+/* POST /api/sync-together/:id/attach-booking  { bookingId }
+   Adds one of YOUR confirmed bookings to this trip. */
+router.post("/:id/attach-booking", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const me = group.members.find(
+      (m) => m.user && String(m.user) === String(userId)
+    );
+    if (me?.status === "declined") {
+      return res.status(400).json({
+        ok: false,
+        error: "You said you can't make it. Tap “I'm in” first.",
+      });
+    }
+
+    const { bookingId } = req.body || {};
+    const booking = validId(bookingId)
+      ? await Booking.findById(bookingId)
+      : null;
+    if (!booking || String(booking.user) !== String(userId)) {
+      return res.status(404).json({
+        ok: false,
+        error: "We couldn't find that booking on your account.",
+      });
+    }
+    if (booking.status !== "confirmed") {
+      return res.status(400).json({
+        ok: false,
+        error: "Only confirmed bookings can be added to a trip.",
+      });
+    }
+    if (!["Flight", "Hotel"].includes(booking.type) || booking.sharedRoom) {
+      return res.status(400).json({
+        ok: false,
+        error: "Only your own flight or room can be added.",
+      });
+    }
+    const linkedTo = booking.syncGroup || booking.flight?.groupId;
+    if (linkedTo && String(linkedTo) !== String(group._id)) {
+      return res.status(409).json({
+        ok: false,
+        error: "That booking is already on another group trip.",
+      });
+    }
+
+    if (!booking.syncGroup) {
+      booking.syncGroup = group._id;
+      await booking.save();
+      const what = booking.type === "Flight" ? "flight" : "room";
+      logActivity(
+        group,
+        "booked",
+        userId,
+        `added their ${what} to the trip (${String(
+          booking.tripDetails || ""
+        ).slice(0, 80)})`
+      );
+      await group.save();
+    }
+    return res.json({ ok: true, progress: await bookingProgressFor(group) });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't add that booking");
+  }
+});
+
+/* POST /api/sync-together/:id/detach-booking  { bookingId }
+   Takes one of YOUR bookings off this trip. The booking itself is not
+   cancelled; it just stops showing on the group's page. */
+router.post("/:id/detach-booking", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+
+    const { bookingId } = req.body || {};
+    const booking = validId(bookingId)
+      ? await Booking.findById(bookingId)
+      : null;
+    if (!booking || String(booking.user) !== String(userId)) {
+      return res.status(404).json({
+        ok: false,
+        error: "We couldn't find that booking on your account.",
+      });
+    }
+    if (String(booking.syncGroup || "") !== String(group._id)) {
+      return res.status(400).json({
+        ok: false,
+        error: "That booking isn't one you added to this trip.",
+      });
+    }
+    if (booking.sharedRoom) {
+      return res.status(400).json({
+        ok: false,
+        error: "Shared rooms are managed by the organizer on the trip page.",
+      });
+    }
+
+    booking.syncGroup = null;
+    await booking.save();
+    const what = booking.type === "Flight" ? "flight" : "room";
+    logActivity(
+      group,
+      "booking_removed",
+      userId,
+      `took their ${what} off the trip`
+    );
+    await group.save();
+    return res.json({ ok: true, progress: await bookingProgressFor(group) });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't take that booking off the trip");
   }
 });
 

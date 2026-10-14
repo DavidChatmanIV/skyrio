@@ -18,6 +18,7 @@ import {
 import SkyrioPicker from "./booking/SkyrioPicker";
 import GroupTripPanel from "./GroupTripPanel";
 import GroupShortlist from "./GroupShortlist";
+import AttachBookingCard from "./AttachBookingCard";
 import {
   ArrowLeftOutlined,
   SyncOutlined,
@@ -230,7 +231,8 @@ function formatNumbers(t) {
 // Atlas only suggests — it can't book anything. Older plans (and the odd
 // new one) sometimes claimed "Confirmed" or invented a confirmation
 // number, which reads like a real booking. Strip those out on display.
-const FAKE_CONFIRMATION = /confirmation\s*(#|no\.?|number|code)\s*[:\-]?\s*\**[A-Z0-9][A-Z0-9-]{3,}/i;
+const FAKE_CONFIRMATION =
+  /confirmation\s*(#|no\.?|number|code)\s*[:\-]?\s*\**[A-Z0-9][A-Z0-9-]{3,}/i;
 const BOOKED_CLAIM = /\b(confirmed|booked|locked in|reserved)\b/i;
 function sanitizePlan(text) {
   return String(text || "")
@@ -238,7 +240,8 @@ function sanitizePlan(text) {
     .filter((line) => !FAKE_CONFIRMATION.test(line))
     .map((line) => {
       const t = line.trim();
-      const isHeading = /^#{1,4}\s/.test(t) || /^\*\*[^*]+\*\*\s*:?\s*$/.test(t);
+      const isHeading =
+        /^#{1,4}\s/.test(t) || /^\*\*[^*]+\*\*\s*:?\s*$/.test(t);
       if (isHeading && BOOKED_CLAIM.test(t)) {
         // "### ✅ Accommodation Confirmed" → "### Suggested accommodation"
         const words = t
@@ -251,7 +254,10 @@ function sanitizePlan(text) {
       }
       // Sentences claiming the trip is booked become suggestions.
       return line
-        .replace(/(flights?|hotels?|rooms?|stay|accommodation|everything|it|they)( and [a-z ]+?)? (are|is) (now )?(locked in|booked|confirmed)/gi, "$1$2 $3 ready to book")
+        .replace(
+          /(flights?|hotels?|rooms?|stay|accommodation|everything|it|they)( and [a-z ]+?)? (are|is) (now )?(locked in|booked|confirmed)/gi,
+          "$1$2 $3 ready to book"
+        )
         .replace(/\byou'?re (all )?booked\b/gi, "you're ready to book");
     })
     .join("\n");
@@ -291,10 +297,15 @@ function AtlasPlanRenderer({ plan, onSearch }) {
   };
   const sectionSearch = (t) => {
     const l = String(t || "").toLowerCase();
-    if (l.includes("flight")) return { tab: "Flights", label: "Search these flights" };
+    if (l.includes("flight"))
+      return { tab: "Flights", label: "Search these flights" };
     if (l.includes("hotel") || l.includes("accommodat") || l.includes("stay"))
       return { tab: "Stays", label: "Search stays" };
-    if (l.includes("activit") || l.includes("excursion") || l.includes("things to do"))
+    if (
+      l.includes("activit") ||
+      l.includes("excursion") ||
+      l.includes("things to do")
+    )
       return { tab: "Excursions", label: "Find things to do" };
     return null;
   };
@@ -508,6 +519,9 @@ export default function SyncGroupPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const addDebounceRef = useRef(null);
   const addWrapperRef = useRef(null);
+  // NEW: who has actually booked (from bookings linked to this trip).
+  // Drives the stepper and status badge instead of group.status alone.
+  const [bookingProgress, setBookingProgress] = useState(null);
 
   useEffect(() => {
     const h = getHomeAirport();
@@ -517,6 +531,18 @@ export default function SyncGroupPage() {
     }
   }, []);
 
+  const fetchProgress = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/progress`, {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) setBookingProgress(data.progress);
+    } catch {
+      /* stepper falls back to the trip status */
+    }
+  };
+
   const fetchGroup = async () => {
     try {
       const res = await fetch(`${API_BASE}/sync-together/${id}`, {
@@ -525,6 +551,7 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (data.ok) {
         setGroup(data.group);
+        fetchProgress();
         setDestination(data.group.destination || "");
         if (data.group.departureAirport) {
           setDepartureAirport(data.group.departureAirport);
@@ -569,6 +596,7 @@ export default function SyncGroupPage() {
   const hasPlan = !!group?.plan;
   const isBooked = group?.status === "booked";
   const isPaymentPending = group?.status === "payment_pending";
+  const anyoneBooked = !!bookingProgress?.anyBooked;
   const openCRs =
     group?.changeRequests?.filter((cr) => cr.status === "open") || [];
   // People who said they can't make it don't count toward approvals.
@@ -589,7 +617,10 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (data.ok) {
         setGroup(data.group);
-        antdMessage.success(going ? "You're in!" : "Got it — we let the organizer know.");
+        fetchProgress();
+        antdMessage.success(
+          going ? "You're in!" : "Got it — we let the organizer know."
+        );
       } else antdMessage.error(data.error);
     } catch (err) {
       antdMessage.error("Couldn't save your answer");
@@ -650,7 +681,7 @@ export default function SyncGroupPage() {
   // What Atlas must always know: it suggests, people book. Plus who has
   // actually booked what, so it never guesses.
   const ATLAS_RULES =
-    "\n\nRULES:\n- You are SUGGESTING options. Nothing is booked until each traveler books it themselves in Skyrio (each person books their own flight and room).\n- Never say anything is booked, confirmed, reserved or locked in, and never invent confirmation numbers.\n- Show prices as estimates (\"about $X\").\n- Only describe real bookings from the BOOKED SO FAR list.";
+    '\n\nRULES:\n- You are SUGGESTING options. Nothing is booked until each traveler books it themselves in Skyrio (each person books their own flight and room).\n- Never say anything is booked, confirmed, reserved or locked in, and never invent confirmation numbers.\n- Show prices as estimates ("about $X").\n- Only describe real bookings from the BOOKED SO FAR list.';
   const fetchBookingContext = async () => {
     try {
       const res = await fetch(`${API_BASE}/sync-together/${id}/parts`, {
@@ -659,16 +690,23 @@ export default function SyncGroupPage() {
       const d = await res.json();
       if (!d.ok) return "";
       const lines = (d.travelers || []).map((t) => {
-        const f = t.flight && t.flight.status !== "cancelled" ? `flight booked (${t.flight.tripDetails})` : "no flight yet";
+        const f =
+          t.flight && t.flight.status !== "cancelled"
+            ? `flight booked (${t.flight.tripDetails})`
+            : "no flight yet";
         const st =
           t.stay?.kind === "shared"
-            ? `shared room ${t.stay.roomStatus === "booked" ? "booked" : "pending holds"}`
+            ? `shared room ${
+                t.stay.roomStatus === "booked" ? "booked" : "pending holds"
+              }`
             : t.stay && t.stay.status !== "cancelled"
             ? `room booked (${t.stay.tripDetails})`
             : "no room yet";
         return `- ${t.name}: ${f}; ${st}`;
       });
-      return lines.length ? `\n\nBOOKED SO FAR (real Skyrio bookings):\n${lines.join("\n")}` : "";
+      return lines.length
+        ? `\n\nBOOKED SO FAR (real Skyrio bookings):\n${lines.join("\n")}`
+        : "";
     } catch {
       return "";
     }
@@ -737,7 +775,9 @@ export default function SyncGroupPage() {
         : ""
     }${
       groupBudget
-        ? `\n- Budget: keep it to about $${groupBudget.toLocaleString("en-US")} per person or less (the most everyone in the group is comfortable with)`
+        ? `\n- Budget: keep it to about $${groupBudget.toLocaleString(
+            "en-US"
+          )} per person or less (the most everyone in the group is comfortable with)`
         : ""
     }\n- ${count} travelers${crCtx}${bookingCtx}\n\nSearch different airports if they differ. Use commas in prices. Use ### headers.\n\n1. Real ${cabin} flights — prefer ${time}\n2. Best options with prices\n3. Accommodation\n4. Day-by-day itinerary\n5. Budget breakdown\n6. Weather\n7. Group tips${ATLAS_RULES}`;
     try {
@@ -781,7 +821,10 @@ export default function SyncGroupPage() {
       {
         role: "user",
         content:
-          ask + "\n\nFormat prices with commas. Use ### headers." + bookingCtx + ATLAS_RULES,
+          ask +
+          "\n\nFormat prices with commas. Use ### headers." +
+          bookingCtx +
+          ATLAS_RULES,
       },
     ];
     try {
@@ -890,15 +933,19 @@ export default function SyncGroupPage() {
   // airport already filled in.
   const searchLink = (tab) => {
     const params = new URLSearchParams({ groupId: group._id, tab, auto: "1" });
-    if (tab === "Flights" && group.cabinClass) params.set("cabin", group.cabinClass);
-    if (tab === "Stays" && group.groupHotel?.hotelId) params.set("hotelId", group.groupHotel.hotelId);
+    if (tab === "Flights" && group.cabinClass)
+      params.set("cabin", group.cabinClass);
+    if (tab === "Stays" && group.groupHotel?.hotelId)
+      params.set("hotelId", group.groupHotel.hotelId);
     const myAirport =
       (isOwner ? group.departureAirport : myMember?.departureAirport) ||
       group.departureAirport;
     if (tab === "Flights" && myAirport) params.set("from", myAirport);
     if (group.destination) params.set("to", group.destination);
-    if (group.dateRangeStart) params.set("depart", dayjs(group.dateRangeStart).format("YYYY-MM-DD"));
-    if (group.dateRangeEnd) params.set("return", dayjs(group.dateRangeEnd).format("YYYY-MM-DD"));
+    if (group.dateRangeStart)
+      params.set("depart", dayjs(group.dateRangeStart).format("YYYY-MM-DD"));
+    if (group.dateRangeEnd)
+      params.set("return", dayjs(group.dateRangeEnd).format("YYYY-MM-DD"));
     return `/booking?${params.toString()}`;
   };
   const openSearch = (tab) => navigate(searchLink(tab));
@@ -915,7 +962,9 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (data.ok) {
         setGroup(data.group);
-        antdMessage.success("Booking is open — everyone can book their own part.");
+        antdMessage.success(
+          "Booking is open — everyone can book their own part."
+        );
       } else antdMessage.error(data.error);
     } catch {
       antdMessage.error("Couldn't start booking");
@@ -1027,6 +1076,7 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (data.ok) {
         setGroup(data.group);
+        fetchProgress();
         antdMessage.success(
           `${user.name || user.username || user.email} added`
         );
@@ -1059,6 +1109,7 @@ export default function SyncGroupPage() {
         navigate("/sync-together");
       } else if (data.ok) {
         setGroup(data.group);
+        fetchProgress();
         antdMessage.success(`${name} removed`);
       } else antdMessage.error(data.error);
     } catch (err) {
@@ -1107,7 +1158,9 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (data.ok) {
         setChatMessages((p) =>
-          p.some((m) => String(m._id) === String(data.message?._id)) ? p : [...p, data.message]
+          p.some((m) => String(m._id) === String(data.message?._id))
+            ? p
+            : [...p, data.message]
         );
         setChatInput("");
         setTimeout(() => scrollChatToEnd(true), 100);
@@ -1130,8 +1183,16 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Couldn't save your budget");
       setBudget(data.myBudget);
-      setGroup((g) => (g ? { ...g, myBudget: data.myBudget, budgetSummary: data.budgetSummary } : g));
-      antdMessage.success(data.myBudget ? "Budget saved — only you can see it." : "Budget cleared.");
+      setGroup((g) =>
+        g
+          ? { ...g, myBudget: data.myBudget, budgetSummary: data.budgetSummary }
+          : g
+      );
+      antdMessage.success(
+        data.myBudget
+          ? "Budget saved — only you can see it."
+          : "Budget cleared."
+      );
     } catch (err) {
       antdMessage.error(err.message || "Couldn't save your budget");
     } finally {
@@ -1147,7 +1208,8 @@ export default function SyncGroupPage() {
     const box = chatBoxRef.current;
     if (!box) return;
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-    if (force || nearBottom) box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
+    if (force || nearBottom)
+      box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
   };
   const lastChatAtRef = useRef(null);
   useEffect(() => {
@@ -1164,7 +1226,9 @@ export default function SyncGroupPage() {
       try {
         const after = lastChatAtRef.current;
         const res = await fetch(
-          `${API_BASE}/sync-together/${id}/chat${after ? `?after=${encodeURIComponent(after)}` : ""}`,
+          `${API_BASE}/sync-together/${id}/chat${
+            after ? `?after=${encodeURIComponent(after)}` : ""
+          }`,
           { headers: authHeaders() }
         );
         const data = await res.json();
@@ -1222,7 +1286,7 @@ export default function SyncGroupPage() {
       </section>
     );
 
-  const sc = {
+  let sc = {
     draft: { l: "Draft", c: "rgba(255,255,255,0.45)" },
     inviting: { l: "Invitations Sent", c: "#ff8a2a" },
     planning: { l: "Planning", c: "#ff8a2a" },
@@ -1232,6 +1296,13 @@ export default function SyncGroupPage() {
     booked: { l: "Booked", c: "#52c41a" },
     cancelled: { l: "Cancelled", c: "#ff4d4f" },
   }[group.status] || { l: "Draft", c: "rgba(255,255,255,0.45)" };
+  // NEW: real bookings override the planning status in the badge.
+  if (bookingProgress?.allBooked) sc = { l: "Everyone's booked", c: "#52c41a" };
+  else if (bookingProgress?.anyBooked)
+    sc = {
+      l: `${bookingProgress.bookedCount} of ${bookingProgress.travelers} booked`,
+      c: "#ff8a2a",
+    };
 
   return (
     <section className="sk-sync-section">
@@ -1244,7 +1315,11 @@ export default function SyncGroupPage() {
         Back to Sync Together
       </Button>
 
-      {/* ═══ PROGRESS STEPPER ═══ */}
+      {/* ═══ PROGRESS STEPPER ═══
+          Planning steps follow group.status. Once anyone has a booking
+          linked to this trip, the Booked step is current and shows how
+          many travelers have booked; it completes when everyone has a
+          flight and a room. */}
       {(() => {
         const steps = [
           { k: "inviting", l: "Invite" },
@@ -1263,7 +1338,16 @@ export default function SyncGroupPage() {
           "booked",
           "completed",
         ];
-        const ci = order.indexOf(group.status);
+        const prog = bookingProgress;
+        const allBooked =
+          !!prog?.allBooked || ["booked", "completed"].includes(group.status);
+        // Once anyone has booked, the trip is in the Booked step.
+        const effective = allBooked
+          ? "completed"
+          : prog?.anyBooked
+          ? "booked"
+          : group.status;
+        const ci = order.indexOf(effective);
         return (
           <div
             style={{
@@ -1276,7 +1360,7 @@ export default function SyncGroupPage() {
             {steps.map((s, i) => {
               const si = order.indexOf(s.k);
               const active = ci >= si;
-              const curr = group.status === s.k;
+              const curr = !allBooked && effective === s.k;
               return (
                 <div
                   key={s.k}
@@ -1289,6 +1373,7 @@ export default function SyncGroupPage() {
                 >
                   <div style={{ textAlign: "center", flex: 1 }}>
                     <div
+                      aria-current={curr ? "step" : undefined}
                       style={{
                         width: 30,
                         height: 30,
@@ -1309,7 +1394,7 @@ export default function SyncGroupPage() {
                         transition: "all 0.3s",
                       }}
                     >
-                      {active ? "✓" : i + 1}
+                      {active && !curr ? "✓" : i + 1}
                     </div>
                     <div
                       style={{
@@ -1322,7 +1407,9 @@ export default function SyncGroupPage() {
                           : "rgba(255,255,255,0.2)",
                       }}
                     >
-                      {s.l}
+                      {s.k === "booked" && prog?.anyBooked && !allBooked
+                        ? `Booked ${prog.bookedCount}/${prog.travelers}`
+                        : s.l}
                     </div>
                   </div>
                   {i < 4 && (
@@ -1359,7 +1446,9 @@ export default function SyncGroupPage() {
             <div style={{ minWidth: 0 }}>
               <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>
                 {myRsvp === "pending"
-                  ? `${group.owner?.name || "The organizer"} invited you. Are you coming?`
+                  ? `${
+                      group.owner?.name || "The organizer"
+                    } invited you. Are you coming?`
                   : "You said you can't make it."}
               </div>
               <div
@@ -1505,7 +1594,7 @@ export default function SyncGroupPage() {
             >
               {copied ? "Copied!" : "Share"}
             </Button>
-            {isOwner && !isBooked && (
+            {isOwner && !isBooked && !anyoneBooked && (
               <Button
                 icon={<Trash2 size={14} />}
                 onClick={() => setShowDeleteConfirm(true)}
@@ -1688,29 +1777,30 @@ export default function SyncGroupPage() {
                       (m.user &&
                         String(m.user._id || m.user) ===
                           String(currentUserId))) && (
-                    <button
-                      title={isOwner ? "Remove from trip" : "Leave this trip"}
-                      onClick={() =>
-                        removeMember(m._id, m.user?.name || m.name || m.email)
-                      }
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 4,
-                        color: "rgba(255,255,255,0.15)",
-                        display: "flex",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "#ff4d4f")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "rgba(255,255,255,0.15)")
-                      }
-                    >
-                      <CloseCircleOutlined style={{ fontSize: 14 }} />
-                    </button>
-                  )}
+                      <button
+                        title={isOwner ? "Remove from trip" : "Leave this trip"}
+                        onClick={() =>
+                          removeMember(m._id, m.user?.name || m.name || m.email)
+                        }
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 4,
+                          color: "rgba(255,255,255,0.15)",
+                          display: "flex",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.color = "#ff4d4f")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.color =
+                            "rgba(255,255,255,0.15)")
+                        }
+                      >
+                        <CloseCircleOutlined style={{ fontSize: 14 }} />
+                      </button>
+                    )}
                 </div>
                 {isMyRow && !isBooked && (
                   <div style={{ marginLeft: 48 }}>
@@ -2255,8 +2345,15 @@ export default function SyncGroupPage() {
                 marginBottom: 4,
               }}
             >
-              <DollarSign size={13} style={{ color: "#ff8a2a" }} /> Your budget per person
-              <span style={{ color: "rgba(255,255,255,0.35)", fontWeight: 400, fontSize: 12 }}>
+              <DollarSign size={13} style={{ color: "#ff8a2a" }} /> Your budget
+              per person
+              <span
+                style={{
+                  color: "rgba(255,255,255,0.35)",
+                  fontWeight: 400,
+                  fontSize: 12,
+                }}
+              >
                 · only you see this
               </span>
             </label>
@@ -2270,7 +2367,9 @@ export default function SyncGroupPage() {
                 prefix="$"
                 min={0}
                 step={50}
-                formatter={(v) => (v ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "")}
+                formatter={(v) =>
+                  v ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ""
+                }
                 parser={(v) => (v ? v.replace(/[^\d]/g, "") : "")}
                 style={{ flex: "1 1 160px", maxWidth: 220 }}
               />
@@ -2282,16 +2381,29 @@ export default function SyncGroupPage() {
                 Save
               </Button>
               {group.myBudget && (
-                <Button type="text" onClick={() => saveMyBudget(null)} style={{ color: "rgba(255,255,255,0.4)" }}>
+                <Button
+                  type="text"
+                  onClick={() => saveMyBudget(null)}
+                  style={{ color: "rgba(255,255,255,0.4)" }}
+                >
                   Clear
                 </Button>
               )}
             </div>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12.5, margin: "6px 0 0", lineHeight: 1.5 }}>
+            <p
+              style={{
+                color: "rgba(255,255,255,0.4)",
+                fontSize: 12.5,
+                margin: "6px 0 0",
+                lineHeight: 1.5,
+              }}
+            >
               {group.budgetSummary?.comfortable
                 ? `Everyone who set a budget is comfortable up to about $${Number(
                     group.budgetSummary.comfortable
-                  ).toLocaleString("en-US")} per person (${group.budgetSummary.set} of ${
+                  ).toLocaleString("en-US")} per person (${
+                    group.budgetSummary.set
+                  } of ${
                     group.budgetSummary.travelers
                   } set one). Nobody sees anyone else's number — Atlas plans to this.`
                 : "Nobody sees anyone else's number. The group only sees what everyone's comfortable with, and Atlas plans to it."}
@@ -2440,26 +2552,53 @@ export default function SyncGroupPage() {
                     margin: "2px 0 12px",
                   }}
                 >
-                  Results open with your trip's destination and dates. Tap “Suggest to group” on anything you like — it lands in the
+                  Results open with your trip's destination and dates. Tap
+                  “Suggest to group” on anything you like — it lands in the
                   shortlist below for everyone to vote on.
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <Button icon={<Plane size={14} />} onClick={() => openSearch("Flights")}>
+                  <Button
+                    icon={<Plane size={14} />}
+                    onClick={() => openSearch("Flights")}
+                  >
                     Flights
                   </Button>
-                  <Button icon={<Hotel size={14} />} onClick={() => openSearch("Stays")}>
+                  <Button
+                    icon={<Hotel size={14} />}
+                    onClick={() => openSearch("Stays")}
+                  >
                     Stays
                   </Button>
-                  <Button icon={<Compass size={14} />} onClick={() => openSearch("Excursions")}>
+                  <Button
+                    icon={<Compass size={14} />}
+                    onClick={() => openSearch("Excursions")}
+                  >
                     Things to do
                   </Button>
                 </div>
                 {isOwner && !group.bookingOpenedAt && (
-                  <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12 }}>
-                    <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13, marginBottom: 8 }}>
-                      Already know the plan? Skip Atlas and approvals and let everyone book their own part now.
+                  <div
+                    style={{
+                      marginTop: 14,
+                      borderTop: "1px solid rgba(255,255,255,0.06)",
+                      paddingTop: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        color: "rgba(255,255,255,0.55)",
+                        fontSize: 13,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Already know the plan? Skip Atlas and approvals and let
+                      everyone book their own part now.
                     </div>
-                    <Button className="sk-sync-cta-btn" loading={startingBooking} onClick={startBooking}>
+                    <Button
+                      className="sk-sync-cta-btn"
+                      loading={startingBooking}
+                      onClick={startBooking}
+                    >
                       Start booking now
                     </Button>
                   </div>
@@ -2519,15 +2658,27 @@ export default function SyncGroupPage() {
                   lineHeight: 1.5,
                 }}
               >
-                <Info size={15} style={{ flexShrink: 0, marginTop: 2, color: "#69b1ff" }} />
+                <Info
+                  size={15}
+                  style={{ flexShrink: 0, marginTop: 2, color: "#69b1ff" }}
+                />
                 <span>
-                  These are Atlas's suggestions — nothing is booked until each person books their own part. Prices can change; you'll see the real price before you pay.
+                  These are Atlas's suggestions — nothing is booked until each
+                  person books their own part. Prices can change; you'll see the
+                  real price before you pay.
                 </span>
               </div>
               <AtlasPlanRenderer plan={atlasPlan} onSearch={openSearch} />
             </div>
             {!isBooked && isMember && (
-              <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  marginTop: 14,
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
                 {[
                   "Find cheaper options",
                   "Nonstop flights only",
@@ -2831,22 +2982,30 @@ export default function SyncGroupPage() {
 
       {/* ═══ BOOKING — plan together, pay separately ═══
           Each traveler books their own seat and room (or holds their share
-          of a shared room) and cancels their own part from My Trips. */}
+          of a shared room) and cancels their own part from My Trips.
+          Also shows as soon as anyone has a booking on this trip, even if
+          the plan/approval steps were skipped. */}
       {isMember &&
         myRsvp !== "declined" &&
-        (allApproved ||
+        (anyoneBooked ||
+          allApproved ||
           isBooked ||
           group.status === "confirmed" ||
           group.bookingOpenedAt) && (
-        <GroupTripPanel
-          groupId={group._id}
-          myAirport={
-            (isOwner ? group.departureAirport : myMember?.departureAirport) ||
-            group.departureAirport ||
-            undefined
-          }
-          onChanged={fetchGroup}
-        />
+          <GroupTripPanel
+            groupId={group._id}
+            myAirport={
+              (isOwner ? group.departureAirport : myMember?.departureAirport) ||
+              group.departureAirport ||
+              undefined
+            }
+            onChanged={fetchGroup}
+          />
+        )}
+
+      {/* ═══ YOUR BOOKINGS — add one you made outside the trip ═══ */}
+      {isMember && myRsvp !== "declined" && (
+        <AttachBookingCard groupId={group._id} onChanged={fetchGroup} />
       )}
 
       {/* ═══ WEATHER ═══ */}
