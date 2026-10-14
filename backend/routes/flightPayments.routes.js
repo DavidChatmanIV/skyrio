@@ -1,3 +1,10 @@
+// backend/routes/flightPayments.routes.js
+// Mounted in routes/api/index.js:  await mount("/flight-payments", "../flightPayments.routes.js");
+// => POST /api/flight-payments/prebook
+//    POST /api/flight-payments/:sessionId/services
+//    POST /api/flight-payments/:sessionId/book
+//    GET  /api/flight-payments/:sessionId
+//
 // Payment runs through LiteAPI's payment SDK (usePaymentSdk: true) — no Nuitee approval needed.
 // Env: LITEAPI_ENV ("sandbox" | "production") picks LITEAPI_SANDBOX_KEY or
 //      LITEAPI_PRODUCTION_KEY, same as every other LiteAPI file. LITEAPI_KEY is
@@ -10,6 +17,32 @@ import FlightCheckoutSession from "../models/FlightCheckoutSession.js";
 
 const router = Router();
 router.use(requireAuth);
+
+// ── Payment config ── GET /api/flight-payments/config
+// The flight payment form needs LiteAPI's Stripe PUBLISHABLE key (pk_…, safe
+// to share with browsers). Serving it from here means the live site never
+// depends on Vercel build-time variables. Must stay ABOVE "/:sessionId".
+// Env (Render): LITEAPI_SANDBOX_STRIPE_PK / LITEAPI_PRODUCTION_STRIPE_PK,
+//               picked by LITEAPI_ENV (LITEAPI_STRIPE_PK = fallback).
+router.get("/config", (_req, res) => {
+  const env = String(process.env.LITEAPI_ENV || "sandbox").toLowerCase();
+  const raw =
+    (env === "production"
+      ? process.env.LITEAPI_PRODUCTION_STRIPE_PK
+      : process.env.LITEAPI_SANDBOX_STRIPE_PK) || process.env.LITEAPI_STRIPE_PK;
+  const stripePk = String(raw || "")
+    .trim()
+    .replace(/^["']|["']$/g, "");
+  if (!/^pk_(test|live)_/.test(stripePk)) {
+    console.error(
+      "[flight-payments/config] no valid LiteAPI Stripe publishable key for",
+      env
+    );
+    return res.json({ stripePk: null, env });
+  }
+  res.set("Cache-Control", "no-store");
+  res.json({ stripePk, env });
+});
 
 const BASE =
   process.env.LITEAPI_FLIGHTS_BASE || "https://api.liteapi.travel/v3.0";

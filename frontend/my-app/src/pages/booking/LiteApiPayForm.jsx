@@ -1,5 +1,3 @@
-// src/pages/booking/LiteApiPayForm.jsx
-//
 // Flight payment step. The prebook's secretKey belongs to a PaymentIntent on
 // LiteAPI's Stripe account, so it must be rendered with a key from THAT
 // account — Skyrio's own publishable key can't load it.
@@ -7,6 +5,9 @@
 // Strategy (automatic, in order):
 //   1. VITE_LITEAPI_STRIPE_PK is set  → mount Stripe's card form directly
 //      with that key (most reliable once you have the key).
+//   1b. Otherwise ask the backend (GET /api/flight-payments/config) for the
+//      key. This is what makes the live site work without any Vercel
+//      variable: the key comes from Render at runtime.
 //   2. Otherwise → try LiteAPI's payment SDK.
 //   3. If the SDK renders nothing within 12s → look up the publishable key
 //      the SDK itself requested from Stripe, and mount Stripe's card form
@@ -90,6 +91,24 @@ function findPublishableKeyFromNetwork(secret) {
   } catch {
     return null;
   }
+}
+
+// Strips spaces/quotes a dashboard paste can add ("pk_…" or pk_… ).
+const cleanKey = (k) =>
+  String(k || "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim() || null;
+
+const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
+async function fetchPaymentConfig() {
+  const token = localStorage.getItem("token");
+  const res = await fetch(`${API_BASE}/flight-payments/config`, {
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`config ${res.status}`);
+  return res.json();
 }
 
 const fullName = (p) =>
@@ -250,11 +269,11 @@ export default function LiteApiPayForm({
   const [error, setError] = useState("");
   const [loadingSdk, setLoadingSdk] = useState(false);
   // "sdk" = LiteAPI's form; "direct" = Stripe's form with LiteAPI's key
-  const envKeyRaw = import.meta.env.VITE_LITEAPI_STRIPE_PK || null;
-  // Only use the configured key if it belongs to this payment's account.
+  const envKeyRaw = cleanKey(import.meta.env.VITE_LITEAPI_STRIPE_PK);
+  // Only use a key if it belongs to this payment's Stripe account.
   const frag = accountFragment(clientSecret);
-  const envKey =
-    envKeyRaw && (!frag || envKeyRaw.includes(frag)) ? envKeyRaw : null;
+  const keyFits = (k) => Boolean(k && (!frag || k.includes(frag)));
+  const envKey = keyFits(envKeyRaw) ? envKeyRaw : null;
   if (envKeyRaw && !envKey) {
     console.error(
       "[pay] VITE_LITEAPI_STRIPE_PK is from a different Stripe account than this payment",
@@ -263,7 +282,8 @@ export default function LiteApiPayForm({
       }
     );
   }
-  const [mode, setMode] = useState(envKey ? "direct" : "sdk");
+  // "resolving" = asking the backend for the key before choosing a form
+  const [mode, setMode] = useState(envKey ? "direct" : "resolving");
   const [directKey, setDirectKey] = useState(envKey);
   const targetRef = useRef(null);
   const lead = passengers?.[0] || {};
@@ -353,6 +373,40 @@ export default function LiteApiPayForm({
       );
     }
   }, [agreed, clientSecret, prebookId, transactionId]);
+
+  // No key in the build → get it from the backend (Render env).
+  useEffect(() => {
+    if (mode !== "resolving" || !clientSecret) return;
+    let cancelled = false;
+    fetchPaymentConfig()
+      .then(({ stripePk }) => {
+        if (cancelled) return;
+        const key = cleanKey(stripePk);
+        if (keyFits(key)) {
+          console.info("[pay] using payment key from server");
+          setDirectKey(key);
+          setMode("direct");
+        } else {
+          if (key) {
+            console.error(
+              "[pay] server key is from a different Stripe account than this payment",
+              {
+                paymentAccount: frag,
+              }
+            );
+          }
+          setMode("sdk");
+        }
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.warn("[pay] couldn't get payment key from server:", e?.message);
+        setMode("sdk");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, clientSecret]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // LiteAPI SDK path, with automatic fallback to direct Stripe.
   useEffect(() => {
@@ -531,7 +585,7 @@ export default function LiteApiPayForm({
           </div>
         )}
 
-        {agreed && mode === "sdk" && loadingSdk && (
+        {agreed && ((mode === "sdk" && loadingSdk) || mode === "resolving") && (
           <div
             style={{
               textAlign: "center",
