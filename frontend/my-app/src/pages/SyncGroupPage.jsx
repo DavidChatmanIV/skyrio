@@ -630,6 +630,15 @@ export default function SyncGroupPage() {
   };
   const allApproved = totalMembers > 0 && approvedCount === totalMembers;
   const myApproval = myMember?.approved || false;
+  // The booking panel (Your part · Shared rooms · The group).
+  const showTripPanel =
+    isMember &&
+    myRsvp !== "declined" &&
+    (anyoneBooked ||
+      allApproved ||
+      isBooked ||
+      group?.status === "confirmed" ||
+      group?.bookingOpenedAt);
 
   /* ── Actions ── */
   const shareGroup = async () => {
@@ -2985,26 +2994,22 @@ export default function SyncGroupPage() {
           of a shared room) and cancels their own part from My Trips.
           Also shows as soon as anyone has a booking on this trip, even if
           the plan/approval steps were skipped. */}
-      {isMember &&
-        myRsvp !== "declined" &&
-        (anyoneBooked ||
-          allApproved ||
-          isBooked ||
-          group.status === "confirmed" ||
-          group.bookingOpenedAt) && (
-          <GroupTripPanel
-            groupId={group._id}
-            myAirport={
-              (isOwner ? group.departureAirport : myMember?.departureAirport) ||
-              group.departureAirport ||
-              undefined
-            }
-            onChanged={fetchGroup}
-          />
-        )}
+      {showTripPanel && (
+        <GroupTripPanel
+          groupId={group._id}
+          myAirport={
+            (isOwner ? group.departureAirport : myMember?.departureAirport) ||
+            group.departureAirport ||
+            undefined
+          }
+          onChanged={fetchGroup}
+        />
+      )}
 
-      {/* ═══ YOUR BOOKINGS — add one you made outside the trip ═══ */}
-      {isMember && myRsvp !== "declined" && (
+      {/* ═══ ALREADY BOOKED? — link one you made outside the trip ═══
+          Once the trip panel is showing, this lives inside "Your part"
+          there instead, so it only appears here before booking opens. */}
+      {isMember && myRsvp !== "declined" && !showTripPanel && (
         <AttachBookingCard groupId={group._id} onChanged={fetchGroup} />
       )}
 

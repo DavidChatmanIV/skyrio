@@ -1,4 +1,3 @@
-// src/pages/GroupTripPanel.jsx
 // ─────────────────────────────────────────────────────────────
 // Sync Together — "plan together, pay separately".
 //
@@ -17,11 +16,31 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Modal, Spin, message as antdMessage } from "antd";
-import { CheckCircleFilled, ClockCircleOutlined, LoadingOutlined } from "@ant-design/icons";
-import { Plane, BedDouble, Users, Bell, Info, Lock, PlaneLanding, Mail, PartyPopper } from "lucide-react";
+import {
+  CheckCircleFilled,
+  ClockCircleOutlined,
+  LoadingOutlined,
+} from "@ant-design/icons";
+import {
+  Plane,
+  BedDouble,
+  Users,
+  Bell,
+  Info,
+  Lock,
+  PlaneLanding,
+  Mail,
+  PartyPopper,
+} from "lucide-react";
 import dayjs from "dayjs";
+import AttachBookingCard, { fmtRange } from "./AttachBookingCard";
 import { loadStripe } from "@stripe/stripe-js";
-import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 // Same Stripe key the hotel checkout uses (Skyrio is the merchant for rooms).
@@ -43,15 +62,18 @@ async function api(path, { method = "GET", body } = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.ok === false) {
-    throw new Error(data.error || data.message || "Something went wrong. Please try again.");
+    throw new Error(
+      data.error || data.message || "Something went wrong. Please try again."
+    );
   }
   return data;
 }
 
 const money = (cents, currency = "USD") =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: String(currency).toUpperCase() }).format(
-    (Number(cents) || 0) / 100
-  );
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: String(currency).toUpperCase(),
+  }).format((Number(cents) || 0) / 100);
 
 function timeLeft(deadline) {
   const ms = new Date(deadline).getTime() - Date.now();
@@ -72,7 +94,15 @@ const card = {
   padding: "20px 18px",
   backdropFilter: "blur(8px)",
 };
-const title = { display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 14 };
+const title = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  fontSize: 15,
+  fontWeight: 700,
+  color: "#fff",
+  marginBottom: 14,
+};
 const muted = { color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 1.5 };
 const row = {
   display: "flex",
@@ -130,10 +160,12 @@ const ROOM_LABEL = {
   cancelled: ["off", "Cancelled"],
 };
 const CLOSED_REASON = {
-  price_changed: "The hotel raised the price before everyone was in, so every hold was released.",
+  price_changed:
+    "The hotel raised the price before everyone was in, so every hold was released.",
   sold_out: "The hotel no longer had this room, so every hold was released.",
   failed: "The hotel couldn't confirm the room, so every hold was released.",
-  member_left: "Someone sharing the room left the trip, so every hold was released.",
+  member_left:
+    "Someone sharing the room left the trip, so every hold was released.",
   expired: "Not everyone held their share in time, so every hold was released.",
   released: "The organizer released the room. Nobody was charged.",
 };
@@ -150,18 +182,30 @@ function HoldShareForm({ groupId, room, share, onDone }) {
     setBusy(true);
     setError(null);
     try {
-      const start = await api(`/${groupId}/shared-rooms/${room.id}/shares/${share.id}/hold`, { method: "POST" });
+      const start = await api(
+        `/${groupId}/shared-rooms/${room.id}/shares/${share.id}/hold`,
+        { method: "POST" }
+      );
       if (!start.alreadyHeld) {
-        const { error: err, paymentIntent } = await stripe.confirmCardPayment(start.clientSecret, {
-          payment_method: { card: elements.getElement(CardElement) },
-        });
+        const { error: err, paymentIntent } = await stripe.confirmCardPayment(
+          start.clientSecret,
+          {
+            payment_method: { card: elements.getElement(CardElement) },
+          }
+        );
         if (err) throw new Error(err.message || "Your card was declined.");
         if (paymentIntent?.status !== "requires_capture") {
-          throw new Error("Your card wasn't authorized. Please try another card.");
+          throw new Error(
+            "Your card wasn't authorized. Please try another card."
+          );
         }
       }
-      await api(`/${groupId}/shared-rooms/${room.id}/shares/${share.id}/held`, { method: "POST" });
-      antdMessage.success("Your share is held. You'll be charged only when everyone is in.");
+      await api(`/${groupId}/shared-rooms/${room.id}/shares/${share.id}/held`, {
+        method: "POST",
+      });
+      antdMessage.success(
+        "Your share is held. You'll be charged only when everyone is in."
+      );
       onDone?.();
     } catch (e) {
       setError(e.message);
@@ -183,14 +227,21 @@ function HoldShareForm({ groupId, room, share, onDone }) {
         <CardElement
           options={{
             style: {
-              base: { color: "#fff", fontSize: "15px", "::placeholder": { color: "rgba(255,255,255,0.35)" } },
+              base: {
+                color: "#fff",
+                fontSize: "15px",
+                "::placeholder": { color: "rgba(255,255,255,0.35)" },
+              },
               invalid: { color: "#ff6b6b" },
             },
           }}
         />
       </div>
       {error && (
-        <div role="alert" style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}>
+        <div
+          role="alert"
+          style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}
+        >
           {error}
         </div>
       )}
@@ -202,10 +253,15 @@ function HoldShareForm({ groupId, room, share, onDone }) {
         icon={busy ? <LoadingOutlined /> : <Lock size={14} />}
         onClick={hold}
       >
-        {busy ? "Holding…" : `Hold ${money(share.amountOwed, room.currency)} on my card`}
+        {busy
+          ? "Holding…"
+          : `Hold ${money(share.amountOwed, room.currency)} on my card`}
       </Button>
-      <div style={{ ...muted, fontSize: 12, marginTop: 8, textAlign: "center" }}>
-        Held, not charged. If not everyone is in by the deadline, the hold is released.
+      <div
+        style={{ ...muted, fontSize: 12, marginTop: 8, textAlign: "center" }}
+      >
+        Held, not charged. If not everyone is in by the deadline, the hold is
+        released.
       </div>
     </div>
   );
@@ -219,19 +275,27 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
   const [quoteOpen, setQuoteOpen] = useState(false);
 
   const mine = room.shares.find((s) => s.isYou);
-  const heldCount = room.shares.filter((s) => s.status === "authorized" || s.status === "paid").length;
+  const heldCount = room.shares.filter(
+    (s) => s.status === "authorized" || s.status === "paid"
+  ).length;
   const [tone, label] = ROOM_LABEL[room.status] || ROOM_LABEL.collecting;
-  const perPerson = room.status === "booked" && room.bookedCents != null ? null : room.totalCents / room.people;
+  const perPerson =
+    room.status === "booked" && room.bookedCents != null
+      ? null
+      : room.totalCents / room.people;
 
   const release = () =>
     Modal.confirm({
       title: "Release this room?",
-      content: "Every hold is let go and nobody is charged. You can set up a new shared room afterwards.",
+      content:
+        "Every hold is let go and nobody is charged. You can set up a new shared room afterwards.",
       okText: "Release room",
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await api(`/${groupId}/shared-rooms/${room.id}/release`, { method: "POST" });
+          await api(`/${groupId}/shared-rooms/${room.id}/release`, {
+            method: "POST",
+          });
           antdMessage.success("Room released. Nobody was charged.");
           onChanged?.();
         } catch (e) {
@@ -243,7 +307,9 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
   const openCancel = async () => {
     setWorking(true);
     try {
-      const { quote: q } = await api(`/${groupId}/shared-rooms/${room.id}/cancel-quote`);
+      const { quote: q } = await api(
+        `/${groupId}/shared-rooms/${room.id}/cancel-quote`
+      );
       setQuote(q);
       setQuoteOpen(true);
     } catch (e) {
@@ -256,11 +322,16 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
   const confirmCancel = async () => {
     setWorking(true);
     try {
-      const out = await api(`/${groupId}/shared-rooms/${room.id}/cancel`, { method: "POST" });
+      const out = await api(`/${groupId}/shared-rooms/${room.id}/cancel`, {
+        method: "POST",
+      });
       setQuoteOpen(false);
       antdMessage.success(
         out.refundedCents > 0
-          ? `Cancelled. ${money(out.refundedCents, out.currency)} is being refunded, split by what each person paid.`
+          ? `Cancelled. ${money(
+              out.refundedCents,
+              out.currency
+            )} is being refunded, split by what each person paid.`
           : "Cancelled. Under the hotel's policy, no refund applies."
       );
       onChanged?.();
@@ -273,42 +344,85 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
 
   return (
     <div style={{ ...row, display: "block" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{room.room?.name || "Shared room"}</div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
+            {room.room?.name || "Shared room"}
+          </div>
           <div style={muted}>
             {room.room?.roomName || "Room"}
             {room.room?.boardName ? ` · ${room.room.boardName}` : ""}
           </div>
           <div style={muted}>
-            {room.room?.checkin ? `${dayjs(room.room.checkin).format("MMM D")} → ${dayjs(room.room.checkout).format("MMM D")}` : ""}
+            {room.room?.checkin
+              ? `${dayjs(room.room.checkin).format("MMM D")} → ${dayjs(
+                  room.room.checkout
+                ).format("MMM D")}`
+              : ""}
             {` · ${room.people} people`}
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
           <Chip tone={tone}>{label}</Chip>
-          <div style={{ color: "#ff8a2a", fontWeight: 800, fontSize: 16, marginTop: 6 }}>
-            {money(room.status === "booked" && room.bookedCents != null ? room.bookedCents : room.totalCents, room.currency)}
+          <div
+            style={{
+              color: "#ff8a2a",
+              fontWeight: 800,
+              fontSize: 16,
+              marginTop: 6,
+            }}
+          >
+            {money(
+              room.status === "booked" && room.bookedCents != null
+                ? room.bookedCents
+                : room.totalCents,
+              room.currency
+            )}
           </div>
           {perPerson != null && (
-            <div style={{ ...muted, fontSize: 12 }}>about {money(perPerson, room.currency)} each</div>
+            <div style={{ ...muted, fontSize: 12 }}>
+              about {money(perPerson, room.currency)} each
+            </div>
           )}
         </div>
       </div>
 
       {room.status === "collecting" && (
-        <div style={{ ...muted, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
+        <div
+          style={{
+            ...muted,
+            marginTop: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
           <ClockCircleOutlined />
           {heldCount} of {room.people} held · {timeLeft(room.deadline)} (until{" "}
           {dayjs(room.deadline).format("ddd MMM D, h:mm A")})
         </div>
       )}
-      {room.closedReason && CLOSED_REASON[room.closedReason] && room.status !== "booked" && room.status !== "cancelled" && (
-        <div style={{ ...muted, marginTop: 10 }}>{CLOSED_REASON[room.closedReason]}</div>
-      )}
+      {room.closedReason &&
+        CLOSED_REASON[room.closedReason] &&
+        room.status !== "booked" &&
+        room.status !== "cancelled" && (
+          <div style={{ ...muted, marginTop: 10 }}>
+            {CLOSED_REASON[room.closedReason]}
+          </div>
+        )}
       {room.status === "booked" && room.hotelConfirmationCode && (
         <div style={{ ...muted, marginTop: 10 }}>
-          Hotel confirmation: <strong style={{ color: "#fff" }}>{room.hotelConfirmationCode}</strong>
+          Hotel confirmation:{" "}
+          <strong style={{ color: "#fff" }}>
+            {room.hotelConfirmationCode}
+          </strong>
         </div>
       )}
 
@@ -318,7 +432,13 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
           return (
             <div
               key={s.id}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", gap: 8 }}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "6px 0",
+                gap: 8,
+              }}
             >
               <span style={{ color: "#fff", fontSize: 13 }}>
                 {s.name}
@@ -326,7 +446,12 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ ...muted, fontSize: 12 }}>
-                  {money(s.status === "paid" || s.status === "refunded" ? s.capturedCents : s.amountOwed, room.currency)}
+                  {money(
+                    s.status === "paid" || s.status === "refunded"
+                      ? s.capturedCents
+                      : s.amountOwed,
+                    room.currency
+                  )}
                 </span>
                 <Chip tone={t}>{l}</Chip>
               </span>
@@ -335,19 +460,31 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
         })}
       </div>
 
-      {room.status === "collecting" && mine && ["unpaid", "failed"].includes(mine.status) && (
-        <>
-          {!showForm ? (
-            <Button className="sk-sync-cta-btn" block style={{ marginTop: 12 }} onClick={() => setShowForm(true)}>
-              Hold my share · {money(mine.amountOwed, room.currency)}
-            </Button>
-          ) : (
-            <Elements stripe={stripePromise}>
-              <HoldShareForm groupId={groupId} room={room} share={mine} onDone={onChanged} />
-            </Elements>
-          )}
-        </>
-      )}
+      {room.status === "collecting" &&
+        mine &&
+        ["unpaid", "failed"].includes(mine.status) && (
+          <>
+            {!showForm ? (
+              <Button
+                className="sk-sync-cta-btn"
+                block
+                style={{ marginTop: 12 }}
+                onClick={() => setShowForm(true)}
+              >
+                Hold my share · {money(mine.amountOwed, room.currency)}
+              </Button>
+            ) : (
+              <Elements stripe={stripePromise}>
+                <HoldShareForm
+                  groupId={groupId}
+                  room={room}
+                  share={mine}
+                  onDone={onChanged}
+                />
+              </Elements>
+            )}
+          </>
+        )}
 
       {isOrganizer && room.status === "collecting" && (
         <Button type="text" danger style={{ marginTop: 8 }} onClick={release}>
@@ -355,13 +492,20 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
         </Button>
       )}
       {isOrganizer && room.status === "booked" && (
-        <Button type="text" danger style={{ marginTop: 8 }} loading={working} onClick={openCancel}>
+        <Button
+          type="text"
+          danger
+          style={{ marginTop: 8 }}
+          loading={working}
+          onClick={openCancel}
+        >
           Cancel this room
         </Button>
       )}
       {!isOrganizer && room.status === "booked" && (
         <div style={{ ...muted, fontSize: 12, marginTop: 8 }}>
-          Only the organizer can cancel a shared room. If it's cancelled, you get your share of the hotel's refund.
+          Only the organizer can cancel a shared room. If it's cancelled, you
+          get your share of the hotel's refund.
         </div>
       )}
 
@@ -377,14 +521,21 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
         {quote && (
           <div>
             <p>
-              Everyone paid {new Intl.NumberFormat("en-US", { style: "currency", currency: quote.currency }).format(quote.paid)} in
-              total.
+              Everyone paid{" "}
+              {new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: quote.currency,
+              }).format(quote.paid)}{" "}
+              in total.
               {quote.estimatedRefund != null && (
                 <>
                   {" "}
                   Based on the hotel's policy, about{" "}
                   <strong>
-                    {new Intl.NumberFormat("en-US", { style: "currency", currency: quote.currency }).format(quote.estimatedRefund)}
+                    {new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: quote.currency,
+                    }).format(quote.estimatedRefund)}
                   </strong>{" "}
                   comes back.
                 </>
@@ -400,8 +551,9 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
               </ul>
             )}
             <p style={{ fontSize: 12, opacity: 0.7 }}>
-              The hotel confirms the final amount when you cancel. Each person is refunded in proportion to what they paid, to the card
-              they used.
+              The hotel confirms the final amount when you cancel. Each person
+              is refunded in proportion to what they paid, to the card they
+              used.
             </p>
           </div>
         )}
@@ -410,14 +562,32 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
   );
 }
 
-/* ═══ Arrivals — who lands when ═══
+/* ═══ Land-by time ═══
    Flight times are the airport's local time, shown exactly as the airline
-   sends them. The organizer can set a window everyone should land in. */
+   sends them. The organizer can ask everyone to land by one time; each
+   traveler's landing shows on their row in "The group". */
 const fmtLocal = (v) => (v ? dayjs(v).format("ddd MMM D, h:mm A") : "");
 
-function ArrivalWindowEditor({ groupId, window: win, onSaved, onClose }) {
-  const [start, setStart] = useState(win?.start || "");
-  const [end, setEnd] = useState(win?.end || "");
+// "Land by Fri Nov 20, 2:00 PM". Older trips may still have a start time.
+function describeWindow(win) {
+  if (win.start && win.end)
+    return `Land between ${fmtLocal(win.start)} and ${fmtLocal(win.end)}`;
+  if (win.end) return `Land by ${fmtLocal(win.end)}`;
+  if (win.start) return `Land after ${fmtLocal(win.start)}`;
+  return "";
+}
+
+function LandByEditor({
+  groupId,
+  window: win,
+  destination,
+  defaultDay,
+  onSaved,
+  onClose,
+}) {
+  const [end, setEnd] = useState(
+    win?.end || (defaultDay ? `${defaultDay}T15:00` : "")
+  );
   const [note, setNote] = useState(win?.note || "");
   const [saving, setSaving] = useState(false);
   const inputStyle = {
@@ -431,13 +601,21 @@ function ArrivalWindowEditor({ groupId, window: win, onSaved, onClose }) {
     colorScheme: "dark",
   };
   const save = async (clear = false) => {
+    if (!clear && !end) {
+      antdMessage.warning("Pick a date and time");
+      return;
+    }
     setSaving(true);
     try {
       await api(`/${groupId}/arrival-window`, {
         method: "PATCH",
-        body: clear ? { start: null, end: null, note: null } : { start: start || null, end: end || null, note },
+        body: clear
+          ? { start: null, end: null, note: null }
+          : { start: null, end, note },
       });
-      antdMessage.success(clear ? "Arrival window cleared" : "Arrival window saved");
+      antdMessage.success(
+        clear ? "Land-by time removed" : "Saved — everyone will see it"
+      );
       onSaved?.();
       onClose?.();
     } catch (e) {
@@ -448,136 +626,57 @@ function ArrivalWindowEditor({ groupId, window: win, onSaved, onClose }) {
   };
   return (
     <div style={{ ...row, display: "block" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-        <label style={muted}>
-          Land after
-          <input id="arrival-start" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} style={inputStyle} />
-        </label>
-        <label style={muted}>
-          Land before
-          <input id="arrival-end" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} style={inputStyle} />
-        </label>
-      </div>
-      <label style={{ ...muted, display: "block", marginTop: 10 }}>
-        Note for the group (optional)
+      <label style={muted}>
+        Ask everyone to land by{" "}
+        <span style={{ color: "rgba(255,255,255,0.35)" }}>
+          (
+          {destination
+            ? `local time in ${destination}`
+            : "local time at the destination"}
+          )
+        </span>
         <input
-          id="arrival-note"
+          id="land-by"
+          type="datetime-local"
+          value={end}
+          onChange={(e) => setEnd(e.target.value)}
+          style={inputStyle}
+        />
+      </label>
+      <label style={{ ...muted, display: "block", marginTop: 10 }}>
+        Why? (optional)
+        <input
+          id="land-by-note"
           type="text"
           maxLength={200}
-          placeholder="e.g. Check-in is at 3 PM — try to land by 2"
+          placeholder="e.g. Check-in is at 3 PM"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           style={inputStyle}
         />
       </label>
-      <div style={{ ...muted, fontSize: 12, marginTop: 6 }}>Use the destination's local time.</div>
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-        <Button className="sk-sync-cta-btn" loading={saving} onClick={() => save(false)}>
-          Save window
+        <Button
+          className="sk-sync-cta-btn"
+          loading={saving}
+          onClick={() => save(false)}
+        >
+          Save
         </Button>
         {(win?.start || win?.end) && (
           <Button disabled={saving} onClick={() => save(true)}>
-            Clear
+            Remove
           </Button>
         )}
-        <Button type="text" disabled={saving} onClick={onClose} style={{ color: "rgba(255,255,255,0.6)" }}>
+        <Button
+          type="text"
+          disabled={saving}
+          onClick={onClose}
+          style={{ color: "rgba(255,255,255,0.6)" }}
+        >
           Cancel
         </Button>
       </div>
-    </div>
-  );
-}
-
-function ArrivalsCard({ groupId, data, onChanged }) {
-  const [editing, setEditing] = useState(false);
-  const win = data.arrivalWindow || {};
-  const hasWindow = Boolean(win.start || win.end);
-  const withFlights = data.travelers
-    .filter((t) => t.flight && t.flight.status !== "cancelled" && t.flight.arrivesAt)
-    .sort((a, b) => (a.flight.arrivesAt < b.flight.arrivesAt ? -1 : 1));
-  const noFlight = data.travelers.filter((t) => !t.flight || t.flight.status === "cancelled");
-  const outside = withFlights.filter((t) => t.flight.outsideWindow).length;
-
-  let spread = null;
-  if (withFlights.length > 1) {
-    const mins = dayjs(withFlights[withFlights.length - 1].flight.arrivesAt).diff(dayjs(withFlights[0].flight.arrivesAt), "minute");
-    spread = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
-  }
-
-  return (
-    <div style={card}>
-      <div style={{ ...title, justifyContent: "space-between" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <PlaneLanding size={16} color="#ff8a2a" /> Arrivals
-        </span>
-        {data.isOrganizer && !editing && (
-          <Button size="small" onClick={() => setEditing(true)}>
-            {hasWindow ? "Edit window" : "Set arrival window"}
-          </Button>
-        )}
-      </div>
-
-      {hasWindow && !editing && (
-        <div style={{ ...muted, marginTop: -6, marginBottom: 12 }}>
-          Land between <strong style={{ color: "#fff" }}>{win.start ? fmtLocal(win.start) : "any time"}</strong> and{" "}
-          <strong style={{ color: "#fff" }}>{win.end ? fmtLocal(win.end) : "any time"}</strong>
-          {win.note ? ` · ${win.note}` : ""}
-        </div>
-      )}
-      {editing && (
-        <ArrivalWindowEditor groupId={groupId} window={win} onSaved={onChanged} onClose={() => setEditing(false)} />
-      )}
-
-      {withFlights.length === 0 ? (
-        <p style={{ ...muted, margin: 0 }}>Arrival times show up here as people book their flights.</p>
-      ) : (
-        <>
-          {(spread || (hasWindow && outside > 0)) && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-              {spread && <Chip tone="off">First to last landing: {spread}</Chip>}
-              {hasWindow && outside > 0 && (
-                <Chip tone="bad">
-                  {outside} outside the window
-                </Chip>
-              )}
-              {hasWindow && outside === 0 && <Chip tone="done">Everyone lands in the window</Chip>}
-            </div>
-          )}
-          {withFlights.map((t) => (
-            <div key={t.memberId || "organizer"} style={row}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
-                  {t.name}
-                  {t.isYou ? " (you)" : ""}
-                </div>
-                <div style={muted}>
-                  {[t.flight.origin && t.flight.destination ? `${t.flight.origin} → ${t.flight.destination}` : null, t.flight.airline]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
-                {t.flight.returnDepartsAt && (
-                  <div style={{ ...muted, fontSize: 12 }}>Leaves {fmtLocal(t.flight.returnDepartsAt)}</div>
-                )}
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ color: t.flight.outsideWindow ? "#ff6b6b" : "#fff", fontWeight: 700, fontSize: 14, fontVariantNumeric: "tabular-nums" }}>
-                  Lands {fmtLocal(t.flight.arrivesAt)}
-                </div>
-                {t.flight.outsideWindow && (
-                  <div style={{ color: "#ff6b6b", fontSize: 12 }}>
-                    {win.start && t.flight.arrivesAt < win.start ? "Before the window" : "After the window"}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-      {withFlights.length > 0 && noFlight.length > 0 && (
-        <div style={{ ...muted, fontSize: 12, marginTop: 6 }}>
-          No flight yet: {noFlight.map((t) => t.name).join(", ")}
-        </div>
-      )}
     </div>
   );
 }
@@ -589,7 +688,10 @@ function EmailLine({ groupId, bookingId, status, canResend = true, onResent }) {
   const resend = async () => {
     setBusy(true);
     try {
-      await api(`/${groupId}/resend-confirmation`, { method: "POST", body: { bookingId } });
+      await api(`/${groupId}/resend-confirmation`, {
+        method: "POST",
+        body: { bookingId },
+      });
       antdMessage.success("Confirmation email sent");
       onResent?.();
     } catch (e) {
@@ -605,15 +707,46 @@ function EmailLine({ groupId, bookingId, status, canResend = true, onResent }) {
       ? "Confirmation email didn't send"
       : "Confirmation email";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 2 }}>
-      <Mail size={12} color={status === "failed" ? "#ff6b6b" : status === "sent" ? "#52c41a" : "rgba(255,255,255,0.45)"} />
-      <span style={{ color: status === "failed" ? "#ff6b6b" : "rgba(255,255,255,0.55)" }}>{text}</span>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 12,
+        marginTop: 2,
+      }}
+    >
+      <Mail
+        size={12}
+        color={
+          status === "failed"
+            ? "#ff6b6b"
+            : status === "sent"
+            ? "#52c41a"
+            : "rgba(255,255,255,0.45)"
+        }
+      />
+      <span
+        style={{
+          color: status === "failed" ? "#ff6b6b" : "rgba(255,255,255,0.55)",
+        }}
+      >
+        {text}
+      </span>
       {canResend && (
         <button
           type="button"
           onClick={resend}
           disabled={busy}
-          style={{ background: "none", border: 0, padding: 0, color: "#ff8a2a", cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}
+          style={{
+            background: "none",
+            border: 0,
+            padding: 0,
+            color: "#ff8a2a",
+            cursor: "pointer",
+            fontSize: 12,
+            fontFamily: "inherit",
+          }}
         >
           {busy ? "Sending…" : "Resend"}
         </button>
@@ -628,6 +761,9 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reminding, setReminding] = useState(null);
+  const [editingLandBy, setEditingLandBy] = useState(false);
+  // Bumped after linking/unlinking so the "Already booked?" list reloads.
+  const [linkKey, setLinkKey] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -646,7 +782,10 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
 
   // Refresh while holds are being collected, and whenever the tab regains focus.
   const collecting = useMemo(
-    () => (data?.sharedRooms || []).some((r) => r.status === "collecting" || r.status === "booking"),
+    () =>
+      (data?.sharedRooms || []).some(
+        (r) => r.status === "collecting" || r.status === "booking"
+      ),
     [data]
   );
   useEffect(() => {
@@ -664,10 +803,35 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
     onChanged?.();
   };
 
+  // Take a booking you linked yourself off the trip. Nothing is cancelled.
+  const unlink = (booking, what) =>
+    Modal.confirm({
+      title: `Unlink your ${what} from this trip?`,
+      content:
+        "Your booking stays active — nothing is cancelled. It just stops showing for the group.",
+      okText: "Unlink",
+      onOk: async () => {
+        try {
+          await api(`/${groupId}/detach-booking`, {
+            method: "POST",
+            body: { bookingId: booking.id },
+          });
+          antdMessage.success("Unlinked. Your booking is still active.");
+          setLinkKey((k) => k + 1);
+          refresh();
+        } catch (e) {
+          antdMessage.error(e.message);
+        }
+      },
+    });
+
   const remind = async (t) => {
     setReminding(t.memberId);
     try {
-      await api(`/${groupId}/remind`, { method: "POST", body: { memberId: t.memberId } });
+      await api(`/${groupId}/remind`, {
+        method: "POST",
+        body: { memberId: t.memberId },
+      });
       antdMessage.success(`Reminder sent to ${t.name}`);
       load();
     } catch (e) {
@@ -687,9 +851,49 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
   if (!data) return null;
 
   const me = data.travelers.find((t) => t.isYou);
-  const activeRooms = data.sharedRooms.filter((r) => ["collecting", "booking", "booked"].includes(r.status));
-  const pastRooms = data.sharedRooms.filter((r) => !["collecting", "booking", "booked"].includes(r.status)).slice(0, 3);
+  const activeRooms = data.sharedRooms.filter((r) =>
+    ["collecting", "booking", "booked"].includes(r.status)
+  );
+  const pastRooms = data.sharedRooms
+    .filter((r) => !["collecting", "booking", "booked"].includes(r.status))
+    .slice(0, 3);
   const readyCount = data.travelers.filter((t) => t.done).length;
+  const win = data.arrivalWindow || {};
+  const hasWindow = Boolean(win.start || win.end);
+  const flightOn = (t) => t?.flight && t.flight.status !== "cancelled";
+
+  // "EWR → MIA · Nov 20–24 · Nuitée Air" — from the airline's local times,
+  // the same ones the landing times come from, so the dates always agree.
+  const flightLine = (f) => {
+    if (!f) return "Not booked yet";
+    if (!f.origin || !f.destination) return f.tripDetails;
+    return [
+      `${f.origin} → ${f.destination}`,
+      fmtRange(f.departsAt, f.returnDepartsAt),
+      f.airline,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  };
+  const unlinkBtn = (booking, what) =>
+    booking?.removable && booking.status !== "cancelled" ? (
+      <button
+        type="button"
+        onClick={() => unlink(booking, what)}
+        style={{
+          background: "none",
+          border: 0,
+          padding: 0,
+          color: "rgba(255,255,255,0.45)",
+          cursor: "pointer",
+          fontSize: 12,
+          fontFamily: "inherit",
+          marginTop: 2,
+        }}
+      >
+        Unlink
+      </button>
+    ) : null;
 
   // Search links open with the trip's destination and dates filled in.
   const ymd = (d) => (d ? dayjs(d).format("YYYY-MM-DD") : null);
@@ -721,8 +925,13 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
         >
           <PartyPopper size={22} color="#52c41a" />
           <div>
-            <div style={{ color: "#fff", fontWeight: 700 }}>Everyone's booked!</div>
-            <div style={muted}>Every traveler has a flight and a room. We emailed the group with who lands when.</div>
+            <div style={{ color: "#fff", fontWeight: 700 }}>
+              Everyone's booked!
+            </div>
+            <div style={muted}>
+              Every traveler has a flight and a room. We emailed the group with
+              who lands when.
+            </div>
           </div>
         </div>
       )}
@@ -734,8 +943,9 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
             <CheckCircleFilled style={{ color: "#ff8a2a" }} /> Your part
           </div>
           <p style={{ ...muted, marginTop: -6, marginBottom: 14 }}>
-            Everyone books and pays for their own seat and room, so nobody covers anyone else. You can cancel your own part from My
-            Trips anytime.
+            Everyone books and pays for their own seat and room, so nobody
+            covers anyone else. You can cancel your own part from My Trips
+            anytime.
           </p>
 
           {(data.groupHotel || data.isOrganizer) && (
@@ -746,31 +956,60 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
                 border: "1px solid rgba(124,58,237,0.25)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  minWidth: 0,
+                }}
+              >
                 {data.groupHotel?.thumbnail ? (
                   <img
                     src={data.groupHotel.thumbnail}
                     alt=""
-                    style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 10,
+                      objectFit: "cover",
+                      flexShrink: 0,
+                    }}
                   />
                 ) : (
                   <BedDouble size={20} color="#b794f6" />
                 )}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ ...muted, fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Where the group stays</div>
+                  <div
+                    style={{
+                      ...muted,
+                      fontSize: 11,
+                      letterSpacing: ".06em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Where the group stays
+                  </div>
                   <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
-                    {data.groupHotel ? data.groupHotel.name : "No hotel picked yet"}
+                    {data.groupHotel
+                      ? data.groupHotel.name
+                      : "No hotel picked yet"}
                   </div>
                   <div style={muted}>
                     {data.groupHotel
-                      ? data.groupHotel.address || "Everyone's room search opens at this hotel."
+                      ? data.groupHotel.address ||
+                        "Everyone's room search opens at this hotel."
                       : "Pick one hotel so everyone books rooms in the same place."}
                   </div>
                 </div>
               </div>
               {data.isOrganizer && (
-                <Button onClick={() => navigate(bookLink("Stays", { adults: 1 }))}>
-                  {data.groupHotel ? "Change hotel" : "Choose the group's hotel"}
+                <Button
+                  onClick={() => navigate(bookLink("Stays", { adults: 1 }))}
+                >
+                  {data.groupHotel
+                    ? "Change hotel"
+                    : "Choose the group's hotel"}
                 </Button>
               )}
             </div>
@@ -780,17 +1019,35 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Plane size={16} color="#ff8a2a" />
               <div>
-                <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>Your flight</div>
-                <div style={muted}>{me.flight ? me.flight.tripDetails : "Not booked yet"}</div>
-                {me.flight && me.flight.status !== "cancelled" && (
-                  <EmailLine groupId={groupId} bookingId={me.flight.id} status={me.flight.emailStatus} onResent={load} />
+                <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
+                  Your flight
+                </div>
+                <div style={muted}>{flightLine(me.flight)}</div>
+                {flightOn(me) && me.flight.arrivesAt && (
+                  <div style={{ ...muted, fontSize: 12 }}>
+                    Lands {fmtLocal(me.flight.arrivesAt)}
+                  </div>
                 )}
+                {flightOn(me) && (
+                  <EmailLine
+                    groupId={groupId}
+                    bookingId={me.flight.id}
+                    status={me.flight.emailStatus}
+                    onResent={load}
+                  />
+                )}
+                {unlinkBtn(me.flight, "flight")}
               </div>
             </div>
             {me.flight && me.flight.status !== "cancelled" ? (
-              <Chip tone="done">{me.flight.status === "confirmed" ? "Booked" : me.flight.status}</Chip>
+              <Chip tone="done">
+                {me.flight.status === "confirmed" ? "Booked" : me.flight.status}
+              </Chip>
             ) : (
-              <Button className="sk-sync-cta-btn" onClick={() => navigate(bookLink("Flights"))}>
+              <Button
+                className="sk-sync-cta-btn"
+                onClick={() => navigate(bookLink("Flights"))}
+              >
                 Book my flight
               </Button>
             )}
@@ -800,7 +1057,9 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <BedDouble size={16} color="#ff8a2a" />
               <div>
-                <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>Your room</div>
+                <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
+                  Your room
+                </div>
                 <div style={muted}>
                   {me.stay?.kind === "shared"
                     ? `Shared room at ${me.stay.hotel || "the hotel"}`
@@ -808,15 +1067,29 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
                     ? me.stay.tripDetails
                     : "Not booked yet"}
                 </div>
-                {me.stay && me.stay.status !== "cancelled" && (me.stay.kind === "own" || me.stay.roomStatus === "booked") && (
-                  <EmailLine groupId={groupId} bookingId={me.stay.id} status={me.stay.emailStatus} onResent={load} />
-                )}
+                {me.stay &&
+                  me.stay.status !== "cancelled" &&
+                  (me.stay.kind === "own" ||
+                    me.stay.roomStatus === "booked") && (
+                    <EmailLine
+                      groupId={groupId}
+                      bookingId={me.stay.id}
+                      status={me.stay.emailStatus}
+                      onResent={load}
+                    />
+                  )}
+                {me.stay?.kind === "own" && unlinkBtn(me.stay, "room")}
               </div>
             </div>
             {me.stay?.kind === "shared" ? (
               (() => {
-                const [t, l] = SHARE_LABEL[me.stay.shareStatus] || SHARE_LABEL.unpaid;
-                return <Chip tone={t}>{me.stay.roomStatus === "booked" ? "Booked" : l}</Chip>;
+                const [t, l] =
+                  SHARE_LABEL[me.stay.shareStatus] || SHARE_LABEL.unpaid;
+                return (
+                  <Chip tone={t}>
+                    {me.stay.roomStatus === "booked" ? "Booked" : l}
+                  </Chip>
+                );
               })()
             ) : me.stay && me.stay.status !== "cancelled" ? (
               <Chip tone="done">Booked</Chip>
@@ -837,14 +1110,44 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
             )}
           </div>
 
+          {/* Booked outside the trip? Suggests only bookings that match the
+              trip's destination and dates; the rest sit behind a quiet link. */}
+          <AttachBookingCard
+            key={linkKey}
+            groupId={groupId}
+            embedded
+            hasFlight={Boolean(flightOn(me))}
+            hasRoom={Boolean(me.stay && me.stay.status !== "cancelled")}
+            onChanged={refresh}
+          />
+
           {data.isOrganizer && (
-            <div style={{ ...muted, fontSize: 12, display: "flex", gap: 6, marginTop: 6 }}>
+            <div
+              style={{
+                ...muted,
+                fontSize: 12,
+                display: "flex",
+                gap: 6,
+                marginTop: 6,
+              }}
+            >
               <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
               <span>
-                To pick the group's hotel, tap <strong style={{ color: "#fff" }}>Choose the group's hotel</strong> and then{" "}
-                <strong style={{ color: "#fff" }}>Make this the group's hotel</strong> on any result. Sharing a room? Search Stays with the number of people sharing, pick the room, and choose{" "}
-                <strong style={{ color: "#fff" }}>Share this room with the group</strong> at checkout. Everyone holds their own share
-                — you have {data.holdHours} hours to get everyone in.
+                To pick the group's hotel, tap{" "}
+                <strong style={{ color: "#fff" }}>
+                  Choose the group's hotel
+                </strong>{" "}
+                and then{" "}
+                <strong style={{ color: "#fff" }}>
+                  Make this the group's hotel
+                </strong>{" "}
+                on any result. Sharing a room? Search Stays with the number of
+                people sharing, pick the room, and choose{" "}
+                <strong style={{ color: "#fff" }}>
+                  Share this room with the group
+                </strong>{" "}
+                at checkout. Everyone holds their own share — you have{" "}
+                {data.holdHours} hours to get everyone in.
               </span>
             </div>
           )}
@@ -858,67 +1161,207 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
             <BedDouble size={16} color="#ff8a2a" /> Shared rooms
           </div>
           {activeRooms.map((r) => (
-            <SharedRoomCard key={r.id} groupId={groupId} room={r} isOrganizer={data.isOrganizer} onChanged={refresh} />
+            <SharedRoomCard
+              key={r.id}
+              groupId={groupId}
+              room={r}
+              isOrganizer={data.isOrganizer}
+              onChanged={refresh}
+            />
           ))}
           {pastRooms.length > 0 && (
             <div style={{ marginTop: activeRooms.length ? 12 : 0 }}>
               {pastRooms.map((r) => (
-                <SharedRoomCard key={r.id} groupId={groupId} room={r} isOrganizer={data.isOrganizer} onChanged={refresh} />
+                <SharedRoomCard
+                  key={r.id}
+                  groupId={groupId}
+                  room={r}
+                  isOrganizer={data.isOrganizer}
+                  onChanged={refresh}
+                />
               ))}
             </div>
           )}
         </div>
       )}
 
-      {/* ═══ ARRIVALS ═══ */}
-      <ArrivalsCard groupId={groupId} data={data} onChanged={load} />
-
-      {/* ═══ WHO'S READY ═══ */}
+      {/* ═══ THE GROUP — who's ready and when they land ═══ */}
       <div style={card}>
         <div style={{ ...title, justifyContent: "space-between" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Users size={16} color="#ff8a2a" /> Who's ready
+            <Users size={16} color="#ff8a2a" /> The group
           </span>
           <span style={{ ...muted, fontWeight: 600 }}>
-            {readyCount} of {data.travelers.length}
+            {readyCount} of {data.travelers.length} ready
           </span>
         </div>
+
+        {/* Land-by line: the organizer's one ask about arrival times. */}
+        {editingLandBy ? (
+          <LandByEditor
+            groupId={groupId}
+            window={win}
+            destination={data.destination}
+            defaultDay={ymd(data.dateRangeStart)}
+            onSaved={load}
+            onClose={() => setEditingLandBy(false)}
+          />
+        ) : hasWindow ? (
+          <div
+            style={{
+              ...muted,
+              marginTop: -6,
+              marginBottom: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              flexWrap: "wrap",
+            }}
+          >
+            <PlaneLanding size={14} color="#ff8a2a" />
+            <span>
+              {data.isOrganizer
+                ? "You asked everyone to "
+                : "The organizer asked everyone to "}
+              <strong style={{ color: "#fff" }}>
+                {describeWindow(win).replace(/^L/, "l")}
+              </strong>
+              {win.note ? ` · ${win.note}` : ""}
+            </span>
+            {data.isOrganizer && (
+              <button
+                type="button"
+                onClick={() => setEditingLandBy(true)}
+                style={{
+                  background: "none",
+                  border: 0,
+                  padding: 0,
+                  color: "#ff8a2a",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                }}
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        ) : data.isOrganizer ? (
+          <button
+            type="button"
+            onClick={() => setEditingLandBy(true)}
+            style={{
+              background: "none",
+              border: 0,
+              padding: 0,
+              marginTop: -6,
+              marginBottom: 12,
+              color: "#ff8a2a",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: "inherit",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <PlaneLanding size={14} /> Ask everyone to land by a certain time
+          </button>
+        ) : null}
+
         {data.travelers.map((t) => {
-          const flightOk = t.flight && t.flight.status !== "cancelled";
+          const flightOk = flightOn(t);
           const stayOk =
             (t.stay?.kind === "own" && t.stay.status !== "cancelled") ||
-            (t.stay?.kind === "shared" && ["authorized", "paid"].includes(t.stay.shareStatus));
+            (t.stay?.kind === "shared" &&
+              ["authorized", "paid"].includes(t.stay.shareStatus));
+          const late = flightOk && t.flight.outsideWindow;
           return (
             <div key={t.memberId || "organizer"} style={row}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
                   {t.name}
                   {t.isYou ? " (you)" : ""}
-                  {t.isOrganizer ? <span style={{ ...muted, fontSize: 12 }}> · organizer</span> : null}
+                  {t.isOrganizer ? (
+                    <span style={{ ...muted, fontSize: 12 }}> · organizer</span>
+                  ) : null}
                 </div>
-                {!t.hasAccount && <div style={{ ...muted, fontSize: 12 }}>Invited — hasn't joined yet</div>}
+                {flightOk && t.flight.arrivesAt && (
+                  <div
+                    style={{
+                      ...muted,
+                      fontSize: 12.5,
+                      color: late ? "#ff6b6b" : muted.color,
+                    }}
+                  >
+                    Lands {fmtLocal(t.flight.arrivesAt)}
+                    {t.flight.destination ? ` at ${t.flight.destination}` : ""}
+                    {late
+                      ? win.start && t.flight.arrivesAt < win.start
+                        ? " · earlier than asked"
+                        : " · later than asked"
+                      : ""}
+                  </div>
+                )}
+                {!t.hasAccount && (
+                  <div style={{ ...muted, fontSize: 12 }}>
+                    Invited — hasn't joined yet
+                  </div>
+                )}
                 {t.hasAccount && t.rsvp === "pending" && !t.isOrganizer && (
-                  <div style={{ ...muted, fontSize: 12 }}>Hasn't said if they're coming</div>
+                  <div style={{ ...muted, fontSize: 12 }}>
+                    Hasn't said if they're coming
+                  </div>
                 )}
                 {data.isOrganizer && !t.isYou && (
                   <>
-                    {t.flight && t.flight.status !== "cancelled" && t.flight.emailStatus === "failed" && (
-                      <EmailLine groupId={groupId} bookingId={t.flight.id} status="failed" onResent={load} />
-                    )}
+                    {t.flight &&
+                      t.flight.status !== "cancelled" &&
+                      t.flight.emailStatus === "failed" && (
+                        <EmailLine
+                          groupId={groupId}
+                          bookingId={t.flight.id}
+                          status="failed"
+                          onResent={load}
+                        />
+                      )}
                     {t.stay?.id && t.stay.emailStatus === "failed" && (
-                      <EmailLine groupId={groupId} bookingId={t.stay.id} status="failed" onResent={load} />
+                      <EmailLine
+                        groupId={groupId}
+                        bookingId={t.stay.id}
+                        status="failed"
+                        onResent={load}
+                      />
                     )}
                   </>
                 )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                }}
+              >
                 <Chip tone={flightOk ? "done" : "wait"}>
-                  <Plane size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />
+                  <Plane
+                    size={11}
+                    style={{ verticalAlign: "-1px", marginRight: 4 }}
+                  />
                   {flightOk ? "Flight" : "No flight"}
                 </Chip>
                 <Chip tone={stayOk ? "done" : "wait"}>
-                  <BedDouble size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />
-                  {stayOk ? "Room" : t.stay?.kind === "shared" ? "Share not held" : "No room"}
+                  <BedDouble
+                    size={11}
+                    style={{ verticalAlign: "-1px", marginRight: 4 }}
+                  />
+                  {stayOk
+                    ? "Room"
+                    : t.stay?.kind === "shared"
+                    ? "Share not held"
+                    : "No room"}
                 </Chip>
                 {data.isOrganizer && !t.isOrganizer && !t.done && (
                   <Button
@@ -927,7 +1370,11 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
                     loading={reminding === t.memberId}
                     icon={<Bell size={12} />}
                     onClick={() => remind(t)}
-                    title={t.canRemind ? "Email them a reminder" : "Reminded recently — you can remind again in 12 hours"}
+                    title={
+                      t.canRemind
+                        ? "Email them a reminder"
+                        : "Reminded recently — you can remind again in 12 hours"
+                    }
                   >
                     {t.canRemind ? "Remind" : "Reminded"}
                   </Button>
@@ -942,7 +1389,8 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
           </div>
         )}
         <p style={{ ...muted, fontSize: 12, marginTop: 8 }}>
-          If someone doesn't book, it only affects their own seat and room. A shared room books only once everyone sharing it is in.
+          If someone doesn't book, it only affects their own seat and room. A
+          shared room books only once everyone sharing it is in.
         </p>
       </div>
     </>

@@ -27,6 +27,7 @@ import {
   DeleteOutlined,
   WarningOutlined,
   GiftOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import {
   Star,
@@ -1797,6 +1798,16 @@ export default function DigitalPassportPage() {
                         onClick={() => navigate("/passport/rewards")}
                       >
                         Passport Rewards
+                      </Button>
+
+                      {/* Sync Together shortcut — group trip planning.
+                          TODO: confirm route matches App.jsx (guessing /sync-together). */}
+                      <Button
+                        className="pp-actionBtn"
+                        icon={<TeamOutlined />}
+                        onClick={() => navigate("/sync-together")}
+                      >
+                        Sync Together
                       </Button>
                     </div>
                     <Text className="pp-credentialHint">

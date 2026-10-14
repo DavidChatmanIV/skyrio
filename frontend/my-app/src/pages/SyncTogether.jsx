@@ -1,24 +1,5 @@
-import React, {
-  useState,
-  useRef,
-  useCallback,
-  useEffect,
-  useMemo,
-} from "react";
-import {
-  Button,
-  Input,
-  Avatar,
-  message as antdMessage,
-  Spin,
-  DatePicker,
-} from "antd";
-import {
-  UserAddOutlined,
-  SyncOutlined,
-  SearchOutlined,
-  LoadingOutlined,
-} from "@ant-design/icons";
+import React, { useState, useEffect, useMemo } from "react";
+import { Avatar, message as antdMessage } from "antd";
 import {
   Brain,
   SplitSquareHorizontal,
@@ -34,8 +15,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
-
-const { RangePicker } = DatePicker;
+import SyncBoardingPass from "./SyncBoardingPass";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
@@ -107,6 +87,14 @@ const HOW_IT_WORKS = [
 export default function SyncTogether() {
   const navigate = useNavigate();
   const currentUserId = useMemo(() => getCurrentUserId(), []);
+  const myName = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user"));
+      return u?.name || u?.username || "";
+    } catch {
+      return "";
+    }
+  }, []);
 
   // ── Trip details (new) ──────────────────────────────────────
   // Collected BEFORE invites are sent, so the invite email can
@@ -116,12 +104,6 @@ export default function SyncTogether() {
   const [dateRange, setDateRange] = useState(null); // [dayjs, dayjs] | null
 
   const [travelers, setTravelers] = useState([]);
-  const [inputVal, setInputVal] = useState("");
-  const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const debounceRef = useRef(null);
-  const wrapperRef = useRef(null);
   const [creating, setCreating] = useState(false);
 
   const [myTrips, setMyTrips] = useState([]);
@@ -145,78 +127,27 @@ export default function SyncTogether() {
       .catch(() => {});
   }, []);
 
-  const searchUsers = useCallback(async (query) => {
-    if (!query || query.trim().length < 2) {
-      setResults([]);
-      setShowDropdown(false);
-      return;
-    }
-    setSearching(true);
-    try {
-      const res = await fetch(
-        `${API_BASE}/sync-together/search?q=${encodeURIComponent(
-          query.trim()
-        )}`,
-        { headers: authHeaders() }
-      );
-      const data = await res.json();
-      if (data.ok) {
-        setResults(data.users || []);
-        setShowDropdown(true);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  const handleInputChange = (e) => {
-    const val = e.target.value;
-    setInputVal(val);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchUsers(val), 300);
-  };
-
-  const addFromSearch = (user) => {
-    if (travelers.some((t) => t.id === (user._id || user.id))) {
-      antdMessage.warning("Already added");
-    } else {
-      setTravelers((prev) => [
-        ...prev,
-        {
-          id: user._id || user.id,
-          username: user.username,
-          name: user.name,
-          email: user.email,
-          avatar: user.avatar,
-        },
-      ]);
-      antdMessage.success(`${user.name || user.username} added`);
-    }
-    setInputVal("");
-    setResults([]);
-    setShowDropdown(false);
-  };
-
-  const addByEmail = () => {
-    const val = inputVal.trim();
-    if (!val) return;
-    if (showDropdown && results.length > 0) {
-      addFromSearch(results[0]);
-      return;
-    }
-    if (travelers.some((t) => t.email === val || t.username === val)) {
-      antdMessage.warning("Already added");
+  // From the boarding pass: a Skyrio user from search, or a typed email.
+  const addTraveler = (user) => {
+    const id = user._id || user.id || null;
+    const email = user.email || null;
+    const dup = travelers.some(
+      (t) => (id && t.id === id) || (!id && email && t.email === email)
+    );
+    if (dup) {
+      antdMessage.warning("Already on the pass");
       return;
     }
     setTravelers((prev) => [
       ...prev,
-      { id: null, email: val, name: val, username: null, avatar: null },
+      {
+        id,
+        username: user.username || null,
+        name: user.name || user.username || email,
+        email,
+        avatar: user.avatar || null,
+      },
     ]);
-    setInputVal("");
-    setResults([]);
-    setShowDropdown(false);
   };
 
   const removeTraveler = (traveler) =>
@@ -290,15 +221,6 @@ export default function SyncTogether() {
       antdMessage.error("Failed to delete trip");
     }
   };
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target))
-        setShowDropdown(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const statusColors = {
     draft: "rgba(255,255,255,0.45)",
@@ -443,6 +365,22 @@ export default function SyncTogether() {
           </div>
         ))}
       </div>
+
+      {/* ── Start a trip: group boarding pass ──
+          Destination and dates are collected up front so the invite
+          email says what trip people are joining. */}
+      <SyncBoardingPass
+        destination={destination}
+        setDestination={setDestination}
+        dateRange={dateRange}
+        setDateRange={setDateRange}
+        travelers={travelers}
+        onAddTraveler={addTraveler}
+        onRemoveTraveler={removeTraveler}
+        onSubmit={handleStartPlanning}
+        creating={creating}
+        myName={myName}
+      />
 
       {/* ── My Group Trips ── */}
       {!tripsLoading && (
@@ -728,199 +666,6 @@ export default function SyncTogether() {
           })}
         </div>
       )}
-
-      {/* ── Trip Details (new) ──────────────────────────────────
-          Collected up front so the invite email that goes out
-          actually tells recipients what trip they're being asked
-          to join, instead of "Untitled Trip" with no context. */}
-      <div className="sk-sync-group-builder">
-        <div className="sk-sync-group-title">
-          <MapPin
-            size={16}
-            style={{ marginRight: 8, verticalAlign: "middle" }}
-          />
-          What&apos;s the trip?
-        </div>
-        <p className="sk-sync-group-hint">
-          Where are you headed? We&apos;ll use this to name the trip too.
-        </p>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            marginTop: 4,
-          }}
-        >
-          <Input
-            className="sk-sync-input"
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            placeholder="Destination — e.g.Name"
-            prefix={<MapPin size={14} style={{ color: "#ff8a2a" }} />}
-          />
-          <RangePicker
-            className="sk-sync-input"
-            popupClassName="sk-datepicker-dropdown"
-            style={{ width: "100%" }}
-            value={dateRange}
-            onChange={(vals) => setDateRange(vals)}
-            placeholder={["Start date", "End date"]}
-          />
-        </div>
-      </div>
-
-      {/* ── Group builder ── */}
-      <div className="sk-sync-group-builder">
-        <div className="sk-sync-group-title">
-          <Users
-            size={16}
-            style={{ marginRight: 8, verticalAlign: "middle" }}
-          />
-          Who&apos;s joining you?
-        </div>
-        <p className="sk-sync-group-hint">
-          Add names or emails — we&apos;ll send them a link to join the plan.
-        </p>
-
-        <div className="sk-sync-group-input-row" ref={wrapperRef}>
-          <div className="sk-sync-search-wrapper">
-            <Input
-              className="sk-sync-input"
-              value={inputVal}
-              onChange={handleInputChange}
-              onPressEnter={addByEmail}
-              placeholder="Search by name, username, or email"
-              prefix={<SearchOutlined style={{ color: "#ff8a2a" }} />}
-              suffix={
-                searching ? (
-                  <Spin
-                    indicator={
-                      <LoadingOutlined
-                        style={{ fontSize: 14, color: "#ff8a2a" }}
-                      />
-                    }
-                  />
-                ) : null
-              }
-            />
-            {showDropdown && results.length > 0 && (
-              <div className="sk-sync-search-dropdown">
-                {results.map((user) => (
-                  <div
-                    key={user._id || user.id}
-                    className="sk-sync-search-item"
-                    onClick={() => addFromSearch(user)}
-                  >
-                    <Avatar
-                      size={32}
-                      src={
-                        user.avatar && user.avatar !== "/default-avatar.png"
-                          ? user.avatar
-                          : undefined
-                      }
-                      style={{
-                        background: "#ff8a2a",
-                        color: "#1b1024",
-                        fontSize: 13,
-                        fontWeight: 800,
-                      }}
-                    >
-                      {(user.name || user.username || "?")[0].toUpperCase()}
-                    </Avatar>
-                    <div className="sk-sync-search-item-info">
-                      <span className="sk-sync-search-item-name">
-                        {user.name || user.username}
-                      </span>
-                      <span className="sk-sync-search-item-handle">
-                        @{user.username}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {showDropdown &&
-              results.length === 0 &&
-              !searching &&
-              inputVal.trim().length >= 2 && (
-                <div className="sk-sync-search-dropdown">
-                  <div className="sk-sync-search-empty">
-                    No users found — press Enter to invite by email
-                  </div>
-                </div>
-              )}
-          </div>
-          <Button
-            className="sk-sync-add-btn"
-            icon={<UserAddOutlined />}
-            onClick={addByEmail}
-          >
-            Add
-          </Button>
-        </div>
-
-        {travelers.length > 0 && (
-          <div className="sk-sync-travelers">
-            {travelers.map((t, i) => (
-              <div key={t.id || t.email || i} className="sk-sync-traveler-pill">
-                <Avatar
-                  size={24}
-                  src={
-                    t.avatar && t.avatar !== "/default-avatar.png"
-                      ? t.avatar
-                      : undefined
-                  }
-                  style={{
-                    background: "#ff8a2a",
-                    color: "#1b1024",
-                    fontSize: 12,
-                    fontWeight: 800,
-                  }}
-                >
-                  {(t.name || t.email || "?")[0].toUpperCase()}
-                </Avatar>
-                <span>{t.name || t.username || t.email}</span>
-                {t.username && (
-                  <span style={{ opacity: 0.5, fontSize: 12 }}>
-                    @{t.username}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="sk-sync-remove"
-                  onClick={() => removeTraveler(t)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {travelers.length > 0 && (
-          <p className="sk-sync-count">
-            {travelers.length} traveler{travelers.length !== 1 ? "s" : ""} added
-            — ready to sync
-          </p>
-        )}
-      </div>
-
-      {/* ── CTA ── */}
-      <div className="sk-sync-cta">
-        <Button
-          className="sk-sync-cta-btn"
-          icon={<SyncOutlined spin={creating} />}
-          size="large"
-          onClick={handleStartPlanning}
-          loading={creating}
-          disabled={travelers.length === 0}
-        >
-          Start planning together
-        </Button>
-        <p className="sk-sync-cta-sub">One plan. Every traveler covered.</p>
-      </div>
     </section>
   );
 }

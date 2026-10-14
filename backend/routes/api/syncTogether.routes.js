@@ -1215,8 +1215,8 @@ async function computeParts(group, viewerId) {
       $or: [{ syncGroup: group._id }, { "flight.groupId": String(group._id) }],
     })
       .select(
-        "user type status tripDetails total totalAmount totalCurrency dates sharedRoom createdAt confirmationEmail " +
-          "flight.origin flight.destination flight.airline flight.departureAt flight.arrivalAt " +
+        "user type status tripDetails total totalAmount totalCurrency dates sharedRoom createdAt confirmationEmail syncGroup " +
+          "flight.groupId flight.origin flight.destination flight.airline flight.departureAt flight.arrivalAt " +
           "flight.returnDepartureAt flight.returnArrivingAt"
       )
       .sort({ createdAt: -1 })
@@ -1237,6 +1237,9 @@ async function computeParts(group, viewerId) {
       currency: b.totalCurrency || "USD",
       // "sent" | "failed" | null (older bookings) — never the address itself
       emailStatus: b.confirmationEmail?.status || null,
+      // Linked by hand from "Link a booking" — the owner can unlink it.
+      // Bookings made through group checkout stay on the trip.
+      removable: isHandLinked(b, group._id),
     };
   // Times are kept as the airline sends them (airport local time), so
   // compare the first 16 characters ("YYYY-MM-DDTHH:mm") as text.
@@ -2260,6 +2263,44 @@ function linkedToGroup(groupId) {
   };
 }
 
+// True when the traveler added this booking to the trip themselves.
+// Group-checkout flights carry flight.groupId; clearing syncGroup alone
+// wouldn't take those off, so they aren't offered an Unlink.
+function isHandLinked(b, groupId) {
+  return String(b.syncGroup || "") === String(groupId) && !b.flight?.groupId;
+}
+
+// Words/codes that identify where this trip is going: the trip's
+// destination text, plus the arrival airport of any flight already on
+// the trip (so "Miami" also matches MIA once someone has booked).
+function tripPlaceTokens(group, linkedFlights = []) {
+  const tokens = new Set();
+  String(group.destination || "")
+    .split(/[^A-Za-z]+/)
+    .filter((w) => w.length >= 3)
+    .forEach((w) => tokens.add(w.toUpperCase()));
+  linkedFlights.forEach((f) => {
+    const code = f.flight?.destination;
+    if (code) tokens.add(String(code).toUpperCase());
+  });
+  return tokens;
+}
+
+// Does this booking go where the trip goes? null = can't tell (no
+// destination set and nothing booked yet), treated as a match.
+function goesToTrip(b, tokens) {
+  if (!tokens.size) return null;
+  if (b.type === "Flight") {
+    const code = String(b.flight?.destination || "").toUpperCase();
+    if (code && tokens.has(code)) return true;
+  }
+  const text = [b.tripDetails, b.hotel?.city, b.hotel?.address, b.hotel?.name]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+  return [...tokens].some((t) => t.length > 3 && text.includes(t));
+}
+
 // What the trip page needs for the stepper and the status badge.
 async function bookingProgressFor(group) {
   const ids = goingTravelerIds(group);
@@ -2319,7 +2360,7 @@ router.get("/:id/attachable-bookings", async (req, res) => {
     if (!requireMember(group, userId, res)) return;
 
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const [available, onThisTrip] = await Promise.all([
+    const [available, onThisTrip, tripFlights] = await Promise.all([
       Booking.find({
         user: userId,
         status: "confirmed",
@@ -2340,9 +2381,20 @@ router.get("/:id/attachable-bookings", async (req, res) => {
       })
         .sort({ "dates.start": 1 })
         .lean(),
+      // Anyone's flights on this trip — tells us the destination airport.
+      Booking.find({
+        type: "Flight",
+        status: { $ne: "cancelled" },
+        ...linkedToGroup(group._id),
+      })
+        .select("flight.destination")
+        .limit(20)
+        .lean(),
     ]);
+    const places = tripPlaceTokens(group, tripFlights);
+    const localMinute = (v) => (v ? String(v).slice(0, 16) : null);
 
-    // "Matches your trip dates" hint only. Never used to link anything.
+    // Hints only. Never used to link anything.
     const DAY = 24 * 60 * 60 * 1000;
     const tripStart = group.dateRangeStart
       ? new Date(group.dateRangeStart).getTime() - 2 * DAY
@@ -2352,6 +2404,10 @@ router.get("/:id/attachable-bookings", async (req, res) => {
       : null;
     const slim = (b) => {
       const start = b.dates?.start ? new Date(b.dates.start).getTime() : null;
+      const datesMatch = Boolean(
+        start && tripStart && tripEnd && start >= tripStart && start <= tripEnd
+      );
+      const placeMatch = goesToTrip(b, places);
       return {
         id: String(b._id),
         type: b.type,
@@ -2359,21 +2415,23 @@ router.get("/:id/attachable-bookings", async (req, res) => {
         start: b.dates?.start || null,
         end: b.dates?.end || null,
         airline: b.flight?.airline || null,
+        // Flight times as the airline sends them (airport local time) —
+        // the same source the trip page uses, so dates always agree.
+        origin: b.flight?.origin || null,
+        destination: b.flight?.destination || null,
+        departsAt: localMinute(b.flight?.departureAt),
+        returnDepartsAt: localMinute(b.flight?.returnDepartureAt),
         confirmation: b.confirmationCodes?.[0] || null,
         // Bookings linked by group checkout can't be taken off here.
-        removable: String(b.syncGroup || "") === String(group._id),
-        datesMatch: Boolean(
-          start &&
-            tripStart &&
-            tripEnd &&
-            start >= tripStart &&
-            start <= tripEnd
-        ),
+        removable: isHandLinked(b, group._id),
+        datesMatch,
+        // Suggest only when it's the right place AND the right dates.
+        suggested: datesMatch && placeMatch !== false,
       };
     };
     const list = available
       .map(slim)
-      .sort((a, b) => Number(b.datesMatch) - Number(a.datesMatch));
+      .sort((a, b) => Number(b.suggested) - Number(a.suggested));
     return res.json({
       ok: true,
       available: list,
@@ -2470,7 +2528,7 @@ router.post("/:id/detach-booking", async (req, res) => {
         error: "We couldn't find that booking on your account.",
       });
     }
-    if (String(booking.syncGroup || "") !== String(group._id)) {
+    if (!isHandLinked(booking, group._id)) {
       return res.status(400).json({
         ok: false,
         error: "That booking isn't one you added to this trip.",
