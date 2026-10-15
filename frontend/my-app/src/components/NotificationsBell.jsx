@@ -19,6 +19,7 @@ import {
   MessageOutlined,
   CalendarOutlined,
   GiftOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { socket } from "../lib/socket";
@@ -50,6 +51,7 @@ function timeAgo(iso) {
 function iconFor(n) {
   const type = (n?.type || "").toLowerCase();
   const event = (n?.event || "").toLowerCase();
+  if (type === "group_message") return <TeamOutlined />;
   if (event.includes("price") || type.includes("price"))
     return <DollarOutlined />;
   if (type.includes("dm") || event.includes("message"))
@@ -166,16 +168,39 @@ export default function NotificationsBell({ maxItems = 20 }) {
   useEffect(() => {
     if (!userId) return;
     socket.emit("notifications:join", { userId });
+
     const onNew = (notif) => {
-      setItems((prev) =>
-        [{ ...notif, isRead: false }, ...prev].slice(0, maxItems)
-      );
-      setUnread((u) => u + 1);
+      const { unread: serverUnread, ...n } = notif || {};
+      let wasAlreadyUnread = false;
+
+      // Group chat notifications get updated in place (same _id) — replace it
+      // and move it to the top instead of adding a duplicate.
+      setItems((prev) => {
+        const existing = prev.find((x) => x._id === n._id);
+        wasAlreadyUnread = !!existing && !existing.isRead;
+        return [
+          { ...n, isRead: false },
+          ...prev.filter((x) => x._id !== n._id),
+        ].slice(0, maxItems);
+      });
+
+      if (typeof serverUnread === "number") setUnread(serverUnread);
+      else if (!wasAlreadyUnread) setUnread((u) => u + 1);
     };
+
+    // Sent when a group chat is opened and its notification clears
+    const onUnread = ({ unread: serverUnread }) => {
+      if (typeof serverUnread === "number") setUnread(serverUnread);
+      fetchMine();
+    };
+
     socket.on("notification:new", onNew);
+    socket.on("notification:unread", onUnread);
     return () => {
       socket.off("notification:new", onNew);
+      socket.off("notification:unread", onUnread);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, maxItems]);
 
   // Re-fetch when dropdown opens to stay in sync
@@ -252,6 +277,7 @@ export default function NotificationsBell({ maxItems = 20 }) {
       ...items.map((n) => {
         const isUnread = !n.isRead;
         const link = n.link || "/";
+        const count = n?.metadata?.count;
         return {
           key: n._id,
           label: (
@@ -288,12 +314,14 @@ export default function NotificationsBell({ maxItems = 20 }) {
                   </Text>
                   {isUnread && (
                     <Tag color="orange" style={{ marginInlineStart: 6 }}>
-                      NEW
+                      {n.type === "group_message" && count > 1
+                        ? `${count} NEW`
+                        : "NEW"}
                     </Tag>
                   )}
                 </Space>
                 <Text style={{ color: "rgba(255,255,255,.65)", fontSize: 12 }}>
-                  {timeAgo(n.createdAt)}
+                  {timeAgo(n.updatedAt || n.createdAt)}
                 </Text>
               </div>
               <div style={{ marginTop: 6 }}>

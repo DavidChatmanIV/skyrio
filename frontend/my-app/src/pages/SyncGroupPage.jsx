@@ -7,18 +7,12 @@ import React, {
 } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
-import {
-  Button,
-  Avatar,
-  Spin,
-  Input,
-  InputNumber,
-  message as antdMessage,
-} from "antd";
+import { Button, Avatar, Spin, Input, message as antdMessage } from "antd";
 import SkyrioPicker from "./booking/SkyrioPicker";
 import GroupTripPanel from "./GroupTripPanel";
 import GroupShortlist from "./GroupShortlist";
 import AttachBookingCard from "./AttachBookingCard";
+import TripDetailsPass from "@/components/syncTogether/TripDetailsPass";
 import {
   ArrowLeftOutlined,
   SyncOutlined,
@@ -490,6 +484,7 @@ export default function SyncGroupPage() {
   const [departureTime, setDepartureTime] = useState("any");
   const [dateRange, setDateRange] = useState([null, null]);
   // Your own budget per person — private, only you see it.
+  // (Input now lives in TripDetailsPass; this mirrors the saved value.)
   const [budget, setBudget] = useState(null);
   const [savingBudget, setSavingBudget] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1988,28 +1983,14 @@ export default function SyncGroupPage() {
         )}
       </Section>
 
-      {/* ═══ TRIP DETAILS ═══ */}
-      <Section>
-        <SectionTitle
-          icon={<MapPin size={16} style={{ color: "#ff8a2a" }} />}
-          right={
-            !editing &&
-            !isBooked &&
-            isOwner && (
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                onClick={() => setEditing(true)}
-                style={{ color: "#ff8a2a", fontSize: 13, padding: 0 }}
-              >
-                Edit
-              </Button>
-            )
-          }
-        >
-          Trip Details
-        </SectionTitle>
-        {editing ? (
+      {/* ═══ TRIP DETAILS — boarding pass (view) / form (edit) ═══ */}
+      {editing ? (
+        <Section>
+          <SectionTitle
+            icon={<MapPin size={16} style={{ color: "#ff8a2a" }} />}
+          >
+            Edit Trip Details
+          </SectionTitle>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <label
@@ -2211,215 +2192,28 @@ export default function SyncGroupPage() {
               </Button>
             </div>
           </div>
-        ) : (
-          <div>
-            {group.destination || group.dateRangeStart || departureAirport ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {departureAirport && (
-                  <div
-                    style={{
-                      color: "rgba(255,255,255,0.5)",
-                      fontSize: 14,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Plane size={14} style={{ color: "#ff8a2a" }} />{" "}
-                    {departureDisplay || departureAirport}
-                  </div>
-                )}
-                {group.destination && (
-                  <div
-                    style={{
-                      color: "#fff",
-                      fontSize: 15,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <MapPin size={14} style={{ color: "#ff8a2a" }} />{" "}
-                    {group.destination}
-                  </div>
-                )}
-                {group.dateRangeStart && (
-                  <div
-                    style={{
-                      color: "rgba(255,255,255,0.5)",
-                      fontSize: 14,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Calendar size={14} style={{ color: "#ff8a2a" }} />{" "}
-                    {dayjs(group.dateRangeStart).format("MMM D")} —{" "}
-                    {dayjs(group.dateRangeEnd).format("MMM D, YYYY")}
-                  </div>
-                )}
-                {group.cabinClass && (
-                  <div
-                    style={{
-                      color: "rgba(255,255,255,0.5)",
-                      fontSize: 14,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Plane size={14} style={{ color: "#ff8a2a" }} />{" "}
-                    {
-                      {
-                        economy: "Economy",
-                        premium_economy: "Premium Economy",
-                        business: "Business",
-                        first: "First Class",
-                      }[group.cabinClass]
-                    }
-                  </div>
-                )}
-                {group.departureTime && group.departureTime !== "any" && (
-                  <div
-                    style={{
-                      color: "rgba(255,255,255,0.5)",
-                      fontSize: 14,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Clock size={14} style={{ color: "#ff8a2a" }} />
-                    {group.departureTime === "morning" && (
-                      <>
-                        <Sunrise size={14} /> Morning
-                      </>
-                    )}
-                    {group.departureTime === "afternoon" && (
-                      <>
-                        <Sun size={14} /> Afternoon
-                      </>
-                    )}
-                    {group.departureTime === "night" && (
-                      <>
-                        <Moon size={14} /> Night
-                      </>
-                    )}
-                  </div>
-                )}
-                {groupBudget && (
-                  <div
-                    style={{
-                      color: "rgba(255,255,255,0.5)",
-                      fontSize: 14,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <DollarSign size={14} style={{ color: "#ff8a2a" }} />
-                    Group budget: up to about $
-                    {Number(groupBudget).toLocaleString("en-US")}/person
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
-                {isOwner
-                  ? "No details yet — tap Edit to set your trip info."
-                  : "The organizer hasn't set the trip details yet. Share ideas in the group chat."}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Your budget — private to you. The group only sees the comfort level. */}
-        {isMember && !editing && (
-          <div
-            style={{
-              marginTop: 16,
-              paddingTop: 14,
-              borderTop: "1px solid rgba(255,255,255,0.07)",
-            }}
-          >
-            <label
-              htmlFor="sync-my-budget"
-              style={{
-                color: "rgba(255,255,255,0.75)",
-                fontSize: 13,
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginBottom: 4,
-              }}
-            >
-              <DollarSign size={13} style={{ color: "#ff8a2a" }} /> Your budget
-              per person
-              <span
-                style={{
-                  color: "rgba(255,255,255,0.35)",
-                  fontWeight: 400,
-                  fontSize: 12,
-                }}
-              >
-                · only you see this
-              </span>
-            </label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <InputNumber
-                id="sync-my-budget"
-                value={budget}
-                onChange={setBudget}
-                onPressEnter={() => saveMyBudget(budget)}
-                placeholder="e.g. 1,500"
-                prefix="$"
-                min={0}
-                step={50}
-                formatter={(v) =>
-                  v ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ""
-                }
-                parser={(v) => (v ? v.replace(/[^\d]/g, "") : "")}
-                style={{ flex: "1 1 160px", maxWidth: 220 }}
-              />
-              <Button
-                onClick={() => saveMyBudget(budget)}
-                loading={savingBudget}
-                disabled={(budget || null) === (group.myBudget || null)}
-              >
-                Save
-              </Button>
-              {group.myBudget && (
-                <Button
-                  type="text"
-                  onClick={() => saveMyBudget(null)}
-                  style={{ color: "rgba(255,255,255,0.4)" }}
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
-            <p
-              style={{
-                color: "rgba(255,255,255,0.4)",
-                fontSize: 12.5,
-                margin: "6px 0 0",
-                lineHeight: 1.5,
-              }}
-            >
-              {group.budgetSummary?.comfortable
-                ? `Everyone who set a budget is comfortable up to about $${Number(
-                    group.budgetSummary.comfortable
-                  ).toLocaleString("en-US")} per person (${
-                    group.budgetSummary.set
-                  } of ${
-                    group.budgetSummary.travelers
-                  } set one). Nobody sees anyone else's number — Atlas plans to this.`
-                : "Nobody sees anyone else's number. The group only sees what everyone's comfortable with, and Atlas plans to it."}
-            </p>
-          </div>
-        )}
-      </Section>
+        </Section>
+      ) : (
+        <TripDetailsPass
+          departureAirport={departureAirport}
+          departureDisplay={departureDisplay}
+          destination={group.destination}
+          startDate={group.dateRangeStart}
+          endDate={group.dateRangeEnd}
+          cabinClass={group.cabinClass}
+          departureTime={group.departureTime}
+          travelerCount={totalMembers + 1}
+          groupBudget={groupBudget}
+          budgetSummary={group.budgetSummary}
+          myBudget={group.myBudget ?? null}
+          onSaveBudget={saveMyBudget}
+          savingBudget={savingBudget}
+          showBudget={isMember}
+          canEdit={!isBooked && isOwner}
+          onEdit={() => setEditing(true)}
+          isOwner={isOwner}
+        />
+      )}
 
       {/* ═══ TRIP PACKAGE ═══ */}
       <Section>

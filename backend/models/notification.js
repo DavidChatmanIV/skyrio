@@ -39,6 +39,11 @@ const notificationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Feed + unread count lookups
+notificationSchema.index({ user: 1, read: 1, updatedAt: -1 });
+// Finding the one open (unread) group-chat notification to collapse into
+notificationSchema.index({ user: 1, type: 1, "metadata.groupId": 1, read: 1 });
+
 const Notification =
   mongoose.models.Notification ||
   mongoose.model("Notification", notificationSchema);

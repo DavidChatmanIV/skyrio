@@ -18,6 +18,7 @@ import healthRouter from "./routes/health.routes.js";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
 import { assignFounderBadge } from "./routes/verificationRoutes.js";
+import { markGroupRead, groupRoom } from "./utils/notifyGroupMessage.js";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -242,6 +243,24 @@ io.on("connection", (socket) => {
       socket.join(String(userId));
       console.log(`🔔 Notifications room joined: ${userId}`);
     }
+  });
+
+  // ── Sync Together group chat ──────────────────────────────────
+  // Frontend emits this when a group chat screen opens.
+  socket.on("group:join", async ({ groupId, userId }) => {
+    if (!groupId || !userId) return;
+    socket.data.userId = String(userId); // lets notifyGroupMessage skip people already in the chat
+    socket.join(groupRoom(groupId));
+    try {
+      await markGroupRead(io, userId, groupId); // clears this chat's bell entry
+    } catch (err) {
+      console.error("group:join markGroupRead error:", err);
+    }
+  });
+
+  // Frontend emits this when the group chat screen closes.
+  socket.on("group:leave", ({ groupId }) => {
+    if (groupId) socket.leave(groupRoom(groupId));
   });
 
   socket.on("auth:join", ({ userId }) => {

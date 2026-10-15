@@ -5,6 +5,7 @@ import {
   LockOutlined,
   EyeInvisibleOutlined,
   EyeTwoTone,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 
@@ -33,7 +34,16 @@ export default function LoginPage() {
   });
   const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  // Shown in a visible box above the button (not just a toast)
+  const [loginError, setLoginError] = useState("");
+  // Which inputs get the red outline: "both" | "email" | "password" | ""
+  const [errorFields, setErrorFields] = useState("");
   const successHandledRef = useRef(false);
+
+  const clearError = () => {
+    if (loginError) setLoginError("");
+    if (errorFields) setErrorFields("");
+  };
 
   const redirectTo = useMemo(() => {
     const rt = location.state?.redirectTo || location.state?.from;
@@ -57,15 +67,25 @@ export default function LoginPage() {
     const emailOrUsername = (formData.emailOrUsername || "").trim();
     const password = formData.password || "";
     if (!emailOrUsername || !password) {
-      message.warning("Enter your email/username and password.");
+      setLoginError("Enter your email or username and your password.");
+      setErrorFields(
+        !emailOrUsername && !password
+          ? "both"
+          : !emailOrUsername
+          ? "email"
+          : "password"
+      );
       return;
     }
 
+    setLoginError("");
+    setErrorFields("");
     setLoading(true);
     setIsScanning(true);
 
+    let res;
     try {
-      const res = await fetch(`${API}/api/auth/login`, {
+      res = await fetch(`${API}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -75,8 +95,38 @@ export default function LoginPage() {
           password,
         }),
       });
+    } catch {
+      // Network down / server unreachable
+      setLoginError(
+        "Can't reach Skyrio right now. Check your connection and try again."
+      );
+      setIsScanning(false);
+      setLoading(false);
+      return;
+    }
+
+    try {
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || "Login failed");
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 404) {
+          // Wrong password or unknown account — same message either way,
+          // so the page never reveals which emails have accounts.
+          setLoginError("Wrong email/username or password. Please try again.");
+          setErrorFields("both");
+          setFormData((f) => ({ ...f, password: "" }));
+        } else if (res.status === 429) {
+          setLoginError(
+            "Too many login attempts. Wait a few minutes and try again."
+          );
+        } else {
+          setLoginError(
+            data?.message || data?.error || "Login failed. Please try again."
+          );
+        }
+        successHandledRef.current = false;
+        setIsScanning(false);
+        return;
+      }
 
       if (auth?.setSession)
         auth.setSession({ token: data?.token, user: data?.user });
@@ -111,7 +161,7 @@ export default function LoginPage() {
       nav(redirectTo, { replace: true, state: { fromAuth: true } });
     } catch (err) {
       successHandledRef.current = false;
-      message.error(err?.message || "Login failed");
+      setLoginError(err?.message || "Login failed. Please try again.");
       setIsScanning(false);
     } finally {
       setLoading(false);
@@ -228,15 +278,24 @@ export default function LoginPage() {
                       <div className="sk-fieldLabel">EMAIL OR USERNAME</div>
                       <Input
                         value={formData.emailOrUsername}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          clearError();
                           setFormData({
                             ...formData,
                             emailOrUsername: e.target.value,
-                          })
-                        }
+                          });
+                        }}
                         placeholder="Email or username"
                         prefix={<UserOutlined />}
                         className="sk-input"
+                        status={
+                          errorFields === "both" || errorFields === "email"
+                            ? "error"
+                            : undefined
+                        }
+                        aria-invalid={
+                          errorFields === "both" || errorFields === "email"
+                        }
                         autoComplete="username"
                         size="large"
                         onFocus={() => setIsScanning(true)}
@@ -248,12 +307,24 @@ export default function LoginPage() {
                       <div className="sk-fieldLabel">PASSWORD</div>
                       <Input.Password
                         value={formData.password}
-                        onChange={(e) =>
-                          setFormData({ ...formData, password: e.target.value })
-                        }
+                        onChange={(e) => {
+                          clearError();
+                          setFormData({
+                            ...formData,
+                            password: e.target.value,
+                          });
+                        }}
                         placeholder="Password"
                         prefix={<LockOutlined />}
                         className="sk-input"
+                        status={
+                          errorFields === "both" || errorFields === "password"
+                            ? "error"
+                            : undefined
+                        }
+                        aria-invalid={
+                          errorFields === "both" || errorFields === "password"
+                        }
                         autoComplete="current-password"
                         size="large"
                         onFocus={() => setIsScanning(true)}
@@ -263,6 +334,57 @@ export default function LoginPage() {
                         }
                       />
                     </div>
+
+                    {loginError && (
+                      <div
+                        className="sk-loginError"
+                        role="alert"
+                        aria-live="assertive"
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 10,
+                          margin: "4px 0 14px",
+                          padding: "12px 14px",
+                          borderRadius: 12,
+                          background: "rgba(255, 77, 79, 0.14)",
+                          border: "1px solid rgba(255, 99, 99, 0.55)",
+                          borderLeft: "4px solid #ff5a4f",
+                          color: "#ffd9d6",
+                          fontSize: 14,
+                          fontWeight: 600,
+                          lineHeight: 1.4,
+                          backdropFilter: "blur(8px)",
+                          animation: "skLoginShake 0.35s ease",
+                        }}
+                      >
+                        <ExclamationCircleOutlined
+                          style={{
+                            color: "#ff6b61",
+                            fontSize: 18,
+                            marginTop: 1,
+                          }}
+                        />
+                        <div>
+                          <div>{loginError}</div>
+                          {errorFields === "both" && (
+                            <Link
+                              to="/reset"
+                              style={{
+                                display: "inline-block",
+                                marginTop: 4,
+                                color: "#ff9a3c",
+                                fontWeight: 600,
+                                fontSize: 13,
+                              }}
+                            >
+                              Forgot your password?
+                            </Link>
+                          )}
+                        </div>
+                        <style>{`@keyframes skLoginShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}@media (prefers-reduced-motion: reduce){.sk-loginError{animation:none!important}}`}</style>
+                      </div>
+                    )}
 
                     <Button
                       className="sk-ctaBtn"

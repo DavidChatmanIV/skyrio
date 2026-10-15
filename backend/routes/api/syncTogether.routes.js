@@ -18,6 +18,11 @@ import {
 } from "../../services/syncEmails.js";
 import { sendConfirmationFor } from "../../services/bookingConfirmations.js";
 import {
+  notifyGroupMessage,
+  markGroupRead,
+  markViewing,
+} from "../../utils/notifyGroupMessage.js";
+import {
   SyncError,
   HOLD_HOURS,
   setSyncIo,
@@ -1088,6 +1093,23 @@ router.post("/:id/chat", async (req, res) => {
 
     const newMsg = populated.chatMessages[populated.chatMessages.length - 1];
 
+    // Bell notification for everyone else on the trip (non-blocking —
+    // never fail the send because a notification didn't go out).
+    const memberIds = [
+      group.owner,
+      ...group.members
+        .filter((m) => m.user && m.status !== "declined")
+        .map((m) => m.user),
+    ];
+    notifyGroupMessage(req.app.get("io"), {
+      groupId: group._id,
+      groupName: group.title || "Your trip",
+      senderId: userId,
+      senderName: newMsg?.user?.name || newMsg?.user?.username || "Someone",
+      preview: newMsg?.message || message.trim(),
+      memberIds,
+    }).catch((err) => console.error("[sync-together] chat notify error:", err));
+
     return res.json({ ok: true, message: newMsg });
   } catch (err) {
     console.error("[sync-together] chat error:", err);
@@ -1111,6 +1133,11 @@ router.get("/:id/chat", async (req, res) => {
       return res.status(404).json({ ok: false, error: "Group not found" });
     if (!isGroupMember(group, userId))
       return res.status(403).json({ ok: false, error: "Not a group member" });
+
+    // The chat page checks this every few seconds, so a request here means
+    // they're reading the chat: don't notify them, and clear its bell entry.
+    markViewing(group._id, userId);
+    markGroupRead(req.app.get("io"), userId, group._id).catch(() => {});
 
     // ?after=<ISO time> returns only newer messages (the page checks every
     // few seconds, so this keeps each check tiny).

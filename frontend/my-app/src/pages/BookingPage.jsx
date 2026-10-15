@@ -3555,6 +3555,22 @@ export default function BookingPage() {
     () => new Set((syncInfo?.shortlist || []).map((i) => i.key)),
     [syncInfo]
   );
+
+  // ── Opened from the group shortlist (?pick=<shortlist item id>) ──
+  // The exact suggestion someone tapped. Once fresh results load, we find
+  // the identical flight / room in them and open it — no hunting.
+  const pickId = searchParams.get("pick");
+  const pickedItem = useMemo(
+    () =>
+      pickId
+        ? (syncInfo?.shortlist || []).find(
+            (i) => String(i.id || i._id) === String(pickId)
+          ) || null
+        : null,
+    [pickId, syncInfo]
+  );
+  const pickHandledRef = useRef(null);
+
   const [suggesting, setSuggesting] = useState(null);
   const suggestToGroup = useCallback(
     async (kind, data, e) => {
@@ -3734,14 +3750,21 @@ export default function BookingPage() {
     const city = searchParams.get("city") || searchParams.get("to");
     const checkin = searchParams.get("depart");
     if (!city && !checkin && !hotelIdParam) return null;
-    // Opening the group's hotel: wait until we know its name and photo.
+    // Opening a specific hotel: wait until we know its name and photo.
+    // A shortlist pick carries the suggested hotel's own details.
     let hotel = null;
     if (hotelIdParam) {
       if (!syncInfo) return null;
+      const pickedHotel =
+        pickedItem?.kind === "hotel" &&
+        pickedItem.hotel?.hotelId === hotelIdParam
+          ? pickedItem.hotel
+          : null;
       hotel =
-        syncInfo.groupHotel?.hotelId === hotelIdParam
+        pickedHotel ||
+        (syncInfo.groupHotel?.hotelId === hotelIdParam
           ? syncInfo.groupHotel
-          : { hotelId: hotelIdParam, name: "Your group's hotel" };
+          : { hotelId: hotelIdParam, name: "Hotel" });
     }
     return {
       city,
@@ -3752,7 +3775,7 @@ export default function BookingPage() {
       hotel,
       autoSearch,
     };
-  }, [searchParams, hotelIdParam, syncInfo, autoSearch]);
+  }, [searchParams, hotelIdParam, syncInfo, autoSearch, pickedItem]);
   const excursionInitial = useMemo(() => {
     const city = searchParams.get("city") || searchParams.get("to");
     if (!city) return null;
@@ -4357,6 +4380,88 @@ export default function BookingPage() {
     onHandoff: runHandoff,
   };
   const isSearching = autoSearchLoading || manualSearchLoading;
+
+  // ── Shortlist pick → open that exact flight / room / activity ──
+  // Runs once per pick, as soon as fresh results are in.
+  useEffect(() => {
+    if (!pickedItem || isSearching) return;
+    if (pickHandledRef.current === pickId) return;
+    const who = pickedItem.suggestedByMe
+      ? "your"
+      : pickedItem.suggestedBy
+      ? `${pickedItem.suggestedBy}'s`
+      : "the group's";
+
+    // Flights: same key that was saved when it was suggested.
+    if (pickedItem.kind === "flight" && flightResults.length) {
+      pickHandledRef.current = pickId;
+      const s = pickedItem.flight || {};
+      const sameMinute = (a, b) =>
+        a && b && dayjs(a).isSame(dayjs(b), "minute");
+      const match =
+        flightResults.find((f) => flightKey(f) === pickedItem.key) ||
+        flightResults.find(
+          (f) =>
+            f.origin === s.origin &&
+            f.destination === s.destination &&
+            (!s.airlineCode || f.ownerCode === s.airlineCode) &&
+            sameMinute(f.departingAt, s.departAt) &&
+            (!s.returnDepartAt || sameMinute(f.returningAt, s.returnDepartAt))
+        );
+      if (match) {
+        selectFlightForCheckout(match);
+        antdMessage.success(`Opening ${who} suggested flight.`);
+      } else {
+        antdMessage.info(
+          "That exact flight isn't available anymore — here are the other flights on the same route and dates."
+        );
+      }
+      return;
+    }
+
+    // Hotels: same hotel + same room type and board.
+    if (pickedItem.kind === "hotel" && hotelResults.length) {
+      pickHandledRef.current = pickId;
+      const s = pickedItem.hotel || {};
+      const atHotel = hotelResults.filter((r) => r.hotelId === s.hotelId);
+      const match =
+        atHotel.find(
+          (r) =>
+            r.roomName === s.roomName &&
+            (r.boardName || "") === (s.boardName || "")
+        ) || atHotel.find((r) => r.roomName === s.roomName);
+      if (match) {
+        handleBookSingleRoom(match);
+        antdMessage.success(`Opening ${who} suggested room.`);
+      } else {
+        antdMessage.info(
+          atHotel.length
+            ? "That exact room is gone — here are the other rooms at this hotel."
+            : "This hotel has no rooms left for these dates."
+        );
+      }
+      return;
+    }
+
+    // Activities without a provider link: move it to the top of the results.
+    if (pickedItem.kind === "activity" && excursionResults.length) {
+      pickHandledRef.current = pickId;
+      const idx = excursionResults.findIndex(
+        (ex) => activityKey(ex) === pickedItem.key
+      );
+      if (idx > 0) {
+        setExcursionResults((prev) => [
+          prev[idx],
+          ...prev.filter((_, i) => i !== idx),
+        ]);
+      }
+      if (idx === -1)
+        antdMessage.info(
+          "That activity isn't showing for these dates — here's what's available."
+        );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickedItem, isSearching, flightResults, hotelResults, excursionResults]);
 
   const searchForm = useMemo(() => {
     switch (tab) {

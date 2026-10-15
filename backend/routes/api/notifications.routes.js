@@ -4,6 +4,10 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 
 const router = Router();
 
+// Real unread count — not just within the fetched page
+const countUnread = (userId) =>
+  Notification.countDocuments({ user: userId, read: false });
+
 // POST /api/notifications  (used by notificationsService.js createNotification())
 router.post("/", requireAuth, async (req, res) => {
   try {
@@ -50,11 +54,12 @@ router.post("/", requireAuth, async (req, res) => {
 router.get("/", requireAuth, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    // updatedAt so a group chat with new texts moves back to the top
     const notifications = await Notification.find({ user: req.user._id })
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1 })
       .limit(limit);
 
-    const unreadCount = notifications.filter((n) => !n.read).length;
+    const unreadCount = await countUnread(req.user._id);
     return res.json({ ok: true, notifications, unreadCount });
   } catch (err) {
     console.error("Notifications fetch error:", err);
@@ -69,10 +74,10 @@ router.get("/mine", requireAuth, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const notifications = await Notification.find({ user: req.user._id })
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1 })
       .limit(limit);
 
-    const unread = notifications.filter((n) => !n.read).length;
+    const unread = await countUnread(req.user._id);
 
     const items = notifications.map((n) => ({
       ...n.toObject(),

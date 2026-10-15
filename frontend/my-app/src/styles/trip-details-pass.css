@@ -1,0 +1,278 @@
+.tdp {
+  --tdp-orange: #ff8a2a;
+  --tdp-orange-2: #ffb347;
+  --tdp-line: rgba(255, 255, 255, 0.12);
+  --tdp-muted: rgba(255, 255, 255, 0.5);
+  --tdp-stub: 290px;
+
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: 1fr var(--tdp-stub);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-family: inherit;
+
+  /* Real cut-out notches at the tear line (transparent, works on any background) */
+  -webkit-mask: radial-gradient(
+        circle 13px at calc(100% - var(--tdp-stub)) 0,
+        #0000 97%,
+        #000
+      )
+      top / 100% 51% no-repeat,
+    radial-gradient(
+        circle 13px at calc(100% - var(--tdp-stub)) 100%,
+        #0000 97%,
+        #000
+      )
+      bottom / 100% 51% no-repeat;
+  mask: radial-gradient(
+        circle 13px at calc(100% - var(--tdp-stub)) 0,
+        #0000 97%,
+        #000
+      )
+      top / 100% 51% no-repeat,
+    radial-gradient(
+        circle 13px at calc(100% - var(--tdp-stub)) 100%,
+        #0000 97%,
+        #000
+      )
+      bottom / 100% 51% no-repeat;
+}
+
+.tdp-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tdp-muted);
+}
+
+/* ── main ticket ── */
+.tdp-main {
+  padding: 22px 26px;
+  min-width: 0;
+}
+.tdp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.tdp-edit {
+  background: none;
+  border: 1px solid var(--tdp-line);
+  color: var(--tdp-orange);
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tdp-edit:hover {
+  border-color: var(--tdp-orange);
+}
+.tdp-empty {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 14px;
+  margin: 18px 0 4px;
+}
+
+.tdp-route {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 20px 0 22px;
+}
+.tdp-city {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tdp-city--to {
+  text-align: right;
+  align-items: flex-end;
+}
+.tdp-code {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+.tdp-code--name {
+  font-size: 30px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tdp-name {
+  font-size: 13px;
+  color: var(--tdp-muted);
+  margin-top: 6px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tdp-path {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 40px;
+}
+.tdp-dash {
+  flex: 1;
+  border-top: 2px dashed var(--tdp-line);
+}
+.tdp-plane {
+  width: 24px;
+  height: 24px;
+  fill: var(--tdp-orange);
+  transform: rotate(90deg);
+  flex-shrink: 0;
+}
+
+.tdp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.tdp-grid dt {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tdp-muted);
+}
+.tdp-grid dd {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+.tdp-icon-val {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tdp-icon-val svg {
+  color: var(--tdp-orange);
+}
+
+/* ── stub (private budget) ── */
+.tdp-stub {
+  padding: 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 2px dashed var(--tdp-line);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 138, 42, 0.13),
+    rgba(255, 179, 71, 0.03)
+  );
+}
+.tdp-budget {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--tdp-line);
+  border-radius: 12px;
+  padding: 9px 12px;
+}
+.tdp-budget:focus-within {
+  border-color: var(--tdp-orange);
+}
+.tdp-currency {
+  color: var(--tdp-orange);
+  font-weight: 700;
+  font-size: 20px;
+}
+.tdp-budget input {
+  background: none;
+  border: 0;
+  outline: 0;
+  color: #fff;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  width: 100%;
+  min-width: 0;
+}
+.tdp-budget input::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+.tdp-per {
+  color: var(--tdp-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tdp-actions {
+  display: flex;
+  gap: 8px;
+}
+.tdp-save {
+  flex: 1;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  color: #1b1024;
+  background: linear-gradient(90deg, var(--tdp-orange), var(--tdp-orange-2));
+}
+.tdp-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tdp-clear {
+  background: none;
+  border: 1px solid var(--tdp-line);
+  color: var(--tdp-muted);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.tdp-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--tdp-muted);
+}
+
+/* ── mobile: stub drops below the ticket ── */
+@media (max-width: 760px) {
+  .tdp {
+    grid-template-columns: 1fr;
+    -webkit-mask: none;
+    mask: none;
+  }
+  .tdp-main {
+    padding: 18px 16px;
+  }
+  .tdp-code {
+    font-size: 32px;
+  }
+  .tdp-code--name {
+    font-size: 22px;
+    max-width: 150px;
+  }
+  .tdp-name {
+    max-width: 120px;
+  }
+  .tdp-stub {
+    border-left: 0;
+    border-top: 2px dashed var(--tdp-line);
+    padding: 18px 16px;
+  }
+}
