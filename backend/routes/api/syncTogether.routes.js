@@ -1232,6 +1232,19 @@ const cleanStr = (v, n = 200) =>
 const cleanNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
 const SHORTLIST_MAX = 30;
 
+// Your private budget — only ever the viewer's own, never anyone else's.
+function myBudgetFor(group, viewerId) {
+  const me = String(viewerId || "");
+  const raw =
+    String(group.owner?._id || group.owner || "") === me
+      ? group.ownerBudget
+      : (group.members || []).find(
+          (m) => String(m.user?._id || m.user || "") === me
+        )?.budget;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 async function computeParts(group, viewerId) {
   const travelers = travelersOf(group);
   const userIds = travelers.map((t) => t.userId).filter(Boolean);
@@ -1362,7 +1375,31 @@ async function computeParts(group, viewerId) {
     };
   });
 
+  // What the viewer has already booked on this trip: their own flight/room
+  // bookings (cancelled ones don't count) plus their share of a shared
+  // room once it's held or paid. Drives "$X left in your trip budget".
+  const viewer = String(viewerId);
+  let mySpent = bookings
+    .filter(
+      (b) =>
+        String(b.user) === viewer && b.status !== "cancelled" && !b.sharedRoom
+    )
+    .reduce((sum, b) => sum + (Number(b.totalAmount ?? b.total) || 0), 0);
+  for (const r of activeRooms) {
+    const share = r.shares.find((s) => String(s.user) === viewer);
+    if (share && ["authorized", "paid"].includes(share.status)) {
+      // ASSUMPTION: the share's dollars are in `amount` (or `amountCents`).
+      // Rename here if SplitPayment stores it under another field.
+      mySpent +=
+        Number(share.amount) ||
+        (Number(share.amountCents) ? Number(share.amountCents) / 100 : 0) ||
+        0;
+    }
+  }
+
   return {
+    myBudget: myBudgetFor(group, viewerId),
+    mySpent: Math.round(mySpent),
     holdHours: HOLD_HOURS,
     allBookedAt: group.allBookedAt || null,
     bookingOpenedAt: group.bookingOpenedAt || null,

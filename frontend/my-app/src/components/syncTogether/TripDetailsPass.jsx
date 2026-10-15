@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Sunrise, Sun, Moon } from "lucide-react";
 import "@/styles/trip-details-pass.css";
+import { BUDGET_HOW_IT_WORKS } from "@/utils/tripBudget";
 
 const CABIN = {
   economy: "Economy",
@@ -51,6 +52,7 @@ export default function TripDetailsPass({
   isOwner,
 }) {
   const [draft, setDraft] = useState(withCommas(myBudget));
+  const [showHow, setShowHow] = useState(false);
   useEffect(() => setDraft(withCommas(myBudget)), [myBudget]);
 
   const hasDetails = destination || startDate || departureAirport;
@@ -153,7 +155,10 @@ export default function TripDetailsPass({
             if (!unchanged) onSaveBudget(draftNum);
           }}
         >
-          <span className="tdp-label">Your budget · private</span>
+          <span className="tdp-label">Your trip budget · private</span>
+          <span className="tdp-help">
+            Your total for this trip: flight, stay and activities.
+          </span>
           <div className="tdp-budget">
             <span className="tdp-currency">$</span>
             <input
@@ -162,7 +167,7 @@ export default function TripDetailsPass({
               placeholder="1,500"
               value={draft}
               onChange={(e) => setDraft(withCommas(e.target.value))}
-              aria-label="Your budget per person"
+              aria-label="Your trip budget per person"
             />
             <span className="tdp-per">/person</span>
           </div>
@@ -196,6 +201,23 @@ export default function TripDetailsPass({
                 } set one). Nobody sees anyone else's number.`
               : "Only you see this. Atlas plans to what everyone's comfortable with."}
           </p>
+          <button
+            type="button"
+            className="tdp-how-toggle"
+            onClick={() => setShowHow((v) => !v)}
+            aria-expanded={showHow}
+          >
+            {showHow ? "Hide how it works" : "How it works"}
+          </button>
+          {showHow && (
+            <ul className="tdp-how">
+              {BUDGET_HOW_IT_WORKS.map(([b, t]) => (
+                <li key={b}>
+                  <strong>{b}</strong> {t}
+                </li>
+              ))}
+            </ul>
+          )}
         </form>
       )}
     </section>

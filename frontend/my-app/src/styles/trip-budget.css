@@ -1,0 +1,219 @@
+.tbb {
+  margin: 4px 0 18px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 138, 42, 0.07);
+  border: 1px solid rgba(255, 138, 42, 0.25);
+  color: #fff;
+  font-size: 14px;
+}
+.tbb-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.tbb-icon {
+  color: #ff8a2a;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.tbb-text {
+  flex: 1;
+  min-width: 0;
+}
+.tbb-headline {
+  line-height: 1.4;
+}
+.tbb-headline strong {
+  color: #ffb347;
+}
+.tbb-sub {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+.tbb-warn {
+  color: #ffb347;
+}
+.tbb-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid rgba(255, 138, 42, 0.5);
+  color: #ff8a2a;
+  border-radius: 999px;
+  padding: 5px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tbb-btn:hover {
+  background: rgba(255, 138, 42, 0.12);
+}
+
+.tbb-edit {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.tbb-currency {
+  color: #ff8a2a;
+  font-weight: 700;
+  font-size: 18px;
+}
+.tbb-edit input {
+  width: 120px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  outline: none;
+}
+.tbb-edit input:focus {
+  border-color: #ff8a2a;
+}
+.tbb-per {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+.tbb-save {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 700;
+  color: #1b1024;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347);
+  cursor: pointer;
+}
+.tbb-save:disabled {
+  opacity: 0.5;
+}
+.tbb-cancel {
+  background: none;
+  border: 0;
+  color: rgba(255, 255, 255, 0.5);
+  font: inherit;
+  cursor: pointer;
+}
+.tbb-error {
+  width: 100%;
+  color: #ff6b6b;
+  font-size: 12.5px;
+}
+
+.tbb-over {
+  display: block;
+  margin-top: 10px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #ffb347;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.tbb-how-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.tbb-how-toggle svg {
+  transition: transform 0.15s;
+}
+.tbb-how {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.tbb-how strong {
+  color: #fff;
+}
+
+/* ── Over-budget check at checkout ── */
+.obc {
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: rgba(255, 138, 42, 0.08);
+  border: 1px solid rgba(255, 138, 42, 0.35);
+  color: #fff;
+}
+.obc-title {
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.obc-title svg {
+  color: #ff8a2a;
+  flex-shrink: 0;
+}
+.obc-body {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  margin: 6px 0 14px;
+  line-height: 1.5;
+}
+.obc-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.obc-actions button {
+  flex: 1 1 180px;
+  min-height: 46px;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.obc-go {
+  border: 0;
+  color: #1b1024;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347);
+}
+.obc-raise {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.obc-raise:disabled,
+.obc-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.obc-error {
+  color: #ff6b6b;
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .tbb-row {
+    flex-wrap: wrap;
+  }
+  .tbb-btn {
+    margin-left: 26px;
+  }
+}

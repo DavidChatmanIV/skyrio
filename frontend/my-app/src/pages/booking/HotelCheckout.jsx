@@ -19,6 +19,9 @@ import {
 import { CheckCircle2, Users, BedDouble, MapPin } from "lucide-react";
 
 import "@/styles/BookingPage.css"; // reuses sk-* dark-glass tokens/classes
+import OverBudgetCheck, {
+  overBudgetBy,
+} from "@/components/syncTogether/OverBudgetCheck";
 
 const { Title, Text } = Typography;
 
@@ -43,7 +46,10 @@ function roomKey(r) {
 
 // "David Chatman IV" → { firstName: "David", lastName: "Chatman IV" }
 function splitName(full) {
-  const parts = String(full || "").trim().split(/\s+/).filter(Boolean);
+  const parts = String(full || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (parts.length < 2) return null;
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
@@ -205,7 +211,9 @@ function PaymentForm({ rooms, guestNames, contactEmail, groupId, onSuccess }) {
         paymentIntent?.status !== "requires_capture" &&
         paymentIntent?.status !== "succeeded"
       ) {
-        throw new Error("Your card wasn't authorized. Please try another card.");
+        throw new Error(
+          "Your card wasn't authorized. Please try another card."
+        );
       }
 
       // ── 3. Book with LiteAPI; backend charges only what's confirmed ──
@@ -351,7 +359,9 @@ function useGroupParts(groupId) {
   useEffect(() => {
     if (!groupId) return;
     let alive = true;
-    fetch(`${API}/api/sync-together/${groupId}/parts`, { headers: authHeaders() })
+    fetch(`${API}/api/sync-together/${groupId}/parts`, {
+      headers: authHeaders(),
+    })
       .then((r) => r.json())
       .then((d) => alive && d.ok && setParts(d))
       .catch(() => {});
@@ -363,8 +373,12 @@ function useGroupParts(groupId) {
 }
 
 function ShareRoomPanel({ groupId, parts, room, guestName, contactEmail }) {
-  const travelers = (parts?.travelers || []).filter((t) => t.hasAccount && t.userId);
-  const [picked, setPicked] = useState(() => travelers.filter((t) => t.isYou).map((t) => t.userId));
+  const travelers = (parts?.travelers || []).filter(
+    (t) => t.hasAccount && t.userId
+  );
+  const [picked, setPicked] = useState(() =>
+    travelers.filter((t) => t.isYou).map((t) => t.userId)
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const capacity = Number(room.adults) || null;
@@ -372,43 +386,60 @@ function ShareRoomPanel({ groupId, parts, room, guestName, contactEmail }) {
   const each = people ? (room.totalAmount ?? 0) / people : 0;
 
   const toggle = (id) =>
-    setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setPicked((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
 
   const submit = async () => {
     setError(null);
     const name = splitName(guestName);
     const email = contactEmail.trim();
-    if (!name) return setError("Enter the guest's first and last name (the room is booked under this name).");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Enter a valid contact email.");
-    if (people < 2) return setError("Pick at least 2 people to share the room.");
+    if (!name)
+      return setError(
+        "Enter the guest's first and last name (the room is booked under this name)."
+      );
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return setError("Enter a valid contact email.");
+    if (people < 2)
+      return setError("Pick at least 2 people to share the room.");
     if (capacity && people > capacity)
-      return setError(`This room was priced for ${capacity} guest${capacity === 1 ? "" : "s"}. Search again with ${people} guests.`);
+      return setError(
+        `This room was priced for ${capacity} guest${
+          capacity === 1 ? "" : "s"
+        }. Search again with ${people} guests.`
+      );
 
     setBusy(true);
     try {
-      const res = await fetch(`${API}/api/sync-together/${groupId}/shared-rooms`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          userIds: picked,
-          holder: { ...name, email },
-          room: {
-            hotelId: room.hotelId,
-            offerId: room.offerId,
-            name: room.name,
-            roomName: room.roomName,
-            boardName: room.boardName,
-            address: room.address,
-            thumbnail: room.thumbnail,
-            checkin: room.checkin,
-            checkout: room.checkout,
-            adults: room.adults,
-          },
-        }),
-      });
+      const res = await fetch(
+        `${API}/api/sync-together/${groupId}/shared-rooms`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({
+            userIds: picked,
+            holder: { ...name, email },
+            room: {
+              hotelId: room.hotelId,
+              offerId: room.offerId,
+              name: room.name,
+              roomName: room.roomName,
+              boardName: room.boardName,
+              address: room.address,
+              thumbnail: room.thumbnail,
+              checkin: room.checkin,
+              checkout: room.checkout,
+              adults: room.adults,
+            },
+          }),
+        }
+      );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error(data.error || "Couldn't set up the shared room.");
-      antdMessage.success("Shared room set up. Everyone can now hold their share from the trip page.");
+      if (!res.ok || !data.ok)
+        throw new Error(data.error || "Couldn't set up the shared room.");
+      antdMessage.success(
+        "Shared room set up. Everyone can now hold their share from the trip page."
+      );
       try {
         window.sessionStorage.removeItem("skyrio_sync_group");
       } catch {
@@ -430,19 +461,34 @@ function ShareRoomPanel({ groupId, parts, room, guestName, contactEmail }) {
       {travelers.map((t) => (
         <label
           key={t.userId}
-          style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", color: "#fff", fontSize: 14, cursor: "pointer" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "6px 0",
+            color: "#fff",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
         >
-          <input type="checkbox" checked={picked.includes(t.userId)} onChange={() => toggle(t.userId)} />
+          <input
+            type="checkbox"
+            checked={picked.includes(t.userId)}
+            onChange={() => toggle(t.userId)}
+          />
           {t.name}
           {t.isYou ? " (you)" : ""}
         </label>
       ))}
       {travelers.length < 2 && (
         <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-          Only travelers who've joined the trip with a Skyrio account can share a room.
+          Only travelers who've joined the trip with a Skyrio account can share
+          a room.
         </div>
       )}
-      <div style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+      <div
+        style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,0.7)" }}
+      >
         {people >= 2 ? `About $${each.toFixed(2)} each · ` : ""}
         Everyone holds their own share. Nobody is charged until everyone is in
         {parts?.holdHours ? ` (${parts.holdHours} hours to do it)` : ""}.
@@ -456,7 +502,9 @@ function ShareRoomPanel({ groupId, parts, room, guestName, contactEmail }) {
         icon={busy ? <LoadingOutlined /> : undefined}
         style={{ marginTop: 12 }}
       >
-        {busy ? "Checking the price with the hotel…" : "Share this room · ask everyone to hold their share"}
+        {busy
+          ? "Checking the price with the hotel…"
+          : "Share this room · ask everyone to hold their share"}
       </Button>
     </div>
   );
@@ -483,7 +531,9 @@ function ConfirmationScreen({ confirmation, onBack }) {
           Confirmation #{confirmationId}
         </Text>
         {partialMessage && (
-          <Text style={{ color: "#ffb347", marginTop: 8 }}>{partialMessage}</Text>
+          <Text style={{ color: "#ffb347", marginTop: 8 }}>
+            {partialMessage}
+          </Text>
         )}
 
         <Card
@@ -516,7 +566,14 @@ function ConfirmationScreen({ confirmation, onBack }) {
 // ─────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────
-export default function HotelCheckout({ rooms: roomsProp, hotel, onBack, groupId = null }) {
+export default function HotelCheckout({
+  rooms: roomsProp,
+  hotel,
+  onBack,
+  groupId = null,
+  tripBudget = null,
+  onBudgetSaved,
+}) {
   // Accept either `rooms` (array, preferred) or a single legacy `hotel`.
   const rooms = useMemo(
     () => (roomsProp && roomsProp.length ? roomsProp : hotel ? [hotel] : []),
@@ -528,8 +585,12 @@ export default function HotelCheckout({ rooms: roomsProp, hotel, onBack, groupId
   const [confirmation, setConfirmation] = useState(null);
   const groupParts = useGroupParts(groupId);
   // Only the organizer can set up a shared room, one room at a time.
-  const canShare = Boolean(groupId && groupParts?.isOrganizer && rooms.length === 1);
+  const canShare = Boolean(
+    groupId && groupParts?.isOrganizer && rooms.length === 1
+  );
   const [shareMode, setShareMode] = useState(false);
+  // Sync Together: soft check before paying if this goes past your budget.
+  const [budgetOk, setBudgetOk] = useState(false);
 
   // Keep guestNames the same length as rooms if the room list changes.
   useEffect(() => {
@@ -666,6 +727,14 @@ export default function HotelCheckout({ rooms: roomsProp, hotel, onBack, groupId
                 room={rooms[0]}
                 guestName={guestNames[0] ?? ""}
                 contactEmail={contactEmail}
+              />
+            ) : !budgetOk && overBudgetBy(grandTotal, tripBudget) > 0 ? (
+              <OverBudgetCheck
+                total={grandTotal}
+                tb={tripBudget}
+                groupId={groupId}
+                onBudgetSaved={onBudgetSaved}
+                onProceed={() => setBudgetOk(true)}
               />
             ) : (
               <Elements stripe={stripePromise}>

@@ -1,3 +1,4 @@
+/* src/styles/trip-details-pass.css — matches the Boarding Pass search bars */
 .tdp {
   --tdp-orange: #ff8a2a;
   --tdp-orange-2: #ffb347;
@@ -275,4 +276,33 @@
     border-top: 2px dashed var(--tdp-line);
     padding: 18px 16px;
   }
+}
+
+/* budget explainer on the stub */
+.tdp-help {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: -4px;
+}
+.tdp-how-toggle {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--tdp-orange);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.tdp-how {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.7);
+}
+.tdp-how strong {
+  color: #fff;
 }

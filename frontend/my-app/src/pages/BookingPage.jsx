@@ -16,6 +16,7 @@ import {
   Select,
   InputNumber,
   Input,
+  Modal,
   message as antdMessage,
 } from "antd";
 import {
@@ -59,6 +60,13 @@ import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import { createNotification } from "@/services/notificationsService";
 import { useExcursionSearch } from "@/hooks/useExcursionSearch";
 import ExcursionResults from "@/pages/booking/ExcursionResults";
+import TripBudgetBar from "@/components/syncTogether/TripBudgetBar";
+import {
+  tripBudgetFrom,
+  priceFit,
+  splitByBudget,
+  money,
+} from "@/utils/tripBudget";
 import {
   Zap,
   Bell,
@@ -3468,6 +3476,33 @@ export default function BookingPage() {
     };
   }, [syncGroupId]);
   const groupHotelId = syncInfo?.groupHotel?.hotelId || null;
+
+  // ── Your private trip budget (Sync Together) ──
+  // What's left = your budget − what you've booked on this trip. Results
+  // that fit come first; the rest are tucked behind "Show". Nothing is
+  // ever blocked.
+  const tripBudget = useMemo(() => tripBudgetFrom(syncInfo), [syncInfo]);
+  const budgetOn = Boolean(syncGroupId && tripBudget.set);
+  const [showOverBudget, setShowOverBudget] = useState(false);
+  const handleBudgetSaved = useCallback((data) => {
+    setSyncInfo((prev) => ({
+      ...(prev || {}),
+      myBudget: data.myBudget,
+      budgetSummary: data.budgetSummary ?? prev?.budgetSummary,
+    }));
+  }, []);
+  const BudgetTag = ({ price }) => {
+    if (!budgetOn) return null;
+    const fit = priceFit(price, tripBudget);
+    if (!fit) return null;
+    return fit.fits ? (
+      <span className="sk-tag sk-tag-good">Within your budget</span>
+    ) : (
+      <span className="sk-tag sk-tag-orange">
+        {money(fit.over)} over your budget
+      </span>
+    );
+  };
   const makeGroupHotel = useCallback(
     async (hotel) => {
       if (!syncGroupId) return;
@@ -3667,6 +3702,31 @@ export default function BookingPage() {
     },
     [syncGroupId, syncInfo]
   );
+  // Suggesting something above what the group is comfortable with gets a
+  // quiet heads-up first. No names or numbers are shown.
+  const itemPrice = (kind, data) =>
+    kind === "activity"
+      ? parseFloat(
+          data.price ?? data.fromPrice ?? data.pricing?.summary?.fromPrice
+        )
+      : parseFloat(data.totalAmount);
+  const suggestWithComfortCheck = (kind, data, e) => {
+    e?.stopPropagation?.();
+    const comfy = syncInfo?.budgetSummary?.comfortable;
+    const price = itemPrice(kind, data);
+    if (comfy && Number.isFinite(price) && price > comfy) {
+      Modal.confirm({
+        title: "Heads up",
+        content:
+          "This is above what the group is comfortable with. Suggest it anyway?",
+        okText: "Suggest anyway",
+        cancelText: "Keep looking",
+        onOk: () => suggestToGroup(kind, data),
+      });
+      return;
+    }
+    suggestToGroup(kind, data);
+  };
   const SuggestBtn = ({ kind, data }) => {
     if (!syncGroupId) return null;
     const key =
@@ -3704,7 +3764,7 @@ export default function BookingPage() {
       <button
         type="button"
         disabled={done || suggesting === key}
-        onClick={(e) => suggestToGroup(kind, data, e)}
+        onClick={(e) => suggestWithComfortCheck(kind, data, e)}
         style={{
           background: done ? "rgba(82,196,26,0.12)" : "rgba(255,138,42,0.12)",
           border: `1px solid ${
@@ -4227,17 +4287,40 @@ export default function BookingPage() {
     [flightGroups, selectedOutboundGroupKey]
   );
 
+  // Budget split: what fits your trip budget first; the rest behind "Show".
+  // (No budget set → everything shows exactly as before.)
+  const flightFit = useMemo(
+    () =>
+      splitByBudget(
+        visibleFlights,
+        (f) => f.totalAmount,
+        budgetOn ? tripBudget : null,
+        showOverBudget
+      ),
+    [visibleFlights, budgetOn, tripBudget, showOverBudget]
+  );
+  const groupFit = useMemo(
+    () =>
+      splitByBudget(
+        flightGroups,
+        (g) => g.cheapest.totalAmount,
+        budgetOn ? tripBudget : null,
+        showOverBudget
+      ),
+    [flightGroups, budgetOn, tripBudget, showOverBudget]
+  );
+
   const paginatedFlights = useMemo(
-    () => visibleFlights.slice(0, visibleCount),
-    [visibleFlights, visibleCount]
+    () => flightFit.shown.slice(0, visibleCount),
+    [flightFit, visibleCount]
   );
   const paginatedGroups = useMemo(
-    () => flightGroups.slice(0, visibleCount),
-    [flightGroups, visibleCount]
+    () => groupFit.shown.slice(0, visibleCount),
+    [groupFit, visibleCount]
   );
   const flightDisplayCount = hasReturnData
-    ? flightGroups.length
-    : visibleFlights.length;
+    ? groupFit.shown.length
+    : flightFit.shown.length;
   // Pagination only applies to the step-1 outbound list — step 2 shows
   // a group's full set of return options at once (typically small).
   const hasMore = !selectedGroup && visibleCount < flightDisplayCount;
@@ -4258,11 +4341,25 @@ export default function BookingPage() {
     () => Object.values(hotelFilters).filter((v) => v !== "any").length,
     [hotelFilters]
   );
-  const paginatedHotels = useMemo(
-    () => visibleHotels.slice(0, visibleCount),
-    [visibleHotels, visibleCount]
+  const hotelFit = useMemo(
+    () =>
+      splitByBudget(
+        visibleHotels,
+        (h) => h.totalAmount,
+        budgetOn ? tripBudget : null,
+        showOverBudget
+      ),
+    [visibleHotels, budgetOn, tripBudget, showOverBudget]
   );
-  const hotelHasMore = visibleCount < visibleHotels.length;
+  const paginatedHotels = useMemo(
+    () => hotelFit.shown.slice(0, visibleCount),
+    [hotelFit, visibleCount]
+  );
+  const hotelHasMore = visibleCount < hotelFit.shown.length;
+
+  // What the budget bar reports for the tab you're on.
+  const budgetBarFit =
+    tab === "Stays" ? hotelFit : hasReturnData ? groupFit : flightFit;
 
   // A new hotel search starts with clean filters (the old hotel pick won't exist).
   useEffect(() => {
@@ -4272,6 +4369,7 @@ export default function BookingPage() {
   useEffect(() => {
     setVisibleCount(RESULTS_PER_PAGE);
     setSelectedOutboundGroupKey(null);
+    setShowOverBudget(false);
   }, [flightResults, hotelResults, smartFilters, hotelFilters, hotelSortBy]);
 
   // Only the destination's weather is surfaced anywhere in the booking flow —
@@ -5128,6 +5226,20 @@ export default function BookingPage() {
                   </button>
                 )}
             </div>
+
+            {/* ── Your trip budget (Sync Together) ── */}
+            {syncGroupId && (tab === "Flights" || tab === "Stays") && (
+              <TripBudgetBar
+                groupId={syncGroupId}
+                tb={tripBudget}
+                kind={tab === "Stays" ? "stays" : "flights"}
+                overCount={isSearching ? 0 : budgetBarFit.overCount}
+                noneFit={!isSearching && budgetBarFit.noneFit}
+                showingOver={showOverBudget}
+                onToggleOver={() => setShowOverBudget((v) => !v)}
+                onSaved={handleBudgetSaved}
+              />
+            )}
 
             {isSearching && tab === "Flights" && (
               <FlightSkeleton destCity={destCity} fromCode={fromCode} />
@@ -6145,11 +6257,11 @@ export default function BookingPage() {
                   View{" "}
                   {Math.min(
                     RESULTS_PER_PAGE,
-                    visibleHotels.length - visibleCount
+                    hotelFit.shown.length - visibleCount
                   )}{" "}
                   more rooms
                   <span style={{ opacity: 0.4, marginLeft: 10, fontSize: 12 }}>
-                    {visibleCount} of {visibleHotels.length}
+                    {visibleCount} of {hotelFit.shown.length}
                   </span>
                 </button>
               </div>
