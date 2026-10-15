@@ -1379,27 +1379,54 @@ async function computeParts(group, viewerId) {
   // bookings (cancelled ones don't count) plus their share of a shared
   // room once it's held or paid. Drives "$X left in your trip budget".
   const viewer = String(viewerId);
-  let mySpent = bookings
+  // Each thing the viewer has booked, so the budget bar can say WHAT the
+  // money went to ("Flight · EWR → MIA · $324"), not just a total.
+  const myBooked = bookings
     .filter(
       (b) =>
         String(b.user) === viewer && b.status !== "cancelled" && !b.sharedRoom
     )
-    .reduce((sum, b) => sum + (Number(b.totalAmount ?? b.total) || 0), 0);
+    .map((b) => ({
+      id: String(b._id),
+      kind:
+        b.type === "Flight"
+          ? "flight"
+          : b.type === "Hotel"
+          ? "stay"
+          : /excursion|activit|tour/i.test(String(b.type || ""))
+          ? "activity"
+          : "other",
+      label:
+        b.type === "Flight" && b.flight?.origin && b.flight?.destination
+          ? `${b.flight.airline ? b.flight.airline + " · " : ""}${
+              b.flight.origin
+            } → ${b.flight.destination}`
+          : String(b.tripDetails || b.type || "Booking").slice(0, 80),
+      amount: Math.round(Number(b.totalAmount ?? b.total) || 0),
+    }));
   for (const r of activeRooms) {
     const share = r.shares.find((s) => String(s.user) === viewer);
     if (share && ["authorized", "paid"].includes(share.status)) {
       // ASSUMPTION: the share's dollars are in `amount` (or `amountCents`).
       // Rename here if SplitPayment stores it under another field.
-      mySpent +=
+      const amt =
         Number(share.amount) ||
         (Number(share.amountCents) ? Number(share.amountCents) / 100 : 0) ||
         0;
+      myBooked.push({
+        id: String(r._id),
+        kind: "stay",
+        label: `Your share of ${r.room?.name || "a shared room"}`,
+        amount: Math.round(amt),
+      });
     }
   }
+  const mySpent = myBooked.reduce((sum, x) => sum + x.amount, 0);
 
   return {
     myBudget: myBudgetFor(group, viewerId),
     mySpent: Math.round(mySpent),
+    myBooked,
     holdHours: HOLD_HOURS,
     allBookedAt: group.allBookedAt || null,
     bookingOpenedAt: group.bookingOpenedAt || null,

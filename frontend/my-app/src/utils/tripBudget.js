@@ -1,21 +1,20 @@
 // src/utils/tripBudget.js
 // One place for the Sync Together trip-budget math, so the search page,
 // both checkouts and the trip page always agree.
-//
-// The budget is the traveler's PRIVATE total for the whole trip, per person
-// (flight + stay + activities). "left" = budget − what they've already
-// booked on this trip. Going over is always allowed — we just say so.
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
 export function tripBudgetFrom(info) {
   const budget = Number(info?.myBudget) > 0 ? Number(info.myBudget) : null;
   const spent = Math.max(0, Number(info?.mySpent) || 0);
-  if (!budget) return { set: false, budget: null, spent, left: null };
+  // What the spent total is made of: [{ kind, label, amount }]
+  const booked = Array.isArray(info?.myBooked) ? info.myBooked : [];
+  if (!budget) return { set: false, budget: null, spent, booked, left: null };
   return {
     set: true,
     budget,
     spent,
+    booked,
     left: Math.max(0, budget - spent),
     usedUp: spent >= budget,
   };
@@ -74,3 +73,25 @@ export const BUDGET_HOW_IT_WORKS = [
   ["Going over is okay.", "Nothing is blocked. You'll see it clearly and can change your budget anytime."],
   ["Always private.", "The group only sees what everyone's comfortable with, never your number."],
 ];
+
+// Search link for one part of a group trip (flight / stay / activity),
+// prefilled with the trip's destination and dates, ready to run.
+export function tripSearchParams(groupId, info, kind, opts = {}) {
+  const ymd = (v) => (v ? new Date(v).toISOString().slice(0, 10) : null);
+  const tab =
+    kind === "stay" ? "Stays" : kind === "activity" ? "Excursions" : "Flights";
+  const p = { groupId, tab, auto: "1" };
+  if (info?.destination) p.to = info.destination;
+  if (info?.dateRangeStart) p.depart = ymd(info.dateRangeStart);
+  if (info?.dateRangeEnd) p.return = ymd(info.dateRangeEnd);
+  if (tab === "Flights") {
+    if (opts.from) p.from = opts.from;
+    if (opts.cabin || info?.cabinClass) p.cabin = opts.cabin || info.cabinClass;
+    p.adults = "1";
+  }
+  if (tab === "Stays") {
+    p.adults = "1";
+    p.rooms = "1";
+  }
+  return p;
+}

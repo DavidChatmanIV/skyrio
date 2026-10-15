@@ -1,13 +1,165 @@
 .tbb {
   margin: 4px 0 18px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(255, 138, 42, 0.07);
-  border: 1px solid rgba(255, 138, 42, 0.25);
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 138, 42, 0.28);
   color: #fff;
   font-size: 14px;
+  backdrop-filter: blur(10px);
 }
-.tbb-row {
+
+/* header */
+.tbb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tbb-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+.tbb-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+.tbb-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 16px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #1b1024;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347);
+  cursor: pointer;
+}
+
+/* steps */
+.tbb-steps {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.tbb-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.tbb-step.is-here {
+  border-color: rgba(255, 138, 42, 0.55);
+  background: rgba(255, 138, 42, 0.07);
+}
+.tbb-step.is-done {
+  border-color: rgba(82, 196, 26, 0.4);
+  background: rgba(82, 196, 26, 0.07);
+}
+.tbb-step-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff8a2a;
+  background: rgba(255, 138, 42, 0.12);
+}
+.tbb-step.is-done .tbb-step-icon {
+  color: #1b1024;
+  background: #52c41a;
+}
+.tbb-step-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tbb-step-title {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tbb-here {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ff8a2a;
+}
+.tbb-step-detail {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tbb-step.is-done .tbb-step-detail {
+  color: rgba(255, 255, 255, 0.85);
+}
+.tbb-step-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 3px;
+}
+.tbb-step-item span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tbb-step-end {
+  margin-left: auto;
+  align-self: center;
+}
+.tbb-step-amt {
+  font-weight: 800;
+  color: #fff;
+}
+.tbb-step-find {
+  background: none;
+  border: 1px solid rgba(255, 138, 42, 0.5);
+  color: #ff8a2a;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* budget */
+.tbb-budget {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 138, 42, 0.07);
+  border: 1px solid rgba(255, 138, 42, 0.2);
+}
+.tbb-budget-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -26,6 +178,27 @@
 }
 .tbb-headline strong {
   color: #ffb347;
+}
+.tbb-sub-inline {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12.5px;
+}
+.tbb-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin: 8px 0 6px;
+}
+.tbb-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347);
+  transition: width 0.4s ease;
+}
+.tbb-meter.is-over span {
+  background: linear-gradient(90deg, #ff8a2a, #ff5c5c);
 }
 .tbb-sub {
   color: rgba(255, 255, 255, 0.55);
@@ -209,11 +382,22 @@
   margin-top: 8px;
 }
 
-@media (max-width: 600px) {
-  .tbb-row {
+/* phones: steps stack, buttons full width */
+@media (max-width: 720px) {
+  .tbb {
+    padding: 14px;
+  }
+  .tbb-steps {
+    grid-template-columns: 1fr;
+  }
+  .tbb-next {
+    width: 100%;
+    justify-content: center;
+  }
+  .tbb-budget-row {
     flex-wrap: wrap;
   }
   .tbb-btn {
-    margin-left: 26px;
+    margin-left: 25px;
   }
 }

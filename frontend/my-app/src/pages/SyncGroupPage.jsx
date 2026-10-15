@@ -13,6 +13,8 @@ import GroupTripPanel from "./GroupTripPanel";
 import GroupShortlist from "./GroupShortlist";
 import AttachBookingCard from "./AttachBookingCard";
 import TripDetailsPass from "@/components/syncTogether/TripDetailsPass";
+import TripBudgetBar from "@/components/syncTogether/TripBudgetBar";
+import { tripBudgetFrom, tripSearchParams } from "@/utils/tripBudget";
 import {
   ArrowLeftOutlined,
   SyncOutlined,
@@ -517,6 +519,21 @@ export default function SyncGroupPage() {
   // NEW: who has actually booked (from bookings linked to this trip).
   // Drives the stepper and status badge instead of group.status alone.
   const [bookingProgress, setBookingProgress] = useState(null);
+  // YOUR part of the trip (what you've booked + your private budget).
+  // Drives the "Your trip" tracker: Flight · Stay · Things to do.
+  const [myParts, setMyParts] = useState(null);
+  const fetchMyParts = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/parts`, {
+        headers: authHeaders(),
+      });
+      const d = await res.json();
+      if (d.ok) setMyParts(d);
+    } catch {
+      /* tracker just stays hidden */
+    }
+  };
+  const myTrip = useMemo(() => tripBudgetFrom(myParts), [myParts]);
 
   useEffect(() => {
     const h = getHomeAirport();
@@ -527,6 +544,7 @@ export default function SyncGroupPage() {
   }, []);
 
   const fetchProgress = async () => {
+    fetchMyParts(); // keep "Your trip" in step with the group's progress
     try {
       const res = await fetch(`${API_BASE}/sync-together/${id}/progress`, {
         headers: authHeaders(),
@@ -1187,6 +1205,7 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Couldn't save your budget");
       setBudget(data.myBudget);
+      setMyParts((p) => (p ? { ...p, myBudget: data.myBudget } : p));
       setGroup((g) =>
         g
           ? { ...g, myBudget: data.myBudget, budgetSummary: data.budgetSummary }
@@ -2548,6 +2567,48 @@ export default function SyncGroupPage() {
           </>
         )}
       </Section>
+
+      {/* ═══ YOUR TRIP — Flight · Stay · Things to do + your budget ═══ */}
+      {isMember && myRsvp !== "declined" && group.destination && myParts && (
+        <div style={{ marginTop: 20 }}>
+          <TripBudgetBar
+            groupId={group._id}
+            tb={myTrip}
+            kind={null}
+            destination={group.destination}
+            activityIdeas={
+              (myParts.shortlist || []).filter(
+                (i) => i.kind === "activity" && i.status !== "removed"
+              ).length
+            }
+            onFind={(k) => {
+              const p = tripSearchParams(group._id, myParts, k, {
+                from:
+                  (isOwner
+                    ? group.departureAirport
+                    : myMember?.departureAirport) ||
+                  group.departureAirport ||
+                  undefined,
+                cabin: group.cabinClass,
+              });
+              navigate(`/booking?${new URLSearchParams(p).toString()}`);
+            }}
+            onSaved={(data) => {
+              setBudget(data.myBudget);
+              setMyParts((p) => (p ? { ...p, myBudget: data.myBudget } : p));
+              setGroup((g) =>
+                g
+                  ? {
+                      ...g,
+                      myBudget: data.myBudget,
+                      budgetSummary: data.budgetSummary,
+                    }
+                  : g
+              );
+            }}
+          />
+        </div>
+      )}
 
       {/* ═══ GROUP SHORTLIST — suggest → vote → pick ═══ */}
       {isMember && myRsvp !== "declined" && group.destination && (

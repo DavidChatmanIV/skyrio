@@ -66,6 +66,7 @@ import {
   priceFit,
   splitByBudget,
   money,
+  tripSearchParams,
 } from "@/utils/tripBudget";
 import {
   Zap,
@@ -4697,6 +4698,8 @@ export default function BookingPage() {
         <BookingCheckout
           flight={selectedFlight}
           groupId={syncGroupId}
+          tripBudget={budgetOn ? tripBudget : null}
+          onBudgetSaved={handleBudgetSaved}
           onBack={() => {
             setShowCheckout(false);
             setSelectedFlight(null);
@@ -4715,6 +4718,8 @@ export default function BookingPage() {
           hotel={selectedHotelOffer}
           destCity={destCity}
           groupId={syncGroupId}
+          tripBudget={budgetOn ? tripBudget : null}
+          onBudgetSaved={handleBudgetSaved}
           onBack={handleHotelCheckoutBack}
           onBookingComplete={handleHotelBookingComplete}
         />
@@ -5120,19 +5125,20 @@ export default function BookingPage() {
                 Sync Together
               </Button>
             </Link>
-            {(visibleFlights.length > 0 || hotelResults.length > 0) && (
-              <button
-                type="button"
-                className="sk-scroll-budget-btn"
-                onClick={scrollToBudget}
-              >
-                <ChevronsDown
-                  size={13}
-                  style={{ marginRight: 4, verticalAlign: "middle" }}
-                />
-                Trip Budget
-              </button>
-            )}
+            {!syncGroupId &&
+              (visibleFlights.length > 0 || hotelResults.length > 0) && (
+                <button
+                  type="button"
+                  className="sk-scroll-budget-btn"
+                  onClick={scrollToBudget}
+                >
+                  <ChevronsDown
+                    size={13}
+                    style={{ marginRight: 4, verticalAlign: "middle" }}
+                  />
+                  Trip Budget
+                </button>
+              )}
           </Space>
 
           {tab === "Flights" && (
@@ -5228,18 +5234,51 @@ export default function BookingPage() {
             </div>
 
             {/* ── Your trip budget (Sync Together) ── */}
-            {syncGroupId && (tab === "Flights" || tab === "Stays") && (
-              <TripBudgetBar
-                groupId={syncGroupId}
-                tb={tripBudget}
-                kind={tab === "Stays" ? "stays" : "flights"}
-                overCount={isSearching ? 0 : budgetBarFit.overCount}
-                noneFit={!isSearching && budgetBarFit.noneFit}
-                showingOver={showOverBudget}
-                onToggleOver={() => setShowOverBudget((v) => !v)}
-                onSaved={handleBudgetSaved}
-              />
-            )}
+            {syncGroupId &&
+              (tab === "Flights" ||
+                tab === "Stays" ||
+                tab === "Excursions") && (
+                <TripBudgetBar
+                  groupId={syncGroupId}
+                  tb={tripBudget}
+                  kind={
+                    tab === "Stays"
+                      ? "stays"
+                      : tab === "Excursions"
+                      ? "activities"
+                      : "flights"
+                  }
+                  destination={syncInfo?.destination || undefined}
+                  activityIdeas={
+                    (syncInfo?.shortlist || []).filter(
+                      (i) => i.kind === "activity" && i.status !== "removed"
+                    ).length
+                  }
+                  onFind={(k) => {
+                    const {
+                      groupId: _g,
+                      tab: nextTab,
+                      auto: _a,
+                      ...params
+                    } = tripSearchParams(syncGroupId, syncInfo, k, {
+                      from: searchParams.get("from") || undefined,
+                    });
+                    runHandoff({ tab: nextTab, params });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  overCount={
+                    isSearching || tab === "Excursions"
+                      ? 0
+                      : budgetBarFit.overCount
+                  }
+                  noneFit={
+                    !isSearching && tab !== "Excursions" && budgetBarFit.noneFit
+                  }
+                  showingOver={showOverBudget}
+                  onToggleOver={() => setShowOverBudget((v) => !v)}
+                  onSaved={handleBudgetSaved}
+                />
+              )}
 
             {isSearching && tab === "Flights" && (
               <FlightSkeleton destCity={destCity} fromCode={fromCode} />
@@ -5425,6 +5464,7 @@ export default function BookingPage() {
                         </div>
                       </div>
                       <div className="sk-tagRow">
+                        <BudgetTag price={flight.totalAmount} />
                         <span className="sk-tag sk-tag-good">
                           {flight.stops === 0
                             ? "Nonstop"
@@ -5433,7 +5473,8 @@ export default function BookingPage() {
                         <span className="sk-tag sk-tag-orange">
                           {flight.ownerCode}
                         </span>
-                        {budgetSeed &&
+                        {!budgetOn &&
+                          budgetSeed &&
                           parseFloat(flight.totalAmount) <= budgetSeed && (
                             <span className="sk-tag sk-tag-good">
                               Within budget
@@ -5654,6 +5695,7 @@ export default function BookingPage() {
                           </div>
                         </div>
                         <div className="sk-tagRow">
+                          <BudgetTag price={cheapest.totalAmount} />
                           <span className="sk-tag sk-tag-good">
                             {outbound.stops === 0
                               ? "Nonstop"
@@ -5662,7 +5704,8 @@ export default function BookingPage() {
                           <span className="sk-tag sk-tag-orange">
                             {outbound.ownerCode}
                           </span>
-                          {budgetSeed &&
+                          {!budgetOn &&
+                            budgetSeed &&
                             parseFloat(cheapest.totalAmount) <= budgetSeed && (
                               <span className="sk-tag sk-tag-good">
                                 Within budget
@@ -5922,12 +5965,14 @@ export default function BookingPage() {
                                 </div>
                               </div>
                               <div className="sk-tagRow">
+                                <BudgetTag price={opt.totalAmount} />
                                 <span className="sk-tag sk-tag-good">
                                   {retStops === 0
                                     ? "Nonstop"
                                     : `${retStops} stop`}
                                 </span>
-                                {budgetSeed &&
+                                {!budgetOn &&
+                                  budgetSeed &&
                                   parseFloat(opt.totalAmount) <= budgetSeed && (
                                     <span className="sk-tag sk-tag-good">
                                       Within budget
@@ -6122,6 +6167,7 @@ export default function BookingPage() {
                           </div>
                         </div>
                         <div className="sk-tagRow">
+                          <BudgetTag price={hotel.totalAmount} />
                           {hotel.refundableTag === "RFN" && (
                             <span className="sk-tag sk-tag-good">
                               Refundable
@@ -6382,7 +6428,10 @@ export default function BookingPage() {
           </Col>
 
           <Col xs={24} lg={8}>
-            <div ref={budgetRef}>
+            <div
+              ref={budgetRef}
+              style={syncGroupId ? { display: "none" } : undefined}
+            >
               <TripBudgetCard
                 initialBookingTotal={selectedResult?.total ?? 0}
                 initialTripDays={selectedNights}
