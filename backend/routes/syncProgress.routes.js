@@ -1,19 +1,93 @@
 // GET /api/sync-progress/:groupId
 // Returns what the signed-in traveler has booked for one Sync Together group.
 // The trip card's "x of 2 booked", the flight/stay tiles AND the budget bar
-// should all read from this ONE response, so they can never disagree again.
+// should all read from this ONE response, so they can never disagree.
 //
-// Only the requester's own bookings are returned (filtered by `user`), so no
-// other member's booking data is exposed.
+// CRASH-SAFE: this file imports only express and mongoose, so it can never
+// stop the server from booting on Render.
+//   - The Booking model is looked up from mongoose at request time (it is
+//     registered by your existing bookings routes), so the file name's
+//     capitalization doesn't matter.
+//   - The login token is checked here with jsonwebtoken, loaded on first use,
+//     so a wrong guess about your auth middleware can't break startup.
+//
+// Only the requester's own bookings are returned (filtered by `user`).
 
 import express from "express";
 import mongoose from "mongoose";
-import Booking from "../models/booking.js";
-// ⚠️ Use the SAME auth middleware your other protected routes use.
-// Adjust the path/name to match your project (e.g. protect, verifyToken).
-import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
+
+// ── Auth ────────────────────────────────────────────────────────────────
+// Reads "Authorization: Bearer <token>" (what the frontend already sends)
+// and verifies it with your JWT secret. Tries the common env var names.
+let jwtLib = null;
+async function getJwt() {
+  if (!jwtLib) {
+    const mod = await import("jsonwebtoken");
+    jwtLib = mod.default || mod;
+  }
+  return jwtLib;
+}
+
+function getJwtSecret() {
+  return (
+    process.env.JWT_SECRET ||
+    process.env.JWT_SECRET_KEY ||
+    process.env.ACCESS_TOKEN_SECRET ||
+    process.env.TOKEN_SECRET ||
+    null
+  );
+}
+
+async function authFromBearer(req, res, next) {
+  try {
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
+    if (!token) {
+      return res.status(401).json({ ok: false, message: "Not signed in" });
+    }
+
+    const secret = getJwtSecret();
+    if (!secret) {
+      console.error("[sync-progress] No JWT secret env var found");
+      return res
+        .status(500)
+        .json({ ok: false, message: "Auth is not configured" });
+    }
+
+    const jwt = await getJwt();
+    const decoded = jwt.verify(token, secret);
+
+    // Token payloads differ between projects; accept the usual shapes.
+    const userId =
+      decoded?.id ||
+      decoded?._id ||
+      decoded?.userId ||
+      decoded?.sub ||
+      decoded?.user?.id ||
+      decoded?.user?._id ||
+      null;
+
+    if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+      return res.status(401).json({ ok: false, message: "Not signed in" });
+    }
+
+    req.syncUserId = String(userId);
+    next();
+  } catch (err) {
+    if (
+      err?.name === "TokenExpiredError" ||
+      err?.name === "JsonWebTokenError"
+    ) {
+      return res.status(401).json({ ok: false, message: "Not signed in" });
+    }
+    console.error("[sync-progress] auth error:", err);
+    return res.status(500).json({ ok: false, message: "Auth failed" });
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────
 
 // A booking counts toward the trip when it is confirmed, or when it is still
 // "pending" with the airline/hotel but has already been paid for.
@@ -25,8 +99,7 @@ function isActiveBooking(b) {
 }
 
 function amountOf(b) {
-  // totalAmount is the real charged amount from Stripe/LiteAPI; total is the
-  // older field used by the admin dashboard. Prefer the real charge.
+  // totalAmount is the real charged amount; total is the older field.
   const n = Number(b.totalAmount ?? b.total ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
@@ -47,21 +120,26 @@ function summarize(b) {
   };
 }
 
-router.get("/:groupId", requireAuth, async (req, res) => {
+// ── Route ───────────────────────────────────────────────────────────────
+
+router.get("/:groupId", authFromBearer, async (req, res) => {
   try {
     const { groupId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
       return res.status(400).json({ ok: false, message: "Invalid group id" });
     }
 
-    const userId = req.user?._id || req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ ok: false, message: "Not signed in" });
+    const Booking = mongoose.models.Booking;
+    if (!Booking) {
+      console.error("[sync-progress] Booking model is not registered");
+      return res
+        .status(500)
+        .json({ ok: false, message: "Bookings are unavailable" });
     }
 
     const bookings = await Booking.find({
       syncGroup: groupId,
-      user: userId,
+      user: req.syncUserId,
       status: { $in: ["pending", "confirmed"] },
     })
       .sort({ createdAt: -1 })
@@ -92,11 +170,3 @@ router.get("/:groupId", requireAuth, async (req, res) => {
 });
 
 export default router;
-
-// ── Mount it in server.js / app.js (next to your other routes) ──
-//
-//   import syncProgressRoutes from "./routes/syncProgress.routes.js";
-//   app.use("/api/sync-progress", syncProgressRoutes);
-//
-// The file name above is all lowercase except the "P" — make sure the import
-// matches the file name EXACTLY, or Render (Linux) will fail to start.
