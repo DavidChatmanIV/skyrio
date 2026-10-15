@@ -15,6 +15,9 @@ import { Server as SocketIOServer } from "socket.io";
 
 import apiRouter from "./routes/api/index.js";
 import healthRouter from "./routes/health.routes.js";
+// Sync Together trip card: booked flight/stay + total spent, from MongoDB.
+// File name must match EXACTLY (capital P) — Render's Linux is case-sensitive.
+import syncProgressRoutes from "./routes/syncProgress.routes.js";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
 import { assignFounderBadge } from "./routes/verificationRoutes.js";
@@ -175,6 +178,9 @@ app.get("/", (_req, res) => res.send("🚀 Skyrio backend is running!"));
 
 app.use("/health", healthRouter);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Mounted BEFORE apiRouter so it is matched first, and before the /api
+// 404 handler further down. Still covered by the /api rate limiter above.
+app.use("/api/sync-progress", syncProgressRoutes);
 app.use("/api", apiRouter);
 
 // Dedicated, tighter limiter for the public contact form — this route
