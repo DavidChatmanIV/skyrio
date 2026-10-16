@@ -124,6 +124,7 @@ function offerIdOf(f) {
 // present, otherwise searchedAt + OFFER_LIFETIME_MS.
 function offerExpiry(f, searchedAt) {
   const raw =
+    f?.fareExpiresAt ??
     f?.expiration ??
     f?.raw?.expiration ??
     findField(f, "expiration") ??
@@ -170,7 +171,13 @@ function isExpired(f) {
 // refresh is attempted.
 function journeySignature(f) {
   if (!f) return null;
+  // Skyrio's flight shape keeps segments under slices[].segments
+  // (outbound slice, then return slice).
+  const sliceSegs = (slices) =>
+    Array.isArray(slices) ? slices.map((s) => s?.segments) : [];
   const segLists = [
+    ...sliceSegs(f.slices),
+    ...sliceSegs(f.raw?.slices),
     f.segments,
     f.outbound?.segments,
     f.return?.segments,
@@ -197,12 +204,12 @@ function journeySignature(f) {
   }
 
   const flat = [
-    f.airline,
+    f.owner || f.airline,
     f.flightNumber,
-    f.departureAt || f.departAt || f.departureTime,
-    f.arrivalAt || f.arriveAt || f.arrivalTime,
+    f.departingAt || f.departureAt || f.departAt || f.departureTime,
+    f.arrivingAt || f.arrivalAt || f.arriveAt || f.arrivalTime,
     f.returnFlightNumber,
-    f.returnDepartureAt,
+    f.returningAt || f.returnDepartureAt,
     f.returnArrivingAt || f.returnArrivalAt,
     f.cabinClass || f.cabin,
   ];
@@ -684,9 +691,23 @@ export async function verifyOffer(req, res) {
     return res.status(400).json({ ok: false, message: "offerId is required" });
   }
 
-  const known = findOfferInCache(offerId);
+  // Diagnostic: LiteAPI offerIds are msgpack-encoded and must arrive
+  // byte-for-byte unchanged. A space (from "+" passing through a URL) or a
+  // different length means the frontend altered it on the way here.
+  const knownOffer = findOfferInCache(offerId);
+  console.log(
+    `[flights/verify] offerId len=${String(offerId).length} start=${String(
+      offerId
+    ).slice(0, 25)} end=${String(offerId).slice(-25)} hasSpace=${/\s/.test(
+      String(offerId)
+    )} inSearchCache=${Boolean(knownOffer)}`
+  );
+
+  const known = knownOffer;
   const selected = clientFlight || known?.flight || null;
-  const params = search ? resolveSearchParams(search) : known?.params || null;
+  // Prefer the exact params of the search that produced this offer, so a
+  // refresh re-runs the identical search; fall back to what the client sent.
+  const params = known?.params || (search ? resolveSearchParams(search) : null);
   const canRefresh =
     autoRefresh !== false &&
     selected &&

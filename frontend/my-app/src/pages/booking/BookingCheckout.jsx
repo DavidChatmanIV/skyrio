@@ -1490,7 +1490,10 @@ function TripSidebar({
             </div>
           )}
         </div>
+        {/* key: a refreshed fare has a new expiry, so the countdown (and its
+            one-shot "expired" flag) starts over cleanly. */}
         <FareCountdown
+          key={flight?.fareExpiresAt || "no-expiry"}
           expiresAt={flight?.fareExpiresAt}
           onExpired={onFareExpired}
         />
@@ -2868,6 +2871,40 @@ function StepReviewPay({
   );
 }
 
+// Search params for the backend, used only if it has to re-run the search
+// to refresh an expired fare (it prefers its own record of the search).
+function searchFromFlight(flight, passengersList = []) {
+  const dep = flight?.departingAt || flight?.departureTime;
+  const ret = flight?.returningAt;
+  const adults =
+    passengersList.filter((p) => p.type !== "CHD" && p.type !== "INF").length ||
+    1;
+  const children = passengersList.filter((p) => p.type === "CHD").length;
+  return {
+    origin: flight?.origin || flight?.from,
+    destination: flight?.destination || flight?.to,
+    departureDate: dep ? dayjs(dep).format("YYYY-MM-DD") : undefined,
+    ...(ret && { returnDate: dayjs(ret).format("YYYY-MM-DD") }),
+    adults,
+    ...(children && { children }),
+    ...(flight?.cabinClass && { cabinClass: flight.cabinClass }),
+  };
+}
+
+// LiteAPI returns the fare's expiry in the verify response (nesting varies).
+function findExpiration(obj, depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 5) return null;
+  for (const key of ["expiresAt", "expiration", "expiresAtUtc"]) {
+    const v = obj[key];
+    if (typeof v === "string" && dayjs(v).isValid()) return v;
+  }
+  for (const v of Object.values(obj)) {
+    const found = findExpiration(v, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
 // Turns raw LiteAPI errors into something a traveler understands.
 function friendlyFareError(raw = "") {
   if (/sold out|52010|no longer available|expired/i.test(raw)) {
@@ -2892,8 +2929,20 @@ export default function BookingCheckout({
   tripBudget = null,
   onBudgetSaved,
 }) {
-  const liveFlight = buildFlight(flight);
-  const progressKey = getProgressStorageKey(liveFlight);
+  // After verify: the fare's real expiry, and — if the backend had to
+  // refresh an expired fare — the new offerId and price.
+  const [fareUpdate, setFareUpdate] = useState(null);
+  const baseFlight = buildFlight(flight);
+  const liveFlight = fareUpdate
+    ? {
+        ...baseFlight,
+        offerId: fareUpdate.offerId || baseFlight.offerId,
+        basePrice: fareUpdate.price ?? baseFlight.basePrice,
+        fareExpiresAt: fareUpdate.expiresAt || baseFlight.fareExpiresAt,
+      }
+    : baseFlight;
+  // Keyed to the ORIGINAL offer so a refreshed offerId doesn't orphan saved progress.
+  const progressKey = getProgressStorageKey(baseFlight);
   // Read once at mount so a refresh restores everything as one snapshot.
   const [restoredProgress] = useState(() => readCheckoutProgress(progressKey));
 
@@ -2920,6 +2969,12 @@ export default function BookingCheckout({
   // verify+prebook are still in flight (state alone wouldn't stop it).
   const prebookInFlightRef = useRef(false);
 
+  // Shared across all three steps: once any TripSidebar countdown fires,
+  // every step's primary action is replaced with FareExpiredBlock.
+  // (Declared before runPrebook, which clears it after a successful verify.)
+  const [fareExpired, setFareExpired] = useState(false);
+  const handleFareExpired = useCallback(() => setFareExpired(true), []);
+
   // Verify the fare, then prebook it.
   const runPrebook = useCallback(
     async (passengersList) => {
@@ -2943,12 +2998,35 @@ export default function BookingCheckout({
         const vRes = await fetch(`${API}/api/flights/verify`, {
           method: "POST",
           headers: authHeaders,
-          body: JSON.stringify({ offerId: liveFlight.offerId }),
+          body: JSON.stringify({
+            offerId: liveFlight.offerId,
+            // Lets the server find this same flight again if the fare expired.
+            flight,
+            search: searchFromFlight(flight, passengersList),
+          }),
         });
         const vData = await vRes.json().catch(() => ({}));
         let verifiedOfferId = liveFlight.offerId;
         if (vRes.ok && vData.ok) {
           verifiedOfferId = vData.offerId || liveFlight.offerId;
+          const newPrice = Number(vData.newPrice);
+          setFareUpdate((prev) => ({
+            offerId: verifiedOfferId,
+            price:
+              vData.refreshed && Number.isFinite(newPrice)
+                ? newPrice
+                : prev?.price ?? null,
+            expiresAt:
+              findExpiration(vData) ||
+              vData.expiresAt ||
+              prev?.expiresAt ||
+              null,
+            previousPrice:
+              vData.priceChanged && Number.isFinite(Number(vData.previousPrice))
+                ? Number(vData.previousPrice)
+                : prev?.previousPrice ?? null,
+          }));
+          setFareExpired(false);
         } else if (vData.soldOut || vData.code === 52010) {
           // The fare is really gone — stop here.
           throw new Error(
@@ -3049,7 +3127,8 @@ export default function BookingCheckout({
         setPrebookLoading(false);
       }
     },
-    [liveFlight.offerId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveFlight.offerId, flight]
   );
 
   // Resume after a refresh mid-checkout. StepSeatsBags refetches its own
@@ -3111,11 +3190,6 @@ export default function BookingCheckout({
   const effectiveGroupId = groupId ?? restoredProgress?.groupId ?? null;
   const effectiveGroupMemberCount =
     groupMemberCount ?? restoredProgress?.groupMemberCount ?? null;
-
-  // Shared across all three steps: once any TripSidebar countdown fires,
-  // every step's primary action is replaced with FareExpiredBlock.
-  const [fareExpired, setFareExpired] = useState(false);
-  const handleFareExpired = useCallback(() => setFareExpired(true), []);
 
   const [formDirty, setFormDirty] = useState(false);
   // True once a booking completes — nothing left to protect, and asking
@@ -3323,6 +3397,25 @@ export default function BookingCheckout({
         </div>
 
         <ProgressBar step={step} />
+
+        {fareUpdate?.previousPrice != null && fareUpdate?.price != null && (
+          <div
+            role="status"
+            style={{
+              marginBottom: 20,
+              padding: "12px 16px",
+              borderRadius: 12,
+              background: "rgba(249,115,22,.08)",
+              border: "1px solid rgba(249,115,22,.3)",
+              fontSize: 13,
+              color: "#fff",
+            }}
+          >
+            We refreshed your fare with the airline. The price changed from $
+            {fareUpdate.previousPrice.toFixed(2)} to $
+            {fareUpdate.price.toFixed(2)}. Your flight is the same.
+          </div>
+        )}
 
         {step === 0 && <FlightCard flight={liveFlight} />}
         {step === 0 && (
