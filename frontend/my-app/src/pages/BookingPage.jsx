@@ -522,7 +522,14 @@ function applyFilters(flights, filters) {
     }
     if (filters.time !== "any" && getFlightTimeSlot(f) !== filters.time)
       return false;
-    if (filters.airline !== "any" && f.owner !== filters.airline) return false;
+    // The Airline dropdown stores an IATA code ("AS"); older values may be a
+    // full name ("Alaska Airlines"). Match either.
+    if (
+      filters.airline !== "any" &&
+      f.ownerCode !== filters.airline &&
+      f.owner !== filters.airline
+    )
+      return false;
     if (filters.xp !== "any" && getFlightXP(f) < Number(filters.xp))
       return false;
     return true;
@@ -4598,7 +4605,9 @@ export default function BookingPage() {
           <FlightsForm
             onSearch={(f) => {
               setFlightResults(f);
-              setSmartFilters(DEFAULT_FILTERS);
+              // Filters are intentionally NOT reset here — anything the
+              // traveler picked before searching (price, stops, time,
+              // airline, XP) should apply to the results that come back.
               setVisibleCount(RESULTS_PER_PAGE);
               setAiInsightDismissed(false);
               if (f.length > 0) {

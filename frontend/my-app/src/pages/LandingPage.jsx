@@ -1534,6 +1534,8 @@ const INJECTED_CSS = `
 .sk-support__email { display:inline-flex; align-items:center; gap:8px; padding:10px 22px; border-radius:999px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.3); color:#ff8a2a; font-size:13px; font-weight:600; text-decoration:none; transition:background 0.2s, transform 0.2s; }
 .sk-support__email:hover { background:rgba(255,138,42,0.2); transform:translateY(-1px); }
 
+.sk-examples__learn { margin-top:14px; display:inline-flex; align-items:center; gap:6px; padding:8px 20px; border-radius:999px; border:1px solid rgba(255,138,42,0.35); background:rgba(255,138,42,0.1); color:#ff8a2a; font-family:"DM Sans",sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:background 0.2s; }
+.sk-examples__learn:hover { background:rgba(255,138,42,0.2); }
 .sk-examples__error {
   text-align: center;
   padding: 32px 16px;
@@ -2294,21 +2296,29 @@ export default function LandingPage() {
 
           <Reveal tag="section" className="sk-examples">
             <div className="sk-examples__head">
-              <div className="sk-examples__kicker">
-                {picksPersonal ? "Picked for you" : "Trip ideas from Atlas"}
-              </div>
+              <div className="sk-examples__kicker">Picked for you</div>
               <h2 className="sk-examples__title">
                 {picksPersonal
                   ? "Trips that match your travel style"
-                  : "See what Skyrio builds for you"}
+                  : "Trips picked to get you started"}
               </h2>
               <p className="sk-examples__sub">
                 {examplesLoading
                   ? "Atlas is building plans for you…"
                   : picksPersonal
                   ? "Based on your past trips and budget. Prices are estimates — click any plan to see live prices."
-                  : "Prices are estimates — click any plan to see live prices."}
+                  : "Every trip you book teaches Atlas your travel style: where you like to go, how long you stay and what you like to spend. The more you book, the more these picks are built just for you. Prices are estimates — click any plan to see live prices."}
               </p>
+              {!isAuthed && !examplesLoading && (
+                <button
+                  type="button"
+                  className="sk-examples__learn"
+                  onClick={goSignup}
+                >
+                  Create a free account so Atlas can learn your style{" "}
+                  <ArrowRightOutlined />
+                </button>
+              )}
             </div>
             <div className="sk-examples__grid">
               {examplesLoading

@@ -1,6 +1,9 @@
 import jwt from "jsonwebtoken";
 import { liteApiFlights } from "./Liteapiflights.provider.js";
-import { extractFlightBookingId, extractFlightPnr } from "../../../services/liteapiBookings.js";
+import {
+  extractFlightBookingId,
+  extractFlightPnr,
+} from "../../../services/liteapiBookings.js";
 import {
   buildLiteApiSearchPayload,
   buildVerifyPayload,
@@ -22,58 +25,68 @@ import {
 } from "../../../services/bookingConfirmations.js";
 
 // ---------------------------------------------------------------------
-// Search speed
+// Search speed + fare freshness
 //
-// LiteAPI's sandbox can take ~50s to return a round-trip search with
-// 150-190+ journeys, and that time is on their side. What we control:
+// LiteAPI's sandbox can take ~50s to return a round-trip search. What we
+// control:
 //
-//   1. Cache: an identical search within CACHE_TTL_MS is instant.
-//   2. In-flight sharing: if an identical search is ALREADY running
-//      (double-click, dev double-render, two tabs, or the warm-up
-//      request below), the second caller waits on the first instead of
-//      starting another 50s LiteAPI call.
-//   3. Warm-up: POST /api/flights/warm starts the search in the
-//      background as soon as the route + dates are known, so results
-//      are often ready by the time the user clicks Search.
+//   1. Cache: an identical search is served instantly, but ONLY while its
+//      fares still have enough life left for a traveler to finish checkout
+//      (OFFER_MIN_REMAINING_MS). The cache adapts to each offer's real
+//      expiry instead of a fixed age.
+//   2. In-flight sharing: duplicate searches wait on the one already running.
+//   3. Warm-up: POST /api/flights/warm starts the search early.
+//   4. Fare refresh: if a chosen fare has expired (or LiteAPI calls it sold
+//      out) at verify, we run a fresh search, find the SAME flight again,
+//      verify the new offer and hand it back — the traveler keeps their
+//      flight instead of starting over. This is how the big OTAs behave:
+//      "We refreshed your fare" (+ a price-change notice if it moved).
 //
-// Fares carry their own expiry (offer.expiration), and the checkout
-// re-verifies the fare before prebooking, so a slightly older cached
-// list is safe — but keep the TTL short. Offers LiteAPI reports as sold
-// out are removed from every cached list (see removeOfferFromCache) so
-// "Find another flight" never shows a dead fare again.
+// Every flight returned to the frontend carries `searchedAt` and
+// `expiresAt`, so the UI can show an honest timer and refresh on its own.
 // ---------------------------------------------------------------------
-const SEARCH_CACHE = new Map();
+const SEARCH_CACHE = new Map(); // cacheKey -> { ts, flights, params }
 const INFLIGHT_SEARCHES = new Map();
-// 10 minutes: repeat searches are instant and don't depend on LiteAPI.
-// Safe because prices are re-checked at prebook and the exact charge is
-// shown before paying.
+
+// LiteAPI offers live ~13-15 min. Used when an offer has no expiration field.
+const OFFER_LIFETIME_MS = 13 * 60 * 1000;
+// A cached list is reused only if its soonest-expiring fare still has at
+// least this long left — enough to browse, fill passenger details and pay.
+const OFFER_MIN_REMAINING_MS =
+  Number(process.env.FLIGHT_OFFER_MIN_REMAINING_MS) || 10 * 60 * 1000;
+// Hard cap on cache age regardless of offer expiry.
 const CACHE_TTL_MS =
-  Number(process.env.FLIGHT_SEARCH_CACHE_TTL_MS) || 10 * 60 * 1000;
-// If LiteAPI fails, a result this recent is shown instead of an error.
-// Kept under LiteAPI's ~13-15 min offer lifetime so every fare shown can
-// still actually be booked.
-const STALE_FALLBACK_MS = 13 * 60 * 1000;
+  Number(process.env.FLIGHT_SEARCH_CACHE_TTL_MS) || 4 * 60 * 1000;
+// If LiteAPI fails, recent results are shown instead of an error — but
+// only if their fares still have this long left.
+const STALE_MIN_REMAINING_MS = 6 * 60 * 1000;
+// A fare this close to expiry is treated as expired at verify.
+const EXPIRY_GRACE_MS = 30 * 1000;
+
 // Total time a traveler can wait for one search, including the retry.
 const SEARCH_BUDGET_MS = 80 * 1000;
 const FIRST_ATTEMPT_TIMEOUT_MS = 50 * 1000;
 const MIN_RETRY_WINDOW_MS = 15 * 1000;
-// A search that just failed on BOTH attempts usually fails again (e.g. the
-// provider has no fares for those dates). Answer repeats instantly for a
-// few minutes instead of making the traveler wait over a minute each time.
+// A search that just failed on BOTH attempts usually fails again.
 const FAILED_SEARCH_TTL_MS = 3 * 60 * 1000;
 const FAILED_SEARCHES = new Map(); // cacheKey -> { ts, err }
 const CACHE_MAX_ENTRIES = 200;
-// Short pause before the one search retry.
 const RETRY_DELAY_MS = 1500;
 
 // LiteAPI error codes we handle specifically.
 const CODE_SOLD_OUT = 52010;
 const CODE_SEARCH_FAILED = 51099;
-const CODE_VERIFY_FAILED = 52099; // LiteAPI: "unable to process verify request" (their side)
-const CODE_PREBOOK_FAILED = 53099; // LiteAPI: "unable to process prebook request" (their side)
-// The fare check is a read-only safety step (prebook re-checks price and
-// availability). Fail fast instead of making the traveler wait a minute.
+const CODE_VERIFY_FAILED = 52099;
+const CODE_PREBOOK_FAILED = 53099;
 const VERIFY_TIMEOUT_MS = 20 * 1000;
+
+const SOLD_OUT_BODY = {
+  ok: false,
+  code: CODE_SOLD_OUT,
+  soldOut: true,
+  message:
+    "This fare just sold out with the airline. Please pick another flight.",
+};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -100,57 +113,194 @@ function buildCacheKey(params) {
     .toLowerCase();
 }
 
+// ---------------------------------------------------------------------
+// Offer helpers
+// ---------------------------------------------------------------------
+function offerIdOf(f) {
+  return f?.offerId || f?.raw?.offerId || f?.id || null;
+}
+
+// When this offer stops being bookable. Uses LiteAPI's own expiration when
+// present, otherwise searchedAt + OFFER_LIFETIME_MS.
+function offerExpiry(f, searchedAt) {
+  const raw =
+    f?.expiration ??
+    f?.raw?.expiration ??
+    findField(f, "expiration") ??
+    findField(f, "expiresAt");
+  const parsed = raw != null ? Date.parse(raw) : NaN;
+  const fallback = searchedAt + OFFER_LIFETIME_MS;
+  // Never trust an expiry later than our known lifetime cap.
+  return Number.isFinite(parsed)
+    ? Math.min(parsed, fallback + 5 * 60 * 1000)
+    : fallback;
+}
+
+function stampOffers(flights, searchedAt) {
+  return flights.map((f) => ({
+    ...f,
+    searchedAt: new Date(searchedAt).toISOString(),
+    expiresAt: new Date(offerExpiry(f, searchedAt)).toISOString(),
+  }));
+}
+
+function msRemaining(f) {
+  const t = Date.parse(f?.expiresAt);
+  return Number.isFinite(t) ? t - Date.now() : Infinity;
+}
+
+// Time left on the soonest-expiring fare in a list.
+function minRemaining(flights) {
+  if (!flights?.length) return 0;
+  return Math.min(...flights.map(msRemaining));
+}
+
+function earliestExpiry(flights) {
+  const ms = minRemaining(flights);
+  return Number.isFinite(ms) ? new Date(Date.now() + ms).toISOString() : null;
+}
+
+function isExpired(f) {
+  return msRemaining(f) <= EXPIRY_GRACE_MS;
+}
+
+// Identifies the same physical journey across searches (offer IDs change
+// every search; flight numbers and times don't). Returns null if the
+// flight shape doesn't give us enough to match safely — then no auto-
+// refresh is attempted.
+function journeySignature(f) {
+  if (!f) return null;
+  const segLists = [
+    f.segments,
+    f.outbound?.segments,
+    f.return?.segments,
+    f.inbound?.segments,
+    f.legs,
+    f.raw?.segments,
+  ].filter(Array.isArray);
+
+  const segParts = segLists
+    .flat()
+    .map((s) =>
+      [
+        s?.carrierCode || s?.marketingCarrier || s?.airlineCode || s?.airline,
+        s?.flightNumber || s?.number,
+        s?.departureAt || s?.departure?.at || s?.departureTime || s?.departure,
+      ]
+        .filter((v) => v != null && typeof v !== "object")
+        .join(":")
+    )
+    .filter(Boolean);
+
+  if (segParts.length) {
+    return JSON.stringify([segParts, f.cabinClass || f.cabin || ""]);
+  }
+
+  const flat = [
+    f.airline,
+    f.flightNumber,
+    f.departureAt || f.departAt || f.departureTime,
+    f.arrivalAt || f.arriveAt || f.arrivalTime,
+    f.returnFlightNumber,
+    f.returnDepartureAt,
+    f.returnArrivingAt || f.returnArrivalAt,
+    f.cabinClass || f.cabin,
+  ];
+  const meaningful = flat.filter((v) => v != null && v !== "");
+  // Need at least an airline/flight number AND a time to call it a match.
+  if (meaningful.length < 3) return null;
+  return JSON.stringify(flat.map((v) => (v == null ? "" : String(v))));
+}
+
+function priceOf(f) {
+  const candidates = [
+    f?.price?.total,
+    f?.price?.amount,
+    typeof f?.price === "number" || typeof f?.price === "string"
+      ? f.price
+      : null,
+    f?.totalPrice,
+    f?.total,
+    f?.totalAmount,
+  ];
+  for (const c of candidates) {
+    const n = Number(c);
+    if (c != null && Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------
+// Cache
+// ---------------------------------------------------------------------
 function getCachedFlights(cacheKey) {
   const cached = SEARCH_CACHE.get(cacheKey);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.flights;
-  return null;
+  if (!cached) return null;
+  if (Date.now() - cached.ts >= CACHE_TTL_MS) return null;
+  if (minRemaining(cached.flights) < OFFER_MIN_REMAINING_MS) return null;
+  return cached.flights;
 }
 
-// Last good result for this exact search, if still within the offer
-// lifetime. Used only when LiteAPI fails.
+// Last good result for this search, only if its fares can still be booked.
 function getStaleFlights(cacheKey) {
   const cached = SEARCH_CACHE.get(cacheKey);
-  if (cached && Date.now() - cached.ts < STALE_FALLBACK_MS) return cached.flights;
-  return null;
+  if (!cached) return null;
+  const usable = cached.flights.filter(
+    (f) => msRemaining(f) >= STALE_MIN_REMAINING_MS
+  );
+  return usable.length ? usable : null;
 }
 
-function setCachedFlights(cacheKey, flights) {
-  // Keep the map from growing forever: drop expired entries first,
-  // then the oldest if it's still over the cap.
+function setCachedFlights(cacheKey, flights, params) {
   if (SEARCH_CACHE.size >= CACHE_MAX_ENTRIES) {
-    const now = Date.now();
     for (const [key, entry] of SEARCH_CACHE) {
-      if (now - entry.ts >= STALE_FALLBACK_MS) SEARCH_CACHE.delete(key);
+      if (minRemaining(entry.flights) <= 0) SEARCH_CACHE.delete(key);
     }
     while (SEARCH_CACHE.size >= CACHE_MAX_ENTRIES) {
       SEARCH_CACHE.delete(SEARCH_CACHE.keys().next().value);
     }
   }
-  SEARCH_CACHE.set(cacheKey, { ts: Date.now(), flights });
+  SEARCH_CACHE.set(cacheKey, { ts: Date.now(), flights, params });
 }
 
-// Drops a sold-out offer from every cached result list, so the next
-// search (served from cache) doesn't offer it again.
+// Finds the flight + the search that produced it, even if that cache
+// entry is too old to serve. Used to refresh an expired fare.
+function findOfferInCache(offerId) {
+  if (!offerId) return null;
+  for (const entry of SEARCH_CACHE.values()) {
+    const flight = entry.flights.find((f) => offerIdOf(f) === offerId);
+    if (flight) return { flight, params: entry.params };
+  }
+  return null;
+}
+
+// Drops a sold-out offer from every cached result list.
 function removeOfferFromCache(offerId) {
   if (!offerId) return;
   let removed = 0;
   for (const [key, entry] of SEARCH_CACHE) {
     const kept = entry.flights.filter(
-      (f) => f?.offerId !== offerId && f?.id !== offerId && f?.raw?.offerId !== offerId
+      (f) =>
+        f?.offerId !== offerId &&
+        f?.id !== offerId &&
+        f?.raw?.offerId !== offerId
     );
     if (kept.length !== entry.flights.length) {
       removed += entry.flights.length - kept.length;
       SEARCH_CACHE.set(key, { ...entry, flights: kept });
     }
   }
-  if (removed) console.log(`[flights] removed sold-out offer from cache (${removed})`);
+  if (removed)
+    console.log(`[flights] removed sold-out offer from cache (${removed})`);
 }
 
 // One shape for every provider failure the frontend sees:
-// { ok:false, code, soldOut, message }. `code` is LiteAPI's numeric code
-// when there is one, so the checkout can react to it reliably.
+// { ok:false, code, soldOut, message }.
 function providerError(err, label) {
-  console.error(`[flights/${label}] failed:`, err?.response?.data || err.message);
+  console.error(
+    `[flights/${label}] failed:`,
+    err?.response?.data || err.message
+  );
   const code = err?.response?.data?.error?.code ?? null;
   const upstream =
     err?.response?.data?.error?.message || err?.response?.data?.message;
@@ -158,15 +308,7 @@ function providerError(err, label) {
     err.code === "ECONNABORTED" || /timeout/i.test(err.message || "");
 
   if (code === CODE_SOLD_OUT) {
-    return {
-      status: 409,
-      body: {
-        ok: false,
-        code,
-        soldOut: true,
-        message: "This fare just sold out with the airline. Please pick another flight.",
-      },
-    };
+    return { status: 409, body: { ...SOLD_OUT_BODY } };
   }
   if (label === "search" && (code === CODE_SEARCH_FAILED || isTimeout)) {
     return {
@@ -190,7 +332,8 @@ function providerError(err, label) {
       body: {
         ok: false,
         code: code ?? "TIMEOUT",
-        message: "The airline's system didn't respond. Please try again in a moment.",
+        message:
+          "The airline's system didn't respond. Please try again in a moment.",
       },
     };
   }
@@ -200,9 +343,8 @@ function providerError(err, label) {
   };
 }
 
-// LiteAPI nests transactionId/secretKey differently across endpoints
-// (data, data[0], payment, paymentData...). Find them wherever they are
-// and hand them to the frontend at the top level, where it always looks.
+// LiteAPI nests transactionId/secretKey differently across endpoints.
+// (Function declaration: hoisted, so offerExpiry above can use it.)
 function findField(obj, key, depth = 0) {
   if (!obj || typeof obj !== "object" || depth > 6) return undefined;
   if (obj[key] != null && typeof obj[key] !== "object") return obj[key];
@@ -217,7 +359,9 @@ function paymentRefs(data, label) {
   const transactionId = findField(data, "transactionId");
   const secretKey = findField(data, "secretKey");
   console.log(
-    `[flights/${label}] transactionId: ${transactionId ? String(transactionId).slice(0, 14) + "…" : "MISSING"}, secretKey: ${
+    `[flights/${label}] transactionId: ${
+      transactionId ? String(transactionId).slice(0, 14) + "…" : "MISSING"
+    }, secretKey: ${
       secretKey ? String(secretKey).split("_secret")[0] : "MISSING"
     }`
   );
@@ -240,7 +384,7 @@ function resolveSearchParams(source) {
     destination,
     departureDate,
     cabinClass,
-  } = source;
+  } = source || {};
 
   return {
     origin: origin || from,
@@ -254,19 +398,23 @@ function resolveSearchParams(source) {
 }
 
 function hasRequiredSearchParams(params) {
-  return Boolean(params.origin && params.destination && params.departureDate);
+  return Boolean(
+    params?.origin && params?.destination && params?.departureDate
+  );
 }
 
-// Search only READS prices (books nothing), so retrying is always safe.
-// Retry once on any LiteAPI server error (incl. 51099) or timeout, inside a
-// fixed total budget so the traveler never waits more than ~80 seconds.
-// Client errors (4xx — e.g. a bad date) are never retried.
 function isRetryableSearchError(err) {
   const status = err?.response?.status;
   const code = err?.response?.data?.error?.code;
-  const isTimeout = err?.code === "ECONNABORTED" || /timeout/i.test(err?.message || "");
-  const noResponse = !err?.response; // network drop
-  return code === CODE_SEARCH_FAILED || isTimeout || noResponse || (status >= 500 && status < 600);
+  const isTimeout =
+    err?.code === "ECONNABORTED" || /timeout/i.test(err?.message || "");
+  const noResponse = !err?.response;
+  return (
+    code === CODE_SEARCH_FAILED ||
+    isTimeout ||
+    noResponse ||
+    (status >= 500 && status < 600)
+  );
 }
 
 async function postRatesWithRetry(payload) {
@@ -281,13 +429,18 @@ async function postRatesWithRetry(payload) {
     const remaining = SEARCH_BUDGET_MS - elapsed;
     if (!isRetryableSearchError(err) || remaining < MIN_RETRY_WINDOW_MS) {
       if (isRetryableSearchError(err)) {
-        console.warn(`[flights/search] failed after ${elapsed}ms — no time left to retry`);
+        console.warn(
+          `[flights/search] failed after ${elapsed}ms — no time left to retry`
+        );
       }
       throw err;
     }
     console.warn(
       `[flights/search] attempt 1 failed after ${elapsed}ms (${
-        err?.response?.data?.error?.code || err?.code || err?.response?.status || "error"
+        err?.response?.data?.error?.code ||
+        err?.code ||
+        err?.response?.status ||
+        "error"
       }) — retrying with ${Math.round(remaining / 1000)}s left`
     );
     await sleep(RETRY_DELAY_MS);
@@ -298,20 +451,27 @@ async function postRatesWithRetry(payload) {
   }
 }
 
-// Runs one search, or joins/reuses an identical one. Returns
-// { flights, cached, shared }.
-async function runSearch(params) {
+// Runs one search, or joins/reuses an identical one.
+// { fresh: true } skips the cache (used for "Find another flight" and
+// for refreshing an expired fare).
+async function runSearch(params, { fresh = false } = {}) {
   const cacheKey = buildCacheKey(params);
 
-  const cached = getCachedFlights(cacheKey);
-  if (cached) return { flights: cached, cached: true, shared: false };
+  if (fresh) {
+    FAILED_SEARCHES.delete(cacheKey);
+  } else {
+    const cached = getCachedFlights(cacheKey);
+    if (cached) return { flights: cached, cached: true, shared: false };
 
-  const recentFailure = FAILED_SEARCHES.get(cacheKey);
-  if (recentFailure && Date.now() - recentFailure.ts < FAILED_SEARCH_TTL_MS) {
-    console.warn("[flights/search] same search failed moments ago — answering instantly");
-    throw recentFailure.err;
+    const recentFailure = FAILED_SEARCHES.get(cacheKey);
+    if (recentFailure && Date.now() - recentFailure.ts < FAILED_SEARCH_TTL_MS) {
+      console.warn(
+        "[flights/search] same search failed moments ago — answering instantly"
+      );
+      throw recentFailure.err;
+    }
+    if (recentFailure) FAILED_SEARCHES.delete(cacheKey);
   }
-  if (recentFailure) FAILED_SEARCHES.delete(cacheKey);
 
   const running = INFLIGHT_SEARCHES.get(cacheKey);
   if (running) {
@@ -334,13 +494,18 @@ async function runSearch(params) {
       Object.keys(data || {})
     );
 
-    // `params` is passed through so normalizeFlightSearchResponse can
-    // split each journey's segments into outbound vs. return legs.
     const results = normalizeFlightSearchResponse(data, params);
-    const flights = results.map(toFrontendFlightShape);
+    // Offers' clocks start when LiteAPI creates them, i.e. at request time.
+    const flights = stampOffers(results.map(toFrontendFlightShape), startedAt);
 
-    console.log(`[flights/search] normalized ${flights.length} flight(s)`);
-    setCachedFlights(cacheKey, flights);
+    console.log(
+      `[flights/search] normalized ${
+        flights.length
+      } flight(s), soonest expiry in ${Math.round(
+        minRemaining(flights) / 1000
+      )}s`
+    );
+    setCachedFlights(cacheKey, flights, params);
     FAILED_SEARCHES.delete(cacheKey);
     return flights;
   })();
@@ -357,8 +522,6 @@ async function runSearch(params) {
       );
       return { flights: stale, cached: true, shared: false, stale: true };
     }
-    // Remember provider-side failures (not bad input) so an identical
-    // repeat answers instantly. Bounded: oldest entries dropped past 500.
     const status = err?.response?.status;
     if (!status || status >= 500) {
       FAILED_SEARCHES.set(cacheKey, { ts: Date.now(), err });
@@ -374,13 +537,15 @@ async function runSearch(params) {
 
 /**
  * GET/POST /api/flights/search
- * Waits for LiteAPI's full response (or joins an identical search that
- * is already running), normalizes it, returns everything at once.
+ * Pass `fresh: true` to bypass the cache (e.g. "Find another flight").
+ * Every flight includes `searchedAt` and `expiresAt`; the response also
+ * has a top-level `expiresAt` (the soonest fare expiry).
  */
 export async function searchFlights(req, res) {
   try {
     const source = req.method === "GET" ? req.query : req.body;
     const params = resolveSearchParams(source);
+    const fresh = source?.fresh === true || source?.fresh === "true";
 
     if (!hasRequiredSearchParams(params)) {
       return res.status(400).json({
@@ -390,10 +555,17 @@ export async function searchFlights(req, res) {
       });
     }
 
-    const { flights, cached, shared, stale } = await runSearch(params);
-    return res
-      .status(200)
-      .json({ ok: true, flights, cached, shared, ...(stale && { stale: true }) });
+    const { flights, cached, shared, stale } = await runSearch(params, {
+      fresh,
+    });
+    return res.status(200).json({
+      ok: true,
+      flights,
+      cached,
+      shared,
+      expiresAt: earliestExpiry(flights),
+      ...(stale && { stale: true }),
+    });
   } catch (err) {
     const { status, body } = providerError(err, "search");
     return res.status(status).json(body);
@@ -402,10 +574,7 @@ export async function searchFlights(req, res) {
 
 /**
  * POST /api/flights/warm
- * Same params as /search. Starts the search in the background and
- * returns 202 immediately, so the results are cached by the time the
- * user actually runs the search. Params must match the real search
- * exactly (same adults/cabin/returnDate) or the cache key won't hit.
+ * Same params as /search. Starts the search in the background.
  */
 export function warmSearch(req, res) {
   const source = { ...req.query, ...(req.body || {}) };
@@ -424,35 +593,143 @@ export function warmSearch(req, res) {
     return res.status(202).json({ ok: true, warming: false });
   }
 
-  // Fire and forget. A failure here is logged and otherwise ignored —
-  // the user's real search will simply run normally.
   runSearch(params).catch((err) =>
     console.warn("[flights/warm] background search failed:", err.message)
   );
   return res.status(202).json({ ok: true, warming: true });
 }
 
-/**
- * Step 1 of 4 — confirm the offer is still valid and get latest pricing.
- */
-export async function verifyOffer(req, res) {
-  const { offerId } = req.body || {};
+// Re-finds the same journey in a fresh search and verifies the new offer.
+// Returns a 200-ready body, or null if the flight is genuinely gone.
+async function refreshOffer({ params, selected, oldOfferId }) {
+  const sig = journeySignature(selected);
+  if (!sig) return null;
+  const startedAt = Date.now();
   try {
-    if (!offerId) {
-      return res
-        .status(400)
-        .json({ ok: false, message: "offerId is required" });
+    const { flights } = await runSearch(params, { fresh: true });
+    const match = flights.find(
+      (f) =>
+        offerIdOf(f) &&
+        offerIdOf(f) !== oldOfferId &&
+        journeySignature(f) === sig
+    );
+    if (!match) {
+      console.warn(
+        "[flights/verify] refresh: same journey not found in fresh search"
+      );
+      return null;
     }
 
+    const newOfferId = offerIdOf(match);
+    const { data } = await liteApiFlights.post(
+      "/flights/verify",
+      buildVerifyPayload({ offerId: newOfferId }),
+      { timeout: VERIFY_TIMEOUT_MS, _noRetry: true }
+    );
+
+    const previousPrice = priceOf(selected);
+    const newPrice = priceOf(match);
+    const priceChanged =
+      previousPrice != null &&
+      newPrice != null &&
+      Math.abs(newPrice - previousPrice) >= 0.01;
+
+    console.log(
+      `[flights/verify] refreshed expired fare in ${Date.now() - startedAt}ms${
+        priceChanged ? ` (price ${previousPrice} → ${newPrice})` : ""
+      }`
+    );
+
+    return {
+      ok: true,
+      ...data,
+      refreshed: true,
+      offerId: newOfferId,
+      previousOfferId: oldOfferId,
+      flight: match,
+      expiresAt: match.expiresAt,
+      priceChanged,
+      previousPrice,
+      newPrice,
+    };
+  } catch (err) {
+    console.warn(
+      "[flights/verify] refresh failed:",
+      err?.response?.data?.error?.code || err?.message
+    );
+    return null;
+  }
+}
+
+/**
+ * Step 1 of 4 — confirm the offer is still valid and get latest pricing.
+ *
+ * Body: { offerId, flight?, search?, autoRefresh? }
+ *   - flight / search are optional: if omitted, they're looked up from the
+ *     search cache. Sending them makes refresh work even after a restart.
+ *
+ * If the fare has expired or LiteAPI calls it sold out, the same flight is
+ * re-found and re-verified. The response then has `refreshed: true` and a
+ * NEW `offerId` — the frontend must use that offerId for prebook — plus
+ * `priceChanged` / `newPrice` so the traveler can confirm a new price.
+ */
+export async function verifyOffer(req, res) {
+  const {
+    offerId,
+    flight: clientFlight,
+    search,
+    autoRefresh = true,
+  } = req.body || {};
+  if (!offerId) {
+    return res.status(400).json({ ok: false, message: "offerId is required" });
+  }
+
+  const known = findOfferInCache(offerId);
+  const selected = clientFlight || known?.flight || null;
+  const params = search ? resolveSearchParams(search) : known?.params || null;
+  const canRefresh =
+    autoRefresh !== false &&
+    selected &&
+    hasRequiredSearchParams(params) &&
+    journeySignature(selected) != null;
+
+  // Already expired? Skip the doomed verify call and refresh directly.
+  if (canRefresh && isExpired(selected)) {
+    const refreshed = await refreshOffer({
+      params,
+      selected,
+      oldOfferId: offerId,
+    });
+    if (refreshed) return res.status(200).json(refreshed);
+    removeOfferFromCache(offerId);
+    return res.status(409).json({ ...SOLD_OUT_BODY });
+  }
+
+  try {
     const payload = buildVerifyPayload({ offerId });
     const { data } = await liteApiFlights.post("/flights/verify", payload, {
       timeout: VERIFY_TIMEOUT_MS,
       _noRetry: true,
     });
-    return res.status(200).json({ ok: true, ...data });
+    return res.status(200).json({
+      ok: true,
+      offerId,
+      ...data,
+      ...(selected?.expiresAt && { expiresAt: selected.expiresAt }),
+    });
   } catch (err) {
     const { status, body } = providerError(err, "verify");
-    if (body.soldOut) removeOfferFromCache(offerId);
+    if (body.soldOut) {
+      removeOfferFromCache(offerId);
+      if (canRefresh) {
+        const refreshed = await refreshOffer({
+          params,
+          selected,
+          oldOfferId: offerId,
+        });
+        if (refreshed) return res.status(200).json(refreshed);
+      }
+    }
     return res.status(status).json(body);
   }
 }
@@ -505,11 +782,6 @@ export async function createPrebook(req, res) {
 
 /**
  * GET /api/flights/prebook/:prebookId
- *
- * Fetches details for an existing prebook: latest confirmed pricing
- * and available ancillary services (including seats). Confirmed
- * against LiteAPI's API reference (GET /flights/prebooks/{prebookId},
- * "1.3 Get prebook details").
  */
 export async function getPrebookDetails(req, res) {
   try {
@@ -532,8 +804,6 @@ export async function getPrebookDetails(req, res) {
 
 /**
  * Step 3 of 4 (optional) — attach seats/bags to an existing prebook.
- * LiteAPI requires: { selectedServices: [{ passengerIndex, serviceId, quantity }] }
- * Accepts that shape, or plain serviceId strings (treated as passenger 0).
  */
 export async function attachPrebookServices(req, res) {
   try {
@@ -546,9 +816,10 @@ export async function attachPrebookServices(req, res) {
         .json({ ok: false, message: "prebookId is required" });
     }
     if (!Array.isArray(selectedServices) || !selectedServices.length) {
-      return res
-        .status(400)
-        .json({ ok: false, message: "selectedServices must be a non-empty array" });
+      return res.status(400).json({
+        ok: false,
+        message: "selectedServices must be a non-empty array",
+      });
     }
 
     const services = selectedServices
@@ -575,15 +846,11 @@ export async function attachPrebookServices(req, res) {
     };
     console.log("[flights/prebook/services] payload:", JSON.stringify(payload));
 
-    // _noRetry: attaching services changes the prebook and returns a
-    // superseding transactionId/secretKey; don't replay it blindly.
     const { data } = await liteApiFlights.post(
       `/flights/prebooks/${prebookId}/services`,
       payload,
       { _noRetry: true }
     );
-    // The NEW transactionId/secretKey replace the prebook's originals; the
-    // old payment is no longer valid, so the frontend must get these.
     return res
       .status(200)
       .json({ ok: true, ...data, ...paymentRefs(data, "prebook/services") });
@@ -595,32 +862,27 @@ export async function attachPrebookServices(req, res) {
 
 // ─────────────────────────────────────────────────────────────
 // Saving flight bookings to Skyrio's database
-//
-// Flight payments are collected on LiteAPI's Stripe account, so Skyrio's
-// Stripe webhook never sees them. The booking is therefore saved here,
-// right after LiteAPI confirms it — already paid, so "confirmed" directly,
-// with XP + notifications awarded once.
 // ─────────────────────────────────────────────────────────────
 function toDate(v) {
   const d = v ? new Date(v) : null;
   return d && !Number.isNaN(d.getTime()) ? d : undefined;
 }
 
-// Who is booking? Prefer the user attached by requireAuth on the route.
-// If the route isn't protected (or the middleware didn't run), verify the
-// login token here the same way requireAuth does, so a completed booking
-// is ALWAYS saved to the right account.
 function resolveUserId(req) {
   const attached = req.user?._id || req.user?.id;
   if (attached) return String(attached);
   const header = req.headers?.authorization || "";
   const token =
     req.cookies?.token ||
-    (header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null);
+    (header.toLowerCase().startsWith("bearer ")
+      ? header.slice(7).trim()
+      : null);
   if (!token || !process.env.JWT_SECRET) return "";
   try {
     const d = jwt.verify(token, process.env.JWT_SECRET);
-    return String(d.userId || d.id || d._id || d.sub || d.user?.id || d.user?._id || "");
+    return String(
+      d.userId || d.id || d._id || d.sub || d.user?.id || d.user?._id || ""
+    );
   } catch (err) {
     console.error("[flights/complete] login token invalid:", err.message);
     return "";
@@ -630,21 +892,32 @@ function resolveUserId(req) {
 async function findSavedFlightBooking(userId, prebookId) {
   if (!userId || !prebookId) return null;
   try {
-    return await Booking.findOne({ user: userId, "flight.prebookId": prebookId });
+    return await Booking.findOne({
+      user: userId,
+      "flight.prebookId": prebookId,
+    });
   } catch {
     return null;
   }
 }
 
-async function saveFlightBooking({ userId, prebookId, transactionId, record, email, groupId }) {
+async function saveFlightBooking({
+  userId,
+  prebookId,
+  transactionId,
+  record,
+  email,
+  groupId,
+}) {
   try {
     if (!userId) throw new Error("no authenticated user on request");
     const e = email || {};
-    // LiteAPI nests these — search the whole response, not just the top.
     const pnr = extractFlightPnr(record);
     const bookingId = extractFlightBookingId(record);
     const total = Number(e.totalAmount);
-    const departDate = e.departureAt ? String(e.departureAt).slice(0, 10) : null;
+    const departDate = e.departureAt
+      ? String(e.departureAt).slice(0, 10)
+      : null;
 
     const tripDetails = [
       e.origin && e.destination ? `${e.origin} → ${e.destination}` : "Flight",
@@ -684,7 +957,9 @@ async function saveFlightBooking({ userId, prebookId, transactionId, record, ema
         end: toDate(e.returnArrivingAt || e.returnDepartureAt || e.arrivalAt),
       },
       travelers: 1,
-      passengers: e.passengerName ? [{ name: e.passengerName, type: "adult" }] : [],
+      passengers: e.passengerName
+        ? [{ name: e.passengerName, type: "adult" }]
+        : [],
       status: "confirmed",
       paidAt: new Date(),
       total: Number.isFinite(total) ? total : 0,
@@ -695,7 +970,6 @@ async function saveFlightBooking({ userId, prebookId, transactionId, record, ema
       confirmationCodes: pnr ? [String(pnr)] : [],
     });
 
-    // XP + notifications — once, because this record is created once.
     try {
       await User.findByIdAndUpdate(userId, { $inc: { xp: 200 } });
       await Notification.create({
@@ -716,7 +990,10 @@ async function saveFlightBooking({ userId, prebookId, transactionId, record, ema
         link: "/passport",
       });
     } catch (err) {
-      console.error("[flights/complete] XP/notification step failed:", err?.message);
+      console.error(
+        "[flights/complete] XP/notification step failed:",
+        err?.message
+      );
     }
 
     return saved;
@@ -731,17 +1008,10 @@ async function saveFlightBooking({ userId, prebookId, transactionId, record, ema
 }
 
 /**
- * Step 4 of 4 — finalize the booking. LiteAPI's required body field is
- * lowercase `prebookId` (confirmed against their API reference); the
- * frontend also sends `prebookID`, so either casing is accepted here.
+ * Step 4 of 4 — finalize the booking.
  */
 export async function completeBooking(req, res) {
   try {
-    // confirmationEmail and groupId are destructured out on purpose so
-    // they are NOT forwarded to LiteAPI inside `...rest`:
-    //   - confirmationEmail is data for OUR confirmation email only.
-    //   - groupId is Skyrio's own group-booking context; LiteAPI has no
-    //     use for it and may reject unknown fields.
     // eslint-disable-next-line no-unused-vars
     const { prebookId, prebookID, confirmationEmail, groupId, ...rest } =
       req.body;
@@ -752,11 +1022,12 @@ export async function completeBooking(req, res) {
         .json({ ok: false, message: "prebookId is required" });
     }
 
-    // Already completed (refresh / double submit)? Return the saved booking
-    // instead of booking again.
     const userId = resolveUserId(req);
     if (!userId) {
-      console.warn("[flights/complete] no signed-in user on request — booking will not be saved to an account", resolvedPrebookId);
+      console.warn(
+        "[flights/complete] no signed-in user on request — booking will not be saved to an account",
+        resolvedPrebookId
+      );
     }
     const existing = await findSavedFlightBooking(userId, resolvedPrebookId);
     if (existing) {
@@ -772,21 +1043,10 @@ export async function completeBooking(req, res) {
       prebookId: resolvedPrebookId,
       ...rest,
     });
-    // _noRetry: a booking request that times out on our side may have
-    // reached LiteAPI; retrying could create a duplicate booking.
     const { data } = await liteApiFlights.post("/flights/bookings", payload, {
       _noRetry: true,
     });
 
-    // Fire the confirmation email without blocking or risking the
-    // actual booking response. A failure here must never make a
-    // successfully-completed booking look like it failed.
-    //
-    // Built from data the FRONTEND sends explicitly (confirmationEmail)
-    // rather than guessed out of LiteAPI's completion response. The one
-    // thing pulled from LiteAPI's response is the confirmation number,
-    // with a defensive multi-shape fallback that ends at the prebookId
-    // so the email always has SOMETHING concrete to point to.
     let emailPromise = null;
     if (confirmationEmail?.to) {
       const record = Array.isArray(data?.data)
@@ -804,8 +1064,6 @@ export async function completeBooking(req, res) {
         to: confirmationEmail.to,
         passengerName: confirmationEmail.passengerName,
         confirmationNumber,
-        // Labeled "Airline confirmation" only when it's the airline's own
-        // code; otherwise "Booking reference".
         confirmationIsAirline: Boolean(airlineCode),
         airline: confirmationEmail.airline,
         flightNumber: confirmationEmail.flightNumber,
@@ -817,10 +1075,9 @@ export async function completeBooking(req, res) {
         departureAt: confirmationEmail.departureAt,
         arrivalAt: confirmationEmail.arrivalAt,
         returnDepartureAt: confirmationEmail.returnDepartureAt,
-        // email.js reads `returnArrivalAt`; the checkout sends `returnArrivingAt`.
-        // Without this, round trips were emailed (and calendared) as one-way.
         returnArrivalAt:
-          confirmationEmail.returnArrivalAt || confirmationEmail.returnArrivingAt,
+          confirmationEmail.returnArrivalAt ||
+          confirmationEmail.returnArrivingAt,
         totalAmount: confirmationEmail.totalAmount,
         currency: confirmationEmail.currency,
         cabinClass: confirmationEmail.cabinClass,
@@ -845,12 +1102,11 @@ export async function completeBooking(req, res) {
       groupId,
     });
 
-    // Record whether the confirmation went out — or send one to the
-    // account's email if checkout didn't give us an address. Then tell
-    // the rest of the Sync Together group. Never blocks the response.
     if (saved) {
       (emailPromise
-        ? emailPromise.then((r) => recordEmailResult(saved._id, confirmationEmail.to, r))
+        ? emailPromise.then((r) =>
+            recordEmailResult(saved._id, confirmationEmail.to, r)
+          )
         : sendConfirmationFor(saved)
       )
         .catch(() => {})

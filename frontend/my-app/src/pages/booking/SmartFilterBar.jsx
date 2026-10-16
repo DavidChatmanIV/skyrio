@@ -1,6 +1,24 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 
 // ─────────────────────────────────────────────
+// Popular airlines — shown in the Airline dropdown BEFORE a search,
+// so travelers can pre-pick a carrier. Values are IATA codes, which
+// applyFilters in BookingPage matches against flight.ownerCode.
+// ─────────────────────────────────────────────
+const POPULAR_AIRLINES = [
+  { value: "AA", label: "American Airlines" },
+  { value: "AS", label: "Alaska Airlines" },
+  { value: "B6", label: "JetBlue" },
+  { value: "DL", label: "Delta Air Lines" },
+  { value: "F9", label: "Frontier Airlines" },
+  { value: "NK", label: "Spirit Airlines" },
+  { value: "UA", label: "United Airlines" },
+  { value: "WN", label: "Southwest Airlines" },
+];
+
+const NOT_ON_ROUTE = " (not on this route)";
+
+// ─────────────────────────────────────────────
 // SVG Icons
 // ─────────────────────────────────────────────
 
@@ -597,31 +615,40 @@ function TimePanel({ value, onChange, close }) {
   );
 }
 
-function AirlinePanel({ value, onChange, close, airlines }) {
+// airlines: [{ value: "AS", label: "Alaska Airlines" }, ...]
+// Never empty — popular carriers before a search, the route's carriers after.
+function AirlinePanel({ value, onChange, close, airlines, isPreSearch }) {
   const [local, setLocal] = useState(value);
   return (
     <>
       <PanelLabel>Airline</PanelLabel>
-      <RadioRow checked={local === "any"} onClick={() => setLocal("any")}>
-        Any airline
-      </RadioRow>
-      {airlines.length === 0 && (
+      {isPreSearch && (
         <div
           style={{
-            fontSize: 12,
+            fontSize: 11,
             color: "rgba(255,255,255,0.45)",
-            padding: "6px 4px 0",
+            margin: "-6px 0 8px",
             lineHeight: 1.4,
           }}
         >
-          Search for flights to choose from the airlines on your route.
+          Popular airlines. After you search, you'll see the airlines on your
+          route.
         </div>
       )}
-      {airlines.map((a) => (
-        <RadioRow key={a} checked={local === a} onClick={() => setLocal(a)}>
-          {a}
-        </RadioRow>
-      ))}
+      <RadioRow checked={local === "any"} onClick={() => setLocal("any")}>
+        Any airline
+      </RadioRow>
+      <div style={{ maxHeight: 260, overflowY: "auto" }}>
+        {airlines.map((a) => (
+          <RadioRow
+            key={a.value}
+            checked={local === a.value}
+            onClick={() => setLocal(a.value)}
+          >
+            {a.label}
+          </RadioRow>
+        ))}
+      </div>
       <ApplyBtn
         onClick={() => {
           onChange(local);
@@ -745,10 +772,35 @@ export default function SmartFilterBar({
 }) {
   // All hooks run BEFORE the `visible` check. Returning early above them made the
   // hook count change when switching Flights ↔ Stays, which React treats as a crash.
+  const isPreSearch = flightResults.length === 0;
+
   const airlines = useMemo(() => {
-    const set = new Set(flightResults.map((f) => f.owner).filter(Boolean));
-    return [...set].sort();
-  }, [flightResults]);
+    // Before a search: popular carriers, so the filter can be set up front.
+    if (isPreSearch) return POPULAR_AIRLINES;
+
+    // After a search: only the airlines actually on this route, keyed by code.
+    const byCode = new Map();
+    flightResults.forEach((f) => {
+      const value = f.ownerCode || f.owner;
+      if (value && !byCode.has(value))
+        byCode.set(value, { value, label: f.owner || value });
+    });
+    const list = [...byCode.values()].sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+
+    // Keep a pre-picked airline visible even if it doesn't fly this route,
+    // so the user can see why there are no results and switch it off.
+    if (filters.airline !== "any" && !byCode.has(filters.airline)) {
+      const picked = POPULAR_AIRLINES.find((a) => a.value === filters.airline);
+      list.unshift(
+        picked
+          ? { ...picked, label: `${picked.label}${NOT_ON_ROUTE}` }
+          : { value: filters.airline, label: filters.airline }
+      );
+    }
+    return list;
+  }, [flightResults, isPreSearch, filters.airline]);
 
   const update = (key) => (val) => onChange({ ...filters, [key]: val });
 
@@ -778,8 +830,14 @@ export default function SmartFilterBar({
 
   const airlineLabel = useMemo(() => {
     if (filters.airline === "any") return "Airline";
-    return `Airline · ${filters.airline}`;
-  }, [filters.airline]);
+    const match =
+      airlines.find((a) => a.value === filters.airline) ||
+      POPULAR_AIRLINES.find((a) => a.value === filters.airline);
+    const name = match
+      ? match.label.replace(NOT_ON_ROUTE, "")
+      : filters.airline;
+    return `Airline · ${name}`;
+  }, [filters.airline, airlines]);
 
   const xpLabel = useMemo(() => {
     if (filters.xp === "any")
@@ -864,6 +922,7 @@ export default function SmartFilterBar({
             onChange={update("airline")}
             close={close}
             airlines={airlines}
+            isPreSearch={isPreSearch}
           />
         )}
       </FilterDropdown>
