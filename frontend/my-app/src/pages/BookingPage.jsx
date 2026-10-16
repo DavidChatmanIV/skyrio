@@ -1324,10 +1324,17 @@ function FlightsForm({
         city: a.city || a.cityName || a.city_name || a.name || fallback || code,
       };
     };
-    const lookup = async (q) => {
+    const lookup = async (q, name) => {
       if (!q) return null;
-      if (/^[A-Za-z]{3}$/.test(q.trim()))
-        return { code: q.trim().toUpperCase(), city: q.trim().toUpperCase() };
+      if (/^[A-Za-z]{3}$/.test(q.trim())) {
+        const code = q.trim().toUpperCase();
+        // "New Orleans, LA" → "New Orleans"; no name given → the code itself.
+        const city =
+          String(name || "")
+            .split(",")[0]
+            .trim() || code;
+        return { code, city };
+      }
       try {
         const res = await fetch(
           `${API}/api/airports?q=${encodeURIComponent(q.trim())}`
@@ -1343,8 +1350,8 @@ function FlightsForm({
     };
     (async () => {
       const [o, d] = await Promise.all([
-        lookup(initial.from),
-        lookup(initial.to),
+        lookup(initial.from, initial.fromName),
+        lookup(initial.to, initial.toName),
       ]);
       if (o) {
         setOriginAirport(o);
@@ -1363,7 +1370,8 @@ function FlightsForm({
           from: o.code,
           to: d.code,
           departDate: depart.format("YYYY-MM-DD"),
-          adults: String(Number(initial.adults) || 1),
+          // Flights allow up to 9 travelers per booking — match the form's cap.
+          adults: String(Math.min(9, Number(initial.adults) || 1)),
           cabin: initial.cabin || "economy",
         });
         if (Number(initial.adults) >= 1)
@@ -3799,6 +3807,10 @@ export default function BookingPage() {
     return {
       from: searchParams.get("from"),
       to,
+      // Optional display names ("Newark", "New Orleans, LA") so a link with
+      // airport codes shows "New Orleans (MSY)" instead of "MSY (MSY)".
+      fromName: searchParams.get("fromName") || undefined,
+      toName: searchParams.get("toName") || undefined,
       depart,
       ret: searchParams.get("return"),
       cabin: searchParams.get("cabin") || undefined,
@@ -4447,7 +4459,24 @@ export default function BookingPage() {
 
   // Packages / Last-Minute hand off to a real Flights (or Stays) search:
   // the URL carries the prefill and auto=1 runs it as soon as the form opens.
-  const [packagePlan, setPackagePlan] = useState(null);
+  // A package link from an Atlas plan (kind=package) starts the same
+  // flight-then-stay steps as the Packages form, so "Next: find your stay"
+  // is ready after the flight search.
+  const [packagePlan, setPackagePlan] = useState(() => {
+    if (searchParams.get("kind") !== "package") return null;
+    const city = searchParams.get("toName") || searchParams.get("to");
+    const depart = searchParams.get("depart");
+    const ret = searchParams.get("return");
+    if (!city || !depart || !ret) return null;
+    return {
+      city,
+      code: searchParams.get("to"),
+      depart,
+      ret,
+      adults: Number(searchParams.get("adults")) || 1,
+      rooms: Number(searchParams.get("rooms")) || 1,
+    };
+  });
   const runHandoff = useCallback(
     ({ tab: nextTab, params = {}, plan }) => {
       const next = new URLSearchParams();

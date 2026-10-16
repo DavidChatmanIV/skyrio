@@ -15,7 +15,6 @@ import {
   LoadingOutlined,
   StarOutlined,
   ClockCircleOutlined,
-  BulbOutlined,
   TrophyOutlined,
 } from "@ant-design/icons";
 
@@ -27,7 +26,6 @@ import { apiUrl } from "@/lib/api";
 
 import SavedExcursions from "../components/excursions/SavedExcursions";
 import UpcomingBookings from "../components/dashboard/UpcomingBookings";
-import TravelAlerts from "../components/dashboard/TravelAlerts";
 import XPBadgeCard from "./passport/XPBadgeCard";
 
 const { Option } = Select;
@@ -355,12 +353,16 @@ async function fetchAISuggestion(
   homeCode,
   promptHistory,
   filters = {},
-  count = 3
+  count = 3,
+  signal
 ) {
-  const url = "/api/atlas/suggest";
+  // apiUrl() so production hits the Render backend directly instead of
+  // relying on the Vite dev proxy / vercel.json rewrite.
+  const url = apiUrl("/api/atlas/suggest");
   console.log("[Atlas] fetching", url, { prompt, homeCity, homeCode, count });
   const response = await fetch(url, {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       prompt,
@@ -796,25 +798,191 @@ function Icon({ name, size }) {
   return C ? <C size={size} /> : null;
 }
 
-function LivePlanCard({ plan, homeCode, disabled }) {
+/**
+ * Builds the booking-page link for an Atlas plan.
+ * Sends everything the booking page needs to fill the search form and run it
+ * right away: from / to airport codes and names, depart / return dates, and
+ * auto=1 (BookingPage's existing "search on arrival" flag). Old params
+ * (plan, prompt) are kept so nothing that already reads them breaks.
+ */
+function buildPlanUrl(plan, homeCode, extra = {}) {
+  const params = new URLSearchParams();
+  const kind = plan.kind || "package";
+  if (plan.planKey) params.set("plan", plan.planKey);
+  params.set("prompt", extra.prompt || plan.trip || "");
+  params.set("kind", kind);
+  if (plan.depart) params.set("depart", plan.depart);
+  if (plan.return) params.set("return", plan.return);
+
+  if (kind === "hotel") {
+    // Hotel only: open Stays and search hotels in the destination city.
+    params.set("tab", "Stays");
+    if (plan.trip) params.set("city", plan.trip);
+  } else {
+    // Flight only, or a package (flight first, then "Next: find your stay").
+    params.set("tab", "Flights");
+    params.set("from", homeCode);
+    if (extra.fromName) params.set("fromName", extra.fromName);
+    // No airport code? The booking page can look the airport up by city name.
+    params.set("to", plan.destCode || plan.trip || "");
+    if (plan.trip) params.set("toName", plan.trip);
+  }
+  if (plan.adults > 1) params.set("adults", String(plan.adults));
+  if (plan.rooms > 1) params.set("rooms", String(plan.rooms));
+  if (plan.depart && plan.return) params.set("auto", "1");
+  for (const [k, v] of Object.entries(extra)) {
+    if (k !== "prompt" && k !== "fromName" && v != null && v !== "")
+      params.set(k, v);
+  }
+  return `/booking?${params.toString()}`;
+}
+
+const PLAN_KIND_LABEL = {
+  package: "✈️ + 🏨 Flight + hotel",
+  flight: "✈️ Flight only",
+  hotel: "🏨 Hotel only",
+};
+
+// ── Trip editor helpers (dates are YYYY-MM-DD, handled in UTC) ──
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MIN_NIGHTS = 1;
+const MAX_NIGHTS = 21;
+// Booking limits: flights take up to 9 travelers per booking; hotel
+// searches take up to 8 rooms. Bigger groups go through Sync Together,
+// where each person books their own seat.
+const MAX_FLIGHT_TRAVELERS = 9;
+const MAX_HOTEL_TRAVELERS = 16;
+const MAX_ROOMS = 8;
+const parseDay = (iso) => new Date(`${iso}T00:00:00Z`);
+const isoDay = (d) => d.toISOString().slice(0, 10);
+const addDays = (iso, n) =>
+  isoDay(new Date(parseDay(iso).getTime() + n * DAY_MS));
+function nightsBetween(a, b) {
+  if (!a || !b) return null;
+  const n = Math.round((parseDay(b) - parseDay(a)) / DAY_MS);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+// "2026-11-03" + "2026-11-06" → "Nov 3–6" ; across months → "Nov 28 – Dec 3"
+function formatTripDates(depart, ret) {
+  const opts = { month: "short", day: "numeric", timeZone: "UTC" };
+  const a = parseDay(depart);
+  const b = parseDay(ret);
+  return a.getUTCMonth() === b.getUTCMonth()
+    ? `${a.toLocaleDateString("en-US", opts)}–${b.getUTCDate()}`
+    : `${a.toLocaleDateString("en-US", opts)} – ${b.toLocaleDateString(
+        "en-US",
+        opts
+      )}`;
+}
+
+function LivePlanCard({ plan, homeCode, homeCity, disabled }) {
   const nav = useNavigate();
   const img = getDestinationImage(plan.trip);
-  const onClick = useCallback(() => {
+
+  // The traveler can change the start date and how many nights before
+  // opening the plan. Plans without real dates (the offline fallbacks)
+  // simply don't show the editor.
+  const editable = Boolean(plan.depart && plan.return);
+  const startNights =
+    nightsBetween(plan.depart, plan.return) || plan.nights || 3;
+  const [editing, setEditing] = useState(false);
+  const [depart, setDepart] = useState(plan.depart);
+  const [nights, setNights] = useState(startNights);
+  const [travelers, setTravelers] = useState(1);
+  const [rooms, setRooms] = useState(1);
+  const ret = editable ? addDays(depart, nights) : plan.return;
+  const kind = plan.kind || "package";
+  const hasHotel = kind !== "flight";
+  const maxTravelers =
+    kind === "hotel" ? MAX_HOTEL_TRAVELERS : MAX_FLIGHT_TRAVELERS;
+  const edited =
+    editable &&
+    (depart !== plan.depart ||
+      nights !== startNights ||
+      travelers !== 1 ||
+      rooms !== 1);
+  // Earliest start: a few days out, so flights and hotels are still bookable.
+  const minDepart = useMemo(() => addDays(isoDay(new Date()), 3), []);
+
+  const open = useCallback(() => {
     if (disabled) return;
-    nav(
-      `/booking?plan=${encodeURIComponent(
-        plan.planKey
-      )}&prompt=${encodeURIComponent(plan.trip)}&from=${homeCode}`
-    );
-  }, [plan, homeCode, nav, disabled]);
+    const trip = editable
+      ? {
+          ...plan,
+          depart,
+          return: ret,
+          nights,
+          adults: travelers,
+          rooms: hasHotel ? rooms : 1,
+        }
+      : plan;
+    nav(buildPlanUrl(trip, homeCode, { fromName: homeCity }));
+  }, [
+    plan,
+    editable,
+    depart,
+    ret,
+    nights,
+    travelers,
+    rooms,
+    hasHotel,
+    homeCode,
+    homeCity,
+    nav,
+    disabled,
+  ]);
+
+  // Small −/+ control used for nights, travelers and rooms.
+  const Stepper = ({ label, value, min, max, onChange, less, more }) => (
+    <div className="sk-trip-edit__field">
+      <span>{label}</span>
+      <div className="sk-trip-edit__stepper">
+        <button
+          type="button"
+          aria-label={less}
+          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={value <= min}
+        >
+          −
+        </button>
+        <strong>{value}</strong>
+        <button
+          type="button"
+          aria-label={more}
+          onClick={() => onChange(Math.min(max, value + 1))}
+          disabled={value >= max}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+
+  // Clicks inside the editor must not open the plan.
+  const stop = (e) => e.stopPropagation();
 
   return (
-    <button
-      className="sk-card sk-live-card"
-      onClick={onClick}
-      type="button"
-      disabled={disabled}
-      style={{ width: "100%", height: "100%" }}
+    <div
+      className={`sk-card sk-live-card${editing ? " is-editing" : ""}`}
+      role="link"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled || undefined}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (
+          e.target === e.currentTarget &&
+          (e.key === "Enter" || e.key === " ")
+        ) {
+          e.preventDefault();
+          open();
+        }
+      }}
+      style={{
+        width: "100%",
+        height: "100%",
+        cursor: disabled ? "default" : "pointer",
+        textAlign: "left",
+      }}
     >
       <div
         className="sk-card__media sk-live-card__media"
@@ -822,20 +990,141 @@ function LivePlanCard({ plan, homeCode, disabled }) {
       />
       <div className="sk-card__overlay" />
       <div className="sk-card__content">
-        <div className="sk-live-card__price">
-          ${plan.total?.toLocaleString()} <span>total</span>
+        <div className="sk-plan-kind">
+          {PLAN_KIND_LABEL[plan.kind] || PLAN_KIND_LABEL.package}
         </div>
+        {/* AI estimate, not a live fare — real prices load on the booking page.
+            Once the trip length or dates change, the estimate no longer
+            applies, so say so instead of showing a wrong number. */}
+        {edited ? (
+          <div className="sk-live-card__price sk-live-card__price--pending">
+            New price on the next page <span>trip changed</span>
+          </div>
+        ) : (
+          plan.total != null && (
+            <div className="sk-live-card__price">
+              ${plan.total.toLocaleString()} <span>est. total</span>
+            </div>
+          )
+        )}
         <div className="sk-card__title">{plan.trip}</div>
         <div className="sk-card__subtitle">{plan.fit}</div>
         <div className="sk-card__meta">
-          {plan.dates} · {plan.summary}
+          {editable
+            ? `${formatTripDates(depart, ret)} · ${nights} night${
+                nights === 1 ? "" : "s"
+              }${travelers > 1 ? ` · ${travelers} travelers` : ""}${
+                hasHotel && rooms > 1 ? ` · ${rooms} rooms` : ""
+              }`
+            : plan.dates}
+          {plan.summary ? ` · ${plan.summary}` : ""}
         </div>
-        <div className="sk-card__footer sk-live-card__footer">
-          <span>View plan</span>
-          <ArrowRightOutlined />
-        </div>
+
+        {editable && (
+          <div className="sk-trip-edit" onClick={stop} onKeyDown={stop}>
+            {!editing ? (
+              <button
+                type="button"
+                className="sk-trip-edit__toggle"
+                onClick={() => setEditing(true)}
+                disabled={disabled}
+              >
+                ✏️ Edit trip — dates, length of stay or travelers
+              </button>
+            ) : (
+              <div className="sk-trip-edit__panel">
+                <label className="sk-trip-edit__field">
+                  <span>Start date</span>
+                  <input
+                    type="date"
+                    value={depart}
+                    min={minDepart}
+                    onChange={(e) =>
+                      e.target.value && setDepart(e.target.value)
+                    }
+                  />
+                </label>
+                <Stepper
+                  label="Nights"
+                  value={nights}
+                  min={MIN_NIGHTS}
+                  max={MAX_NIGHTS}
+                  onChange={setNights}
+                  less="Shorter stay"
+                  more="Longer stay"
+                />
+                <Stepper
+                  label="Travelers"
+                  value={travelers}
+                  min={1}
+                  max={maxTravelers}
+                  onChange={(n) => {
+                    setTravelers(n);
+                    setRooms((r) => Math.min(r, n)); // a room needs at least one traveler
+                  }}
+                  less="Fewer travelers"
+                  more="More travelers"
+                />
+                {hasHotel && (
+                  <Stepper
+                    label="Rooms"
+                    value={rooms}
+                    min={1}
+                    max={Math.min(MAX_ROOMS, travelers)}
+                    onChange={setRooms}
+                    less="Fewer rooms"
+                    more="More rooms"
+                  />
+                )}
+                <p className="sk-trip-edit__note">
+                  💡 The price shown was for Atlas's original trip. Changing the
+                  dates, nights, travelers or rooms changes the price. You'll
+                  see the real price for your trip on the next page, before you
+                  pay anything.
+                </p>
+                {kind !== "hotel" && travelers >= MAX_FLIGHT_TRAVELERS && (
+                  <p className="sk-trip-edit__note sk-trip-edit__note--group">
+                    👥 Traveling with more than {MAX_FLIGHT_TRAVELERS} people,
+                    like a team or a big family? Use{" "}
+                    <strong>Sync Together</strong> on the next page so everyone
+                    books and pays for their own seat.
+                  </p>
+                )}
+                <div className="sk-trip-edit__actions">
+                  {edited && (
+                    <button
+                      type="button"
+                      className="sk-trip-edit__reset"
+                      onClick={() => {
+                        setDepart(plan.depart);
+                        setNights(startNights);
+                      }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="sk-trip-edit__go"
+                    onClick={open}
+                    disabled={disabled}
+                  >
+                    Search this trip <ArrowRightOutlined />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!editing && (
+          <div className="sk-card__footer sk-live-card__footer">
+            <span>View plan</span>
+            <ArrowRightOutlined />
+          </div>
+        )}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -1086,7 +1375,28 @@ const INJECTED_CSS = `
 .sk-live-card:hover { transform:translateY(-6px) !important; box-shadow:0 20px 48px rgba(0,0,0,0.5) !important; }
 .sk-live-card:hover .sk-live-card__media { transform:scale(1.04); }
 .sk-live-card__media { transition:transform 0.4s ease !important; }
+.sk-plan-kind { display:inline-flex; align-items:center; gap:4px; margin-bottom:8px; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.02em; color:#ffb066; background:rgba(255,138,42,0.14); border:1px solid rgba(255,138,42,0.3); }
 .sk-live-card__price { font-family:"Syne",sans-serif; font-size:22px; font-weight:800; color:#fff; line-height:1; margin-bottom:6px; }
+.sk-live-card__price--pending { font-size:16px; color:#ffb066; }
+.sk-trip-edit { margin-top:12px; cursor:default; }
+.sk-trip-edit__toggle { background:none; border:none; padding:0; color:rgba(255,255,255,0.65); font-family:"DM Sans",sans-serif; font-size:12.5px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+.sk-trip-edit__toggle:hover { color:#ff8a2a; }
+.sk-trip-edit__panel { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; padding:12px; border-radius:12px; background:rgba(8,5,20,0.55); border:1px solid rgba(255,138,42,0.25); }
+.sk-trip-edit__field { display:flex; flex-direction:column; gap:5px; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:rgba(255,255,255,0.45); }
+.sk-trip-edit__field input[type="date"] { height:34px; padding:0 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:#fff; font-family:"DM Sans",sans-serif; font-size:13px; color-scheme:dark; }
+.sk-trip-edit__stepper { display:flex; align-items:center; gap:10px; height:34px; }
+.sk-trip-edit__stepper button { width:30px; height:30px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:#fff; font-size:16px; line-height:1; cursor:pointer; }
+.sk-trip-edit__stepper button:hover:not(:disabled) { border-color:#ff8a2a; color:#ff8a2a; }
+.sk-trip-edit__stepper button:disabled { opacity:0.35; cursor:not-allowed; }
+.sk-trip-edit__stepper strong { min-width:18px; text-align:center; color:#fff; font-size:15px; }
+.sk-trip-edit__note { flex-basis:100%; margin:0; font-size:12px; line-height:1.5; color:rgba(255,255,255,0.6); text-transform:none; letter-spacing:0; font-weight:400; }
+.sk-trip-edit__note--group { color:#ffb066; }
+.sk-trip-edit__actions { display:flex; gap:8px; margin-left:auto; }
+.sk-trip-edit__reset { background:none; border:none; color:rgba(255,255,255,0.5); font-size:12px; cursor:pointer; text-decoration:underline; font-family:"DM Sans",sans-serif; }
+.sk-trip-edit__go { display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 16px; border-radius:999px; border:none; background:linear-gradient(135deg,#ff8a2a,#ffb347); color:#1a0d04; font-family:"DM Sans",sans-serif; font-size:13px; font-weight:700; cursor:pointer; }
+.sk-trip-edit__go:hover { filter:brightness(1.08); }
+.sk-live-card.is-editing:hover { transform:none !important; }
+.sk-live-card:focus-visible { outline:2px solid #ff8a2a; outline-offset:3px; }
 .sk-live-card__price span { font-family:"DM Sans",sans-serif; font-size:12px; font-weight:400; color:rgba(255,255,255,0.5); margin-left:3px; }
 .sk-live-card__footer { opacity:1; transform:none; transition:all 0.2s ease; }
 @media(min-width:641px) {
@@ -1347,6 +1657,8 @@ export default function LandingPage() {
   const [examplesLoading, setExamplesLoading] = useState(true);
   const [examplesFailed, setExamplesFailed] = useState(false);
   const [examplesKey, setExamplesKey] = useState(0);
+  // true when the plans below came from the traveler's own booking history
+  const [picksPersonal, setPicksPersonal] = useState(false);
   const [activeFilters, setActiveFilters] = useState({
     budget: null,
     type: null,
@@ -1370,8 +1682,17 @@ export default function LandingPage() {
     return () => clearTimeout(t);
   }, [visibleBubbles, atlasConversation.length]);
 
+  // Only the newest request may update the suggestion box. Without this, a
+  // slow answer for "mia" can land after the answer for "miami" and replace it.
+  const suggAbortRef = useRef(null);
+  useEffect(() => () => suggAbortRef.current?.abort(), []);
+
   const runSuggestion = useCallback(
     async (prompt, filters) => {
+      suggAbortRef.current?.abort();
+      const controller = new AbortController();
+      suggAbortRef.current = controller;
+
       setSuggLoading(true);
       setSuggError(null);
       setActiveIdx(0);
@@ -1383,15 +1704,18 @@ export default function LandingPage() {
           homeCode,
           promptHistoryRef.current,
           filters,
-          3
+          3,
+          controller.signal
         );
+        if (controller.signal.aborted) return;
         setSuggestions(results);
       } catch (err) {
+        if (err.name === "AbortError") return; // replaced by a newer request
         console.error("Atlas suggestion error:", err);
         setSuggError("Couldn't load suggestion — try again.");
         setSuggestions([]);
       } finally {
-        setSuggLoading(false);
+        if (suggAbortRef.current === controller) setSuggLoading(false);
       }
     },
     [homeCity, homeCode]
@@ -1451,6 +1775,35 @@ export default function LandingPage() {
       setExamplesLoading(true);
       setExamplesFailed(false);
 
+      // Signed-in travelers with past bookings get picks shaped by their own
+      // trips and spending. Anyone else (logged out, or no bookings yet)
+      // falls through to the general example trips below.
+      if (isAuthed && token) {
+        try {
+          const params = new URLSearchParams({ homeCode, homeCity });
+          const res = await fetch(apiUrl(`/api/atlas/picks?${params}`), {
+            credentials: "include",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = res.ok ? await res.json() : null;
+          if (
+            !cancelled &&
+            data?.personalized &&
+            Array.isArray(data.suggestions) &&
+            data.suggestions.length
+          ) {
+            setExamplePlans(data.suggestions);
+            setPicksPersonal(true);
+            setExamplesLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.warn("[Atlas picks] falling back to general examples:", err);
+        }
+      }
+      if (cancelled) return;
+      setPicksPersonal(false);
+
       const timeout = setTimeout(() => {
         if (!cancelled) {
           setExamplePlans(FALLBACK_PLANS);
@@ -1490,7 +1843,7 @@ export default function LandingPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [homeCity, homeCode, examplesKey]);
+  }, [homeCity, homeCode, examplesKey, isAuthed, token]);
 
   const handleQueryChange = useCallback(
     (e) => {
@@ -1529,10 +1882,6 @@ export default function LandingPage() {
     async (sugg = suggestion) => {
       if (!sugg) return;
       const prompt = normalizePrompt(q);
-      const fp = Object.entries(activeFilters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-        .join("&");
       try {
         setIsRouting(true);
         await trackPassportEvent("AI_PLAN_VIEWED", {
@@ -1541,18 +1890,19 @@ export default function LandingPage() {
           planKey: sugg.planKey,
           homeAirport: homeCode,
         });
-        const typeParam = landingTripType ? `&type=${landingTripType}` : "";
-        const base = `/booking?plan=${encodeURIComponent(
-          sugg.planKey
-        )}&prompt=${encodeURIComponent(
-          prompt || sugg.trip
-        )}&from=${homeCode}${typeParam}`;
-        nav(fp ? `${base}&${fp}` : base);
+        nav(
+          buildPlanUrl(sugg, homeCode, {
+            prompt: prompt || sugg.trip,
+            fromName: homeCity,
+            type: landingTripType,
+            ...activeFilters,
+          })
+        );
       } finally {
         setIsRouting(false);
       }
     },
-    [q, nav, suggestion, homeCode, activeFilters, landingTripType]
+    [q, nav, suggestion, homeCode, homeCity, activeFilters, landingTripType]
   );
 
   const showMoreOptions = useCallback(async () => {
@@ -1859,6 +2209,10 @@ export default function LandingPage() {
                         — {suggestion.dates}
                       </span>
                     </div>
+                    <div className="sk-plan-kind">
+                      {PLAN_KIND_LABEL[suggestion.kind] ||
+                        PLAN_KIND_LABEL.package}
+                    </div>
                     <div className="sk-suggestion__fit">{suggestion.fit}</div>
                     <div className="sk-suggestion__summary">
                       {suggestion.summary}
@@ -1876,15 +2230,19 @@ export default function LandingPage() {
                     )}
                   </div>
                   <div className="sk-suggestion__right">
-                    <div className="sk-suggestion__total">
-                      ${suggestion.total?.toLocaleString()} <span>total</span>
-                    </div>
+                    {/* AI estimate, not a live fare — real prices load on the booking page */}
+                    {suggestion.total != null && (
+                      <div className="sk-suggestion__total">
+                        ${suggestion.total.toLocaleString()}{" "}
+                        <span>est. total</span>
+                      </div>
+                    )}
                     <Button
                       className="sk-viewBtn"
                       onClick={() => viewPlan(suggestion)}
                       disabled={isRouting}
                     >
-                      Book this <ArrowRightOutlined />
+                      See live prices <ArrowRightOutlined />
                     </Button>
                   </div>
                 </div>
@@ -1937,15 +2295,19 @@ export default function LandingPage() {
           <Reveal tag="section" className="sk-examples">
             <div className="sk-examples__head">
               <div className="sk-examples__kicker">
-                Real plans, built instantly
+                {picksPersonal ? "Picked for you" : "Trip ideas from Atlas"}
               </div>
               <h2 className="sk-examples__title">
-                See what Skyrio builds for you
+                {picksPersonal
+                  ? "Trips that match your travel style"
+                  : "See what Skyrio builds for you"}
               </h2>
               <p className="sk-examples__sub">
                 {examplesLoading
                   ? "Atlas is building plans for you…"
-                  : "Click any plan to go straight to booking."}
+                  : picksPersonal
+                  ? "Based on your past trips and budget. Prices are estimates — click any plan to see live prices."
+                  : "Prices are estimates — click any plan to see live prices."}
               </p>
             </div>
             <div className="sk-examples__grid">
@@ -1957,6 +2319,7 @@ export default function LandingPage() {
                       key={plan.planKey || i}
                       plan={plan}
                       homeCode={homeCode}
+                      homeCity={homeCity}
                       disabled={isRouting}
                     />
                   ))
@@ -2092,29 +2455,27 @@ export default function LandingPage() {
           {isAuthed ? (
             <Reveal tag="section" className="sk-profile-banner" delay={0}>
               <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto" }}>
-                <div className="sk-profile-banner__badge">
-                  <Icon name="sparkle" size={11} /> Your Skyrio
+                {/* Badge + headline centered; the tab content below keeps its own alignment */}
+                <div style={{ textAlign: "center" }}>
+                  <div className="sk-profile-banner__badge">
+                    <Icon name="sparkle" size={11} /> Your Skyrio
+                  </div>
                 </div>
                 <h2
                   className="sk-profile-banner__title"
-                  style={{ marginBottom: 24 }}
+                  style={{ marginBottom: 24, textAlign: "center" }}
                 >
                   Welcome back — here's <span>what's waiting for you.</span>
                 </h2>
+                {/* Upcoming opens first: it holds the traveler's real booked
+                    trips (solo + Sync Together). "Saved" holds saved
+                    excursions. Tips removed for now. */}
                 <Tabs
                   size="large"
                   centered
+                  defaultActiveKey="upcoming"
                   className="sk-authedTabs"
                   items={[
-                    {
-                      key: "saved",
-                      label: (
-                        <span>
-                          <StarOutlined /> Saved Trips
-                        </span>
-                      ),
-                      children: <SavedExcursions />,
-                    },
                     {
                       key: "upcoming",
                       label: (
@@ -2125,13 +2486,13 @@ export default function LandingPage() {
                       children: <UpcomingBookings />,
                     },
                     {
-                      key: "tips",
+                      key: "saved",
                       label: (
                         <span>
-                          <BulbOutlined /> Tips
+                          <StarOutlined /> Saved
                         </span>
                       ),
-                      children: <TravelAlerts />,
+                      children: <SavedExcursions />,
                     },
                     {
                       key: "xp",

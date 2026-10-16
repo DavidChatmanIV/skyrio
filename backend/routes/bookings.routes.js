@@ -27,13 +27,17 @@ const router = Router();
 
 let _stripe;
 function stripe() {
-  if (!process.env.STRIPE_SECRET_KEY) throw new Error("STRIPE_SECRET_KEY is not set");
+  if (!process.env.STRIPE_SECRET_KEY)
+    throw new Error("STRIPE_SECRET_KEY is not set");
   return (_stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY));
 }
 
-const isAdminUser = (req) => req.user?.role === "admin" || req.user?.isAdmin === true;
+const isAdminUser = (req) =>
+  req.user?.role === "admin" || req.user?.isAdmin === true;
 const requireAdmin = (req, res, next) =>
-  isAdminUser(req) ? next() : res.status(403).json({ message: "Admin access required." });
+  isAdminUser(req)
+    ? next()
+    : res.status(403).json({ message: "Admin access required." });
 
 // ── Two ways to be an admin here ──
 // 1. The admin-dashboard login (signed admin cookie; x-admin-email header
@@ -96,7 +100,9 @@ function supplierIds(b) {
       .slice(0, 1);
   }
   const fromStay = (b.hotelStay?.confirmation || []).map((c) => c?.bookingId);
-  return [...new Set([...(b.providerBookingIds || []), ...fromStay].filter(Boolean))];
+  return [
+    ...new Set([...(b.providerBookingIds || []), ...fromStay].filter(Boolean)),
+  ];
 }
 
 // Loads a booking the requester may act on: its owner, or an admin.
@@ -111,7 +117,9 @@ async function loadOwnedBooking(req, res) {
     return null;
   }
   if (!isAdminUser(req) && String(booking.user) !== String(req.user.id)) {
-    res.status(403).json({ message: "This booking belongs to a different account." });
+    res
+      .status(403)
+      .json({ message: "This booking belongs to a different account." });
     return null;
   }
   return booking;
@@ -155,9 +163,89 @@ function summarizeHotelPolicy(data, paid) {
       currency: p.currency || data?.currency || "USD",
     })),
     estimatedFee: nonRefundable && !infos.length ? paid : Math.min(fee, paid),
-    estimatedRefund: nonRefundable && !infos.length ? 0 : Math.max(0, round2(paid - fee)),
+    estimatedRefund:
+      nonRefundable && !infos.length ? 0 : Math.max(0, round2(paid - fee)),
   };
 }
+
+// ── Upcoming trips helpers ──
+// Pulls a usable trip date from whatever this booking stored. Flight records
+// from /pending don't set `dates`, so fall back to flight fields, the hotel
+// check-in, or the YYYY-MM-DD inside tripDetails.
+const ISO_DAY = /\b(\d{4}-\d{2}-\d{2})\b/;
+const toDate = (v) => {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+function tripDates(b) {
+  const room = b.hotelStay?.rooms?.[0];
+  const start =
+    b.dates?.start ||
+    room?.checkin ||
+    b.flight?.departureDate ||
+    b.flight?.departDate ||
+    (String(b.tripDetails || "").match(ISO_DAY) || [])[1];
+  const end = b.dates?.end || room?.checkout || b.flight?.returnDate;
+  return { start: toDate(start), end: toDate(end) };
+}
+
+/**
+ * GET /api/bookings/upcoming — the signed-in traveler's upcoming trips.
+ * Covers solo AND Sync Together: each group member has their own booking
+ * record (user = them, syncGroup set), so one query returns both.
+ * Defined before any "/:id" GET so "upcoming" is never read as an id.
+ */
+router.get("/upcoming", authRequired, async (req, res) => {
+  try {
+    const docs = await Booking.find({
+      user: req.user.id,
+      status: { $in: ["confirmed", "cancel_pending"] },
+    })
+      .select(
+        "tripDetails type status dates hotelStay.rooms flight.departureDate flight.departDate flight.returnDate flight.bookingRef syncGroup sharedRoom total totalAmount totalCurrency confirmationCodes createdAt"
+      )
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const bookings = docs
+      .map((b) => {
+        const { start, end } = tripDates(b);
+        return {
+          _id: b._id,
+          tripDetails: b.tripDetails,
+          type: b.type,
+          status: b.status,
+          startDate: start,
+          endDate: end,
+          kind: b.syncGroup ? "group" : "solo",
+          syncGroup: b.syncGroup || null,
+          sharedRoom: !!b.sharedRoom,
+          hotelName: b.hotelStay?.rooms?.[0]?.name || null,
+          total: b.totalAmount ?? b.total,
+          totalCurrency: b.totalCurrency || "USD",
+          confirmation:
+            b.confirmationCodes?.[0] || b.flight?.bookingRef || null,
+        };
+      })
+      // Hide finished trips. Keep trips with no known date so they're never silently lost.
+      .filter((b) => !b.startDate || (b.endDate || b.startDate) >= today)
+      .sort(
+        (a, b) =>
+          (a.startDate?.getTime() ?? Infinity) -
+          (b.startDate?.getTime() ?? Infinity)
+      );
+
+    res.json({ bookings });
+  } catch (err) {
+    console.error("GET /api/bookings/upcoming error:", err);
+    res.status(500).json({ message: "Couldn't load your upcoming trips." });
+  }
+});
 
 /**
  * GET /api/bookings/admin/search?q=&type=&status=&page=&limit=
@@ -169,7 +257,10 @@ router.get("/admin/search", adminOnly, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
     const page = Math.max(parseInt(req.query.page ?? "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit ?? "25", 10), 1), 100);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit ?? "25", 10), 1),
+      100
+    );
     const filter = {};
     if (req.query.type) filter.type = req.query.type;
     if (req.query.status === "cancel_requested") {
@@ -214,7 +305,13 @@ router.get("/admin/search", adminOnly, async (req, res) => {
         .lean(),
       Booking.countDocuments(filter),
     ]);
-    res.json({ items, page, limit, total, totalPages: Math.ceil(total / limit) });
+    res.json({
+      items,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (err) {
     console.error("GET /api/bookings/admin/search error:", err);
     res.status(500).json({ message: "Search failed." });
@@ -232,7 +329,8 @@ router.get("/admin/:id", adminOnly, async (req, res) => {
     const booking = await Booking.findById(req.params.id)
       .populate("user", "name username email createdAt")
       .lean();
-    if (!booking) return res.status(404).json({ message: "Booking not found." });
+    if (!booking)
+      return res.status(404).json({ message: "Booking not found." });
     res.json({ booking });
   } catch (err) {
     console.error("GET /api/bookings/admin/:id error:", err);
@@ -249,11 +347,17 @@ router.get("/admin/:id/live", adminOnly, async (req, res) => {
     const booking = await loadOwnedBooking(req, res);
     if (!booking) return;
     const ids = supplierIds(booking);
-    if (!ids.length) return res.status(404).json({ message: "No LiteAPI booking ID on this record." });
+    if (!ids.length)
+      return res
+        .status(404)
+        .json({ message: "No LiteAPI booking ID on this record." });
     const results = [];
     for (const id of ids) {
       try {
-        const r = booking.type === "Flight" ? await flightGetBooking(id) : await hotelGetBooking(id);
+        const r =
+          booking.type === "Flight"
+            ? await flightGetBooking(id)
+            : await hotelGetBooking(id);
         results.push({ bookingId: id, ok: true, data: r.data });
       } catch (e) {
         results.push({ bookingId: id, ok: false, message: e.message });
@@ -272,16 +376,26 @@ router.get("/admin/:id/live", adminOnly, async (req, res) => {
 router.post("/admin/:id/notes", adminOnly, async (req, res) => {
   try {
     const text = String(req.body?.text || "").trim();
-    if (!text) return res.status(400).json({ message: "Note text is required." });
+    if (!text)
+      return res.status(400).json({ message: "Note text is required." });
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: "Invalid booking id." });
     }
     const updated = await Booking.findByIdAndUpdate(
       req.params.id,
-      { $push: { adminNotes: { text: text.slice(0, 2000), by: String(req.user.id), at: new Date() } } },
+      {
+        $push: {
+          adminNotes: {
+            text: text.slice(0, 2000),
+            by: String(req.user.id),
+            at: new Date(),
+          },
+        },
+      },
       { new: true }
     ).lean();
-    if (!updated) return res.status(404).json({ message: "Booking not found." });
+    if (!updated)
+      return res.status(404).json({ message: "Booking not found." });
     res.json({ adminNotes: updated.adminNotes });
   } catch (err) {
     console.error("POST /api/bookings/admin/:id/notes error:", err);
@@ -300,12 +414,16 @@ router.post("/:id/cancel-request", authRequired, async (req, res) => {
     if (!booking) return;
     if (blockSharedRoom(req, res, booking)) return;
     if (booking.status !== "confirmed") {
-      return res.status(400).json({ message: "Only confirmed bookings can be cancelled." });
+      return res
+        .status(400)
+        .json({ message: "Only confirmed bookings can be cancelled." });
     }
     if (booking.cancelRequest?.status === "open") {
       return res.json({ ok: true, alreadyRequested: true, booking });
     }
-    const reason = String(req.body?.reason || "").trim().slice(0, 500);
+    const reason = String(req.body?.reason || "")
+      .trim()
+      .slice(0, 500);
     booking.cancelRequest = {
       status: "open",
       at: new Date(),
@@ -314,7 +432,9 @@ router.post("/:id/cancel-request", authRequired, async (req, res) => {
     };
     booking.markModified("cancelRequest");
     booking.adminNotes.push({
-      text: `Traveler requested cancellation (automatic terms unavailable).${reason ? ` Note: ${reason}` : ""}`,
+      text: `Traveler requested cancellation (automatic terms unavailable).${
+        reason ? ` Note: ${reason}` : ""
+      }`,
       by: "system",
       at: new Date(),
     });
@@ -322,7 +442,10 @@ router.post("/:id/cancel-request", authRequired, async (req, res) => {
 
     let to = booking.email;
     if (!to) {
-      const u = await User.findById(booking.user).select("email").lean().catch(() => null);
+      const u = await User.findById(booking.user)
+        .select("email")
+        .lean()
+        .catch(() => null);
       to = u?.email;
     }
     // Emails never block the response.
@@ -343,12 +466,19 @@ router.post("/:id/cancel-request", authRequired, async (req, res) => {
         link: "/saved-trips",
       });
     } catch (e) {
-      console.error("[bookings/cancel-request] notification failed:", e.message);
+      console.error(
+        "[bookings/cancel-request] notification failed:",
+        e.message
+      );
     }
     res.json({ ok: true, booking });
   } catch (err) {
     console.error("POST /api/bookings/:id/cancel-request error:", err);
-    res.status(500).json({ message: "We couldn't send your request. Please contact support." });
+    res
+      .status(500)
+      .json({
+        message: "We couldn't send your request. Please contact support.",
+      });
   }
 });
 
@@ -357,34 +487,53 @@ router.post("/:id/cancel-request", authRequired, async (req, res) => {
  * Closes an open request after support has handled it (cancelled, or
  * traveler decided to keep the trip, etc.).
  */
-router.post("/admin/:id/cancel-request/resolve", adminOnly, async (req, res) => {
-  try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ message: "Invalid booking id." });
+router.post(
+  "/admin/:id/cancel-request/resolve",
+  adminOnly,
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ message: "Invalid booking id." });
+      }
+      const resolution = String(req.body?.resolution || "")
+        .trim()
+        .slice(0, 1000);
+      if (!resolution)
+        return res
+          .status(400)
+          .json({ message: "Describe how it was resolved." });
+      const booking = await Booking.findById(req.params.id);
+      if (!booking)
+        return res.status(404).json({ message: "Booking not found." });
+      if (booking.cancelRequest?.status !== "open") {
+        return res
+          .status(400)
+          .json({ message: "There's no open cancellation request." });
+      }
+      booking.cancelRequest = {
+        ...booking.cancelRequest,
+        status: "resolved",
+        resolvedAt: new Date(),
+        resolvedBy: String(req.user.id),
+        resolution,
+      };
+      booking.markModified("cancelRequest");
+      booking.adminNotes.push({
+        text: `Cancellation request resolved: ${resolution}`,
+        by: String(req.user.id),
+        at: new Date(),
+      });
+      await booking.save();
+      res.json({ ok: true, booking });
+    } catch (err) {
+      console.error(
+        "POST /api/bookings/admin/:id/cancel-request/resolve error:",
+        err
+      );
+      res.status(500).json({ message: "Failed to resolve the request." });
     }
-    const resolution = String(req.body?.resolution || "").trim().slice(0, 1000);
-    if (!resolution) return res.status(400).json({ message: "Describe how it was resolved." });
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found." });
-    if (booking.cancelRequest?.status !== "open") {
-      return res.status(400).json({ message: "There's no open cancellation request." });
-    }
-    booking.cancelRequest = {
-      ...booking.cancelRequest,
-      status: "resolved",
-      resolvedAt: new Date(),
-      resolvedBy: String(req.user.id),
-      resolution,
-    };
-    booking.markModified("cancelRequest");
-    booking.adminNotes.push({ text: `Cancellation request resolved: ${resolution}`, by: String(req.user.id), at: new Date() });
-    await booking.save();
-    res.json({ ok: true, booking });
-  } catch (err) {
-    console.error("POST /api/bookings/admin/:id/cancel-request/resolve error:", err);
-    res.status(500).json({ message: "Failed to resolve the request." });
   }
-});
+);
 
 /**
  * POST /api/bookings/admin/:id/manual-cancel — ADMIN ONLY.
@@ -406,15 +555,31 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
       return res.status(400).json({ message: "Invalid booking id." });
     }
     const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found." });
+    if (!booking)
+      return res.status(404).json({ message: "Booking not found." });
     if (!["confirmed", "cancel_pending"].includes(booking.status)) {
-      return res.status(400).json({ message: "Only confirmed or cancel-pending bookings can be cancelled." });
+      return res
+        .status(400)
+        .json({
+          message:
+            "Only confirmed or cancel-pending bookings can be cancelled.",
+        });
     }
 
-    const note = String(req.body?.note || "").trim().slice(0, 1000);
-    if (!note) return res.status(400).json({ message: "Describe what happened (required)." });
-    const supplierReference = String(req.body?.supplierReference || "").trim().slice(0, 200) || null;
-    const refundMethod = ["stripe", "supplier", "none"].includes(req.body?.refundMethod)
+    const note = String(req.body?.note || "")
+      .trim()
+      .slice(0, 1000);
+    if (!note)
+      return res
+        .status(400)
+        .json({ message: "Describe what happened (required)." });
+    const supplierReference =
+      String(req.body?.supplierReference || "")
+        .trim()
+        .slice(0, 200) || null;
+    const refundMethod = ["stripe", "supplier", "none"].includes(
+      req.body?.refundMethod
+    )
       ? req.body.refundMethod
       : "none";
     const paid = Number(booking.totalAmount ?? booking.total) || 0;
@@ -422,14 +587,21 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
     let refundAmount = round2(Number(req.body?.refundAmount) || 0);
     if (refundMethod === "none") refundAmount = 0;
     if (refundAmount < 0 || refundAmount > paid) {
-      return res.status(400).json({ message: `Refund must be between 0 and the amount paid (${paid}).` });
+      return res
+        .status(400)
+        .json({
+          message: `Refund must be between 0 and the amount paid (${paid}).`,
+        });
     }
     if (refundMethod !== "none" && refundAmount <= 0) {
-      return res.status(400).json({ message: "Enter the refund amount, or choose “No refund”." });
+      return res
+        .status(400)
+        .json({ message: "Enter the refund amount, or choose “No refund”." });
     }
     if (refundMethod === "stripe" && !booking.stripePaymentIntentId) {
       return res.status(400).json({
-        message: "This booking wasn't paid through Skyrio's Stripe — the airline/LiteAPI refunds it. Choose “Refunded by the airline / LiteAPI”.",
+        message:
+          "This booking wasn't paid through Skyrio's Stripe — the airline/LiteAPI refunds it. Choose “Refunded by the airline / LiteAPI”.",
       });
     }
 
@@ -444,7 +616,10 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
           {
             payment_intent: booking.stripePaymentIntentId,
             amount: Math.round(refundAmount * 100),
-            metadata: { bookingId: String(booking._id), reason: "manual_cancellation" },
+            metadata: {
+              bookingId: String(booking._id),
+              reason: "manual_cancellation",
+            },
           },
           { idempotencyKey: `skyrio_manual_cancel_${booking._id}` }
         );
@@ -453,7 +628,11 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
       } catch (e) {
         refundError = e.message;
         refundStatus = "failed";
-        console.error("[bookings/manual-cancel] Stripe refund failed", String(booking._id), e.message);
+        console.error(
+          "[bookings/manual-cancel] Stripe refund failed",
+          String(booking._id),
+          e.message
+        );
       }
     } else if (refundMethod === "supplier") {
       refundStatus = "pending"; // the airline/LiteAPI pays it out
@@ -492,8 +671,14 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
       booking.markModified("cancelRequest");
     }
     booking.adminNotes.push({
-      text: `Cancelled manually by ${by}. ${note}${supplierReference ? ` · Supplier ref: ${supplierReference}` : ""} · Refund: ${
-        refundMethod === "none" ? "none" : `${refundAmount} ${currency} via ${refundMethod === "stripe" ? "Stripe" : "airline/LiteAPI"}`
+      text: `Cancelled manually by ${by}. ${note}${
+        supplierReference ? ` · Supplier ref: ${supplierReference}` : ""
+      } · Refund: ${
+        refundMethod === "none"
+          ? "none"
+          : `${refundAmount} ${currency} via ${
+              refundMethod === "stripe" ? "Stripe" : "airline/LiteAPI"
+            }`
       }${refundError ? ` · STRIPE REFUND FAILED: ${refundError}` : ""}`,
       by,
       at: new Date(),
@@ -504,7 +689,10 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
       (async () => {
         let to = booking.email;
         if (!to) {
-          const u = await User.findById(booking.user).select("email").lean().catch(() => null);
+          const u = await User.findById(booking.user)
+            .select("email")
+            .lean()
+            .catch(() => null);
           to = u?.email;
         }
         await sendCancellationEmail({
@@ -521,19 +709,29 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
         });
       })();
       try {
-        const amt = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(refundAmount || 0);
+        const amt = new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency,
+        }).format(refundAmount || 0);
         await Notification.create({
           user: booking.user,
           type: "booking",
           title: "Trip cancelled",
           message:
             refundAmount > 0
-              ? `Your ${booking.type === "Hotel" ? "stay" : "flight"} is cancelled. A refund of ${amt} is on its way to your card (5–10 business days).`
-              : `Your ${booking.type === "Hotel" ? "stay" : "flight"} is cancelled. No refund applies to this booking.`,
+              ? `Your ${
+                  booking.type === "Hotel" ? "stay" : "flight"
+                } is cancelled. A refund of ${amt} is on its way to your card (5–10 business days).`
+              : `Your ${
+                  booking.type === "Hotel" ? "stay" : "flight"
+                } is cancelled. No refund applies to this booking.`,
           link: "/saved-trips",
         });
       } catch (e) {
-        console.error("[bookings/manual-cancel] notification failed:", e.message);
+        console.error(
+          "[bookings/manual-cancel] notification failed:",
+          e.message
+        );
       }
     }
 
@@ -546,7 +744,9 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
     });
   } catch (err) {
     console.error("POST /api/bookings/admin/:id/manual-cancel error:", err);
-    res.status(500).json({ message: "Manual cancellation failed. Nothing was changed." });
+    res
+      .status(500)
+      .json({ message: "Manual cancellation failed. Nothing was changed." });
   }
 });
 
@@ -561,28 +761,40 @@ router.post("/admin/:id/refund", adminOnly, async (req, res) => {
       return res.status(400).json({ message: "Invalid booking id." });
     }
     const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found." });
+    if (!booking)
+      return res.status(404).json({ message: "Booking not found." });
     if (!booking.stripePaymentIntentId) {
       return res.status(400).json({
-        message: "This booking wasn't paid through Skyrio's Stripe (flights are paid to LiteAPI). Refunds for it go through LiteAPI support.",
+        message:
+          "This booking wasn't paid through Skyrio's Stripe (flights are paid to LiteAPI). Refunds for it go through LiteAPI support.",
       });
     }
-    const reason = String(req.body?.reason || "").trim().slice(0, 500);
-    if (!reason) return res.status(400).json({ message: "Give a reason (required)." });
+    const reason = String(req.body?.reason || "")
+      .trim()
+      .slice(0, 500);
+    if (!reason)
+      return res.status(400).json({ message: "Give a reason (required)." });
     const amount = round2(Number(req.body?.amount) || 0);
     const paid = Number(booking.totalAmount ?? booking.total) || 0;
     const currency = booking.totalCurrency || "USD";
 
     // Stripe is the source of truth for what's already been refunded.
-    const pi = await stripe().paymentIntents.retrieve(booking.stripePaymentIntentId, {
-      expand: ["latest_charge"],
-    });
+    const pi = await stripe().paymentIntents.retrieve(
+      booking.stripePaymentIntentId,
+      {
+        expand: ["latest_charge"],
+      }
+    );
     const charged = (pi.amount_received || 0) / 100;
     const alreadyRefunded = (pi.latest_charge?.amount_refunded || 0) / 100;
-    const remaining = round2(Math.min(paid || charged, charged) - alreadyRefunded);
+    const remaining = round2(
+      Math.min(paid || charged, charged) - alreadyRefunded
+    );
     if (amount <= 0 || amount > remaining) {
       return res.status(400).json({
-        message: `Refund must be more than 0 and at most ${remaining.toFixed(2)} ${currency} (already refunded ${alreadyRefunded.toFixed(2)}).`,
+        message: `Refund must be more than 0 and at most ${remaining.toFixed(
+          2
+        )} ${currency} (already refunded ${alreadyRefunded.toFixed(2)}).`,
       });
     }
 
@@ -590,18 +802,28 @@ router.post("/admin/:id/refund", adminOnly, async (req, res) => {
       {
         payment_intent: booking.stripePaymentIntentId,
         amount: Math.round(amount * 100),
-        metadata: { bookingId: String(booking._id), reason: "manual_admin_refund" },
+        metadata: {
+          bookingId: String(booking._id),
+          reason: "manual_admin_refund",
+        },
       },
       // Same amount + same already-refunded total = same request (safe double-click).
-      { idempotencyKey: `skyrio_manual_refund_${booking._id}_${Math.round(alreadyRefunded * 100)}_${Math.round(amount * 100)}` }
+      {
+        idempotencyKey: `skyrio_manual_refund_${booking._id}_${Math.round(
+          alreadyRefunded * 100
+        )}_${Math.round(amount * 100)}`,
+      }
     );
 
     const by = req.user?.email || String(req.user?.id || "admin");
     booking.refundAmount = round2(alreadyRefunded + amount);
-    booking.refundStatus = refund.status === "succeeded" ? "succeeded" : "pending";
+    booking.refundStatus =
+      refund.status === "succeeded" ? "succeeded" : "pending";
     if (refund.status === "succeeded") booking.refundedAt = new Date();
     booking.adminNotes.push({
-      text: `Manual refund of ${amount.toFixed(2)} ${currency} by ${by} (Stripe ${refund.id}). Reason: ${reason}`,
+      text: `Manual refund of ${amount.toFixed(
+        2
+      )} ${currency} by ${by} (Stripe ${refund.id}). Reason: ${reason}`,
       by,
       at: new Date(),
     });
@@ -626,17 +848,25 @@ router.post("/admin/:id/shared-room/cancel", adminOnly, async (req, res) => {
     const booking = await loadOwnedBooking(req, res);
     if (!booking) return;
     const splitId = booking.sharedRoom?.splitPaymentId;
-    if (!splitId) return res.status(400).json({ message: "This isn't a shared room." });
+    if (!splitId)
+      return res.status(400).json({ message: "This isn't a shared room." });
     const split = await SplitPayment.findById(splitId);
-    if (!split) return res.status(404).json({ message: "Shared room record not found." });
+    if (!split)
+      return res.status(404).json({ message: "Shared room record not found." });
     const out = await cancelSharedRoom({
       split,
       actorUserId: req.user.id,
       actorName: "Skyrio support",
     });
-    res.json({ ok: true, ...out, message: "Shared room cancelled. Everyone's share of the refund is on its way." });
+    res.json({
+      ok: true,
+      ...out,
+      message:
+        "Shared room cancelled. Everyone's share of the refund is on its way.",
+    });
   } catch (err) {
-    if (err instanceof SyncError) return res.status(err.status).json({ message: err.message });
+    if (err instanceof SyncError)
+      return res.status(err.status).json({ message: err.message });
     console.error("POST /admin/:id/shared-room/cancel error:", err);
     res.status(500).json({ message: "Couldn't cancel the shared room." });
   }
@@ -654,16 +884,23 @@ router.get("/:id/cancel-quote", ownerOrAdmin, async (req, res) => {
     if (!booking) return;
     if (blockSharedRoom(req, res, booking)) return;
     if (booking.status === "cancelled" || booking.status === "cancel_pending") {
-      return res.json({ cancellable: false, reason: "This booking is already cancelled or being cancelled." });
+      return res.json({
+        cancellable: false,
+        reason: "This booking is already cancelled or being cancelled.",
+      });
     }
     if (booking.status !== "confirmed") {
-      return res.json({ cancellable: false, reason: "Only confirmed bookings can be cancelled." });
+      return res.json({
+        cancellable: false,
+        reason: "Only confirmed bookings can be cancelled.",
+      });
     }
     const ids = supplierIds(booking);
     if (!ids.length) {
       return res.json({
         cancellable: false,
-        reason: "This booking has no supplier reference on file. Contact support to cancel it.",
+        reason:
+          "This booking has no supplier reference on file. Contact support to cancel it.",
       });
     }
     const paid = Number(booking.totalAmount ?? booking.total) || 0;
@@ -722,8 +959,18 @@ router.get("/:id/cancel-quote", ownerOrAdmin, async (req, res) => {
       }
       throw quoteErr;
     }
-    const refund = pickAmount(data, ["refund", "refundAmount", "refund_amount", "maxRefund"]);
-    const fee = pickAmount(data, ["penalty", "cancellationFee", "cancellation_fee", "fee"]);
+    const refund = pickAmount(data, [
+      "refund",
+      "refundAmount",
+      "refund_amount",
+      "maxRefund",
+    ]);
+    const fee = pickAmount(data, [
+      "penalty",
+      "cancellationFee",
+      "cancellation_fee",
+      "fee",
+    ]);
     return res.json({
       cancellable: data?.isCancellable !== false,
       type: "Flight",
@@ -733,12 +980,15 @@ router.get("/:id/cancel-quote", ownerOrAdmin, async (req, res) => {
       isVoidable: data?.isVoidable ?? null,
       estimatedRefund: refund != null ? round2(Math.min(refund, paid)) : null,
       estimatedFee: fee != null ? round2(fee) : null,
-      note:
-        "This is the airline's maximum possible refund, not a guarantee. The airline confirms the final amount, and refunds go back to the card used.",
+      note: "This is the airline's maximum possible refund, not a guarantee. The airline confirms the final amount, and refunds go back to the card used.",
       raw: isAdminUser(req) ? data : undefined,
     });
   } catch (err) {
-    console.error("GET /api/bookings/:id/cancel-quote error:", err?.message, err?.lite || "");
+    console.error(
+      "GET /api/bookings/:id/cancel-quote error:",
+      err?.message,
+      err?.lite || ""
+    );
     // canRequest: the traveler can still send a cancellation request that a
     // person handles — so they're never stuck with no way to cancel.
     res.status(502).json({
@@ -765,17 +1015,32 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       return res.json({ ok: true, alreadyCancelled: true, booking });
     }
     if (booking.status === "cancel_pending") {
-      return res.status(202).json({ ok: true, pending: true, message: "The airline is still processing this cancellation." });
+      return res
+        .status(202)
+        .json({
+          ok: true,
+          pending: true,
+          message: "The airline is still processing this cancellation.",
+        });
     }
     if (booking.status !== "confirmed") {
-      return res.status(400).json({ message: "Only confirmed bookings can be cancelled." });
+      return res
+        .status(400)
+        .json({ message: "Only confirmed bookings can be cancelled." });
     }
     const ids = supplierIds(booking);
     if (!ids.length) {
-      return res.status(400).json({ message: "No supplier reference on file. Contact support to cancel." });
+      return res
+        .status(400)
+        .json({
+          message: "No supplier reference on file. Contact support to cancel.",
+        });
     }
 
-    const actor = isAdminUser(req) && String(booking.user) !== String(req.user.id) ? "admin" : "traveler";
+    const actor =
+      isAdminUser(req) && String(booking.user) !== String(req.user.id)
+        ? "admin"
+        : "traveler";
     const paid = Number(booking.totalAmount ?? booking.total) || 0;
     const currency = booking.totalCurrency || "USD";
     const supplier = [];
@@ -785,7 +1050,12 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       for (const id of ids) {
         try {
           const r = await hotelCancel(id);
-          supplier.push({ bookingId: id, ok: true, httpStatus: r.httpStatus, data: r.data });
+          supplier.push({
+            bookingId: id,
+            ok: true,
+            httpStatus: r.httpStatus,
+            data: r.data,
+          });
         } catch (e) {
           supplier.push({ bookingId: id, ok: false, message: e.message });
         }
@@ -793,7 +1063,12 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
     } else {
       try {
         const r = await flightCancel(ids[0]);
-        supplier.push({ bookingId: ids[0], ok: true, httpStatus: r.httpStatus, data: r.data });
+        supplier.push({
+          bookingId: ids[0],
+          ok: true,
+          httpStatus: r.httpStatus,
+          data: r.data,
+        });
       } catch (e) {
         supplier.push({ bookingId: ids[0], ok: false, message: e.message });
       }
@@ -828,24 +1103,45 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
 
     const succeeded = supplier.filter((s) => s.ok);
     if (!succeeded.length) {
-      console.error("[bookings/cancel] supplier refused", String(booking._id), supplier);
+      console.error(
+        "[bookings/cancel] supplier refused",
+        String(booking._id),
+        supplier
+      );
       return res.status(502).json({
-        message: "The airline/hotel didn't accept the cancellation. Nothing was changed. Please try again or contact support.",
+        message:
+          "The airline/hotel didn't accept the cancellation. Nothing was changed. Please try again or contact support.",
         supplier: isAdminUser(req) ? supplier : undefined,
       });
     }
 
     const supplierRefund = round2(
-      succeeded.reduce((sum, s) => sum + (pickAmount(s.data, ["refund_amount", "refundAmount", "refund"]) || 0), 0)
+      succeeded.reduce(
+        (sum, s) =>
+          sum +
+          (pickAmount(s.data, ["refund_amount", "refundAmount", "refund"]) ||
+            0),
+        0
+      )
     );
     const cancellationFee = round2(
-      succeeded.reduce((sum, s) => sum + (pickAmount(s.data, ["cancellation_fee", "cancellationFee", "penalty"]) || 0), 0)
+      succeeded.reduce(
+        (sum, s) =>
+          sum +
+          (pickAmount(s.data, [
+            "cancellation_fee",
+            "cancellationFee",
+            "penalty",
+          ]) || 0),
+        0
+      )
     );
 
     const flightPending =
       booking.type === "Flight" &&
       !succeeded[0].alreadyCancelled &&
-      (succeeded[0].httpStatus === 202 || String(succeeded[0].data?.status || "").toUpperCase() === "CONFIRMED");
+      (succeeded[0].httpStatus === 202 ||
+        String(succeeded[0].data?.status || "").toUpperCase() === "CONFIRMED");
 
     // ── 2. Refund (hotels only — Skyrio holds that payment) ──
     let customerRefund = 0;
@@ -860,16 +1156,24 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
             {
               payment_intent: booking.stripePaymentIntentId,
               amount: Math.round(customerRefund * 100),
-              metadata: { bookingId: String(booking._id), reason: "supplier_cancellation" },
+              metadata: {
+                bookingId: String(booking._id),
+                reason: "supplier_cancellation",
+              },
             },
             { idempotencyKey: `skyrio_cancel_refund_${booking._id}` }
           );
           stripeRefundId = refund.id;
-          refundStatus = refund.status === "succeeded" ? "succeeded" : "pending";
+          refundStatus =
+            refund.status === "succeeded" ? "succeeded" : "pending";
         } catch (e) {
           refundError = e.message;
           refundStatus = "failed";
-          console.error("[bookings/cancel] RECONCILE — supplier cancelled but Stripe refund failed", String(booking._id), e.message);
+          console.error(
+            "[bookings/cancel] RECONCILE — supplier cancelled but Stripe refund failed",
+            String(booking._id),
+            e.message
+          );
         }
       }
     } else if (booking.type === "Flight") {
@@ -879,7 +1183,11 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
 
     // ── 3. Save ──
     const partial = succeeded.length < supplier.length;
-    booking.status = flightPending ? "cancel_pending" : partial ? "confirmed" : "cancelled";
+    booking.status = flightPending
+      ? "cancel_pending"
+      : partial
+      ? "confirmed"
+      : "cancelled";
     booking.refundStatus = refundStatus;
     booking.refundAmount = customerRefund || null;
     if (refundStatus === "succeeded") booking.refundedAt = new Date();
@@ -897,7 +1205,10 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       partial,
     };
     booking.markModified("cancellation");
-    if (booking.cancelRequest?.status === "open" && booking.status !== "confirmed") {
+    if (
+      booking.cancelRequest?.status === "open" &&
+      booking.status !== "confirmed"
+    ) {
       booking.cancelRequest = {
         ...booking.cancelRequest,
         status: "resolved",
@@ -913,7 +1224,10 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
     (async () => {
       let to = booking.email;
       if (!to) {
-        const u = await User.findById(booking.user).select("email").lean().catch(() => null);
+        const u = await User.findById(booking.user)
+          .select("email")
+          .lean()
+          .catch(() => null);
         to = u?.email;
       }
       await sendCancellationEmail({
@@ -930,7 +1244,10 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       });
     })();
     try {
-      const money = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(customerRefund || 0);
+      const money = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+      }).format(customerRefund || 0);
       await Notification.create({
         user: booking.user,
         type: "booking",
@@ -938,8 +1255,14 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
         message: flightPending
           ? "The airline is processing your cancellation. We'll update your trip when it's final."
           : customerRefund > 0
-          ? `Your ${booking.type === "Hotel" ? "stay" : "flight"} is cancelled. A refund of ${money} is on its way to your card (5–10 business days).`
-          : `Your ${booking.type === "Hotel" ? "stay" : "flight"} is cancelled. Under the ${booking.type === "Hotel" ? "hotel's" : "airline's"} policy, no refund applies.`,
+          ? `Your ${
+              booking.type === "Hotel" ? "stay" : "flight"
+            } is cancelled. A refund of ${money} is on its way to your card (5–10 business days).`
+          : `Your ${
+              booking.type === "Hotel" ? "stay" : "flight"
+            } is cancelled. Under the ${
+              booking.type === "Hotel" ? "hotel's" : "airline's"
+            } policy, no refund applies.`,
         link: "/saved-trips",
       });
     } catch (e) {
@@ -964,7 +1287,12 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("POST /api/bookings/:id/cancel error:", err);
-    res.status(500).json({ message: "Cancellation failed. Nothing was charged; please contact support." });
+    res
+      .status(500)
+      .json({
+        message:
+          "Cancellation failed. Nothing was charged; please contact support.",
+      });
   }
 });
 
@@ -1173,7 +1501,8 @@ router.delete("/:id", adminOnly, async (req, res) => {
       return res.status(400).json({ message: "Invalid booking id." });
     }
     const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found." });
+    if (!booking)
+      return res.status(404).json({ message: "Booking not found." });
 
     if (booking.status !== "pending" || booking.paidAt) {
       return res.status(400).json({
