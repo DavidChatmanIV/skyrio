@@ -2788,7 +2788,9 @@ function StepSeatsBags({
                   works a moment later, so offer a retry first. Sold-out fares
                   only get "Find another flight". */}
               {onRetryPrebook &&
-                !/sold out|no longer available|expired/i.test(prebookError) && (
+                !/sold out|no longer available|expired|sign in/i.test(
+                  prebookError
+                ) && (
                   <button
                     type="button"
                     onClick={onRetryPrebook}
@@ -2804,7 +2806,9 @@ function StepSeatsBags({
                 onClick={onBackToResults}
                 className={
                   onRetryPrebook &&
-                  !/sold out|no longer available|expired/i.test(prebookError)
+                  !/sold out|no longer available|expired|sign in/i.test(
+                    prebookError
+                  )
                     ? "skc-btn-back"
                     : "skc-btn-primary"
                 }
@@ -3193,8 +3197,14 @@ function findExpiration(obj, depth = 0) {
   return null;
 }
 
+// Booking needs an account: the finished booking is saved to it, and the
+// backend now requires sign-in from prebook onward (before any payment).
+const SIGN_IN_TO_BOOK =
+  "Please sign in to book this flight. Your trip is saved to your Skyrio account, so you need to be signed in before you pay.";
+
 // Turns raw LiteAPI errors into something a traveler understands.
 function friendlyFareError(raw = "") {
+  if (raw === SIGN_IN_TO_BOOK) return raw;
   if (/sold out|52010|no longer available|expired/i.test(raw)) {
     return "This fare just sold out with the airline. Let's find you another flight.";
   }
@@ -3277,6 +3287,7 @@ export default function BookingCheckout({
           );
         }
         const token = localStorage.getItem("token");
+        if (!token) throw new Error(SIGN_IN_TO_BOOK);
         const API = import.meta.env?.VITE_API_URL || "";
         const authHeaders = {
           "Content-Type": "application/json",
@@ -3362,6 +3373,7 @@ export default function BookingCheckout({
           headers: authHeaders,
           body: JSON.stringify(prebookBody),
         });
+        if (pRes.status === 401) throw new Error(SIGN_IN_TO_BOOK);
         const pData = await pRes.json();
         if (!pRes.ok || !pData.ok) {
           throw new Error(

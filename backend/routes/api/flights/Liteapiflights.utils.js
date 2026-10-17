@@ -256,8 +256,50 @@ export function normalizeFlightOffer(journey = {}, searchParams = {}) {
   };
 }
 
+// ---------------------------------------------------------------------
+// Test-airline filter
+//
+// LiteAPI's sandbox mixes its own fake carrier ("Nuitée Air") into search
+// results. Those fares fail at the reservation step, so a tester picks a
+// flight, fills in their details, and hits "couldn't reserve this fare".
+// Hide any journey where ANY segment is flown by a test carrier.
+//
+// On by default. Set HIDE_TEST_CARRIERS=false on Render to show them again
+// (e.g. if LiteAPI support asks you to test against Nuitée Air on purpose).
+// If a search returns ONLY test fares, they're kept rather than showing an
+// empty result, and a warning is logged.
+// ---------------------------------------------------------------------
+const TEST_CARRIER_RE = /nuit[eé]e/i;
+
+function isTestCarrierJourney(journey = {}) {
+  return (journey.segments || []).some((s) => {
+    const c = s?.carrier || {};
+    return [c.marketingName, c.operatingName, c.name]
+      .filter(Boolean)
+      .some((n) => TEST_CARRIER_RE.test(n));
+  });
+}
+
+function hideTestCarriers(journeys) {
+  if (String(process.env.HIDE_TEST_CARRIERS).toLowerCase() === "false") {
+    return journeys;
+  }
+  const real = journeys.filter((j) => !isTestCarrierJourney(j));
+  const hidden = journeys.length - real.length;
+  if (hidden && real.length) {
+    console.info(`[LiteAPI Flights] hid ${hidden} test-airline fare(s)`);
+    return real;
+  }
+  if (hidden && !real.length) {
+    console.warn(
+      "[LiteAPI Flights] search returned only test-airline fares; showing them so results aren't empty"
+    );
+  }
+  return journeys;
+}
+
 export function normalizeFlightSearchResponse(data = {}, searchParams = {}) {
-  const journeys = extractJourneys(data);
+  const journeys = hideTestCarriers(extractJourneys(data));
   return journeys.map((journey) => normalizeFlightOffer(journey, searchParams));
 }
 

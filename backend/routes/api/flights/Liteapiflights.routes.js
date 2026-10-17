@@ -23,13 +23,20 @@ router.post("/search", searchFlights);
 router.post("/warm", warmSearch);
 
 // Booking flow — call in order: verify -> prebook -> (get details -> services) -> complete
+//
+// Verify stays open: it only checks a fare's price/availability.
 router.post("/verify", verifyOffer);
-router.post("/prebook", createPrebook);
+
+// requireAuth on everything from prebook onward. /complete saves the
+// booking to the signed-in user's account, so someone who isn't signed in
+// must be stopped HERE — before a fare is reserved and a payment is set
+// up — not after they've already paid. A signed-out request gets a 401,
+// which the checkout turns into "Please sign in to book this flight."
+router.post("/prebook", requireAuth, createPrebook);
 // Fetches available seats/ancillaries + confirmed pricing for an
 // existing prebook.
-router.get("/prebook/:prebookId", getPrebookDetails);
-router.post("/prebook/:prebookId/services", attachPrebookServices);
-// requireAuth: the completed booking is saved to the signed-in user's account.
+router.get("/prebook/:prebookId", requireAuth, getPrebookDetails);
+router.post("/prebook/:prebookId/services", requireAuth, attachPrebookServices);
 router.post("/complete", requireAuth, completeBooking);
 
 export default router;
