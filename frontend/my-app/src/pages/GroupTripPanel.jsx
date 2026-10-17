@@ -45,6 +45,16 @@ import {
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 // Same Stripe key the hotel checkout uses (Skyrio is the merchant for rooms).
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || "");
+// Vite bakes env vars in at BUILD time. If this is empty on the live site,
+// the card box renders blank — show a clear message instead.
+const STRIPE_KEY_MISSING = !String(
+  import.meta.env.VITE_STRIPE_PUBLIC_KEY || ""
+).startsWith("pk_");
+if (STRIPE_KEY_MISSING) {
+  console.error(
+    "[payments] VITE_STRIPE_PUBLIC_KEY is missing or invalid in this build — card forms can't load. Add it in Vercel and redeploy."
+  );
+}
 
 function authHeaders() {
   const token = localStorage.getItem("token");
@@ -262,6 +272,15 @@ function HoldShareForm({ groupId, room, share, onDone }) {
           }}
         />
       </div>
+      {STRIPE_KEY_MISSING && (
+        <div
+          role="alert"
+          style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}
+        >
+          Card payments aren't available on this site right now. Please try
+          again later or contact Skyrio support.
+        </div>
+      )}
       {error && (
         <div
           role="alert"

@@ -40,6 +40,16 @@ const API = import.meta.env.VITE_API_URL || "";
 // Hotels are paid on SKYRIO's own Stripe account (Skyrio is the merchant;
 // LiteAPI is then paid from the card on file with ACC_CREDIT_CARD).
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || "");
+// Vite bakes env vars in at BUILD time. If this is empty on the live site,
+// the card box renders blank — show a clear message instead.
+const STRIPE_KEY_MISSING = !String(
+  import.meta.env.VITE_STRIPE_PUBLIC_KEY || ""
+).startsWith("pk_");
+if (STRIPE_KEY_MISSING) {
+  console.error(
+    "[payments] VITE_STRIPE_PUBLIC_KEY is missing or invalid in this build — card forms can't load. Add it in Vercel and redeploy."
+  );
+}
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -520,7 +530,16 @@ function PaymentForm({
           }}
         />
       </div>
-      {cardSlow && !cardReady && (
+      {STRIPE_KEY_MISSING && (
+        <div
+          role="alert"
+          style={{ fontSize: 13, color: "#f87171", marginBottom: 12 }}
+        >
+          Card payments aren't available on this site right now. Please try
+          again later or contact Skyrio support.
+        </div>
+      )}
+      {!STRIPE_KEY_MISSING && cardSlow && !cardReady && (
         <div
           role="alert"
           style={{
