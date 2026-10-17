@@ -1847,6 +1847,11 @@ function StepPassengers({
   const markTouched = (idx, field) =>
     setTouched((t) => ({ ...t, [`${idx}.${field}`]: true }));
 
+  // Airlines reject 1-letter names ("Fernanda B"), so require at least 2
+  // letters. Profile autofill can produce an initial-only last name.
+  const nameOk = (v) => (v || "").replace(/[^\p{L}]/gu, "").length >= 2;
+  const NAME_HINT = "Enter the full name exactly as it appears on your ID";
+
   const dobOk = (v) => {
     if (!v) return false;
     const d = dayjs(v);
@@ -1866,8 +1871,10 @@ function StepPassengers({
   const errorFor = (idx, field, p) => {
     const key = `${idx}.${field}`;
     if (!touched[key]) return null;
-    if (field === "firstName" && !p.firstName) return "Required";
-    if (field === "lastName" && !p.lastName) return "Required";
+    if (field === "firstName" && !nameOk(p.firstName))
+      return p.firstName ? NAME_HINT : "Required";
+    if (field === "lastName" && !nameOk(p.lastName))
+      return p.lastName ? NAME_HINT : "Required";
     if (field === "dob" && !dobOk(p.dob)) return "Enter a valid past date";
     if (field === "gender" && !p.gender) return "Required";
     if (field === "email" && idx === 0 && !emailOk(p.email))
@@ -1907,8 +1914,8 @@ function StepPassengers({
 
     const invalid = passengers.some(
       (p) =>
-        !p.firstName ||
-        !p.lastName ||
+        !nameOk(p.firstName) ||
+        !nameOk(p.lastName) ||
         !dobOk(p.dob) ||
         !p.gender ||
         (p.index === 0 && !emailOk(p.email)) ||

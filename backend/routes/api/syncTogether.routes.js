@@ -1771,6 +1771,88 @@ router.delete("/:id/shortlist/:itemId", async (req, res) => {
   }
 });
 
+/* POST /api/sync-together/:id/shortlist/:itemId/unavailable
+   The booking page opened a suggested flight or room and the airline /
+   hotel no longer offers it (sold out, or the exact flight is gone).
+   Removes it from the shortlist so nobody else taps a dead option, clears
+   it as the group's flight if it was, and tells the rest of the group.
+   Any member can report it — it's logged under their name. For hotels only
+   the suggested room is removed; the group's hotel itself stays. */
+router.post("/:id/shortlist/:itemId/unavailable", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await loadGroupForParts(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    const it = validId(req.params.itemId)
+      ? group.shortlist.id(req.params.itemId)
+      : null;
+    // Already gone (someone else reported it first) — nothing to do.
+    if (!it) return res.json({ ok: true, removed: false });
+    if (!["flight", "hotel"].includes(it.kind)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Only flights and rooms can be marked unavailable.",
+      });
+    }
+
+    const wasGroupFlight =
+      it.kind === "flight" && it.key === group.groupFlightKey;
+    if (wasGroupFlight) group.groupFlightKey = null;
+
+    const label =
+      it.kind === "flight"
+        ? `${it.flight?.airline ? it.flight.airline + " " : ""}${
+            it.flight?.origin || ""
+          }→${it.flight?.destination || ""}`.trim()
+        : `${it.hotel?.name || "The hotel"}${
+            it.hotel?.roomName ? ` (${it.hotel.roomName})` : ""
+          }`;
+    it.deleteOne();
+    logActivity(
+      group,
+      "shortlist_unavailable",
+      userId,
+      `${label} is no longer available and was removed from the shortlist`
+    );
+    try {
+      await group.save();
+    } catch (err) {
+      // If activityLog.type is an enum without this value, save without the
+      // log entry rather than leave the dead option on the shortlist.
+      if (err?.name !== "ValidationError") throw err;
+      group.activityLog.pop();
+      await group.save();
+    }
+
+    const others = [
+      group.owner?._id,
+      ...group.members
+        .filter((m) => m.user && m.status !== "declined")
+        .map((m) => m.user._id),
+    ].filter((id) => id && String(id) !== String(userId));
+    Notification.insertMany(
+      others.map((u) => ({
+        user: u,
+        type: "booking",
+        title:
+          it.kind === "flight"
+            ? wasGroupFlight
+              ? "The group's flight sold out ✈️"
+              : "A suggested flight sold out ✈️"
+            : "A suggested room is gone 🏨",
+        message: `${label} can't be booked anymore, so it was removed from the shortlist.${
+          wasGroupFlight ? " Pick a new group flight on the trip page." : ""
+        }`,
+        link: `/sync-together/${group._id}`,
+      }))
+    ).catch(() => {});
+
+    return res.json({ ok: true, removed: true, wasGroupFlight });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't update the shortlist");
+  }
+});
+
 /* POST /api/sync-together/:id/shortlist/:itemId/pick — organizer picks the winner.
    Hotel → becomes the group's hotel (everyone's "Book my room here" opens it).
    Flight → marked as the group's flight. */

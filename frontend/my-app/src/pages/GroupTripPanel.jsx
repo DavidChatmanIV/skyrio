@@ -755,6 +755,192 @@ function EmailLine({ groupId, bookingId, status, canResend = true, onResent }) {
   );
 }
 
+/* ═══ Fly with friends ═══
+   Shows the flights friends already booked from YOUR airport, checks each
+   one live for seats, and offers "Book this flight". Flights that sold out
+   are taken off the list so nobody taps a dead option. Different airport →
+   not the same flight, so it isn't offered. */
+const SAME_FLIGHT_CACHE_MS = 10 * 60 * 1000;
+const minuteOf = (v) => (v ? String(v).slice(0, 16) : "");
+
+function flightKeyOf(f) {
+  return [
+    f.origin,
+    f.destination,
+    (f.airline || "").toLowerCase(),
+    minuteOf(f.departsAt),
+    minuteOf(f.returnDepartsAt),
+  ].join("|");
+}
+
+// "available" | "gone" | "unknown" (search failed — let them try anyway)
+async function checkSeats(f, cabin) {
+  const cacheKey = `skyrio_same_flight:${flightKeyOf(f)}`;
+  try {
+    const hit = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
+    if (hit && Date.now() - hit.at < SAME_FLIGHT_CACHE_MS) return hit.result;
+  } catch {
+    /* no cache */
+  }
+  const q = new URLSearchParams({
+    from: f.origin,
+    to: f.destination,
+    departDate: String(f.departsAt).slice(0, 10),
+    adults: "1",
+    cabin: cabin || "economy",
+  });
+  if (f.returnDepartsAt)
+    q.set("returnDate", String(f.returnDepartsAt).slice(0, 10));
+  let result = "unknown";
+  try {
+    const res = await fetch(
+      `${import.meta.env.VITE_API_URL || ""}/api/flights/search?${q}`
+    );
+    const d = await res.json();
+    if (res.ok && d.ok && !d.stale) {
+      const found = (d.flights || []).some(
+        (x) =>
+          x.origin === f.origin &&
+          x.destination === f.destination &&
+          minuteOf(x.departingAt) === minuteOf(f.departsAt) &&
+          (!f.returnDepartsAt ||
+            minuteOf(x.returningAt) === minuteOf(f.returnDepartsAt)) &&
+          (!f.airline ||
+            !x.owner ||
+            String(x.owner).toLowerCase() === f.airline.toLowerCase())
+      );
+      result = found ? "available" : "gone";
+    }
+  } catch {
+    /* unknown */
+  }
+  try {
+    sessionStorage.setItem(
+      cacheKey,
+      JSON.stringify({ at: Date.now(), result })
+    );
+  } catch {
+    /* fine */
+  }
+  return result;
+}
+
+function FlyWithFriends({ options, hasOwnFlight, cabin, onBook }) {
+  const [seats, setSeats] = useState({});
+  const optionKeys = options.map((o) => o.key).join(",");
+
+  useEffect(() => {
+    let alive = true;
+    options.forEach((o) => {
+      setSeats((s) => (s[o.key] ? s : { ...s, [o.key]: "checking" }));
+      checkSeats(o.flight, cabin).then(
+        (r) => alive && setSeats((s) => ({ ...s, [o.key]: r }))
+      );
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optionKeys, cabin]);
+
+  const visible = options.filter((o) => seats[o.key] !== "gone");
+  const allGone =
+    options.length > 0 && options.every((o) => seats[o.key] === "gone");
+
+  const book = (o) => {
+    if (!hasOwnFlight) return onBook(o);
+    Modal.confirm({
+      title: `Switch to ${o.names.join(" & ")}'s flight?`,
+      content:
+        "You'll book this flight as a new booking. Your current flight is NOT cancelled automatically — after booking, cancel it from My Trips. Check its cancellation terms first: free cancellation only applies within 24 hours of booking, and airline fees may apply after that.",
+      okText: "Book this flight",
+      cancelText: "Keep my flight",
+      onOk: () => onBook(o),
+    });
+  };
+
+  if (allGone) {
+    return (
+      <div style={{ ...muted, fontSize: 12, margin: "4px 0 8px" }}>
+        The flights your friends booked from your airport are sold out. Pick any
+        flight that lands around the same time.
+      </div>
+    );
+  }
+  if (!visible.length) return null;
+
+  return (
+    <div style={{ margin: "4px 0 8px" }}>
+      <div
+        style={{
+          ...muted,
+          fontSize: 11,
+          letterSpacing: ".06em",
+          textTransform: "uppercase",
+          margin: "4px 0 6px",
+        }}
+      >
+        {hasOwnFlight ? "Want to switch?" : "Fly with friends"}
+      </div>
+      {visible.map((o) => {
+        const st = seats[o.key] || "checking";
+        const f = o.flight;
+        return (
+          <div
+            key={o.key}
+            style={{
+              ...row,
+              background: "rgba(255,138,42,0.05)",
+              border: "1px solid rgba(255,138,42,0.2)",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
+                {o.names.join(" & ")} {o.names.length > 1 ? "are" : "is"} on
+                this flight
+              </div>
+              <div style={muted}>
+                {[
+                  `${f.origin} → ${f.destination}`,
+                  f.departsAt ? fmtLocal(f.departsAt) : null,
+                  f.airline,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+              {f.arrivesAt && (
+                <div style={{ ...muted, fontSize: 12 }}>
+                  Lands {fmtLocal(f.arrivesAt)}
+                </div>
+              )}
+            </div>
+            {st === "checking" ? (
+              <Chip tone="off">
+                <LoadingOutlined style={{ marginRight: 4 }} />
+                Checking seats…
+              </Chip>
+            ) : (
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                {st === "available" && <Chip tone="done">Seats available</Chip>}
+                <Button className="sk-sync-cta-btn" onClick={() => book(o)}>
+                  {hasOwnFlight ? "Switch to this flight" : "Book this flight"}
+                </Button>
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ═══ Main panel ═══ */
 export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
   const navigate = useNavigate();
@@ -909,6 +1095,52 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
     return `/booking?${p.toString()}`;
   };
 
+  // Friends' booked flights from your airport, one entry per flight.
+  const sameAirport = (code) =>
+    Boolean(myAirport && code) &&
+    String(code).toUpperCase() === String(myAirport).toUpperCase();
+  const friendFlights = (() => {
+    const byKey = new Map();
+    for (const t of data.travelers) {
+      if (t.isYou || !flightOn(t)) continue;
+      const f = t.flight;
+      if (!f.origin || !f.destination || !f.departsAt) continue;
+      if (!sameAirport(f.origin)) continue;
+      const key = flightKeyOf(f);
+      const first = String(t.name || "Friend").split(" ")[0];
+      if (byKey.has(key)) byKey.get(key).names.push(first);
+      else byKey.set(key, { key, flight: f, names: [first] });
+    }
+    return [...byKey.values()];
+  })();
+  const myFlightKey = flightOn(me) ? flightKeyOf(me.flight) : null;
+  const onFriendsFlight = friendFlights.find((o) => o.key === myFlightKey);
+  const otherFriendFlights = friendFlights.filter((o) => o.key !== myFlightKey);
+
+  // Opens Book on that exact flight; the booking page finds it in fresh
+  // results or says clearly that it's gone.
+  const bookFriendsFlight = (o) => {
+    const f = o.flight;
+    const p = new URLSearchParams({
+      groupId,
+      tab: "Flights",
+      auto: "1",
+      from: f.origin,
+      to: f.destination,
+      depart: String(f.departsAt).slice(0, 10),
+      sf: "1",
+      sfDepart: minuteOf(f.departsAt),
+      sfWith: o.names.join(" & "),
+    });
+    if (data.cabinClass) p.set("cabin", data.cabinClass);
+    if (f.returnDepartsAt) {
+      p.set("return", String(f.returnDepartsAt).slice(0, 10));
+      p.set("sfReturn", minuteOf(f.returnDepartsAt));
+    }
+    if (f.airline) p.set("sfAirline", f.airline);
+    navigate(`/booking?${p.toString()}`);
+  };
+
   return (
     <>
       {data.allBookedAt && (
@@ -1052,6 +1284,20 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
               </Button>
             )}
           </div>
+
+          {onFriendsFlight && (
+            <div style={{ ...muted, fontSize: 12, margin: "-2px 0 8px 2px" }}>
+              ✓ Same flight as {onFriendsFlight.names.join(" & ")}
+            </div>
+          )}
+          {otherFriendFlights.length > 0 && (
+            <FlyWithFriends
+              options={otherFriendFlights}
+              hasOwnFlight={Boolean(flightOn(me))}
+              cabin={data.cabinClass}
+              onBook={bookFriendsFlight}
+            />
+          )}
 
           <div style={row}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
