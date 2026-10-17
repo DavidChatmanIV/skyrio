@@ -922,6 +922,30 @@ async function findSavedFlightBooking(userId, prebookId) {
   }
 }
 
+// Seats the traveler chose in Skyrio (sent from checkout). Kept small and
+// plain so group members can see where friends sit on the same flight.
+function cleanSeats(list) {
+  if (!Array.isArray(list)) return [];
+  const str = (v, n) => (v == null || v === "" ? null : String(v).slice(0, n));
+  return list
+    .slice(0, 40)
+    .map((x) => ({
+      origin: str(x?.origin, 4),
+      destination: str(x?.destination, 4),
+      departureAt: str(x?.departureAt, 16),
+      flightNumber: str(x?.flightNumber, 12),
+      seatNumber: str(x?.seatNumber, 5),
+      passenger: str(x?.passenger, 80),
+    }))
+    .filter(
+      (x) =>
+        x.origin &&
+        x.destination &&
+        x.departureAt &&
+        /^\d{1,3}[A-Z]{1,2}$/i.test(x.seatNumber || "")
+    );
+}
+
 async function saveFlightBooking({
   userId,
   prebookId,
@@ -970,6 +994,9 @@ async function saveFlightBooking({
         arrivalAt: e.arrivalAt || null,
         returnDepartureAt: e.returnDepartureAt || null,
         returnArrivingAt: e.returnArrivingAt || null,
+        // Seats picked in Skyrio checkout (empty if skipped). Seats chosen
+        // later with the airline aren't known to Skyrio.
+        seats: cleanSeats(e.seats),
         groupId: groupId || null,
         liteapi: record || null,
       },

@@ -300,6 +300,7 @@ export default function LiteApiPayForm({
   progressKey,
   fareExpired,
   onBack,
+  seats = [],
 }) {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
@@ -398,6 +399,9 @@ export default function LiteApiPayForm({
             returnArrivingAt: flight?.raw?.returnArrivingAt || null,
             totalAmount: total,
             currency: flight?.currency,
+            // Seats chosen in Skyrio — saved on the booking so friends on
+            // the same flight can see them and sit nearby.
+            seats: Array.isArray(seats) ? seats.slice(0, 40) : [],
           },
           savedAt: Date.now(),
         })

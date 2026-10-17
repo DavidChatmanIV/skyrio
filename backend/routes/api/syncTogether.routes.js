@@ -1257,7 +1257,7 @@ async function computeParts(group, viewerId) {
       .select(
         "user type status tripDetails total totalAmount totalCurrency dates sharedRoom createdAt confirmationEmail syncGroup " +
           "flight.groupId flight.origin flight.destination flight.airline flight.departureAt flight.arrivalAt " +
-          "flight.returnDepartureAt flight.returnArrivingAt"
+          "flight.returnDepartureAt flight.returnArrivingAt flight.seats"
       )
       .sort({ createdAt: -1 })
       .lean(),
@@ -1304,6 +1304,16 @@ async function computeParts(group, viewerId) {
       arrivesAt,
       returnDepartsAt: localMinute(f.returnDepartureAt),
       returnArrivesAt: localMinute(f.returnArrivingAt),
+      // Seats picked in Skyrio checkout, so friends on the same flight can
+      // see where this traveler sits. Seat + flight only — no passenger
+      // names or documents.
+      seats: (Array.isArray(f.seats) ? f.seats : []).map((x) => ({
+        origin: x.origin,
+        destination: x.destination,
+        departureAt: x.departureAt,
+        flightNumber: x.flightNumber || null,
+        seatNumber: x.seatNumber,
+      })),
       outsideWindow: Boolean(outsideWindow),
     };
   };
