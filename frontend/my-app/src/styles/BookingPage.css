@@ -3539,9 +3539,39 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
   margin-bottom: 10px;
 }
 
-.sk-checkout-pay-btn {
-  height: 44px;
-  font-size: 15px;
+/* Checkout's main action (Pay / Share this room) — matches the flight
+   checkout's primary button. Must beat .sk-btn-orange, which (despite its
+   name) is a grey glass style with !important — that's why Pay looked grey. */
+.sk-booking .sk-checkout-pay-btn,
+.sk-booking .sk-checkout-pay-btn.sk-btn-orange,
+.sk-booking .sk-hc-pay {
+  width: 100% !important;
+  min-height: 52px !important;
+  height: auto !important;
+  padding: 15px 17px !important;
+  border: none !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #f97316 0%, #ec4899 100%) !important;
+  color: #fff !important;
+  font-family: var(--sk-font-body) !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 8px 30px rgba(249, 115, 22, 0.35) !important;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s !important;
+}
+.sk-booking .sk-checkout-pay-btn:hover:not(:disabled),
+.sk-booking .sk-hc-pay:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 40px rgba(255, 138, 42, 0.45) !important;
+  color: #fff !important;
+}
+.sk-booking .sk-checkout-pay-btn:disabled,
+.sk-booking .sk-hc-pay:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .sk-checkout-confirm {

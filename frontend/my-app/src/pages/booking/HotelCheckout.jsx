@@ -16,7 +16,17 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
-import { CheckCircle2, Users, BedDouble, MapPin } from "lucide-react";
+import {
+  CheckCircle2,
+  Users,
+  BedDouble,
+  MapPin,
+  AlertTriangle,
+  CalendarCheck,
+  Info,
+  Check,
+} from "lucide-react";
+import { createPortal } from "react-dom";
 
 import "@/styles/BookingPage.css"; // reuses sk-* dark-glass tokens/classes
 import OverBudgetCheck, {
@@ -44,14 +54,107 @@ function roomKey(r) {
   return `${r.hotelId}-${r.offerId}`;
 }
 
-// "David Chatman IV" → { firstName: "David", lastName: "Chatman IV" }
-function splitName(full) {
-  const parts = String(full || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (parts.length < 2) return null;
-  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+// Same rules as flight checkout: 2+ letters each, as on the guest's ID.
+const nameOk = (v) => (v || "").replace(/[^\p{L}]/gu, "").length >= 2;
+const NAME_HINT = "Enter the full name exactly as it appears on the ID";
+const guestComplete = (g) => nameOk(g?.firstName) && nameOk(g?.lastName);
+
+// Stripe's card field lives in an iframe and can't inherit Skyrio's font,
+// so pass the page's font + its Google Fonts stylesheet (never serif).
+const SANS_FALLBACK =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+function pageFontFamily() {
+  try {
+    const f = window.getComputedStyle(document.body).fontFamily || "";
+    if (!f || /^\s*["']?(serif|times)/i.test(f)) return SANS_FALLBACK;
+    return `${f}, ${SANS_FALLBACK}`;
+  } catch {
+    return SANS_FALLBACK;
+  }
+}
+function pageFontSources() {
+  try {
+    return Array.from(
+      document.querySelectorAll(
+        'link[rel="stylesheet"][href*="fonts.googleapis.com"]'
+      )
+    )
+      .map((l) => l.href)
+      .filter((h) => /^https:\/\//.test(h))
+      .map((cssSrc) => ({ cssSrc }));
+  } catch {
+    return [];
+  }
+}
+
+// Real cancellation terms from the room rate, when LiteAPI sends them.
+// Returns null when unknown — we never guess a policy.
+function cancellationOf(room) {
+  const cp = room?.cancellationPolicies || room?.cancellationPolicy || null;
+  const tag = room?.refundableTag || cp?.refundableTag || null;
+  const infos = cp?.cancelPolicyInfos || cp?.cancelPolicies || [];
+  const deadline = Array.isArray(infos)
+    ? infos
+        .map((x) => x?.cancelTime || x?.cancelDeadline || x?.from)
+        .filter(Boolean)
+        .sort()[0]
+    : null;
+  if (tag === "NRFN") return { refundable: false };
+  if (tag === "RFN") return { refundable: true, deadline: deadline || null };
+  return null;
+}
+
+const LABEL = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 600,
+  letterSpacing: ".05em",
+  textTransform: "uppercase",
+  color: "rgba(255,255,255,0.62)",
+  marginBottom: 6,
+};
+const REQ = <span style={{ color: "#f97316", marginLeft: 4 }}>*</span>;
+const ERR = { color: "#f87171", fontSize: 12, marginTop: 4 };
+
+// The antd Button + BookingPage.css rules override inline backgrounds, which
+// turned Pay grey. A plain <button> with this scoped class matches the flight
+// checkout's button exactly (same gradient, height, glow and hover).
+const PAY_BTN_CSS = `
+  .sk-hc-pay {
+    width: 100% !important; min-height: 52px !important; padding: 15px 17px !important;
+    border: none !important; border-radius: 14px !important;
+    background: linear-gradient(135deg, #f97316 0%, #ec4899 100%) !important;
+    color: #fff !important; font-size: 16px !important; font-weight: 700 !important;
+    font-family: inherit !important; cursor: pointer;
+    display: flex !important; align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 8px 30px rgba(249,115,22,0.35) !important;
+    transition: opacity .2s, transform .15s, box-shadow .2s;
+    touch-action: manipulation;
+  }
+  .sk-hc-pay:hover:not(:disabled) {
+    opacity: .92; transform: translateY(-1px);
+    box-shadow: 0 12px 40px rgba(255,138,42,.45) !important;
+  }
+  .sk-hc-pay:active:not(:disabled) { transform: translateY(0); }
+  .sk-hc-pay:disabled { opacity: .45 !important; cursor: not-allowed; transform: none; box-shadow: none !important; }
+`;
+
+function PayButton({ busy, disabled, onClick, children, style }) {
+  return (
+    <>
+      <style>{PAY_BTN_CSS}</style>
+      <button
+        type="button"
+        className="sk-hc-pay"
+        onClick={onClick}
+        disabled={disabled}
+        style={style}
+      >
+        {busy && <LoadingOutlined />}
+        {children}
+      </button>
+    </>
+  );
 }
 
 function authHeaders() {
@@ -111,6 +214,28 @@ function RoomLineItem({ room, index }) {
               }`
             : "Dates TBD"}
         </div>
+        {(() => {
+          const c = cancellationOf(room);
+          if (!c) return null;
+          return (
+            <div
+              className="sk-checkout-room-meta"
+              style={{ color: c.refundable ? "#34d399" : "#ffb347" }}
+            >
+              <CalendarCheck
+                size={12}
+                style={{ marginRight: 4, verticalAlign: "middle" }}
+              />
+              {c.refundable
+                ? c.deadline
+                  ? `Free cancellation until ${dayjs(c.deadline).format(
+                      "MMM D, h:mm A"
+                    )}`
+                  : "Refundable rate"
+                : "Non-refundable rate"}
+            </div>
+          );
+        })()}
       </div>
       <div className="sk-checkout-room-price">
         ${(room.totalAmount ?? 0).toFixed(2)}
@@ -123,18 +248,66 @@ function RoomLineItem({ room, index }) {
 // ─────────────────────────────────────────────
 // Guest name for a single room
 // ─────────────────────────────────────────────
-function RoomGuestField({ room, index, value, onChange }) {
+function RoomGuestField({ room, index, value, onChange, showErrors }) {
+  const g = value || {};
+  const err = (v) =>
+    showErrors || v ? (!v ? "Required" : !nameOk(v) ? NAME_HINT : null) : null;
+  const firstErr = err(g.firstName);
+  const lastErr = err(g.lastName);
   return (
-    <div className="sk-checkout-guest-field">
-      <label className="sk-prefill-label">
-        Room {index + 1} guest name ({room.name})
-      </label>
-      <Input
-        className="sk-prefill-input"
-        placeholder="First and last name"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
+    <div className="sk-checkout-guest-field" style={{ marginBottom: 16 }}>
+      <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
+        Room {index + 1} guest
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          color: "rgba(255,255,255,0.55)",
+          marginBottom: 10,
+        }}
+      >
+        {room.name} · the name must match the guest's ID at check-in
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: 10,
+        }}
+      >
+        <label>
+          <span style={LABEL}>First name{REQ}</span>
+          <Input
+            className="sk-prefill-input"
+            placeholder="First name"
+            autoComplete={index === 0 ? "given-name" : "off"}
+            value={g.firstName || ""}
+            status={firstErr && (showErrors || g.firstName) ? "error" : ""}
+            onChange={(e) => onChange({ ...g, firstName: e.target.value })}
+          />
+          {firstErr && (showErrors || g.firstName) && (
+            <div role="alert" style={ERR}>
+              {firstErr}
+            </div>
+          )}
+        </label>
+        <label>
+          <span style={LABEL}>Last name{REQ}</span>
+          <Input
+            className="sk-prefill-input"
+            placeholder="Last name"
+            autoComplete={index === 0 ? "family-name" : "off"}
+            value={g.lastName || ""}
+            status={lastErr && (showErrors || g.lastName) ? "error" : ""}
+            onChange={(e) => onChange({ ...g, lastName: e.target.value })}
+          />
+          {lastErr && (showErrors || g.lastName) && (
+            <div role="alert" style={ERR}>
+              {lastErr}
+            </div>
+          )}
+        </label>
+      </div>
     </div>
   );
 }
@@ -148,7 +321,16 @@ function RoomGuestField({ room, index, value, onChange }) {
 //   3. POST /api/hotels/confirm-booking   → backend books with LiteAPI, then charges only
 //                                           for the rooms that were confirmed
 // ─────────────────────────────────────────────
-function PaymentForm({ rooms, guestNames, contactEmail, groupId, onSuccess }) {
+function PaymentForm({
+  rooms,
+  guests,
+  contactEmail,
+  groupId,
+  onSuccess,
+  onInvalid,
+  onUnavailable,
+  fontFamily,
+}) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -164,14 +346,25 @@ function PaymentForm({ rooms, guestNames, contactEmail, groupId, onSuccess }) {
     if (!stripe || !elements) return;
     const email = contactEmail.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      onInvalid?.();
       return antdMessage.warning("Enter a valid contact email for the booking");
     }
-    const names = guestNames.map(splitName);
-    if (names.some((n) => !n)) {
+    if (!localStorage.getItem("token")) {
+      setError(
+        "Please sign in to book. Your stay is saved to your Skyrio account, so you need to be signed in before you pay."
+      );
+      return;
+    }
+    if (!guests.every(guestComplete)) {
+      onInvalid?.();
       return antdMessage.warning(
-        "Enter a first and last name for every room's guest"
+        "Enter the full first and last name for every room's guest"
       );
     }
+    const names = guests.map((g) => ({
+      firstName: g.firstName.trim(),
+      lastName: g.lastName.trim(),
+    }));
 
     setSubmitting(true);
     setError(null);
@@ -293,8 +486,18 @@ function PaymentForm({ rooms, guestNames, contactEmail, groupId, onSuccess }) {
         totalPaid: init.totalPrice,
       });
     } catch (err) {
-      setError(err.message || "Booking failed");
-      antdMessage.error(err.message || "Booking failed");
+      const msg = err.message || "Booking failed";
+      // Room gone → the big notice, not a small line.
+      if (
+        /sold out|no longer available|not available|unavailable|no rooms/i.test(
+          msg
+        )
+      ) {
+        onUnavailable?.(msg);
+      } else {
+        antdMessage.error(msg);
+      }
+      setError(msg);
     } finally {
       setSubmitting(false);
       setStage("");
@@ -303,35 +506,62 @@ function PaymentForm({ rooms, guestNames, contactEmail, groupId, onSuccess }) {
 
   return (
     <div className="sk-checkout-payment">
-      <label className="sk-prefill-label">Card details</label>
-      <div className="sk-checkout-card-element">
+      <span style={LABEL}>Card details{REQ}</span>
+      <div
+        style={{
+          padding: "15px 16px",
+          borderRadius: 12,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          marginBottom: 14,
+        }}
+      >
         <CardElement
           options={{
             style: {
               base: {
                 color: "#fff",
-                fontSize: "15px",
-                "::placeholder": { color: "rgba(255,255,255,0.35)" },
+                fontSize: "16px",
+                fontFamily,
+                iconColor: "rgba(255,255,255,0.7)",
+                "::placeholder": { color: "rgba(255,255,255,0.45)" },
               },
-              invalid: { color: "#ff6b6b" },
+              invalid: { color: "#f87171", iconColor: "#f87171" },
             },
           }}
         />
       </div>
-      {error && <div className="sk-checkout-error">{error}</div>}
-      <Button
-        className="sk-btn-orange sk-checkout-pay-btn"
-        block
+      {error && (
+        <div
+          role="alert"
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: "rgba(248,113,113,.1)",
+            border: "1px solid rgba(248,113,113,.3)",
+            color: "#f87171",
+            fontSize: 13,
+            marginBottom: 12,
+          }}
+        >
+          <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+          {error}
+        </div>
+      )}
+      <PayButton
         onClick={handlePay}
         disabled={submitting || !stripe}
-        icon={submitting ? <LoadingOutlined /> : undefined}
+        busy={submitting}
       >
         {submitting
           ? stage || "Processing…"
           : `Pay $${grandTotal.toFixed(2)} · Book ${rooms.length} room${
               rooms.length !== 1 ? "s" : ""
             }`}
-      </Button>
+      </PayButton>
       <div
         style={{
           marginTop: 10,
@@ -372,7 +602,7 @@ function useGroupParts(groupId) {
   return parts;
 }
 
-function ShareRoomPanel({ groupId, parts, room, guestName, contactEmail }) {
+function ShareRoomPanel({ groupId, parts, room, guest, contactEmail }) {
   const travelers = (parts?.travelers || []).filter(
     (t) => t.hasAccount && t.userId
   );
@@ -392,11 +622,13 @@ function ShareRoomPanel({ groupId, parts, room, guestName, contactEmail }) {
 
   const submit = async () => {
     setError(null);
-    const name = splitName(guestName);
+    const name = guestComplete(guest)
+      ? { firstName: guest.firstName.trim(), lastName: guest.lastName.trim() }
+      : null;
     const email = contactEmail.trim();
     if (!name)
       return setError(
-        "Enter the guest's first and last name (the room is booked under this name)."
+        "Enter the guest's full first and last name (the room is booked under this name)."
       );
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return setError("Enter a valid contact email.");
@@ -494,19 +726,109 @@ function ShareRoomPanel({ groupId, parts, room, guestName, contactEmail }) {
         {parts?.holdHours ? ` (${parts.holdHours} hours to do it)` : ""}.
       </div>
       {error && <div className="sk-checkout-error">{error}</div>}
-      <Button
-        className="sk-btn-orange sk-checkout-pay-btn"
-        block
+      <PayButton
         onClick={submit}
         disabled={busy}
-        icon={busy ? <LoadingOutlined /> : undefined}
+        busy={busy}
         style={{ marginTop: 12 }}
       >
         {busy
           ? "Checking the price with the hotel…"
           : "Share this room · ask everyone to hold their share"}
-      </Button>
+      </PayButton>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Big "room isn't available anymore" notice (same as flights)
+// ─────────────────────────────────────────────
+function RoomUnavailableNotice({ rooms, onFindAnother, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const r = rooms[0] || {};
+  return createPortal(
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="sk-room-gone-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2000000,
+        background: "rgba(8,6,18,0.82)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          background: "#150f28",
+          border: "1px solid rgba(248,113,113,.35)",
+          borderRadius: 20,
+          padding: "28px 24px 24px",
+          textAlign: "center",
+          color: "#fff",
+          boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: 64,
+            height: 64,
+            margin: "0 auto 16px",
+            borderRadius: "50%",
+            background: "rgba(248,113,113,.12)",
+            border: "1px solid rgba(248,113,113,.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#f87171",
+          }}
+        >
+          <BedDouble size={28} />
+        </div>
+        <div
+          id="sk-room-gone-title"
+          style={{ fontWeight: 800, fontSize: 21, marginBottom: 8 }}
+        >
+          This room isn't available anymore
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+          {[r.name, r.roomName].filter(Boolean).join(" · ")}
+        </div>
+        <div
+          style={{
+            fontSize: 14,
+            color: "rgba(255,255,255,0.65)",
+            lineHeight: 1.55,
+            marginBottom: 22,
+          }}
+        >
+          The hotel no longer has it at this price, so it can't be booked. Your
+          card was not charged.
+        </div>
+        <PayButton onClick={onFindAnother}>Find another room →</PayButton>
+        <Button
+          block
+          type="text"
+          onClick={onClose}
+          style={{ marginTop: 10, color: "rgba(255,255,255,0.75)" }}
+        >
+          Close
+        </Button>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -580,8 +902,51 @@ export default function HotelCheckout({
     [roomsProp, hotel]
   );
 
-  const [guestNames, setGuestNames] = useState(() => rooms.map(() => ""));
+  const [guests, setGuests] = useState(() =>
+    rooms.map(() => ({ firstName: "", lastName: "" }))
+  );
   const [contactEmail, setContactEmail] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
+  const [autofilled, setAutofilled] = useState(false);
+  const [roomGone, setRoomGone] = useState(false);
+  const signedIn = Boolean(localStorage.getItem("token"));
+  const fontFamily = useMemo(pageFontFamily, []);
+  const fontSources = useMemo(pageFontSources, []);
+
+  // Open at the top so the title isn't hidden under the menu bar.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
+  // Fill email + room 1's guest from the Skyrio profile (empty fields only).
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    let alive = true;
+    fetch(`${API}/api/profile/me`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const u = d?.user;
+        if (!alive || !u) return;
+        const parts = String(u.name || "")
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+        const firstName = parts[0] || "";
+        const lastName = parts.slice(1).join(" ");
+        setContactEmail((prev) => prev || u.email || "");
+        setGuests((prev) =>
+          prev.map((g, i) =>
+            i !== 0 || g.firstName || g.lastName ? g : { firstName, lastName }
+          )
+        );
+        if (u.email || firstName) setAutofilled(true);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [confirmation, setConfirmation] = useState(null);
   const groupParts = useGroupParts(groupId);
   // Only the organizer can set up a shared room, one room at a time.
@@ -592,18 +957,23 @@ export default function HotelCheckout({
   // Sync Together: soft check before paying if this goes past your budget.
   const [budgetOk, setBudgetOk] = useState(false);
 
-  // Keep guestNames the same length as rooms if the room list changes.
+  // Keep one guest per room if the room list changes.
   useEffect(() => {
-    setGuestNames((prev) => rooms.map((_, i) => prev[i] ?? ""));
+    setGuests((prev) =>
+      rooms.map((_, i) => prev[i] ?? { firstName: "", lastName: "" })
+    );
   }, [rooms]);
 
-  const updateGuestName = useCallback((index, value) => {
-    setGuestNames((prev) => {
+  const updateGuest = useCallback((index, value) => {
+    setGuests((prev) => {
       const next = [...prev];
       next[index] = value;
       return next;
     });
   }, []);
+  const emailBad =
+    (showErrors || contactEmail) &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
 
   const grandTotal = useMemo(
     () => rooms.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0),
@@ -636,7 +1006,12 @@ export default function HotelCheckout({
   return (
     <div className="sk-booking sk-checkout-page">
       <div className="sk-checkout-wrap">
-        <button type="button" className="sk-checkout-back" onClick={onBack}>
+        <button
+          type="button"
+          className="sk-checkout-back"
+          onClick={onBack}
+          style={{ marginTop: 24 }}
+        >
           <ArrowLeftOutlined /> Back to results
         </button>
 
@@ -678,45 +1053,162 @@ export default function HotelCheckout({
             variant="borderless"
             className="sk-result-card sk-checkout-form-card"
           >
-            <div className="sk-prefill-label" style={{ marginBottom: 6 }}>
-              Contact email
-            </div>
-            <Input
-              className="sk-prefill-input"
-              placeholder="you@example.com"
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              style={{ marginBottom: 18 }}
-            />
+            {!signedIn && (
+              <div
+                role="alert"
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  background: "rgba(249,115,22,.08)",
+                  border: "1px solid rgba(249,115,22,.3)",
+                  color: "#fff",
+                  fontSize: 13,
+                  marginBottom: 16,
+                }}
+              >
+                <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                Please sign in to book. Your stay is saved to your Skyrio
+                account, so you need to be signed in before you pay.
+              </div>
+            )}
+            {autofilled && (
+              <span
+                style={{
+                  display: "inline-block",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#34d399",
+                  background: "rgba(52,211,153,.1)",
+                  border: "1px solid rgba(52,211,153,.25)",
+                  borderRadius: 20,
+                  padding: "3px 9px",
+                  marginBottom: 12,
+                }}
+              >
+                Filled from your profile
+              </span>
+            )}
+            <label style={{ display: "block", marginBottom: 18 }}>
+              <span style={LABEL}>Contact email{REQ}</span>
+              <Input
+                className="sk-prefill-input"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={contactEmail}
+                status={emailBad ? "error" : ""}
+                onChange={(e) => setContactEmail(e.target.value)}
+              />
+              {emailBad && (
+                <div role="alert" style={ERR}>
+                  Enter a valid email — your confirmation goes here
+                </div>
+              )}
+            </label>
 
             {rooms.map((r, i) => (
               <RoomGuestField
                 key={roomKey(r)}
                 room={r}
                 index={i}
-                value={guestNames[i] ?? ""}
-                onChange={(v) => updateGuestName(i, v)}
+                value={guests[i]}
+                showErrors={showErrors}
+                onChange={(v) => updateGuest(i, v)}
               />
             ))}
 
             <Divider style={{ borderColor: "rgba(255,255,255,0.1)" }} />
 
             {canShare && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <Button
-                  className={shareMode ? undefined : "sk-btn-orange"}
-                  onClick={() => setShareMode(false)}
-                  style={{ flex: 1 }}
-                >
-                  Just me — pay now
-                </Button>
-                <Button
-                  className={shareMode ? "sk-btn-orange" : undefined}
-                  onClick={() => setShareMode(true)}
-                  style={{ flex: 1 }}
-                >
-                  Share this room with the group
-                </Button>
+              <div
+                role="radiogroup"
+                aria-label="How do you want to pay for this room?"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 8,
+                  marginBottom: 16,
+                }}
+              >
+                {[
+                  {
+                    on: !shareMode,
+                    set: false,
+                    title: "Just me — pay now",
+                    sub: "You pay for the whole room.",
+                  },
+                  {
+                    on: shareMode,
+                    set: true,
+                    title: "Share with the group",
+                    sub: "Split it — everyone holds their own share.",
+                  },
+                ].map((o) => (
+                  <button
+                    key={o.title}
+                    type="button"
+                    role="radio"
+                    aria-checked={o.on}
+                    onClick={() => setShareMode(o.set)}
+                    style={{
+                      textAlign: "left",
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      color: "#fff",
+                      border: `1.5px solid ${
+                        o.on ? "#f97316" : "rgba(255,255,255,0.12)"
+                      }`,
+                      background: o.on
+                        ? "rgba(249,115,22,0.12)"
+                        : "rgba(255,255,255,0.03)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontWeight: 700,
+                        fontSize: 14,
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: "50%",
+                          border: `2px solid ${
+                            o.on ? "#f97316" : "rgba(255,255,255,0.45)"
+                          }`,
+                          background: o.on ? "#f97316" : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {o.on && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      {o.title}
+                    </span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "rgba(255,255,255,0.65)",
+                        marginTop: 4,
+                        paddingLeft: 26,
+                      }}
+                    >
+                      {o.sub}
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
 
@@ -725,7 +1217,7 @@ export default function HotelCheckout({
                 groupId={groupId}
                 parts={groupParts}
                 room={rooms[0]}
-                guestName={guestNames[0] ?? ""}
+                guest={guests[0]}
                 contactEmail={contactEmail}
               />
             ) : !budgetOk && overBudgetBy(grandTotal, tripBudget) > 0 ? (
@@ -737,19 +1229,32 @@ export default function HotelCheckout({
                 onProceed={() => setBudgetOk(true)}
               />
             ) : (
-              <Elements stripe={stripePromise}>
+              <Elements
+                stripe={stripePromise}
+                options={fontSources.length ? { fonts: fontSources } : {}}
+              >
                 <PaymentForm
                   rooms={rooms}
-                  guestNames={guestNames}
+                  guests={guests}
                   contactEmail={contactEmail}
                   groupId={groupId}
                   onSuccess={setConfirmation}
+                  onInvalid={() => setShowErrors(true)}
+                  onUnavailable={() => setRoomGone(true)}
+                  fontFamily={fontFamily}
                 />
               </Elements>
             )}
           </Card>
         </div>
       </div>
+      {roomGone && (
+        <RoomUnavailableNotice
+          rooms={rooms}
+          onFindAnother={onBack}
+          onClose={() => setRoomGone(false)}
+        />
+      )}
     </div>
   );
 }
