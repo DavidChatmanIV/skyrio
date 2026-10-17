@@ -44,15 +44,26 @@ import {
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 // Same Stripe key the hotel checkout uses (Skyrio is the merchant for rooms).
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || "");
+// Accept either env name (both exist in this project) and strip stray
+// quotes/spaces a dashboard paste can add.
+const STRIPE_PK = String(
+  import.meta.env.VITE_STRIPE_PUBLIC_KEY ||
+    import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+    ""
+)
+  .trim()
+  .replace(/^["']|["']$/g, "")
+  .trim();
+// Never call Stripe with an empty key — that throws and blanks the card box.
+const stripePromise = STRIPE_PK.startsWith("pk_")
+  ? loadStripe(STRIPE_PK)
+  : null;
 // Vite bakes env vars in at BUILD time. If this is empty on the live site,
 // the card box renders blank — show a clear message instead.
-const STRIPE_KEY_MISSING = !String(
-  import.meta.env.VITE_STRIPE_PUBLIC_KEY || ""
-).startsWith("pk_");
+const STRIPE_KEY_MISSING = !STRIPE_PK.startsWith("pk_");
 if (STRIPE_KEY_MISSING) {
   console.error(
-    "[payments] VITE_STRIPE_PUBLIC_KEY is missing or invalid in this build — card forms can't load. Add it in Vercel and redeploy."
+    "[payments] No Stripe publishable key in this build (checked VITE_STRIPE_PUBLIC_KEY and VITE_STRIPE_PUBLISHABLE_KEY). Card forms can't load."
   );
 }
 
