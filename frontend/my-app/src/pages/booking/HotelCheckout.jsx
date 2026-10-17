@@ -677,7 +677,14 @@ function ShareRoomPanel({ groupId, parts, room, guest, contactEmail }) {
       } catch {
         /* non-fatal */
       }
-      window.location.assign(`/sync-together/${groupId}`);
+      // Straight to the trip page with YOUR hold form open, so you can
+      // pay (hold) your part right away.
+      const roomId = data.sharedRoom?.id;
+      window.location.assign(
+        `/sync-together/${groupId}${
+          roomId ? `?holdRoom=${encodeURIComponent(roomId)}` : ""
+        }`
+      );
     } catch (e) {
       setError(e.message);
     } finally {
@@ -718,13 +725,42 @@ function ShareRoomPanel({ groupId, parts, room, guest, contactEmail }) {
           a room.
         </div>
       )}
-      <div
-        style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,0.7)" }}
-      >
-        {people >= 2 ? `About $${each.toFixed(2)} each · ` : ""}
-        Everyone holds their own share. Nobody is charged until everyone is in
-        {parts?.holdHours ? ` (${parts.holdHours} hours to do it)` : ""}.
-      </div>
+      {/* What happens next, step by step */}
+      {(() => {
+        const others = travelers
+          .filter((t) => picked.includes(t.userId) && !t.isYou)
+          .map((t) => String(t.name || "Friend").split(" ")[0]);
+        const share = people >= 2 ? `$${each.toFixed(2)}` : "your share";
+        const steps = [
+          "Skyrio checks the price with the hotel and sets up the shared room.",
+          `You hold your part (${share}) on your card — we take you there next.`,
+          others.length
+            ? `${others.join(" & ")} ${
+                others.length > 1 ? "each hold their" : "holds their"
+              } part from the trip page. We notify them.`
+            : "Everyone sharing holds their part from the trip page.",
+          `The room is booked once everyone's in${
+            parts?.holdHours ? ` (within ${parts.holdHours} hours)` : ""
+          }. Nobody is charged before that — if time runs out, every hold is released.`,
+        ];
+        return (
+          <ol
+            style={{
+              margin: "12px 0 0",
+              paddingLeft: 20,
+              fontSize: 13,
+              lineHeight: 1.55,
+              color: "rgba(255,255,255,0.8)",
+            }}
+          >
+            {steps.map((t) => (
+              <li key={t} style={{ marginBottom: 4 }}>
+                {t}
+              </li>
+            ))}
+          </ol>
+        );
+      })()}
       {error && <div className="sk-checkout-error">{error}</div>}
       <PayButton
         onClick={submit}
@@ -734,7 +770,9 @@ function ShareRoomPanel({ groupId, parts, room, guest, contactEmail }) {
       >
         {busy
           ? "Checking the price with the hotel…"
-          : "Share this room · ask everyone to hold their share"}
+          : `Set up shared room · then hold my part${
+              people >= 2 ? ` ($${each.toFixed(2)})` : ""
+            }`}
       </PayButton>
     </div>
   );

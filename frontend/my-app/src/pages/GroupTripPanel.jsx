@@ -293,8 +293,22 @@ function HoldShareForm({ groupId, room, share, onDone }) {
 }
 
 /* ═══ One shared room ═══ */
-function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
-  const [showForm, setShowForm] = useState(false);
+function SharedRoomCard({
+  groupId,
+  room,
+  isOrganizer,
+  onChanged,
+  autoOpen = false,
+}) {
+  // Opened from "Set up shared room" at hotel checkout: show your hold form
+  // straight away and scroll to it.
+  const [showForm, setShowForm] = useState(autoOpen);
+  const cardRef = React.useRef(null);
+  useEffect(() => {
+    if (autoOpen && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [autoOpen]);
   const [working, setWorking] = useState(false);
   const [quote, setQuote] = useState(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
@@ -368,7 +382,39 @@ function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
   };
 
   return (
-    <div style={{ ...row, display: "block" }}>
+    <div
+      ref={cardRef}
+      style={{
+        ...row,
+        display: "block",
+        ...(autoOpen
+          ? {
+              border: "1px solid rgba(249,115,22,0.5)",
+              boxShadow: "0 0 0 3px rgba(249,115,22,0.12)",
+            }
+          : {}),
+      }}
+    >
+      {autoOpen &&
+        room.status === "collecting" &&
+        mine &&
+        ["unpaid", "failed"].includes(mine.status) && (
+          <div
+            role="status"
+            style={{
+              marginBottom: 10,
+              padding: "8px 12px",
+              borderRadius: 10,
+              background: "rgba(52,211,153,.08)",
+              border: "1px solid rgba(52,211,153,.25)",
+              color: "#fff",
+              fontSize: 13,
+            }}
+          >
+            Shared room set up. Last step: hold your part below. You're only
+            charged once everyone sharing is in.
+          </div>
+        )}
       <div
         style={{
           display: "flex",
@@ -989,6 +1035,14 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
   const [editingLandBy, setEditingLandBy] = useState(false);
   // Bumped after linking/unlinking so the "Already booked?" list reloads.
   const [linkKey, setLinkKey] = useState(0);
+  // ?holdRoom=<id> — came from hotel checkout's "Set up shared room".
+  const holdRoomId = useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("holdRoom");
+    } catch {
+      return null;
+    }
+  }, []);
   // Live seat check for each friend's flight: "checking" | "available" |
   // "gone" | "unknown". Sold-out ones are hidden everywhere on the page.
   const [seats, setSeats] = useState({});
@@ -1509,6 +1563,7 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
               room={r}
               isOrganizer={data.isOrganizer}
               onChanged={refresh}
+              autoOpen={String(r.id) === String(holdRoomId || "")}
             />
           ))}
           {pastRooms.length > 0 && (
