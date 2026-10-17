@@ -246,7 +246,14 @@ function RoomLineItem({ room, index }) {
 // ─────────────────────────────────────────────
 // Guest name for a single room
 // ─────────────────────────────────────────────
-function RoomGuestField({ room, index, value, onChange, showErrors }) {
+function RoomGuestField({
+  room,
+  index,
+  value,
+  onChange,
+  showErrors,
+  savedOptions = [],
+}) {
   const g = value || {};
   const err = (v) =>
     showErrors || v ? (!v ? "Required" : !nameOk(v) ? NAME_HINT : null) : null;
@@ -266,6 +273,38 @@ function RoomGuestField({ room, index, value, onChange, showErrors }) {
       >
         {room.name} · the name must match the guest's ID at check-in
       </div>
+      {savedOptions.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            marginBottom: 10,
+          }}
+        >
+          {savedOptions.map((t) => (
+            <button
+              key={t._id || `${t.firstName}-${t.lastName}`}
+              type="button"
+              onClick={() =>
+                onChange({ firstName: t.firstName, lastName: t.lastName })
+              }
+              style={{
+                padding: "7px 12px",
+                borderRadius: 999,
+                border: "1px solid rgba(249,115,22,.35)",
+                background: "rgba(249,115,22,.08)",
+                color: "#fff",
+                fontSize: 12.5,
+                fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+            >
+              + {t.firstName} {t.lastName}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         style={{
           display: "grid",
@@ -979,6 +1018,8 @@ export default function HotelCheckout({
   const [showErrors, setShowErrors] = useState(false);
   const [autofilled, setAutofilled] = useState(false);
   const [roomGone, setRoomGone] = useState(false);
+  // People saved on the profile (partner, family…) — tap to fill a room.
+  const [savedTravelers, setSavedTravelers] = useState([]);
   const signedIn = Boolean(localStorage.getItem("token"));
 
   // Open at the top so the title isn't hidden under the menu bar.
@@ -1009,6 +1050,14 @@ export default function HotelCheckout({
           )
         );
         if (u.email || firstName) setAutofilled(true);
+        if (Array.isArray(u.savedTravelers)) {
+          // Hotels need adults as room guests (the ID check is at check-in).
+          setSavedTravelers(
+            u.savedTravelers.filter(
+              (t) => t.firstName && t.lastName && (t.type || "ADT") === "ADT"
+            )
+          );
+        }
       })
       .catch(() => {});
     return () => {
@@ -1184,6 +1233,23 @@ export default function HotelCheckout({
                 value={guests[i]}
                 showErrors={showErrors}
                 onChange={(v) => updateGuest(i, v)}
+                savedOptions={savedTravelers.filter(
+                  (t) =>
+                    !guests.some(
+                      (g, j) =>
+                        j !== i &&
+                        (g?.firstName || "").trim().toLowerCase() ===
+                          t.firstName.trim().toLowerCase() &&
+                        (g?.lastName || "").trim().toLowerCase() ===
+                          t.lastName.trim().toLowerCase()
+                    ) &&
+                    !(
+                      (guests[i]?.firstName || "").trim().toLowerCase() ===
+                        t.firstName.trim().toLowerCase() &&
+                      (guests[i]?.lastName || "").trim().toLowerCase() ===
+                        t.lastName.trim().toLowerCase()
+                    )
+                )}
               />
             ))}
 
