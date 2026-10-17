@@ -59,33 +59,10 @@ const nameOk = (v) => (v || "").replace(/[^\p{L}]/gu, "").length >= 2;
 const NAME_HINT = "Enter the full name exactly as it appears on the ID";
 const guestComplete = (g) => nameOk(g?.firstName) && nameOk(g?.lastName);
 
-// Stripe's card field lives in an iframe and can't inherit Skyrio's font,
-// so pass the page's font + its Google Fonts stylesheet (never serif).
-const SANS_FALLBACK =
+// Stripe's card field is an iframe; give it a plain system font stack
+// (custom page fonts can stop it from loading).
+const CARD_FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-function pageFontFamily() {
-  try {
-    const f = window.getComputedStyle(document.body).fontFamily || "";
-    if (!f || /^\s*["']?(serif|times)/i.test(f)) return SANS_FALLBACK;
-    return `${f}, ${SANS_FALLBACK}`;
-  } catch {
-    return SANS_FALLBACK;
-  }
-}
-function pageFontSources() {
-  try {
-    return Array.from(
-      document.querySelectorAll(
-        'link[rel="stylesheet"][href*="fonts.googleapis.com"]'
-      )
-    )
-      .map((l) => l.href)
-      .filter((h) => /^https:\/\//.test(h))
-      .map((cssSrc) => ({ cssSrc }));
-  } catch {
-    return [];
-  }
-}
 
 // Real cancellation terms from the room rate, when LiteAPI sends them.
 // Returns null when unknown — we never guess a policy.
@@ -329,13 +306,21 @@ function PaymentForm({
   onSuccess,
   onInvalid,
   onUnavailable,
-  fontFamily,
 }) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
   const [stage, setStage] = useState("");
   const [error, setError] = useState(null);
+  // Never leave an empty card box with a dead Pay button: if the card form
+  // hasn't loaded after 10s, say so plainly.
+  const [cardReady, setCardReady] = useState(false);
+  const [cardSlow, setCardSlow] = useState(false);
+  useEffect(() => {
+    if (cardReady) return;
+    const t = setTimeout(() => setCardSlow(true), 10000);
+    return () => clearTimeout(t);
+  }, [cardReady]);
 
   const grandTotal = useMemo(
     () => rooms.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0),
@@ -517,12 +502,16 @@ function PaymentForm({
         }}
       >
         <CardElement
+          onReady={() => {
+            setCardReady(true);
+            setCardSlow(false);
+          }}
           options={{
             style: {
               base: {
                 color: "#fff",
                 fontSize: "16px",
-                fontFamily,
+                fontFamily: CARD_FONT,
                 iconColor: "rgba(255,255,255,0.7)",
                 "::placeholder": { color: "rgba(255,255,255,0.45)" },
               },
@@ -531,6 +520,19 @@ function PaymentForm({
           }}
         />
       </div>
+      {cardSlow && !cardReady && (
+        <div
+          role="alert"
+          style={{
+            fontSize: 13,
+            color: "#ffb347",
+            marginBottom: 12,
+          }}
+        >
+          The card form didn't load. Check your connection and refresh the page
+          — your room details stay the same.
+        </div>
+      )}
       {error && (
         <div
           role="alert"
@@ -553,7 +555,7 @@ function PaymentForm({
       )}
       <PayButton
         onClick={handlePay}
-        disabled={submitting || !stripe}
+        disabled={submitting || !stripe || !cardReady}
         busy={submitting}
       >
         {submitting
@@ -948,8 +950,6 @@ export default function HotelCheckout({
   const [autofilled, setAutofilled] = useState(false);
   const [roomGone, setRoomGone] = useState(false);
   const signedIn = Boolean(localStorage.getItem("token"));
-  const fontFamily = useMemo(pageFontFamily, []);
-  const fontSources = useMemo(pageFontSources, []);
 
   // Open at the top so the title isn't hidden under the menu bar.
   useEffect(() => {
@@ -1267,10 +1267,7 @@ export default function HotelCheckout({
                 onProceed={() => setBudgetOk(true)}
               />
             ) : (
-              <Elements
-                stripe={stripePromise}
-                options={fontSources.length ? { fonts: fontSources } : {}}
-              >
+              <Elements stripe={stripePromise}>
                 <PaymentForm
                   rooms={rooms}
                   guests={guests}
@@ -1279,7 +1276,6 @@ export default function HotelCheckout({
                   onSuccess={setConfirmation}
                   onInvalid={() => setShowErrors(true)}
                   onUnavailable={() => setRoomGone(true)}
-                  fontFamily={fontFamily}
                 />
               </Elements>
             )}

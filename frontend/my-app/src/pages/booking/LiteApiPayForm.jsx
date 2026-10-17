@@ -327,8 +327,8 @@ export default function LiteApiPayForm({
   const [exactTotal, setExactTotal] = useState(null); // { amount, currency }
 
   // Read once: the page's font + the stylesheets that load it.
-  const fontFamily = useMemo(pageFontFamily, []);
-  const fontSources = useMemo(pageFontSources, []);
+  // Plain system stack only — custom page fonts can stop Stripe loading.
+  const fontFamily = SANS_FALLBACK;
   const stripeAppearance = useMemo(
     () => buildStripeAppearance(fontFamily),
     [fontFamily]
@@ -718,7 +718,6 @@ export default function LiteApiPayForm({
               options={{
                 clientSecret,
                 appearance: stripeAppearance,
-                ...(fontSources.length && { fonts: fontSources }),
               }}
             >
               <DirectStripeForm
