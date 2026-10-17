@@ -9,13 +9,13 @@ import {
 } from "antd";
 import { ArrowLeftOutlined, LoadingOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
   CardElement,
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
+import { getSkyrioStripe, useSkyrioStripeStatus } from "@/utils/skyrioStripe";
 import {
   CheckCircle2,
   Users,
@@ -39,28 +39,9 @@ const API = import.meta.env.VITE_API_URL || "";
 
 // Hotels are paid on SKYRIO's own Stripe account (Skyrio is the merchant;
 // LiteAPI is then paid from the card on file with ACC_CREDIT_CARD).
-// Accept either env name (both exist in this project) and strip stray
-// quotes/spaces a dashboard paste can add.
-const STRIPE_PK = String(
-  import.meta.env.VITE_STRIPE_PUBLIC_KEY ||
-    import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
-    ""
-)
-  .trim()
-  .replace(/^["']|["']$/g, "")
-  .trim();
-// Never call Stripe with an empty key — that throws and blanks the card box.
-const stripePromise = STRIPE_PK.startsWith("pk_")
-  ? loadStripe(STRIPE_PK)
-  : null;
-// Vite bakes env vars in at BUILD time. If this is empty on the live site,
-// the card box renders blank — show a clear message instead.
-const STRIPE_KEY_MISSING = !STRIPE_PK.startsWith("pk_");
-if (STRIPE_KEY_MISSING) {
-  console.error(
-    "[payments] No Stripe publishable key in this build (checked VITE_STRIPE_PUBLIC_KEY and VITE_STRIPE_PUBLISHABLE_KEY). Card forms can't load."
-  );
-}
+// Hotels/shared rooms use Skyrio's own Stripe. The key comes from the build
+// or, if missing there, from the backend at runtime (see skyrioStripe.js).
+const stripePromise = getSkyrioStripe();
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -374,6 +355,8 @@ function PaymentForm({
   const [error, setError] = useState(null);
   // Never leave an empty card box with a dead Pay button: if the card form
   // hasn't loaded after 10s, say so plainly.
+  const stripeStatus = useSkyrioStripeStatus();
+  const STRIPE_KEY_MISSING = stripeStatus === "missing";
   const [cardReady, setCardReady] = useState(false);
   const [cardSlow, setCardSlow] = useState(false);
   useEffect(() => {

@@ -22,6 +22,8 @@ import syncProgressRoutes from "./routes/syncProgress.routes.js";
 // DOB/phone/pet. Only handles /api/profile/travelers; every other
 // /api/profile route falls through to apiRouter as before.
 import profileTravelersRoutes from "./routes/profileTravelers.js";
+// Skyrio's Stripe publishable key for hotel + shared-room card forms.
+import stripeConfigRoutes from "./routes/stripeConfig.js";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
 import { assignFounderBadge } from "./routes/verificationRoutes.js";
@@ -186,6 +188,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // 404 handler further down. Still covered by the /api rate limiter above.
 app.use("/api/sync-progress", syncProgressRoutes);
 app.use("/api/profile", profileTravelersRoutes);
+app.use("/api/stripe-config", stripeConfigRoutes);
 app.use("/api", apiRouter);
 
 // Dedicated, tighter limiter for the public contact form — this route

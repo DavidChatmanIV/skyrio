@@ -34,38 +34,19 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 import AttachBookingCard, { fmtRange } from "./AttachBookingCard";
-import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
   CardElement,
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
+import { getSkyrioStripe, useSkyrioStripeStatus } from "@/utils/skyrioStripe";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 // Same Stripe key the hotel checkout uses (Skyrio is the merchant for rooms).
-// Accept either env name (both exist in this project) and strip stray
-// quotes/spaces a dashboard paste can add.
-const STRIPE_PK = String(
-  import.meta.env.VITE_STRIPE_PUBLIC_KEY ||
-    import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
-    ""
-)
-  .trim()
-  .replace(/^["']|["']$/g, "")
-  .trim();
-// Never call Stripe with an empty key — that throws and blanks the card box.
-const stripePromise = STRIPE_PK.startsWith("pk_")
-  ? loadStripe(STRIPE_PK)
-  : null;
-// Vite bakes env vars in at BUILD time. If this is empty on the live site,
-// the card box renders blank — show a clear message instead.
-const STRIPE_KEY_MISSING = !STRIPE_PK.startsWith("pk_");
-if (STRIPE_KEY_MISSING) {
-  console.error(
-    "[payments] No Stripe publishable key in this build (checked VITE_STRIPE_PUBLIC_KEY and VITE_STRIPE_PUBLISHABLE_KEY). Card forms can't load."
-  );
-}
+// Hotels/shared rooms use Skyrio's own Stripe. The key comes from the build
+// or, if missing there, from the backend at runtime (see skyrioStripe.js).
+const stripePromise = getSkyrioStripe();
 
 function authHeaders() {
   const token = localStorage.getItem("token");
@@ -218,6 +199,8 @@ function confirmDark({ title, content, ...rest }) {
 
 /* ═══ Hold my share — card form ═══ */
 function HoldShareForm({ groupId, room, share, onDone }) {
+  const stripeStatus = useSkyrioStripeStatus();
+  const STRIPE_KEY_MISSING = stripeStatus === "missing";
   const stripe = useStripe();
   const elements = useElements();
   const [busy, setBusy] = useState(false);
