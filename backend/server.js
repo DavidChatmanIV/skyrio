@@ -18,6 +18,10 @@ import healthRouter from "./routes/health.routes.js";
 // Sync Together trip card: booked flight/stay + total spent, from MongoDB.
 // File name must match EXACTLY (capital P) — Render's Linux is case-sensitive.
 import syncProgressRoutes from "./routes/syncProgress.routes.js";
+// Checkout autofill: saved travelers (kids, partner…) + lead traveler's
+// DOB/phone/pet. Only handles /api/profile/travelers; every other
+// /api/profile route falls through to apiRouter as before.
+import profileTravelersRoutes from "./routes/profileTravelers.js";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
 import { assignFounderBadge } from "./routes/verificationRoutes.js";
@@ -181,6 +185,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Mounted BEFORE apiRouter so it is matched first, and before the /api
 // 404 handler further down. Still covered by the /api rate limiter above.
 app.use("/api/sync-progress", syncProgressRoutes);
+app.use("/api/profile", profileTravelersRoutes);
 app.use("/api", apiRouter);
 
 // Dedicated, tighter limiter for the public contact form — this route

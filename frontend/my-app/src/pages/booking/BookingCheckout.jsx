@@ -11,6 +11,11 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
+import PhoneInput, {
+  isValidPhoneNumber,
+  parsePhoneNumber,
+} from "react-phone-number-input";
+import "react-phone-number-input/style.css";
 import SkyrioSeatMap from "./SkyrioSeatMap";
 import LiteApiPayForm from "./LiteApiPayForm";
 import OverBudgetCheck, {
@@ -60,6 +65,47 @@ const css = `
   }
 
   .skc-label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: ${G.faint}; letter-spacing: .05em; text-transform: uppercase; font-weight: 600; font-family: inherit; }
+  /* Label text + "*" live in one span so the asterisk stays on the same
+     line instead of becoming its own flex row. */
+  .skc-label-text { display: block; }
+  .skc-req { color: ${G.orange}; margin-left: 4px; }
+
+  /* iOS Safari gives <input type="date"> an intrinsic min-width and a
+     taller empty state, which pushed it into the Traveler type column. */
+  .skc-input[type="date"] {
+    -webkit-appearance: none; appearance: none;
+    display: block; min-width: 0; max-width: 100%;
+    height: 48px; line-height: normal; text-align: left;
+  }
+  .skc-input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 1.2em; }
+  .skc-input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .6; }
+
+  /* Country-code phone field, styled as one Skyrio input. */
+  .skc-phone { display: flex; align-items: center; }
+  .skc-phone:focus-within { border-color: var(--cta, ${G.orange}); box-shadow: 0 0 0 3px var(--cta-glow, ${G.orangeGlow}); }
+  .skc-phone .PhoneInputCountry { margin-right: 12px; }
+  .skc-phone .PhoneInputCountrySelectArrow { color: #fff; opacity: .6; }
+  .skc-phone .PhoneInputCountrySelect option { background: #100c22; color: #fff; }
+  .skc-phone .PhoneInputInput {
+    flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+    color: #fff; font-size: 16px; font-family: inherit; caret-color: #ff8a2a;
+  }
+  .skc-phone .PhoneInputInput::placeholder { color: ${G.muted}; }
+
+  .skc-check {
+    display: flex; align-items: center; gap: 10px; font-size: 13px; color: ${G.muted};
+    cursor: pointer; min-height: 44px; touch-action: manipulation;
+  }
+  .skc-check input { width: 18px; height: 18px; accent-color: ${G.orange}; flex-shrink: 0; }
+
+  .skc-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px;
+    border-radius: 999px; border: 1px solid rgba(249,115,22,.35);
+    background: rgba(249,115,22,.08); color: #fff; font-size: 13px;
+    font-family: inherit; cursor: pointer; min-height: 40px; touch-action: manipulation;
+  }
+  .skc-chip:hover { background: rgba(249,115,22,.16); }
+  .skc-chip:disabled { opacity: .4; cursor: not-allowed; }
 
   .skc-btn-primary {
     width: 100%; padding: 17px; border-radius: 14px; border: none;
@@ -125,7 +171,10 @@ const css = `
   .skc-step-layout { display: flex; gap: 28px; align-items: flex-start; }
   .skc-step-form { flex: 1; min-width: 0; padding-bottom: 24px; }
   .skc-step-sidebar { width: 252px; flex-shrink: 0; }
-  .skc-name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .skc-name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; align-items: start; }
+  /* Grid children default to min-width:auto, which lets a wide input
+     (iOS date) overflow into the next column. */
+  .skc-name-grid > * { min-width: 0; }
   .skc-btn-row { display: flex; gap: 12px; }
 
   @media (max-width: 768px) {
@@ -440,6 +489,8 @@ const PASSENGER_TYPES = [
   { id: "INF", label: "Infant" },
 ];
 
+const TYPE_LABEL = { ADT: "Adult", CHD: "Child", INF: "Infant" };
+
 const FARE_MULTIPLIER = { ADT: 1, CHD: 1, INF: 0.1 };
 
 const COUNTRY_OPTIONS = [
@@ -470,6 +521,70 @@ function CountrySelect({ value, onChange, onBlur }) {
   );
 }
 
+// Field label text with an inline required "*".
+function FieldText({ children, required }) {
+  return (
+    <span className="skc-label-text">
+      {children}
+      {required && (
+        <span className="skc-req" aria-hidden="true">
+          *
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ---- Phone helpers ------------------------------------------------------
+// The phone field stores E.164 ("+447911123456"). LiteAPI's contact block
+// takes the calling code and national number separately.
+function splitPhone(e164) {
+  try {
+    const parsed = e164 ? parsePhoneNumber(e164) : null;
+    if (parsed) {
+      return {
+        countryCode: parsed.countryCallingCode,
+        national: parsed.nationalNumber,
+      };
+    }
+  } catch {
+    // fall through
+  }
+  return { countryCode: "1", national: (e164 || "").replace(/\D/g, "") };
+}
+
+// Progress saved before the country picker existed may hold
+// "(555) 123-4567"; PhoneInput only accepts E.164 values.
+function toE164(v) {
+  if (!v) return "";
+  if (v.startsWith("+")) return v;
+  try {
+    return parsePhoneNumber(v, "US")?.number || "";
+  } catch {
+    return "";
+  }
+}
+
+// Airline age bands, measured on the departure date:
+// under 2 = infant, 2–11 = child, 12+ = adult.
+function typeForDob(dob, travelDateISO) {
+  if (!dob) return null;
+  const d = dayjs(dob);
+  if (!d.isValid()) return null;
+  const on = travelDateISO ? dayjs(travelDateISO) : dayjs();
+  const age = on.diff(d, "year");
+  if (age < 2) return "INF";
+  if (age < 12) return "CHD";
+  return "ADT";
+}
+
+const sameTraveler = (a, b) =>
+  (a.firstName || "").trim().toLowerCase() ===
+    (b.firstName || "").trim().toLowerCase() &&
+  (a.lastName || "").trim().toLowerCase() ===
+    (b.lastName || "").trim().toLowerCase() &&
+  (a.dob || "") === (b.dob || "");
+
 function makePassenger(index) {
   return {
     index,
@@ -486,6 +601,10 @@ function makePassenger(index) {
     passportExpiry: "",
     passportCountry: "US",
     nationality: "US",
+    // Lead traveler's own details are saved by default (it's their own
+    // data); other travelers are opt-in.
+    saveToProfile: index === 0,
+    savedId: null,
   };
 }
 
@@ -523,7 +642,9 @@ function toLiteApiPassenger(p) {
     ...(p.index === 0
       ? {
           email: p.email,
-          phoneNumber: p.phone || undefined,
+          // National number only; the calling code goes in
+          // contact.phoneCountryCode (see runPrebook).
+          phoneNumber: p.phone ? splitPhone(p.phone).national : undefined,
         }
       : {}),
   };
@@ -1517,6 +1638,50 @@ function TripSidebar({
   );
 }
 
+// Saves checked travelers to the Skyrio profile so the next checkout can
+// prefill them. Fire-and-forget: a failed save never blocks booking.
+// Backend: PUT /api/profile/travelers (see profile-travelers.backend.js).
+async function saveTravelersToProfile(list) {
+  const token = localStorage.getItem("token");
+  if (!token || !list?.length) return;
+  const lead = list[0];
+  const others = list
+    .slice(1)
+    .filter((p) => p.saveToProfile && p.firstName && p.lastName && p.dob);
+  if (!lead.saveToProfile && !others.length) return;
+  try {
+    const API = import.meta.env?.VITE_API_URL || "";
+    await fetch(`${API}/api/profile/travelers`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        lead: lead.saveToProfile
+          ? {
+              dob: lead.dob,
+              gender: lead.gender,
+              phone: lead.phone,
+              hasPet: !!lead.hasPet,
+            }
+          : null,
+        travelers: others.map((p) => ({
+          _id: p.savedId || undefined,
+          firstName: p.firstName.trim(),
+          lastName: p.lastName.trim(),
+          dob: p.dob,
+          gender: p.gender,
+          type: p.type,
+          hasPet: !!p.hasPet,
+        })),
+      }),
+    });
+  } catch {
+    // Non-fatal.
+  }
+}
+
 function StepPassengers({
   onNext,
   flight,
@@ -1529,10 +1694,21 @@ function StepPassengers({
   onPassengersChange,
 }) {
   const [passengers, setPassengers] = useState(() =>
-    initialPassengers?.length ? initialPassengers : [makePassenger(0)]
+    initialPassengers?.length
+      ? initialPassengers.map((p) => ({
+          saveToProfile: p.index === 0,
+          savedId: null,
+          ...p,
+          phone: toE164(p.phone),
+        }))
+      : [makePassenger(0)]
   );
   const [touched, setTouched] = useState({});
   const [autofilled, setAutofilled] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // Travelers saved on the profile from earlier bookings (kids, partner…).
+  const [savedTravelers, setSavedTravelers] = useState([]);
+  const travelDateISO = flight?.outbound?.dateISO || null;
 
   // Reports upward whenever the person has typed something, so the parent
   // can decide whether leaving deserves a "discard?" confirmation.
@@ -1550,11 +1726,10 @@ function StepPassengers({
     onPassengersChange?.(passengers);
   }, [passengers, onPassengersChange]);
 
-  // Autofills the lead traveler's name/email from their Skyrio profile,
-  // only into fields that are still empty. GET /api/profile/me returns
-  // { ok, user: { name, email, ... } }; User has a single `name` field so
-  // it is split on the first space. There is no phone field on User or
-  // Profile, so phone is not autofilled.
+  // Autofills the lead traveler from their Skyrio profile, only into
+  // fields that are still empty. GET /api/profile/me returns
+  // { ok, user: { name, email, leadTraveler, savedTravelers, ... } }.
+  // User has a single `name` field so it is split on the first space.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1567,25 +1742,38 @@ function StepPassengers({
         });
         if (!res.ok) return;
         const data = await res.json();
+        if (cancelled) return;
+        setIsLoggedIn(true);
         const user = data?.user || {};
-        const fullName = (user.name || "").trim();
-        const [firstName = "", ...rest] = fullName.split(/\s+/).filter(Boolean);
+        const fullNameStr = (user.name || "").trim();
+        const [firstName = "", ...rest] = fullNameStr
+          .split(/\s+/)
+          .filter(Boolean);
         const lastName = rest.join(" ");
         const email = user.email || "";
-        if (cancelled) return;
-        if (!firstName && !lastName && !email) return;
+        const lt = user.leadTraveler || {};
+        const leadPhone = toE164(lt.phone || "");
+        if (Array.isArray(user.savedTravelers)) {
+          setSavedTravelers(user.savedTravelers);
+        }
+        if (!firstName && !lastName && !email && !lt.dob) return;
         setAutofilled(true);
         setPassengers((prev) =>
-          prev.map((p) =>
-            p.index === 0
-              ? {
-                  ...p,
-                  firstName: p.firstName || firstName,
-                  lastName: p.lastName || lastName,
-                  email: p.email || email,
-                }
-              : p
-          )
+          prev.map((p) => {
+            if (p.index !== 0) return p;
+            const dob = p.dob || lt.dob || "";
+            return {
+              ...p,
+              firstName: p.firstName || firstName,
+              lastName: p.lastName || lastName,
+              email: p.email || email,
+              dob,
+              type: p.dob ? p.type : typeForDob(dob, travelDateISO) || p.type,
+              gender: p.gender || lt.gender || "",
+              phone: p.phone || leadPhone,
+              hasPet: p.hasPet || !!lt.hasPet,
+            };
+          })
         );
       } catch {
         // Non-fatal — autofill is a convenience.
@@ -1602,12 +1790,50 @@ function StepPassengers({
       prev.map((p) => (p.index === idx ? { ...p, ...patch } : p))
     );
 
+  // DOB decides the fare type (airlines reject a mismatch), so picking a
+  // DOB sets Adult/Child/Infant automatically. Still editable by hand.
+  const updateDob = (idx, dob) => {
+    const type = typeForDob(dob, travelDateISO);
+    updatePassenger(idx, type ? { dob, type } : { dob });
+  };
+
   const addPassenger = () => {
     setPassengers((prev) => {
       if (prev.length >= 8) return prev;
       return [...prev, makePassenger(prev.length)];
     });
   };
+
+  // Fills an empty extra traveler card if there is one, otherwise adds a card.
+  const addSavedTraveler = (t) => {
+    setPassengers((prev) => {
+      const filled = {
+        firstName: t.firstName || "",
+        lastName: t.lastName || "",
+        dob: t.dob || "",
+        gender: t.gender || "",
+        type: typeForDob(t.dob, travelDateISO) || t.type || "ADT",
+        hasPet: !!t.hasPet,
+        saveToProfile: true,
+        savedId: t._id || null,
+      };
+      const emptyIdx = prev.findIndex(
+        (p) => p.index > 0 && !p.firstName && !p.lastName && !p.dob
+      );
+      if (emptyIdx !== -1) {
+        return prev.map((p, i) => (i === emptyIdx ? { ...p, ...filled } : p));
+      }
+      if (prev.length >= 8) return prev;
+      return [...prev, { ...makePassenger(prev.length), ...filled }];
+    });
+  };
+
+  const availableSaved = savedTravelers.filter(
+    (t) =>
+      !passengers.some(
+        (p) => (t._id && p.savedId === t._id) || sameTraveler(p, t)
+      )
+  );
 
   const removePassenger = (idx) => {
     setPassengers((prev) => {
@@ -1627,7 +1853,8 @@ function StepPassengers({
     return d.isValid() && d.isBefore(dayjs().subtract(1, "day"));
   };
   const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-  const phoneOk = (v) => /^[\d+()\-.\s]{7,}$/.test(v || "");
+  // Real per-country validation (length, valid prefixes) via libphonenumber.
+  const phoneOk = (v) => !!v && isValidPhoneNumber(v);
   const passportNumOk = (v) => /^[A-Za-z0-9]{5,15}$/.test((v || "").trim());
   const passportExpiryOk = (v) => {
     if (!v) return false;
@@ -1646,7 +1873,7 @@ function StepPassengers({
     if (field === "email" && idx === 0 && !emailOk(p.email))
       return "Enter a valid email";
     if (field === "phone" && idx === 0 && !phoneOk(p.phone))
-      return "Enter a valid phone number";
+      return "Enter a valid phone number for the selected country";
     if (field === "passportNumber") {
       if (!p.passportNumber) return "Required";
       if (!passportNumOk(p.passportNumber))
@@ -1688,6 +1915,7 @@ function StepPassengers({
         (p.index === 0 && !phoneOk(p.phone))
     );
     if (invalid) return;
+    if (isLoggedIn) saveTravelersToProfile(passengers);
     onNext(passengers);
   };
 
@@ -1740,6 +1968,7 @@ function StepPassengers({
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
+                    flexWrap: "wrap",
                   }}
                 >
                   <div
@@ -1790,10 +2019,7 @@ function StepPassengers({
 
               <div className="skc-name-grid">
                 <label className="skc-label">
-                  First name{" "}
-                  <span style={{ color: G.orange }} aria-hidden="true">
-                    *
-                  </span>
+                  <FieldText required>First name</FieldText>
                   <input
                     className="skc-input"
                     value={p.firstName}
@@ -1822,10 +2048,7 @@ function StepPassengers({
                   )}
                 </label>
                 <label className="skc-label">
-                  Last name{" "}
-                  <span style={{ color: G.orange }} aria-hidden="true">
-                    *
-                  </span>
+                  <FieldText required>Last name</FieldText>
                   <input
                     className="skc-input"
                     value={p.lastName}
@@ -1858,19 +2081,14 @@ function StepPassengers({
               <div
                 style={{ display: "flex", flexDirection: "column", gap: 16 }}
               >
-                <div className="skc-name-grid">
+                <div className="skc-name-grid" style={{ marginBottom: 0 }}>
                   <label className="skc-label">
-                    Date of birth{" "}
-                    <span style={{ color: G.orange }} aria-hidden="true">
-                      *
-                    </span>
+                    <FieldText required>Date of birth</FieldText>
                     <input
                       className="skc-input"
                       type="date"
                       value={p.dob}
-                      onChange={(e) =>
-                        updatePassenger(p.index, { dob: e.target.value })
-                      }
+                      onChange={(e) => updateDob(p.index, e.target.value)}
                       onBlur={() => markTouched(p.index, "dob")}
                       max={dayjs().subtract(1, "day").format("YYYY-MM-DD")}
                       aria-required="true"
@@ -1892,7 +2110,7 @@ function StepPassengers({
                     )}
                   </label>
                   <label className="skc-label">
-                    Traveler type
+                    <FieldText>Traveler type</FieldText>
                     <select
                       className="skc-input"
                       value={p.type}
@@ -1909,12 +2127,9 @@ function StepPassengers({
                   </label>
                 </div>
 
-                <div className="skc-name-grid">
+                <div className="skc-name-grid" style={{ marginBottom: 0 }}>
                   <label className="skc-label">
-                    Gender{" "}
-                    <span style={{ color: G.orange }} aria-hidden="true">
-                      *
-                    </span>
+                    <FieldText required>Gender</FieldText>
                     <select
                       className="skc-input"
                       value={p.gender}
@@ -1949,10 +2164,7 @@ function StepPassengers({
                 {i === 0 && (
                   <>
                     <label className="skc-label">
-                      Email{" "}
-                      <span style={{ color: G.orange }} aria-hidden="true">
-                        *
-                      </span>
+                      <FieldText required>Email</FieldText>
                       <input
                         className="skc-input"
                         type="email"
@@ -1981,28 +2193,31 @@ function StepPassengers({
                         </span>
                       )}
                     </label>
-                    <label className="skc-label">
-                      Phone number{" "}
-                      <span style={{ color: G.orange }} aria-hidden="true">
-                        *
+                    {/* A div, not a <label>: a label would hand its taps to
+                        the country picker (its first control). */}
+                    <div className="skc-label">
+                      <span id={`lbl-phone-${p.index}`}>
+                        <FieldText required>Phone number</FieldText>
                       </span>
-                      <input
-                        className="skc-input"
-                        type="tel"
-                        value={p.phone}
-                        onChange={(e) =>
-                          updatePassenger(p.index, { phone: e.target.value })
+                      <PhoneInput
+                        className="skc-input skc-phone"
+                        international
+                        defaultCountry="US"
+                        countryCallingCodeEditable={false}
+                        value={p.phone || undefined}
+                        onChange={(v) =>
+                          updatePassenger(p.index, { phone: v || "" })
                         }
                         onBlur={() => markTouched(p.index, "phone")}
-                        placeholder="+1 (555) 000-0000"
                         autoComplete="tel"
-                        aria-required="true"
-                        aria-invalid={!!errorFor(p.index, "phone", p)}
-                        aria-describedby={
-                          errorFor(p.index, "phone", p)
+                        numberInputProps={{
+                          "aria-labelledby": `lbl-phone-${p.index}`,
+                          "aria-required": "true",
+                          "aria-invalid": !!errorFor(p.index, "phone", p),
+                          "aria-describedby": errorFor(p.index, "phone", p)
                             ? `err-phone-${p.index}`
-                            : undefined
-                        }
+                            : undefined,
+                        }}
                       />
                       {errorFor(p.index, "phone", p) && (
                         <span
@@ -2013,7 +2228,7 @@ function StepPassengers({
                           {errorFor(p.index, "phone", p)}
                         </span>
                       )}
-                    </label>
+                    </div>
                   </>
                 )}
 
@@ -2040,6 +2255,7 @@ function StepPassengers({
                         justifyContent: "center",
                         background: p.hasPet ? G.orange : "transparent",
                         color: "white",
+                        flexShrink: 0,
                       }}
                     >
                       {p.hasPet && <Check size={11} strokeWidth={3} />}
@@ -2056,9 +2272,81 @@ function StepPassengers({
                     </div>
                   </div>
                 </button>
+
+                {isLoggedIn && (
+                  <label className="skc-check">
+                    <input
+                      type="checkbox"
+                      checked={!!p.saveToProfile}
+                      onChange={(e) =>
+                        updatePassenger(p.index, {
+                          saveToProfile: e.target.checked,
+                        })
+                      }
+                    />
+                    <span>
+                      {i === 0
+                        ? "Save my details and pet to my profile for next time"
+                        : "Save this traveler to my profile for next time"}
+                    </span>
+                  </label>
+                )}
               </div>
             </div>
           ))}
+
+          {availableSaved.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: G.faint,
+                  letterSpacing: ".05em",
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                  marginBottom: 10,
+                }}
+              >
+                Add a saved traveler
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {availableSaved.map((t) => {
+                  const type =
+                    typeForDob(t.dob, travelDateISO) || t.type || "ADT";
+                  return (
+                    <button
+                      key={t._id || `${t.firstName}-${t.lastName}-${t.dob}`}
+                      type="button"
+                      className="skc-chip"
+                      disabled={
+                        passengers.length >= 8 &&
+                        !passengers.some(
+                          (p) =>
+                            p.index > 0 && !p.firstName && !p.lastName && !p.dob
+                        )
+                      }
+                      onClick={() => addSavedTraveler(t)}
+                    >
+                      {type === "ADT" ? (
+                        <UserPlus size={13} />
+                      ) : (
+                        <Baby size={13} />
+                      )}
+                      {t.hasPet && <PawPrint size={13} />}
+                      <span>
+                        {t.firstName} {t.lastName}
+                      </span>
+                      {type !== "ADT" && (
+                        <span style={{ color: G.muted }}>
+                          · {TYPE_LABEL[type]}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <button
             type="button"
@@ -3052,14 +3340,17 @@ export default function BookingCheckout({
         }
 
         const leadPassenger = passengersList[0];
+        // Phone is stored as E.164; LiteAPI takes calling code + national
+        // number separately (e.g. "44" + "7911123456").
+        const leadPhone = splitPhone(leadPassenger.phone);
         const prebookBody = {
           offerId: verifiedOfferId,
           contact: {
             email: leadPassenger.email,
             firstName: leadPassenger.firstName,
             lastName: leadPassenger.lastName,
-            phoneNumber: leadPassenger.phone,
-            phoneCountryCode: "1",
+            phoneNumber: leadPhone.national,
+            phoneCountryCode: leadPhone.countryCode,
           },
           passengers: passengersList.map(toLiteApiPassenger),
           usePaymentSdk: true,

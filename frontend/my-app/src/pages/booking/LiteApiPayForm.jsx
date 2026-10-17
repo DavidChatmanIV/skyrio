@@ -115,28 +115,64 @@ const fullName = (p) =>
   [p?.firstName, p?.lastName].filter(Boolean).join(" ").trim();
 const piOf = (secret) => String(secret || "").split("_secret")[0];
 
-const stripeAppearance = {
-  theme: "night",
-  variables: {
-    colorPrimary: "#f97316",
-    colorBackground: "#100c22",
-    colorText: "#ffffff",
-    colorDanger: "#f87171",
-    borderRadius: "10px",
-    fontFamily: "inherit",
-  },
-  rules: {
-    ".Input": {
-      border: "1px solid rgba(255,255,255,0.10)",
-      backgroundColor: "rgba(255,255,255,0.06)",
+// ── Fonts inside the payment form ───────────────────────────────────────────
+// Stripe's fields live in an iframe, so `fontFamily: "inherit"` inherits the
+// iframe's default (Times New Roman), not Skyrio's font. Instead we read the
+// font the page actually uses and hand Stripe the same Google Fonts
+// stylesheet(s) the page loaded, plus a system sans-serif fallback so it can
+// never fall back to serif.
+const SANS_FALLBACK =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+function pageFontFamily() {
+  try {
+    const f = window.getComputedStyle(document.body).fontFamily || "";
+    if (!f || /^\s*["']?(serif|times)/i.test(f)) return SANS_FALLBACK;
+    return `${f}, ${SANS_FALLBACK}`;
+  } catch {
+    return SANS_FALLBACK;
+  }
+}
+
+function pageFontSources() {
+  try {
+    return Array.from(
+      document.querySelectorAll(
+        'link[rel="stylesheet"][href*="fonts.googleapis.com"]'
+      )
+    )
+      .map((l) => l.href)
+      .filter((href) => /^https:\/\//.test(href))
+      .map((cssSrc) => ({ cssSrc }));
+  } catch {
+    return [];
+  }
+}
+
+function buildStripeAppearance(fontFamily) {
+  return {
+    theme: "night",
+    variables: {
+      colorPrimary: "#f97316",
+      colorBackground: "#100c22",
+      colorText: "#ffffff",
+      colorDanger: "#f87171",
+      borderRadius: "10px",
+      fontFamily,
     },
-    ".Input:focus": {
-      border: "1px solid #f97316",
-      boxShadow: "0 0 0 3px rgba(249,115,22,0.35)",
+    rules: {
+      ".Input": {
+        border: "1px solid rgba(255,255,255,0.10)",
+        backgroundColor: "rgba(255,255,255,0.06)",
+      },
+      ".Input:focus": {
+        border: "1px solid #f97316",
+        boxShadow: "0 0 0 3px rgba(249,115,22,0.35)",
+      },
+      ".Label": { color: "rgba(255,255,255,0.5)", fontSize: "12px" },
     },
-    ".Label": { color: "rgba(255,255,255,0.5)", fontSize: "12px" },
-  },
-};
+  };
+}
 
 // ── Direct Stripe card form (fallback / preferred when key is known) ─────────
 const ZERO_DECIMAL = new Set([
@@ -288,6 +324,14 @@ export default function LiteApiPayForm({
   const targetRef = useRef(null);
   const lead = passengers?.[0] || {};
   const [exactTotal, setExactTotal] = useState(null); // { amount, currency }
+
+  // Read once: the page's font + the stylesheets that load it.
+  const fontFamily = useMemo(pageFontFamily, []);
+  const fontSources = useMemo(pageFontSources, []);
+  const stripeAppearance = useMemo(
+    () => buildStripeAppearance(fontFamily),
+    [fontFamily]
+  );
 
   // Keep the saved checkout (used by the confirmation page, email and
   // booking record) on the EXACT charged amount, not the estimate.
@@ -667,7 +711,11 @@ export default function LiteApiPayForm({
             <Elements
               key={`${directKey}:${clientSecret}`}
               stripe={stripePromise}
-              options={{ clientSecret, appearance: stripeAppearance }}
+              options={{
+                clientSecret,
+                appearance: stripeAppearance,
+                ...(fontSources.length && { fonts: fontSources }),
+              }}
             >
               <DirectStripeForm
                 clientSecret={clientSecret}
