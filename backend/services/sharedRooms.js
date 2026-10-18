@@ -660,6 +660,36 @@ export async function markShareAuthorized({
     return { changed: false };
   }
   const split = await SplitPayment.findById(splitId).lean();
+
+  // Show it in the trip's Activity so everyone sees who's in.
+  const held = (split.shares || []).find((x) => sameId(x._id, shareId));
+  const heldCount = (split.shares || []).filter(
+    (x) => x.status === "authorized" || x.status === "paid"
+  ).length;
+  if (held) {
+    await SyncGroup.updateOne(
+      { _id: split.group },
+      {
+        $push: {
+          activityLog: {
+            type: "shared_room_held",
+            user: held.user,
+            message: `Held their share of ${
+              split.room?.name || "the shared room"
+            } (${heldCount} of ${split.shares.length} in)`,
+            createdAt: new Date(),
+          },
+        },
+      }
+    ).catch((e) =>
+      console.error(
+        "[shared-room] activity log failed",
+        String(splitId),
+        e?.message
+      )
+    );
+  }
+
   emitGroup(split.group, { sharedRoomId: String(splitId) });
   // Last one in? Book it.
   finalizeSharedRoom(splitId).catch((e) =>
