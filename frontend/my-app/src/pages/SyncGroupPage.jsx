@@ -1119,6 +1119,30 @@ export default function SyncGroupPage() {
     }
     addMemberToGroup({ email: v, name: v });
   };
+  const [resendingId, setResendingId] = useState(null);
+  const resendInvite = async (mid, name) => {
+    setResendingId(mid);
+    try {
+      const res = await fetch(`${API_BASE}/sync-together/${id}/resend-invite`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ memberId: mid }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        antdMessage.success(
+          `Invite sent again to ${
+            name || data.sentTo
+          }. Ask them to check Spam or Promotions too.`
+        );
+        fetchGroup();
+      } else antdMessage.error(data.error || "Couldn't resend the invite");
+    } catch {
+      antdMessage.error("Couldn't resend the invite");
+    } finally {
+      setResendingId(null);
+    }
+  };
   const removeMember = async (mid, name) => {
     try {
       const res = await fetch(`${API_BASE}/sync-together/${id}/member/${mid}`, {
@@ -1825,6 +1849,62 @@ export default function SyncGroupPage() {
                       </button>
                     )}
                 </div>
+                {isOwner &&
+                  !isBooked &&
+                  (m.status || "pending") === "pending" && (
+                    <div
+                      style={{
+                        marginLeft: 48,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        disabled={resendingId === m._id}
+                        onClick={() =>
+                          resendInvite(m._id, m.user?.name || m.name || m.email)
+                        }
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#ff8a2a",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: resendingId === m._id ? "default" : "pointer",
+                          padding: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <SendOutlined style={{ fontSize: 11 }} />
+                        {resendingId === m._id ? "Sending…" : "Resend invite"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          copyLink(
+                            `${window.location.origin}/sync-together/join/${group.inviteCode}`
+                          )
+                        }
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "rgba(255,255,255,0.45)",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          padding: 0,
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        Copy invite link
+                      </button>
+                    </div>
+                  )}
                 {isMyRow && !isBooked && (
                   <div style={{ marginLeft: 48 }}>
                     {!editingMyAirport && !m.departureAirport && (

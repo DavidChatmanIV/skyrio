@@ -1,4 +1,3 @@
-// backend/services/syncEmails.js
 // Sync Together emails: reminders and shared-room updates.
 // Built on the same light/dark-safe layout as every other Skyrio email.
 

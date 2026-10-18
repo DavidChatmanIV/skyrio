@@ -1555,6 +1555,81 @@ router.post("/:id/remind", async (req, res) => {
   }
 });
 
+/* POST /api/sync-together/:id/resend-invite  { memberId } — organizer only
+   Sends the trip invite email again to someone who hasn't answered yet. */
+const INVITE_RESEND_MS = 10 * 60 * 1000; // once every 10 minutes per person
+const lastInviteSent = new Map(); // memberId → time (resets on restart; fine)
+router.post("/:id/resend-invite", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await loadGroupForParts(req.params.id);
+    if (!requireMember(group, userId, res)) return;
+    if (!isOrganizer(group, userId)) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can resend invites" });
+    }
+    const member = validId(req.body?.memberId)
+      ? group.members.id(req.body.memberId)
+      : null;
+    if (!member)
+      return res.status(404).json({ ok: false, error: "Traveler not found" });
+    if (member.status && member.status !== "pending") {
+      return res.status(400).json({
+        ok: false,
+        error: "They've already answered the invite.",
+      });
+    }
+    const key = String(member._id);
+    const last = lastInviteSent.get(key);
+    if (last && Date.now() - last < INVITE_RESEND_MS) {
+      return res.status(429).json({
+        ok: false,
+        error: "Invite already re-sent. Try again in a few minutes.",
+      });
+    }
+    let to = member.email || member.user?.email;
+    if (!to && member.user) {
+      const u = await User.findById(member.user._id || member.user)
+        .select("email")
+        .lean();
+      to = u?.email;
+    }
+    if (!to)
+      return res.status(400).json({
+        ok: false,
+        error:
+          "We don't have an email for this traveler. Share the invite link instead.",
+      });
+
+    const result = await sendTripInvite({
+      to,
+      inviterName: group.owner?.name || group.owner?.username || "Someone",
+      tripTitle: group.title,
+      destination: group.destination,
+      inviteCode: group.inviteCode,
+      memberNames: null,
+    });
+    if (result && result.ok === false) {
+      return res.status(502).json({
+        ok: false,
+        error: "The invite email didn't send. Try again in a bit.",
+      });
+    }
+    lastInviteSent.set(key, Date.now());
+    logActivity(
+      group,
+      "invite_resent",
+      userId,
+      `Re-sent the invite to ${member.user?.name || member.name || to}`
+    );
+    await group.save();
+    return res.json({ ok: true, sentTo: to });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't resend the invite");
+  }
+});
+
 /* ══════════════════════════════════════════════
    GROUP SHORTLIST — suggest → vote → pick
    ══════════════════════════════════════════════ */
