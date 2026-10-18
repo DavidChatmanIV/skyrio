@@ -82,6 +82,12 @@ import {
   Users,
 } from "lucide-react";
 
+// Whole-dollar price with thousands commas: 1165 → "1,165". "—" if unknown.
+const wholeUsd = (n) => {
+  const v = Number(n);
+  return Number.isFinite(v) ? Math.round(v).toLocaleString("en-US") : "—";
+};
+
 const { Title, Text } = Typography;
 const { Option } = Select;
 
@@ -3280,7 +3286,7 @@ function SavedForm() {
             )}
             {trip.price > 0 && (
               <span className="sk-saved-chip-price">
-                ${trip.price.toLocaleString()}
+                ${trip.price.toLocaleString("en-US")}
               </span>
             )}
             <button
@@ -3405,7 +3411,7 @@ function RoomCartBar({ rooms, onRemove, onCheckout, destCity }) {
           </span>
         </div>
         <div className="sk-room-cart-total">
-          ${total.toFixed(0)}{" "}
+          ${wholeUsd(total)}{" "}
           <span className="sk-room-cart-currency">{currency}</span> total
         </div>
       </div>
@@ -3415,7 +3421,7 @@ function RoomCartBar({ rooms, onRemove, onCheckout, destCity }) {
           <span key={`${roomKey(r)}-${i}`} className="sk-room-cart-chip">
             <span className="sk-room-cart-chip-name">{r.name}</span>
             <span className="sk-room-cart-chip-price">
-              ${r.totalAmount?.toFixed(0) ?? "—"}
+              ${wholeUsd(r.totalAmount)}
             </span>
             <button
               type="button"
@@ -4257,7 +4263,7 @@ export default function BookingPage() {
         });
         setPriceWatchOn(true);
         antdMessage.success(
-          `Watching $${price.toFixed(0)} — you'll be notified if it drops!`
+          `Watching $${wholeUsd(price)} — you'll be notified if it drops!`
         );
       } catch (err) {
         setWatchingId(null);
@@ -5187,7 +5193,7 @@ export default function BookingPage() {
                           size={11}
                           style={{ marginRight: 2, verticalAlign: "middle" }}
                         />
-                        {budgetSeed.toLocaleString()}
+                        {budgetSeed.toLocaleString("en-US")}
                       </span>
                     )}
                     {tripDaySeed && (
@@ -5324,7 +5330,7 @@ export default function BookingPage() {
                   <div className="sk-pwc-insight">
                     <Zap size={12} className="sk-pwc-insight-icon" />
                     <span className="sk-pwc-insight-text">
-                      The cheapest option is ${cheapest.toFixed(0)} — prices on
+                      The cheapest option is ${wholeUsd(cheapest)} — prices on
                       this route vary by up to ${delta} right now. Turn on Price
                       Watch to catch any drops.
                     </span>
@@ -5733,7 +5739,7 @@ export default function BookingPage() {
                         <div className="sk-resultRight">
                           <div className="sk-priceLine">
                             <span className="sk-priceAmt">
-                              ${parseFloat(flight.totalAmount).toFixed(0)}
+                              ${wholeUsd(flight.totalAmount)}
                             </span>
                             <span className="sk-priceSub">
                               {flight.totalCurrency}
@@ -5950,7 +5956,7 @@ export default function BookingPage() {
                                 </span>
                               )}
                               <span className="sk-priceAmt">
-                                ${parseFloat(cheapest.totalAmount).toFixed(0)}
+                                ${wholeUsd(cheapest.totalAmount)}
                               </span>
                               <span className="sk-priceSub">
                                 {cheapest.totalCurrency}
@@ -6293,7 +6299,7 @@ export default function BookingPage() {
                                 <div className="sk-resultRight">
                                   <div className="sk-priceLine">
                                     <span className="sk-priceAmt">
-                                      ${parseFloat(opt.totalAmount).toFixed(0)}
+                                      ${wholeUsd(opt.totalAmount)}
                                     </span>
                                     <span className="sk-priceSub">
                                       {opt.totalCurrency}
@@ -6409,7 +6415,7 @@ export default function BookingPage() {
                           <div className="sk-resultRight">
                             <div className="sk-priceLine">
                               <span className="sk-priceAmt">
-                                ${hotel.totalAmount?.toFixed(0) ?? "—"}
+                                ${wholeUsd(hotel.totalAmount)}
                               </span>
                               <span className="sk-priceSub">
                                 {hotel.totalCurrency}
@@ -6428,7 +6434,10 @@ export default function BookingPage() {
                                 return null;
                               return (
                                 <div className="sk-pernight">
-                                  ${Math.round(total / nights).toLocaleString()}
+                                  $
+                                  {Math.round(total / nights).toLocaleString(
+                                    "en-US"
+                                  )}
                                   /night · {nights} night
                                   {nights !== 1 ? "s" : ""} total
                                 </div>

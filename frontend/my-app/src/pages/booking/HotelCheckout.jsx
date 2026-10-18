@@ -33,6 +33,13 @@ import OverBudgetCheck, {
   overBudgetBy,
 } from "@/components/syncTogether/OverBudgetCheck";
 
+// Price with cents and thousands commas: 1165.5 → "1,165.50".
+const usd2 = (n) =>
+  (Number(n) || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
 const { Title, Text } = Typography;
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -217,7 +224,7 @@ function RoomLineItem({ room, index }) {
         })()}
       </div>
       <div className="sk-checkout-room-price">
-        ${(room.totalAmount ?? 0).toFixed(2)}
+        ${usd2(room.totalAmount)}
         <span className="sk-priceSub">{room.totalCurrency || "USD"}</span>
       </div>
     </div>
@@ -612,7 +619,7 @@ function PaymentForm({
       >
         {submitting
           ? stage || "Processing…"
-          : `Pay $${grandTotal.toFixed(2)} · Book ${rooms.length} room${
+          : `Pay $${usd2(grandTotal)} · Book ${rooms.length} room${
               rooms.length !== 1 ? "s" : ""
             }`}
       </PayButton>
@@ -784,7 +791,7 @@ function ShareRoomPanel({ groupId, parts, room, guest, contactEmail }) {
         const others = travelers
           .filter((t) => picked.includes(t.userId) && !t.isYou)
           .map((t) => String(t.name || "Friend").split(" ")[0]);
-        const share = people >= 2 ? `$${each.toFixed(2)}` : "your share";
+        const share = people >= 2 ? `$${usd2(each)}` : "your share";
         const steps = [
           "Skyrio checks the price with the hotel and sets up the shared room.",
           `You hold your part (${share}) on your card — we take you there next.`,
@@ -825,7 +832,7 @@ function ShareRoomPanel({ groupId, parts, room, guest, contactEmail }) {
         {busy
           ? "Checking the price with the hotel…"
           : `Set up shared room · then hold my part${
-              people >= 2 ? ` ($${each.toFixed(2)})` : ""
+              people >= 2 ? ` ($${usd2(each)})` : ""
             }`}
       </PayButton>
     </div>
@@ -961,7 +968,7 @@ function ConfirmationScreen({ confirmation, onBack }) {
           <Divider style={{ borderColor: "rgba(255,255,255,0.1)" }} />
           <div className="sk-checkout-total-row">
             <span>Total paid</span>
-            <span className="sk-priceAmt">${total.toFixed(2)}</span>
+            <span className="sk-priceAmt">${usd2(total)}</span>
           </div>
         </Card>
 
@@ -1145,7 +1152,7 @@ export default function HotelCheckout({
             <Divider style={{ borderColor: "rgba(255,255,255,0.1)" }} />
             <div className="sk-checkout-total-row">
               <span>Total</span>
-              <span className="sk-priceAmt">${grandTotal.toFixed(2)}</span>
+              <span className="sk-priceAmt">${usd2(grandTotal)}</span>
             </div>
           </Card>
 

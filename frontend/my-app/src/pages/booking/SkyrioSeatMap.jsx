@@ -77,7 +77,12 @@ function tierLabel(tier) {
 }
 
 function formatPrice(n) {
-  return Number.isInteger(n) ? `${n}` : n.toFixed(2);
+  return Number.isInteger(n)
+    ? n.toLocaleString("en-US")
+    : n.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
 }
 
 export default function SkyrioSeatMap({

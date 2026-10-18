@@ -22,6 +22,13 @@ import OverBudgetCheck, {
   overBudgetBy,
 } from "@/components/syncTogether/OverBudgetCheck";
 
+// Price with cents and thousands commas: 1165.5 → "1,165.50".
+const usd2 = (n) =>
+  (Number(n) || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
 const G = {
   bg: "#0d0b1a",
   bgCard: "rgba(255,255,255,0.04)",
@@ -1508,7 +1515,7 @@ function PriceSummary({ base, passengers, seatsPrice = 0 }) {
           }}
         >
           <span>{l.label}</span>
-          <span>${l.amt.toFixed(2)}</span>
+          <span>${usd2(l.amt)}</span>
         </div>
       ))}
       <div
@@ -1524,9 +1531,7 @@ function PriceSummary({ base, passengers, seatsPrice = 0 }) {
         }}
       >
         <span>Estimated total</span>
-        <span style={{ color: "var(--cta, #ff8a2a)" }}>
-          ${total.toFixed(2)}
-        </span>
+        <span style={{ color: "var(--cta, #ff8a2a)" }}>${usd2(total)}</span>
       </div>
       <div style={{ fontSize: 12, color: G.muted, marginTop: 8 }}>
         The airline confirms the final price, shown before you pay.
@@ -1595,7 +1600,7 @@ function TripSidebar({
               color: "var(--cta, #ff8a2a)",
             }}
           >
-            ${total.toFixed(2)}
+            ${usd2(total)}
           </div>
         </div>
       </div>
@@ -1752,9 +1757,7 @@ function TripSidebar({
           }}
         >
           <span>Est. total</span>
-          <span style={{ color: "var(--cta, #ff8a2a)" }}>
-            ${total.toFixed(2)}
-          </span>
+          <span style={{ color: "var(--cta, #ff8a2a)" }}>${usd2(total)}</span>
         </div>
         <CancellationBadge departureDateISO={flight?.outbound?.dateISO} />
       </div>
@@ -3955,8 +3958,8 @@ export default function BookingCheckout({
             }}
           >
             We refreshed your fare with the airline. The price changed from $
-            {fareUpdate.previousPrice.toFixed(2)} to $
-            {fareUpdate.price.toFixed(2)}. Your flight is the same.
+            {usd2(fareUpdate.previousPrice)} to ${usd2(fareUpdate.price)}. Your
+            flight is the same.
           </div>
         )}
 
