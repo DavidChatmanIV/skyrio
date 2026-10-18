@@ -348,6 +348,10 @@ function buildSeatSegments(seatServices, flight) {
       direction: seg?.direction ?? null,
       flightNumber,
       departLabel,
+      // Raw values used to match friends' saved seats on the same flight.
+      origin: seg?.origin || null,
+      destination: seg?.destination || null,
+      departureTime: seg?.departureTime || null,
       // Where the traveler changes planes after / arrives from, when this
       // flight is one half of a connection within the same direction.
       layoverAt:
@@ -921,6 +925,126 @@ function FareExpiredBlock({ onBackToResults }) {
       >
         ← Back to results
       </button>
+    </div>
+  );
+}
+
+// Full-screen alert when the airline says this flight can't be booked any
+// more (sold out / fare gone). A small red line at the bottom of the page
+// was easy to miss, so this takes over the screen with one clear next step.
+function FlightUnavailableModal({ flight, onFindAnother, onClose }) {
+  const primaryRef = useRef(null);
+
+  useEffect(() => {
+    primaryRef.current?.focus();
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const route =
+    flight?.outbound?.from && flight?.outbound?.to
+      ? `${flight.outbound.from} → ${flight.outbound.to}`
+      : "This flight";
+  const when = flight?.outbound?.date ? ` · ${flight.outbound.date}` : "";
+
+  return (
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="flight-unavailable-title"
+      aria-describedby="flight-unavailable-desc"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2000000,
+        background: "rgba(8,6,18,0.82)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        className="skc-pop"
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          background: "#150f28",
+          border: "1px solid rgba(248,113,113,.35)",
+          borderRadius: 20,
+          padding: "28px 24px 24px",
+          boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
+          textAlign: "center",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: 64,
+            height: 64,
+            margin: "0 auto 16px",
+            borderRadius: "50%",
+            background: "rgba(248,113,113,.12)",
+            border: "1px solid rgba(248,113,113,.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: G.danger,
+          }}
+        >
+          <Plane size={28} />
+        </div>
+        <div
+          id="flight-unavailable-title"
+          style={{ fontWeight: 800, fontSize: 21, marginBottom: 8 }}
+        >
+          This flight is no longer available
+        </div>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#fff",
+            marginBottom: 10,
+          }}
+        >
+          {route}
+          {when}
+        </div>
+        <div
+          id="flight-unavailable-desc"
+          style={{
+            fontSize: 14,
+            color: G.muted,
+            lineHeight: 1.55,
+            marginBottom: 22,
+          }}
+        >
+          The airline sold the last seats at this price, so it can't be booked.
+          You haven't been charged.
+        </div>
+        <button
+          ref={primaryRef}
+          type="button"
+          className="skc-btn-primary"
+          onClick={onFindAnother}
+          style={{ marginBottom: 10 }}
+        >
+          Find another flight →
+        </button>
+        <button
+          type="button"
+          className="skc-btn-back"
+          onClick={onClose}
+          style={{ width: "100%" }}
+        >
+          Close
+        </button>
+      </div>
     </div>
   );
 }
@@ -1847,6 +1971,11 @@ function StepPassengers({
   const markTouched = (idx, field) =>
     setTouched((t) => ({ ...t, [`${idx}.${field}`]: true }));
 
+  // Airlines reject 1-letter names ("Fernanda B"), so require at least 2
+  // letters. Profile autofill can produce an initial-only last name.
+  const nameOk = (v) => (v || "").replace(/[^\p{L}]/gu, "").length >= 2;
+  const NAME_HINT = "Enter the full name exactly as it appears on your ID";
+
   const dobOk = (v) => {
     if (!v) return false;
     const d = dayjs(v);
@@ -1866,8 +1995,10 @@ function StepPassengers({
   const errorFor = (idx, field, p) => {
     const key = `${idx}.${field}`;
     if (!touched[key]) return null;
-    if (field === "firstName" && !p.firstName) return "Required";
-    if (field === "lastName" && !p.lastName) return "Required";
+    if (field === "firstName" && !nameOk(p.firstName))
+      return p.firstName ? NAME_HINT : "Required";
+    if (field === "lastName" && !nameOk(p.lastName))
+      return p.lastName ? NAME_HINT : "Required";
     if (field === "dob" && !dobOk(p.dob)) return "Enter a valid past date";
     if (field === "gender" && !p.gender) return "Required";
     if (field === "email" && idx === 0 && !emailOk(p.email))
@@ -1907,8 +2038,8 @@ function StepPassengers({
 
     const invalid = passengers.some(
       (p) =>
-        !p.firstName ||
-        !p.lastName ||
+        !nameOk(p.firstName) ||
+        !nameOk(p.lastName) ||
         !dobOk(p.dob) ||
         !p.gender ||
         (p.index === 0 && !emailOk(p.email)) ||
@@ -2285,9 +2416,21 @@ function StepPassengers({
                       }
                     />
                     <span>
-                      {i === 0
-                        ? "Save my details and pet to my profile for next time"
-                        : "Save this traveler to my profile for next time"}
+                      <span style={{ display: "block", color: "#fff" }}>
+                        {i === 0
+                          ? "Save my details for next time"
+                          : "Save this traveler for next time"}
+                      </span>
+                      {/* Says exactly what gets saved, so nothing is a surprise. */}
+                      <span style={{ display: "block", fontSize: 12 }}>
+                        {i === 0
+                          ? `Saves your date of birth, gender and phone number${
+                              p.hasPet ? ", and that you travel with a pet" : ""
+                            } to your Skyrio profile.`
+                          : `Saves their name, date of birth and gender${
+                              p.hasPet ? ", and their pet" : ""
+                            } so you can add them in one tap next time.`}
+                      </span>
                     </span>
                   </label>
                 )}
@@ -2428,6 +2571,7 @@ function StepSeatsBags({
   prebookError,
   onServicesAttached,
   onRetryPrebook,
+  groupId,
 }) {
   // { [segmentKey]: { [passengerIndex]: { seatNumber, serviceId, price } } }
   const [selectedSeats, setSelectedSeats] = useState({});
@@ -2482,6 +2626,70 @@ function StepSeatsBags({
     () => buildSeatSegments(seatServices, flight),
     [seatServices, flight]
   );
+
+  // ── Sync Together: where friends are sitting ──
+  // Only seats friends picked IN SKYRIO are known (saved on their booking).
+  // Seats chosen with the airline or at check-in are invisible to us.
+  const [groupMates, setGroupMates] = useState([]);
+  useEffect(() => {
+    if (!groupId) return;
+    let alive = true;
+    const token = localStorage.getItem("token");
+    const API = import.meta.env?.VITE_API_URL || "";
+    fetch(`${API}/api/sync-together/${groupId}/parts`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => r.json())
+      .then(
+        (d) =>
+          alive &&
+          d.ok &&
+          setGroupMates((d.travelers || []).filter((t) => !t.isYou))
+      )
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [groupId]);
+
+  // { [segmentKey]: { [seatNumber]: { name } } } plus, per segment, friends
+  // who are on that flight but didn't pick a seat in Skyrio.
+  const { groupSeats, friendsWithoutSeat } = useMemo(() => {
+    const seatsBySeg = {};
+    const noSeat = {};
+    const minute = (v) => (v ? String(v).slice(0, 16) : "");
+    segments.forEach((seg) => {
+      if (!seg.origin || !seg.departureTime) return;
+      groupMates.forEach((t) => {
+        const f = t.flight;
+        if (!f || f.status === "cancelled") return;
+        const first = String(t.name || "Friend").split(" ")[0];
+        const mine = (f.seats || []).filter(
+          (x) =>
+            x.origin === seg.origin &&
+            x.destination === seg.destination &&
+            minute(x.departureAt) === minute(seg.departureTime)
+        );
+        if (mine.length) {
+          seatsBySeg[seg.key] = seatsBySeg[seg.key] || {};
+          mine.forEach((x) => {
+            seatsBySeg[seg.key][x.seatNumber] = { name: first };
+          });
+          return;
+        }
+        // Same flight (route + departure minute) but no seat saved.
+        const sameFlight =
+          (f.origin === seg.origin &&
+            minute(f.departsAt) === minute(seg.departureTime)) ||
+          (f.destination === seg.origin &&
+            minute(f.returnDepartsAt) === minute(seg.departureTime));
+        if (sameFlight) {
+          noSeat[seg.key] = [...(noSeat[seg.key] || []), first];
+        }
+      });
+    });
+    return { groupSeats: seatsBySeg, friendsWithoutSeat: noSeat };
+  }, [segments, groupMates]);
 
   // Short message that tells the customer what just happened and what is
   // next, so moving to another flight is never a surprise.
@@ -2704,6 +2912,9 @@ function StepSeatsBags({
               </div>
             ) : (
               <SkyrioSeatMap
+                isGroupTrip={Boolean(groupId)}
+                groupSeats={groupSeats}
+                friendsWithoutSeat={friendsWithoutSeat}
                 passengers={passengers}
                 seatServices={seatServices}
                 selectedSeats={selectedSeats}
@@ -2788,7 +2999,9 @@ function StepSeatsBags({
                   works a moment later, so offer a retry first. Sold-out fares
                   only get "Find another flight". */}
               {onRetryPrebook &&
-                !/sold out|no longer available|expired/i.test(prebookError) && (
+                !/sold out|no longer available|expired|sign in/i.test(
+                  prebookError
+                ) && (
                   <button
                     type="button"
                     onClick={onRetryPrebook}
@@ -2804,7 +3017,9 @@ function StepSeatsBags({
                 onClick={onBackToResults}
                 className={
                   onRetryPrebook &&
-                  !/sold out|no longer available|expired/i.test(prebookError)
+                  !/sold out|no longer available|expired|sign in/i.test(
+                    prebookError
+                  )
                     ? "skc-btn-back"
                     : "skc-btn-primary"
                 }
@@ -2961,6 +3176,24 @@ function StepReviewPay({
   // verify + prebook happen in the parent right after Passengers submits;
   // payment itself is handled by LiteApiPayForm.
   const { selectedSeats, seatsPrice } = extras;
+  // The seats being bought, saved on the booking so friends on the same
+  // flight can see where you sit and choose a seat next to you.
+  const seatsForBooking = (extras?.segments || []).flatMap((seg) =>
+    passengers
+      .map((p) => {
+        const seat = selectedSeats?.[seg.key]?.[p.index]?.seatNumber;
+        if (!seat || !seg.origin || !seg.departureTime) return null;
+        return {
+          origin: seg.origin,
+          destination: seg.destination,
+          departureAt: String(seg.departureTime).slice(0, 16),
+          flightNumber: seg.flightNumber || null,
+          seatNumber: seat,
+          passenger: fullName(p) || null,
+        };
+      })
+      .filter(Boolean)
+  );
   const fareTotal = passengers.reduce(
     (sum, p) => sum + basePrice * (FARE_MULTIPLIER[p.type] ?? 1),
     0
@@ -3136,6 +3369,7 @@ function StepReviewPay({
                   progressKey={progressKey}
                   fareExpired={fareExpired}
                   onBack={onBack}
+                  seats={seatsForBooking}
                 />
                 <CancellationBadge
                   departureDateISO={flight?.outbound?.dateISO}
@@ -3193,8 +3427,14 @@ function findExpiration(obj, depth = 0) {
   return null;
 }
 
+// Booking needs an account: the finished booking is saved to it, and the
+// backend now requires sign-in from prebook onward (before any payment).
+const SIGN_IN_TO_BOOK =
+  "Please sign in to book this flight. Your trip is saved to your Skyrio account, so you need to be signed in before you pay.";
+
 // Turns raw LiteAPI errors into something a traveler understands.
 function friendlyFareError(raw = "") {
+  if (raw === SIGN_IN_TO_BOOK) return raw;
   if (/sold out|52010|no longer available|expired/i.test(raw)) {
     return "This fare just sold out with the airline. Let's find you another flight.";
   }
@@ -3277,6 +3517,7 @@ export default function BookingCheckout({
           );
         }
         const token = localStorage.getItem("token");
+        if (!token) throw new Error(SIGN_IN_TO_BOOK);
         const API = import.meta.env?.VITE_API_URL || "";
         const authHeaders = {
           "Content-Type": "application/json",
@@ -3362,6 +3603,7 @@ export default function BookingCheckout({
           headers: authHeaders,
           body: JSON.stringify(prebookBody),
         });
+        if (pRes.status === 401) throw new Error(SIGN_IN_TO_BOOK);
         const pData = await pRes.json();
         if (!pRes.ok || !pData.ok) {
           throw new Error(
@@ -3521,6 +3763,16 @@ export default function BookingCheckout({
   }, [bookingComplete, progressKey]);
 
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // Big "no longer available" alert. Shown once per error; Close keeps
+  // the smaller in-page message so the traveler can still read it.
+  const flightUnavailable = /sold out|no longer available/i.test(
+    prebookError || ""
+  );
+  const [unavailableDismissed, setUnavailableDismissed] = useState(false);
+  useEffect(() => {
+    if (!prebookError) setUnavailableDismissed(false);
+  }, [prebookError]);
   // Every real exit clears the stored snapshot so nothing stale is resumed later.
   const exitToResults = useCallback(() => {
     clearCheckoutProgress(progressKey);
@@ -3730,6 +3982,7 @@ export default function BookingCheckout({
         )}
         {step === 1 && (
           <StepSeatsBags
+            groupId={effectiveGroupId}
             onBack={() => setStep(0)}
             onNext={(e) => {
               setExtras(e);
@@ -3775,6 +4028,13 @@ export default function BookingCheckout({
           />
         )}
       </div>
+      {flightUnavailable && !unavailableDismissed && (
+        <FlightUnavailableModal
+          flight={liveFlight}
+          onFindAnother={exitToResults}
+          onClose={() => setUnavailableDismissed(true)}
+        />
+      )}
       {showDiscardConfirm && (
         <DiscardProgressModal
           onKeepEditing={cancelDiscard}

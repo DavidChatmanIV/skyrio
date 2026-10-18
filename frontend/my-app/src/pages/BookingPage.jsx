@@ -3444,6 +3444,171 @@ function RoomCartBar({ rooms, onRemove, onCheckout, destCity }) {
 // ─────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Big "this isn't available anymore" notice.
+// Used when someone opens a flight, room or activity the group suggested
+// and it can't be booked any more. A small toast in the corner was easy to
+// miss, so this takes over the screen with what happened and what's next.
+// ─────────────────────────────────────────────
+function UnavailableNotice({ notice, groupId, onClose }) {
+  const primaryRef = useRef(null);
+  useEffect(() => {
+    if (!notice) return;
+    primaryRef.current?.focus();
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [notice, onClose]);
+  if (!notice) return null;
+
+  const icon =
+    notice.kind === "flight" ? (
+      <PlaneIcon size={28} />
+    ) : notice.kind === "hotel" ? (
+      <MapPin size={28} />
+    ) : (
+      <Calendar size={28} />
+    );
+  const seeOthers =
+    notice.kind === "flight"
+      ? "See other flights"
+      : notice.kind === "hotel"
+      ? "See other rooms"
+      : "See other activities";
+
+  return createPortal(
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="sk-unavailable-title"
+      aria-describedby="sk-unavailable-desc"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2000000,
+        background: "rgba(8,6,18,0.82)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 440,
+          background: "#150f28",
+          border: "1px solid rgba(248,113,113,.35)",
+          borderRadius: 20,
+          padding: "28px 24px 24px",
+          boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
+          textAlign: "center",
+          color: "#fff",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: 64,
+            height: 64,
+            margin: "0 auto 16px",
+            borderRadius: "50%",
+            background: "rgba(248,113,113,.12)",
+            border: "1px solid rgba(248,113,113,.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#f87171",
+          }}
+        >
+          {icon}
+        </div>
+        <div
+          id="sk-unavailable-title"
+          style={{ fontWeight: 800, fontSize: 21, marginBottom: 8 }}
+        >
+          {notice.title}
+        </div>
+        {(notice.item || notice.when) && (
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+            {notice.item}
+            {notice.item && notice.when ? " · " : ""}
+            {notice.when}
+          </div>
+        )}
+        <div
+          id="sk-unavailable-desc"
+          style={{
+            fontSize: 14,
+            color: "rgba(255,255,255,0.62)",
+            lineHeight: 1.55,
+            marginBottom: notice.removed ? 12 : 22,
+          }}
+        >
+          {notice.body}
+        </div>
+        {notice.removed && (
+          <div
+            role="status"
+            style={{
+              fontSize: 13,
+              color: "#34d399",
+              background: "rgba(52,211,153,.08)",
+              border: "1px solid rgba(52,211,153,.25)",
+              borderRadius: 10,
+              padding: "8px 12px",
+              marginBottom: 22,
+            }}
+          >
+            Removed from your group's list, so nobody else picks it.
+          </div>
+        )}
+        <button
+          ref={primaryRef}
+          type="button"
+          onClick={onClose}
+          style={{
+            width: "100%",
+            padding: 15,
+            borderRadius: 14,
+            border: "none",
+            background: "linear-gradient(135deg, #f97316 0%, #ec4899 100%)",
+            color: "#fff",
+            fontSize: 16,
+            fontWeight: 700,
+            fontFamily: "inherit",
+            cursor: "pointer",
+            marginBottom: groupId ? 10 : 0,
+          }}
+        >
+          {seeOthers}
+        </button>
+        {groupId && (
+          <Link
+            to={`/sync-together/${groupId}`}
+            style={{
+              display: "block",
+              padding: 13,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: "rgba(255,255,255,0.75)",
+              fontSize: 14,
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Back to the trip
+          </Link>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function BookingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
@@ -3621,6 +3786,49 @@ export default function BookingPage() {
     [pickId, syncInfo]
   );
   const pickHandledRef = useRef(null);
+
+  // The big "not available anymore" notice (see UnavailableNotice).
+  const [unavailableNotice, setUnavailableNotice] = useState(null);
+  const closeUnavailableNotice = useCallback(
+    () => setUnavailableNotice(null),
+    []
+  );
+  // Tells the trip a suggested flight/room is gone, so it's removed from
+  // the shortlist for everyone. Best-effort: the notice shows either way.
+  const reportUnavailable = useCallback(
+    async (item) => {
+      const itemId = item?.id || item?._id;
+      if (!syncGroupId || !itemId) return;
+      try {
+        const token = localStorage.getItem("token");
+        const r = await fetch(
+          `${API}/api/sync-together/${syncGroupId}/shortlist/${itemId}/unavailable`,
+          {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }
+        );
+        const d = await r.json();
+        if (!d.ok) return;
+        setSyncInfo((prev) =>
+          prev
+            ? {
+                ...prev,
+                shortlist: (prev.shortlist || []).filter(
+                  (i) => String(i.id || i._id) !== String(itemId)
+                ),
+                groupFlightKey: d.wasGroupFlight ? null : prev.groupFlightKey,
+              }
+            : prev
+        );
+        if (d.removed)
+          setUnavailableNotice((n) => (n ? { ...n, removed: true } : n));
+      } catch {
+        /* the notice already explains it; removal can be retried later */
+      }
+    },
+    [syncGroupId]
+  );
 
   const [suggesting, setSuggesting] = useState(null);
   const suggestToGroup = useCallback(
@@ -4547,9 +4755,20 @@ export default function BookingPage() {
         selectFlightForCheckout(match);
         antdMessage.success(`Opening ${who} suggested flight.`);
       } else {
-        antdMessage.info(
-          "That exact flight isn't available anymore — here are the other flights on the same route and dates."
-        );
+        const route =
+          s.origin && s.destination ? `${s.origin} → ${s.destination}` : "";
+        setUnavailableNotice({
+          kind: "flight",
+          title: "This flight isn't available anymore",
+          item: [s.airline, route].filter(Boolean).join(" · "),
+          when: s.departAt
+            ? dayjs(s.departAt).format("ddd, MMM D · h:mm A")
+            : "",
+          body: `${
+            who.charAt(0).toUpperCase() + who.slice(1)
+          } suggested flight sold out or was taken off sale by the airline, so it can't be booked. Other flights on the same route and dates are below.`,
+        });
+        reportUnavailable(pickedItem);
       }
       return;
     }
@@ -4569,11 +4788,25 @@ export default function BookingPage() {
         handleBookSingleRoom(match);
         antdMessage.success(`Opening ${who} suggested room.`);
       } else {
-        antdMessage.info(
-          atHotel.length
-            ? "That exact room is gone — here are the other rooms at this hotel."
-            : "This hotel has no rooms left for these dates."
-        );
+        setUnavailableNotice({
+          kind: "hotel",
+          title: atHotel.length
+            ? "This room isn't available anymore"
+            : "This hotel is full for your dates",
+          item: [s.name, s.roomName].filter(Boolean).join(" · "),
+          when:
+            s.checkin && s.checkout
+              ? `${dayjs(s.checkin).format("MMM D")} – ${dayjs(
+                  s.checkout
+                ).format("MMM D")}`
+              : "",
+          body: atHotel.length
+            ? `${
+                who.charAt(0).toUpperCase() + who.slice(1)
+              } suggested room is gone. Other rooms at this hotel are below.`
+            : "There are no rooms left at this hotel for these dates. Try different dates or search for another hotel.",
+        });
+        reportUnavailable(pickedItem);
       }
       return;
     }
@@ -4591,12 +4824,83 @@ export default function BookingPage() {
         ]);
       }
       if (idx === -1)
-        antdMessage.info(
-          "That activity isn't showing for these dates — here's what's available."
-        );
+        // Activities aren't removed: they can come back for other dates.
+        setUnavailableNotice({
+          kind: "activity",
+          title: "This activity isn't available for these dates",
+          item: pickedItem.activity?.name || "",
+          when: "",
+          body: "It isn't showing for your trip dates. Other things to do are below.",
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickedItem, isSearching, flightResults, hotelResults, excursionResults]);
+
+  // ── Opened from "Fly with friends" on the trip page (?sf=1) ──
+  // Finds the exact flight a friend booked (same route, airline and
+  // departure minute) in fresh results and opens checkout. If it's gone,
+  // the big notice says so instead of quietly showing other flights.
+  const sameFlight = useMemo(() => {
+    if (searchParams.get("sf") !== "1") return null;
+    return {
+      origin: searchParams.get("from"),
+      destination: searchParams.get("to"),
+      departAt: searchParams.get("sfDepart"),
+      returnAt: searchParams.get("sfReturn") || null,
+      airline: searchParams.get("sfAirline") || null,
+      withWho: searchParams.get("sfWith") || "your friend",
+    };
+  }, [searchParams]);
+  const sameFlightHandledRef = useRef(false);
+  const sameFlightSearchedRef = useRef(false);
+  useEffect(() => {
+    if (!sameFlight || sameFlightHandledRef.current) return;
+    if (isSearching) {
+      sameFlightSearchedRef.current = true;
+      return;
+    }
+    if (!sameFlightSearchedRef.current && !flightResults.length) return;
+    // A failed search shows its own error; don't call the flight sold out.
+    if (autoSearchError || searchError) return;
+    sameFlightHandledRef.current = true;
+
+    const minute = (v) => (v ? String(v).slice(0, 16) : "");
+    const sameAirline = (f) =>
+      !sameFlight.airline ||
+      !f.owner ||
+      String(f.owner).toLowerCase() === sameFlight.airline.toLowerCase();
+    const match = flightResults.find(
+      (f) =>
+        f.origin === sameFlight.origin &&
+        f.destination === sameFlight.destination &&
+        minute(f.departingAt) === minute(sameFlight.departAt) &&
+        (!sameFlight.returnAt ||
+          minute(f.returningAt) === minute(sameFlight.returnAt)) &&
+        sameAirline(f)
+    );
+    if (match) {
+      selectFlightForCheckout(match);
+      antdMessage.success(`Opening the flight ${sameFlight.withWho} is on.`);
+    } else {
+      setUnavailableNotice({
+        kind: "flight",
+        title: `${sameFlight.withWho}'s flight isn't available anymore`,
+        item: [
+          sameFlight.airline,
+          sameFlight.origin && sameFlight.destination
+            ? `${sameFlight.origin} → ${sameFlight.destination}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        when: sameFlight.departAt
+          ? dayjs(sameFlight.departAt).format("ddd, MMM D · h:mm A")
+          : "",
+        body: "The airline has no seats left on it at a price we can book. Other flights on the same route and dates are below — look for one that lands around the same time.",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sameFlight, isSearching, flightResults, autoSearchError, searchError]);
 
   const searchForm = useMemo(() => {
     switch (tab) {
@@ -4766,6 +5070,11 @@ export default function BookingPage() {
 
   return (
     <>
+      <UnavailableNotice
+        notice={unavailableNotice}
+        groupId={syncGroupId}
+        onClose={closeUnavailableNotice}
+      />
       {checkoutOverlay}
       {syncGroupId && !checkoutOverlay && (
         <div

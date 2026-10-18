@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Baby, PawPrint } from "lucide-react";
+import { Baby, PawPrint, Users } from "lucide-react";
 
 /**
  * SkyrioSeatMap
@@ -23,6 +23,13 @@ import { Baby, PawPrint } from "lucide-react";
  * - activePassengerIndex: number
  * - onSetActivePassenger(passengerIndex): void
  * - onSelectSeat(segmentKey, passengerIndex, seatNumber, serviceId, price): void
+ * - isGroupTrip: boolean  booking for a Sync Together trip — shows the
+ *     "sit together" explanation.
+ * - groupSeats: { [segmentKey]: { [seatNumber]: { name } } }  seats friends
+ *     on the trip picked in Skyrio, per leg. Shown on the map, with a
+ *     "Sit next to <name>" button.
+ * - friendsWithoutSeat: { [segmentKey]: string[] }  friends on this flight
+ *     who didn't pick a seat in Skyrio (so we can't show where they sit).
  * - columns / rows / aisleAfter: OPTIONAL overrides. When omitted, they are
  *     derived from the active leg's seat data (falling back to a 6-wide
  *     11-15 mock layout when there is no data).
@@ -88,6 +95,9 @@ export default function SkyrioSeatMap({
   activePassengerIndex = 0,
   onSetActivePassenger = () => {},
   onSelectSeat = () => {},
+  isGroupTrip = false,
+  groupSeats = {},
+  friendsWithoutSeat = {},
 }) {
   const [avoidKidsPets, setAvoidKidsPets] = useState(false);
   const [hoveredSeat, setHoveredSeat] = useState(null);
@@ -96,6 +106,8 @@ export default function SkyrioSeatMap({
   const segKey = activeSegmentKey ?? segments[0]?.key ?? "default";
   const legSelected = selectedSeats[segKey] ?? {};
   const legKnown = knownOccupancy[segKey] ?? {};
+  const legFriends = groupSeats[segKey] ?? {};
+  const legFriendsNoSeat = friendsWithoutSeat[segKey] ?? [];
 
   // Only filters when the data carries segmentKey values. One-way flights
   // (or data without keys) fall through unfiltered, as before.
@@ -194,6 +206,57 @@ export default function SkyrioSeatMap({
     return zone;
   }, [avoidKidsPets, flaggedSeats, columns]);
 
+  // Free for the traveler being seated right now?
+  function isFreeSeat(seat) {
+    const svc = seatServiceByNumber.get(seat);
+    if (!svc || svc.available === false) return false;
+    if (legFriends[seat] || legKnown[seat]) return false;
+    if (avoidZone.has(seat)) return false;
+    const holder = partyOccupiedSeats.get(seat);
+    return holder === undefined || holder === activePassengerIndex;
+  }
+
+  // Closest free seat to a friend: same row on the same side of the aisle,
+  // then across the aisle, then the row in front / behind.
+  function seatNextTo(friendSeat) {
+    const parsed = parseSeatNumber(friendSeat);
+    if (!parsed) return null;
+    const ci = columns.indexOf(parsed.col);
+    if (ci === -1) return null;
+    const aisleIdx = columns.indexOf(aisleAfter);
+    const sameSide = (c) => ci <= aisleIdx === c <= aisleIdx;
+    const byDistance = columns
+      .map((c, i) => ({ c, d: Math.abs(i - ci) }))
+      .filter((x) => x.d > 0)
+      .sort(
+        (a, b) =>
+          Number(!sameSide(columns.indexOf(a.c))) -
+            Number(!sameSide(columns.indexOf(b.c))) || a.d - b.d
+      );
+    for (const { c } of byDistance) {
+      const seat = seatKey(parsed.row, c);
+      if (isFreeSeat(seat)) return seat;
+    }
+    for (const r of [parsed.row - 1, parsed.row + 1]) {
+      const seat = seatKey(r, parsed.col);
+      if (isFreeSeat(seat)) return seat;
+    }
+    return null;
+  }
+
+  function sitNextTo(friendSeat) {
+    const seat = seatNextTo(friendSeat);
+    const svc = seat ? seatServiceByNumber.get(seat) : null;
+    if (!seat || !svc) return;
+    onSelectSeat(
+      segKey,
+      activePassengerIndex,
+      seat,
+      svc.serviceId,
+      svc.price ?? 0
+    );
+  }
+
   function renderCell(row, col) {
     const seat = seatKey(row, col);
     const seatService = seatServiceByNumber.get(seat);
@@ -247,6 +310,18 @@ export default function SkyrioSeatMap({
       // A seat already held by another traveler in this party can't be
       // assigned to a second person on the same leg.
       if (ownPassengerIndex !== activePassengerIndex) disabled = true;
+    } else if (legFriends[seat]) {
+      // A friend on this trip picked this seat in Skyrio.
+      bg = "rgba(167,139,250,0.18)";
+      border = "#a78bfa";
+      content = (
+        <span style={{ fontSize: 11 }}>
+          {String(legFriends[seat].name || "?")
+            .slice(0, 2)
+            .toUpperCase()}
+        </span>
+      );
+      disabled = true;
     } else if (known) {
       bg = "rgba(255,255,255,0.02)";
       content = isChild ? (
@@ -288,7 +363,10 @@ export default function SkyrioSeatMap({
     }
 
     const priceNote = seatService?.price ? ` — +$${seatService.price}` : "";
-    const accessibleLabel = isAvoided
+    const friendHere = !isOwnParty ? legFriends[seat] : null;
+    const accessibleLabel = friendHere
+      ? `Seat ${seat}, ${friendHere.name}'s seat`
+      : isAvoided
       ? `Seat ${seat}, too close to a flagged seat, unavailable`
       : isOwnParty
       ? `Seat ${seat}, assigned to ${fullName(ownPassenger)}`
@@ -309,7 +387,9 @@ export default function SkyrioSeatMap({
         aria-label={accessibleLabel}
         aria-pressed={isSelectedForActive}
         title={
-          isAvoided
+          friendHere
+            ? `${friendHere.name} — ${seat}`
+            : isAvoided
             ? "Too close to a flagged seat"
             : isOwnParty
             ? `${fullName(ownPassenger)} — ${seat}`
@@ -639,6 +719,88 @@ export default function SkyrioSeatMap({
         })}
       </div>
 
+      {/* Sitting together (Sync Together trips) */}
+      {isGroupTrip && (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(167,139,250,0.35)",
+            background: "rgba(124,58,237,0.08)",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#fff",
+              marginBottom: 4,
+            }}
+          >
+            <Users size={14} color="#a78bfa" /> Want to sit with your group?
+          </div>
+          <div style={{ fontSize: 12.5, color: soft, lineHeight: 1.55 }}>
+            Pick your seat here in Skyrio. That's how we show where your friends
+            and family are sitting and seat you next to them. Seats chosen on
+            the airline's website or app, or at check-in, aren't visible to
+            Skyrio — we can't see or control those, so we can't match them.
+          </div>
+
+          {Object.entries(legFriends).length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                marginTop: 10,
+              }}
+            >
+              {Object.entries(legFriends).map(([fSeat, f]) => {
+                const next = seatNextTo(fSeat);
+                return next ? (
+                  <button
+                    key={fSeat}
+                    type="button"
+                    onClick={() => sitNextTo(fSeat)}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #a78bfa",
+                      background: "rgba(167,139,250,0.15)",
+                      color: "#fff",
+                      fontFamily: "inherit",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Sit next to {f.name} ({fSeat}) → {next}
+                  </button>
+                ) : (
+                  <span key={fSeat} style={{ fontSize: 12, color: soft }}>
+                    {f.name} is in {fSeat}. No free seat right next to them —
+                    pick the closest open seat on the map.
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {legFriendsNoSeat.length > 0 && (
+            <div style={{ fontSize: 12, color: soft, marginTop: 8 }}>
+              {legFriendsNoSeat.join(" & ")}{" "}
+              {legFriendsNoSeat.length > 1 ? "are" : "is"} on this flight but
+              didn't pick a seat in Skyrio, so we can't show where they're
+              sitting.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Avoid toggle */}
       <label
         style={{
@@ -690,6 +852,24 @@ export default function SkyrioSeatMap({
           />
         </div>
       </label>
+
+      {scopedSeatServices.every((sv) => sv.available === false) && (
+        <div
+          role="status"
+          style={{
+            padding: "10px 14px",
+            marginBottom: 12,
+            borderRadius: 10,
+            border: `1px solid ${G.border}`,
+            background: G.bgCard,
+            color: soft,
+            fontSize: 12.5,
+          }}
+        >
+          The airline isn't offering seats to choose on this flight right now.
+          You can continue — the airline will assign a seat at check-in.
+        </div>
+      )}
 
       {/* Grid */}
       <div
@@ -803,8 +983,15 @@ export default function SkyrioSeatMap({
         <LegendItem
           swatch="rgba(249,115,22,0.14)"
           border={G.orange}
-          label="Your group"
+          label="Your seats"
         />
+        {isGroupTrip && (
+          <LegendItem
+            swatch="rgba(167,139,250,0.18)"
+            border="#a78bfa"
+            label="Friends on your trip"
+          />
+        )}
         <LegendItem icon={<Baby size={12} />} label="Child seated here" />
         <LegendItem icon={<PawPrint size={12} />} label="Pet in cabin" />
         <LegendItem
