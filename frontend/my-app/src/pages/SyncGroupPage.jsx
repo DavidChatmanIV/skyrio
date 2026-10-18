@@ -2571,6 +2571,47 @@ export default function SyncGroupPage() {
       {/* ═══ YOUR TRIP — Flight · Stay · Things to do + your budget ═══ */}
       {isMember && myRsvp !== "declined" && group.destination && myParts && (
         <div style={{ marginTop: 20 }}>
+          {/* Whole-group progress, counted in people (the card below
+              counts YOUR steps: flight + stay). */}
+          {(() => {
+            const everyone = totalMembers + 1; // organizer + members (not declined)
+            const booked = Math.min(
+              Number(bookingProgress?.bookedCount) || 0,
+              everyone
+            );
+            const notJoined = goingMembers.filter(
+              (m) => (m.status || "pending") === "pending"
+            ).length;
+            return (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  marginBottom: 10,
+                  color: "rgba(255,255,255,0.75)",
+                  fontSize: 14,
+                }}
+              >
+                <Users size={15} style={{ color: "#ff8a2a" }} />
+                <span>
+                  <strong style={{ color: "#fff" }}>
+                    Group: {booked} of {everyone}
+                  </strong>{" "}
+                  travelers booked
+                </span>
+                {notJoined > 0 && (
+                  <span
+                    style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}
+                  >
+                    · {notJoined} {notJoined === 1 ? "hasn't" : "haven't"}{" "}
+                    accepted the invite yet
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <TripBudgetBar
             groupId={group._id}
             tb={myTrip}

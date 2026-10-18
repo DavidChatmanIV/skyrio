@@ -132,8 +132,17 @@ export default function TripBudgetBar({
           <div className="tbb-title">
             {doneCount === required.length
               ? "You're all booked 🎉"
-              : `${doneCount} of ${required.length} booked`}
+              : `Your bookings: ${doneCount} of ${required.length}`}
           </div>
+          {doneCount < required.length && (
+            <div className="tbb-sub" style={{ marginTop: 2 }}>
+              {required
+                .map((s) =>
+                  `${s.title.toLowerCase()} ${s.done ? "✓" : ""}`.trim()
+                )
+                .join(" + ")}
+            </div>
+          )}
         </div>
         {next && onFind && current !== next.kind && (
           <button
