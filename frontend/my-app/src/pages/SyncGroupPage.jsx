@@ -3188,11 +3188,59 @@ export default function SyncGroupPage() {
                 borderRadius: 1,
               }}
             />
-            {[...group.activityLog]
+            {(() => {
+              // Names people go by on this trip, longest first, so a message
+              // that already starts with the person's name isn't shown twice
+              // ("David Chatman David Chatman booked their room").
+              const tripNames = [
+                group.owner?.name,
+                group.owner?.username,
+                ...(group.members || []).flatMap((m) => [
+                  m.user?.name,
+                  m.user?.username,
+                  m.name,
+                  m.email,
+                ]),
+              ]
+                .filter(Boolean)
+                .map((n) => String(n).trim())
+                .filter((n) => n.length > 1)
+                .sort((a, b) => b.length - a.length);
+              return (activityLog) =>
+                activityLog.map((e) => {
+                  let msg = String(e.message || "");
+                  const lower = msg.toLowerCase();
+                  const dup = tripNames.find((n) =>
+                    lower.startsWith(n.toLowerCase() + " ")
+                  );
+                  if (dup && e.user) msg = msg.slice(dup.length + 1);
+                  return { ...e, _msg: msg };
+                });
+            })()([...group.activityLog])
               .reverse()
               .slice(0, 15)
               .map((e, i) => {
+                // Things Skyrio did on its own (a room booked once everyone
+                // held, an option that sold out) show under "Skyrio".
+                const SYSTEM_TYPES = [
+                  "shared_room_booked",
+                  "shared_room_released",
+                  "shortlist_unavailable",
+                ];
+                const actor = SYSTEM_TYPES.includes(e.type)
+                  ? "Skyrio"
+                  : e.user?.name ||
+                    e.user?.username ||
+                    (e.user ? "" : "Skyrio");
                 const icons = {
+                  shared_room_created: <Hotel size={10} />,
+                  shared_room_held: <Hotel size={10} />,
+                  shared_room_booked: (
+                    <CheckCircleOutlined style={{ fontSize: 10 }} />
+                  ),
+                  shared_room_released: <Hotel size={10} />,
+                  shared_room_cancelled: <Hotel size={10} />,
+                  shortlist_unavailable: <Info size={10} />,
                   created: <Plane size={10} />,
                   member_added: <Users size={10} />,
                   member_removed: <Users size={10} />,
@@ -3237,12 +3285,14 @@ export default function SyncGroupPage() {
                           fontSize: 13,
                         }}
                       >
-                        {e.user?.name && (
-                          <strong style={{ color: "#fff" }}>
-                            {e.user.name}{" "}
-                          </strong>
+                        {actor && (
+                          <strong style={{ color: "#fff" }}>{actor} </strong>
                         )}
-                        {e.message}
+                        {actor === "Skyrio" || !actor
+                          ? e._msg.charAt(0).toUpperCase() + e._msg.slice(1)
+                          : e._msg.charAt(0).toLowerCase() === e._msg.charAt(0)
+                          ? e._msg
+                          : e._msg.charAt(0).toLowerCase() + e._msg.slice(1)}
                       </div>
                       <div
                         style={{
