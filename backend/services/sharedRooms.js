@@ -35,15 +35,22 @@ import {
   sendSharedRoomCancelled,
   sendShareDeadlineReminder,
 } from "./syncEmails.js";
-import { recordEmailResult, onGroupBookingSaved } from "./bookingConfirmations.js";
+import {
+  recordEmailResult,
+  onGroupBookingSaved,
+} from "./bookingConfirmations.js";
 
 let _stripe;
 const stripe = () => {
-  if (!process.env.STRIPE_SECRET_KEY) throw new Error("STRIPE_SECRET_KEY is not set");
+  if (!process.env.STRIPE_SECRET_KEY)
+    throw new Error("STRIPE_SECRET_KEY is not set");
   return (_stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY));
 };
 
-export const HOLD_HOURS = Math.max(1, Number(process.env.SHARED_ROOM_HOLD_HOURS) || 48);
+export const HOLD_HOURS = Math.max(
+  1,
+  Number(process.env.SHARED_ROOM_HOLD_HOURS) || 48
+);
 export const SHARE_KIND = "shared_room_share"; // Stripe metadata.kind
 const ACTIVE = ["collecting", "booking", "booked"];
 
@@ -65,7 +72,9 @@ export function setSyncIo(io) {
 }
 function emitGroup(groupId, payload = {}) {
   try {
-    _io?.to(`group:${groupId}`).emit("sync:update", { groupId: String(groupId), ...payload });
+    _io
+      ?.to(`group:${groupId}`)
+      .emit("sync:update", { groupId: String(groupId), ...payload });
   } catch {
     /* live updates are best-effort */
   }
@@ -135,14 +144,19 @@ async function prebook(offerId) {
   });
   const prebookId = r?.data?.prebookId ?? r?.prebookId;
   const price = readPrebookPrice(r);
-  const currency = String(r?.data?.currency ?? r?.currency ?? "USD").toLowerCase();
+  const currency = String(
+    r?.data?.currency ?? r?.currency ?? "USD"
+  ).toLowerCase();
   if (!prebookId || !Number.isFinite(price)) {
     throw new SyncError(502, "The hotel didn't return a price for this room.");
   }
   return { prebookId, cents: Math.round(price * 100), currency };
 }
 
-const norm = (s) => String(s || "").trim().toLowerCase();
+const norm = (s) =>
+  String(s || "")
+    .trim()
+    .toLowerCase();
 
 // The offer from the original search may have expired by the time
 // everyone has paid. Search the same hotel again and find the same room.
@@ -160,21 +174,31 @@ async function requoteSameRoom(room) {
       maxRatesPerHotel: 30,
     },
   });
-  const hotel = (result?.data || []).find((h) => String(h.hotelId) === String(room.hotelId)) || result?.data?.[0];
+  const hotel =
+    (result?.data || []).find(
+      (h) => String(h.hotelId) === String(room.hotelId)
+    ) || result?.data?.[0];
   const candidates = [];
   for (const rt of hotel?.roomTypes || []) {
     const rate = rt?.rates?.[0] || {};
     if (norm(rate.name) !== norm(room.roomName)) continue;
-    if (room.boardName && norm(rate.boardName) !== norm(room.boardName)) continue;
-    const amount = Number(rt?.offerRetailRate?.amount ?? rate?.retailRate?.total?.[0]?.amount);
-    if (rt.offerId && Number.isFinite(amount)) candidates.push({ offerId: rt.offerId, amount });
+    if (room.boardName && norm(rate.boardName) !== norm(room.boardName))
+      continue;
+    const amount = Number(
+      rt?.offerRetailRate?.amount ?? rate?.retailRate?.total?.[0]?.amount
+    );
+    if (rt.offerId && Number.isFinite(amount))
+      candidates.push({ offerId: rt.offerId, amount });
   }
   candidates.sort((a, b) => a.amount - b.amount);
   return candidates[0] || null;
 }
 
 function splitName(full) {
-  const parts = String(full || "").trim().split(/\s+/).filter(Boolean);
+  const parts = String(full || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (parts.length < 2) return null;
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
@@ -208,9 +232,14 @@ function summarizeHotelPolicy(data, paid) {
   const r2 = (n) => Math.round(n * 100) / 100;
   return {
     refundableTag: cp.refundableTag || null,
-    policies: infos.map((p) => ({ after: p.cancelTime, fee: Number(p.amount) || 0, currency: p.currency || data?.currency || "USD" })),
+    policies: infos.map((p) => ({
+      after: p.cancelTime,
+      fee: Number(p.amount) || 0,
+      currency: p.currency || data?.currency || "USD",
+    })),
     estimatedFee: nonRefundable && !infos.length ? paid : Math.min(fee, paid),
-    estimatedRefund: nonRefundable && !infos.length ? 0 : Math.max(0, r2(paid - fee)),
+    estimatedRefund:
+      nonRefundable && !infos.length ? 0 : Math.max(0, r2(paid - fee)),
   };
 }
 
@@ -248,36 +277,69 @@ export function sharedRoomForClient(split, viewerId) {
 // ─────────────────────────────────────────────────────────────
 // 1. Organizer sets up a shared room
 // ─────────────────────────────────────────────────────────────
-export async function createSharedRoom({ group, actorUserId, room, userIds, holder }) {
+export async function createSharedRoom({
+  group,
+  actorUserId,
+  room,
+  userIds,
+  holder,
+}) {
   if (!isOrganizer(group, actorUserId)) {
-    throw new SyncError(403, "Only the trip organizer can set up a shared room.");
+    throw new SyncError(
+      403,
+      "Only the trip organizer can set up a shared room."
+    );
   }
-  if (group.status === "cancelled") throw new SyncError(400, "This trip was cancelled.");
+  if (group.status === "cancelled")
+    throw new SyncError(400, "This trip was cancelled.");
   if (!room?.offerId || !room?.hotelId || !room?.checkin || !room?.checkout) {
     throw new SyncError(400, "Pick a room from the hotel search first.");
   }
-  const holderName = { firstName: String(holder?.firstName || "").trim(), lastName: String(holder?.lastName || "").trim() };
-  const holderEmail = String(holder?.email || "").trim().toLowerCase();
-  if (!holderName.firstName || !holderName.lastName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(holderEmail)) {
-    throw new SyncError(400, "Enter the guest's first and last name and a contact email.");
+  const holderName = {
+    firstName: String(holder?.firstName || "").trim(),
+    lastName: String(holder?.lastName || "").trim(),
+  };
+  const holderEmail = String(holder?.email || "")
+    .trim()
+    .toLowerCase();
+  if (
+    !holderName.firstName ||
+    !holderName.lastName ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(holderEmail)
+  ) {
+    throw new SyncError(
+      400,
+      "Enter the guest's first and last name and a contact email."
+    );
   }
 
   const travelers = travelersOf(group);
   const wanted = [...new Set((userIds || []).map(String))];
   const people = travelers.filter((t) => t.userId && wanted.includes(t.userId));
   if (people.length !== wanted.length) {
-    throw new SyncError(400, "Everyone sharing the room must be on this trip and have a Skyrio account.");
+    throw new SyncError(
+      400,
+      "Everyone sharing the room must be on this trip and have a Skyrio account."
+    );
   }
-  if (people.length < 2) throw new SyncError(400, "Pick at least 2 people to share the room.");
+  if (people.length < 2)
+    throw new SyncError(400, "Pick at least 2 people to share the room.");
 
   const adults = Number(room.adults);
   if (!Number.isFinite(adults) || adults < 1) {
-    throw new SyncError(400, "Search hotels again so we know how many guests this room is for.");
+    throw new SyncError(
+      400,
+      "Search hotels again so we know how many guests this room is for."
+    );
   }
   if (people.length > adults) {
     throw new SyncError(
       400,
-      `This room was priced for ${adults} guest${adults === 1 ? "" : "s"}. Search again with ${people.length} guests so the hotel prices it for everyone.`
+      `This room was priced for ${adults} guest${
+        adults === 1 ? "" : "s"
+      }. Search again with ${
+        people.length
+      } guests so the hotel prices it for everyone.`
     );
   }
 
@@ -289,9 +351,16 @@ export async function createSharedRoom({ group, actorUserId, room, userIds, hold
     "shares.user": { $in: people.map((p) => p.userId) },
   }).lean();
   if (busy.length) {
-    const taken = new Set(busy.flatMap((b) => b.shares.map((s) => String(s.user))));
+    const taken = new Set(
+      busy.flatMap((b) => b.shares.map((s) => String(s.user)))
+    );
     const names = people.filter((p) => taken.has(p.userId)).map((p) => p.name);
-    throw new SyncError(409, `${names.join(", ")} already ${names.length === 1 ? "has" : "have"} a shared room on this trip.`);
+    throw new SyncError(
+      409,
+      `${names.join(", ")} already ${
+        names.length === 1 ? "has" : "have"
+      } a shared room on this trip.`
+    );
   }
 
   // Check the price with the hotel now so nobody holds the wrong amount.
@@ -307,9 +376,17 @@ export async function createSharedRoom({ group, actorUserId, room, userIds, hold
   }
 
   // Organizer first so any leftover cent lands on them.
-  people.sort((a, b) => (a.userId === String(actorUserId) ? -1 : b.userId === String(actorUserId) ? 1 : 0));
+  people.sort((a, b) =>
+    a.userId === String(actorUserId)
+      ? -1
+      : b.userId === String(actorUserId)
+      ? 1
+      : 0
+  );
   const amounts = evenSplit(quote.cents, people.length);
-  const accounts = await User.find({ _id: { $in: people.map((p) => p.userId) } })
+  const accounts = await User.find({
+    _id: { $in: people.map((p) => p.userId) },
+  })
     .select("name username email")
     .lean();
   const byId = Object.fromEntries(accounts.map((u) => [String(u._id), u]));
@@ -353,7 +430,9 @@ export async function createSharedRoom({ group, actorUserId, room, userIds, hold
         activityLog: {
           type: "shared_room_created",
           user: actorUserId,
-          message: `Set up a shared room at ${room.name || "the hotel"} for ${people.length} people`,
+          message: `Set up a shared room at ${room.name || "the hotel"} for ${
+            people.length
+          } people`,
           createdAt: new Date(),
         },
       },
@@ -378,7 +457,9 @@ export async function createSharedRoom({ group, actorUserId, room, userIds, hold
       user: s.user,
       type: "booking",
       title: "Hold your share of the room 🛏️",
-      message: `You're sharing a room at ${split.room.name || "the hotel"}. Hold your share before the deadline.`,
+      message: `You're sharing a room at ${
+        split.room.name || "the hotel"
+      }. Hold your share before the deadline.`,
       link: `/sync-together/${group._id}`,
     }).catch(() => {});
   }
@@ -391,10 +472,16 @@ export async function createSharedRoom({ group, actorUserId, room, userIds, hold
 // 2. A person holds their share
 // ─────────────────────────────────────────────────────────────
 async function loadShare(splitId, shareId, userId) {
-  if (!mongoose.isValidObjectId(splitId) || !mongoose.isValidObjectId(shareId)) {
+  if (
+    !mongoose.isValidObjectId(splitId) ||
+    !mongoose.isValidObjectId(shareId)
+  ) {
     throw new SyncError(400, "Invalid shared room.");
   }
-  const split = await SplitPayment.findOne({ _id: splitId, kind: "shared_room" });
+  const split = await SplitPayment.findOne({
+    _id: splitId,
+    kind: "shared_room",
+  });
   if (!split) throw new SyncError(404, "Shared room not found.");
   const share = split.shares.id(shareId);
   if (!share) throw new SyncError(404, "Share not found.");
@@ -404,11 +491,35 @@ async function loadShare(splitId, shareId, userId) {
   return { split, share };
 }
 
+// Stripe says "No such payment_intent" when an id belongs to another
+// account (keys changed) or was deleted. Treat that as "no hold yet".
+async function retrieveIntentOrNull(id) {
+  try {
+    return await stripe().paymentIntents.retrieve(id);
+  } catch (e) {
+    if (e?.code === "resource_missing" || e?.statusCode === 404) {
+      console.warn(
+        "[shared-room] saved PaymentIntent not found — starting a new hold",
+        id
+      );
+      return null;
+    }
+    throw e;
+  }
+}
+
 export async function startShareHold({ splitId, shareId, userId }) {
   let { split, share } = await loadShare(splitId, shareId, userId);
-  if (split.status === "collecting" && split.deadline && split.deadline <= new Date()) {
+  if (
+    split.status === "collecting" &&
+    split.deadline &&
+    split.deadline <= new Date()
+  ) {
     await releaseSharedRoom(split._id, "expired");
-    throw new SyncError(410, "The deadline for this room has passed, so it was released.");
+    throw new SyncError(
+      410,
+      "The deadline for this room has passed, so it was released."
+    );
   }
   if (split.status !== "collecting") {
     throw new SyncError(409, "This room is no longer collecting holds.");
@@ -418,17 +529,39 @@ export async function startShareHold({ splitId, shareId, userId }) {
   }
 
   // Reuse an open PaymentIntent so retries don't create extra holds.
-  if (share.stripePaymentIntentId) {
-    const pi = await stripe().paymentIntents.retrieve(share.stripePaymentIntentId);
+  // If the saved hold can't be found (e.g. it was made with a different
+  // Stripe account/keys), forget it and start a fresh one below.
+  const existing = share.stripePaymentIntentId
+    ? await retrieveIntentOrNull(share.stripePaymentIntentId)
+    : null;
+  if (existing) {
+    const pi = existing;
     if (pi.status === "requires_capture") {
-      await markShareAuthorized({ splitId: split._id, shareId: share._id, paymentIntentId: pi.id });
+      await markShareAuthorized({
+        splitId: split._id,
+        shareId: share._id,
+        paymentIntentId: pi.id,
+      });
       return { alreadyHeld: true };
     }
-    if (["requires_payment_method", "requires_confirmation", "requires_action"].includes(pi.status) && pi.amount === share.amountOwed) {
-      return { clientSecret: pi.client_secret, amount: share.amountOwed, currency: split.currency };
+    if (
+      [
+        "requires_payment_method",
+        "requires_confirmation",
+        "requires_action",
+      ].includes(pi.status) &&
+      pi.amount === share.amountOwed
+    ) {
+      return {
+        clientSecret: pi.client_secret,
+        amount: share.amountOwed,
+        currency: split.currency,
+      };
     }
     if (pi.status !== "canceled") {
-      await stripe().paymentIntents.cancel(pi.id).catch(() => {});
+      await stripe()
+        .paymentIntents.cancel(pi.id)
+        .catch(() => {});
     }
   }
 
@@ -449,9 +582,19 @@ export async function startShareHold({ splitId, shareId, userId }) {
   });
   await SplitPayment.updateOne(
     { _id: split._id, "shares._id": share._id },
-    { $set: { "shares.$.stripePaymentIntentId": pi.id, "shares.$.status": "unpaid", "shares.$.lastError": null } }
+    {
+      $set: {
+        "shares.$.stripePaymentIntentId": pi.id,
+        "shares.$.status": "unpaid",
+        "shares.$.lastError": null,
+      },
+    }
   );
-  return { clientSecret: pi.client_secret, amount: share.amountOwed, currency: split.currency };
+  return {
+    clientSecret: pi.client_secret,
+    amount: share.amountOwed,
+    currency: split.currency,
+  };
 }
 
 // Called by the trip page right after the card is confirmed, and by the
@@ -459,22 +602,38 @@ export async function startShareHold({ splitId, shareId, userId }) {
 // runs first records it.
 export async function confirmShareHold({ splitId, shareId, userId }) {
   const { share } = await loadShare(splitId, shareId, userId);
-  if (share.status === "authorized" || share.status === "paid") return { held: true };
-  if (!share.stripePaymentIntentId) throw new SyncError(400, "No card hold was started.");
-  const pi = await stripe().paymentIntents.retrieve(share.stripePaymentIntentId);
+  if (share.status === "authorized" || share.status === "paid")
+    return { held: true };
+  if (!share.stripePaymentIntentId)
+    throw new SyncError(400, "No card hold was started.");
+  const pi = await retrieveIntentOrNull(share.stripePaymentIntentId);
+  if (!pi)
+    throw new SyncError(
+      409,
+      "Your card hold couldn't be found. Please hold your share again."
+    );
   if (pi.status !== "requires_capture") {
-    throw new SyncError(402, "Your card hasn't been authorized yet. Please try again.");
+    throw new SyncError(
+      402,
+      "Your card hasn't been authorized yet. Please try again."
+    );
   }
   await markShareAuthorized({ splitId, shareId, paymentIntentId: pi.id });
   return { held: true };
 }
 
-export async function markShareAuthorized({ splitId, shareId, paymentIntentId }) {
+export async function markShareAuthorized({
+  splitId,
+  shareId,
+  paymentIntentId,
+}) {
   const r = await SplitPayment.updateOne(
     {
       _id: splitId,
       status: "collecting",
-      shares: { $elemMatch: { _id: shareId, status: { $in: ["unpaid", "failed"] } } },
+      shares: {
+        $elemMatch: { _id: shareId, status: { $in: ["unpaid", "failed"] } },
+      },
     },
     {
       $set: {
@@ -488,8 +647,15 @@ export async function markShareAuthorized({ splitId, shareId, paymentIntentId })
   if (!r.modifiedCount) {
     // The room closed while this card was being authorized — let the hold go.
     const split = await SplitPayment.findById(splitId).lean();
-    if (split && split.status !== "collecting" && split.status !== "booking" && split.status !== "booked") {
-      await stripe().paymentIntents.cancel(paymentIntentId).catch(() => {});
+    if (
+      split &&
+      split.status !== "collecting" &&
+      split.status !== "booking" &&
+      split.status !== "booked"
+    ) {
+      await stripe()
+        .paymentIntents.cancel(paymentIntentId)
+        .catch(() => {});
     }
     return { changed: false };
   }
@@ -504,8 +670,16 @@ export async function markShareAuthorized({ splitId, shareId, paymentIntentId })
 
 export async function markShareFailed({ splitId, shareId, message }) {
   await SplitPayment.updateOne(
-    { _id: splitId, shares: { $elemMatch: { _id: shareId, status: "unpaid" } } },
-    { $set: { "shares.$.status": "failed", "shares.$.lastError": message || "Card declined" } }
+    {
+      _id: splitId,
+      shares: { $elemMatch: { _id: shareId, status: "unpaid" } },
+    },
+    {
+      $set: {
+        "shares.$.status": "failed",
+        "shares.$.lastError": message || "Card declined",
+      },
+    }
   );
 }
 
@@ -519,7 +693,9 @@ export async function finalizeSharedRoom(splitId) {
     {
       _id: splitId,
       status: "collecting",
-      shares: { $not: { $elemMatch: { status: { $nin: ["authorized", "paid"] } } } },
+      shares: {
+        $not: { $elemMatch: { status: { $nin: ["authorized", "paid"] } } },
+      },
     },
     { $set: { status: "booking" } },
     { new: true }
@@ -530,14 +706,19 @@ export async function finalizeSharedRoom(splitId) {
   for (const s of split.shares) {
     let ok = false;
     try {
-      const pi = await stripe().paymentIntents.retrieve(s.stripePaymentIntentId);
-      ok = pi.status === "requires_capture" && pi.amount_capturable >= s.amountOwed;
+      const pi = await stripe().paymentIntents.retrieve(
+        s.stripePaymentIntentId
+      );
+      ok =
+        pi.status === "requires_capture" &&
+        pi.amount_capturable >= s.amountOwed;
     } catch {
       ok = false;
     }
     if (!ok) {
       s.status = "unpaid";
-      s.lastError = "Your card hold expired or was released. Please hold your share again.";
+      s.lastError =
+        "Your card hold expired or was released. Please hold your share again.";
       split.status = "collecting";
       await split.save();
       emitGroup(split.group, { sharedRoomId: String(split._id) });
@@ -555,20 +736,40 @@ export async function finalizeSharedRoom(splitId) {
       const again = await requoteSameRoom(split.room);
       if (again) quote = await prebook(again.offerId);
     } catch (e) {
-      console.error("[shared-room] requote failed", String(split._id), e?.message);
+      console.error(
+        "[shared-room] requote failed",
+        String(split._id),
+        e?.message
+      );
     }
   }
-  if (!quote) return releaseSharedRoom(split._id, "sold_out", { fromStatus: "booking" });
+  if (!quote)
+    return releaseSharedRoom(split._id, "sold_out", { fromStatus: "booking" });
   if (quote.cents > split.totalCents) {
-    console.warn("[shared-room] price rose", String(split._id), split.totalCents, "→", quote.cents);
-    return releaseSharedRoom(split._id, "price_changed", { fromStatus: "booking" });
+    console.warn(
+      "[shared-room] price rose",
+      String(split._id),
+      split.totalCents,
+      "→",
+      quote.cents
+    );
+    return releaseSharedRoom(split._id, "price_changed", {
+      fromStatus: "booking",
+    });
   }
 
   // Book it.
   const holder = split.holder?.firstName ? split.holder : null;
-  const fallback = splitName(split.shares[0]?.name) || { firstName: split.shares[0]?.name || "Guest", lastName: "Guest" };
+  const fallback = splitName(split.shares[0]?.name) || {
+    firstName: split.shares[0]?.name || "Guest",
+    lastName: "Guest",
+  };
   const h = holder
-    ? { firstName: holder.firstName, lastName: holder.lastName, email: holder.email }
+    ? {
+        firstName: holder.firstName,
+        lastName: holder.lastName,
+        email: holder.email,
+      }
     : { ...fallback, email: split.shares[0]?.email };
   let booked;
   try {
@@ -576,22 +777,40 @@ export async function finalizeSharedRoom(splitId) {
       method: "POST",
       body: {
         holder: h,
-        guests: [{ occupancyNumber: 1, firstName: h.firstName, lastName: h.lastName, email: h.email }],
+        guests: [
+          {
+            occupancyNumber: 1,
+            firstName: h.firstName,
+            lastName: h.lastName,
+            email: h.email,
+          },
+        ],
         payment: { method: "ACC_CREDIT_CARD" },
         prebookId: quote.prebookId,
       },
     });
     booked = result?.data ?? result ?? {};
   } catch (e) {
-    console.error("[shared-room] LiteAPI book failed", String(split._id), e?.message);
+    console.error(
+      "[shared-room] LiteAPI book failed",
+      String(split._id),
+      e?.message
+    );
     return releaseSharedRoom(split._id, "failed", { fromStatus: "booking" });
   }
   if (!booked.bookingId) {
-    console.error("[shared-room] LiteAPI returned no bookingId — check by hand", String(split._id), booked);
+    console.error(
+      "[shared-room] LiteAPI returned no bookingId — check by hand",
+      String(split._id),
+      booked
+    );
   }
 
   // Charge each hold — everyone pays less if the hotel price dropped.
-  const charges = scaleShares(split.shares.map((s) => s.amountOwed), quote.cents);
+  const charges = scaleShares(
+    split.shares.map((s) => s.amountOwed),
+    quote.cents
+  );
   const currencyUpper = String(split.currency || "usd").toUpperCase();
   const tripDetails = [
     split.room.name || "Hotel stay",
@@ -613,9 +832,15 @@ export async function finalizeSharedRoom(splitId) {
       s.capturedCents = amount;
     } catch (e) {
       // The room IS booked; this person's charge didn't go through.
-      console.error("[shared-room] RECONCILE — room booked but capture failed", String(split._id), String(s._id), e?.message);
+      console.error(
+        "[shared-room] RECONCILE — room booked but capture failed",
+        String(split._id),
+        String(s._id),
+        e?.message
+      );
       s.status = "failed";
-      s.lastError = "Room booked, but this card couldn't be charged. Skyrio support will follow up.";
+      s.lastError =
+        "Room booked, but this card couldn't be charged. Skyrio support will follow up.";
     }
 
     try {
@@ -625,7 +850,10 @@ export async function finalizeSharedRoom(splitId) {
         email: s.email,
         tripDetails,
         type: "Hotel",
-        dates: { start: new Date(`${split.room.checkin}T12:00:00Z`), end: new Date(`${split.room.checkout}T12:00:00Z`) },
+        dates: {
+          start: new Date(`${split.room.checkin}T12:00:00Z`),
+          end: new Date(`${split.room.checkout}T12:00:00Z`),
+        },
         travelers: 1,
         passengers: [{ name: s.name, type: "adult" }],
         status: s.status === "paid" ? "confirmed" : "pending",
@@ -637,11 +865,23 @@ export async function finalizeSharedRoom(splitId) {
         stripePaymentIntentId: s.stripePaymentIntentId,
         provider: "liteapi",
         providerBookingIds: booked.bookingId ? [String(booked.bookingId)] : [],
-        confirmationCodes: booked.hotelConfirmationCode ? [String(booked.hotelConfirmationCode)] : [],
+        confirmationCodes: booked.hotelConfirmationCode
+          ? [String(booked.hotelConfirmationCode)]
+          : [],
         hotelStay: {
-          rooms: [{ ...JSON.parse(JSON.stringify(split.room)), totalAmount: (s.capturedCents || 0) / 100, totalCurrency: currencyUpper }],
+          rooms: [
+            {
+              ...JSON.parse(JSON.stringify(split.room)),
+              totalAmount: (s.capturedCents || 0) / 100,
+              totalCurrency: currencyUpper,
+            },
+          ],
           confirmation: [
-            { prebookId: quote.prebookId, bookingId: booked.bookingId || null, hotelConfirmationCode: booked.hotelConfirmationCode || null },
+            {
+              prebookId: quote.prebookId,
+              bookingId: booked.bookingId || null,
+              hotelConfirmationCode: booked.hotelConfirmationCode || null,
+            },
           ],
         },
         syncGroup: split.group,
@@ -656,7 +896,12 @@ export async function finalizeSharedRoom(splitId) {
       });
       s.booking = rec._id;
     } catch (e) {
-      console.error("[shared-room] couldn't save My Trips record (room IS booked)", String(split._id), String(s._id), e?.message);
+      console.error(
+        "[shared-room] couldn't save My Trips record (room IS booked)",
+        String(split._id),
+        String(s._id),
+        e?.message
+      );
     }
   }
 
@@ -664,7 +909,9 @@ export async function finalizeSharedRoom(splitId) {
   split.supplier = {
     prebookId: quote.prebookId,
     bookingId: booked.bookingId ? String(booked.bookingId) : null,
-    hotelConfirmationCode: booked.hotelConfirmationCode ? String(booked.hotelConfirmationCode) : null,
+    hotelConfirmationCode: booked.hotelConfirmationCode
+      ? String(booked.hotelConfirmationCode)
+      : null,
     bookedCents: quote.cents,
     bookedAt: new Date(),
   };
@@ -677,7 +924,9 @@ export async function finalizeSharedRoom(splitId) {
         activityLog: {
           type: "shared_room_booked",
           user: null,
-          message: `Everyone held their share — ${split.room.name || "the shared room"} is booked`,
+          message: `Everyone held their share — ${
+            split.room.name || "the shared room"
+          } is booked`,
           createdAt: new Date(),
         },
       },
@@ -701,11 +950,14 @@ export async function finalizeSharedRoom(splitId) {
       shareCents: s.capturedCents,
       currency: split.currency,
       people: split.shares.length,
-      confirmationCode: split.supplier.hotelConfirmationCode || split.supplier.bookingId,
+      confirmationCode:
+        split.supplier.hotelConfirmationCode || split.supplier.bookingId,
       bookingId: s.booking,
     });
     if (s.booking) {
-      sent.then((r) => recordEmailResult(s.booking, s.email, r)).catch(() => {});
+      sent
+        .then((r) => recordEmailResult(s.booking, s.email, r))
+        .catch(() => {});
     }
   }
   // One group update for the whole room (checks "everyone's booked").
@@ -723,8 +975,16 @@ export async function finalizeSharedRoom(splitId) {
 // ─────────────────────────────────────────────────────────────
 // 4. Release every hold — nobody is charged
 // ─────────────────────────────────────────────────────────────
-export async function releaseSharedRoom(splitId, reason = "released", { fromStatus = "collecting", notify = true } = {}) {
-  const closed = ["expired", "released", "member_left"].includes(reason) ? (reason === "expired" ? "expired" : "released") : "failed";
+export async function releaseSharedRoom(
+  splitId,
+  reason = "released",
+  { fromStatus = "collecting", notify = true } = {}
+) {
+  const closed = ["expired", "released", "member_left"].includes(reason)
+    ? reason === "expired"
+      ? "expired"
+      : "released"
+    : "failed";
   const split = await SplitPayment.findOneAndUpdate(
     { _id: splitId, status: fromStatus },
     { $set: { status: closed, closedReason: reason } },
@@ -735,12 +995,18 @@ export async function releaseSharedRoom(splitId, reason = "released", { fromStat
   for (const s of split.shares) {
     if (s.stripePaymentIntentId && s.status !== "paid") {
       try {
-        const pi = await stripe().paymentIntents.retrieve(s.stripePaymentIntentId);
+        const pi = await stripe().paymentIntents.retrieve(
+          s.stripePaymentIntentId
+        );
         if (!["canceled", "succeeded"].includes(pi.status)) {
           await stripe().paymentIntents.cancel(s.stripePaymentIntentId);
         }
       } catch (e) {
-        console.error("[shared-room] couldn't release hold — check Stripe", s.stripePaymentIntentId, e?.message);
+        console.error(
+          "[shared-room] couldn't release hold — check Stripe",
+          s.stripePaymentIntentId,
+          e?.message
+        );
       }
     }
     if (s.status !== "paid") s.status = "released";
@@ -754,7 +1020,9 @@ export async function releaseSharedRoom(splitId, reason = "released", { fromStat
         activityLog: {
           type: "shared_room_released",
           user: null,
-          message: `Shared room at ${split.room?.name || "the hotel"} released — nobody was charged`,
+          message: `Shared room at ${
+            split.room?.name || "the hotel"
+          } released — nobody was charged`,
           createdAt: new Date(),
         },
       },
@@ -763,12 +1031,20 @@ export async function releaseSharedRoom(splitId, reason = "released", { fromStat
 
   if (notify) {
     for (const s of split.shares) {
-      sendSharedRoomReleased({ to: s.email, name: s.name, room: split.room, reason, groupId: split.group });
+      sendSharedRoomReleased({
+        to: s.email,
+        name: s.name,
+        room: split.room,
+        reason,
+        groupId: split.group,
+      });
       Notification.create({
         user: s.user,
         type: "booking",
         title: "Shared room released",
-        message: `The shared room at ${split.room?.name || "the hotel"} was released. You weren't charged.`,
+        message: `The shared room at ${
+          split.room?.name || "the hotel"
+        } was released. You weren't charged.`,
         link: `/sync-together/${split.group}`,
       }).catch(() => {});
     }
@@ -800,7 +1076,11 @@ export async function expireDueSharedRooms(filter = {}) {
   })
     .select("_id group")
     .lean();
-  for (const s of stuck) console.error("[shared-room] RECONCILE — stuck in 'booking'", String(s._id));
+  for (const s of stuck)
+    console.error(
+      "[shared-room] RECONCILE — stuck in 'booking'",
+      String(s._id)
+    );
   return { expired: due.length };
 }
 
@@ -831,13 +1111,20 @@ export async function sendDeadlineReminders(filter = {}) {
     const markAt = room.deadline.getTime() - mark.ms;
     if (room.createdAt && room.createdAt.getTime() > markAt) continue;
 
-    const heldCount = room.shares.filter((s) => s.status === "authorized" || s.status === "paid").length;
+    const heldCount = room.shares.filter(
+      (s) => s.status === "authorized" || s.status === "paid"
+    ).length;
     for (const s of room.shares) {
       if (!["unpaid", "failed"].includes(s.status)) continue;
       if ((s.remindersSent || []).includes(mark.key)) continue;
       // Claim the mark first so two job runs can't both send it.
       const claimed = await SplitPayment.updateOne(
-        { _id: room._id, shares: { $elemMatch: { _id: s._id, remindersSent: { $ne: mark.key } } } },
+        {
+          _id: room._id,
+          shares: {
+            $elemMatch: { _id: s._id, remindersSent: { $ne: mark.key } },
+          },
+        },
         { $addToSet: { "shares.$.remindersSent": mark.key } }
       );
       if (!claimed.modifiedCount) continue;
@@ -857,8 +1144,15 @@ export async function sendDeadlineReminders(filter = {}) {
       Notification.create({
         user: s.user,
         type: "booking",
-        title: mark.key === "6h" ? "Last call for the shared room ⏳" : "Hold your share of the room",
-        message: `${heldCount} of ${room.shares.length} have held their share of ${room.room?.name || "the room"}. It's released if everyone isn't in by the deadline.`,
+        title:
+          mark.key === "6h"
+            ? "Last call for the shared room ⏳"
+            : "Hold your share of the room",
+        message: `${heldCount} of ${
+          room.shares.length
+        } have held their share of ${
+          room.room?.name || "the room"
+        }. It's released if everyone isn't in by the deadline.`,
         link: `/sync-together/${room.group}`,
       }).catch(() => {});
     }
@@ -884,28 +1178,49 @@ export async function releaseRoomsForUser(groupId, userId) {
 // 5. Organizer cancels a booked shared room
 // ─────────────────────────────────────────────────────────────
 export async function sharedRoomCancelQuote(split) {
-  if (split.status !== "booked") throw new SyncError(409, "Only a booked room can be cancelled.");
-  const paid = split.shares.reduce((a, s) => a + (s.capturedCents || 0), 0) / 100;
-  let summary = { estimatedRefund: null, estimatedFee: null, policies: [], refundableTag: null };
+  if (split.status !== "booked")
+    throw new SyncError(409, "Only a booked room can be cancelled.");
+  const paid =
+    split.shares.reduce((a, s) => a + (s.capturedCents || 0), 0) / 100;
+  let summary = {
+    estimatedRefund: null,
+    estimatedFee: null,
+    policies: [],
+    refundableTag: null,
+  };
   if (split.supplier?.bookingId) {
     try {
       const { data } = await hotelGetBooking(split.supplier.bookingId);
       summary = summarizeHotelPolicy(data, paid);
     } catch (e) {
-      console.error("[shared-room] cancel quote failed", String(split._id), e?.message);
-      throw new SyncError(502, "We couldn't get the hotel's cancellation terms right now. Try again, or contact support.");
+      console.error(
+        "[shared-room] cancel quote failed",
+        String(split._id),
+        e?.message
+      );
+      throw new SyncError(
+        502,
+        "We couldn't get the hotel's cancellation terms right now. Try again, or contact support."
+      );
     }
   }
   const perPerson =
     summary.estimatedRefund != null
-      ? scaleShares(split.shares.map((s) => s.capturedCents || 0), Math.round(summary.estimatedRefund * 100))
+      ? scaleShares(
+          split.shares.map((s) => s.capturedCents || 0),
+          Math.round(summary.estimatedRefund * 100)
+        )
       : null;
   return {
     paid,
     currency: String(split.currency || "usd").toUpperCase(),
     ...summary,
     perPerson: perPerson
-      ? split.shares.map((s, i) => ({ shareId: String(s._id), name: s.name, refundCents: perPerson[i] }))
+      ? split.shares.map((s, i) => ({
+          shareId: String(s._id),
+          name: s.name,
+          refundCents: perPerson[i],
+        }))
       : null,
   };
 }
@@ -916,7 +1231,11 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
     { $set: { status: "cancelled", closedReason: "cancelled" } },
     { new: true }
   );
-  if (!locked) throw new SyncError(409, "This room is already cancelled or not booked yet.");
+  if (!locked)
+    throw new SyncError(
+      409,
+      "This room is already cancelled or not booked yet."
+    );
 
   let supplierData = {};
   if (locked.supplier?.bookingId) {
@@ -925,24 +1244,42 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
       supplierData = r.data || {};
     } catch (e) {
       if (/already\s+cancel/i.test(e.message || "")) {
-        const live = await hotelGetBooking(locked.supplier.bookingId).catch(() => null);
+        const live = await hotelGetBooking(locked.supplier.bookingId).catch(
+          () => null
+        );
         supplierData = live?.data || {};
       } else {
         locked.status = "booked";
         locked.closedReason = null;
         await locked.save();
-        console.error("[shared-room] hotel refused cancellation", String(locked._id), e?.message);
-        throw new SyncError(502, "The hotel didn't accept the cancellation. Nothing was changed. Try again or contact support.");
+        console.error(
+          "[shared-room] hotel refused cancellation",
+          String(locked._id),
+          e?.message
+        );
+        throw new SyncError(
+          502,
+          "The hotel didn't accept the cancellation. Nothing was changed. Try again or contact support."
+        );
       }
     }
   }
 
   const captured = locked.shares.map((s) => s.capturedCents || 0);
   const paidCents = captured.reduce((a, b) => a + b, 0);
-  const supplierRefund = pickAmount(supplierData, ["refund_amount", "refundAmount", "refund"]) || 0;
-  const fee = pickAmount(supplierData, ["cancellation_fee", "cancellationFee", "penalty"]) || 0;
+  const supplierRefund =
+    pickAmount(supplierData, ["refund_amount", "refundAmount", "refund"]) || 0;
+  const fee =
+    pickAmount(supplierData, [
+      "cancellation_fee",
+      "cancellationFee",
+      "penalty",
+    ]) || 0;
   const refundTotal = Math.min(Math.round(supplierRefund * 100), paidCents);
-  const refunds = refundTotal > 0 ? scaleShares(captured, refundTotal) : captured.map(() => 0);
+  const refunds =
+    refundTotal > 0
+      ? scaleShares(captured, refundTotal)
+      : captured.map(() => 0);
   const currencyUpper = String(locked.currency || "usd").toUpperCase();
 
   for (let i = 0; i < locked.shares.length; i++) {
@@ -957,7 +1294,11 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
           {
             payment_intent: s.stripePaymentIntentId,
             amount: cents,
-            metadata: { splitPaymentId: String(locked._id), shareId: String(s._id), reason: "shared_room_cancelled" },
+            metadata: {
+              splitPaymentId: String(locked._id),
+              shareId: String(s._id),
+              reason: "shared_room_cancelled",
+            },
           },
           { idempotencyKey: `shared_refund_${locked._id}_${s._id}` }
         );
@@ -968,7 +1309,12 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
       } catch (e) {
         refundError = e.message;
         refundStatus = "failed";
-        console.error("[shared-room] RECONCILE — room cancelled but refund failed", String(locked._id), String(s._id), e?.message);
+        console.error(
+          "[shared-room] RECONCILE — room cancelled but refund failed",
+          String(locked._id),
+          String(s._id),
+          e?.message
+        );
       }
     }
     if (s.booking) {
@@ -984,7 +1330,13 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
               at: new Date(),
               by: "organizer",
               byUserId: String(actorUserId),
-              supplier: [{ bookingId: locked.supplier?.bookingId, ok: true, data: supplierData }],
+              supplier: [
+                {
+                  bookingId: locked.supplier?.bookingId,
+                  ok: true,
+                  data: supplierData,
+                },
+              ],
               supplierRefund,
               cancellationFee: fee,
               customerRefund: cents / 100,
@@ -995,7 +1347,13 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
             },
           },
         }
-      ).catch((e) => console.error("[shared-room] booking record update failed", String(s.booking), e?.message));
+      ).catch((e) =>
+        console.error(
+          "[shared-room] booking record update failed",
+          String(s.booking),
+          e?.message
+        )
+      );
     }
     sendSharedRoomCancelled({
       to: s.email,
@@ -1009,7 +1367,9 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
       user: s.user,
       type: "booking",
       title: "Shared room cancelled",
-      message: `${actorName || "The organizer"} cancelled the shared room at ${locked.room?.name || "the hotel"}.`,
+      message: `${actorName || "The organizer"} cancelled the shared room at ${
+        locked.room?.name || "the hotel"
+      }.`,
       link: "/saved-trips",
     }).catch(() => {});
   }
@@ -1032,7 +1392,9 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
         activityLog: {
           type: "shared_room_cancelled",
           user: actorUserId,
-          message: `Cancelled the shared room at ${locked.room?.name || "the hotel"}`,
+          message: `Cancelled the shared room at ${
+            locked.room?.name || "the hotel"
+          }`,
           createdAt: new Date(),
         },
       },
@@ -1042,7 +1404,10 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
   return {
     refundedCents: refunds.reduce((a, b) => a + b, 0),
     currency: currencyUpper,
-    perPerson: locked.shares.map((s, i) => ({ name: s.name, refundCents: refunds[i] })),
+    perPerson: locked.shares.map((s, i) => ({
+      name: s.name,
+      refundCents: refunds[i],
+    })),
   };
 }
 
@@ -1055,8 +1420,12 @@ export function startSharedRoomJobs({ everyMs = 10 * 60 * 1000 } = {}) {
   if (_timer) return;
   const tick = async () => {
     if (mongoose.connection.readyState !== 1) return;
-    await expireDueSharedRooms().catch((e) => console.error("[shared-room] expire job error", e?.message));
-    await sendDeadlineReminders().catch((e) => console.error("[shared-room] reminder job error", e?.message));
+    await expireDueSharedRooms().catch((e) =>
+      console.error("[shared-room] expire job error", e?.message)
+    );
+    await sendDeadlineReminders().catch((e) =>
+      console.error("[shared-room] reminder job error", e?.message)
+    );
   };
   _timer = setInterval(tick, everyMs);
   _timer.unref?.();
