@@ -34,19 +34,17 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 import AttachBookingCard, { fmtRange } from "./AttachBookingCard";
+import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
   CardElement,
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
-import { getSkyrioStripe, useSkyrioStripeStatus } from "@/utils/skyrioStripe";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 // Same Stripe key the hotel checkout uses (Skyrio is the merchant for rooms).
-// Hotels/shared rooms use Skyrio's own Stripe. The key comes from the build
-// or, if missing there, from the backend at runtime (see skyrioStripe.js).
-const stripePromise = getSkyrioStripe();
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || "");
 
 function authHeaders() {
   const token = localStorage.getItem("token");
@@ -172,35 +170,8 @@ const CLOSED_REASON = {
   released: "The organizer released the room. Nobody was charged.",
 };
 
-/* ── Confirm dialogs ──
-   The app's modals have a dark background, but antd's confirm text is dark
-   by default — unreadable. This sets light, high-contrast text explicitly. */
-function confirmDark({ title, content, ...rest }) {
-  return Modal.confirm({
-    ...rest,
-    title: (
-      <span style={{ color: "#fff", fontWeight: 700, fontSize: 17 }}>
-        {title}
-      </span>
-    ),
-    content: (
-      <div
-        style={{
-          color: "rgba(255,255,255,0.85)",
-          fontSize: 14,
-          lineHeight: 1.6,
-        }}
-      >
-        {content}
-      </div>
-    ),
-  });
-}
-
 /* ═══ Hold my share — card form ═══ */
 function HoldShareForm({ groupId, room, share, onDone }) {
-  const stripeStatus = useSkyrioStripeStatus();
-  const STRIPE_KEY_MISSING = stripeStatus === "missing";
   const stripe = useStripe();
   const elements = useElements();
   const [busy, setBusy] = useState(false);
@@ -266,15 +237,6 @@ function HoldShareForm({ groupId, room, share, onDone }) {
           }}
         />
       </div>
-      {STRIPE_KEY_MISSING && (
-        <div
-          role="alert"
-          style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}
-        >
-          Card payments aren't available on this site right now. Please try
-          again later or contact Skyrio support.
-        </div>
-      )}
       {error && (
         <div
           role="alert"
@@ -306,22 +268,8 @@ function HoldShareForm({ groupId, room, share, onDone }) {
 }
 
 /* ═══ One shared room ═══ */
-function SharedRoomCard({
-  groupId,
-  room,
-  isOrganizer,
-  onChanged,
-  autoOpen = false,
-}) {
-  // Opened from "Set up shared room" at hotel checkout: show your hold form
-  // straight away and scroll to it.
-  const [showForm, setShowForm] = useState(autoOpen);
-  const cardRef = React.useRef(null);
-  useEffect(() => {
-    if (autoOpen && cardRef.current) {
-      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [autoOpen]);
+function SharedRoomCard({ groupId, room, isOrganizer, onChanged }) {
+  const [showForm, setShowForm] = useState(false);
   const [working, setWorking] = useState(false);
   const [quote, setQuote] = useState(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
@@ -337,7 +285,7 @@ function SharedRoomCard({
       : room.totalCents / room.people;
 
   const release = () =>
-    confirmDark({
+    Modal.confirm({
       title: "Release this room?",
       content:
         "Every hold is let go and nobody is charged. You can set up a new shared room afterwards.",
@@ -395,39 +343,7 @@ function SharedRoomCard({
   };
 
   return (
-    <div
-      ref={cardRef}
-      style={{
-        ...row,
-        display: "block",
-        ...(autoOpen
-          ? {
-              border: "1px solid rgba(249,115,22,0.5)",
-              boxShadow: "0 0 0 3px rgba(249,115,22,0.12)",
-            }
-          : {}),
-      }}
-    >
-      {autoOpen &&
-        room.status === "collecting" &&
-        mine &&
-        ["unpaid", "failed"].includes(mine.status) && (
-          <div
-            role="status"
-            style={{
-              marginBottom: 10,
-              padding: "8px 12px",
-              borderRadius: 10,
-              background: "rgba(52,211,153,.08)",
-              border: "1px solid rgba(52,211,153,.25)",
-              color: "#fff",
-              fontSize: 13,
-            }}
-          >
-            Shared room set up. Last step: hold your part below. You're only
-            charged once everyone sharing is in.
-          </div>
-        )}
+    <div style={{ ...row, display: "block" }}>
       <div
         style={{
           display: "flex",
@@ -710,21 +626,13 @@ function LandByEditor({
   };
   return (
     <div style={{ ...row, display: "block" }}>
-      <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
-        When should everyone arrive by?
-      </div>
-      <p style={{ ...muted, margin: "4px 0 10px" }}>
-        Pick the latest time you'd like everyone to land — for example before
-        hotel check-in or a group dinner. Everyone sees it, and anyone whose
-        flight lands later gets a heads-up so they can pick an earlier one.
-      </p>
       <label style={muted}>
-        Land by{" "}
+        Ask everyone to land by{" "}
         <span style={{ color: "rgba(255,255,255,0.35)" }}>
           (
           {destination
-            ? `${destination} time — where you're landing`
-            : "destination time — where you're landing"}
+            ? `local time in ${destination}`
+            : "local time at the destination"}
           )
         </span>
         <input
@@ -736,12 +644,12 @@ function LandByEditor({
         />
       </label>
       <label style={{ ...muted, display: "block", marginTop: 10 }}>
-        Reason (optional) — helps everyone understand
+        Why? (optional)
         <input
           id="land-by-note"
           type="text"
           maxLength={200}
-          placeholder="e.g. Hotel check-in is at 3 PM"
+          placeholder="e.g. Check-in is at 3 PM"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           style={inputStyle}
@@ -847,198 +755,6 @@ function EmailLine({ groupId, bookingId, status, canResend = true, onResent }) {
   );
 }
 
-/* ═══ Fly with friends ═══
-   Shows the flights friends already booked from YOUR airport, checks each
-   one live for seats, and offers "Book this flight". Flights that sold out
-   are taken off the list so nobody taps a dead option. Different airport →
-   not the same flight, so it isn't offered. */
-const SAME_FLIGHT_CACHE_MS = 10 * 60 * 1000;
-const minuteOf = (v) => (v ? String(v).slice(0, 16) : "");
-
-function flightKeyOf(f) {
-  return [
-    f.origin,
-    f.destination,
-    (f.airline || "").toLowerCase(),
-    minuteOf(f.departsAt),
-    minuteOf(f.returnDepartsAt),
-  ].join("|");
-}
-
-// "available" | "gone" | "unknown" (search failed — let them try anyway)
-async function checkSeats(f, cabin) {
-  const cacheKey = `skyrio_same_flight:${flightKeyOf(f)}`;
-  try {
-    const hit = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
-    if (hit && Date.now() - hit.at < SAME_FLIGHT_CACHE_MS) return hit.result;
-  } catch {
-    /* no cache */
-  }
-  const q = new URLSearchParams({
-    from: f.origin,
-    to: f.destination,
-    departDate: String(f.departsAt).slice(0, 10),
-    adults: "1",
-    cabin: cabin || "economy",
-  });
-  if (f.returnDepartsAt)
-    q.set("returnDate", String(f.returnDepartsAt).slice(0, 10));
-  let result = "unknown";
-  try {
-    const res = await fetch(
-      `${import.meta.env.VITE_API_URL || ""}/api/flights/search?${q}`
-    );
-    const d = await res.json();
-    if (res.ok && d.ok && !d.stale) {
-      const found = (d.flights || []).some(
-        (x) =>
-          x.origin === f.origin &&
-          x.destination === f.destination &&
-          minuteOf(x.departingAt) === minuteOf(f.departsAt) &&
-          (!f.returnDepartsAt ||
-            minuteOf(x.returningAt) === minuteOf(f.returnDepartsAt)) &&
-          (!f.airline ||
-            !x.owner ||
-            String(x.owner).toLowerCase() === f.airline.toLowerCase())
-      );
-      result = found ? "available" : "gone";
-    }
-  } catch {
-    /* unknown */
-  }
-  try {
-    sessionStorage.setItem(
-      cacheKey,
-      JSON.stringify({ at: Date.now(), result })
-    );
-  } catch {
-    /* fine */
-  }
-  return result;
-}
-
-// One entry per distinct flight friends booked (several friends on the
-// same flight are merged: "Fernanda & Ana"). Every friend's flight is
-// offered — "same flight" means leaving from the same airport they do, so
-// a different airport is shown plainly instead of hiding the option.
-function friendFlightOptions(data, myAirport) {
-  if (!data) return [];
-  const byKey = new Map();
-  for (const t of data.travelers || []) {
-    const f = t.flight;
-    if (t.isYou || !f || f.status === "cancelled") continue;
-    if (!f.origin || !f.destination || !f.departsAt) continue;
-    const key = flightKeyOf(f);
-    const first = String(t.name || "Friend").split(" ")[0];
-    if (byKey.has(key)) byKey.get(key).names.push(first);
-    else
-      byKey.set(key, {
-        key,
-        flight: f,
-        names: [first],
-        otherAirport: Boolean(
-          myAirport &&
-            String(f.origin).toUpperCase() !== String(myAirport).toUpperCase()
-        ),
-      });
-  }
-  return [...byKey.values()];
-}
-
-function FlyWithFriends({ options, seats, hasOwnFlight, onJoin }) {
-  const visible = options.filter((o) => seats[o.key] !== "gone");
-  const allGone =
-    options.length > 0 && options.every((o) => seats[o.key] === "gone");
-
-  if (allGone) {
-    return (
-      <div style={{ ...muted, fontSize: 12, margin: "4px 0 8px" }}>
-        Your friends' flights are sold out. Pick any flight that lands around
-        the same time.
-      </div>
-    );
-  }
-  if (!visible.length) return null;
-
-  return (
-    <div style={{ margin: "4px 0 8px" }}>
-      <div
-        style={{
-          ...muted,
-          fontSize: 11,
-          letterSpacing: ".06em",
-          textTransform: "uppercase",
-          margin: "4px 0 6px",
-        }}
-      >
-        {hasOwnFlight
-          ? "Want to switch to a friend's flight?"
-          : "Fly with friends"}
-      </div>
-      {visible.map((o) => {
-        const st = seats[o.key] || "checking";
-        const f = o.flight;
-        return (
-          <div
-            key={o.key}
-            style={{
-              ...row,
-              background: "rgba(255,138,42,0.05)",
-              border: "1px solid rgba(255,138,42,0.2)",
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
-                {o.names.join(" & ")} {o.names.length > 1 ? "are" : "is"} on
-                this flight
-              </div>
-              <div style={muted}>
-                {[
-                  `${f.origin} → ${f.destination}`,
-                  f.departsAt ? `Leaves ${fmtLocal(f.departsAt)}` : null,
-                  f.airline,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </div>
-              {f.arrivesAt && (
-                <div style={{ ...muted, fontSize: 12 }}>
-                  Lands {fmtLocal(f.arrivesAt)}
-                </div>
-              )}
-              {o.otherAirport && (
-                <div style={{ ...muted, fontSize: 12, color: "#ffb347" }}>
-                  Leaves from {f.origin}, not your usual airport
-                </div>
-              )}
-            </div>
-            {st === "checking" ? (
-              <Chip tone="off">
-                <LoadingOutlined style={{ marginRight: 4 }} />
-                Checking seats…
-              </Chip>
-            ) : (
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                {st === "available" && <Chip tone="done">Seats available</Chip>}
-                <Button className="sk-sync-cta-btn" onClick={() => onJoin(o)}>
-                  {hasOwnFlight ? "Switch to this flight" : "Join this flight"}
-                </Button>
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ═══ Main panel ═══ */
 export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
   const navigate = useNavigate();
@@ -1048,37 +764,6 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
   const [editingLandBy, setEditingLandBy] = useState(false);
   // Bumped after linking/unlinking so the "Already booked?" list reloads.
   const [linkKey, setLinkKey] = useState(0);
-  // ?holdRoom=<id> — came from hotel checkout's "Set up shared room".
-  const holdRoomId = useMemo(() => {
-    try {
-      return new URLSearchParams(window.location.search).get("holdRoom");
-    } catch {
-      return null;
-    }
-  }, []);
-  // Live seat check for each friend's flight: "checking" | "available" |
-  // "gone" | "unknown". Sold-out ones are hidden everywhere on the page.
-  const [seats, setSeats] = useState({});
-  const friendKeys = useMemo(
-    () =>
-      friendFlightOptions(data, myAirport)
-        .map((o) => o.key)
-        .join(","),
-    [data, myAirport]
-  );
-  useEffect(() => {
-    let alive = true;
-    friendFlightOptions(data, myAirport).forEach((o) => {
-      setSeats((s) => (s[o.key] ? s : { ...s, [o.key]: "checking" }));
-      checkSeats(o.flight, data?.cabinClass).then(
-        (r) => alive && setSeats((s) => ({ ...s, [o.key]: r }))
-      );
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [friendKeys]);
 
   const load = useCallback(async () => {
     try {
@@ -1120,7 +805,7 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
 
   // Take a booking you linked yourself off the trip. Nothing is cancelled.
   const unlink = (booking, what) =>
-    confirmDark({
+    Modal.confirm({
       title: `Unlink your ${what} from this trip?`,
       content:
         "Your booking stays active — nothing is cancelled. It just stops showing for the group.",
@@ -1223,68 +908,6 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
     Object.entries(extra).forEach(([k, v]) => v != null && p.set(k, String(v)));
     return `/booking?${p.toString()}`;
   };
-
-  const friendFlights = friendFlightOptions(data, myAirport);
-  const myFlightKey = flightOn(me) ? flightKeyOf(me.flight) : null;
-  const onFriendsFlight = friendFlights.find((o) => o.key === myFlightKey);
-  const otherFriendFlights = friendFlights.filter((o) => o.key !== myFlightKey);
-
-  // Opens Book on that exact flight; the booking page finds it in fresh
-  // results or says clearly that it's gone.
-  const bookFriendsFlight = (o) => {
-    const f = o.flight;
-    const p = new URLSearchParams({
-      groupId,
-      tab: "Flights",
-      auto: "1",
-      from: f.origin,
-      to: f.destination,
-      depart: String(f.departsAt).slice(0, 10),
-      sf: "1",
-      sfDepart: minuteOf(f.departsAt),
-      sfWith: o.names.join(" & "),
-    });
-    if (data.cabinClass) p.set("cabin", data.cabinClass);
-    if (f.returnDepartsAt) {
-      p.set("return", String(f.returnDepartsAt).slice(0, 10));
-      p.set("sfReturn", minuteOf(f.returnDepartsAt));
-    }
-    if (f.airline) p.set("sfAirline", f.airline);
-    navigate(`/booking?${p.toString()}`);
-  };
-
-  // "Join this flight" — asks first if you already have a flight, because
-  // your current one isn't cancelled automatically.
-  const joinFlight = (o) => {
-    if (!flightOn(me)) return bookFriendsFlight(o);
-    confirmDark({
-      title: `Switch to ${o.names.join(" & ")}'s flight?`,
-      content: (
-        <>
-          <p style={{ margin: "0 0 10px" }}>
-            You'll book {o.names.join(" & ")}'s flight as a new booking.
-          </p>
-          <p style={{ margin: "0 0 10px" }}>
-            <strong style={{ color: "#fff" }}>
-              Your current flight is not cancelled automatically.
-            </strong>{" "}
-            After booking, cancel it from My Trips.
-          </p>
-          <p style={{ margin: 0, color: "rgba(255,255,255,0.7)" }}>
-            Check its cancellation terms first: free cancellation only applies
-            within 24 hours of booking, and airline fees may apply after that.
-          </p>
-        </>
-      ),
-      okText: "Book this flight",
-      cancelText: "Keep my flight",
-      onOk: () => bookFriendsFlight(o),
-    });
-  };
-  const optionFor = (t) =>
-    flightOn(t)
-      ? friendFlights.find((o) => o.key === flightKeyOf(t.flight))
-      : null;
 
   return (
     <>
@@ -1430,38 +1053,6 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
             )}
           </div>
 
-          {onFriendsFlight && (
-            <div style={{ ...muted, fontSize: 12, margin: "-2px 0 8px 2px" }}>
-              ✓ Same flight as {onFriendsFlight.names.join(" & ")}
-            </div>
-          )}
-          {/* Sitting together only works for seats picked in Skyrio. */}
-          <div
-            style={{
-              ...muted,
-              fontSize: 12,
-              display: "flex",
-              gap: 6,
-              margin: "-2px 0 8px 2px",
-            }}
-          >
-            <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-            <span>
-              <strong style={{ color: "#fff" }}>Want to sit together?</strong>{" "}
-              Choose your seat during Skyrio checkout — then friends on the same
-              flight see where you are and can sit next to you. Seats picked on
-              the airline's site or at check-in aren't visible to Skyrio.
-            </span>
-          </div>
-          {otherFriendFlights.length > 0 && (
-            <FlyWithFriends
-              options={otherFriendFlights}
-              seats={seats}
-              hasOwnFlight={Boolean(flightOn(me))}
-              onJoin={joinFlight}
-            />
-          )}
-
           <div style={row}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <BedDouble size={16} color="#ff8a2a" />
@@ -1576,7 +1167,6 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
               room={r}
               isOrganizer={data.isOrganizer}
               onChanged={refresh}
-              autoOpen={String(r.id) === String(holdRoomId || "")}
             />
           ))}
           {pastRooms.length > 0 && (
@@ -1630,18 +1220,13 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
           >
             <PlaneLanding size={14} color="#ff8a2a" />
             <span>
-              {data.isOrganizer ? "You asked everyone to " : "Please "}
+              {data.isOrganizer
+                ? "You asked everyone to "
+                : "The organizer asked everyone to "}
               <strong style={{ color: "#fff" }}>
                 {describeWindow(win).replace(/^L/, "l")}
               </strong>
-              {data.destination ? ` (${data.destination} time)` : ""}
               {win.note ? ` · ${win.note}` : ""}
-              {!data.isOrganizer && (
-                <span style={{ display: "block", fontSize: 12, width: "100%" }}>
-                  If your flight lands later, try an earlier one so the group
-                  arrives together.
-                </span>
-              )}
             </span>
             {data.isOrganizer && (
               <button
@@ -1662,33 +1247,27 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
             )}
           </div>
         ) : data.isOrganizer ? (
-          <>
-            <button
-              type="button"
-              onClick={() => setEditingLandBy(true)}
-              style={{
-                background: "none",
-                border: 0,
-                padding: 0,
-                marginTop: -6,
-                marginBottom: 8,
-                color: "#ff8a2a",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "inherit",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <PlaneLanding size={14} /> Set a "land by" time for the group
-            </button>
-            <div style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
-              Optional. Choose the latest time everyone should arrive (like
-              before check-in), and Skyrio flags anyone who'd land later.
-            </div>
-          </>
+          <button
+            type="button"
+            onClick={() => setEditingLandBy(true)}
+            style={{
+              background: "none",
+              border: 0,
+              padding: 0,
+              marginTop: -6,
+              marginBottom: 12,
+              color: "#ff8a2a",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: "inherit",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <PlaneLanding size={14} /> Ask everyone to land by a certain time
+          </button>
         ) : null}
 
         {data.travelers.map((t) => {
@@ -1720,8 +1299,8 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
                     {t.flight.destination ? ` at ${t.flight.destination}` : ""}
                     {late
                       ? win.start && t.flight.arrivesAt < win.start
-                        ? " · lands before the group's time"
-                        : " · lands after the group's time"
+                        ? " · earlier than asked"
+                        : " · later than asked"
                       : ""}
                   </div>
                 )}
@@ -1784,42 +1363,6 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
                     ? "Share not held"
                     : "No room"}
                 </Chip>
-                {!t.isYou &&
-                  (() => {
-                    const o = optionFor(t);
-                    if (!o) return null;
-                    if (o.key === myFlightKey)
-                      return <Chip tone="done">Same flight as you</Chip>;
-                    const st = seats[o.key] || "checking";
-                    if (st === "gone")
-                      return <Chip tone="off">Their flight sold out</Chip>;
-                    return (
-                      <Button
-                        size="small"
-                        className="sk-sync-cta-btn"
-                        disabled={st === "checking"}
-                        icon={
-                          st === "checking" ? (
-                            <LoadingOutlined />
-                          ) : (
-                            <Plane size={12} />
-                          )
-                        }
-                        onClick={() => joinFlight(o)}
-                        title={
-                          o.otherAirport
-                            ? `Leaves from ${o.flight.origin}, not your usual airport`
-                            : undefined
-                        }
-                      >
-                        {st === "checking"
-                          ? "Checking seats…"
-                          : flightOn(me)
-                          ? "Switch to this flight"
-                          : "Join this flight"}
-                      </Button>
-                    );
-                  })()}
                 {data.isOrganizer && !t.isOrganizer && !t.done && (
                   <Button
                     size="small"
