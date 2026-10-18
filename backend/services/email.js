@@ -1,4 +1,3 @@
-// backend/services/email.js
 // Account, group-trip and flight-confirmation emails. All use the shared
 // layout in ./emailLayout.js (light-first, solid colors, table layout) so
 // they stay readable in light mode AND dark mode on every mail app —
@@ -30,8 +29,11 @@ export async function sendTripInvite({
   destination,
   inviteCode,
   memberNames,
+  loginToken, // optional: personal sign-in link (see services/inviteLogin.js)
 }) {
-  const joinUrl = `${APP_URL}/sync-together/join/${inviteCode}`;
+  const joinUrl = `${APP_URL}/sync-together/join/${inviteCode}${
+    loginToken ? `?t=${encodeURIComponent(loginToken)}` : ""
+  }`;
   const html = renderEmail({
     preheader: `${inviterName} invited you to a trip${
       destination ? ` to ${destination}` : ""

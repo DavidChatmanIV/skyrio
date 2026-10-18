@@ -17,6 +17,7 @@ import {
   groupUrl as groupLink,
 } from "../../services/syncEmails.js";
 import { sendConfirmationFor } from "../../services/bookingConfirmations.js";
+import { mintInviteLogin } from "../../services/inviteLogin.js";
 import {
   notifyGroupMessage,
   markGroupRead,
@@ -388,7 +389,7 @@ router.post("/", async (req, res) => {
         .filter(Boolean)
         .join(", ");
 
-      for (const m of memberDocs) {
+      for (const m of group.members || []) {
         let email = m.email;
         if (!email && m.user) {
           const u = await User.findById(m.user).select("email").lean();
@@ -402,6 +403,11 @@ router.post("/", async (req, res) => {
             destination: group.destination || null,
             inviteCode: group.inviteCode,
             memberNames,
+            loginToken: mintInviteLogin({
+              groupId: group._id,
+              memberId: m._id,
+              email,
+            }),
           }).catch((err) => console.error("[email] invite error:", err));
         }
       }
@@ -900,6 +906,7 @@ router.post("/:id/member", async (req, res) => {
         memberEmail = u?.email;
       }
       if (memberEmail) {
+        const added = group.members[group.members.length - 1];
         sendTripInvite({
           to: memberEmail,
           inviterName,
@@ -907,6 +914,11 @@ router.post("/:id/member", async (req, res) => {
           destination: group.destination,
           inviteCode: group.inviteCode,
           memberNames: null,
+          loginToken: mintInviteLogin({
+            groupId: group._id,
+            memberId: added?._id,
+            email: memberEmail,
+          }),
         }).catch((err) => console.error("[email] invite error:", err));
       }
     } catch (emailErr) {
@@ -1609,6 +1621,11 @@ router.post("/:id/resend-invite", async (req, res) => {
       destination: group.destination,
       inviteCode: group.inviteCode,
       memberNames: null,
+      loginToken: mintInviteLogin({
+        groupId: group._id,
+        memberId: member._id,
+        email: to,
+      }),
     });
     if (result && result.ok === false) {
       return res.status(502).json({

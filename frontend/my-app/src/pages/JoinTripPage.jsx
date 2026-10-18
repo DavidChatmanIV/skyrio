@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Avatar, Spin, Input, message as antdMessage } from "antd";
 import { Plane, Users, MapPin, Calendar } from "lucide-react";
 import dayjs from "dayjs";
@@ -19,7 +19,15 @@ function authHeaders() {
 export default function JoinTripPage() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const { isAuthed, login, signup } = useAuth();
+  const { isAuthed, login, signup, setSession } = useAuth();
+  // Personal sign-in code from the invite email (?t=...). The plain
+  // share link has none and works exactly as before.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const inviteToken = searchParams.get("t");
+  // null | "checking" | "signedIn" | "needsAccount" | "expired"
+  const [inviteState, setInviteState] = useState(
+    inviteToken ? "checking" : null
+  );
 
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,6 +53,62 @@ export default function JoinTripPage() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [code]);
+
+  // Personal invite link: sign the invited person in (or set up sign-up
+  // with their email), then remove the code from the address bar so it
+  // isn't bookmarked or shared.
+  useEffect(() => {
+    if (!inviteToken) return;
+    const dropToken = () => {
+      const next = new URLSearchParams(searchParams);
+      next.delete("t");
+      setSearchParams(next, { replace: true });
+    };
+    // Already signed in on this device → just use the normal Join button.
+    if (isAuthed) {
+      setInviteState(null);
+      dropToken();
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/invite-login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ token: inviteToken }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!alive) return;
+        if (data.ok && data.signedIn && data.token && data.user) {
+          setSession({ token: data.token, user: data.user });
+          setInviteState("signedIn");
+          await joinTrip(); // navigates to the trip on success
+          setInviteState(null); // if joining failed, show the page instead
+          dropToken();
+          return;
+        }
+        if (data.ok && data.needsAccount) {
+          setMode("signup");
+          if (data.email) setEmail(data.email);
+          setInviteState("needsAccount");
+        } else if (data.ok && data.used) {
+          setInviteState(null); // answered already — normal sign-in
+        } else {
+          setInviteState("expired");
+        }
+      } catch {
+        if (alive) setInviteState("expired");
+      }
+      dropToken();
+    })();
+    return () => {
+      alive = false;
+    };
+    // Run once per code.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inviteToken]);
 
   const joinTrip = async () => {
     setJoining(true);
@@ -90,11 +154,18 @@ export default function JoinTripPage() {
     }
   };
 
-  if (loading) {
+  if (loading || inviteState === "checking" || inviteState === "signedIn") {
     return (
       <section className="sk-sync-section">
         <div style={{ textAlign: "center", padding: "80px 0" }}>
           <Spin size="large" />
+          {(inviteState === "checking" || inviteState === "signedIn") && (
+            <p style={{ color: "rgba(255,255,255,0.6)", marginTop: 16 }}>
+              {inviteState === "signedIn"
+                ? "You're signed in. Opening the trip…"
+                : "Signing you in…"}
+            </p>
+          )}
         </div>
       </section>
     );
@@ -239,8 +310,23 @@ export default function JoinTripPage() {
                 margin: "0 0 16px",
               }}
             >
-              Sign in or create an account to join
+              {inviteState === "needsAccount"
+                ? "Create your Skyrio account to join — your email is already filled in."
+                : "Sign in or create an account to join"}
             </p>
+            {inviteState === "expired" && (
+              <p
+                style={{
+                  color: "#ffb347",
+                  fontSize: 13,
+                  textAlign: "center",
+                  margin: "-8px 0 16px",
+                }}
+              >
+                This invite link has expired. Sign in to join, or ask the
+                organizer to resend the invite.
+              </p>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {mode === "signup" && (
                 <>

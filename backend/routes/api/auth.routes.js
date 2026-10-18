@@ -2,6 +2,8 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import User from "../../models/user.js";
+import SyncGroup from "../../models/SyncGroup.js";
+import { readInviteLogin } from "../../services/inviteLogin.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 import { signToken, setAuthCookie, clearAuthCookie } from "./utils/auth.js";
 import { sendWelcomeEmail } from "../../utils/sendWelcomeEmail.js";
@@ -360,6 +362,77 @@ router.get("/verify-email", async (req, res) => {
   } catch (err) {
     console.error("Verify email error:", err);
     return res.status(500).json({ ok: false, message: "Verification failed" });
+  }
+});
+
+/* POST /api/auth/invite-login  { token }
+   The personal link in a Sync Together invite email. If the invited person
+   already has a Skyrio account, this signs them in. If not, it tells the
+   page to show sign-up with their email filled in. */
+router.post("/invite-login", async (req, res) => {
+  try {
+    const invite = readInviteLogin(req.body?.token);
+    if (!invite) {
+      return res.status(400).json({
+        ok: false,
+        expired: true,
+        message:
+          "This invite link has expired. Sign in to join the trip, or ask for a new invite.",
+      });
+    }
+    const group = await SyncGroup.findById(invite.groupId)
+      .select("inviteCode title members")
+      .lean();
+    const member = group?.members?.find(
+      (m) => String(m._id) === invite.memberId
+    );
+    if (!group || !member) {
+      return res
+        .status(404)
+        .json({ ok: false, message: "This trip or invite no longer exists." });
+    }
+    const base = { groupId: String(group._id), inviteCode: group.inviteCode };
+    // Answered already → the link no longer signs anyone in.
+    if (member.status && member.status !== "pending") {
+      return res.json({ ok: true, ...base, used: true });
+    }
+    // Find the account this invite was sent to.
+    let user = null;
+    if (member.user) user = await User.findById(member.user);
+    if (!user) user = await User.findOne({ email: invite.email });
+    if (!user || String(user.email || "").toLowerCase() !== invite.email) {
+      // No account yet — show sign-up with their email filled in.
+      return res.json({
+        ok: true,
+        ...base,
+        needsAccount: true,
+        email: invite.email,
+      });
+    }
+    if (user.isActive === false) {
+      return res
+        .status(403)
+        .json({ ok: false, message: "Account is inactive" });
+    }
+    if (typeof user.isSuspended === "function" && user.isSuspended()) {
+      return res
+        .status(403)
+        .json({ ok: false, message: "Account is suspended" });
+    }
+    const token = signToken(user);
+    setAuthCookie(res, token);
+    return res.json({
+      ok: true,
+      ...base,
+      signedIn: true,
+      user: user.toSafeJSON(),
+      token,
+    });
+  } catch (err) {
+    console.error("Invite login error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Couldn't open the invite" });
   }
 });
 
