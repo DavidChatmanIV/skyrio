@@ -1,15 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  Typography,
-  Button,
-  Tag,
-  Progress,
-  Modal,
-  message,
-  Empty,
-} from "antd";
+import { Modal, message } from "antd";
 import {
   ThunderboltOutlined,
   TrophyOutlined,
@@ -23,14 +14,41 @@ import {
   HeartOutlined,
   CalendarOutlined,
   EnvironmentOutlined,
-  CheckCircleFilled,
-  LoadingOutlined,
 } from "@ant-design/icons";
+import {
+  Plane,
+  Zap,
+  Award,
+  Gift,
+  Flame,
+  Flag,
+  LayoutGrid,
+  Check,
+  Lock,
+  Loader2,
+  ShieldCheck,
+  ChevronDown,
+  Sparkles,
+  Clock,
+  ArrowRight,
+  Trophy,
+  Wallet,
+} from "lucide-react";
+
+import "../../styles/PassportRewards.css";
+import { useAuth } from "../../auth/useAuth";
+import { apiUrl } from "@/lib/api";
+import {
+  getTier,
+  getNextTier,
+  getTierByName,
+  getTierProgress,
+} from "@/config/xpConfig";
+import TierIcon, { TierMedal } from "@/components/passport/TierIcon";
 
 // Same icon-key set as AdminDashboard.jsx's challenge creation form —
 // kept in sync so a challenge's icon renders identically for the admin
-// who created it and the user who sees it. Stored as a short key string
-// ("trophy", "flag", etc.), not the icon itself.
+// who created it and the user who sees it.
 const CHALLENGE_ICON_MAP = {
   trophy: TrophyOutlined,
   flag: FlagOutlined,
@@ -51,29 +69,26 @@ function resolveChallengeIcon(key) {
   return <Icon />;
 }
 
-import "../../styles/PassportRewards.css";
-import { useAuth } from "../../auth/useAuth";
-import { apiUrl } from "@/lib/api";
-
-const { Title, Text } = Typography;
+const TYPE_META = {
+  BOOST: { label: "Boost", Icon: Zap },
+  BADGE: { label: "Badge", Icon: Award },
+  PERK: { label: "Perk", Icon: Gift },
+  LIMITED: { label: "Limited", Icon: Flame },
+};
 
 const TABS = [
-  {
-    key: "boosts",
-    label: "Boosts",
-    icon: <ThunderboltOutlined />,
-    type: "BOOST",
-  },
-  { key: "badges", label: "Badges", icon: <TrophyOutlined />, type: "BADGE" },
-  { key: "perks", label: "Perks", icon: <GiftOutlined />, type: "PERK" },
-  { key: "limited", label: "Limited", icon: <FireOutlined />, type: "LIMITED" },
-  // ✅ NEW: Challenges — fundamentally different data shape from the other
-  // four tabs (progress toward a count + an end date, not an XP cost to
-  // spend), so it has no `type` here and gets its own render branch below
-  // instead of being filtered into the shared catalog grid.
-  { key: "challenges", label: "Challenges", icon: <FlagOutlined /> },
+  { key: "all", label: "All", Icon: LayoutGrid },
+  { key: "boosts", label: "Boosts", Icon: Zap, type: "BOOST" },
+  { key: "badges", label: "Badges", Icon: Award, type: "BADGE" },
+  { key: "perks", label: "Perks", Icon: Gift, type: "PERK" },
+  { key: "limited", label: "Limited", Icon: Flame, type: "LIMITED" },
+  // Challenges have a different shape (progress + end date, not a cost),
+  // so they get their own render branch below.
+  { key: "challenges", label: "Challenges", Icon: Flag },
 ];
 
+// Optional per-item `howToUse` is shown after a successful redemption.
+// Only add it where it's TRUE for how the reward actually works.
 const DEFAULT_ITEMS = [
   {
     id: "weekend_xp",
@@ -124,6 +139,9 @@ const DEFAULT_ITEMS = [
   },
 ];
 
+const HOW_KEY = "skyrio_rewards_how_closed";
+const fmt = (n) => Number(n || 0).toLocaleString();
+
 function getStatus(item, { xp, redeemedIds, profileLoading }) {
   if (profileLoading) return "loading";
   if (!item.repeatable && redeemedIds.includes(item.id)) return "redeemed";
@@ -144,22 +162,41 @@ export default function PassportRewards({
   const navigate = useNavigate();
   const { token, isAuthed } = useAuth();
 
-  const [tab, setTab] = useState("boosts");
+  const [tab, setTab] = useState("all");
   const [profileLoading, setProfileLoading] = useState(true);
-  const [currentBadge, setCurrentBadge] = useState("Explorer");
+  const [currentBadge, setCurrentBadge] = useState(null);
 
+  // balance = spendable wallet XP. lifetime = all XP ever earned → rank.
   const [balance, setBalance] = useState(xpProp);
+  const [lifetime, setLifetime] = useState(xpProp);
   const [redeemedIds, setRedeemedIds] = useState(redeemedIdsProp);
-  const [pendingId, setPendingId] = useState(null);
-  const [confirmItem, setConfirmItem] = useState(null);
 
-  // ✅ NEW: Challenges tab state — separate from the catalog state above
-  // since it's a genuinely different data shape (progress + activation,
-  // not cost + redemption).
+  // Redemption flow: confirm → pending → done (modal stays open the whole time)
+  const [confirmItem, setConfirmItem] = useState(null);
+  const [phase, setPhase] = useState("confirm"); // confirm | pending | done
+  const [redeemError, setRedeemError] = useState("");
+
   const [challenges, setChallenges] = useState([]);
   const [challengesLoading, setChallengesLoading] = useState(true);
   const [activatingId, setActivatingId] = useState(null);
 
+  const [howOpen, setHowOpen] = useState(() => {
+    try {
+      return localStorage.getItem(HOW_KEY) !== "1";
+    } catch {
+      return true;
+    }
+  });
+  const toggleHow = () => {
+    setHowOpen((open) => {
+      try {
+        localStorage.setItem(HOW_KEY, open ? "1" : "0");
+      } catch {}
+      return !open;
+    });
+  };
+
+  // ── Profile (balance, lifetime XP, rank) + redeemed items ──
   useEffect(() => {
     if (!isAuthed) {
       setProfileLoading(false);
@@ -188,7 +225,15 @@ export default function PassportRewards({
         if (!mounted) return;
         const realXp = Number(profileData?.xp ?? profileData?.user?.xp ?? 0);
         setBalance(realXp);
-        setCurrentBadge(String(profileData?.currentBadge ?? "Explorer"));
+        setLifetime(
+          Number(
+            profileData?.xpTotalEarned ??
+              profileData?.user?.xpTotalEarned ??
+              realXp
+          )
+        );
+        if (profileData?.currentBadge)
+          setCurrentBadge(String(profileData.currentBadge));
 
         if (redeemedRes?.ok) {
           const redeemedData = await redeemedRes.json();
@@ -230,10 +275,7 @@ export default function PassportRewards({
     [token]
   );
 
-  // ✅ NEW: fetch active challenges + this user's progress on each, same
-  // self-fetch pattern as the profile/redeemed effect above. Fetched
-  // eagerly on mount alongside everything else, not lazily on tab switch,
-  // for consistency with how the rest of this page already loads.
+  // ── Challenges ──
   useEffect(() => {
     if (!isAuthed) {
       setChallengesLoading(false);
@@ -251,12 +293,9 @@ export default function PassportRewards({
         });
         const data = await res.json().catch(() => ({}));
         if (!mounted) return;
-        if (data?.ok) {
-          setChallenges(data.challenges || []);
-        }
+        if (data?.ok) setChallenges(data.challenges || []);
       } catch {
-        // Leave challenges as whatever was last successfully loaded —
-        // a failed fetch here shouldn't break the rest of the page.
+        // A failed fetch here shouldn't break the rest of the page.
       } finally {
         if (mounted) setChallengesLoading(false);
       }
@@ -267,9 +306,6 @@ export default function PassportRewards({
     };
   }, [isAuthed, token]);
 
-  // ✅ NEW: activate a challenge — opts the user in so their actions start
-  // counting toward it. Updates local state from the real server response
-  // rather than assuming success, same principle as the redeem flow above.
   const activateChallenge = useCallback(
     async (challenge) => {
       setActivatingId(challenge.id);
@@ -308,6 +344,15 @@ export default function PassportRewards({
     [token]
   );
 
+  // ── Rank (from lifetime XP — never changes when you redeem) ──
+  const tier = useMemo(
+    () => getTierByName(currentBadge) || getTier(lifetime),
+    [currentBadge, lifetime]
+  );
+  const nextTier = useMemo(() => getNextTier(lifetime), [lifetime]);
+  const tierPct = useMemo(() => getTierProgress(lifetime), [lifetime]);
+
+  // ── Catalog ──
   const enriched = useMemo(
     () =>
       items.map((item) => {
@@ -327,48 +372,65 @@ export default function PassportRewards({
   );
 
   const featured = useMemo(
-    () => enriched.find((i) => i.featured) || enriched[0],
+    () => enriched.find((i) => i.featured) || null,
     [enriched]
   );
+
+  const counts = useMemo(() => {
+    const c = { all: enriched.length, challenges: challenges.length };
+    for (const t of TABS)
+      if (t.type) c[t.key] = enriched.filter((i) => i.type === t.type).length;
+    return c;
+  }, [enriched, challenges]);
 
   const visibleItems = useMemo(() => {
     const activeType = TABS.find((t) => t.key === tab)?.type;
     const rank = { redeemable: 0, insufficient_xp: 1, loading: 1, redeemed: 2 };
     return enriched
-      .filter((i) => i.type === activeType)
+      .filter((i) =>
+        tab === "all" ? i.id !== featured?.id : i.type === activeType
+      )
       .sort(
         (a, b) =>
           (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.cost - b.cost
       );
-  }, [enriched, tab]);
+  }, [enriched, tab, featured]);
 
+  // ── Redeem flow ──
   const requestRedeem = useCallback((item) => {
     if (item.status !== "redeemable") return;
+    setRedeemError("");
+    setPhase("confirm");
     setConfirmItem(item);
   }, []);
+
+  const closeModal = useCallback(() => {
+    if (phase === "pending") return;
+    setConfirmItem(null);
+    setPhase("confirm");
+    setRedeemError("");
+  }, [phase]);
 
   const confirmRedeem = useCallback(async () => {
     const item = confirmItem;
     if (!item) return;
-    setConfirmItem(null);
-    setPendingId(item.id);
-
+    setPhase("pending");
+    setRedeemError("");
     try {
       const redeemFn = onRedeem || defaultRedeem;
       const result = await redeemFn(item);
       if (result && typeof result.newBalance === "number") {
         setBalance(result.newBalance);
       } else {
-        setBalance((b) => b - item.cost);
+        setBalance((b) => Math.max(0, b - item.cost));
       }
       setRedeemedIds((ids) => (item.repeatable ? ids : [...ids, item.id]));
-      message.success(`Redeemed: ${item.title}`);
+      setPhase("done");
     } catch (err) {
-      message.error(
+      setPhase("confirm");
+      setRedeemError(
         err?.message || "Couldn't redeem that right now. Try again."
       );
-    } finally {
-      setPendingId(null);
     }
   }, [confirmItem, onRedeem, defaultRedeem]);
 
@@ -380,87 +442,202 @@ export default function PassportRewards({
       {!embedded && <div className="pr-overlay" />}
 
       <div className="pr-shell">
-        <div className="pr-header">
-          <div className="pr-titleBlock">
-            <Title level={2} className="pr-title">
-              {title}
-            </Title>
-            <Text className="pr-subtitle">Inside Passport Rewards</Text>
-            <Text className="pr-lead">
-              Trade XP for boosts, badges, perks, and limited drops.
-            </Text>
-          </div>
-
-          <div className="pr-balanceCard">
-            <div className="pr-xpRow">
-              <span className="pr-xp">
-                {profileLoading ? <LoadingOutlined /> : `${balance} XP`}
+        {/* ═════════ Boarding pass header ═════════ */}
+        <section
+          className="pr-pass"
+          style={{ "--tier": tier.color }}
+          aria-label={title}
+        >
+          <div className="pr-pass-main">
+            <div className="pr-pass-top">
+              <span className="pr-pass-brand">
+                <Plane size={14} /> SKYRIO · {title.toUpperCase()}
               </span>
-              <span className="pr-level">{currentBadge}</span>
+              <span className="pr-pass-class">{tier.name} class</span>
             </div>
 
-            <div className="pr-actions">
-              <Button className="pr-btnPrimary" onClick={handleEarnMore}>
-                Earn More XP
-              </Button>
-              <Button className="pr-btnGhost" onClick={handleViewPassport}>
-                View Passport
-              </Button>
+            <div className="pr-pass-segs">
+              <div className="pr-seg">
+                <span className="pr-seg-label">Rank</span>
+                <span className="pr-seg-value pr-seg-rank">
+                  <TierMedal tier={tier} size={34} />
+                  {profileLoading ? "—" : tier.name}
+                </span>
+              </div>
+              <div className="pr-seg">
+                <span className="pr-seg-label pr-label-icon">
+                  <Trophy size={12} /> Lifetime XP earned
+                </span>
+                <span className="pr-seg-value">
+                  {profileLoading ? "—" : fmt(lifetime)}
+                </span>
+                <span className="pr-seg-hint">
+                  Sets your rank · never goes down
+                </span>
+              </div>
+              <div className="pr-seg">
+                <span className="pr-seg-label">Next stop</span>
+                <span className="pr-seg-value pr-seg-next">
+                  {profileLoading ? (
+                    "—"
+                  ) : nextTier ? (
+                    <>
+                      <TierIcon tier={nextTier} size={16} /> {nextTier.name}
+                      <small>{fmt(nextTier.min - lifetime)} XP to go</small>
+                    </>
+                  ) : (
+                    <>Top rank reached</>
+                  )}
+                </span>
+              </div>
             </div>
+
+            <div className="pr-pass-bar" aria-hidden="true">
+              <i style={{ width: `${profileLoading ? 0 : tierPct}%` }} />
+            </div>
+
+            {!profileLoading && (
+              <div
+                className="pr-ledger"
+                aria-label="How your spendable XP is calculated"
+              >
+                <span className="pr-ledger-item">
+                  <Trophy size={13} /> <b>{fmt(lifetime)}</b> earned
+                </span>
+                <span className="pr-ledger-op">−</span>
+                <span className="pr-ledger-item">
+                  <b>{fmt(Math.max(0, lifetime - balance))}</b> spent on rewards
+                </span>
+                <span className="pr-ledger-op">=</span>
+                <span className="pr-ledger-item pr-ledger-total">
+                  <Wallet size={13} /> <b>{fmt(balance)}</b> to spend
+                </span>
+              </div>
+            )}
+
+            <p className="pr-pass-note">
+              <ShieldCheck size={14} /> Spending XP never lowers your rank.
+            </p>
           </div>
-        </div>
 
-        <div className="pr-tabs">
-          {TABS.map((t) => (
+          <div className="pr-pass-stub">
+            <span className="pr-seg-label pr-label-icon pr-label-wallet">
+              <Wallet size={12} /> Spendable XP
+            </span>
+            <span className="pr-wallet">
+              {profileLoading ? (
+                <Loader2 size={22} className="pr-spin" />
+              ) : (
+                fmt(balance)
+              )}
+              <small>XP</small>
+            </span>
+            <span className="pr-wallet-sub">
+              Use on rewards · goes down when you redeem
+            </span>
             <button
-              key={t.key}
-              className={`pr-tab ${tab === t.key ? "active" : ""}`}
-              onClick={() => setTab(t.key)}
               type="button"
+              className="pr-btn pr-btn--primary"
+              onClick={handleEarnMore}
             >
-              {t.icon}
-              <span>{t.label}</span>
+              Earn more XP
+            </button>
+            <button
+              type="button"
+              className="pr-link"
+              onClick={handleViewPassport}
+            >
+              View passport <ArrowRight size={13} />
+            </button>
+          </div>
+        </section>
+
+        {/* ═════════ How it works ═════════ */}
+        <section className={`pr-how ${howOpen ? "is-open" : ""}`}>
+          <button
+            type="button"
+            className="pr-how-toggle"
+            onClick={toggleHow}
+            aria-expanded={howOpen}
+          >
+            <Sparkles size={15} /> How XP & rewards work
+            <ChevronDown size={16} className="pr-how-chev" />
+          </button>
+          {howOpen && (
+            <ol className="pr-how-steps">
+              <li>
+                <span className="pr-how-num">1</span>
+                <div>
+                  <strong>Earn</strong>
+                  <p>
+                    Booking trips earns the most XP. Reviews, challenges,
+                    invites and SkyHub add more. Booking XP stays pending until
+                    the free-cancellation window ends.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span className="pr-how-num">2</span>
+                <div>
+                  <strong>Rank up</strong>
+                  <p>
+                    Every XP you earn counts toward your rank — for good. Only a
+                    cancelled booking or removed post takes its XP back.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span className="pr-how-num">3</span>
+                <div>
+                  <strong>Spend</strong>
+                  <p>
+                    Trade wallet XP for boosts, badges, perks and drops. Your
+                    wallet goes down — your rank stays.
+                  </p>
+                </div>
+              </li>
+            </ol>
+          )}
+        </section>
+
+        {/* ═════════ Tabs ═════════ */}
+        <nav className="pr-tabs" aria-label="Reward categories">
+          {TABS.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              className={`pr-tab ${tab === key ? "is-active" : ""}`}
+              onClick={() => setTab(key)}
+              aria-pressed={tab === key}
+            >
+              <Icon size={15} />
+              <span>{label}</span>
+              {counts[key] > 0 && (
+                <span className="pr-tab-count">{counts[key]}</span>
+              )}
             </button>
           ))}
-        </div>
+        </nav>
 
-        {tab !== "challenges" && featured && (
-          <Card bordered={false} className="pr-featured">
-            <div className="pr-featuredHeader">
-              <FireOutlined /> FEATURED THIS WEEK
-            </div>
-
-            <div className="pr-featuredBody">
-              <div>
-                <div className="pr-featuredTitle">{featured.title}</div>
-                <div className="pr-featuredDesc">{featured.desc}</div>
-              </div>
-
-              <div className="pr-featuredRight">
-                <RedeemButton
-                  item={featured}
-                  pending={pendingId === featured.id}
-                  onRedeem={() => requestRedeem(featured)}
-                />
-                <div className="pr-meta">Cost: {featured.cost} XP</div>
-              </div>
-            </div>
-          </Card>
-        )}
-
+        {/* ═════════ Content ═════════ */}
         {tab === "challenges" ? (
           <>
-            <div className="pr-section">LIVE CHALLENGES</div>
+            <h2 className="pr-section">Live challenges</h2>
             {challengesLoading ? (
-              <div style={{ textAlign: "center", padding: "32px 0" }}>
-                <LoadingOutlined style={{ fontSize: 20, color: "#ff8a2a" }} />
+              <div className="pr-loading">
+                <Loader2 size={22} className="pr-spin" />
               </div>
             ) : challenges.length === 0 ? (
-              <Empty description="No challenges running right now — check back soon" />
+              <EmptyState
+                title="No challenges running right now"
+                text="New challenges drop regularly — check back soon."
+                onAction={() => setTab("all")}
+                actionLabel="Browse rewards"
+              />
             ) : (
               <div className="pr-grid">
                 {challenges.map((c) => (
-                  <ChallengeCard
+                  <ChallengeTicket
                     key={c.id}
                     challenge={c}
                     activating={activatingId === c.id}
@@ -472,17 +649,42 @@ export default function PassportRewards({
           </>
         ) : (
           <>
-            <div className="pr-section">AVAILABLE IN REWARDS</div>
+            {tab === "all" && featured && (
+              <>
+                <h2 className="pr-section">
+                  <Flame size={14} /> Featured this week
+                </h2>
+                <RewardTicket
+                  item={featured}
+                  featured
+                  pending={
+                    phase === "pending" && confirmItem?.id === featured.id
+                  }
+                  onRedeem={() => requestRedeem(featured)}
+                />
+              </>
+            )}
+
+            <h2 className="pr-section">
+              {tab === "all"
+                ? "All rewards"
+                : TABS.find((t) => t.key === tab)?.label}
+            </h2>
 
             {visibleItems.length === 0 ? (
-              <Empty description="No items in this category yet" />
+              <EmptyState
+                title="Nothing here yet"
+                text="New rewards drop regularly — keep earning XP so you're ready."
+                onAction={() => setTab("all")}
+                actionLabel="See all rewards"
+              />
             ) : (
               <div className="pr-grid">
                 {visibleItems.map((item) => (
-                  <RewardCard
+                  <RewardTicket
                     key={item.id}
                     item={item}
-                    pending={pendingId === item.id}
+                    pending={phase === "pending" && confirmItem?.id === item.id}
                     onRedeem={() => requestRedeem(item)}
                   />
                 ))}
@@ -492,97 +694,127 @@ export default function PassportRewards({
         )}
       </div>
 
+      {/* ═════════ Redeem modal ═════════ */}
       <Modal
         open={!!confirmItem}
-        onCancel={() => setConfirmItem(null)}
-        onOk={confirmRedeem}
-        okText={`Redeem for ${confirmItem?.cost ?? 0} XP`}
-        title="Confirm redemption"
+        onCancel={closeModal}
+        footer={null}
+        centered
+        width={440}
+        className="pr-modal"
+        closable={phase !== "pending"}
+        maskClosable={phase !== "pending"}
+        destroyOnClose
       >
         {confirmItem && (
-          <>
-            <p>
-              Redeem <strong>{confirmItem.title}</strong> for{" "}
-              <strong>{confirmItem.cost} XP</strong>?
-            </p>
-            <p style={{ color: "rgba(0,0,0,0.45)" }}>
-              Your balance will drop to {balance - confirmItem.cost} XP.
-            </p>
-          </>
+          <RedeemSheet
+            item={confirmItem}
+            phase={phase}
+            error={redeemError}
+            balance={balance}
+            tier={tier}
+            onConfirm={confirmRedeem}
+            onCancel={closeModal}
+          />
         )}
       </Modal>
     </div>
   );
 }
 
-function RedeemButton({ item, pending, onRedeem }) {
+/* ───────────────────────── Pieces ───────────────────────── */
+
+function StubAction({ item, pending, onRedeem }) {
   switch (item.status) {
     case "loading":
       return (
-        <Button className="pr-btnLocked" disabled>
-          <LoadingOutlined /> Checking your XP…
-        </Button>
+        <button type="button" className="pr-btn pr-btn--muted" disabled>
+          <Loader2 size={14} className="pr-spin" /> Checking…
+        </button>
       );
     case "redeemed":
       return (
-        <Button className="pr-btnRedeemed" disabled>
-          <CheckCircleFilled /> Redeemed
-        </Button>
+        <button type="button" className="pr-btn pr-btn--done" disabled>
+          <Check size={14} /> Redeemed
+        </button>
       );
     case "insufficient_xp":
       return (
-        <Button className="pr-btnLocked" disabled>
-          Need {item.shortfall} more XP
-        </Button>
+        <button type="button" className="pr-btn pr-btn--muted" disabled>
+          <Lock size={13} /> {fmt(item.shortfall)} more
+        </button>
       );
     default:
       return (
-        <Button className="pr-btnRedeem" loading={pending} onClick={onRedeem}>
-          Redeem {item.cost} XP
-        </Button>
+        <button
+          type="button"
+          className="pr-btn pr-btn--primary"
+          onClick={onRedeem}
+          disabled={pending}
+        >
+          {pending ? <Loader2 size={14} className="pr-spin" /> : "Redeem"}
+        </button>
       );
   }
 }
 
-function RewardCard({ item, pending, onRedeem }) {
+function RewardTicket({ item, featured = false, pending, onRedeem }) {
+  const meta = TYPE_META[item.type] || TYPE_META.BOOST;
+  const TypeIcon = meta.Icon;
   return (
-    <Card bordered={false} className={`pr-card pr-card--${item.status}`}>
-      <div className="pr-cardTop">
-        <Tag className="pr-tag">{item.type}</Tag>
-        {item.isNew && <Tag className="pr-new">NEW</Tag>}
-        {item.status === "redeemable" && (
-          <Tag className="pr-ready">
-            <CheckCircleFilled /> Ready
-          </Tag>
+    <article
+      className={`pr-ticket is-${item.status} ${
+        featured ? "pr-ticket--featured" : ""
+      }`}
+    >
+      <div className="pr-ticket-body">
+        <div className="pr-ticket-head">
+          <span className="pr-chip">
+            <TypeIcon size={12} /> {meta.label}
+          </span>
+          {item.isNew && <span className="pr-chip pr-chip--new">New</span>}
+          {item.repeatable && (
+            <span className="pr-chip pr-chip--soft">Repeatable</span>
+          )}
+          {item.status === "redeemable" && (
+            <span className="pr-chip pr-chip--ready">
+              <Check size={12} /> Ready
+            </span>
+          )}
+        </div>
+
+        <h3 className="pr-ticket-title">{item.title}</h3>
+        <p className="pr-ticket-desc">{item.desc}</p>
+
+        {item.status === "insufficient_xp" && (
+          <div className="pr-ticket-progress">
+            <div className="pr-bar">
+              <i style={{ width: `${item.pct}%` }} />
+            </div>
+            <span>
+              {fmt(item.cost - item.shortfall)} / {fmt(item.cost)} XP · earn{" "}
+              {fmt(item.shortfall)} more to unlock
+            </span>
+          </div>
+        )}
+
+        {item.status === "redeemed" && (
+          <span className="pr-stamp">Redeemed</span>
         )}
       </div>
 
-      <div className="pr-cardTitle">{item.title}</div>
-      <div className="pr-cardDesc">{item.desc}</div>
-
-      {item.status === "insufficient_xp" && (
-        <div className="pr-cardProgress">
-          <Progress percent={item.pct} showInfo={false} size="small" />
-          <Text className="pr-faint" style={{ fontSize: 12 }}>
-            {item.shortfall} more XP to redeem
-          </Text>
-        </div>
-      )}
-
-      <div className="pr-meta">Cost: {item.cost} XP</div>
-
-      <RedeemButton item={item} pending={pending} onRedeem={onRedeem} />
-    </Card>
+      <div className="pr-ticket-stub">
+        <span className="pr-stub-label">Cost</span>
+        <span className="pr-stub-cost">
+          {fmt(item.cost)}
+          <small>XP</small>
+        </span>
+        <StubAction item={item} pending={pending} onRedeem={onRedeem} />
+      </div>
+    </article>
   );
 }
 
-// ✅ NEW: Challenges have a genuinely different shape than catalog items —
-// progress toward a count and an end date, not a cost to spend — so this
-// is its own component rather than a variant of RewardCard. Deliberately
-// reuses the existing pr-card/pr-tag/pr-cardTitle/pr-cardDesc/pr-meta/
-// pr-btn* classes already used by RewardCard above, since those are
-// already proven to render correctly in this exact file — only the
-// days-left text below is a genuinely new bit of styling.
 function formatDaysLeft(endDate) {
   if (!endDate) return null;
   const end = new Date(endDate).getTime();
@@ -592,7 +824,7 @@ function formatDaysLeft(endDate) {
   return `${days} days left`;
 }
 
-function ChallengeCard({ challenge, activating, onActivate }) {
+function ChallengeTicket({ challenge, activating, onActivate }) {
   const pct = Math.max(
     0,
     Math.min(
@@ -603,71 +835,199 @@ function ChallengeCard({ challenge, activating, onActivate }) {
     )
   );
   const daysLeft = formatDaysLeft(challenge.endDate);
+  const status = challenge.completed
+    ? "redeemed"
+    : challenge.activated
+    ? "active"
+    : "redeemable";
 
   return (
-    <Card bordered={false} className="pr-card">
-      <div className="pr-cardTop">
-        <Tag className="pr-tag">
-          {(challenge.theme || "challenge").toUpperCase()}
-        </Tag>
-        {challenge.completed && (
-          <Tag className="pr-ready">
-            <CheckCircleFilled /> Completed
-          </Tag>
-        )}
-      </div>
-
-      <div className="pr-cardTitle">
-        <span style={{ marginRight: 6 }}>
-          {resolveChallengeIcon(challenge.icon)}
-        </span>
-        {challenge.title}
-      </div>
-      <div className="pr-cardDesc">{challenge.description}</div>
-
-      {challenge.activated && !challenge.completed && (
-        <div className="pr-cardProgress">
-          <Progress percent={pct} showInfo={false} size="small" />
-          <Text className="pr-faint" style={{ fontSize: 12 }}>
-            {challenge.progress} / {challenge.requirementCount} complete
-          </Text>
+    <article className={`pr-ticket is-${status}`}>
+      <div className="pr-ticket-body">
+        <div className="pr-ticket-head">
+          <span className="pr-chip">
+            <Flag size={12} /> {challenge.theme || "Challenge"}
+          </span>
+          {daysLeft && !challenge.completed && (
+            <span className="pr-chip pr-chip--soft">
+              <Clock size={12} /> {daysLeft}
+            </span>
+          )}
         </div>
-      )}
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginTop: 8,
-        }}
-      >
-        <div className="pr-meta">+{challenge.bonusXP} XP bonus</div>
-        {daysLeft && (
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-            {daysLeft}
+        <h3 className="pr-ticket-title">
+          <span className="pr-ticket-icon">
+            {resolveChallengeIcon(challenge.icon)}
+          </span>
+          {challenge.title}
+        </h3>
+        <p className="pr-ticket-desc">{challenge.description}</p>
+
+        {challenge.activated && !challenge.completed && (
+          <div className="pr-ticket-progress">
+            <div className="pr-bar">
+              <i style={{ width: `${pct}%` }} />
+            </div>
+            <span>
+              {challenge.progress} / {challenge.requirementCount} complete
+            </span>
           </div>
         )}
+
+        {challenge.completed && <span className="pr-stamp">Complete</span>}
       </div>
 
-      {challenge.completed ? (
-        <Button className="pr-btnRedeemed" disabled style={{ marginTop: 10 }}>
-          <CheckCircleFilled /> +{challenge.bonusXP} XP earned
-        </Button>
-      ) : challenge.activated ? (
-        <Button className="pr-btnLocked" disabled style={{ marginTop: 10 }}>
-          In progress — keep going
-        </Button>
-      ) : (
-        <Button
-          className="pr-btnRedeem"
-          loading={activating}
-          onClick={onActivate}
-          style={{ marginTop: 10 }}
+      <div className="pr-ticket-stub">
+        <span className="pr-stub-label">Bonus</span>
+        <span className="pr-stub-cost">
+          +{fmt(challenge.bonusXP)}
+          <small>XP</small>
+        </span>
+        {challenge.completed ? (
+          <button type="button" className="pr-btn pr-btn--done" disabled>
+            <Check size={14} /> Earned
+          </button>
+        ) : challenge.activated ? (
+          <button type="button" className="pr-btn pr-btn--muted" disabled>
+            In progress
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="pr-btn pr-btn--primary"
+            onClick={onActivate}
+            disabled={activating}
+          >
+            {activating ? (
+              <Loader2 size={14} className="pr-spin" />
+            ) : (
+              "Activate"
+            )}
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function RedeemSheet({
+  item,
+  phase,
+  error,
+  balance,
+  tier,
+  onConfirm,
+  onCancel,
+}) {
+  const meta = TYPE_META[item.type] || TYPE_META.BOOST;
+  const TypeIcon = meta.Icon;
+
+  if (phase === "done") {
+    return (
+      <div className="pr-sheet pr-sheet--done">
+        <div className="pr-sheet-stamp">
+          <Check size={28} />
+        </div>
+        <span className="pr-seg-label">Redemption confirmed</span>
+        <h3 className="pr-sheet-title">{item.title}</h3>
+        <p className="pr-sheet-text">
+          {item.howToUse || "It's been added to your Skyrio account."}
+        </p>
+        <ul className="pr-math">
+          <li>
+            <span>Spendable XP</span>
+            <b>{fmt(balance)} XP</b>
+          </li>
+          <li>
+            <span>Your rank</span>
+            <b className="pr-math-rank">
+              <TierIcon tier={tier} size={14} /> {tier.name}
+            </b>
+          </li>
+        </ul>
+        <button
+          type="button"
+          className="pr-btn pr-btn--primary pr-btn--block"
+          onClick={onCancel}
         >
-          Activate
-        </Button>
+          Done
+        </button>
+      </div>
+    );
+  }
+
+  const after = Math.max(0, balance - item.cost);
+  return (
+    <div className="pr-sheet">
+      <span className="pr-seg-label">Confirm redemption</span>
+      <div className="pr-sheet-item">
+        <span className="pr-chip">
+          <TypeIcon size={12} /> {meta.label}
+        </span>
+        <h3 className="pr-sheet-title">{item.title}</h3>
+        <p className="pr-sheet-text">{item.desc}</p>
+      </div>
+
+      <ul className="pr-math">
+        <li>
+          <span>Spendable XP</span>
+          <b>
+            {fmt(balance)} <ArrowRight size={12} /> {fmt(after)} XP
+          </b>
+        </li>
+        <li>
+          <span>Your rank</span>
+          <b className="pr-math-rank">
+            <TierIcon tier={tier} size={14} /> {tier.name} · unchanged
+          </b>
+        </li>
+      </ul>
+
+      {error && <p className="pr-sheet-error">{error}</p>}
+
+      <div className="pr-sheet-actions">
+        <button
+          type="button"
+          className="pr-btn pr-btn--ghost"
+          onClick={onCancel}
+          disabled={phase === "pending"}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="pr-btn pr-btn--primary"
+          onClick={onConfirm}
+          disabled={phase === "pending"}
+        >
+          {phase === "pending" ? (
+            <Loader2 size={14} className="pr-spin" />
+          ) : (
+            `Redeem for ${fmt(item.cost)} XP`
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ title, text, actionLabel, onAction }) {
+  return (
+    <div className="pr-empty">
+      <div className="pr-empty-icon">
+        <Plane size={22} />
+      </div>
+      <strong>{title}</strong>
+      <p>{text}</p>
+      {onAction && (
+        <button
+          type="button"
+          className="pr-btn pr-btn--ghost"
+          onClick={onAction}
+        >
+          {actionLabel}
+        </button>
       )}
-    </Card>
+    </div>
   );
 }
