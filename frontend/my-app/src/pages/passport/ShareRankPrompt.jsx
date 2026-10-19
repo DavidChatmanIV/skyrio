@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Share2, X, Award } from "lucide-react";
+import { Share2, X, Award, Link2 } from "lucide-react";
+import { XP_TIERS } from "@/config/xpConfig";
+import { TierMedal } from "@/components/passport/TierIcon";
 
 const BADGE_CONFIG = {
   Explorer: { color: "#7c5cfc", emoji: "🌍" },
@@ -10,11 +12,45 @@ const BADGE_CONFIG = {
 
 const STORAGE_PREFIX = "skyrio_shared_rank_";
 
-export default function ShareRankPrompt({ badge, username, xp }) {
-  const [visible, setVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
+// Public site for share links — never share a localhost URL.
+// Add VITE_PUBLIC_SITE_URL=https://myskyrio.com to frontend .env (and Vercel).
+const PUBLIC_SITE =
+  import.meta.env.VITE_PUBLIC_SITE_URL ||
+  (window.location.hostname === "localhost"
+    ? "https://myskyrio.com"
+    : window.location.origin);
 
-  const config = BADGE_CONFIG[badge] || BADGE_CONFIG.Explorer;
+// Copy that works even where navigator.clipboard is blocked.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }
+}
+
+/**
+ * badge — rank name from getTier(totalEarned).name
+ * xp    — pass LIFETIME XP (totalEarned from useXPSystem), not the spendable balance
+ */
+export default function ShareRankPrompt({ badge, username, xp = 0 }) {
+  const [visible, setVisible] = useState(false);
+  const [status, setStatus] = useState(null); // "copied" | "shared" | "failed" | null
+
+  // Colors/icons come from the real tier ladder, so every rank gets its own look.
+  const tier = XP_TIERS.find((t) => t.name === badge);
+  const config = tier
+    ? { color: tier.color, emoji: tier.icon }
+    : BADGE_CONFIG[badge] || BADGE_CONFIG.Explorer;
   const storageKey = `${STORAGE_PREFIX}${badge}`;
 
   // Show prompt when user reaches a new badge they haven't shared yet
@@ -39,24 +75,89 @@ export default function ShareRankPrompt({ badge, username, xp }) {
     setVisible(false);
   };
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/u/${username}`;
-    const text = `I just hit ${badge} rank on Skyrio ✦ ${xp.toLocaleString()} XP and counting. Check out my travel passport:`;
+  const url = `${PUBLIC_SITE}/u/${encodeURIComponent(username || "")}`;
+  const text = `I just hit ${badge} rank on Skyrio ✦ ${Number(
+    xp
+  ).toLocaleString()} XP and counting. Check out my travel passport:`;
 
+  const flash = (s) => {
+    setStatus(s);
+    setTimeout(() => setStatus(null), 3000);
+  };
+
+  const markShared = () => {
     try {
-      if (navigator.share) {
-        await navigator.share({ title: `${badge} on Skyrio`, text, url });
-      } else {
-        await navigator.clipboard.writeText(`${text} ${url}`);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
-      }
+      localStorage.setItem(storageKey, "shared");
+    } catch {}
+  };
+
+  // navigator.share() is called FIRST (no await before it), so the browser still
+  // counts it as the user's click. Any failure falls back to copying the link,
+  // so the button can never silently do nothing again.
+  const handleShare = async (e) => {
+    e?.stopPropagation();
+    const data = { title: `${badge} on Skyrio`, text, url };
+
+    if (navigator.share && (!navigator.canShare || navigator.canShare(data))) {
       try {
-        localStorage.setItem(storageKey, "shared");
-      } catch {}
-    } catch {
-      /* user cancelled */
+        await navigator.share(data);
+        markShared();
+        flash("shared");
+        setTimeout(() => setVisible(false), 1200);
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") return; // user closed the share sheet
+        console.warn(
+          "[ShareRankPrompt] native share failed, copying instead:",
+          err
+        );
+      }
     }
+
+    if (await copyText(`${text} ${url}`)) {
+      markShared();
+      flash("copied");
+    } else {
+      flash("failed");
+    }
+  };
+
+  const handleCopyLink = async (e) => {
+    e.stopPropagation();
+    if (await copyText(url)) {
+      markShared();
+      flash("copied");
+    } else flash("failed");
+  };
+
+  const enc = encodeURIComponent;
+  const quickLinks = [
+    {
+      label: "X",
+      href: `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(
+        url
+      )}`,
+    },
+    { label: "WhatsApp", href: `https://wa.me/?text=${enc(`${text} ${url}`)}` },
+    { label: "Text", href: `sms:?&body=${enc(`${text} ${url}`)}` },
+  ];
+
+  const chipStyle = {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "9px 0",
+    borderRadius: 10,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    fontWeight: 600,
+    fontFamily: "DM Sans, sans-serif",
+    textDecoration: "none",
+    cursor: "pointer",
   };
 
   if (!visible) return null;
@@ -79,6 +180,9 @@ export default function ShareRankPrompt({ badge, username, xp }) {
 
       {/* Prompt */}
       <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
         style={{
           position: "fixed",
           bottom: "calc(24px + env(safe-area-inset-bottom, 0px))",
@@ -103,6 +207,7 @@ export default function ShareRankPrompt({ badge, username, xp }) {
         {/* Close */}
         <button
           onClick={dismiss}
+          aria-label="Close"
           style={{
             position: "absolute",
             top: 14,
@@ -130,21 +235,24 @@ export default function ShareRankPrompt({ badge, username, xp }) {
             marginBottom: 16,
           }}
         >
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: "50%",
-              background: `linear-gradient(135deg, ${config.color}, rgba(255,138,42,0.6))`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: `0 4px 20px ${config.color}55`,
-              flexShrink: 0,
-            }}
-          >
-            <Award size={22} color="#fff" />
-          </div>
+          {tier ? (
+            <TierMedal tier={tier} size={48} />
+          ) : (
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                background: `linear-gradient(135deg, ${config.color}, rgba(255,138,42,0.6))`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Award size={22} color="#fff" />
+            </div>
+          )}
           <div>
             <div
               style={{
@@ -181,8 +289,9 @@ export default function ShareRankPrompt({ badge, username, xp }) {
           }}
         >
           You've hit <strong style={{ color: "#fff" }}>{badge}</strong> with{" "}
-          {xp.toLocaleString()} XP. Share your passport — let others see your
-          rank and join Skyrio.
+          {Number(xp).toLocaleString()} lifetime XP. Your rank is yours to keep
+          — redeeming rewards never lowers it. Share your passport and invite
+          friends to join Skyrio.
         </p>
 
         <button
@@ -207,8 +316,48 @@ export default function ShareRankPrompt({ badge, username, xp }) {
           }}
         >
           <Share2 size={15} />
-          {copied ? "Link copied to clipboard!" : `Share my ${badge} passport`}
+          {status === "copied"
+            ? "Link copied — paste it anywhere!"
+            : status === "shared"
+            ? "Shared! ✦"
+            : `Share my ${badge} passport`}
         </button>
+
+        {/* Always-available options, in case native share isn't supported */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <button onClick={handleCopyLink} style={chipStyle}>
+            <Link2 size={13} /> Copy link
+          </button>
+          {quickLinks.map((l) => (
+            <a
+              key={l.label}
+              href={l.href}
+              target={l.label === "Text" ? undefined : "_blank"}
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                markShared();
+              }}
+              style={chipStyle}
+            >
+              {l.label}
+            </a>
+          ))}
+        </div>
+
+        {status === "failed" && (
+          <p
+            role="status"
+            style={{
+              fontSize: 12,
+              color: "#fca5a5",
+              margin: "0 0 10px",
+              wordBreak: "break-all",
+            }}
+          >
+            Couldn't copy automatically. Your link: {url}
+          </p>
+        )}
 
         <button
           onClick={dismiss}

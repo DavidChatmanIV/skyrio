@@ -76,15 +76,26 @@ function makeEvent(rule, amount, { pending = false, label } = {}) {
 /**
  * Moves User.xp / User.pendingXp atomically, keeps xpTotalEarned + xpRecentEvents
  * (the fields GET /api/xp/me already reads) in sync, and reports a rank-up.
- * Rank only ever comes from confirmed xp.
+ *
+ * TWO NUMBERS:
+ *   xp            — spendable balance. Goes down when rewards are redeemed.
+ *   xpTotalEarned — lifetime earned. RANK COMES FROM THIS. Redeeming never touches it;
+ *                   only a reversal (cancelled booking, deleted post, unlike) lowers it.
+ *
+ * `earned` defaults to the positive part of `xp`, so:
+ *   applyBalance(id, { xp: +50 })                 → earned +50 (normal grant / pending confirmed)
+ *   applyBalance(id, { xp: -250 })                → earned 0   (reward redemption — rank safe)
+ *   applyBalance(id, { xp: -50, earned: -50 })    → reversal   (cheat-proofing)
  */
 export async function applyBalance(
   userId,
-  { xp = 0, pendingXp = 0 },
+  { xp = 0, pendingXp = 0, earned },
   event = null
 ) {
+  const earnedDelta = earned ?? (xp > 0 ? xp : 0);
+
   const update = { $inc: { xp, pendingXp } };
-  if (xp > 0) update.$inc.xpTotalEarned = xp;
+  if (earnedDelta !== 0) update.$inc.xpTotalEarned = earnedDelta;
   if (event)
     update.$push = {
       xpRecentEvents: { $each: [event], $position: 0, $slice: 12 },
@@ -92,26 +103,41 @@ export async function applyBalance(
 
   const before = await User.findByIdAndUpdate(userId, update, {
     new: false,
-    projection: { xp: 1 },
+    projection: { xp: 1, xpTotalEarned: 1 },
   });
-  if (xp < 0 || pendingXp < 0) {
-    // never let a reversal push a balance below zero
+  if (xp < 0 || pendingXp < 0 || earnedDelta < 0) {
+    // never let a reversal/redemption push any balance below zero
     await User.updateOne({ _id: userId }, [
       {
         $set: {
           xp: { $max: [{ $ifNull: ["$xp", 0] }, 0] },
           pendingXp: { $max: [{ $ifNull: ["$pendingXp", 0] }, 0] },
+          xpTotalEarned: { $max: [{ $ifNull: ["$xpTotalEarned", 0] }, 0] },
         },
       },
     ]);
   }
+
   const previousXp = before?.xp ?? 0;
   const newXp = Math.max(0, previousXp + xp);
-  const prevRank = getLevel(previousXp).current;
-  const newRank = getLevel(newXp).current;
+
+  // Rank is based on lifetime earned XP, never the spendable balance.
+  const previousEarned = before?.xpTotalEarned ?? previousXp;
+  const newEarned = Math.max(0, previousEarned + earnedDelta);
+  const prevRank = getLevel(previousEarned).current;
+  const newRank = getLevel(newEarned).current;
   const rankUp =
-    newXp > previousXp && newRank.name !== prevRank.name ? newRank : null;
-  return { previousXp, xp: newXp, rankUp };
+    newEarned > previousEarned && newRank.name !== prevRank.name
+      ? newRank
+      : null;
+
+  return {
+    previousXp,
+    xp: newXp,
+    xpTotalEarned: newEarned,
+    rank: newRank,
+    rankUp,
+  };
 }
 
 /* ───────────────────────── core ───────────────────────── */
@@ -276,7 +302,7 @@ export async function reverseXp({
       row.user,
       row.status === "pending"
         ? { pendingXp: -row.amount }
-        : { xp: -row.amount }
+        : { xp: -row.amount, earned: -row.amount } // reversal also undoes lifetime/rank
     );
     count++;
   }

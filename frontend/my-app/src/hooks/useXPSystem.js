@@ -12,6 +12,11 @@
  *   • ACTIVE_INTERVAL — fires every 5 min while hook is mounted; backend caps at 5/day
  *   • PAGE_VISIT      — call trackPageVisit(path) on every route change; backend caps at 10/day
  *   • STREAK_DAY      — fires on mount; backend handles streak math + milestone bonuses
+ *
+ * RANK vs BALANCE:
+ *   xp          — spendable balance (drops when rewards are redeemed)
+ *   totalEarned — lifetime XP. Tier/rank/progress ALWAYS come from this,
+ *                 so redeeming a reward can never lower someone's rank.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -40,6 +45,16 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
+// Lifetime XP from any backend response shape (falls back to balance for old responses).
+const earnedFrom = (res, fallback = 0) =>
+  res?.totalEarned ?? res?.xpTotalEarned ?? fallback;
+
+const tierState = (earned) => ({
+  tier: getTier(earned),
+  nextTier: getNextTier(earned),
+  progress: getTierProgress(earned),
+});
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export default function useXPSystem() {
   const [data, setData] = useState({
@@ -64,12 +79,12 @@ export default function useXPSystem() {
   const refresh = useCallback(async () => {
     try {
       const res = await apiFetch("/api/xp/me");
+      const totalEarned = earnedFrom(res, res.xp ?? 0);
       setData((prev) => ({
         ...prev,
         ...res,
-        tier: getTier(res.xp),
-        nextTier: getNextTier(res.xp),
-        progress: getTierProgress(res.xp),
+        totalEarned,
+        ...tierState(totalEarned),
         loading: false,
         error: null,
       }));
@@ -88,16 +103,22 @@ export default function useXPSystem() {
       });
 
       if (res.awarded) {
-        setData((prev) => ({
-          ...prev,
-          xp: res.xp,
-          tier: getTier(res.xp),
-          nextTier: getNextTier(res.xp),
-          progress: getTierProgress(res.xp),
-          recentEvents: res.event
-            ? [res.event, ...prev.recentEvents].slice(0, 12)
-            : prev.recentEvents,
-        }));
+        setData((prev) => {
+          // Passive XP is never pending, so lifetime grows by exactly what was awarded.
+          const totalEarned = earnedFrom(
+            res,
+            prev.totalEarned + (res.event?.xp ?? 0)
+          );
+          return {
+            ...prev,
+            xp: res.xp,
+            totalEarned,
+            ...tierState(totalEarned),
+            recentEvents: res.event
+              ? [res.event, ...prev.recentEvents].slice(0, 12)
+              : prev.recentEvents,
+          };
+        });
         return res.event ?? null;
       }
       return null;
@@ -162,6 +183,8 @@ export default function useXPSystem() {
     error: data.error,
     // Actions
     refresh,
+    // After a redemption: lower the balance only — rank stays put.
+    setBalance: (xp) => setData((prev) => ({ ...prev, xp })),
     awardXP,
     trackPageVisit,
   };

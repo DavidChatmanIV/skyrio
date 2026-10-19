@@ -11,6 +11,14 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 // is left untouched in case anything else still imports it; only this
 // file's import changed.
 import { getLevel } from "../../config/xpRules.js";
+import { applyBalance } from "../../services/xpService.js";
+
+// Rank comes from LIFETIME earned XP, never the spendable balance —
+// redeeming rewards must never lower someone's rank.
+// Lifetime can never be lower than the current balance (guards old accounts
+// whose xpTotalEarned was never kept in sync).
+const lifetimeXp = (u) =>
+  Math.max(Number(u?.xpTotalEarned ?? 0), Number(u?.xp ?? 0));
 
 const router = Router();
 
@@ -47,7 +55,7 @@ router.get("/me", requireAuth, async (req, res) => {
       return res.status(401).json({ ok: false, message: "User not found" });
     }
 
-    const levelData = getLevel(user.xp || 0);
+    const levelData = getLevel(lifetimeXp(user));
     const safe = user.toSafeJSON();
 
     return res.json({
@@ -69,7 +77,8 @@ router.get("/me", requireAuth, async (req, res) => {
         referredBy: safe.referredBy ?? null,
       },
       profile,
-      xp: user.xp || 0,
+      xp: user.xp || 0, // spendable balance
+      xpTotalEarned: lifetimeXp(user), // lifetime — drives rank
       // ✅ levelData.current/.next are now objects ({ name, minXp, ... })
       // from the real xpRules.js getLevel() — extract .name so the JSON
       // shape sent to the frontend is unchanged (still plain strings, since
@@ -320,7 +329,7 @@ router.get("/public/:username", async (req, res) => {
     const user = await User.findById(profile.user)
       .select(
         // Added verifiedTier so the public passport page can show the badge
-        "xp username name avatar followers following followersCount followingCount isOfficial verifiedTier createdAt"
+        "xp xpTotalEarned username name avatar followers following followersCount followingCount isOfficial verifiedTier createdAt"
       )
       .lean();
 
@@ -328,7 +337,7 @@ router.get("/public/:username", async (req, res) => {
     // not plain strings — extract .name explicitly (with the same
     // "Explorer"/null fallback behavior as before) instead of relying on
     // the old fallback literal, which assumed current/next were strings.
-    const levelData = user ? getLevel(user.xp || 0) : null;
+    const levelData = user ? getLevel(lifetimeXp(user)) : null;
     const currentBadgeName = levelData?.current?.name || "Explorer";
     const nextBadgeName = levelData?.next?.name || null;
     const badgePercentValue = levelData?.percent || 0;
@@ -366,7 +375,9 @@ router.get("/public/:username", async (req, res) => {
       city: profile.city || null,
       badge: currentBadgeName,
       currentBadge: currentBadgeName,
-      xp: user?.xp || 0,
+      // Public page shows lifetime XP (the rank number), not the private balance.
+      xp: lifetimeXp(user),
+      xpTotalEarned: lifetimeXp(user),
       xpPercent: badgePercentValue,
       nextBadge: nextBadgeName,
       isOfficial: user?.isOfficial || false,
@@ -408,27 +419,41 @@ router.get("/public/:username", async (req, res) => {
 router.post("/share-xp", requireAuth, async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const user = await User.findById(req.user._id)
-      .select("xp lastShareXpDate")
-      .lean();
 
-    if (!user)
-      return res.status(404).json({ ok: false, message: "User not found." });
-
-    if (user.lastShareXpDate === today)
+    // Atomically claim today's share — double-clicks/parallel requests can't pay twice.
+    const claimed = await User.findOneAndUpdate(
+      { _id: req.user._id, lastShareXpDate: { $ne: today } },
+      { $set: { lastShareXpDate: today } },
+      { new: false, projection: { _id: 1 } }
+    );
+    if (!claimed) {
+      const exists = await User.exists({ _id: req.user._id });
+      if (!exists)
+        return res.status(404).json({ ok: false, message: "User not found." });
       return res.json({
         ok: true,
         awarded: false,
         reason: "already_awarded_today",
       });
+    }
 
-    await User.findByIdAndUpdate(req.user._id, {
-      $inc: { xp: 10 },
-      $set: { lastShareXpDate: today },
-    });
+    // Goes through applyBalance so it counts toward BOTH balance and lifetime rank,
+    // and shows up in recent XP events.
+    const balance = await applyBalance(
+      req.user._id,
+      { xp: 10 },
+      {
+        label: "Shared your passport",
+        xp: 10,
+        icon: "share",
+        iconKey: "share",
+        pending: false,
+        time: Date.now(),
+      }
+    );
 
     console.log(`[profile] share-xp +10 XP → ${req.user._id}`);
-    res.json({ ok: true, awarded: true, xp: 10 });
+    res.json({ ok: true, awarded: true, xp: 10, rankUp: balance.rankUp });
   } catch (err) {
     console.error("[profile] share-xp error:", err);
     res.status(500).json({ ok: false, message: err.message });

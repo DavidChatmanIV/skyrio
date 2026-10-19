@@ -77,6 +77,37 @@ const { Title, Text } = Typography;
 
 const API = import.meta.env.VITE_API_URL || "";
 
+// Public site for share links — never share a localhost URL.
+const PUBLIC_SITE =
+  import.meta.env.VITE_PUBLIC_SITE_URL ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "https://myskyrio.com"
+    : typeof window !== "undefined"
+    ? window.location.origin
+    : "https://myskyrio.com");
+
+// Copy that still works where navigator.clipboard is blocked. Returns true/false.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
 function safeEmailPrefix(email) {
   if (!email) return "";
   const idx = email.indexOf("@");
@@ -581,7 +612,7 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
     };
   }, []);
   const username = user?.username || "";
-  const referralUrl = `${window.location.origin}/u/${username}?ref=${username}`;
+  const referralUrl = `${PUBLIC_SITE}/u/${username}?ref=${username}`;
 
   const REWARDS = [
     { Icon: SharePlaneIcon, label: "You share your link", xp: "+10 XP" },
@@ -594,9 +625,10 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
   ];
 
   const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(referralUrl);
-    } catch {}
+    if (!(await copyText(referralUrl))) {
+      window.prompt("Copy your passport link:", referralUrl);
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
     // Grant share XP
@@ -619,8 +651,12 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
         headers: { Authorization: `Bearer ${token}` },
         credentials: "include",
       }).catch(() => {});
-    } catch {}
-    onClose();
+      onClose();
+    } catch (err) {
+      if (err?.name === "AbortError") return; // closed the share sheet — keep modal open
+      // Native share failed — fall back to copying so the click never does nothing
+      await copyLink();
+    }
   };
 
   return (
@@ -885,7 +921,8 @@ export default function DigitalPassportPage() {
 
   const [xpLoading, setXpLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [xp, setXp] = useState(0);
+  const [xp, setXp] = useState(0); // spendable balance
+  const [totalEarned, setTotalEarned] = useState(0); // lifetime — drives rank
   const [xpToNextBadge, setXpToNextBadge] = useState(0);
   const [nextBadgeName, setNextBadgeName] = useState("Explorer");
   const [currentBadge, setCurrentBadge] = useState("Explorer");
@@ -921,17 +958,18 @@ export default function DigitalPassportPage() {
     return hb && typeof hb === "string" ? hb : "Not set";
   }, [user?.city, user?.homeBase]);
 
+  // Ring progress is based on LIFETIME XP (rank), not the spendable balance.
   const xpGoal = useMemo(() => {
-    const current = Number(xp || 0);
+    const current = Number(totalEarned || 0);
     const remaining = Number(xpToNextBadge || 0);
     const goal = remaining > 0 ? current + remaining : Math.max(100, current);
     return Math.max(1, goal);
-  }, [xp, xpToNextBadge]);
+  }, [totalEarned, xpToNextBadge]);
 
   const xpPercent = useMemo(() => {
-    const current = Number(xp || 0);
+    const current = Number(totalEarned || 0);
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
-  }, [xp, xpGoal]);
+  }, [totalEarned, xpGoal]);
 
   // ── FIX: dirty check so Save Changes is only active when there are edits ──
   const isProfileDirty = useMemo(() => {
@@ -1030,7 +1068,11 @@ export default function DigitalPassportPage() {
         if (!res.ok) throw new Error("profile fetch failed");
         const data = await res.json();
         if (!mounted) return;
-        setXp(Number(data?.xp ?? data?.user?.xp ?? 0));
+        const balance = Number(data?.xp ?? data?.user?.xp ?? 0);
+        setXp(balance);
+        setTotalEarned(
+          Number(data?.xpTotalEarned ?? data?.user?.xpTotalEarned ?? balance)
+        );
         setXpToNextBadge(Number(data?.xpToNextBadge ?? 0));
         setNextBadgeName(
           String(data?.nextBadge ?? data?.nextBadgeName ?? "Adventurer")
@@ -1078,6 +1120,7 @@ export default function DigitalPassportPage() {
       } catch {
         if (!mounted) return;
         setXp(0);
+        setTotalEarned(0);
         setXpToNextBadge(0);
         setNextBadgeName("Adventurer");
       } finally {
@@ -1096,7 +1139,11 @@ export default function DigitalPassportPage() {
     const alreadyShown = sessionStorage.getItem("xp_toast_shown") === "1";
     if (xp > 0 && !xpToastShown && !xpLoading && !alreadyShown) {
       const timer = setTimeout(() => {
-        message.success(`✦ ${xp} XP earned — keep exploring!`);
+        message.success(
+          `✦ ${Number(
+            totalEarned
+          ).toLocaleString()} XP earned — keep exploring!`
+        );
         setXpToastShown(true);
         try {
           sessionStorage.setItem("xp_toast_shown", "1");
@@ -1104,7 +1151,7 @@ export default function DigitalPassportPage() {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [xp, xpLoading, xpToastShown]);
+  }, [xp, totalEarned, xpLoading, xpToastShown]);
 
   useEffect(() => {
     if (!isAuthed) return;
@@ -1179,16 +1226,27 @@ export default function DigitalPassportPage() {
       return;
     }
     // Append ?ref= so signups from this link are tracked back to this user
-    const url = `${window.location.origin}/u/${username}?ref=${username}`;
+    const url = `${PUBLIC_SITE}/u/${username}?ref=${username}`;
     try {
+      let shared = false;
       if (navigator.share) {
-        await navigator.share({
-          title: `${displayName}'s Skyrio Passport`,
-          url,
-        });
-      } else {
-        await navigator.clipboard.writeText(url);
-        message.success("Referral link copied! +10 XP when someone joins ✈️");
+        try {
+          await navigator.share({
+            title: `${displayName}'s Skyrio Passport`,
+            url,
+          });
+          shared = true;
+        } catch (err) {
+          if (err?.name === "AbortError") return;
+        }
+      }
+      if (!shared) {
+        if (await copyText(url)) {
+          message.success("Referral link copied! +10 XP when someone joins ✈️");
+        } else {
+          message.error("Couldn't copy the link. Try again.");
+          return;
+        }
       }
       // Grant share XP (once per day — backend deduplicates)
       fetch(apiUrl("/api/profile/share-xp"), {
@@ -1555,7 +1613,9 @@ export default function DigitalPassportPage() {
                                   <div className="pp-levelRole">
                                     {currentBadge}
                                   </div>
-                                  <div className="pp-levelXp">{xp} XP</div>
+                                  <div className="pp-levelXp">
+                                    {Number(totalEarned).toLocaleString()} XP
+                                  </div>
                                 </div>
                               )}
                             />
@@ -1604,6 +1664,26 @@ export default function DigitalPassportPage() {
                                 </div>
                               </div>
                             )}
+                            {/* Spendable balance — separate from rank */}
+                            <button
+                              type="button"
+                              onClick={() => navigate("/passport/rewards")}
+                              title="Your rank never drops when you redeem rewards"
+                              style={{
+                                marginTop: 2,
+                                padding: "4px 10px",
+                                borderRadius: 999,
+                                border: "1px solid rgba(255,138,42,0.25)",
+                                background: "rgba(255,138,42,0.08)",
+                                color: "#ffb066",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              {Number(xp).toLocaleString()} XP to spend →
+                            </button>
                           </div>
                         )}
                       </div>
@@ -2237,7 +2317,7 @@ export default function DigitalPassportPage() {
       <ShareRankPrompt
         badge={currentBadge}
         username={user?.username || safeEmailPrefix(user?.email)}
-        xp={xp}
+        xp={totalEarned}
       />
     </div>
   );

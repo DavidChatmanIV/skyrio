@@ -1,0 +1,55 @@
+/* frontend/my-app/src/styles/passport-share.css — dark-glass + orange, matches Skyrio */
+
+/* Rank-up / share modal */
+.pshare-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:16px;
+  background:rgba(8,4,20,.6);backdrop-filter:blur(8px)}
+.pshare-card{position:relative;width:min(520px,100%);padding:28px;border-radius:24px;color:#fff;
+  background:linear-gradient(160deg,rgba(30,16,52,.96),rgba(14,8,28,.96));
+  border:1px solid color-mix(in srgb,var(--rank,#fb923c) 40%,transparent);
+  box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 60px color-mix(in srgb,var(--rank,#fb923c) 20%,transparent)}
+.pshare-x{position:absolute;top:14px;right:16px;background:none;border:0;color:#a59bbf;font-size:24px;cursor:pointer}
+.pshare-head{display:flex;gap:16px;align-items:center;margin-bottom:14px}
+.pshare-medal{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-size:28px;
+  background:radial-gradient(circle,var(--rank,#fb923c),color-mix(in srgb,var(--rank,#fb923c) 40%,#1a0f2e))}
+.pshare-eyebrow{margin:0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--rank,#fb923c)}
+.pshare-head h2{margin:2px 0 0;font-size:30px}
+.pshare-body{color:#cfc6e4;line-height:1.55;margin:0 0 20px}
+.pshare-primary{width:100%;padding:16px;border:0;border-radius:14px;font-weight:700;font-size:17px;color:#fff;cursor:pointer;
+  background:linear-gradient(90deg,var(--rank,#fb923c),#fb923c)}
+.pshare-primary:active{transform:scale(.99)}
+.pshare-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.pshare-row>*{padding:10px 0;text-align:center;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;
+  color:#e9e3f7;text-decoration:none;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.pshare-row>*:hover{background:rgba(255,255,255,.12)}
+.pshare-status{min-height:20px;margin:12px 0 4px;font-size:14px;color:#86efac;text-align:center;word-break:break-all}
+.pshare-later{width:100%;padding:13px;border-radius:14px;background:none;color:#a59bbf;border:1px solid rgba(255,255,255,.12);cursor:pointer}
+
+/* Wallet card: rank vs balance */
+.xpw{display:flex;gap:20px;padding:20px;border-radius:20px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.xpw-col{flex:1;display:flex;flex-direction:column;gap:4px}
+.xpw-label{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#bdb3d6}
+.xpw-big{font-size:28px;color:#fff}
+.xpw-sub{font-size:13px;color:#cfc6e4}
+.xpw-bar{height:6px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:6px}
+.xpw-bar i{display:block;height:100%;border-radius:inherit}
+.xpw-divider{width:1px;background:rgba(255,255,255,.12)}
+@media (max-width:640px){.xpw{flex-direction:column}.xpw-divider{width:auto;height:1px}}
+
+/* How XP works */
+.hxw{border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);margin:16px 0}
+.hxw-toggle{width:100%;display:flex;justify-content:space-between;padding:16px 20px;background:none;border:0;color:#fff;font-weight:700;font-size:16px;cursor:pointer}
+.hxw-body{padding:0 20px 20px;color:#d7cfea}
+.hxw-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.hxw-grid h4{margin:0 0 6px;color:#fb923c}
+.hxw-grid p{margin:0;font-size:14px;line-height:1.5}
+.hxw-ranks-title{margin:18px 0 8px;color:#fff}
+.hxw-ranks{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.hxw-ranks li{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:99px;background:rgba(255,255,255,.06);font-weight:600}
+.hxw-ranks em{font-style:normal;font-weight:400;color:#a59bbf;font-size:13px}
+.hxw-ranks .dot{width:10px;height:10px;border-radius:50%}
+@media (max-width:640px){.hxw-grid{grid-template-columns:1fr}}
+
+/* Redeem confirm — the "balance will drop to…" line was nearly invisible */
+.redeem-math{list-style:none;padding:12px 14px;margin:12px 0 0;border-radius:12px;background:rgba(255,255,255,.06)}
+.redeem-math li{display:flex;justify-content:space-between;padding:4px 0;color:#d7cfea;font-size:15px}
+.redeem-math b{color:#fff}
