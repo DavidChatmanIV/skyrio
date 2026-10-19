@@ -1,0 +1,536 @@
+/* ═══════════════════════════════════════════════════════
+   PASSPORT DATA PAGE  — replaces .pp-profileCard
+   Import order: loaded by PassportDataPage.jsx, after
+   profile-passport.css, so the overrides at the bottom win.
+   ═══════════════════════════════════════════════════════ */
+
+.pdp {
+  --pdp-gold: rgba(255, 192, 120, 0.85);
+  --pdp-gold-dim: rgba(255, 192, 120, 0.6);
+  --pdp-line: rgba(255, 192, 120, 0.22);
+  --pdp-ink: rgba(255, 255, 255, 0.95);
+
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid var(--pdp-line);
+  background: radial-gradient(
+      600px 300px at 85% 20%,
+      rgba(139, 92, 255, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(
+      500px 260px at 10% 100%,
+      rgba(255, 157, 74, 0.14),
+      transparent 60%
+    ),
+    linear-gradient(135deg, #2b1642 0%, #1a1233 48%, #35172b 100%);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--pdp-ink);
+}
+
+/* ── Security pattern ── */
+.pdp-guilloche {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: none;
+  stroke: rgba(255, 192, 120, 0.07);
+  stroke-width: 0.8;
+}
+.pdp-guilloche .pdp-rosette {
+  stroke: rgba(170, 140, 255, 0.1);
+}
+
+.pdp,
+.pdp *,
+.pdp *::before,
+.pdp *::after {
+  box-sizing: border-box;
+}
+/* :where() keeps these resets at zero specificity so the rules below still win */
+:where(.pdp) :where(dl, dd, p, h2) {
+  margin: 0;
+}
+:where(.pdp) :where(button) {
+  font: inherit;
+}
+
+.pdp > *:not(.pdp-guilloche) {
+  position: relative;
+}
+
+/* ── Header strip ── */
+.pdp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px 12px;
+  border-bottom: 1px dashed var(--pdp-line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.pdp-headBrand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Syne", sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--pdp-gold);
+}
+.pdp-emblem {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: #1a0d04;
+  background: linear-gradient(135deg, #ff9d4a, #ffc078);
+  box-shadow: 0 0 0 2px rgba(255, 192, 120, 0.25);
+}
+.pdp-headTitle {
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+}
+.pdp-headAlt {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+}
+.pdp-headType {
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+}
+
+/* ── Body ── */
+.pdp-body {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) 196px;
+  gap: 24px;
+  padding: 22px 24px 18px;
+  align-items: start;
+}
+
+/* ── Labels / values ── */
+.pdp-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pdp-gold-dim);
+  margin: 0 0 3px;
+}
+.pdp-value {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--pdp-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+.pdp-value.is-empty {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 600;
+}
+.pdp-mono {
+  font-family: "OCR B", "OCR-B", "Space Mono", ui-monospace, "SFMono-Regular",
+    Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+/* ── Photo column ── */
+.pdp-photoCol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pdp-photo {
+  position: relative;
+  width: 132px;
+  height: 166px;
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+  display: grid;
+  place-items: center;
+  transition: border-color 0.2s;
+}
+.pdp-photo:hover {
+  border-color: rgba(255, 157, 74, 0.55);
+}
+.pdp-photo:focus-visible {
+  outline: 2px solid #ff9d4a;
+  outline-offset: 3px;
+}
+.pdp-photo:disabled {
+  cursor: progress;
+}
+.pdp-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pdp-photoFallback {
+  font-size: 44px;
+  color: rgba(255, 255, 255, 0.35);
+}
+.pdp-photoCam {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #ff8a2a;
+  color: #1a0d04;
+  border: 2px solid rgba(9, 7, 26, 0.8);
+}
+
+/* Holographic seal over the photo corner */
+.pdp-holo {
+  position: absolute;
+  left: -14px;
+  bottom: -14px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    transparent 38%,
+    rgba(255, 157, 74, 0.55) 40%,
+    rgba(139, 92, 255, 0.5) 52%,
+    rgba(80, 220, 255, 0.45) 62%,
+    rgba(255, 120, 200, 0.45) 68%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  transition: filter 1.2s ease, opacity 0.3s;
+}
+.pdp:hover .pdp-holo {
+  filter: hue-rotate(160deg);
+  opacity: 0.8;
+}
+
+.pdp-sig {
+  font-family: "Caveat", "Segoe Script", "Bradley Hand", cursive;
+  font-size: 22px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid var(--pdp-line);
+  padding-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdp-ghost {
+  width: 44px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 4px;
+  filter: grayscale(1) contrast(0.9);
+  opacity: 0.22;
+  mix-blend-mode: luminosity;
+}
+
+/* ── Fields column ── */
+.pdp-name {
+  margin: 0;
+  font-family: "Syne", sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.pdp-handle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.pdp-bio {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.pdp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed var(--pdp-line);
+}
+.pdp-grid > div {
+  min-width: 0;
+}
+
+.pdp-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #ffc078;
+}
+.pdp-statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff9d4a;
+  box-shadow: 0 0 0 3px rgba(255, 157, 74, 0.2);
+}
+
+.pdp-endorse {
+  margin-top: 14px;
+}
+.pdp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.pdp-chip {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 157, 74, 0.35);
+  background: rgba(255, 157, 74, 0.08);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffc078;
+}
+
+.pdp-social {
+  margin-top: 6px;
+}
+.pdp-referrals {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.pdp-referrals strong {
+  color: #ff9d4a;
+}
+
+/* ── Rank column ── */
+.pdp-ringCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.pdp-ringText {
+  display: grid;
+  place-items: center;
+  gap: 1px;
+}
+.pdp-ringTier {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pdp-gold);
+}
+.pdp-ringXp {
+  font-family: "Syne", sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #fff;
+}
+.pdp-ringUnit {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pdp-next {
+  width: 100%;
+  max-width: 180px;
+}
+.pdp-nextBar {
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.pdp-nextFill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #ff9d4a, #8b5cff);
+  transition: width 0.6s ease;
+}
+.pdp-nextLabel {
+  margin-top: 5px;
+  font-size: 10.5px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+.pdp-nextLabel strong {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pdp-spend {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.3);
+  background: rgba(255, 138, 42, 0.1);
+  color: #ffb066;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pdp-spend:hover {
+  background: rgba(255, 138, 42, 0.18);
+  border-color: rgba(255, 138, 42, 0.5);
+}
+
+/* ── Machine-readable zone ── */
+.pdp-mrz {
+  padding: 12px 24px 16px;
+  border-top: 1px solid var(--pdp-line);
+  background: rgba(0, 0, 0, 0.18);
+  font-family: "OCR B", "OCR-B", "Space Mono", ui-monospace, "SFMono-Regular",
+    Menlo, monospace;
+  /* 44 monospace chars ≈ 26.4em wide — stepped down at each breakpoint */
+  font-size: 16px;
+  line-height: 1.45;
+  letter-spacing: 0;
+  white-space: pre;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.5);
+  user-select: none;
+}
+
+.pdp-spin {
+  animation: pdpSpin 1s linear infinite;
+}
+@keyframes pdpSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .pdp-body {
+    grid-template-columns: 116px minmax(0, 1fr);
+  }
+  .pdp-photo {
+    width: 116px;
+    height: 146px;
+  }
+  .pdp-ringCol {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--pdp-line);
+  }
+  .pdp-headAlt {
+    display: none;
+  }
+  .pdp-mrz {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .pdp-head {
+    padding: 12px 16px 10px;
+  }
+  .pdp-headType {
+    display: none;
+  }
+  .pdp-body {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 16px;
+    padding: 18px 16px 14px;
+  }
+  .pdp-photo {
+    width: 92px;
+    height: 116px;
+  }
+  .pdp-holo {
+    width: 48px;
+    height: 48px;
+  }
+  .pdp-sigWrap,
+  .pdp-ghost {
+    display: none;
+  }
+  .pdp-name {
+    font-size: 22px;
+  }
+  .pdp-value {
+    font-size: 12.5px;
+    letter-spacing: 0;
+    overflow-wrap: normal;
+  }
+  .pdp-ringCol .ant-progress-inner {
+    width: 140px !important;
+    height: 140px !important;
+  }
+  .pdp-ringXp {
+    font-size: 22px;
+  }
+  .pdp-grid {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pdp-mrz {
+    padding: 10px 16px 12px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 360px) {
+  .pdp-mrz {
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdp-holo,
+  .pdp-nextFill {
+    transition: none;
+  }
+  .pdp:hover .pdp-holo {
+    filter: none;
+  }
+}
+
+/* ── Page-level fixes ── */
+/* Keep the floating Atlas AI button from covering "Upgrade your Passport" */
+@media (min-width: 1101px) {
+  .pp-mockSide {
+    padding-bottom: 96px;
+  }
+}

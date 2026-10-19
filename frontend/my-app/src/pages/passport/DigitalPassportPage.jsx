@@ -72,6 +72,7 @@ import OnboardingModal from "@/components/onboarding/OnboardingModal";
 import ShareRankPrompt from "./ShareRankPrompt";
 import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
 import TravelJourneys from "./TravelJourneys";
+import PassportDataPage from "./PassportDataPage";
 
 const { Title, Text } = Typography;
 
@@ -1440,293 +1441,37 @@ export default function DigitalPassportPage() {
             <div className="pp-shell">
               <div className="pp-mockGrid">
                 <div className="pp-mockMain">
-                  <Card variant="borderless" className="pp-card pp-profileCard">
-                    <div className="pp-profileRow">
-                      <div
-                        className="pp-profileAvatar"
-                        style={{ position: "relative" }}
-                      >
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: "none" }}
-                          ref={avatarInputRef}
-                          onChange={handleAvatarUpload}
-                        />
-                        <Avatar
-                          size={92}
-                          src={
-                            user?.avatar &&
-                            user.avatar !== "/default-avatar.png"
-                              ? user.avatar
-                              : undefined
-                          }
-                          icon={
-                            !user?.avatar ||
-                            user.avatar === "/default-avatar.png" ? (
-                              <UserOutlined />
-                            ) : undefined
-                          }
-                          onClick={() =>
-                            !avatarUploading && avatarInputRef.current?.click()
-                          }
-                          style={{
-                            cursor: avatarUploading ? "not-allowed" : "pointer",
-                          }}
-                        />
-                        <div
-                          onClick={() =>
-                            !avatarUploading && avatarInputRef.current?.click()
-                          }
-                          style={{
-                            position: "absolute",
-                            bottom: 0,
-                            right: 0,
-                            width: 26,
-                            height: 26,
-                            borderRadius: "50%",
-                            background: "#ff8a2a",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 13,
-                            cursor: avatarUploading ? "not-allowed" : "pointer",
-                            border: "2px solid rgba(9,7,26,0.8)",
-                            opacity: avatarUploading ? 0.6 : 1,
-                          }}
-                        >
-                          {avatarUploading ? (
-                            <Loader2
-                              size={13}
-                              style={{ animation: "spin 1s linear infinite" }}
-                            />
-                          ) : (
-                            <Camera size={13} />
-                          )}
-                        </div>
-                      </div>
-                      <div className="pp-profileMeta">
-                        <Title
-                          level={2}
-                          className="pp-title"
-                          style={{ margin: 0 }}
-                        >
-                          {displayName}
-                        </Title>
-                        <Text className="pp-muted">
-                          {handle}
-                          {/* Verified plane badge — shows tier, pending, or nothing */}
-                          {user?.verifiedTier ? (
-                            <PlaneBadge tier={user.verifiedTier} size={15} />
-                          ) : user?.verificationPending ? (
-                            <PlaneBadgePending size={14} />
-                          ) : null}{" "}
-                          · {currentBadge}
-                        </Text>
-                        {user?.bio && (
-                          <Text
-                            style={{
-                              display: "block",
-                              marginTop: 6,
-                              fontSize: 13,
-                              color: "rgba(255,255,255,0.75)",
-                              lineHeight: 1.5,
-                              fontStyle: "italic",
-                            }}
-                          >
-                            {user.bio}
-                          </Text>
-                        )}
-                        <div style={{ marginTop: 10 }}>
-                          <span className="pp-pill pp-pill--active">
-                            <Circle
-                              size={10}
-                              fill="#ff8a2a"
-                              stroke="none"
-                              style={{
-                                marginRight: 5,
-                                verticalAlign: "middle",
-                              }}
-                            />
-                            Passport Active
-                          </span>
-                        </div>
-                        <FollowStats
-                          followers={passportStats.followers}
-                          following={passportStats.following}
-                          loading={statsLoading}
-                          onClickFollowers={() => {
-                            setFollowMode("followers");
-                            setFollowOpen(true);
-                          }}
-                          onClickFollowing={() => {
-                            setFollowMode("following");
-                            setFollowOpen(true);
-                          }}
-                        />
-                        {/* Referral stat */}
-                        {referralsCount > 0 && (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                              fontSize: 12,
-                              color: "rgba(255,255,255,0.5)",
-                            }}
-                          >
-                            <span style={{ fontSize: 14 }}>✈️</span>
-                            <span>
-                              <span
-                                style={{ fontWeight: 700, color: "#ff8a2a" }}
-                              >
-                                {referralsCount}
-                              </span>{" "}
-                              {referralsCount === 1 ? "traveler" : "travelers"}{" "}
-                              joined via your passport
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="pp-profileRing">
-                        {xpLoading ? (
-                          <div style={{ width: 190 }}>
-                            <Skeleton active paragraph={{ rows: 2 }} />
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: 8,
-                            }}
-                          >
-                            <Progress
-                              type="dashboard"
-                              percent={xpPercent}
-                              strokeWidth={10}
-                              className="pp-levelRing pp-levelRing--mock"
-                              format={() => (
-                                <div className="pp-levelText">
-                                  <div className="pp-levelRole">
-                                    {currentBadge}
-                                  </div>
-                                  <div className="pp-levelXp">
-                                    {Number(totalEarned).toLocaleString()} XP
-                                  </div>
-                                </div>
-                              )}
-                            />
-                            {nextBadgeName && (
-                              <div style={{ width: "100%", maxWidth: 180 }}>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    fontSize: 10,
-                                    color: "rgba(255,255,255,0.45)",
-                                    marginBottom: 4,
-                                  }}
-                                >
-                                  <span>{currentBadge}</span>
-                                  <span>{nextBadgeName} ✦</span>
-                                </div>
-                                <div
-                                  style={{
-                                    height: 4,
-                                    background: "rgba(255,255,255,0.1)",
-                                    borderRadius: 99,
-                                    overflow: "hidden",
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      height: "100%",
-                                      width: `${badgePercent}%`,
-                                      background:
-                                        "linear-gradient(90deg, #ff8a2a, #ffb066)",
-                                      borderRadius: 99,
-                                      transition: "width 0.6s ease",
-                                    }}
-                                  />
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 10,
-                                    color: "rgba(255,255,255,0.35)",
-                                    marginTop: 3,
-                                    textAlign: "center",
-                                  }}
-                                >
-                                  {xpIntoLevel} / {xpNeeded} XP
-                                </div>
-                              </div>
-                            )}
-                            {/* Spendable balance — separate from rank */}
-                            <button
-                              type="button"
-                              onClick={() => navigate("/passport/rewards")}
-                              title="Your rank never drops when you redeem rewards"
-                              style={{
-                                marginTop: 2,
-                                padding: "4px 10px",
-                                borderRadius: 999,
-                                border: "1px solid rgba(255,138,42,0.25)",
-                                background: "rgba(255,138,42,0.08)",
-                                color: "#ffb066",
-                                fontSize: 11,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              {Number(xp).toLocaleString()} XP to spend →
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-
-                  <div className="pp-homeBaseRow">
-                    <span className="pp-homeBaseDot" />
-                    <span className="pp-homeBaseLabel">Home Base</span>
-                    <span className="pp-homeBaseSep">·</span>
-                    <span className="pp-homeBaseValue">{homeBaseLabel}</span>
-                  </div>
-
-                  {/* ── Travel Vibes display ── */}
-                  {user?.travelVibes?.length > 0 && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 8,
-                        padding: "0 4px",
-                        marginBottom: 12,
-                      }}
-                    >
-                      {user.travelVibes.map((vibe) => (
-                        <span
-                          key={vibe}
-                          style={{
-                            padding: "6px 14px",
-                            borderRadius: 999,
-                            background: "rgba(255,138,42,0.1)",
-                            border: "1px solid rgba(255,138,42,0.25)",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: "#ffb066",
-                            textTransform: "capitalize",
-                          }}
-                        >
-                          {vibe}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <PassportDataPage
+                    user={user}
+                    myId={myId}
+                    displayName={displayName}
+                    handle={handle}
+                    currentBadge={currentBadge}
+                    homeBaseLabel={homeBaseLabel}
+                    passportStats={passportStats}
+                    statsLoading={statsLoading}
+                    onClickFollowers={() => {
+                      setFollowMode("followers");
+                      setFollowOpen(true);
+                    }}
+                    onClickFollowing={() => {
+                      setFollowMode("following");
+                      setFollowOpen(true);
+                    }}
+                    referralsCount={referralsCount}
+                    avatarInputRef={avatarInputRef}
+                    avatarUploading={avatarUploading}
+                    onAvatarChange={handleAvatarUpload}
+                    xpLoading={xpLoading}
+                    xpPercent={xpPercent}
+                    totalEarned={totalEarned}
+                    xp={xp}
+                    nextBadgeName={nextBadgeName}
+                    badgePercent={badgePercent}
+                    xpIntoLevel={xpIntoLevel}
+                    xpNeeded={xpNeeded}
+                    onSpendXp={() => navigate("/passport/rewards")}
+                  />
 
                   {profileMusic && (
                     <Card
