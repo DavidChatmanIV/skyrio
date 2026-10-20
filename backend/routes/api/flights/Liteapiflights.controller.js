@@ -17,6 +17,7 @@ import { sendBookingConfirmation } from "../../../services/email.js";
 import Booking from "../../../models/booking.js";
 import User from "../../../models/user.js";
 import Notification from "../../../models/notification.js";
+import { awardXpForBooking } from "../../../services/xpService.js";
 import { memberGroupId } from "../../../services/sharedRooms.js";
 import {
   recordEmailResult,
@@ -1019,7 +1020,6 @@ async function saveFlightBooking({
     });
 
     try {
-      await User.findByIdAndUpdate(userId, { $inc: { xp: 200 } });
       await Notification.create({
         user: userId,
         type: "booking",
@@ -1029,14 +1029,9 @@ async function saveFlightBooking({
           : "Your flight is confirmed. Have a great trip!",
         link: "/saved-trips",
       });
-      await Notification.create({
-        user: userId,
-        type: "xp",
-        title: "🌟 +200 XP Earned!",
-        message:
-          "You earned 200 XP for booking a trip. Check your Passport to see your progress!",
-        link: "/passport",
-      });
+      // Booking XP through the XP ledger: pending until the trip starts,
+      // plan multiplier applied, taken back if the trip is cancelled.
+      await awardXpForBooking(saved._id);
     } catch (err) {
       console.error(
         "[flights/complete] XP/notification step failed:",

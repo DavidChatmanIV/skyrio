@@ -424,8 +424,8 @@
    in header cards / delete modal), not the flat
    dark navy used elsewhere for generic pickers.
    Scoped to popupClassName="sk-datepicker-dropdown"
-   set on the RangePicker in SyncTogether.jsx so it
-   doesn't affect other date pickers in the app.
+   set on the RangePicker so it doesn't affect
+   other date pickers in the app.
    ═══════════════════════════════════════════ */
 .sk-datepicker-dropdown .ant-picker-panel-container {
   background: linear-gradient(
@@ -667,5 +667,76 @@
   /* Trip package — 1 column on tiny screens */
   .sk-sync-section div[style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   MOBILE — Date range picker as a bottom sheet
+   One month at a time, slides up from the
+   bottom, sits above the navbar. Fixes the two
+   stacked months spilling past the page and
+   under the sticky header.
+   ═══════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Pin the popup to the bottom of the screen (overrides AntD's inline top/left) */
+  .sk-datepicker-dropdown.ant-picker-dropdown {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+    z-index: 2000 !important; /* above the sticky navbar */
+  }
+
+  .sk-datepicker-dropdown .ant-picker-range-wrapper {
+    width: 100% !important;
+  }
+
+  .sk-datepicker-dropdown .ant-picker-range-arrow {
+    display: none !important;
+  }
+
+  .sk-datepicker-dropdown .ant-picker-panel-container {
+    width: 100% !important;
+    margin-left: 0 !important; /* AntD sets this inline to line up with the input */
+    max-height: 80vh;
+    overflow-y: auto;
+    border-radius: 20px 20px 0 0 !important;
+    border-bottom: none !important;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Only show the first month */
+  .sk-datepicker-dropdown .ant-picker-panels {
+    flex-direction: column !important;
+  }
+  .sk-datepicker-dropdown .ant-picker-panels > *:last-child {
+    display: none !important;
+  }
+
+  /* AntD hides the first month's "next" arrows in range mode; bring them back */
+  .sk-datepicker-dropdown
+    .ant-picker-panels
+    > *:first-child
+    .ant-picker-header-next-btn,
+  .sk-datepicker-dropdown
+    .ant-picker-panels
+    > *:first-child
+    .ant-picker-header-super-next-btn {
+    visibility: visible !important;
+  }
+
+  /* Stretch the month to full width with bigger tap targets */
+  .sk-datepicker-dropdown .ant-picker-panel,
+  .sk-datepicker-dropdown .ant-picker-date-panel,
+  .sk-datepicker-dropdown .ant-picker-content {
+    width: 100% !important;
+  }
+  .sk-datepicker-dropdown .ant-picker-cell .ant-picker-cell-inner {
+    min-width: 36px;
+    height: 36px;
+    line-height: 36px;
   }
 }

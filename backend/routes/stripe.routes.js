@@ -12,6 +12,7 @@ import {
 } from "../services/sharedRooms.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { sendRefundIssuedEmail, formatMoney } from "../services/bookingEmails.js";
+import { awardXpForBooking, reverseBookingXp } from "../services/xpService.js";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -59,19 +60,19 @@ router.post(
       const userId = intent.metadata?.userId;
 
       try {
-        // Idempotency guard — Stripe retries webhook deliveries.
+        // Idempotency guard — Stripe retries webhook deliveries, and
+        // hotels.controller.js may have confirmed the booking first.
+        let alreadyConfirmed = false;
         if (bookingId) {
           const existing = await Booking.findById(bookingId).select("status");
-          if (existing?.status === "confirmed") {
-            return res.json({ received: true, alreadyProcessed: true });
-          }
+          alreadyConfirmed = existing?.status === "confirmed";
         }
 
         // 1. Confirm booking + store BOTH payment ID fields so Atlas can
         //    find it for refunds later. amount_received = what was ACTUALLY
         //    charged (hotel checkouts may capture less than was authorized
         //    when only some rooms could be booked).
-        if (bookingId) {
+        if (bookingId && !alreadyConfirmed) {
           const charged = (intent.amount_received || intent.amount) / 100;
           await Booking.findByIdAndUpdate(bookingId, {
             $set: {
@@ -86,10 +87,8 @@ router.post(
           });
         }
 
-        // 2. Award XP + fire both notifications
-        if (userId) {
-          await User.findByIdAndUpdate(userId, { $inc: { xp: 200 } });
-
+        // 2. Booking confirmed notification — once, by whoever confirmed it.
+        if (userId && !alreadyConfirmed) {
           await Notification.create({
             user: userId,
             type: "booking",
@@ -97,15 +96,23 @@ router.post(
             message: "Your booking has been confirmed. Have a great trip!",
             link: "/saved-trips",
           });
+        }
 
-          await Notification.create({
-            user: userId,
-            type: "xp",
-            title: "🌟 +200 XP Earned!",
-            message:
-              "You earned 200 XP for booking a trip. Check your Passport to see your progress!",
-            link: "/passport",
-          });
+        // 3. Booking XP — through the XP ledger (pending until the trip
+        //    starts, plan multiplier applied, reversed if cancelled). Runs
+        //    even when the booking was already confirmed elsewhere: the
+        //    ledger pays each booking exactly once, so retries are safe.
+        if (bookingId) {
+          try {
+            await awardXpForBooking(bookingId);
+          } catch (xpErr) {
+            // XP must never break a booking confirmation.
+            console.error("[webhook] booking XP failed:", bookingId, xpErr);
+          }
+        }
+
+        if (alreadyConfirmed) {
+          return res.json({ received: true, alreadyProcessed: true });
         }
       } catch (err) {
         console.error("Webhook processing error:", err);
@@ -148,6 +155,14 @@ router.post(
               refundedAt: booking.refundedAt || new Date(),
             },
           });
+
+          // Fully refunded → no trip, no XP. Safe to repeat (already-reversed
+          // rows are skipped). Partial refunds keep their XP.
+          if (isFullRefund) {
+            await reverseBookingXp(booking._id, "booking fully refunded").catch(
+              (e) => console.error("[webhook] reverse booking XP failed:", e)
+            );
+          }
 
           if (!alreadyRecorded) {
             if (booking.user) {

@@ -22,8 +22,19 @@ import {
   pickAmount,
   extractFlightBookingId,
 } from "../services/liteapiBookings.js";
+import { reverseBookingXp } from "../services/xpService.js";
 
 const router = Router();
+
+// A cancelled trip earns no XP. Never lets an XP problem break a cancellation.
+async function takeBackBookingXp(booking, reason) {
+  if (booking?.status !== "cancelled") return;
+  try {
+    await reverseBookingXp(booking._id, reason);
+  } catch (e) {
+    console.error("[bookings] reverse booking XP failed", String(booking._id), e.message);
+  }
+}
 
 let _stripe;
 function stripe() {
@@ -684,6 +695,7 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
       at: new Date(),
     });
     await booking.save();
+    await takeBackBookingXp(booking, "booking cancelled by Skyrio");
 
     if (req.body?.notifyTraveler !== false) {
       (async () => {
@@ -1219,6 +1231,9 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       booking.markModified("cancelRequest");
     }
     await booking.save();
+    // cancel_pending keeps its pending XP for now; the XP confirm job waits
+    // and reverses it once the cancellation is final.
+    await takeBackBookingXp(booking, "booking cancelled");
 
     // ── 4. Tell the traveler (email never blocks the response) ──
     (async () => {

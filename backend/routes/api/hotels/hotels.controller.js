@@ -13,6 +13,7 @@ import {
 import Booking from "../../../models/booking.js";
 import User from "../../../models/user.js";
 import Notification from "../../../models/notification.js";
+import { awardXpForBooking } from "../../../services/xpService.js";
 import { sendHotelConfirmation } from "../../../services/bookingEmails.js";
 import { memberGroupId } from "../../../services/sharedRooms.js";
 import { recordEmailResult, onGroupBookingSaved } from "../../../services/bookingConfirmations.js";
@@ -562,9 +563,15 @@ async function markHotelBookingPaid(booking) {
       { $set: { status: "confirmed", paidAt: new Date() } },
       { new: true }
     );
-    if (!flipped) return; // the webhook already confirmed it (and awarded XP)
+    if (!flipped) {
+      // The webhook confirmed it first. Still make sure XP was granted —
+      // the XP ledger pays each booking once, so this is safe.
+      await awardXpForBooking(booking._id).catch((e) =>
+        console.error("[hotels/confirm] booking XP failed:", e?.message)
+      );
+      return;
+    }
 
-    await User.findByIdAndUpdate(flipped.user, { $inc: { xp: 200 } });
     await Notification.create({
       user: flipped.user,
       type: "booking",
@@ -572,14 +579,9 @@ async function markHotelBookingPaid(booking) {
       message: "Your hotel stay is confirmed. Have a great trip!",
       link: "/saved-trips",
     });
-    await Notification.create({
-      user: flipped.user,
-      type: "xp",
-      title: "🌟 +200 XP Earned!",
-      message:
-        "You earned 200 XP for booking a trip. Check your Passport to see your progress!",
-      link: "/passport",
-    });
+    // Booking XP through the XP ledger (pending until check-in, plan
+    // multiplier, taken back if cancelled).
+    await awardXpForBooking(flipped._id);
   } catch (err) {
     console.error(
       "[hotels/confirm] booking saved but confirm/XP step failed —",

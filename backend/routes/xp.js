@@ -49,7 +49,8 @@ router.get("/me", requireAuth, async (req, res) => {
     const user = await User.findById(req.user.id).lean();
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const xp = user.xp ?? 0; // confirmed XP only — this is what rank uses
+    const xp = user.xp ?? 0; // spendable balance — goes down when rewards are redeemed
+    const totalEarned = user.xpTotalEarned ?? xp; // lifetime earned — RANK USES THIS
     const plan = user.plan ?? "free";
 
     res.json({
@@ -58,10 +59,10 @@ router.get("/me", requireAuth, async (req, res) => {
       plan,
       streak: user.xpDailyMeta?.streak ?? 0,
       multiplier: XP_MULTIPLIERS[plan] ?? 1,
-      tier: getTier(xp),
-      nextTier: getNextTier(xp),
-      progress: getTierProgress(xp),
-      totalEarned: user.xpTotalEarned ?? xp,
+      tier: getTier(totalEarned),
+      nextTier: getNextTier(totalEarned),
+      progress: getTierProgress(totalEarned),
+      totalEarned,
       recentEvents: user.xpRecentEvents ?? [],
     });
   } catch (err) {

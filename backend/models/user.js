@@ -73,6 +73,9 @@ const UserSchema = new Schema(
 
     // ---------- XP Earning System (routes/xp.js) ----------
     xpTotalEarned: { type: Number, default: 0 },
+    // Booking/referral XP waiting for the trip to start (xpService + xpConfirmJob).
+    // Must be in the schema or Mongoose silently drops every $inc to it.
+    pendingXp: { type: Number, default: 0, min: 0 },
     xpDailyTotal: { type: Number, default: 0 },
     xpDailyMeta: { type: Schema.Types.Mixed, default: {} },
     xpRecentEvents: { type: Array, default: [] },
@@ -120,6 +123,21 @@ const UserSchema = new Schema(
       index: true,
     },
 
+    // ---------- Billing (Stripe) ----------
+    // `plan` above is derived from this by services/membershipBilling.js —
+    // only Stripe webhooks / the checkout success sync should change it
+    // (plus the admin test switcher).
+    stripeCustomerId: { type: String, default: null, index: true },
+    subscription: {
+      id: { type: String, default: null },
+      status: { type: String, default: null }, // active | trialing | past_due | canceled | ...
+      priceLookupKey: { type: String, default: null },
+      interval: { type: String, default: null }, // monthly | annual
+      currentPeriodEnd: { type: Date, default: null },
+      cancelAtPeriodEnd: { type: Boolean, default: false },
+      updatedAt: { type: Date, default: null },
+    },
+
     // ---------- Saved Trips ----------
     savedTrips: [{ type: Schema.Types.ObjectId, ref: "Place" }],
 
@@ -162,7 +180,10 @@ UserSchema.methods.getModerationStatus = function () {
 
 // ── XP Level helper ───────────────────────────────────────────
 UserSchema.methods.getXPLevel = function () {
-  const { current, next, percent, xpToNext } = getLevel(this.xp || 0);
+  // Rank comes from LIFETIME earned XP — redeeming rewards never lowers it.
+  const { current, next, percent, xpToNext } = getLevel(
+    this.xpTotalEarned ?? this.xp ?? 0
+  );
   return {
     levelLabel: current.name,
     levelProgressPct: percent,
@@ -187,10 +208,18 @@ UserSchema.methods.toSafeJSON = function () {
     referredBy: this.referredBy,
     referralsCount: this.referralsCount,
     xp: this.xp,
+    xpTotalEarned: this.xpTotalEarned ?? this.xp ?? 0,
+    pendingXp: this.pendingXp ?? 0,
     ...this.getXPLevel(),
     settings: this.settings,
     role: this.role,
     plan: this.plan,
+    subscription: {
+      status: this.subscription?.status || null,
+      interval: this.subscription?.interval || null,
+      currentPeriodEnd: this.subscription?.currentPeriodEnd || null,
+      cancelAtPeriodEnd: !!this.subscription?.cancelAtPeriodEnd,
+    },
     isOfficial: this.isOfficial,
     isActive: this.isActive,
     emailVerified: this.emailVerified,

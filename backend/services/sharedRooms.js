@@ -39,6 +39,7 @@ import {
   recordEmailResult,
   onGroupBookingSaved,
 } from "./bookingConfirmations.js";
+import { awardXpForBooking, reverseBookingXp } from "./xpService.js";
 
 let _stripe;
 const stripe = () => {
@@ -965,7 +966,12 @@ export async function finalizeSharedRoom(splitId) {
 
   for (const s of split.shares) {
     if (s.status !== "paid") continue;
-    User.findByIdAndUpdate(s.user, { $inc: { xp: 200 } }).catch(() => {});
+    // Each person who paid their share earns booking XP for their own record.
+    if (s.booking) {
+      awardXpForBooking(s.booking).catch((e) =>
+        console.error("[shared-room] booking XP failed", String(s.booking), e?.message)
+      );
+    }
     Notification.create({
       user: s.user,
       type: "booking",
@@ -1383,6 +1389,10 @@ export async function cancelSharedRoom({ split, actorUserId, actorName }) {
           String(s.booking),
           e?.message
         )
+      );
+      // Room cancelled → this person's booking XP is taken back.
+      await reverseBookingXp(s.booking, "shared room cancelled").catch((e) =>
+        console.error("[shared-room] reverse booking XP failed", e?.message)
       );
     }
     sendSharedRoomCancelled({

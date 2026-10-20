@@ -24,6 +24,10 @@ import syncProgressRoutes from "./routes/syncProgress.routes.js";
 import profileTravelersRoutes from "./routes/profileTravelers.js";
 // Skyrio's Stripe publishable key for hotel + shared-room card forms.
 import stripeConfigRoutes from "./routes/stripeConfig.js";
+import billingWebhook from "./routes/billingWebhook.js";
+import billingRoutes from "./routes/billing.routes.js";
+import { startXpConfirmJob } from "./jobs/xpConfirmJob.js";
+import mongooseXp from "mongoose";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
 import { assignFounderBadge } from "./routes/verificationRoutes.js";
@@ -87,6 +91,8 @@ app.use(compression());
 
 // Stripe webhook needs raw body — must come BEFORE express.json()
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
+
+app.use("/api/billing/webhook", billingWebhook);
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
@@ -189,6 +195,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/sync-progress", syncProgressRoutes);
 app.use("/api/profile", profileTravelersRoutes);
 app.use("/api/stripe-config", stripeConfigRoutes);
+app.use("/api/billing", billingRoutes);
 app.use("/api", apiRouter);
 
 // Dedicated, tighter limiter for the public contact form — this route
@@ -345,3 +352,7 @@ httpServer.listen(PORT, "0.0.0.0", () => {
 });
 
 export { app, io, httpServer };
+
+// Unlock pending booking XP hourly (trip started + 24h hold is over).
+if (mongooseXp.connection.readyState === 1) startXpConfirmJob();
+else mongooseXp.connection.once("open", () => startXpConfirmJob());

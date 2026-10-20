@@ -9,6 +9,11 @@ import { XP_RULES, DEAD_BOOKING_STATUSES } from "../config/xpRules.js";
 // ⚠️ Render is case-sensitive: match your real filename exactly (booking.js vs Booking.js).
 import Booking from "../models/booking.js";
 
+// The airline accepted a cancellation but hasn't finished it. Don't confirm
+// the XP (the trip is probably going away) and don't reverse it yet (the
+// airline could still refuse) — check again on the next run.
+const WAIT_STATUSES = ["cancel_pending"];
+
 /**
  * Pending booking/referral XP → confirmed, once the trip has started and the
  * 24h hold is over — but only if the booking is still alive at that moment.
@@ -26,9 +31,11 @@ export async function confirmPendingXp({ onRankUp } = {}) {
     const booking = mongoose.isValidObjectId(bookingId)
       ? await Booking.findById(bookingId).select("status")
       : null;
-    const alive =
-      Boolean(booking) &&
-      !DEAD_BOOKING_STATUSES.includes(String(booking.status).toLowerCase());
+    const status = String(booking?.status || "").toLowerCase();
+
+    if (booking && WAIT_STATUSES.includes(status)) continue;
+
+    const alive = Boolean(booking) && !DEAD_BOOKING_STATUSES.includes(status);
 
     if (!alive) {
       await reverseXp({

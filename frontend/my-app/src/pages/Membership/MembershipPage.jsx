@@ -4,9 +4,16 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRightOutlined, ToolOutlined } from "@ant-design/icons";
 import { useAuth } from "../../auth/useAuth";
+import {
+  getBillingStatus,
+  openBillingPortal,
+  cacheUserPlan,
+  formatDate,
+  PLAN_NAMES,
+} from "@/lib/membershipApi";
 
 const ICONS = {
   robot:
@@ -159,10 +166,6 @@ const PLANS = [
         text: "Private group travel rooms for planning trips with your crew",
       },
       {
-        icon: "palette",
-        text: "Custom passport card design — your style, your identity",
-      },
-      {
         icon: "founder",
         text: "Direct line to the founder — real answers, not canned replies",
       },
@@ -176,20 +179,20 @@ const PLANS = [
 
 const FAQS = [
   {
-    q: "Can I upgrade or downgrade anytime?",
-    a: "Yes — plan changes take effect immediately. If you upgrade mid-cycle, you're prorated for the remainder.",
+    q: "Can I switch plans anytime?",
+    a: "Yes — use Manage billing to move between Explorer and Legend or monthly and annual. Stripe prorates the difference automatically.",
   },
   {
-    q: "Is there a free trial for paid plans?",
-    a: "Explorer comes with a 14-day free trial, no credit card required. Legend includes a 7-day trial.",
+    q: "How do I cancel?",
+    a: "Open Manage billing and cancel in a couple of clicks. You keep your paid perks until the end of the period you already paid for, then move to Free.",
   },
   {
-    q: "What happens to my saved trips if I downgrade?",
-    a: "Your trips are never deleted. On Free, only your 5 most recent are active — the rest are archived and restored if you re-upgrade.",
+    q: "Will I lose anything if I go back to Free?",
+    a: "No. Your trips, Passport rank and XP stay on your account — you just lose access to paid perks.",
   },
   {
     q: "Are payments secure?",
-    a: "All payments are processed by Stripe. We never store your card details.",
+    a: "All payments are processed by Stripe. Skyrio never sees or stores your card number.",
   },
 ];
 
@@ -418,27 +421,120 @@ const CSS = `
   .mp-note { font-size: 12px; color: rgba(255,255,255,0.28); margin-top: 14px; }
   .mp-note span { color: #ff8a2a; cursor: pointer; }
   .mp-note span:hover { text-decoration: underline; }
+  .mp-banner {
+    max-width: 1100px; margin: 0 auto 32px; border-radius: 14px;
+    padding: 14px 20px; font-size: 14px; line-height: 1.55;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .mp-banner--success { background: rgba(82,196,26,0.1); border: 1px solid rgba(82,196,26,0.35); color: #c9f2b0; }
+  .mp-banner--pending { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.75); }
+  .mp-banner--error { background: rgba(255,77,79,0.1); border: 1px solid rgba(255,77,79,0.35); color: #ffb3b4; }
+  .mp-banner b { color: #fff; }
+  .mp-billing {
+    max-width: 1100px; margin: 0 auto 40px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px; padding: 14px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    font-size: 13.5px; color: rgba(255,255,255,0.65);
+  }
+  .mp-billing b { color: #fff; }
+  .mp-billing__warn { color: #ffb347; }
+  .mp-billing__btn {
+    margin-left: auto; padding: 8px 20px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.07);
+    color: #fff; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: background 0.18s;
+  }
+  .mp-billing__btn:hover:not(:disabled) { background: rgba(255,255,255,0.14); }
+  .mp-billing__btn:disabled { opacity: 0.55; cursor: wait; }
 `;
 
 export default function MembershipPage() {
   const nav = useNavigate();
   const { user, isAuthed } = useAuth();
+  const [params, setParams] = useSearchParams();
 
   const [annual, setAnnual] = useState(false);
   const [activePlan, setActivePlan] = useState("free");
   const [adminMsg, setAdminMsg] = useState("");
   const [switching, setSwitching] = useState(false);
+  const [billing, setBilling] = useState(null); // /api/billing/status
+  const [banner, setBanner] = useState(null); // { kind, text }
+  const [portalBusy, setPortalBusy] = useState(false);
 
   const isAdmin = user?.role === "admin";
+  const sub = billing?.subscription;
+  const hasPaidSub = !!sub?.entitled;
 
   useEffect(() => {
     if (user?.plan) setActivePlan(user.plan);
   }, [user]);
 
+  // Load the real plan from the server. Coming back from Stripe Checkout, pass
+  // the session id so the backend syncs immediately (no waiting on the webhook).
+  useEffect(() => {
+    if (!isAuthed) return;
+    const fromCheckout = params.get("checkout") === "success";
+    const sessionId = params.get("session_id");
+    if (fromCheckout) setBanner({ kind: "pending", text: "Confirming your payment…" });
+
+    let cancelled = false;
+    (async () => {
+      let data = null;
+      // A few quick retries in case Stripe hasn't finished the subscription yet.
+      for (let i = 0; i < (fromCheckout ? 4 : 1); i++) {
+        try {
+          data = await getBillingStatus(fromCheckout ? sessionId : undefined);
+        } catch {
+          data = null;
+        }
+        if (!fromCheckout || data?.subscription?.entitled) break;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      if (cancelled) return;
+
+      if (data) {
+        setBilling(data);
+        setActivePlan(data.plan);
+        cacheUserPlan(data.plan);
+      }
+      if (fromCheckout) {
+        setBanner(
+          data?.subscription?.entitled
+            ? { kind: "success", text: `Welcome to ${PLAN_NAMES[data.plan]}! Your membership is active.` }
+            : {
+                kind: "error",
+                text: "We couldn't confirm your membership yet. If you were charged, refresh in a minute or email support.",
+              }
+        );
+        const p = new URLSearchParams(params);
+        p.delete("checkout");
+        p.delete("session_id");
+        setParams(p, { replace: true });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthed]);
+
+  async function handlePortal() {
+    if (portalBusy) return;
+    setPortalBusy(true);
+    try {
+      const { url } = await openBillingPortal();
+      window.location.assign(url);
+    } catch (err) {
+      setBanner({ kind: "error", text: err.message || "Couldn't open billing." });
+      setPortalBusy(false);
+    }
+  }
+
   async function handleAdminSwitch(planId) {
     if (switching || activePlan === planId) return;
     setSwitching(true);
-    setAdminMsg("");
+    setAdminMsg("switching");
     try {
       const token =
         localStorage.getItem("token") ||
@@ -446,25 +542,18 @@ export default function MembershipPage() {
         localStorage.getItem("skyrio_token");
       const res = await fetch(`${API}/api/admin/set-plan`, {
         method: "PATCH",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ plan: planId }),
       });
-      const data = await res.json();
-      if (data.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
         setActivePlan(data.plan);
         setAdminMsg(data.plan);
-        try {
-          const raw = localStorage.getItem("user");
-          if (raw) {
-            localStorage.setItem(
-              "user",
-              JSON.stringify({ ...JSON.parse(raw), plan: data.plan })
-            );
-          }
-        } catch {}
+        cacheUserPlan(data.plan);
       } else {
         setAdminMsg("error");
       }
@@ -476,20 +565,28 @@ export default function MembershipPage() {
   }
 
   function handleCta(plan) {
+    const billingParam = annual ? "annual" : "monthly";
     if (!isAuthed) {
-      nav(plan.id === "free" ? "/register" : `/register?plan=${plan.id}`);
+      nav(plan.id === "free" ? "/register" : `/register?plan=${plan.id}&billing=${billingParam}`);
+      return;
+    }
+    if (plan.id === activePlan) return;
+    // Paid members switch or cancel through Stripe so it's prorated correctly.
+    if (hasPaidSub) {
+      handlePortal();
       return;
     }
     if (plan.id === "free") {
       nav("/dashboard");
       return;
     }
-    nav(`/upgrade?plan=${plan.id}&billing=${annual ? "annual" : "monthly"}`);
+    nav(`/upgrade?plan=${plan.id}&billing=${billingParam}`);
   }
 
   function ctaLabel(plan) {
     if (!isAuthed) return plan.cta;
     if (plan.id === activePlan) return "Current plan";
+    if (hasPaidSub) return plan.id === "free" ? "Cancel in Manage billing" : `Switch to ${plan.name}`;
     if (plan.id === "free") return "Go to Dashboard";
     return plan.cta;
   }
@@ -567,13 +664,39 @@ export default function MembershipPage() {
             <div className="mp-admin__status">
               {switching ? (
                 "Switching…"
+              ) : adminMsg === "error" ? (
+                "Switch failed"
               ) : (
                 <>
-                  <b>{adminMsg}</b> active
+                  <b>{adminMsg}</b> active (test override — not billed)
                 </>
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {banner && (
+        <div className={`mp-banner mp-banner--${banner.kind}`}>{banner.text}</div>
+      )}
+
+      {isAuthed && hasPaidSub && (
+        <div className="mp-billing">
+          <span>
+            <b>{PLAN_NAMES[billing.plan]}</b> · {sub.interval === "annual" ? "Annual" : "Monthly"}
+            {sub.status === "past_due" ? (
+              <span className="mp-billing__warn">
+                {" "}· Your last payment failed — update your card to keep your perks
+              </span>
+            ) : sub.cancelAtPeriodEnd ? (
+              <> · Ends {formatDate(sub.currentPeriodEnd)}, then moves to Free</>
+            ) : sub.currentPeriodEnd ? (
+              <> · Renews {formatDate(sub.currentPeriodEnd)}</>
+            ) : null}
+          </span>
+          <button className="mp-billing__btn" onClick={handlePortal} disabled={portalBusy}>
+            {portalBusy ? "Opening…" : "Manage billing"}
+          </button>
         </div>
       )}
 

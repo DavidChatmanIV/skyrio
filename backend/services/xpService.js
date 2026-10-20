@@ -20,6 +20,7 @@ import User from "../models/user.js";
 // ⚠️ Render is case-sensitive: match your real filename exactly (booking.js vs Booking.js).
 import Booking from "../models/booking.js";
 import Challenge from "../models/challenge.js";
+import Notification from "../models/notification.js";
 import ChallengeProgress from "../models/challengeProgress.js";
 
 // Field on Booking that points to the user who booked it — change if yours is "userId".
@@ -409,10 +410,11 @@ export async function awardBookingXp({
   };
 
   // Users who booked before the ledger existed shouldn't get "first booking" again.
+  // Only CONFIRMED trips count — an abandoned "pending" checkout isn't a booking.
   const priorLiveBookings = await Booking.countDocuments({
     [BOOKING_USER_FIELD]: userId,
     _id: { $ne: bookingId },
-    status: { $nin: DEAD_BOOKING_STATUSES },
+    status: "confirmed",
   });
   if (priorLiveBookings === 0) {
     results.first = await awardXP({
@@ -440,6 +442,76 @@ export async function awardBookingXp({
     });
   }
   return results;
+}
+
+/* ───────────────────────── booking XP from a Booking record ───────────────────────── */
+// Trip start = departure / check-in, read from the Booking record (never the
+// client). Same fallbacks as tripDates() in bookings.routes.js.
+const ISO_DAY = /\b(\d{4}-\d{2}-\d{2})\b/;
+function bookingStartDate(b) {
+  const room = b.hotelStay?.rooms?.[0];
+  const raw =
+    b.dates?.start ||
+    room?.checkin ||
+    b.flight?.departureDate ||
+    b.flight?.departDate ||
+    (String(b.tripDetails || "").match(ISO_DAY) || [])[1];
+  const d = raw ? new Date(raw) : null;
+  return d && !Number.isNaN(d.getTime()) ? d : null;
+}
+
+// Stops on the BOOKED flight, so the XP granted matches the flight card.
+// null → flat BOOKING_CONFIRMED XP.
+function flightStops(f) {
+  if (!f) return null;
+  for (const k of ["stops", "numberOfStops", "stopCount"]) {
+    if (f[k] !== undefined && f[k] !== null && f[k] !== "" && Number.isFinite(Number(f[k]))) {
+      return Number(f[k]);
+    }
+  }
+  const segs = f.segments ?? f.outbound?.segments;
+  return Array.isArray(segs) && segs.length ? segs.length - 1 : null;
+}
+
+/**
+ * ONE call for every place that confirms a booking (Stripe webhook, flight
+ * controller, hotel checkout, Sync Together, Atlas, admin):
+ *
+ *   await awardXpForBooking(booking._id).catch(console.error);
+ *
+ * Reads everything from the Booking record — never from the client. Grants
+ * PENDING XP (unlocks when the trip starts), applies the plan multiplier, and
+ * is safe to call more than once: the XP ledger pays each booking once.
+ * Returns { booking, results } or null if the booking isn't confirmed.
+ */
+export async function awardXpForBooking(bookingId, { notify = true } = {}) {
+  const booking = await Booking.findById(bookingId).lean();
+  if (!booking || booking.status !== "confirmed") return null;
+  const isFlight = booking.type === "Flight";
+  const results = await awardBookingXp({
+    userId: booking.user,
+    bookingId: booking._id,
+    startDate: bookingStartDate(booking),
+    kind: isFlight ? "flight" : "hotel",
+    stops: isFlight ? flightStops(booking.flight) : null,
+  });
+
+  // One notification with the real total — only when XP was actually granted
+  // now (a repeat call for the same booking grants nothing and stays quiet).
+  const total = ["booking", "first", "international"].reduce(
+    (sum, k) => sum + (results[k]?.awarded ? results[k].amount : 0),
+    0
+  );
+  if (notify && results.booking?.awarded && total > 0) {
+    await Notification.create({
+      user: booking.user,
+      type: "xp",
+      title: `🌟 +${total} XP on the way!`,
+      message: `You earned ${total} XP for booking this trip. It unlocks once your trip starts — check your Passport to see it.`,
+      link: "/passport",
+    }).catch((e) => console.error("[xp] booking XP notification failed:", e.message));
+  }
+  return { booking, results, total };
 }
 
 /** Cancel route + Stripe charge.refunded + charge.dispute.created webhooks. */
