@@ -10,7 +10,7 @@
 import express from "express";
 // ⚠️ ADJUST this import to your real auth middleware (must set req.user).
 import { requireAuth } from "../middleware/requireAuth.js";
-import User from "../models/User.js";
+import User from "../models/user.js";
 import {
   PAID_PLANS,
   BILLING_INTERVALS,

@@ -4,7 +4,7 @@
  */
 
 import Stripe from "stripe";
-import User from "../models/User.js";
+import User from "../models/user.js";
 import { MEMBERSHIP_PRICES, ENTITLED_STATUSES } from "../config/membership.js";
 
 let client;
