@@ -56,30 +56,41 @@ function nightsBetween(a, b) {
   if (!a || !b) return null;
   return Math.round(Math.abs(b - a) / 864e5);
 }
+function toDate(d) {
+  return d ? dayjs(d).startOf("day").toDate() : null;
+}
 
-/** Hide/show third-party chat widgets (Intercom, Crisp, HubSpot, Tidio, etc.) */
-function toggleChatWidgets(hide) {
-  const selectors = [
-    ".intercom-lightweight-app",
-    ".intercom-app",
-    '[class*="intercom"]',
-    ".crisp-client",
-    "#crisp-chatbox",
-    "#hubspot-messages-iframe-container",
-    "#tidio-chat",
-    "#tidio-chat-iframe",
-    ".drift-frame-controller",
-    ".drift-widget-container",
-    '[class*="helpdesk"]',
-    '[class*="chat-widget"]',
-    'iframe[title*="chat"]',
-    'iframe[title*="Help"]',
-  ];
-  selectors.forEach((sel) => {
-    document.querySelectorAll(sel).forEach((el) => {
-      el.style.display = hide ? "none" : "";
+/**
+ * While the picker is open, hide every fixed-position element outside it
+ * (Skyrio's chat + support buttons, third-party chat bubbles, sticky bars).
+ * No class names needed, and everything is restored exactly on close.
+ */
+function useHideFloating(open, rootRef) {
+  useEffect(() => {
+    if (!open) return;
+    const hidden = [];
+    const raf = requestAnimationFrame(() => {
+      const root = rootRef.current;
+      document.querySelectorAll("body *").forEach((el) => {
+        if (root && (el === root || root.contains(el) || el.contains(root)))
+          return;
+        if (getComputedStyle(el).position !== "fixed") return;
+        hidden.push([
+          el,
+          el.style.getPropertyValue("visibility"),
+          el.style.getPropertyPriority("visibility"),
+        ]);
+        el.style.setProperty("visibility", "hidden", "important");
+      });
     });
-  });
+    return () => {
+      cancelAnimationFrame(raf);
+      hidden.forEach(([el, prev, prio]) => {
+        if (prev) el.style.setProperty("visibility", prev, prio);
+        else el.style.removeProperty("visibility");
+      });
+    };
+  }, [open, rootRef]);
 }
 
 /* ─── single month grid ─────────────────────────────────────── */
@@ -92,6 +103,7 @@ function MonthGrid({
   onDay,
   onHover,
   compact,
+  disabledDate,
 }) {
   const totalDays = new Date(year, month + 1, 0).getDate();
   const firstDow = new Date(year, month, 1).getDay();
@@ -152,7 +164,8 @@ function MonthGrid({
           if (!date)
             return <div key={`e${idx}`} style={{ height: cellSize }} />;
 
-          const isPast = date < today;
+          // past dates + anything the parent disables (e.g. outside a group's trip window)
+          const isPast = date < today || !!disabledDate?.(dayjs(date));
           const isStart = sameDay(date, startDate);
           const isEnd =
             rangeEnd && sameDay(date, rangeEnd) && !sameDay(date, startDate);
@@ -171,12 +184,10 @@ function MonthGrid({
           return (
             <div
               key={date.toISOString()}
+              // onClick only: the old onTouchEnd picked a date when you
+              // lifted your finger after scrolling the month list
               onClick={() => !isPast && onDay(date)}
               onMouseEnter={() => onHover?.(date)}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                !isPast && onDay(date);
-              }}
               style={{
                 position: "relative",
                 height: cellSize,
@@ -185,6 +196,7 @@ function MonthGrid({
                 justifyContent: "center",
                 cursor: isPast ? "not-allowed" : "pointer",
                 WebkitTapHighlightColor: "transparent",
+                touchAction: "manipulation",
               }}
             >
               {(stripMid || stripStart || stripEnd) && (
@@ -244,26 +256,20 @@ function MonthGrid({
   );
 }
 
-/* ─── Desktop: centered modal with 2 months + nav arrows ───── */
-function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
+/* ─── shared range-selection logic ───────────────────────────── */
+function useRangeSelection(open, initial) {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
-  const [viewMonth, setViewMonth] = useState(() => {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
-  });
 
+  // reopen with the dates already picked instead of wiping them
   useEffect(() => {
     if (open) {
-      setStartDate(null);
-      setEndDate(null);
+      setStartDate(initial?.[0] ?? null);
+      setEndDate(initial?.[1] ?? null);
       setHoverDate(null);
-      toggleChatWidgets(true);
-    } else {
-      toggleChatWidgets(false);
     }
-    return () => toggleChatWidgets(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const handleDay = useCallback(
@@ -291,6 +297,45 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
     },
     [startDate, endDate]
   );
+
+  const clear = () => {
+    setStartDate(null);
+    setEndDate(null);
+    setHoverDate(null);
+  };
+
+  return { startDate, endDate, hoverDate, handleDay, handleHover, clear };
+}
+
+/* ─── Desktop: centered modal with 2 months + nav arrows ───── */
+function DesktopCalendar({
+  open,
+  onClose,
+  onConfirm,
+  placeholder,
+  initial,
+  disabledDate,
+}) {
+  const rootRef = useRef(null);
+  const { startDate, endDate, hoverDate, handleDay, handleHover, clear } =
+    useRangeSelection(open, initial);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+
+  useHideFloating(open, rootRef);
+
+  // open on the month of the existing start date, if any
+  useEffect(() => {
+    if (open && initial?.[0]) {
+      setViewMonth({
+        year: initial[0].getFullYear(),
+        month: initial[0].getMonth(),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleDone = () => {
     if (!startDate || !endDate) return;
@@ -324,6 +369,7 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
 
   return createPortal(
     <div
+      ref={rootRef}
       style={{
         position: "fixed",
         top: 0,
@@ -427,7 +473,7 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
               {endDate ? formatLabel(endDate) : "—"}
             </div>
           </div>
-          {nights && (
+          {nights ? (
             <div style={{ alignSelf: "flex-end", paddingBottom: 4 }}>
               <span
                 style={{
@@ -443,7 +489,7 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
                 {nights} night{nights !== 1 ? "s" : ""}
               </span>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Nav + months */}
@@ -474,6 +520,7 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
             hoverDate={hoverDate}
             onDay={handleDay}
             onHover={handleHover}
+            disabledDate={disabledDate}
             compact
           />
           <MonthGrid
@@ -484,6 +531,7 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
             hoverDate={hoverDate}
             onDay={handleDay}
             onHover={handleHover}
+            disabledDate={disabledDate}
             compact
           />
           <button
@@ -513,11 +561,7 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
           }}
         >
           <button
-            onClick={() => {
-              setStartDate(null);
-              setEndDate(null);
-              setHoverDate(null);
-            }}
+            onClick={clear}
             style={{
               background: "none",
               border: "none",
@@ -566,12 +610,21 @@ function DesktopCalendar({ open, onClose, onConfirm, placeholder }) {
 }
 
 /* ─── Mobile: full-screen scrollable calendar ────────────────── */
-function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
-  const [hoverDate, setHoverDate] = useState(null);
+function MobileCalendar({
+  open,
+  onClose,
+  onConfirm,
+  placeholder,
+  initial,
+  disabledDate,
+}) {
+  const rootRef = useRef(null);
   const scrollRef = useRef(null);
   const savedScrollY = useRef(0);
+  const { startDate, endDate, hoverDate, handleDay, handleHover, clear } =
+    useRangeSelection(open, initial);
+
+  useHideFloating(open, rootRef);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -582,61 +635,36 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
   }
 
   useEffect(() => {
-    if (open) {
-      savedScrollY.current = window.scrollY;
-      document.body.style.position = "fixed";
-      document.body.style.top = `-${savedScrollY.current}px`;
-      document.body.style.width = "100%";
-      document.body.style.overflow = "hidden";
-      setStartDate(null);
-      setEndDate(null);
-      setHoverDate(null);
-      toggleChatWidgets(true);
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    if (!open) return;
+    savedScrollY.current = window.scrollY;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${savedScrollY.current}px`;
+    document.body.style.width = "100%";
+    document.body.style.overflow = "hidden";
+
+    // scroll to the month of an existing start date, otherwise the top
+    requestAnimationFrame(() => {
+      const box = scrollRef.current;
+      if (!box) return;
+      const s = initial?.[0];
+      const target = s
+        ? box.querySelector(`[data-month="${s.getFullYear()}-${s.getMonth()}"]`)
+        : null;
+      box.scrollTo({
+        top: target ? target.offsetTop - 12 : 0,
+        behavior: "instant",
       });
-    } else {
-      document.body.style.position = "";
-      document.body.style.top = "";
-      document.body.style.width = "";
-      document.body.style.overflow = "";
-      window.scrollTo(0, savedScrollY.current);
-      toggleChatWidgets(false);
-    }
+    });
+
     return () => {
       document.body.style.position = "";
       document.body.style.top = "";
       document.body.style.width = "";
       document.body.style.overflow = "";
-      toggleChatWidgets(false);
+      window.scrollTo(0, savedScrollY.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-
-  const handleDay = useCallback(
-    (date) => {
-      if (!startDate || (startDate && endDate)) {
-        setStartDate(date);
-        setEndDate(null);
-        setHoverDate(null);
-      } else {
-        if (date < startDate) {
-          setEndDate(startDate);
-          setStartDate(date);
-        } else {
-          setEndDate(date);
-        }
-        setHoverDate(null);
-      }
-    },
-    [startDate, endDate]
-  );
-
-  const handleHover = useCallback(
-    (date) => {
-      if (startDate && !endDate) setHoverDate(date);
-    },
-    [startDate, endDate]
-  );
 
   const handleDone = () => {
     if (!startDate || !endDate) return;
@@ -650,12 +678,15 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
 
   return createPortal(
     <div
+      ref={rootRef}
       style={{
         position: "fixed",
         top: 0,
         left: 0,
         right: 0,
-        bottom: 0,
+        // 100lvh fills the whole screen, including behind Safari's toolbar,
+        // so the page no longer shows through under the Done button
+        height: "100lvh",
         background:
           "linear-gradient(160deg, #1a0a2e 0%, #2d1057 50%, #1e0b35 100%)",
         zIndex: 999999,
@@ -687,6 +718,7 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
         >
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
               background: "rgba(255,255,255,0.12)",
               border: "none",
@@ -715,11 +747,7 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
             Select dates
           </span>
           <button
-            onClick={() => {
-              setStartDate(null);
-              setEndDate(null);
-              setHoverDate(null);
-            }}
+            onClick={clear}
             style={{
               background: "transparent",
               border: "none",
@@ -831,8 +859,12 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
           ) : (
             <span style={{ fontSize: 13, color: "rgba(255,255,255,0.28)" }}>
               {!startDate
-                ? "Tap your departure date"
-                : "Now tap your return date"}
+                ? `Tap your ${(
+                    placeholder?.[0] || "departure"
+                  ).toLowerCase()} date`
+                : `Now tap your ${(
+                    placeholder?.[1] || "return"
+                  ).toLowerCase()} date`}
             </span>
           )}
         </div>
@@ -842,6 +874,7 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
       <div
         ref={scrollRef}
         style={{
+          position: "relative",
           flex: 1,
           overflowY: "auto",
           overflowX: "hidden",
@@ -851,27 +884,31 @@ function MobileCalendar({ open, onClose, onConfirm, placeholder }) {
         }}
       >
         {months.map(({ year, month }) => (
-          <MonthGrid
-            key={`${year}-${month}`}
-            year={year}
-            month={month}
-            startDate={startDate}
-            endDate={endDate}
-            hoverDate={hoverDate}
-            onDay={handleDay}
-            onHover={handleHover}
-          />
+          <div key={`${year}-${month}`} data-month={`${year}-${month}`}>
+            <MonthGrid
+              year={year}
+              month={month}
+              startDate={startDate}
+              endDate={endDate}
+              hoverDate={hoverDate}
+              onDay={handleDay}
+              onHover={handleHover}
+              disabledDate={disabledDate}
+            />
+          </div>
         ))}
-        <div style={{ height: 120 }} />
+        <div style={{ height: 40 }} />
       </div>
 
-      {/* Done button */}
+      {/* Done button — padded up by the toolbar height so it stays tappable */}
       <div
         style={{
           flexShrink: 0,
           padding: "14px 20px",
-          paddingBottom: "max(14px, env(safe-area-inset-bottom, 14px))",
-          background: "linear-gradient(to top, #140828 60%, transparent)",
+          paddingBottom:
+            "calc(max(14px, env(safe-area-inset-bottom, 14px)) + (100lvh - 100dvh))",
+          background: "#140828",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
           zIndex: 2,
         }}
       >
@@ -917,6 +954,8 @@ export default function SkyrioPicker({
   disabledDate,
   value,
   className = "sk-orange-picker",
+  triggerStyle, // optional overrides, e.g. a borderless trigger inside a search bar
+  showIcon = true,
   ...rest
 }) {
   const [isMobile, setIsMobile] = useState(false);
@@ -945,12 +984,22 @@ export default function SkyrioPicker({
   );
 
   const [start, end] = range;
+  const initial = [toDate(start), toDate(end)];
   const triggerLabel =
     start && end
       ? `${start.format("MMM D")} → ${end.format("MMM D")}`
       : start
       ? `${start.format("MMM D")} → ${placeholder[1]}`
       : `${placeholder[0]} → ${placeholder[1]}`;
+
+  const calendarProps = {
+    open,
+    onClose: () => setOpen(false),
+    onConfirm: handleConfirm,
+    placeholder,
+    initial,
+    disabledDate,
+  };
 
   return (
     <div ref={anchorRef} style={{ position: "relative" }}>
@@ -980,33 +1029,27 @@ export default function SkyrioPicker({
           backdropFilter: "blur(12px)",
           WebkitTapHighlightColor: "transparent",
           transition: "border-color 0.15s",
+          ...triggerStyle,
         }}
-        onMouseEnter={(e) =>
-          (e.currentTarget.style.borderColor = "rgba(255,138,42,0.4)")
-        }
-        onMouseLeave={(e) =>
-          (e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)")
-        }
+        onMouseEnter={(e) => {
+          if (!triggerStyle)
+            e.currentTarget.style.borderColor = "rgba(255,138,42,0.4)";
+        }}
+        onMouseLeave={(e) => {
+          if (!triggerStyle)
+            e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
+        }}
       >
-        <CalendarIcon size={16} style={{ color: "#ff8a2a", flexShrink: 0 }} />
+        {showIcon && (
+          <CalendarIcon size={16} style={{ color: "#ff8a2a", flexShrink: 0 }} />
+        )}
         {triggerLabel}
       </button>
 
       {isMobile ? (
-        <MobileCalendar
-          open={open}
-          onClose={() => setOpen(false)}
-          onConfirm={handleConfirm}
-          placeholder={placeholder}
-        />
+        <MobileCalendar {...calendarProps} />
       ) : (
-        <DesktopCalendar
-          open={open}
-          onClose={() => setOpen(false)}
-          onConfirm={handleConfirm}
-          placeholder={placeholder}
-          anchorRef={anchorRef}
-        />
+        <DesktopCalendar {...calendarProps} />
       )}
     </div>
   );

@@ -534,3 +534,273 @@
     padding-bottom: 96px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   COMPACT SIZING (Oct 2026) — ~35% shorter card.
+   Kept as one block at the end so it overrides the
+   original sizes above; delete it to go back.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Desktop ── */
+.pdp {
+  border-radius: 18px;
+}
+.pdp-head {
+  padding: 10px 18px 8px;
+  font-size: 10px;
+}
+.pdp-headBrand {
+  font-size: 12px;
+}
+.pdp-emblem {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+.pdp-body {
+  grid-template-columns: 96px minmax(0, 1fr) 150px;
+  gap: 18px;
+  padding: 16px 18px 14px;
+}
+
+.pdp-photoCol {
+  gap: 10px;
+}
+.pdp-photo {
+  width: 96px;
+  height: 120px;
+}
+.pdp-photoCam {
+  width: 22px;
+  height: 22px;
+}
+.pdp-holo {
+  width: 48px;
+  height: 48px;
+  left: -10px;
+  bottom: -10px;
+}
+.pdp-sig {
+  font-size: 18px;
+}
+/* faded duplicate photo added height without adding info */
+.pdp-ghost {
+  display: none;
+}
+
+.pdp-label {
+  font-size: 9px;
+  margin-bottom: 2px;
+}
+.pdp-name {
+  font-size: 24px;
+}
+.pdp-handle {
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+.pdp-bio {
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+
+.pdp-grid {
+  gap: 10px 14px;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.pdp-value {
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  /* was "anywhere", which split GLOBETROTTER into GLOBETROT / TER */
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.pdp-endorse {
+  margin-top: 10px;
+}
+.pdp-chip {
+  padding: 3px 8px;
+  font-size: 10px;
+}
+.pdp-social {
+  margin-top: 4px;
+}
+
+.pdp-ringCol {
+  gap: 8px;
+}
+.pdp-ringTier {
+  font-size: 9px;
+}
+.pdp-ringXp {
+  font-size: 21px;
+}
+.pdp-ringUnit {
+  font-size: 9px;
+}
+.pdp-next {
+  max-width: 140px;
+}
+.pdp-nextLabel {
+  font-size: 10px;
+}
+.pdp-spend {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+
+.pdp-mrz {
+  padding: 8px 18px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* ── Tablet / narrow desktop: ring moves under the fields ── */
+@media (max-width: 900px) {
+  .pdp-body {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+  .pdp-photo {
+    width: 88px;
+    height: 110px;
+  }
+  /* ring on the left, progress + spend on the right */
+  .pdp-ringCol {
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: center;
+    align-items: center;
+    justify-items: start;
+    column-gap: 18px;
+    row-gap: 8px;
+    padding-top: 12px;
+  }
+  .pdp-ringCol > .ant-progress {
+    grid-row: 1 / span 2;
+  }
+  .pdp-next {
+    width: 160px;
+    max-width: none;
+  }
+  .pdp-nextLabel {
+    text-align: left;
+  }
+  .pdp-mrz {
+    font-size: 12px;
+  }
+}
+
+/* ── Phone ── */
+@media (max-width: 560px) {
+  .pdp {
+    border-radius: 16px;
+  }
+  .pdp-head {
+    padding: 9px 14px 7px;
+  }
+
+  /* Photo + name side by side on top, everything else full width */
+  .pdp-body {
+    grid-template-columns: 68px minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 12px 14px 12px;
+  }
+  .pdp-fields {
+    display: contents;
+  }
+  .pdp-photoCol {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+  }
+  .pdp-fields > .pdp-label,
+  .pdp-name,
+  .pdp-handle {
+    grid-column: 2;
+  }
+  .pdp-fields > .pdp-label {
+    align-self: end;
+  }
+  .pdp-bio,
+  .pdp-grid,
+  .pdp-endorse,
+  .pdp-social,
+  .pdp-ringCol {
+    grid-column: 1 / -1;
+  }
+
+  .pdp-photo {
+    width: 68px;
+    height: 84px;
+    border-radius: 6px;
+  }
+  .pdp-holo {
+    width: 34px;
+    height: 34px;
+    left: -8px;
+    bottom: -8px;
+  }
+  .pdp-photoCam {
+    width: 20px;
+    height: 20px;
+    right: 4px;
+    bottom: 4px;
+  }
+
+  .pdp-name {
+    font-size: 19px;
+  }
+  .pdp-handle {
+    font-size: 12px;
+  }
+  .pdp-bio {
+    margin-top: 8px;
+  }
+
+  /* 3 short columns → 2 rows instead of 3 */
+  .pdp-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px 10px;
+    margin-top: 10px;
+  }
+  .pdp-value {
+    font-size: 11.5px;
+    letter-spacing: 0;
+  }
+
+  .pdp-ringCol {
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-content: stretch;
+    column-gap: 14px;
+    padding-top: 10px;
+    margin-top: 8px;
+  }
+  .pdp-ringCol .ant-progress-inner {
+    width: 100px !important;
+    height: 100px !important;
+  }
+  .pdp-ringXp {
+    font-size: 17px;
+  }
+  .pdp-ringTier,
+  .pdp-ringUnit {
+    font-size: 8px;
+  }
+  .pdp-next {
+    width: 100%;
+  }
+
+  /* decorative strip — hidden on phones where height matters most */
+  .pdp-mrz {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .pdp-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

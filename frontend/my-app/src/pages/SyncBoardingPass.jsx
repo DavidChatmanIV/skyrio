@@ -7,7 +7,7 @@
 // State lives in SyncTogether.jsx; this component only renders and edits it.
 // ─────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Avatar, DatePicker, Spin } from "antd";
+import { Avatar, Spin } from "antd";
 import { LoadingOutlined, SyncOutlined } from "@ant-design/icons";
 import {
   MapPin,
@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 import "@/styles/SyncBoardingPass.css";
-
-const { RangePicker } = DatePicker;
+// Same picker as the booking page: full-screen sheet on mobile, modal on desktop.
+import SkyrioPicker from "./booking/SkyrioPicker";
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
 function authHeaders() {
@@ -285,18 +285,25 @@ export default function SyncBoardingPass({
                 </em>
               )}
             </span>
-            <RangePicker
-              className="skbp-range"
-              popupClassName="sk-datepicker-dropdown"
-              variant="borderless"
-              suffixIcon={null}
-              format="MMM D"
-              value={dateRange}
-              onChange={(v) => setDateRange(v)}
-              onOpenChange={(o) => o && setOpen(null)}
-              disabledDate={(d) => d && d.isBefore(dayjs().startOf("day"))}
-              placeholder={["Depart", "Return"]}
-            />
+            <div onClickCapture={() => setOpen(null)}>
+              <SkyrioPicker
+                className="skbp-range"
+                value={dateRange ?? [null, null]}
+                onChange={(v) => setDateRange(v?.[0] ? v : null)}
+                disabledDate={(d) => d && d.isBefore(dayjs().startOf("day"))}
+                placeholder={["Depart", "Return"]}
+                showIcon={false}
+                triggerStyle={{
+                  background: "transparent",
+                  border: "none",
+                  borderRadius: 0,
+                  backdropFilter: "none",
+                  height: "auto",
+                  padding: 0,
+                  fontSize: 15,
+                }}
+              />
+            </div>
           </div>
 
           <div className="skbp-divider" aria-hidden />

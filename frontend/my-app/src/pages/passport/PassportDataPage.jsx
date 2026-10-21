@@ -318,7 +318,7 @@ export default function PassportDataPage({
         {/* ── Rank column ── */}
         <div className="pdp-ringCol">
           {xpLoading ? (
-            <div style={{ width: 180 }}>
+            <div style={{ width: 140 }}>
               <Skeleton active paragraph={{ rows: 2 }} />
             </div>
           ) : (
@@ -326,7 +326,7 @@ export default function PassportDataPage({
               <Progress
                 type="dashboard"
                 percent={xpPercent}
-                size={168}
+                size={132}
                 strokeWidth={9}
                 strokeColor={{ "0%": "#ff9d4a", "100%": "#8b5cff" }}
                 trailColor="rgba(255,255,255,0.08)"
