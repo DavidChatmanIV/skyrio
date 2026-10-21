@@ -163,31 +163,54 @@ export default function SyncBoardingPass({
     clearTimeout(peopleTimer.current);
     peopleTimer.current = setTimeout(() => searchPeople(e.target.value), 300);
   };
-  const addPerson = (user) => {
-    onAddTraveler(user);
+  const whoInputRef = useRef(null);
+  const [justAdded, setJustAdded] = useState(""); // name shown in "✓ Added" line
+  const addedTimer = useRef(null);
+  useEffect(() => () => clearTimeout(addedTimer.current), []);
+
+  // On phones, drop the keyboard after adding someone so the Done button
+  // and passenger list are visible instead of hidden behind the keyboard.
+  const afterAdd = (name) => {
     setNeedCrew(false);
     setWho("");
     setPeople([]);
+    setJustAdded(name || "");
+    clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setJustAdded(""), 2500);
+    if (window.matchMedia?.("(max-width: 768px)").matches) {
+      whoInputRef.current?.blur();
+    }
+  };
+  const addPerson = (user) => {
+    onAddTraveler(user);
+    afterAdd(user.name || user.username || user.email);
   };
   const addTyped = () => {
     const v = who.trim();
     if (!v) return;
     if (people.length) return addPerson(people[0]);
     onAddTraveler({ email: v, name: v });
-    setNeedCrew(false);
-    setWho("");
+    afterAdd(v);
+  };
+  const closeCrew = () => {
+    whoInputRef.current?.blur();
+    setOpen(null);
   };
 
-  // Close panels on outside click / Escape.
+  // Close panels on outside tap / click / Escape.
+  // touchstart is needed too: iOS Safari doesn't fire mousedown when you
+  // tap a non-clickable area, which is why tapping outside didn't close it.
   useEffect(() => {
     const onDown = (e) => {
       if (passRef.current && !passRef.current.contains(e.target)) setOpen(null);
     };
     const onKey = (e) => e.key === "Escape" && setOpen(null);
     document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown, { passive: true });
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
       document.removeEventListener("keydown", onKey);
     };
   }, []);
@@ -355,6 +378,46 @@ export default function SyncBoardingPass({
 
             {open === "who" && (
               <div className="skbp-pop skbp-pop-who">
+                {/* Title + close, so it's obvious how to get out */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: "rgba(255,255,255,0.9)",
+                    }}
+                  >
+                    Add your crew
+                  </span>
+                  <button
+                    type="button"
+                    onClick={closeCrew}
+                    aria-label="Close"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.06)",
+                      color: "rgba(255,255,255,0.75)",
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                      touchAction: "manipulation",
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
                 {needCrew && !travelers.length && (
                   <div className="skbp-nudge" role="status">
                     Add at least one friend to start the trip.
@@ -363,7 +426,9 @@ export default function SyncBoardingPass({
                 <div className="skbp-who-search">
                   <Search size={15} color="#ff8a2a" />
                   <input
+                    ref={whoInputRef}
                     autoFocus
+                    enterKeyHint="done"
                     value={who}
                     onChange={onWhoChange}
                     onKeyDown={(e) => e.key === "Enter" && addTyped()}
@@ -455,6 +520,54 @@ export default function SyncBoardingPass({
                     </div>
                   )}
                 </div>
+
+                {/* Confirmation that the tap worked */}
+                {justAdded && (
+                  <div
+                    role="status"
+                    style={{
+                      marginTop: 10,
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      color: "#52c41a",
+                    }}
+                  >
+                    ✓ {justAdded} added. Add more, or tap Done.
+                  </div>
+                )}
+
+                {/* Clear way out of the panel */}
+                <button
+                  type="button"
+                  onClick={closeCrew}
+                  style={{
+                    width: "100%",
+                    marginTop: 12,
+                    padding: "12px 16px",
+                    borderRadius: 12,
+                    border: travelers.length
+                      ? "none"
+                      : "1px solid rgba(255,255,255,0.12)",
+                    background: travelers.length
+                      ? "linear-gradient(135deg, #FF8A2A 0%, #FF6000 100%)"
+                      : "rgba(255,255,255,0.06)",
+                    color: travelers.length ? "#fff" : "rgba(255,255,255,0.7)",
+                    fontSize: 15,
+                    fontWeight: 700,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    touchAction: "manipulation",
+                    boxShadow: travelers.length
+                      ? "0 4px 18px rgba(255,138,42,0.35)"
+                      : "none",
+                  }}
+                >
+                  {travelers.length
+                    ? `Done · ${travelers.length} friend${
+                        travelers.length !== 1 ? "s" : ""
+                      } added`
+                    : "Close"}
+                </button>
               </div>
             )}
           </div>
