@@ -282,7 +282,12 @@ export default function TripBudgetCard({
     return "Watch extras";
   }, [hasBudget, isOverBudget, percent]);
 
-  const moodColor = isOverBudget ? "#ff4d6d" : "#ff8a2a";
+  const moodColor = isOverBudget ? "#ff6b85" : "#ffb347";
+
+  // Only show a real destination on the pass — never the "your destination"
+  // fallback dressed up as a city.
+  const passDest =
+    destination && destination !== "your destination" ? destination : null;
 
   // ── Atlas ──
   useEffect(() => {
@@ -376,34 +381,57 @@ export default function TripBudgetCard({
     setEditingId(null);
   }, [initialBookingTotal, initialTripDays]);
 
+  const categoryOption = (c) => (
+    <Option key={c.key} value={c.key}>
+      <span className="tb-catOption">
+        {c.icon} {c.label}
+      </span>
+    </Option>
+  );
+
   return (
     <Card
       variant="borderless"
-      className={`tb-card ${isOverBudget ? "is-overBudget" : ""}`}
+      className={`tb-card tb-pass ${isOverBudget ? "is-overBudget" : ""}`}
     >
+      {/* ── Pass band ── */}
+      <div className="tb-band">
+        <span className="tb-bandTitle">
+          <Plane size={15} aria-hidden="true" /> Trip budget
+        </span>
+        <button
+          type="button"
+          className="tb-reset"
+          onClick={handleReset}
+          aria-label="Reset budget"
+        >
+          <ReloadOutlined /> Reset
+        </button>
+      </div>
+
       <div className="tb-bodyScroll">
-        {/* ── Header ── */}
-        <div className="tb-topBar">
+        {/* ── Status ── */}
+        <div className="tb-status">
           <div>
-            <div className="tb-topLabel">Trip Budget</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: moodColor }}>
+            <div className="tb-passLabel">Status</div>
+            <div className="tb-mood" style={{ color: moodColor }}>
               {moodLabel}
             </div>
           </div>
-          <button
-            type="button"
-            className="tb-reset"
-            onClick={handleReset}
-            aria-label="Reset"
-          >
-            <ReloadOutlined /> Reset
-          </button>
+          {passDest && (
+            <div className="tb-destBlock">
+              <div className="tb-passLabel">To</div>
+              <div className="tb-dest" title={passDest}>
+                {passDest}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ── Budget + Nights inputs ── */}
-        <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div className="tb-fieldLabel">Total Budget</div>
+        {/* ── Budget + Nights ── */}
+        <div className="tb-fieldRow">
+          <label className="tb-field">
+            <span className="tb-passLabel">Total budget</span>
             <InputNumber
               prefix="$"
               value={planned ?? null}
@@ -413,16 +441,15 @@ export default function TripBudgetCard({
               placeholder="e.g. 1500"
               onChange={(v) => setPlanned(v ?? null)}
               className="tb-input tb-force"
-              style={{ width: "100%" }}
             />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div className="tb-fieldLabel">
+          </label>
+          <label className="tb-field">
+            <span className="tb-passLabel">
               Nights{" "}
               {!tripDays && (
-                <span style={{ opacity: 0.4, fontSize: 10 }}>(from dates)</span>
+                <span className="tb-passLabelSub">(from dates)</span>
               )}
-            </div>
+            </span>
             <InputNumber
               value={tripDays ?? undefined}
               min={1}
@@ -432,76 +459,59 @@ export default function TripBudgetCard({
               placeholder="—"
               onChange={(v) => setTripDays(v ? Number(v) : null)}
               className="tb-input tb-force"
-              style={{ width: "100%" }}
             />
-          </div>
+          </label>
         </div>
 
-        {/* ── Progress bar ── */}
+        {/* ── Spent / Left / Used ── */}
         {hasBudget && (
-          <div style={{ marginTop: 14 }}>
-            <div
-              style={{
-                height: 7,
-                background: "rgba(255,255,255,0.08)",
-                borderRadius: 99,
-                overflow: "hidden",
-                marginBottom: 7,
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${Math.min(100, percent)}%`,
-                  background: isOverBudget
-                    ? "linear-gradient(90deg, #ff4d6d, #ff8a2a)"
-                    : "linear-gradient(90deg, #ff8a2a, #ffb066)",
-                  borderRadius: 99,
-                  transition: "width 0.5s ease",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 11,
-                color: "rgba(255,255,255,0.4)",
-              }}
-            >
-              <span>
-                Spent:{" "}
+          <div className="tb-meterBlock">
+            <div className="tb-stats">
+              <div className="tb-stat">
+                <span className="tb-passLabel">Spent</span>
                 <span
-                  style={{
-                    color: isOverBudget ? "#ff4d6d" : "rgba(255,255,255,0.7)",
-                    fontWeight: 600,
-                  }}
+                  className="tb-statVal"
+                  style={isOverBudget ? { color: "#ff6b85" } : undefined}
                 >
                   ${spent.toLocaleString()}
                 </span>
-              </span>
-              <span>
-                {isOverBudget ? "Over by" : "Left"}:{" "}
-                <span style={{ color: moodColor, fontWeight: 700 }}>
+              </div>
+              <div className="tb-stat">
+                <span className="tb-passLabel">
+                  {isOverBudget ? "Over by" : "Left"}
+                </span>
+                <span className="tb-statVal" style={{ color: moodColor }}>
                   {isOverBudget ? "-" : ""}${Math.abs(left).toLocaleString()}
                 </span>
-              </span>
-              <span>{percent}%</span>
+              </div>
+              <div className="tb-stat">
+                <span className="tb-passLabel">Used</span>
+                <span className="tb-statVal">{percent}%</span>
+              </div>
+            </div>
+            <div
+              className="tb-meter"
+              role="progressbar"
+              aria-label="Budget used"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div
+                className={`tb-meterFill ${isOverBudget ? "is-over" : ""}`}
+                style={{ width: `${Math.min(100, percent)}%` }}
+              />
             </div>
           </div>
         )}
 
-        {/* ── Divider ── */}
-        <div className="tb-divider" />
+        <div className="tb-perf" aria-hidden="true" />
 
         {/* ── Add expense ── */}
         <div>
-          <div className="tb-fieldLabel" style={{ marginBottom: 8 }}>
-            Add Expense
-          </div>
+          <div className="tb-passLabel tb-sectionLabel">Add expense</div>
 
-          {/* Row 1: amount + label */}
-          <div className="tb-add-row" style={{ marginBottom: 8 }}>
+          <div className="tb-add-row">
             <InputNumber
               prefix="$"
               value={newAmount ?? null}
@@ -509,41 +519,29 @@ export default function TripBudgetCard({
               step={5}
               controls={false}
               placeholder="Amount"
+              aria-label="Expense amount"
               onChange={(v) => setNewAmount(Number(v || 0))}
-              className="tb-input tb-force"
-              style={{ width: 110, flexShrink: 0 }}
+              className="tb-input tb-force tb-amountInput"
             />
             <input
               className="tb-text-input"
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="Description (optional)"
+              aria-label="Expense description"
               onKeyDown={(e) => e.key === "Enter" && handleAddExpense()}
             />
           </div>
 
-          {/* Row 2: category + add button */}
-          <div className="tb-add-row" style={{ marginBottom: 0 }}>
+          <div className="tb-add-row">
             <Select
               value={newCategory}
               onChange={setNewCategory}
               className="tb-category-select"
-              style={{ flex: 1 }}
+              aria-label="Expense category"
               classNames={{ popup: { root: "tb-select-popup" } }}
             >
-              {EXPENSE_CATEGORIES.map((c) => (
-                <Option key={c.key} value={c.key}>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    {c.icon} {c.label}
-                  </span>
-                </Option>
-              ))}
+              {EXPENSE_CATEGORIES.map(categoryOption)}
             </Select>
             <button
               type="button"
@@ -556,18 +554,13 @@ export default function TripBudgetCard({
           </div>
         </div>
 
-        {/* ── Expense list ── */}
+        {/* ── Expense list (receipt lines) ── */}
         {expenses.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div className="tb-fieldLabel" style={{ marginBottom: 8 }}>
+          <div className="tb-receipt">
+            <div className="tb-passLabel tb-sectionLabel">
               Expenses
-              <span
-                style={{
-                  marginLeft: 8,
-                  color: "rgba(255,255,255,0.35)",
-                  fontWeight: 400,
-                }}
-              >
+              <span className="tb-passLabelSub">
+                {" "}
                 ({expenses.length}) · ${totalUsed.toLocaleString()} total
               </span>
             </div>
@@ -588,6 +581,7 @@ export default function TripBudgetCard({
                         min={0}
                         step={5}
                         controls={false}
+                        aria-label="Edit amount"
                         onChange={(v) => setEditAmount(Number(v || 0))}
                         className="tb-input tb-force tb-edit-amount"
                       />
@@ -597,27 +591,17 @@ export default function TripBudgetCard({
                         onChange={(e) => setEditLabel(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
                         placeholder="Description"
+                        aria-label="Edit description"
                         autoFocus
                       />
                       <Select
                         value={editCategory}
                         onChange={setEditCategory}
                         className="tb-category-select tb-category-select--sm"
+                        aria-label="Edit category"
                         classNames={{ popup: { root: "tb-select-popup" } }}
                       >
-                        {EXPENSE_CATEGORIES.map((c) => (
-                          <Option key={c.key} value={c.key}>
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 6,
-                              }}
-                            >
-                              {c.icon} {c.label}
-                            </span>
-                          </Option>
-                        ))}
+                        {EXPENSE_CATEGORIES.map(categoryOption)}
                       </Select>
                       <div className="tb-expense-actions">
                         <button
@@ -645,22 +629,15 @@ export default function TripBudgetCard({
                   <div key={expense.id} className="tb-expense-row">
                     <span
                       className="tb-expense-dot"
-                      style={{
-                        background: meta.color,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#fff",
-                        borderRadius: "50%",
-                        width: 20,
-                        height: 20,
-                      }}
+                      style={{ "--tb-cat": meta.color }}
+                      aria-hidden="true"
                     >
                       {meta.icon}
                     </span>
                     <span className="tb-expense-label" title={expense.label}>
                       {expense.label}
                     </span>
+                    <span className="tb-expense-leader" aria-hidden="true" />
                     <span className="tb-expense-amount">
                       ${Number(expense.amount).toLocaleString()}
                     </span>
@@ -669,7 +646,7 @@ export default function TripBudgetCard({
                         type="button"
                         className="tb-icon-btn tb-icon-btn--edit"
                         onClick={() => handleStartEdit(expense)}
-                        aria-label="Edit"
+                        aria-label={`Edit ${expense.label}`}
                       >
                         <EditOutlined />
                       </button>
@@ -677,7 +654,7 @@ export default function TripBudgetCard({
                         type="button"
                         className="tb-icon-btn tb-icon-btn--delete"
                         onClick={() => handleDelete(expense.id)}
-                        aria-label="Delete"
+                        aria-label={`Delete ${expense.label}`}
                       >
                         <DeleteOutlined />
                       </button>
@@ -689,8 +666,7 @@ export default function TripBudgetCard({
           </div>
         )}
 
-        {/* ── Divider ── */}
-        <div className="tb-divider" />
+        <div className="tb-perf" aria-hidden="true" />
 
         {/* ── Atlas Plan ── */}
         <div className="tb-stack">
@@ -723,7 +699,7 @@ export default function TripBudgetCard({
                 onClick={startAtlas}
                 disabled={atlasThinking}
               >
-                {atlasThinking ? "Thinking…" : "Atlas tip ✨"}
+                {atlasThinking ? "Thinking…" : "Atlas tip"}
               </button>
             </div>
 
@@ -732,6 +708,7 @@ export default function TripBudgetCard({
                 className={`tb-novaBubble ${
                   atlasThinking ? "is-thinking" : atlasReveal ? "is-reveal" : ""
                 }`}
+                aria-live="polite"
               >
                 <div className="tb-novaAvatar">A</div>
                 <div className="tb-novaTextWrap">
@@ -761,6 +738,8 @@ export default function TripBudgetCard({
             )}
           </div>
         </div>
+
+        <div className="tb-barcode" aria-hidden="true" />
       </div>
     </Card>
   );

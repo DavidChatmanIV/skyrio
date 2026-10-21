@@ -4606,23 +4606,6 @@ export default function BookingPage() {
     setShowOverBudget(false);
   }, [flightResults, hotelResults, smartFilters, hotelFilters, hotelSortBy]);
 
-  // Only the destination's weather is surfaced anywhere in the booking flow —
-  // origin weather (e.g. "Newark · Avg 58°/44°") was dropped since the user
-  // already knows their own local forecast; it just ate space on the busiest
-  // screen without helping anyone decide anything. Destination weather is
-  // folded into the single-line trip summary (sk-tripMeta) below instead of
-  // its own standalone widget.
-  const weather = useMemo(() => getWeatherForCity(destCity), [destCity]);
-  const weatherTitle = weather.label
-    ? `${weather.label}${weather.temp ? `  ·  ${weather.temp}` : ""}`
-    : "Select a destination";
-  const heroRoute = destCity
-    ? `${originCity ? originCity.toUpperCase() : fromCode} → ${destCity}`
-    : "Where to next?";
-  const heroNights = selectedNights
-    ? `${selectedNights} night${selectedNights !== 1 ? "s" : ""}`
-    : "";
-
   // Quick chips are shortcuts into the SAME smartFilters the dropdowns use, so a
   // chip and its dropdown always agree. (The old Luxury / Unwind / Adventure /
   // Romantic chips only toggled their own highlight — flight data has nothing to
@@ -4729,6 +4712,34 @@ export default function BookingPage() {
     onHandoff: runHandoff,
   };
   const isSearching = autoSearchLoading || manualSearchLoading;
+
+  // Boarding pass stub — only real values from the search, never placeholders
+  // dressed up as data. (The old destination-weather line was removed: it was
+  // backed by a short hardcoded city list, so most destinations showed nothing.)
+  const bpFrom = originCity || fromCode || "";
+  const bpLowestFare = (() => {
+    const prices = flightResults
+      .map((f) => parseFloat(f.totalAmount))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    return prices.length ? Math.min(...prices) : null;
+  })();
+  const bpStatus = isSearching
+    ? tab === "Stays"
+      ? "Searching live hotel rates…"
+      : "Searching live flights…"
+    : tab === "Flights" && flightResults.length > 0
+    ? `${flightResults.length} flight${
+        flightResults.length !== 1 ? "s" : ""
+      } found${
+        bpLowestFare ? ` · from $${wholeUsd(bpLowestFare)}` : ""
+      } — scroll down to pick`
+    : tab === "Stays" && hotelResults.length > 0
+    ? `${hotelResults.length} stay${
+        hotelResults.length !== 1 ? "s" : ""
+      } found — scroll down to pick`
+    : destCity
+    ? "Ready — hit search to see live prices"
+    : "Add a destination to fill in your pass";
 
   // ── Shortlist pick → open that exact flight / room / activity ──
   // Runs once per pick, as soon as fresh results are in.
@@ -5143,291 +5154,347 @@ export default function BookingPage() {
           display: checkoutOverlay ? "none" : undefined,
         }}
       >
-        <div className="sk-booking-hero">
-          <Title className="sk-hero-title">
-            Lock in your{" "}
-            <span className="sk-hero-title-accent">next adventure.</span>
-          </Title>
-
-          <div className="sk-tripState">
-            <div className="sk-tripRoute">{heroRoute}</div>
-            <div className="sk-tripMeta">
-              {heroNights && `${heroNights}  ·  `}
-              {destCity &&
-                weather.label &&
-                `${weather.label} ${weather.temp}  ·  `}
-              {weather.sub}
-              {destCity && "  ·  Best value window"}
-            </div>
-            <div className="sk-tripAssist">
-              {isSearching
-                ? "Searching live flights for you…"
-                : autoSearchDone && flightResults.length > 0
-                ? `Found ${flightResults.length} flights — scroll down to pick`
-                : destCity
-                ? "Smart Plan found great options for you"
-                : "Enter your destination to get started"}
-            </div>
-
-            {prefillData && !prefillDismissed && (
-              <div className="sk-prefill-strip">
-                {!prefillEditing ? (
-                  <div className="sk-prefill-collapsed">
-                    <span className="sk-prefill-bolt">
-                      <Zap size={12} />
-                    </span>
-                    <span className="sk-prefill-loaded">Loaded from AI</span>
-                    <span className="sk-prefill-divider">·</span>
-                    {destCity && (
-                      <span className="sk-prefill-chip">
-                        <MapPin
-                          size={11}
-                          style={{ marginRight: 3, verticalAlign: "middle" }}
-                        />
-                        {destCity}
-                      </span>
-                    )}
-                    {budgetSeed && (
-                      <span className="sk-prefill-chip">
-                        <DollarSign
-                          size={11}
-                          style={{ marginRight: 2, verticalAlign: "middle" }}
-                        />
-                        {budgetSeed.toLocaleString("en-US")}
-                      </span>
-                    )}
-                    {tripDaySeed && (
-                      <span className="sk-prefill-chip">
-                        <Calendar
-                          size={11}
-                          style={{ marginRight: 3, verticalAlign: "middle" }}
-                        />
-                        {tripDaySeed}d
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className="sk-prefill-editBtn"
-                      onClick={() => setPrefillEditing(true)}
-                    >
-                      <EditOutlined /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="sk-prefill-dismissBtn"
-                      onClick={() => setPrefillDismissed(true)}
-                      aria-label="Dismiss"
-                    >
-                      <CloseOutlined />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="sk-prefill-expanded">
-                    <div className="sk-prefill-expandedRow">
-                      <div className="sk-prefill-field sk-prefill-field--grow">
-                        <label className="sk-prefill-label">Prompt</label>
-                        <Input
-                          className="sk-prefill-input"
-                          value={editPrompt}
-                          onChange={(e) => setEditPrompt(e.target.value)}
-                        />
-                      </div>
-                      <div className="sk-prefill-field">
-                        <label className="sk-prefill-label">Budget ($)</label>
-                        <InputNumber
-                          className="sk-prefill-numInput"
-                          prefix="$"
-                          value={editBudget}
-                          min={0}
-                          step={100}
-                          controls={false}
-                          onChange={(v) => setEditBudget(v ?? null)}
-                          placeholder="2500"
-                        />
-                      </div>
-                      <div className="sk-prefill-field">
-                        <label className="sk-prefill-label">Nights</label>
-                        <InputNumber
-                          className="sk-prefill-numInput"
-                          value={editDays}
-                          min={1}
-                          max={60}
-                          controls={false}
-                          onChange={(v) => setEditDays(v ?? null)}
-                          placeholder="7"
-                        />
-                      </div>
-                    </div>
-                    <div className="sk-prefill-expandedActions">
-                      <button
-                        type="button"
-                        className="sk-prefill-saveBtn"
-                        onClick={handlePrefillSave}
-                      >
-                        <CheckOutlined /> Save
-                      </button>
-                      <button
-                        type="button"
-                        className="sk-prefill-cancelBtn"
-                        onClick={() => setPrefillEditing(false)}
-                      >
-                        <CloseOutlined /> Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+        <div className="sk-booking-hero sk-bp">
+          {/* ── Boarding pass intro ── */}
+          <div className="sk-bp-intro">
+            <span className="sk-bp-eyebrow">Now boarding</span>
+            <Title className="sk-hero-title">
+              You&rsquo;re building your{" "}
+              <span className="sk-hero-title-accent">dream vacation.</span>
+            </Title>
+            <Text className="sk-hero-sub">
+              Smart Plan AI helps balance budget, comfort, and XP.
+            </Text>
           </div>
 
-          {/* ── Price Watch Card ── */}
-          <div className="sk-price-watch-card">
-            <div className="sk-pwc-header">
-              <div className="sk-pwc-xp">
-                <Zap size={13} className="sk-pwc-xp-icon" />
-                <span className="sk-pwc-xp-label">
-                  Earn up to <strong>150 XP</strong> on booking
-                </span>
-              </div>
-              <button
-                type="button"
-                className={`sk-pwc-toggle${priceWatchOn ? " is-on" : ""}`}
-                onClick={handlePriceWatchToggle}
-                aria-pressed={priceWatchOn}
-              >
-                {priceWatchOn ? (
-                  <Bell size={13} className="sk-pwc-bell" />
-                ) : (
-                  <BellOff size={13} className="sk-pwc-bell" />
-                )}
-                <span className="sk-pwc-toggle-label">
-                  Price Watch {priceWatchOn ? "On" : "Off"}
-                </span>
-                <span className={`sk-pwc-dot${priceWatchOn ? " is-on" : ""}`} />
-              </button>
-            </div>
-            <div className="sk-pwc-desc">
-              {priceWatchOn
-                ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
-                    priceWatchRoute?.to ?? "destination"
-                  } — we'll notify you when prices drop.`
-                : priceWatchRoute
-                ? "Search results loaded — turn on to get alerted if this route drops in price."
-                : "Search for a route above, then turn on price alerts."}
-            </div>
-            {!aiInsightDismissed &&
-              priceWatchRoute &&
-              flightResults.length >= 3 &&
-              (() => {
-                const prices = flightResults
-                  .map((f) => parseFloat(f.totalAmount))
-                  .filter(Boolean);
-                const cheapest = Math.min(...prices);
-                const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-                const delta = Math.round(avg - cheapest);
-                if (delta < 20) return null;
-                return (
-                  <div className="sk-pwc-insight">
-                    <Zap size={12} className="sk-pwc-insight-icon" />
-                    <span className="sk-pwc-insight-text">
-                      The cheapest option is ${wholeUsd(cheapest)} — prices on
-                      this route vary by up to ${delta} right now. Turn on Price
-                      Watch to catch any drops.
-                    </span>
-                    <button
-                      type="button"
-                      className="sk-pwc-insight-dismiss"
-                      onClick={() => setAiInsightDismissed(true)}
-                      aria-label="Dismiss AI insight"
-                    >
-                      ×
-                    </button>
-                  </div>
-                );
-              })()}
-          </div>
-
-          <Text className="sk-hero-sub">
-            Smart Plan AI helps balance budget, comfort, and XP.
-          </Text>
-
-          {/* ── Who's traveling + HeroPlanner ── */}
-          <TripTypeSelector />
-
-          <HeroPlanner
-            onDestinationSelect={(city) => {
-              if (city) setDestCity(city);
-              else setDestCity("");
-            }}
-            onSearchManually={handleSearchManually}
-          />
-
-          <BookingTabBar
-            value={tab}
-            onChange={(val) => {
-              setTab(val);
-              if (val !== "Flights" && val !== "Stays") setPackagePlan(null);
-              setFlightResults([]);
-              setHotelResults([]);
-              setExcursionResults([]);
-              setSearchError(null);
-              setSmartFilters(DEFAULT_FILTERS);
-              setSortBy("price");
-              setHotelFilters(DEFAULT_HOTEL_FILTERS);
-              setHotelSortBy("price");
-              setVisibleCount(RESULTS_PER_PAGE);
-              // Leaving Stays clears any in-progress room cart so a
-              // half-built trip from a previous search doesn't linger
-              // silently in the background.
-              if (val !== "Stays") setRoomCart([]);
-            }}
-          />
-
-          {/* ── Search form (scroll target for "Search manually") ── */}
-          <div ref={searchFormRef}>{searchForm}</div>
-
-          {/* Package in progress: flight first, then the stay */}
-          {packagePlan && (tab === "Flights" || tab === "Stays") && (
-            <div className="sk-pkg-banner" role="status">
-              <span className="sk-pkg-banner-steps">
-                <span className={tab === "Flights" ? "is-now" : "is-done"}>
-                  <IconFlight size={12} /> 1 · Flight
-                </span>
-                <span className="sk-pkg-step-line" aria-hidden="true" />
-                <span className={tab === "Stays" ? "is-now" : ""}>
-                  <IconHotel size={12} /> 2 · Stay in {packagePlan.city}
-                </span>
+          {/* ── The boarding pass ── */}
+          <section
+            className="sk-bp-ticket"
+            aria-label="Your trip boarding pass"
+          >
+            <div className="sk-bp-band">
+              <span className="sk-bp-airline">
+                <IconFlight size={16} /> Skyrio Airways
               </span>
-              {tab === "Flights" ? (
-                <button
-                  type="button"
-                  className="sk-pkg-banner-btn"
-                  onClick={() =>
-                    runHandoff({
-                      tab: "Stays",
-                      params: {
-                        city: packagePlan.city,
-                        depart: packagePlan.depart,
-                        return: packagePlan.ret,
-                        adults: packagePlan.adults,
-                        rooms: packagePlan.rooms,
-                      },
-                    })
-                  }
-                >
-                  Next: find your stay <ArrowRight size={14} />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="sk-pkg-banner-btn sk-pkg-banner-btn--ghost"
-                  onClick={() => setPackagePlan(null)}
-                >
-                  Done
-                </button>
-              )}
+              <span className="sk-bp-band-label">Boarding pass</span>
             </div>
-          )}
+
+            <div className="sk-bp-body">
+              {/* Main side of the pass: who, what, where, when */}
+              <div className="sk-bp-main">
+                {/* ── Who's traveling + HeroPlanner ── */}
+                <TripTypeSelector />
+
+                <HeroPlanner
+                  onDestinationSelect={(city) => {
+                    if (city) setDestCity(city);
+                    else setDestCity("");
+                  }}
+                  onSearchManually={handleSearchManually}
+                />
+
+                <BookingTabBar
+                  value={tab}
+                  onChange={(val) => {
+                    setTab(val);
+                    if (val !== "Flights" && val !== "Stays")
+                      setPackagePlan(null);
+                    setFlightResults([]);
+                    setHotelResults([]);
+                    setExcursionResults([]);
+                    setSearchError(null);
+                    setSmartFilters(DEFAULT_FILTERS);
+                    setSortBy("price");
+                    setHotelFilters(DEFAULT_HOTEL_FILTERS);
+                    setHotelSortBy("price");
+                    setVisibleCount(RESULTS_PER_PAGE);
+                    // Leaving Stays clears any in-progress room cart so a
+                    // half-built trip from a previous search doesn't linger
+                    // silently in the background.
+                    if (val !== "Stays") setRoomCart([]);
+                  }}
+                />
+
+                {/* ── Search form (scroll target for "Search manually") ── */}
+                <div ref={searchFormRef}>{searchForm}</div>
+
+                {/* Package in progress: flight first, then the stay */}
+                {packagePlan && (tab === "Flights" || tab === "Stays") && (
+                  <div className="sk-pkg-banner" role="status">
+                    <span className="sk-pkg-banner-steps">
+                      <span
+                        className={tab === "Flights" ? "is-now" : "is-done"}
+                      >
+                        <IconFlight size={12} /> 1 · Flight
+                      </span>
+                      <span className="sk-pkg-step-line" aria-hidden="true" />
+                      <span className={tab === "Stays" ? "is-now" : ""}>
+                        <IconHotel size={12} /> 2 · Stay in {packagePlan.city}
+                      </span>
+                    </span>
+                    {tab === "Flights" ? (
+                      <button
+                        type="button"
+                        className="sk-pkg-banner-btn"
+                        onClick={() =>
+                          runHandoff({
+                            tab: "Stays",
+                            params: {
+                              city: packagePlan.city,
+                              depart: packagePlan.depart,
+                              return: packagePlan.ret,
+                              adults: packagePlan.adults,
+                              rooms: packagePlan.rooms,
+                            },
+                          })
+                        }
+                      >
+                        Next: find your stay <ArrowRight size={14} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="sk-pkg-banner-btn sk-pkg-banner-btn--ghost"
+                        onClick={() => setPackagePlan(null)}
+                      >
+                        Done
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Perforated tear line between pass and stub */}
+              <div className="sk-bp-perf" aria-hidden="true" />
+
+              {/* Tear-off stub: route summary, XP, price watch */}
+              <aside className="sk-bp-stub" aria-label="Trip summary">
+                <span className="sk-bp-label">Your pass</span>
+                <div className="sk-tripState sk-bp-pass">
+                  <dl className="sk-bp-fields">
+                    <div className="sk-bp-field">
+                      <dt>From</dt>
+                      <dd>{bpFrom || "—"}</dd>
+                    </div>
+                    <div className="sk-bp-field">
+                      <dt>To</dt>
+                      <dd className={destCity ? "" : "is-empty"}>
+                        {destCity || "Where to?"}
+                      </dd>
+                    </div>
+                    <div className="sk-bp-field">
+                      <dt>Nights</dt>
+                      <dd className={selectedNights ? "" : "is-empty"}>
+                        {selectedNights || "—"}
+                      </dd>
+                    </div>
+                    <div className="sk-bp-field">
+                      <dt>Booking</dt>
+                      <dd>{tab}</dd>
+                    </div>
+                  </dl>
+                  <div className="sk-tripAssist" role="status">
+                    {bpStatus}
+                  </div>
+
+                  {prefillData && !prefillDismissed && (
+                    <div className="sk-prefill-strip">
+                      {!prefillEditing ? (
+                        <div className="sk-prefill-collapsed">
+                          <span className="sk-prefill-bolt">
+                            <Zap size={12} />
+                          </span>
+                          <span className="sk-prefill-loaded">
+                            Loaded from AI
+                          </span>
+                          <span className="sk-prefill-divider">·</span>
+                          {destCity && (
+                            <span className="sk-prefill-chip">
+                              <MapPin
+                                size={11}
+                                style={{
+                                  marginRight: 3,
+                                  verticalAlign: "middle",
+                                }}
+                              />
+                              {destCity}
+                            </span>
+                          )}
+                          {budgetSeed && (
+                            <span className="sk-prefill-chip">
+                              <DollarSign
+                                size={11}
+                                style={{
+                                  marginRight: 2,
+                                  verticalAlign: "middle",
+                                }}
+                              />
+                              {budgetSeed.toLocaleString("en-US")}
+                            </span>
+                          )}
+                          {tripDaySeed && (
+                            <span className="sk-prefill-chip">
+                              <Calendar
+                                size={11}
+                                style={{
+                                  marginRight: 3,
+                                  verticalAlign: "middle",
+                                }}
+                              />
+                              {tripDaySeed}d
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            className="sk-prefill-editBtn"
+                            onClick={() => setPrefillEditing(true)}
+                          >
+                            <EditOutlined /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="sk-prefill-dismissBtn"
+                            onClick={() => setPrefillDismissed(true)}
+                            aria-label="Dismiss"
+                          >
+                            <CloseOutlined />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="sk-prefill-expanded">
+                          <div className="sk-prefill-expandedRow">
+                            <div className="sk-prefill-field sk-prefill-field--grow">
+                              <label className="sk-prefill-label">Prompt</label>
+                              <Input
+                                className="sk-prefill-input"
+                                value={editPrompt}
+                                onChange={(e) => setEditPrompt(e.target.value)}
+                              />
+                            </div>
+                            <div className="sk-prefill-field">
+                              <label className="sk-prefill-label">
+                                Budget ($)
+                              </label>
+                              <InputNumber
+                                className="sk-prefill-numInput"
+                                prefix="$"
+                                value={editBudget}
+                                min={0}
+                                step={100}
+                                controls={false}
+                                onChange={(v) => setEditBudget(v ?? null)}
+                                placeholder="2500"
+                              />
+                            </div>
+                            <div className="sk-prefill-field">
+                              <label className="sk-prefill-label">Nights</label>
+                              <InputNumber
+                                className="sk-prefill-numInput"
+                                value={editDays}
+                                min={1}
+                                max={60}
+                                controls={false}
+                                onChange={(v) => setEditDays(v ?? null)}
+                                placeholder="7"
+                              />
+                            </div>
+                          </div>
+                          <div className="sk-prefill-expandedActions">
+                            <button
+                              type="button"
+                              className="sk-prefill-saveBtn"
+                              onClick={handlePrefillSave}
+                            >
+                              <CheckOutlined /> Save
+                            </button>
+                            <button
+                              type="button"
+                              className="sk-prefill-cancelBtn"
+                              onClick={() => setPrefillEditing(false)}
+                            >
+                              <CloseOutlined /> Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Price Watch Card ── */}
+                <div className="sk-price-watch-card">
+                  <div className="sk-pwc-header">
+                    <div className="sk-pwc-xp">
+                      <Zap size={13} className="sk-pwc-xp-icon" />
+                      <span className="sk-pwc-xp-label">
+                        Earn up to <strong>150 XP</strong> on booking
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`sk-pwc-toggle${priceWatchOn ? " is-on" : ""}`}
+                      onClick={handlePriceWatchToggle}
+                      aria-pressed={priceWatchOn}
+                    >
+                      {priceWatchOn ? (
+                        <Bell size={13} className="sk-pwc-bell" />
+                      ) : (
+                        <BellOff size={13} className="sk-pwc-bell" />
+                      )}
+                      <span className="sk-pwc-toggle-label">
+                        Price Watch {priceWatchOn ? "On" : "Off"}
+                      </span>
+                      <span
+                        className={`sk-pwc-dot${priceWatchOn ? " is-on" : ""}`}
+                      />
+                    </button>
+                  </div>
+                  <div className="sk-pwc-desc">
+                    {priceWatchOn
+                      ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
+                          priceWatchRoute?.to ?? "destination"
+                        } — we'll notify you when prices drop.`
+                      : priceWatchRoute
+                      ? "Search results loaded — turn on to get alerted if this route drops in price."
+                      : "Search for a route above, then turn on price alerts."}
+                  </div>
+                  {!aiInsightDismissed &&
+                    priceWatchRoute &&
+                    flightResults.length >= 3 &&
+                    (() => {
+                      const prices = flightResults
+                        .map((f) => parseFloat(f.totalAmount))
+                        .filter(Boolean);
+                      const cheapest = Math.min(...prices);
+                      const avg =
+                        prices.reduce((a, b) => a + b, 0) / prices.length;
+                      const delta = Math.round(avg - cheapest);
+                      if (delta < 20) return null;
+                      return (
+                        <div className="sk-pwc-insight">
+                          <Zap size={12} className="sk-pwc-insight-icon" />
+                          <span className="sk-pwc-insight-text">
+                            The cheapest option is ${wholeUsd(cheapest)} —
+                            prices on this route vary by up to ${delta} right
+                            now. Turn on Price Watch to catch any drops.
+                          </span>
+                          <button
+                            type="button"
+                            className="sk-pwc-insight-dismiss"
+                            onClick={() => setAiInsightDismissed(true)}
+                            aria-label="Dismiss AI insight"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })()}
+                </div>
+
+                <div className="sk-bp-barcode" aria-hidden="true" />
+              </aside>
+            </div>
+          </section>
 
           <SmartFilterBar
             filters={smartFilters}

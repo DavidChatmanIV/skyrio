@@ -3877,3 +3877,387 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
 .sk-checkout-split-copy-btn:hover {
   background: rgba(255, 138, 42, 0.16);
 }
+
+/* =====================================================================
+   BOARDING PASS THEME — BookingPage hero
+   ---------------------------------------------------------------------
+   Layered on top of BookingPage.css + stays-search.css. Everything is
+   scoped to `.sk-booking-hero.sk-bp`, so removing the `sk-bp` class in
+   BookingPage.jsx (or this import) restores the old glass card.
+
+   The page background (heroImg via --sk-bg-image) is NOT touched here —
+   the outer hero card goes transparent so your photo shows around the
+   pass, and the pass itself is the glass object sitting on it.
+
+   NOTE: no `overflow: hidden` / `mask` on the ticket on purpose — the
+   tab bar "More" menu, AirportInput suggestions and other inline
+   dropdowns are absolutely positioned and would get clipped.
+===================================================================== */
+
+.sk-booking-hero.sk-bp {
+  --bp-paper: rgba(16, 9, 30, 0.72);
+  --bp-stub: rgba(255, 255, 255, 0.035);
+  --bp-edge: rgba(255, 255, 255, 0.13);
+  --bp-perf: rgba(255, 255, 255, 0.22);
+  --bp-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas,
+    monospace;
+  --bp-stub-w: 320px;
+  --bp-notch: 22px;
+
+  /* Outer card becomes a transparent stage so the photo shows through */
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding-top: 8px;
+  gap: 22px;
+}
+
+.sk-booking-hero.sk-bp::before {
+  display: none;
+}
+
+/* ── Intro (eyebrow + headline + sub) ─────────────────────────────── */
+.sk-bp-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.sk-bp-eyebrow {
+  font-family: var(--bp-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--sk-orange-2);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.sk-booking-hero.sk-bp .sk-hero-title {
+  font-size: clamp(30px, 4.4vw, 58px) !important;
+  letter-spacing: -0.03em !important;
+}
+
+.sk-booking-hero.sk-bp .sk-hero-sub {
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-size: 15px;
+  max-width: 520px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+
+/* ── The pass ──────────────────────────────────────────────────────── */
+.sk-bp-ticket {
+  position: relative;
+  width: 100%;
+  border-radius: 26px;
+  background: var(--bp-paper);
+  border: 1px solid var(--bp-edge);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45),
+    0 0 0 0.5px rgba(255, 255, 255, 0.05) inset;
+  backdrop-filter: var(--sk-blur);
+  -webkit-backdrop-filter: var(--sk-blur);
+  text-align: left;
+}
+
+/* Orange header band — "SKYRIO AIRWAYS · BOARDING PASS" */
+.sk-bp-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 28px;
+  border-radius: 25px 25px 0 0;
+  background: var(--sk-orange-grad);
+  color: #1a0e06;
+}
+
+.sk-bp-airline {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.sk-bp-band-label {
+  font-family: var(--bp-mono);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* Body: main side | perforation | stub */
+.sk-bp-body {
+  display: flex;
+  align-items: stretch;
+}
+
+.sk-bp-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 24px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Everything that used to cap itself at 960px fills the pass instead */
+.sk-bp-main .sk-tab-bar,
+.sk-bp-main .sk-search-bar,
+.sk-bp-main > div {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Perforated tear line, with punched notches top + bottom */
+.sk-bp-perf {
+  position: relative;
+  flex: 0 0 0;
+  margin: 18px 0;
+  border-left: 2px dashed var(--bp-perf);
+}
+
+.sk-bp-perf::before,
+.sk-bp-perf::after {
+  content: "";
+  position: absolute;
+  left: calc(-1px - var(--bp-notch) / 2);
+  width: var(--bp-notch);
+  height: var(--bp-notch);
+  border-radius: 50%;
+  background: rgba(8, 5, 18, 0.92);
+  box-shadow: inset 0 0 0 1px var(--bp-edge);
+}
+
+/* Notch centres sit on the ticket's outer edge (18px margin + 1px border) */
+.sk-bp-perf::before {
+  top: calc(-18px - 1px - var(--bp-notch) / 2);
+}
+.sk-bp-perf::after {
+  bottom: calc(-18px - 1px - var(--bp-notch) / 2);
+}
+
+/* Tear-off stub */
+.sk-bp-stub {
+  flex: 0 0 var(--bp-stub-w);
+  min-width: 0;
+  padding: 24px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bp-stub);
+  border-radius: 0 0 25px 0;
+}
+
+.sk-bp-label {
+  font-family: var(--bp-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* Route summary card → printed "flight info" block on the stub */
+.sk-bp-stub .sk-tripState {
+  width: 100%;
+  grid-template-columns: 1fr;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.16);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.sk-bp-stub .sk-tripRoute {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.sk-bp-stub .sk-tripMeta {
+  font-family: var(--bp-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+/* AI prefill editor needs to wrap inside the narrower stub */
+.sk-bp-stub .sk-prefill-collapsed {
+  justify-content: flex-start;
+}
+.sk-bp-stub .sk-prefill-expandedRow {
+  flex-wrap: wrap;
+}
+
+/* XP + Price Watch → "boarding reward" panel */
+.sk-bp-stub .sk-price-watch-card {
+  width: 100%;
+  border-color: rgba(255, 138, 42, 0.32);
+  background: rgba(255, 138, 42, 0.08);
+}
+
+.sk-bp-stub .sk-pwc-header {
+  flex-wrap: wrap;
+}
+
+.sk-bp-stub .sk-pwc-xp strong {
+  font-size: 15px;
+}
+
+/* Decorative barcode at the foot of the stub */
+.sk-bp-barcode {
+  margin-top: auto;
+  height: 46px;
+  border-radius: 4px;
+  opacity: 0.75;
+  background: repeating-linear-gradient(
+    90deg,
+    #fff 0 2px,
+    transparent 2px 5px,
+    #fff 5px 6px,
+    transparent 6px 9px,
+    #fff 9px 12px,
+    transparent 12px 14px,
+    #fff 14px 15px,
+    transparent 15px 19px
+  );
+}
+
+/* ── Filters / sort / Sync row under the pass ─────────────────────── */
+.sk-booking-hero.sk-bp .sk-action-row,
+.sk-booking-hero.sk-bp .sk-filters {
+  margin-top: 0;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .sk-booking-hero.sk-bp {
+    --bp-stub-w: 280px;
+  }
+}
+
+/* Tablet + phone: stub drops below the pass, tear line goes horizontal */
+@media (max-width: 992px) {
+  .sk-bp-body {
+    flex-direction: column;
+  }
+
+  .sk-bp-main {
+    padding: 18px 16px 20px;
+  }
+
+  .sk-bp-perf {
+    flex: 0 0 auto;
+    margin: 0 18px;
+    border-left: 0;
+    border-top: 2px dashed var(--bp-perf);
+  }
+
+  .sk-bp-perf::before,
+  .sk-bp-perf::after {
+    top: calc(-1px - var(--bp-notch) / 2);
+    bottom: auto;
+  }
+  .sk-bp-perf::before {
+    left: calc(-18px - 1px - var(--bp-notch) / 2);
+  }
+  .sk-bp-perf::after {
+    left: auto;
+    right: calc(-18px - 1px - var(--bp-notch) / 2);
+  }
+
+  .sk-bp-stub {
+    flex: 0 0 auto;
+    padding: 18px 16px 22px;
+    border-radius: 0 0 25px 25px;
+  }
+
+  .sk-bp-band {
+    padding: 12px 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sk-bp-ticket {
+    border-radius: 20px;
+  }
+  .sk-bp-band {
+    border-radius: 19px 19px 0 0;
+  }
+  .sk-bp-stub {
+    border-radius: 0 0 19px 19px;
+  }
+  .sk-bp-airline {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+  }
+  .sk-bp-band-label {
+    font-size: 11px;
+  }
+  .sk-bp-eyebrow {
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-booking-hero.sk-bp {
+    animation: none;
+  }
+}
+
+/* ── Stub "Your pass" fields (replaces the old weather line) ──────── */
+.sk-bp-stub .sk-bp-pass {
+  gap: 12px;
+}
+
+.sk-bp-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.sk-bp-field {
+  min-width: 0;
+}
+
+.sk-bp-field dt {
+  font-family: var(--bp-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.sk-bp-field dd {
+  margin: 3px 0 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.96);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sk-bp-field dd.is-empty {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+}
+
+.sk-bp-stub .sk-bp-pass .sk-tripAssist {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
+  line-height: 1.4;
+}

@@ -1076,3 +1076,368 @@
     margin: 0 auto;
   }
 }
+
+/* =====================================================================
+   BOARDING PASS THEME — matches the BookingPage boarding pass
+   ---------------------------------------------------------------------
+   Scoped to `.tb-card.tb-pass`; remove `tb-pass` from the Card's
+   className in TripBudgetCard.jsx to get the previous look back.
+===================================================================== */
+
+.tb-card.tb-pass {
+  --tb-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas,
+    monospace;
+  --tb-perf: rgba(255, 255, 255, 0.2);
+
+  border: 1px solid rgba(255, 255, 255, 0.13) !important;
+  background: rgba(16, 9, 30, 0.72) !important;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45),
+    0 0 0 0.5px rgba(255, 255, 255, 0.05) inset;
+}
+
+.tb-card.tb-pass.is-overBudget {
+  border-color: rgba(255, 107, 133, 0.4) !important;
+}
+
+.tb-card.tb-pass .ant-card-body {
+  padding: 0 !important;
+}
+
+/* ── Orange band ─────────────────────────────────────────────────── */
+.tb-pass .tb-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px 12px 20px;
+  border-radius: calc(var(--tb-radius) - 1px) calc(var(--tb-radius) - 1px) 0 0;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+}
+
+.tb-card.tb-pass.is-overBudget .tb-band {
+  background: linear-gradient(135deg, #ff6b85, #ff8a2a);
+}
+
+.tb-pass .tb-bandTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Reset sits on the orange band, so it flips to a dark pill */
+.tb-pass .tb-reset {
+  height: 32px;
+  padding: 0 14px;
+  background: rgba(26, 14, 6, 0.88);
+  border: 1px solid rgba(26, 14, 6, 0.2);
+  color: #ffc27a;
+  font-weight: 700;
+  font-size: 12.5px;
+  box-shadow: none;
+}
+
+.tb-pass .tb-reset:hover {
+  opacity: 1;
+  background: #1a0e06;
+  box-shadow: 0 0 0 3px rgba(26, 14, 6, 0.18);
+}
+
+/* ── Body ────────────────────────────────────────────────────────── */
+.tb-pass .tb-bodyScroll {
+  max-height: calc(100vh - (var(--nav-h) + 16px) - 108px);
+  padding: 16px 18px 20px;
+}
+
+.tb-pass .tb-passLabel {
+  display: block;
+  font-family: var(--tb-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.tb-pass .tb-passLabelSub {
+  font-family: var(--tb-mono);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tb-pass .tb-sectionLabel {
+  margin-bottom: 8px;
+}
+
+/* Status + destination */
+.tb-pass .tb-status {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.tb-pass .tb-mood {
+  margin-top: 3px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.tb-pass .tb-destBlock {
+  min-width: 0;
+  text-align: right;
+}
+
+.tb-pass .tb-dest {
+  margin-top: 3px;
+  font-size: 17px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.96);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Budget + nights */
+.tb-pass .tb-fieldRow {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tb-pass .tb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tb-pass .tb-input {
+  height: 42px;
+  display: flex !important;
+  align-items: center;
+}
+
+/* Spent / Left / Used */
+.tb-pass .tb-meterBlock {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.tb-pass .tb-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tb-pass .tb-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tb-pass .tb-statVal {
+  font-size: 16px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tb-pass .tb-meter {
+  margin-top: 12px;
+  height: 8px;
+}
+
+/* Perforated tear line between sections */
+.tb-pass .tb-perf {
+  position: relative;
+  margin: 18px 0;
+  border-top: 2px dashed var(--tb-perf);
+}
+
+.tb-pass .tb-perf::before,
+.tb-pass .tb-perf::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(8, 5, 18, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+.tb-pass .tb-perf::before {
+  left: -14px;
+}
+.tb-pass .tb-perf::after {
+  right: -14px;
+}
+
+/* Add expense */
+.tb-pass .tb-add-row {
+  grid-template-columns: 110px minmax(0, 1fr);
+  margin-bottom: 8px;
+}
+
+.tb-pass .tb-add-row + .tb-add-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 0;
+}
+
+.tb-pass .tb-text-input,
+.tb-pass .tb-category-select .ant-select-selector {
+  height: 42px !important;
+  border-radius: 14px !important;
+}
+
+.tb-pass .tb-addBtn {
+  height: 42px;
+  font-weight: 800;
+  color: #1a0e06;
+}
+
+.tb-pass .tb-addBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tb-pass .tb-catOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Expense list → receipt lines with dotted leaders */
+.tb-pass .tb-receipt {
+  margin-top: 16px;
+}
+
+.tb-pass .tb-expense-row {
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  padding: 6px 4px;
+}
+
+.tb-pass .tb-expense-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tb-pass .tb-expense-row--editing {
+  background: rgba(255, 138, 42, 0.07);
+  border: 1px solid rgba(255, 138, 42, 0.3);
+  padding: 8px;
+}
+
+.tb-pass .tb-expense-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tb-cat, #8993a4);
+  color: #fff;
+}
+
+.tb-pass .tb-expense-label {
+  flex: 0 1 auto;
+  max-width: 55%;
+}
+
+.tb-pass .tb-expense-leader {
+  flex: 1 1 12px;
+  min-width: 12px;
+  align-self: center;
+  margin-top: 6px;
+  border-bottom: 2px dotted rgba(255, 255, 255, 0.18);
+}
+
+.tb-pass .tb-expense-amount {
+  font-family: var(--tb-mono);
+  font-size: 13px;
+}
+
+.tb-pass .tb-icon-btn {
+  width: 32px;
+  height: 32px;
+}
+
+.tb-pass .tb-icon-btn--edit,
+.tb-pass .tb-icon-btn--delete,
+.tb-pass .tb-icon-btn--cancel {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Atlas plan → printed panel */
+.tb-pass .tb-stack {
+  margin-top: 0;
+}
+
+.tb-pass .tb-ai {
+  border-style: dashed;
+}
+
+.tb-pass .tb-aiBadge {
+  font-family: var(--tb-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tb-pass .tb-pillBtn {
+  color: #1a0e06;
+  font-weight: 800;
+}
+
+/* Barcode foot */
+.tb-pass .tb-barcode {
+  margin-top: 18px;
+  height: 38px;
+  border-radius: 4px;
+  opacity: 0.7;
+  background: repeating-linear-gradient(
+    90deg,
+    #fff 0 2px,
+    transparent 2px 5px,
+    #fff 5px 6px,
+    transparent 6px 9px,
+    #fff 9px 12px,
+    transparent 12px 14px,
+    #fff 14px 15px,
+    transparent 15px 19px
+  );
+}
+
+@media (max-width: 520px) {
+  .tb-pass .tb-bodyScroll {
+    padding: 14px 14px 18px;
+  }
+  .tb-pass .tb-perf::before {
+    left: -10px;
+  }
+  .tb-pass .tb-perf::after {
+    right: -10px;
+  }
+  .tb-pass .tb-stats {
+    gap: 6px;
+  }
+  .tb-pass .tb-statVal {
+    font-size: 14.5px;
+  }
+}
