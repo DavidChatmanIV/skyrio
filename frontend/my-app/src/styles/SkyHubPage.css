@@ -2153,3 +2153,299 @@
     margin-left: 0;
   }
 }
+
+/* =====================================================================
+   POSTCARD THEME — "Postcards from the road"
+   ---------------------------------------------------------------------
+   Everything is scoped to `.skyhub-page.sh-postcards`. Remove the
+   `sh-postcards` class in SkyHubPage.jsx to get the previous look back.
+   The page background (your palm photo) is untouched — postcards are
+   solid cards sitting on top of it.
+===================================================================== */
+
+.sh-postcards {
+  --shpc-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas,
+    monospace;
+  --shpc-paper: rgba(18, 10, 30, 0.96);
+  --shpc-airmail: repeating-linear-gradient(
+    -45deg,
+    #ff8a2a 0 12px,
+    #f6efe6 12px 19px,
+    #8b6cff 19px 31px,
+    #f6efe6 31px 38px
+  );
+  /* Wavy postmark cancellation lines */
+  --shpc-waves: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='14' viewBox='0 0 60 14'%3E%3Cpath d='M0 4 Q7.5 0 15 4 T30 4 T45 4 T60 4 M0 11 Q7.5 7 15 11 T30 11 T45 11 T60 11' fill='none' stroke='rgba(255,255,255,0.28)' stroke-width='1.4'/%3E%3C/svg%3E");
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────── */
+.sh-postcards .skyhub-eyebrow {
+  font-family: var(--shpc-mono);
+  letter-spacing: 0.18em;
+}
+.sh-postcards .skyhub-eyebrow::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  animation: none;
+}
+
+.sh-postcards .skyhub-pageTitle {
+  font-size: clamp(2rem, 3.6vw, 3.2rem);
+  line-height: 1.05;
+  margin-bottom: 10px;
+}
+
+.sh-postcards .shPC-accent {
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.sh-postcards .skyhub-pageSubtitle {
+  max-width: 520px;
+  font-size: 0.98rem;
+  color: rgba(240, 236, 255, 0.85);
+}
+
+.shPC-cta {
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+  font-family: "DM Sans", sans-serif;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(255, 138, 42, 0.35);
+  transition: transform var(--t-pop), box-shadow var(--t-fast);
+}
+.shPC-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px rgba(255, 138, 42, 0.45);
+}
+
+/* ── Radar → postmark card with an airmail edge ───────────────────── */
+.sh-postcards .shRadar {
+  border: 5px solid transparent;
+  border-radius: 24px;
+  background: radial-gradient(
+        120% 140% at 100% 0%,
+        rgba(255, 107, 43, 0.16),
+        transparent 55%
+      )
+      padding-box,
+    radial-gradient(
+        100% 120% at 0% 100%,
+        rgba(147, 51, 234, 0.2),
+        transparent 60%
+      )
+      padding-box,
+    linear-gradient(var(--shpc-paper), var(--shpc-paper)) padding-box,
+    var(--shpc-airmail) border-box;
+}
+.sh-postcards .shRadar.is-focused {
+  border-color: transparent;
+}
+/* Ticket notches belong to the Book page — postcards don't have them */
+.sh-postcards .shRadar::before,
+.sh-postcards .shRadar::after {
+  display: none;
+}
+.sh-postcards .shRadar__top {
+  border-bottom: 0;
+  padding-bottom: 16px;
+  background: var(--shpc-waves) left bottom / 60px 14px repeat-x;
+}
+.sh-postcards .shRadar__label {
+  font-family: var(--shpc-mono);
+}
+
+/* ── Tabs + vibe chips ────────────────────────────────────────────── */
+.sh-postcards .skyhub-navbar-tab {
+  font-size: 14px;
+}
+.sh-postcards .skyhub-vibe-chip {
+  min-height: 32px;
+  padding: 4px 14px;
+  color: rgba(240, 236, 255, 0.78);
+}
+.sh-postcards .skyhub-vibe-chip.is-on {
+  color: #1a0e06;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+}
+
+/* ── Composer → a blank postcard ──────────────────────────────────── */
+.shPC-postcard {
+  border: 6px solid transparent;
+  border-radius: 24px;
+  padding: 14px 16px 8px;
+  background: linear-gradient(var(--shpc-paper), var(--shpc-paper)) padding-box,
+    var(--shpc-airmail) border-box;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+}
+
+.shPC-postcardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.16);
+}
+
+.shPC-label {
+  font-family: var(--shpc-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffb46b;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Little postage stamp in the corner */
+.shPC-stamp {
+  flex-shrink: 0;
+  width: 40px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 2px dashed rgba(255, 180, 107, 0.7);
+  background: rgba(255, 138, 42, 0.1);
+  color: #ffc48a;
+  transform: rotate(4deg);
+}
+
+/* The composer's own card sits flat inside the postcard */
+.sh-postcards .shPC-postcard .skyhub-composerCard,
+.sh-postcards .shPC-postcard [class*="composerCard"],
+.sh-postcards .shPC-postcard [class*="composer-card"],
+.sh-postcards .shPC-postcard [class*="composerCard"]:focus-within,
+.sh-postcards .shPC-postcard [class*="composer-card"]:focus-within {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ── Feed → a mailbag of postcards ────────────────────────────────── */
+.sh-postcards .skyhub-feedSection {
+  background: rgba(9, 7, 20, 0.72);
+}
+
+.sh-postcards .skyhub-feedList {
+  gap: 18px;
+  padding: 18px;
+}
+
+.sh-postcards .skyhub-feedCard,
+.sh-postcards .skyhub-feedCard:last-child {
+  border: 6px solid transparent !important;
+  border-radius: 22px !important;
+  background: linear-gradient(var(--shpc-paper), var(--shpc-paper)) padding-box,
+    var(--shpc-airmail) border-box !important;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.42) !important;
+  padding: 18px 20px !important;
+  transition: transform var(--t-fast), box-shadow var(--t-fast) !important;
+}
+.sh-postcards .skyhub-feedCard:hover {
+  background: linear-gradient(var(--shpc-paper), var(--shpc-paper)) padding-box,
+    var(--shpc-airmail) border-box !important;
+  transform: translateY(-2px);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.5) !important;
+}
+/* The coloured left bar doesn't fit a postcard — the type pill carries it */
+.sh-postcards .skyhub-feedCard::before {
+  display: none;
+}
+
+/* Destination → a postmark */
+.sh-postcards .skyhub-feedCard__location {
+  padding: 3px 11px;
+  border: 1.5px dashed rgba(255, 180, 107, 0.75);
+  border-radius: var(--r-pill);
+  transform: rotate(-4deg);
+  font-family: var(--shpc-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffc48a;
+}
+
+.sh-postcards .skyhub-feedCard__text {
+  color: rgba(240, 236, 255, 0.9);
+}
+
+.sh-postcards .skyhub-feedCard__media {
+  border-radius: 10px;
+  border: 6px solid #f6efe6;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+  transform: rotate(-0.6deg);
+}
+
+.sh-postcards .skyhub-feedCard__footer {
+  border-top: 1px dashed rgba(255, 255, 255, 0.16);
+}
+
+.sh-postcards .skyhub-feedCard__action {
+  min-height: 40px;
+  color: rgba(240, 236, 255, 0.72);
+}
+
+.sh-postcards .skyhub-feedCard__time,
+.sh-postcards .skyhub-feedCard__meta {
+  font-family: var(--shpc-mono);
+  color: rgba(240, 236, 255, 0.55);
+}
+
+/* Empty mailbag */
+.sh-postcards .skyhub-emptyState {
+  margin: 4px;
+  border-radius: 18px;
+  border: 2px dashed rgba(255, 255, 255, 0.14);
+  background: var(--shpc-waves) center 18px / 60px 14px repeat-x;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sh-postcards .skyhub-feedList {
+    padding: 12px;
+    gap: 14px;
+  }
+  .sh-postcards .skyhub-feedCard,
+  .sh-postcards .skyhub-feedCard:last-child,
+  .shPC-postcard {
+    border-width: 4px !important;
+  }
+  .sh-postcards .skyhub-feedCard {
+    padding: 14px !important;
+  }
+  .shPC-postcard {
+    padding: 12px 12px 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shPC-cta:hover,
+  .sh-postcards .skyhub-feedCard:hover {
+    transform: none;
+  }
+}

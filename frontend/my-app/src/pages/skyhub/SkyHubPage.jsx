@@ -847,9 +847,9 @@ export default function SkyHubPage() {
   const EMPTY = {
     forYou: {
       icon: "globe",
-      title: "Start the conversation",
-      sub: "Be the first to share a tip, question, or story with the community.",
-      cta: "Write a post",
+      title: "No postcards yet",
+      sub: "Be the first to send one: a tip, question, or story from your trip.",
+      cta: "Write a postcard",
     },
     following: {
       icon: "edit",
@@ -886,7 +886,7 @@ export default function SkyHubPage() {
   const empty = EMPTY[activeTab] || EMPTY.forYou;
 
   const FEED_TITLES = {
-    forYou: "Community Feed",
+    forYou: "Community postcards",
     following: "Your Posts",
     nearby: localCity ? `Near ${localCity.name}` : "Destination Posts",
     questions: "Questions",
@@ -980,9 +980,9 @@ export default function SkyHubPage() {
       setComposerPhotos([]);
       applyXp(data.xp);
       if (data.xp?.awarded && data.xp.amount > 0) {
-        message.success(`Posted to SkyHub! +${data.xp.amount} XP`);
+        message.success(`Postcard sent! +${data.xp.amount} XP`);
       } else {
-        message.success("Posted to SkyHub!");
+        message.success("Postcard sent!");
         const why = XP_REASONS[data.xp?.reason];
         if (why) message.info(why, 4);
         if (data.xp?.reason)
@@ -1194,6 +1194,12 @@ export default function SkyHubPage() {
       )
     );
 
+  const focusComposer = () => {
+    const composer = document.getElementById("skyhub-composer");
+    composer?.scrollIntoView({ behavior: "smooth", block: "center" });
+    composer?.querySelector("textarea")?.focus({ preventScroll: true });
+  };
+
   const scrollToFeed = () =>
     document
       .querySelector(".skyhub-feedSection")
@@ -1207,7 +1213,7 @@ export default function SkyHubPage() {
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
-    <div className="skyhub-page">
+    <div className="skyhub-page sh-postcards">
       {/* ══ HERO — slim banner, not a full-screen splash ══ */}
       <header className="skyhub-topHeader">
         <div className="skyhub-topHeaderOverlay" />
@@ -1307,12 +1313,35 @@ export default function SkyHubPage() {
               </div>
             )}
 
-            <div className="skyhub-eyebrow">Skyrio Community</div>
-            <h1 className="skyhub-pageTitle">SkyHub</h1>
+            <div className="skyhub-eyebrow">
+              SkyHub · Postcards from the road
+            </div>
+            <h1 className="skyhub-pageTitle">
+              Your trip, sent as a{" "}
+              <span className="shPC-accent">postcard.</span>
+            </h1>
             <p className="skyhub-pageSubtitle">
-              Share travel experiences, ask smart questions, and help other
-              travelers move better.
+              Share where you are, what you found, and what you&rsquo;d tell a
+              friend. Every post lands in the SkyHub mailbag for other
+              travelers.
             </p>
+            <button type="button" className="shPC-cta" onClick={focusComposer}>
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M22 2 11 13" />
+                <path d="m22 2-7 20-4-9-9-4z" />
+              </svg>
+              {posts.length ? "Send a postcard" : "Send the first postcard"}
+            </button>
             {/* Bullet list (Trending conversations / Destination discovery /
                 Real traveler questions) removed — decorative, added height
                 without helping a first-time visitor act. */}
@@ -1338,7 +1367,7 @@ export default function SkyHubPage() {
         </div>
 
         {/* Live stats */}
-        {liveStats ? (
+        {liveStats && (
           <div className="skyhub-topStats">
             <div className="skyhub-statItem">
               <strong>{liveStats.travelers.toLocaleString()}</strong>
@@ -1361,10 +1390,6 @@ export default function SkyHubPage() {
                   } here`
                 : "Be the first to post"}
             </div>
-          </div>
-        ) : (
-          <div className="skyhub-topStats">
-            <div className="skyhub-onlinePill">Be the first to post</div>
           </div>
         )}
       </header>
@@ -1435,31 +1460,54 @@ export default function SkyHubPage() {
 
             <SkyHubStanding signedIn={!!currentUser} />
 
-            <SkyHubComposer
-              composerText={composerText}
-              setComposerText={setComposerText}
-              activePostType={activePostType}
-              setActivePostType={setActivePostType}
-              destination={destination}
-              setDestination={setDestination}
-              onCreatePost={handleCreatePost}
-              creatingPost={creatingPost}
-              onPhotosChange={setComposerPhotos}
-              user={currentUser}
-            />
+            <div className="shPC-postcard">
+              <div className="shPC-postcardHead">
+                <span className="shPC-label">
+                  Postcard
+                  {currentUser ? ` · from @${currentUser.username}` : ""}
+                </span>
+                <span className="shPC-stamp" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M22 2 11 13" />
+                    <path d="m22 2-7 20-4-9-9-4z" />
+                  </svg>
+                </span>
+              </div>
+              <SkyHubComposer
+                composerText={composerText}
+                setComposerText={setComposerText}
+                activePostType={activePostType}
+                setActivePostType={setActivePostType}
+                destination={destination}
+                setDestination={setDestination}
+                onCreatePost={handleCreatePost}
+                creatingPost={creatingPost}
+                onPhotosChange={setComposerPhotos}
+                user={currentUser}
+              />
+            </div>
 
             <section className="skyhub-feedSection">
               <div className="skyhub-feedSectionHeader">
                 <div>
                   <h2 className="skyhub-sectionTitle">
-                    {FEED_TITLES[activeTab] || "Community Feed"}
+                    {FEED_TITLES[activeTab] || "Community postcards"}
                   </h2>
                   <p className="skyhub-sectionSubtext">
                     {debouncedSearch
                       ? `${visiblePosts.length} result${
                           visiblePosts.length !== 1 ? "s" : ""
                         } for "${debouncedSearch}"`
-                      : "Travel-first posts with real community insights."}{" "}
+                      : "Postcards from travelers: real tips, stories and questions."}{" "}
                     <a
                       href="/skyhub/guidelines"
                       onClick={(e) => {
@@ -1524,17 +1572,7 @@ export default function SkyHubPage() {
                     <p>{empty.sub}</p>
                     <Button
                       type="primary"
-                      onClick={() => {
-                        const composer =
-                          document.getElementById("skyhub-composer");
-                        composer?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "center",
-                        });
-                        composer
-                          ?.querySelector("textarea")
-                          ?.focus({ preventScroll: true });
-                      }}
+                      onClick={focusComposer}
                       style={{ marginTop: 16 }}
                     >
                       {empty.cta}
