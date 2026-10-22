@@ -44,8 +44,10 @@ const textFooter = `\n\nView your trips: ${TRIPS_URL}\nQuestions? ${SUPPORT_EMAI
 
 /**
  * Hotel booking confirmation.
- * rooms: [{ name, roomName, boardName, address, checkin, checkout, guestName, confirmationCode }]
+ * rooms: [{ name, roomName, boardName, address, checkin, checkout, guestName,
+ *          confirmationCode, alsoStaying: [names] }]
  * totalAmount: the EXACT amount charged.
+ * groupTrip: true when this is part of a Sync Together trip (no tip then).
  */
 export async function sendHotelConfirmation({
   to,
@@ -54,7 +56,15 @@ export async function sendHotelConfirmation({
   totalAmount,
   currency = "USD",
   bookingId,
+  groupTrip = false,
 }) {
+  const others = (r) =>
+    Array.isArray(r?.alsoStaying)
+      ? r.alsoStaying.map((n) => String(n || "").trim()).filter(Boolean)
+      : [];
+  // One short line about Sync Together, only when booking for others.
+  const syncTip =
+    !groupTrip && (rooms.length > 1 || rooms.some((r) => others(r).length));
   const first = rooms[0] || {};
   const nights = nightsBetween(first.checkin, first.checkout);
   const total = formatMoney(totalAmount, currency);
@@ -74,6 +84,9 @@ export async function sendHotelConfirmation({
           kvRow("Check-in", esc(formatDate(r.checkin) || "—")) +
           kvRow("Check-out", esc(formatDate(r.checkout) || "—")) +
           (r.guestName ? kvRow("Guest", esc(r.guestName)) : "") +
+          (others(r).length
+            ? kvRow("Also staying", esc(others(r).join(", ")))
+            : "") +
           (r.confirmationCode
             ? kvRow("Hotel confirmation", esc(r.confirmationCode))
             : "")
@@ -100,7 +113,12 @@ export async function sendHotelConfirmation({
           noteLine(
             "Show your hotel confirmation code at check-in. Hotels may ask for a photo ID and a card for incidentals."
           )
-      ),
+      ) +
+      (syncTip
+        ? noteLine(
+            "Traveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share."
+          )
+        : ""),
     cta: { label: "View my trips", url: TRIPS_URL },
   });
 
@@ -115,12 +133,16 @@ ${r.address ? `${r.address}\n` : ""}${[r.roomName, r.boardName]
 Check-in: ${formatDate(r.checkin) || "—"}
 Check-out: ${formatDate(r.checkout) || "—"}
 ${r.guestName ? `Guest: ${r.guestName}\n` : ""}${
-      r.confirmationCode ? `Hotel confirmation: ${r.confirmationCode}\n` : ""
-    }`
+      others(r).length ? `Also staying: ${others(r).join(", ")}\n` : ""
+    }${r.confirmationCode ? `Hotel confirmation: ${r.confirmationCode}\n` : ""}`
   )
   .join("\n")}
 ${total ? `Total charged: ${total}\n` : ""}${
     bookingId ? `Skyrio booking ID: ${bookingId}` : ""
+  }${
+    syncTip
+      ? "\n\nTraveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share."
+      : ""
   }${textFooter}`;
 
   return sendEmail({

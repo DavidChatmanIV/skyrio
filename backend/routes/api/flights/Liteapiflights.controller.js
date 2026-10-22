@@ -1050,6 +1050,22 @@ async function saveFlightBooking({
   }
 }
 
+// How many people are on this booking. Uses what checkout sent, else
+// counts the passenger list in LiteAPI's booking record. null if unknown.
+function travelerCountOf(confirmationEmail, rest, record) {
+  const sent = Number(confirmationEmail?.travelerCount);
+  if (Number.isInteger(sent) && sent > 0) return sent;
+  for (const list of [
+    rest?.passengers,
+    record?.passengers,
+    record?.travelers,
+    record?.travellers,
+  ]) {
+    if (Array.isArray(list) && list.length) return list.length;
+  }
+  return null;
+}
+
 /**
  * Step 4 of 4 — finalize the booking.
  */
@@ -1095,6 +1111,7 @@ export async function completeBooking(req, res) {
       const record = Array.isArray(data?.data)
         ? data.data[0]
         : data?.data || data;
+      const travelerCount = travelerCountOf(confirmationEmail, rest, record);
       const airlineCode = extractFlightPnr(record);
       const confirmationNumber =
         airlineCode ||
@@ -1124,6 +1141,10 @@ export async function completeBooking(req, res) {
         totalAmount: confirmationEmail.totalAmount,
         currency: confirmationEmail.currency,
         cabinClass: confirmationEmail.cabinClass,
+        // For the one-line Sync Together tip: shown only when 2+ people
+        // flew on this booking and it isn't already a group trip.
+        travelerCount,
+        groupTrip: Boolean(groupId),
       }).catch((emailErr) => {
         console.error(
           "[flights/complete] confirmation email failed:",

@@ -25,8 +25,11 @@ import {
   CalendarCheck,
   Info,
   Check,
+  UserPlus,
+  X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
+import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
 
 import "@/styles/BookingPage.css"; // reuses sk-* dark-glass tokens/classes
 import OverBudgetCheck, {
@@ -67,6 +70,36 @@ function roomKey(r) {
 const nameOk = (v) => (v || "").replace(/[^\p{L}]/gu, "").length >= 2;
 const NAME_HINT = "Enter the full name exactly as it appears on the ID";
 const guestComplete = (g) => nameOk(g?.firstName) && nameOk(g?.lastName);
+
+// Other people staying in the room (optional). The room is booked under
+// the main guest; these names go to the hotel as a note and onto the trip.
+const othersOf = (g) =>
+  (g?.others || []).map((n) => String(n || "").trim()).filter(nameOk);
+// How many guests the room was priced for (from the search).
+const capacityOf = (room) => {
+  const n = Number(room?.adults);
+  return Number.isFinite(n) && n >= 1 ? n : null;
+};
+
+const OTHERS_CSS = `
+.sk-also { margin-top: 12px; padding: 12px; border-radius: 12px;
+  background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.14); }
+.sk-also-head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+.sk-also-head svg { color: #ffb347; }
+.sk-also-note { margin-top: 4px; font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.6); }
+.sk-also-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.sk-also-row .ant-input { flex: 1; }
+.sk-also-x { width: 34px; height: 34px; flex-shrink: 0; display: inline-flex; align-items: center;
+  justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,0.16);
+  background: transparent; color: rgba(255,255,255,0.7); cursor: pointer; }
+.sk-also-x:hover { border-color: rgba(255,107,133,.6); color: #ff8fa3; }
+.sk-also-add { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 34px;
+  padding: 0 14px; border-radius: 999px; border: 1px dashed rgba(255,179,71,0.6);
+  background: transparent; color: #ffb347; font: 700 12.5px inherit; font-family: inherit; cursor: pointer; }
+.sk-also-add:hover { border-style: solid; background: rgba(255,138,42,0.12); color: #fff; }
+.sk-also :focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
+`;
 
 // Stripe's card field is an iframe; give it a plain system font stack
 // (custom page fonts can stop it from loading).
@@ -333,6 +366,76 @@ function RoomGuestField({
           )}
         </label>
       </div>
+      <AlsoStaying room={room} index={index} value={g} onChange={onChange} />
+    </div>
+  );
+}
+
+// "Who else is staying?" — optional names for the other people in a room.
+function AlsoStaying({ room, index, value, onChange }) {
+  const cap = capacityOf(room);
+  const others = value?.others || [];
+  // Unknown capacity: allow a few; known: the main guest + (cap − 1) others.
+  const maxOthers = cap ? Math.max(0, cap - 1) : 3;
+  const set = (list) => onChange({ ...value, others: list });
+  return (
+    <div className="sk-also">
+      <style>{OTHERS_CSS}</style>
+      <div className="sk-also-head">
+        <UserPlus size={13} aria-hidden="true" /> Who else is staying?
+        <span
+          style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}
+        >
+          (optional)
+        </span>
+      </div>
+      {maxOthers === 0 ? (
+        <div className="sk-also-note">
+          This room was priced for 1 guest. To share it, search again with 2 or
+          more travelers so the price includes everyone.
+        </div>
+      ) : (
+        <>
+          <div className="sk-also-note">
+            The room is booked under the guest above. We send the other names to
+            the hotel as a note and add them to your trip.
+          </div>
+          {others.map((n, j) => (
+            <div className="sk-also-row" key={j}>
+              <Input
+                className="sk-prefill-input"
+                placeholder="Full name, e.g. Jordan Lee"
+                autoComplete="off"
+                maxLength={60}
+                value={n}
+                aria-label={`Room ${index + 1}, other guest ${j + 1}`}
+                onChange={(e) => {
+                  const next = [...others];
+                  next[j] = e.target.value;
+                  set(next);
+                }}
+              />
+              <button
+                type="button"
+                className="sk-also-x"
+                onClick={() => set(others.filter((_, k) => k !== j))}
+                aria-label={`Remove other guest ${j + 1}`}
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+          {others.length < maxOthers && (
+            <button
+              type="button"
+              className="sk-also-add"
+              onClick={() => set([...others, ""])}
+            >
+              <UserPlus size={13} aria-hidden="true" /> Add a person
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -399,6 +502,7 @@ function PaymentForm({
     const names = guests.map((g) => ({
       firstName: g.firstName.trim(),
       lastName: g.lastName.trim(),
+      others: othersOf(g),
     }));
 
     setSubmitting(true);
@@ -457,6 +561,10 @@ function PaymentForm({
               firstName: n.firstName,
               lastName: n.lastName,
               email,
+              // Other people in the room, passed to the hotel as a note.
+              ...(n.others.length
+                ? { remarks: `Also staying: ${n.others.join(", ")}` }
+                : {}),
             },
           ],
         };
@@ -471,7 +579,8 @@ function PaymentForm({
           // Sync Together: shows this stay on the group trip page.
           ...(groupId ? { groupId } : {}),
           // Display details saved on the Booking record (My Trips, emails).
-          trip: rooms.map((r) => ({
+          trip: rooms.map((r, i) => ({
+            alsoStaying: names[i]?.others || [],
             hotelId: r.hotelId,
             offerId: r.offerId,
             name: r.name,
@@ -934,7 +1043,7 @@ function RoomUnavailableNotice({ rooms, onFindAnother, onClose }) {
 // ─────────────────────────────────────────────
 // Confirmation screen
 // ─────────────────────────────────────────────
-function ConfirmationScreen({ confirmation, onBack }) {
+function ConfirmationScreen({ confirmation, onBack, showSyncTip = false }) {
   const { confirmationId, rooms, totalPaid, partialMessage } = confirmation;
   const total =
     typeof totalPaid === "number"
@@ -971,6 +1080,12 @@ function ConfirmationScreen({ confirmation, onBack }) {
             <span className="sk-priceAmt">${usd2(total)}</span>
           </div>
         </Card>
+
+        {showSyncTip && (
+          <div style={{ marginTop: 20, width: "100%", maxWidth: 560 }}>
+            <SyncTogetherNudge kind="after" />
+          </div>
+        )}
 
         <Button
           className="sk-btn-orange"
@@ -1087,6 +1202,14 @@ export default function HotelCheckout({
     [rooms]
   );
 
+  // Booking for more than one person, and not already a group trip →
+  // mention Sync Together once (skippable).
+  const showSyncTip =
+    !groupId &&
+    (rooms.length > 1 ||
+      rooms.some((r) => (capacityOf(r) || 1) > 1) ||
+      guests.some((g) => othersOf(g).length > 0));
+
   if (!rooms.length) {
     return (
       <div className="sk-booking sk-checkout-page">
@@ -1107,7 +1230,13 @@ export default function HotelCheckout({
   }
 
   if (confirmation) {
-    return <ConfirmationScreen confirmation={confirmation} onBack={onBack} />;
+    return (
+      <ConfirmationScreen
+        confirmation={confirmation}
+        onBack={onBack}
+        showSyncTip={showSyncTip}
+      />
+    );
   }
 
   return (
@@ -1180,6 +1309,7 @@ export default function HotelCheckout({
                 account, so you need to be signed in before you pay.
               </div>
             )}
+            {showSyncTip && <SyncTogetherNudge kind="hotel" />}
             {autofilled && (
               <span
                 style={{

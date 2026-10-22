@@ -12,10 +12,16 @@ import {
   bigLine,
   subLine,
   kvRow,
+  noteLine,
   esc,
   formatMoney,
   APP_URL,
 } from "./emailLayout.js";
+
+// One short line about Sync Together, used in booking confirmations only
+// when the booking was for 2+ people and isn't already a group trip.
+const SYNC_TIP =
+  "Traveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share.";
 
 const SIGNOFF = "\n\nSent by Skyrio - Plan smarter. Travel better.";
 
@@ -379,8 +385,11 @@ export async function sendBookingConfirmation({
   totalAmount,
   currency = "USD",
   cabinClass,
+  travelerCount = null, // people on this booking (for the Sync Together tip)
+  groupTrip = false, // part of a Sync Together trip → no tip
 }) {
   const isRoundTrip = Boolean(returnDepartureAt);
+  const syncTip = !groupTrip && Number(travelerCount) >= 2;
   const total = totalAmount != null ? formatMoney(totalAmount, currency) : null;
   const refLabel = confirmationIsAirline
     ? "Airline confirmation"
@@ -411,7 +420,8 @@ export async function sendBookingConfirmation({
       kvRow(refLabel, esc(confirmationNumber)) +
         (cabinClass ? kvRow("Cabin", esc(cabinClass)) : "") +
         (total ? kvRow("Total paid", esc(total), { highlight: true }) : "")
-    );
+    ) +
+    (syncTip ? noteLine(esc(SYNC_TIP)) : "");
 
   const ics = buildFlightICS({
     confirmationNumber,
@@ -464,7 +474,9 @@ ${refLabel}: ${confirmationNumber}
 ${cabinClass ? `Cabin: ${cabinClass}\n` : ""}${
     total ? `Total paid: ${total}\n` : ""
   }
-View your trips: ${APP_URL}/saved-trips${SIGNOFF}`;
+View your trips: ${APP_URL}/saved-trips${
+    syncTip ? `\n\n${SYNC_TIP}` : ""
+  }${SIGNOFF}`;
 
   return sendEmail({
     to,

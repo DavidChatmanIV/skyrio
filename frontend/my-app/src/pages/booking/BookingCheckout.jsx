@@ -21,6 +21,7 @@ import LiteApiPayForm from "./LiteApiPayForm";
 import OverBudgetCheck, {
   overBudgetBy,
 } from "@/components/syncTogether/OverBudgetCheck";
+import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
 
 // Price with cents and thousands commas: 1165.5 → "1,165.50".
 const usd2 = (n) =>
@@ -3253,6 +3254,11 @@ function StepReviewPay({
             Review &amp; Pay
           </h2>
           {groupId && <GroupPaymentBanner memberCount={groupMemberCount} />}
+          {/* Booking for 2+ people outside a group trip → mention Sync
+              Together once (skippable). */}
+          {!groupId && passengers.length >= 2 && (
+            <SyncTogetherNudge kind="flight" />
+          )}
           <section style={{ marginBottom: 24 }}>
             <div
               style={{
