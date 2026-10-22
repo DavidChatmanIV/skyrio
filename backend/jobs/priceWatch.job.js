@@ -3,6 +3,14 @@
  * faster than the dormancy job's daily cadence). Re-checks every active
  * flight Watch against LiteAPI, and creates a Notification when the
  * price has dropped below the last seen price.
+ *
+ * Safety & accuracy:
+ *  - Prices are compared as NUMBERS (LiteAPI sends strings; comparing
+ *    "1200" < "950" as text gives the wrong cheapest flight).
+ *  - Same route + dates + travelers + cabin is searched once per run and
+ *    shared by every watch on it.
+ *  - Watches for trips that have already departed are switched off.
+ *  - The same price drop is never announced twice in a row.
  */
 
 import Watch from "../models/watch.js";
@@ -23,10 +31,43 @@ import { app } from "../server.js";
 // Only fire a notification if the price dropped by at least this much —
 // avoids spamming users over $1 fluctuations.
 const MIN_DROP_TO_NOTIFY = 10;
+// LiteAPI searches can be slow; give each one this long.
+const SEARCH_TIMEOUT_MS = 60 * 1000;
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const toNumber = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// The cheapest real price in a list of flights, as a number.
+function cheapestOf(flights) {
+  let best = null;
+  for (const f of flights) {
+    const price = toNumber(f?.totalAmount);
+    if (price != null && (!best || price < best.price))
+      best = { price, flight: f };
+  }
+  return best;
+}
+
+// Link that opens Book with this exact search filled in.
+function bookingLink(watch) {
+  const q = new URLSearchParams({
+    from: watch.origin,
+    to: watch.destination,
+  });
+  if (watch.dates?.[0]) q.set("depart", watch.dates[0]);
+  if (watch.dates?.[1]) q.set("return", watch.dates[1]);
+  if (watch.adults > 1) q.set("adults", String(watch.adults));
+  if (watch.cabin && watch.cabin !== "economy") q.set("cabin", watch.cabin);
+  q.set("auto", "1"); // runs the search as soon as Book opens
+  return `/booking?${q}`;
+}
 
 // Signature matches the existing scheduler.js contract:
-// runPriceWatchOnce({ limit, dryRun }) — limit/dryRun accepted for
-// forward-compatibility but not required by this implementation.
+// runPriceWatchOnce({ limit, dryRun })
 export async function runPriceWatchOnce({ limit = 500, dryRun = false } = {}) {
   console.log("[priceWatchJob] starting run:", new Date().toISOString());
 
@@ -38,40 +79,67 @@ export async function runPriceWatchOnce({ limit = 500, dryRun = false } = {}) {
   let checked = 0;
   let notified = 0;
   let failed = 0;
+  let expired = 0;
+  const searches = new Map(); // search key -> Promise<flights[]>
+  const today = todayISO();
 
   for (const watch of watches) {
     try {
-      if (!watch.origin || !watch.destination || !watch.dates?.[0]) {
+      const depart = String(watch.dates?.[0] || "").slice(0, 10);
+      if (!watch.origin || !watch.destination || !ISO_DAY.test(depart)) {
         // Incomplete watch record — skip rather than error out the whole run.
         continue;
       }
 
-      const payload = buildLiteApiSearchPayload({
+      // Trip already departed (or leaves today): nothing left to watch.
+      if (depart <= today) {
+        if (!dryRun) {
+          watch.active = false;
+          await watch.save();
+        }
+        expired++;
+        continue;
+      }
+
+      const params = {
         origin: watch.origin,
         destination: watch.destination,
-        departureDate: watch.dates[0],
-        returnDate: watch.dates[1] || undefined,
-        adults: watch.adults || 1,
+        departureDate: depart,
+        returnDate: watch.dates?.[1]
+          ? String(watch.dates[1]).slice(0, 10)
+          : undefined,
+        adults: Math.max(1, Number(watch.adults) || 1),
         cabinClass: watch.cabin || "economy",
-      });
-
-      const { data } = await liteApiFlights.post("/flights/rates", payload);
-      const results = normalizeFlightSearchResponse(data);
-      const flights = results.map(toFrontendFlightShape);
-
+      };
+      const key = JSON.stringify(params);
+      if (!searches.has(key)) {
+        searches.set(
+          key,
+          (async () => {
+            const payload = buildLiteApiSearchPayload(params);
+            const { data } = await liteApiFlights.post(
+              "/flights/rates",
+              payload,
+              {
+                timeout: SEARCH_TIMEOUT_MS,
+              }
+            );
+            return normalizeFlightSearchResponse(data, params).map(
+              toFrontendFlightShape
+            );
+          })()
+        );
+      }
+      const flights = await searches.get(key);
       checked++;
 
-      if (!flights.length) continue;
+      const best = cheapestOf(flights);
+      if (!best) continue;
 
-      const cheapest = flights.reduce((min, f) =>
-        f.totalAmount < min.totalAmount ? f : min
-      );
-
-      const previousPrice = watch.lastSeenPrice;
-      const currentPrice = cheapest.totalAmount;
-
+      const previousPrice = toNumber(watch.lastSeenPrice);
+      const currentPrice = best.price;
       const droppedEnough =
-        typeof previousPrice === "number" &&
+        previousPrice != null &&
         previousPrice - currentPrice >= MIN_DROP_TO_NOTIFY;
 
       if (droppedEnough) {
@@ -79,20 +147,23 @@ export async function runPriceWatchOnce({ limit = 500, dryRun = false } = {}) {
           const notification = await Notification.create({
             user: watch.userId,
             type: "price_watch",
-            title: "Price dropped!",
+            title: "Price dropped",
             message: `${watch.origin} → ${
               watch.destination
-            } dropped to $${currentPrice.toFixed(
-              0
-            )} (was $${previousPrice.toFixed(0)}).`,
-            link: `/booking?from=${watch.origin}&to=${watch.destination}`,
+            } is now $${Math.round(currentPrice).toLocaleString(
+              "en-US"
+            )} (was $${Math.round(previousPrice).toLocaleString(
+              "en-US"
+            )}). Prices change often, and the final price is confirmed at checkout.`,
+            link: bookingLink(watch),
             metadata: {
               watchId: watch._id,
               origin: watch.origin,
               destination: watch.destination,
+              departDate: depart,
               previousPrice,
               currentPrice,
-              owner: cheapest.owner,
+              owner: best.flight?.owner || null,
             },
           });
 
@@ -109,8 +180,8 @@ export async function runPriceWatchOnce({ limit = 500, dryRun = false } = {}) {
         notified++;
       }
 
-      // Always update lastSeenPrice to the latest, whether it dropped or not —
-      // keeps future comparisons accurate. Skipped in dry-run mode.
+      // Always update lastSeenPrice to the latest — keeps future comparisons
+      // accurate, and means the same drop is never announced twice.
       if (!dryRun) {
         watch.lastSeenPrice = currentPrice;
         await watch.save();
@@ -125,7 +196,7 @@ export async function runPriceWatchOnce({ limit = 500, dryRun = false } = {}) {
   }
 
   console.log(
-    `[priceWatchJob] done. checked: ${checked}, notified: ${notified}, failed: ${failed}`
+    `[priceWatchJob] done. checked: ${checked}, notified: ${notified}, expired: ${expired}, failed: ${failed}, searches: ${searches.size}`
   );
-  return { checked, notified, failed, totalWatches: watches.length };
+  return { checked, notified, expired, failed, totalWatches: watches.length };
 }

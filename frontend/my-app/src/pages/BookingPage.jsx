@@ -57,7 +57,6 @@ import SkyrioPicker from "@/pages/booking/SkyrioPicker";
 import HeroPlanner from "@/pages/booking/HeroPlanner";
 import TripTypeSelector from "@/components/Atlas/TripTypeSelector";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
-import { createNotification } from "@/services/notificationsService";
 import { useExcursionSearch } from "@/hooks/useExcursionSearch";
 import ExcursionResults from "@/pages/booking/ExcursionResults";
 import TripBudgetBar from "@/components/syncTogether/TripBudgetBar";
@@ -1481,7 +1480,9 @@ function FlightsForm({
       }
 
       const flights = data.flights ?? [];
-      onSearch(flights);
+      // Second argument: what was searched (adults, cabin…) so Price Watch
+      // re-checks the same kind of search.
+      onSearch(flights, Object.fromEntries(new URLSearchParams(query)));
 
       // The airline's system failed, so the server returned this exact
       // search from a few minutes ago. Say so plainly.
@@ -4464,30 +4465,125 @@ export default function BookingPage() {
   const [selectedOutboundGroupKey, setSelectedOutboundGroupKey] =
     useState(null);
 
-  const handlePriceWatchToggle = useCallback(async () => {
-    const next = !priceWatchOn;
-    setPriceWatchOn(next);
-    if (next && priceWatchRoute) {
-      try {
-        await createNotification({
-          type: "price_watch",
-          event: "price_watch_enabled",
-          title: "Price Watch enabled",
-          message: `We'll alert you when prices drop for ${priceWatchRoute.from} → ${priceWatchRoute.to}.`,
-          targetType: "route",
-          metadata: priceWatchRoute,
-        });
-        antdMessage.success("Price Watch on — we'll notify you of drops!");
-      } catch {
-        antdMessage.info("Price Watch enabled — alerts coming soon.");
-      }
-    } else if (!next) {
-      antdMessage.info("Price Watch disabled.");
-    } else {
-      antdMessage.info("Search for a route first to watch its price.");
+  // ── Price Watch (the card's switch) ──
+  // ON creates a real watch on the server (same /api/watches the flight
+  // cards use); OFF deletes it. The switch only shows "On" once the
+  // server has saved the watch.
+  const [routeWatchId, setRouteWatchId] = useState(null);
+  const [priceWatchBusy, setPriceWatchBusy] = useState(false);
+  const watchedRouteKey = useRef(null);
+  const routeKeyOf = (r) =>
+    r
+      ? [
+          r.from,
+          r.to,
+          r.depart ? dayjs(r.depart).format("YYYY-MM-DD") : "",
+        ].join("|")
+      : null;
+
+  // A new search for a different route: the old watch keeps running on the
+  // server, but the switch now describes the new route, so it starts Off.
+  useEffect(() => {
+    if (!priceWatchOn) return;
+    if (routeKeyOf(priceWatchRoute) !== watchedRouteKey.current) {
       setPriceWatchOn(false);
+      setRouteWatchId(null);
     }
-  }, [priceWatchOn, priceWatchRoute]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priceWatchRoute]);
+
+  const handlePriceWatchToggle = useCallback(async () => {
+    if (priceWatchBusy) return;
+    const token = localStorage.getItem("token");
+
+    // ── Turn OFF ──
+    if (priceWatchOn) {
+      setPriceWatchBusy(true);
+      try {
+        if (routeWatchId) {
+          const res = await fetch(`${API}/api/watches/${routeWatchId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok && res.status !== 404) throw new Error();
+        }
+        setPriceWatchOn(false);
+        setRouteWatchId(null);
+        setWatchingId(null);
+        setWatchIds({});
+        watchedRouteKey.current = null;
+        antdMessage.info("Price Watch is off for this route.");
+      } catch {
+        antdMessage.error("Couldn't turn off Price Watch. Please try again.");
+      } finally {
+        setPriceWatchBusy(false);
+      }
+      return;
+    }
+
+    // ── Turn ON ──
+    if (!priceWatchRoute?.from || !priceWatchRoute?.to) {
+      antdMessage.info("Search for a route first, then turn on Price Watch.");
+      return;
+    }
+    if (!token) {
+      antdMessage.info(
+        "Log in to use Price Watch, so we know where to send alerts."
+      );
+      return;
+    }
+    const price = Number(priceWatchRoute.price);
+    setPriceWatchBusy(true);
+    try {
+      const res = await fetch(`${API}/api/watches`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type: "flights",
+          origin: priceWatchRoute.from,
+          destination: priceWatchRoute.to,
+          dates: [
+            priceWatchRoute.depart
+              ? dayjs(priceWatchRoute.depart).format("YYYY-MM-DD")
+              : null,
+            priceWatchRoute.ret
+              ? dayjs(priceWatchRoute.ret).format("YYYY-MM-DD")
+              : null,
+          ].filter(Boolean),
+          // Same travelers and cabin as the search, so the job compares
+          // like with like (a price for 2 isn't a "drop" from a price for 1).
+          adults: priceWatchRoute.adults || 1,
+          cabin: priceWatchRoute.cabin || "economy",
+          lastSeenPrice: Number.isFinite(price) ? price : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.watch?._id) {
+        throw new Error(
+          data.error || data.message || "Couldn't start Price Watch."
+        );
+      }
+      setRouteWatchId(data.watch._id);
+      watchedRouteKey.current = routeKeyOf(priceWatchRoute);
+      setPriceWatchOn(true);
+      antdMessage.success(
+        Number.isFinite(price)
+          ? `Price Watch on. We'll notify you if ${priceWatchRoute.from} → ${
+              priceWatchRoute.to
+            } drops below $${wholeUsd(price)}.`
+          : `Price Watch on for ${priceWatchRoute.from} → ${priceWatchRoute.to}.`
+      );
+    } catch (err) {
+      antdMessage.error(
+        err.message || "Couldn't start Price Watch. Please try again."
+      );
+    } finally {
+      setPriceWatchBusy(false);
+    }
+  }, [priceWatchBusy, priceWatchOn, priceWatchRoute, routeWatchId]);
 
   const handleWatchFlight = useCallback(
     async (flight) => {
@@ -4535,8 +4631,9 @@ export default function BookingPage() {
                 ? dayjs(flight.departingAt).format("YYYY-MM-DD")
                 : null,
             ],
-            adults: 1,
-            cabin: "economy",
+            // Same travelers/cabin as the search these results came from.
+            adults: priceWatchRoute?.adults || 1,
+            cabin: priceWatchRoute?.cabin || "economy",
             lastSeenPrice: price,
           }),
         });
@@ -4550,6 +4647,18 @@ export default function BookingPage() {
           price,
           flightId: flight.id,
           airline: flight.owner,
+          depart: flight.departingAt || null,
+          ret: flight.returningAt || null,
+          adults: priceWatchRoute?.adults || 1,
+          cabin: priceWatchRoute?.cabin || "economy",
+        });
+        // The flight's own watch is the route's watch too, so the card's
+        // switch turns this same watch off.
+        setRouteWatchId(data.watch._id);
+        watchedRouteKey.current = routeKeyOf({
+          from: flight.origin,
+          to: flight.destination,
+          depart: flight.departingAt || null,
         });
         setPriceWatchOn(true);
         antdMessage.success(
@@ -4560,7 +4669,7 @@ export default function BookingPage() {
         antdMessage.error(err.message || "Failed to set up price watch");
       }
     },
-    [watchingId, watchIds]
+    [watchingId, watchIds, priceWatchRoute]
   );
 
   const handleDatesChange = useCallback(({ nights }) => {
@@ -4749,6 +4858,8 @@ export default function BookingPage() {
             to: iata,
             price: parseFloat(cheapest.totalAmount),
             airline: cheapest.owner,
+            depart: cheapest.departingAt || null,
+            ret: cheapest.returningAt || null,
           });
           antdMessage.success(
             `Found ${data.flights.length} flights to ${prefillData.destination}`
@@ -5234,7 +5345,7 @@ export default function BookingPage() {
       case "Flights":
         return (
           <FlightsForm
-            onSearch={(f) => {
+            onSearch={(f, searched = {}) => {
               setFlightResults(f);
               // Filters are intentionally NOT reset here — anything the
               // traveler picked before searching (price, stops, time,
@@ -5251,6 +5362,10 @@ export default function BookingPage() {
                   to: cheapest.destination,
                   price: parseFloat(cheapest.totalAmount),
                   airline: cheapest.owner,
+                  depart: cheapest.departingAt || null,
+                  ret: cheapest.returningAt || null,
+                  adults: Math.max(1, Number(searched.adults) || 1),
+                  cabin: searched.cabin || "economy",
                 });
               }
             }}
@@ -5757,6 +5872,8 @@ export default function BookingPage() {
                       className={`sk-pwc-toggle${priceWatchOn ? " is-on" : ""}`}
                       onClick={handlePriceWatchToggle}
                       aria-pressed={priceWatchOn}
+                      disabled={priceWatchBusy}
+                      aria-busy={priceWatchBusy}
                     >
                       {priceWatchOn ? (
                         <Bell size={13} className="sk-pwc-bell" />
@@ -5775,9 +5892,13 @@ export default function BookingPage() {
                     {priceWatchOn
                       ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
                           priceWatchRoute?.to ?? "destination"
-                        } — we'll notify you when prices drop.`
+                        }${
+                          Number.isFinite(Number(priceWatchRoute?.price))
+                            ? ` from $${wholeUsd(priceWatchRoute.price)}`
+                            : ""
+                        }. We'll send a notification if the price drops.`
                       : priceWatchRoute
-                      ? "Search results loaded — turn on to get alerted if this route drops in price."
+                      ? `Turn on to get a notification if ${priceWatchRoute.from} → ${priceWatchRoute.to} drops below today's lowest price.`
                       : "Search for a route above, then turn on price alerts."}
                   </div>
                   {!aiInsightDismissed &&
