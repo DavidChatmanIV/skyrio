@@ -80,6 +80,13 @@ import {
   ArrowRight,
   Clock,
   Users,
+  Plus,
+  Minus,
+  Trash2,
+  ChevronUp,
+  BedDouble,
+  Check,
+  X as XIcon,
 } from "lucide-react";
 
 // Whole-dollar price with thousands commas: 1165 → "1,165". "—" if unknown.
@@ -3391,59 +3398,276 @@ function FlightSkeleton({ destCity, fromCode }) {
 }
 
 // ─────────────────────────────────────────────
-// RoomCartBar — shows the rooms a user has queued up for this
-// stay so they can book one room, then add another for family
-// or friends, before checking out as a single trip.
+// Multiple rooms — how it works
+// Rooms go into "your trip" (the room cart). Picking the same room again
+// adds another of it. A bar pinned to the bottom of the screen always
+// shows what's in the trip and checks out every room together.
 // ─────────────────────────────────────────────
-function RoomCartBar({ rooms, onRemove, onCheckout, destCity }) {
-  if (!rooms.length) return null;
-  const total = rooms.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0);
-  const currency = rooms[0]?.totalCurrency || "USD";
 
+// How many rooms one offer covers. A search for 2 rooms can return one
+// rate that already prices both (LiteAPI's roomCount).
+const roomsIn = (r) => Math.max(1, Number(r?.roomCount) || 1);
+const countRooms = (list) => list.reduce((n, r) => n + roomsIn(r), 0);
+
+// Same room picked more than once → one line with a count.
+function groupCart(rooms) {
+  const map = new Map();
+  rooms.forEach((r) => {
+    const k = roomKey(r);
+    const g = map.get(k);
+    if (g) g.count += 1;
+    else map.set(k, { key: k, room: r, count: 1 });
+  });
+  return [...map.values()];
+}
+
+// − 2 rooms + . At 1, the minus becomes a bin so "remove" is obvious.
+function RoomStepper({
+  count,
+  perEntry = 1,
+  label,
+  onMinus,
+  onPlus,
+  plusDisabled,
+}) {
+  const shown = count * perEntry;
   return (
-    <div className="sk-room-cart-bar">
-      <div className="sk-room-cart-top">
-        <div className="sk-room-cart-headline">
-          <Users size={14} className="sk-room-cart-icon" />
-          <span>
-            <strong>{rooms.length}</strong> room{rooms.length !== 1 ? "s" : ""}{" "}
-            selected{destCity ? ` in ${destCity}` : ""}
-          </span>
-        </div>
-        <div className="sk-room-cart-total">
-          ${wholeUsd(total)}{" "}
-          <span className="sk-room-cart-currency">{currency}</span> total
-        </div>
-      </div>
-
-      <div className="sk-room-cart-chips">
-        {rooms.map((r, i) => (
-          <span key={`${roomKey(r)}-${i}`} className="sk-room-cart-chip">
-            <span className="sk-room-cart-chip-name">{r.name}</span>
-            <span className="sk-room-cart-chip-price">
-              ${wholeUsd(r.totalAmount)}
-            </span>
-            <button
-              type="button"
-              className="sk-room-cart-chip-remove"
-              onClick={() => onRemove(r)}
-              aria-label={`Remove ${r.name} from trip`}
-            >
-              <CloseOutlined />
-            </button>
-          </span>
-        ))}
-      </div>
-
-      <div className="sk-room-cart-actions">
-        <span className="sk-room-cart-hint">
-          Need a room for someone else? Add another before you check out.
-        </span>
-        <Button className="sk-btn-orange" onClick={onCheckout}>
-          Checkout {rooms.length} room{rooms.length !== 1 ? "s" : ""}
-        </Button>
-      </div>
+    <div
+      className="sk-rstep"
+      role="group"
+      aria-label={`How many: ${label}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={onMinus}
+        aria-label={
+          count === 1 ? `Remove ${label} from your trip` : `One less ${label}`
+        }
+        title={count === 1 ? "Remove" : "One less"}
+      >
+        {count === 1 ? (
+          <Trash2 size={14} aria-hidden="true" />
+        ) : (
+          <Minus size={14} aria-hidden="true" />
+        )}
+      </button>
+      <span className="sk-rstep-count" aria-live="polite">
+        {shown} <small>room{shown !== 1 ? "s" : ""}</small>
+      </span>
+      <button
+        type="button"
+        onClick={onPlus}
+        disabled={plusDisabled}
+        aria-label={`Add one more ${label}`}
+        title={plusDisabled ? "Room limit reached" : "One more"}
+      >
+        <Plus size={14} aria-hidden="true" />
+      </button>
     </div>
+  );
+}
+
+// Short 3-step guide above the hotel results. Can be hidden for good.
+const ROOMS_TIP_KEY = "skyrio_rooms_tip_hidden";
+function RoomsHowTo({ onClose }) {
+  return (
+    <div
+      className="sk-roomhow"
+      role="note"
+      aria-label="How to book more than one room"
+    >
+      <div className="sk-roomhow-head">
+        <span className="sk-roomhow-icon" aria-hidden="true">
+          <BedDouble size={16} />
+        </span>
+        <b>Need more than one room?</b>
+        <button
+          type="button"
+          className="sk-roomhow-close"
+          onClick={onClose}
+          aria-label="Hide this tip"
+        >
+          <XIcon size={14} aria-hidden="true" />
+        </button>
+      </div>
+      <ol className="sk-roomhow-steps">
+        <li>
+          <span className="sk-roomhow-num">1</span>
+          <span>
+            Tap <b>Add to trip</b> on each room you want. Mix room types if you
+            like.
+          </span>
+        </li>
+        <li>
+          <span className="sk-roomhow-num">2</span>
+          <span>
+            Need two of the same room? Tap <b>+</b> on that room.
+          </span>
+        </li>
+        <li>
+          <span className="sk-roomhow-num">3</span>
+          <span>
+            Tap <b>Check out</b> on the bar at the bottom to book all your rooms
+            together.
+          </span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+
+// Bar pinned to the bottom of the screen while the trip has rooms.
+// Collapsed: count, total, Check out. Open: every room with − / + .
+function RoomCartBar({
+  rooms,
+  onAdd,
+  onRemove,
+  onClear,
+  onCheckout,
+  destCity,
+  max,
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const has = rooms.length > 0;
+
+  useEffect(() => {
+    if (!has) {
+      setOpen(false);
+      setConfirmClear(false);
+    }
+  }, [has]);
+
+  // Lets the floating Help / Atlas buttons move up out of the bar's way.
+  useEffect(() => {
+    document.body.classList.toggle("sk-roombar-on", has);
+    return () => document.body.classList.remove("sk-roombar-on");
+  }, [has]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  if (!has) return null;
+
+  const groups = groupCart(rooms);
+  const roomTotal = countRooms(rooms);
+  const total = rooms.reduce((sum, r) => sum + (Number(r.totalAmount) || 0), 0);
+  const currency = rooms[0]?.totalCurrency || "USD";
+  const full = rooms.length >= max;
+  const plural = roomTotal !== 1 ? "s" : "";
+
+  return createPortal(
+    <section
+      className={`sk-roombar${open ? " is-open" : ""}`}
+      aria-label="Rooms in your trip"
+    >
+      {open && (
+        <div className="sk-roombar-list" id="sk-roombar-list">
+          <div className="sk-roombar-listHead">
+            <span className="sk-roombar-eyebrow">Your rooms</span>
+            {confirmClear ? (
+              <span
+                className="sk-roombar-confirm"
+                role="alertdialog"
+                aria-label="Remove every room?"
+              >
+                Remove all?
+                <button type="button" className="is-danger" onClick={onClear}>
+                  Remove
+                </button>
+                <button type="button" onClick={() => setConfirmClear(false)}>
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="sk-roombar-clear"
+                onClick={() => setConfirmClear(true)}
+              >
+                Remove all
+              </button>
+            )}
+          </div>
+          <ul className="sk-roombar-items">
+            {groups.map((g) => (
+              <li key={g.key} className="sk-roombar-item">
+                <div className="sk-roombar-itemMain">
+                  <b title={g.room.name}>{g.room.name}</b>
+                  <span>
+                    {g.room.roomName || "Room"}
+                    {g.room.boardName ? ` · ${g.room.boardName}` : ""}
+                  </span>
+                  <span className="sk-roombar-each">
+                    ${wholeUsd(g.room.totalAmount)} each
+                    {roomsIn(g.room) > 1
+                      ? ` (covers ${roomsIn(g.room)} rooms)`
+                      : ""}
+                  </span>
+                </div>
+                <RoomStepper
+                  count={g.count}
+                  perEntry={roomsIn(g.room)}
+                  label={g.room.roomName || g.room.name}
+                  onMinus={() => onRemove(g.room)}
+                  onPlus={() => onAdd(g.room)}
+                  plusDisabled={full}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="sk-roombar-note">
+            {full
+              ? `That's the most rooms for one trip (${max}).`
+              : "Want a different room too? Keep scrolling and tap Add to trip."}
+          </p>
+        </div>
+      )}
+
+      <div className="sk-roombar-main">
+        <button
+          type="button"
+          className="sk-roombar-toggle"
+          aria-expanded={open}
+          aria-controls="sk-roombar-list"
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className="sk-roombar-badge" aria-hidden="true">
+            {roomTotal}
+          </span>
+          <span className="sk-roombar-text">
+            <b>
+              {roomTotal} room{plural} in your trip
+            </b>
+            <small>
+              {open ? "Hide list" : "See or change rooms"}
+              {destCity ? ` · ${destCity}` : ""}
+            </small>
+          </span>
+          <ChevronUp size={16} className="sk-roombar-chev" aria-hidden="true" />
+        </button>
+        <div className="sk-roombar-total">
+          <small>Total</small>
+          <b>
+            ${wholeUsd(total)} <span>{currency}</span>
+          </b>
+        </div>
+        <button type="button" className="sk-roombar-go" onClick={onCheckout}>
+          Check out
+          <span className="sk-roombar-goCount">
+            {" "}
+            {roomTotal} room{plural}
+          </span>
+          <ArrowRight size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </section>,
+    document.body
   );
 }
 
@@ -4323,6 +4547,26 @@ export default function BookingPage() {
     });
   }, []);
 
+  // "Remove all" in the bottom bar.
+  const clearRoomCart = useCallback(() => setRoomCart([]), []);
+
+  // "How to book more than one room" tip — hidden for good once closed.
+  const [roomsTipHidden, setRoomsTipHidden] = useState(() => {
+    try {
+      return window.localStorage.getItem(ROOMS_TIP_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const hideRoomsTip = useCallback(() => {
+    setRoomsTipHidden(true);
+    try {
+      window.localStorage.setItem(ROOMS_TIP_KEY, "1");
+    } catch {
+      /* non-fatal */
+    }
+  }, []);
+
   // "Book Now" on a single card. Folds the room into the same cart
   // instead of bypassing it — that's what let a solo "Book Now"
   // dead-end with no way to add a second room for a teammate/family
@@ -5093,6 +5337,18 @@ export default function BookingPage() {
         onClose={closeUnavailableNotice}
       />
       {checkoutOverlay}
+      {/* Rooms in your trip — pinned to the bottom while on Stays */}
+      {tab === "Stays" && !checkoutOverlay && (
+        <RoomCartBar
+          rooms={roomCart}
+          onAdd={addRoomToCart}
+          onRemove={removeRoomFromCart}
+          onClear={clearRoomCart}
+          onCheckout={handleCheckoutCart}
+          destCity={destCity}
+          max={MAX_ROOMS_PER_TRIP}
+        />
+      )}
       {syncGroupId && !checkoutOverlay && (
         <div
           role="status"
@@ -5584,16 +5840,6 @@ export default function BookingPage() {
                 </button>
               )}
             </Space>
-          )}
-
-          {/* ── Room cart — book one room, then add more for others ── */}
-          {tab === "Stays" && (
-            <RoomCartBar
-              rooms={roomCart}
-              onRemove={removeRoomFromCart}
-              onCheckout={handleCheckoutCart}
-              destCity={destCity}
-            />
           )}
         </div>
 
@@ -6418,6 +6664,13 @@ export default function BookingPage() {
                 </>
               )}
 
+            {/* ── How to book more than one room ── */}
+            {!isSearching &&
+              tab === "Stays" &&
+              paginatedHotels.length > 0 &&
+              !roomsTipHidden &&
+              roomCart.length === 0 && <RoomsHowTo onClose={hideRoomsTip} />}
+
             {/* ── Hotel result cards ── */}
             {!isSearching &&
               tab === "Stays" &&
@@ -6528,65 +6781,60 @@ export default function BookingPage() {
                               }}
                               onSaveError={(msg) => antdMessage.error(msg)}
                             />
-                            {/* Quantity stepper once at least one is in the cart —
-                              replaces the old binary "Add Room"/"Added" toggle,
-                              which blocked adding a second identical room (e.g.
-                              a group wanting two of the same room type) and read
-                              as "already added" rather than a real quantity. */}
-                            {inCart ? (
-                              <div
-                                className="sk-room-stepper"
-                                onClick={(e) => e.stopPropagation()}
-                              >
+                            {/* Room actions:
+                                - not in trip: "Add to trip" (keep browsing)
+                                - in trip: "In your trip" + − N rooms +
+                                - main button always says what it'll do */}
+                            <div className="sk-hotel-actions">
+                              {inCart ? (
+                                <div className="sk-incart">
+                                  <span className="sk-incart-label">
+                                    <Check size={13} aria-hidden="true" /> In
+                                    your trip
+                                  </span>
+                                  <RoomStepper
+                                    count={countInCart}
+                                    perEntry={roomsIn(hotel)}
+                                    label={hotel.roomName || hotel.name}
+                                    onMinus={() => removeRoomFromCart(hotel)}
+                                    onPlus={() => addRoomToCart(hotel)}
+                                    plusDisabled={
+                                      roomCart.length >= MAX_ROOMS_PER_TRIP
+                                    }
+                                  />
+                                </div>
+                              ) : (
                                 <button
                                   type="button"
-                                  className="sk-room-stepper-btn"
-                                  onClick={() => removeRoomFromCart(hotel)}
-                                  aria-label="Remove one of this room"
+                                  className="sk-add-room-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addRoomToCart(hotel);
+                                  }}
+                                  title="Add this room and keep browsing"
                                 >
-                                  −
+                                  <Plus size={15} aria-hidden="true" />
+                                  Add to trip
                                 </button>
-                                <span className="sk-room-stepper-count">
-                                  {countInCart}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="sk-room-stepper-btn"
-                                  onClick={() => addRoomToCart(hotel)}
-                                  aria-label="Add another of this room"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="sk-add-room-btn"
+                              )}
+                              <Button
+                                className="sk-btn-orange sk-hotel-main"
+                                size="small"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  addRoomToCart(hotel);
+                                  if (inCart) handleCheckoutCart();
+                                  else handleBookSingleRoom(hotel);
                                 }}
-                                title="Add this room for another traveler"
                               >
-                                <PlusOutlined
-                                  style={{
-                                    marginRight: 4,
-                                    verticalAlign: "middle",
-                                  }}
-                                />
-                                Add Room
-                              </button>
-                            )}
-                            <Button
-                              className="sk-btn-orange"
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleBookSingleRoom(hotel);
-                              }}
-                            >
-                              Book Now
-                            </Button>
+                                {inCart
+                                  ? `Check out ${countRooms(roomCart)} room${
+                                      countRooms(roomCart) !== 1 ? "s" : ""
+                                    }`
+                                  : roomCart.length
+                                  ? "Add & check out"
+                                  : "Book this room"}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                         <div className="sk-tagRow">
@@ -6610,7 +6858,7 @@ export default function BookingPage() {
                                   verticalAlign: "middle",
                                 }}
                               />
-                              {hotel.roomCount} rooms in this rate
+                              Price covers {hotel.roomCount} rooms
                             </span>
                           )}
                           {groupHotelId && hotel.hotelId === groupHotelId && (

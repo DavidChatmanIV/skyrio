@@ -3151,189 +3151,527 @@ body:has(.ant-picker-dropdown:not(.ant-picker-dropdown-hidden))
    ===============================================================*/
 
 /* ─────────────────────────────────────────────────────────────
-   Multi-room booking additions — append this file's contents
-   into your existing @/styles/BookingPage.css. Reuses the same
-   dark-glass / orange-accent tokens as the rest of BookingPage
-   (sk-result-card, sk-btn-orange, sk-priceAmt, sk-tag, etc.) so
-   nothing here should look bolted-on.
+   MULTIPLE ROOMS
+   Card actions (Add to trip / − N rooms + / main button), the
+   3-step tip above results, and the "rooms in your trip" bar pinned
+   to the bottom of the screen.
    ───────────────────────────────────────────────────────────── */
 
-/* "+ Add Room" pill on each hotel result card */
+/* Card actions */
+.sk-hotel-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.sk-hotel-actions .sk-hotel-main {
+  min-width: 150px;
+  min-height: 40px;
+  font-weight: 800;
+}
+
 .sk-add-room-btn {
   display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
+  justify-content: center;
+  gap: 6px;
+  min-width: 150px;
+  min-height: 40px;
+  padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 12.5px;
-  font-weight: 600;
+  border: 1px dashed rgba(255, 179, 71, 0.55);
+  background: rgba(255, 138, 42, 0.06);
+  color: #ffb347;
+  font: 700 13.5px "DM Sans", system-ui, sans-serif;
   cursor: pointer;
-  transition: all 0.15s ease;
   white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .sk-add-room-btn:hover {
-  border-color: rgba(255, 138, 42, 0.5);
-  color: #fff;
-  background: rgba(255, 138, 42, 0.08);
-}
-.sk-add-room-btn.is-added {
-  border-color: rgba(255, 138, 42, 0.55);
+  border-style: solid;
+  border-color: #ff8a2a;
   background: rgba(255, 138, 42, 0.14);
-  color: #ff8a2a;
-}
-
-/* Quantity stepper — replaces the Add/Added toggle once a room is in
-   the cart. Lets a group add two (or more) of the identical room
-   without it reading as an error or a duplicate block. */
-.sk-room-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 138, 42, 0.4);
-  background: rgba(255, 138, 42, 0.1);
-  padding: 3px;
-}
-.sk-room-stepper-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: #ff8a2a;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.sk-room-stepper-btn:hover {
-  background: rgba(255, 138, 42, 0.22);
-}
-.sk-room-stepper-count {
-  min-width: 20px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 700;
   color: #fff;
 }
 
-/* Room cart bar — sits under the quick filters, above the results list */
-.sk-room-cart-bar {
-  margin-top: 16px;
-  padding: 16px 18px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 138, 42, 0.28);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 138, 42, 0.09),
-    rgba(255, 255, 255, 0.03)
-  );
-  backdrop-filter: blur(6px);
-}
-
-.sk-room-cart-top {
+.sk-incart {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
 }
-
-.sk-room-cart-headline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 14px;
-}
-.sk-room-cart-headline strong {
-  color: #ff8a2a;
-}
-.sk-room-cart-icon {
-  color: #ff8a2a;
-  flex-shrink: 0;
-}
-
-.sk-room-cart-total {
-  color: rgba(255, 255, 255, 0.65);
-  font-size: 13px;
-}
-.sk-room-cart-currency {
-  font-size: 11px;
-  opacity: 0.7;
-}
-
-.sk-room-cart-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.sk-room-cart-chip {
+.sk-incart-label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.85);
-  max-width: 100%;
-}
-
-.sk-room-cart-chip-name {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  gap: 5px;
+  font: 600 10.5px "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #34d399;
   white-space: nowrap;
 }
 
-.sk-room-cart-chip-price {
-  color: #ff8a2a;
-  font-weight: 700;
+/* − 2 rooms + */
+.sk-rstep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.45);
+  background: rgba(255, 138, 42, 0.1);
 }
-
-.sk-room-cart-chip-remove {
+.sk-rstep button {
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  border: 0;
   border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
+  background: transparent;
+  color: #ffb347;
   cursor: pointer;
-  font-size: 10px;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.sk-room-cart-chip-remove:hover {
-  background: rgba(255, 77, 79, 0.35);
+.sk-rstep button:hover:not(:disabled) {
+  background: rgba(255, 138, 42, 0.24);
   color: #fff;
 }
+.sk-rstep button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.sk-rstep-count {
+  min-width: 64px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.sk-rstep-count small {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+}
 
-.sk-room-cart-actions {
+/* 3-step tip above the hotel results */
+.sk-roomhow {
+  position: relative;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(16, 11, 34, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.sk-roomhow::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347 45%, #8b6cff);
+}
+.sk-roomhow-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  font-size: 14.5px;
+}
+.sk-roomhow-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 138, 42, 0.14);
+  color: #ffb347;
+}
+.sk-roomhow-close {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+.sk-roomhow-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.sk-roomhow-steps {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.sk-roomhow-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.78);
+}
+.sk-roomhow-steps b {
+  color: #ffb347;
+}
+.sk-roomhow-num {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+  font: 800 11.5px "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Rooms-in-your-trip bar (pinned to the bottom) */
+.sk-roombar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 950;
+  width: min(680px, calc(100vw - 32px));
+  border-radius: 20px;
+  background: rgba(16, 11, 34, 0.94);
+  border: 1px solid rgba(255, 138, 42, 0.4);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  font-family: "DM Sans", system-ui, sans-serif;
+  overflow: hidden;
+  animation: skRoombarIn 0.25s ease;
+}
+.sk-roombar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347 45%, #8b6cff);
+}
+@keyframes skRoombarIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.sk-roombar-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+}
+.sk-roombar-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.sk-roombar-toggle:hover .sk-roombar-text small {
+  color: #ffb347;
+}
+.sk-roombar-badge {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+  font-weight: 900;
+  font-size: 16px;
+}
+.sk-roombar-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sk-roombar-text b {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+.sk-roombar-text small {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sk-roombar-chev {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.7);
+  transition: transform 0.2s ease;
+}
+.sk-roombar.is-open .sk-roombar-chev {
+  transform: rotate(180deg);
+}
+.sk-roombar-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.sk-roombar-total small {
+  font: 600 10px "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+.sk-roombar-total b {
+  font-size: 18px;
+  font-weight: 900;
+  color: #ffb347;
+  font-variant-numeric: tabular-nums;
+}
+.sk-roombar-total b span {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+.sk-roombar-go {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+  font: 800 14px "DM Sans", system-ui, sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sk-roombar-go:hover {
+  filter: brightness(1.06);
+}
+
+.sk-roombar-list {
+  max-height: min(48vh, 380px);
+  overflow-y: auto;
+  padding: 16px 14px 4px;
+  border-bottom: 2px dashed rgba(255, 255, 255, 0.12);
+}
+.sk-roombar-listHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.sk-roombar-eyebrow {
+  font: 600 10.5px "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+}
+.sk-roombar-clear,
+.sk-roombar-confirm button {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font: 700 12px "DM Sans", system-ui, sans-serif;
+  cursor: pointer;
+}
+.sk-roombar-clear:hover {
+  border-color: rgba(255, 107, 133, 0.6);
+  color: #ff8fa3;
+}
+.sk-roombar-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.sk-roombar-confirm button.is-danger {
+  border: 0;
+  background: #ff6b85;
+  color: #1a0e06;
+}
+.sk-roombar-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sk-roombar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sk-roombar-itemMain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sk-roombar-itemMain b {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sk-roombar-itemMain span {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.72);
+}
+.sk-roombar-itemMain .sk-roombar-each {
+  color: #ffb347;
+  font-weight: 700;
+}
+.sk-roombar-note {
+  margin: 10px 2px 8px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.68);
 }
 
-.sk-room-cart-hint {
-  font-size: 12.5px;
-  /* was rgba(255,255,255,0.45) — 4.49:1, just under the 4.5:1 line.
-     Bumped to match the file's other fixes with margin. */
-  color: rgba(255, 255, 255, 0.48);
+/* Keep the last result card clear of the bar */
+body.sk-roombar-on .sk-results-wrap {
+  padding-bottom: 96px;
+}
+
+.sk-hotel-actions :focus-visible,
+.sk-roomhow :focus-visible,
+.sk-roombar :focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .sk-roomhow-steps {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .sk-roomhow-steps li {
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sk-hotel-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+  }
+  .sk-hotel-actions .sk-hotel-main,
+  .sk-add-room-btn {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .sk-incart {
+    flex: 1 1 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sk-roombar {
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    transform: none;
+    border-radius: 18px;
+    animation-name: skRoombarInMobile;
+  }
+  @keyframes skRoombarInMobile {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .sk-roombar-main {
+    gap: 8px;
+    padding: 10px;
+  }
+  .sk-roombar-badge {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+  }
+  .sk-roombar-text b {
+    font-size: 13.5px;
+  }
+  .sk-roombar-total {
+    display: none;
+  }
+  .sk-roombar-goCount {
+    display: none;
+  }
+  .sk-roombar-go {
+    padding: 0 16px;
+  }
+
+  /* Move the floating Help and Atlas buttons up, above the bar */
+  body.sk-roombar-on .sr-rail-wrapper:not(.is-tucked),
+  body.sk-roombar-on .ap-fab-wrapper:not(.is-tucked) {
+    transform: translateY(-78px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-roombar {
+    animation: none;
+  }
+  .sk-roombar-chev {
+    transition: none;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────
