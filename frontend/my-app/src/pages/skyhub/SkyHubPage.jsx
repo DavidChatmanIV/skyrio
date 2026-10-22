@@ -709,6 +709,9 @@ export default function SkyHubPage() {
     }
   });
   const [cityPickerSignal, setCityPickerSignal] = useState(0);
+  // Nearby tab: "local" = near your city, "global" = every post that names a place
+  const [nearbyScope, setNearbyScope] = useState("local");
+  const nearbyLocal = !!localCity && nearbyScope === "local";
   const changeCity = (c) => {
     setLocalCity(c);
     try {
@@ -815,7 +818,7 @@ export default function SkyHubPage() {
               (post.username || "").replace("@", "").toLowerCase() === "you";
             break;
           case "nearby":
-            mt = localCity
+            mt = nearbyLocal
               ? isNear(post.destination, localCity)
               : !!post.destination?.trim();
             break;
@@ -836,6 +839,7 @@ export default function SkyHubPage() {
       searchScope,
       activeFilter,
       activeTab,
+      nearbyLocal,
       myUsername,
       myId,
       localCity,
@@ -847,48 +851,61 @@ export default function SkyHubPage() {
   const EMPTY = {
     forYou: {
       icon: "globe",
-      title: "No postcards yet",
-      sub: "Be the first to send one: a tip, question, or story from your trip.",
-      cta: "Write a postcard",
+      title: "No posts yet",
+      sub: "Be the first. Share a tip, a question, or a story from a trip.",
+      cta: "Write the first post",
     },
     following: {
       icon: "edit",
-      title: "Your posts will show up here",
-      sub: "Nothing posted yet — once you share something, it'll appear in this tab.",
-      cta: "Create a post",
+      title: "You haven't posted yet",
+      sub: "Anything you post shows up here so you can find it again.",
+      cta: "Write a post",
     },
-    nearby: localCity
+    nearby: nearbyLocal
       ? {
           icon: "pin",
           title: `Nothing near ${localCity.name} yet`,
-          sub: `Know a spot in ${localCity.name}? Share it and be the local everyone follows.`,
+          sub: `Know a good spot in ${localCity.name}? Post it and add the place so others nearby can find it.`,
           cta: `Post about ${localCity.name}`,
         }
       : {
-          icon: "pin",
-          title: "No destination posts yet",
-          sub: "Be the first to tag a destination and help other travelers find it.",
-          cta: "Post about a destination",
+          icon: "globe",
+          title: "No place-tagged posts yet",
+          sub: "When you post, add the place. Posts from anywhere in the world show up here.",
+          cta: "Post about a place",
         },
     questions: {
       icon: "chat",
       title: "No questions yet",
-      sub: "Ask something — your question could be the one that kicks off the conversation.",
+      sub: "Have a travel question? Post it and other travelers can answer.",
       cta: "Ask a question",
     },
     trips: {
       icon: "plane",
       title: "No trips shared yet",
-      sub: "Share a trip idea or story to get the conversation started.",
+      sub: "Share a story from a trip, or invite people to join one you're planning.",
       cta: "Share a trip",
     },
   };
   const empty = EMPTY[activeTab] || EMPTY.forYou;
 
+  // One plain sentence per tab: what you're looking at.
+  const TAB_HINTS = {
+    forYou: "Everything travelers are posting, newest first.",
+    following: "Only the posts you've shared.",
+    nearby: nearbyLocal
+      ? `Posts about places in or around ${localCity.name}.`
+      : localCity
+      ? "Posts from places all over the world."
+      : "Posts from places all over the world. Pick your city to see what's close to you.",
+    questions: "Questions travelers are asking. Reply to one to help out.",
+    trips: "Trip stories and invites to join someone's trip.",
+  };
+
   const FEED_TITLES = {
-    forYou: "Community postcards",
-    following: "Your Posts",
-    nearby: localCity ? `Near ${localCity.name}` : "Destination Posts",
+    forYou: "Latest posts",
+    following: "Your posts",
+    nearby: nearbyLocal ? `Near ${localCity.name}` : "Around the world",
     questions: "Questions",
     trips: "Trips & Stories",
   };
@@ -1321,10 +1338,30 @@ export default function SkyHubPage() {
               <span className="shPC-accent">postcard.</span>
             </h1>
             <p className="skyhub-pageSubtitle">
-              Share where you are, what you found, and what you&rsquo;d tell a
-              friend. Every post lands in the SkyHub mailbag for other
-              travelers.
+              SkyHub is where Skyrio travelers share tips, photos, and questions
+              about places they&rsquo;ve been. Read what others found, or post
+              your own. We call each post a postcard.
             </p>
+            <ol className="shPC-steps" aria-label="How SkyHub works">
+              <li>
+                <span className="shPC-stepNum">1</span>
+                <span>
+                  <b>Write</b> a tip, story, or question
+                </span>
+              </li>
+              <li>
+                <span className="shPC-stepNum">2</span>
+                <span>
+                  <b>Add the place</b> and a photo if you have one
+                </span>
+              </li>
+              <li>
+                <span className="shPC-stepNum">3</span>
+                <span>
+                  <b>Send it.</b> Other travelers see it, and posts can earn XP
+                </span>
+              </li>
+            </ol>
             <button type="button" className="shPC-cta" onClick={focusComposer}>
               <svg
                 width="17"
@@ -1414,6 +1451,7 @@ export default function SkyHubPage() {
           </div>
           {/* Single scrolling row — no wrap on mobile */}
           <div className="skyhub-navbar-vibes" style={{ flexWrap: "nowrap" }}>
+            <span className="shPC-chipsLabel">Topic</span>
             {skyhubFilters
               .filter((f) => f !== "Team Travel")
               .map((filter) => (
@@ -1451,6 +1489,7 @@ export default function SkyHubPage() {
               city={localCity}
               onCityChange={(c) => {
                 changeCity(c);
+                setNearbyScope("local");
                 setActiveTab("nearby");
                 setActiveFilter("All");
               }}
@@ -1482,6 +1521,11 @@ export default function SkyHubPage() {
                   </svg>
                 </span>
               </div>
+              <p className="shPC-helper">
+                Write about a place you&rsquo;ve been or are going: a tip, a
+                question, or a quick story. Add the place and a photo so others
+                can find it.
+              </p>
               <SkyHubComposer
                 composerText={composerText}
                 setComposerText={setComposerText}
@@ -1500,14 +1544,14 @@ export default function SkyHubPage() {
               <div className="skyhub-feedSectionHeader">
                 <div>
                   <h2 className="skyhub-sectionTitle">
-                    {FEED_TITLES[activeTab] || "Community postcards"}
+                    {FEED_TITLES[activeTab] || "Latest posts"}
                   </h2>
                   <p className="skyhub-sectionSubtext">
                     {debouncedSearch
                       ? `${visiblePosts.length} result${
                           visiblePosts.length !== 1 ? "s" : ""
                         } for "${debouncedSearch}"`
-                      : "Postcards from travelers: real tips, stories and questions."}{" "}
+                      : TAB_HINTS[activeTab] || TAB_HINTS.forYou}{" "}
                     <a
                       href="/skyhub/guidelines"
                       onClick={(e) => {
@@ -1522,6 +1566,68 @@ export default function SkyHubPage() {
                       Community guidelines
                     </a>
                   </p>
+                  {activeTab === "nearby" && (
+                    <div
+                      className="shPC-scope"
+                      role="group"
+                      aria-label="Show posts from"
+                    >
+                      <button
+                        type="button"
+                        className={`shPC-scope__btn${
+                          nearbyLocal ? " is-on" : ""
+                        }`}
+                        aria-pressed={nearbyLocal}
+                        onClick={() =>
+                          localCity
+                            ? setNearbyScope("local")
+                            : setCityPickerSignal((n) => n + 1)
+                        }
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z" />
+                          <circle cx="12" cy="10" r="2.5" />
+                        </svg>
+                        {localCity
+                          ? `Near ${localCity.name}`
+                          : "Pick your city"}
+                      </button>
+                      <button
+                        type="button"
+                        className={`shPC-scope__btn${
+                          !nearbyLocal ? " is-on" : ""
+                        }`}
+                        aria-pressed={!nearbyLocal}
+                        onClick={() => setNearbyScope("global")}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                        </svg>
+                        Everywhere
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <Badge
                   count={visiblePosts.length}

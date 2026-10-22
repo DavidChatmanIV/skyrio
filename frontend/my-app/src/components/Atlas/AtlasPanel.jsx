@@ -13,10 +13,54 @@ import {
 } from "@/components/Atlas/atlasTripTypes";
 import { MODE_GUIDANCE, detectMode } from "@/components/Atlas/atlasTripModes";
 import Compass from "@/components/Atlas/Compass";
-import { Bot, X } from "lucide-react";
+import {
+  Bot,
+  X,
+  MessageSquare,
+  RotateCcw,
+  ArrowUp,
+  AlertTriangle,
+  Sparkles,
+} from "lucide-react";
 import "@/styles/AtlasPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
+
+/* FAB behaviour — desktop grows on hover, mobile gets its own compact
+   version and steps aside while the site footer is on screen. Layered on
+   top of AtlasPanel.css so nothing there needs to change. */
+const FAB_CSS = `
+.ap-fab-wrapper { transition: transform 0.25s ease, opacity 0.25s ease; }
+.ap-fab-wrapper .ap-fab { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.ap-fab-wrapper .ap-fab__icon { transition: transform 0.2s ease; }
+.ap-fab-wrapper .ap-fab:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.ap-inline-icon { display: inline-block; vertical-align: -2px; flex-shrink: 0; }
+
+@media (hover: hover) and (min-width: 769px) {
+  .ap-fab-wrapper .ap-fab:hover,
+  .ap-fab-wrapper .ap-fab:focus-visible {
+    transform: translateY(-2px) scale(1.07);
+    box-shadow: 0 16px 40px rgba(255, 138, 42, 0.5);
+  }
+  .ap-fab-wrapper .ap-fab:not(.ap-fab--open):hover .ap-fab__icon {
+    transform: rotate(-10deg) scale(1.08);
+  }
+}
+
+@media (max-width: 768px) {
+  /* The "Open Atlas AI" caption under the button is desktop-only */
+  .ap-fab-wrapper .ap-fab-hint { display: none; }
+  .ap-fab-wrapper .ap-fab:active { transform: scale(0.94); }
+  .ap-fab-wrapper.is-tucked {
+    transform: translateX(150%);
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-fab-wrapper, .ap-fab-wrapper .ap-fab, .ap-fab-wrapper .ap-fab__icon { transition: none; }
+}
+`;
 
 // `userText` is optional — when omitted, no mode block is appended (used for
 // the initial memoized prompt before the user has typed anything).
@@ -262,9 +306,11 @@ function AtlasNudge({ visible, onDismiss }) {
         onClick={onDismiss}
         aria-label="Dismiss Atlas tip"
       >
-        ✕
+        <X size={12} />
       </button>
-      <strong className="ap-nudge__title">👋 I'm Atlas</strong>
+      <strong className="ap-nudge__title">
+        <Sparkles size={14} className="ap-inline-icon" /> I'm Atlas
+      </strong>
       <span className="ap-nudge__body">
         Type your trip idea and I'll handle flights, hotels & budget —
         instantly.
@@ -311,6 +357,31 @@ export default function AtlasPanel() {
   const [error, setError] = useState(null);
   const [showNudge, setShowNudge] = useState(true);
   const [pickerActive, setPickerActive] = useState(false);
+  // Mobile: step aside while the site footer is on screen
+  const [footerInView, setFooterInView] = useState(false);
+
+  useEffect(() => {
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      const footer = document.querySelector("footer");
+      if (!footer) return setFooterInView(false);
+      setFooterInView(
+        footer.getBoundingClientRect().top < window.innerHeight - 40
+      );
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(check);
+    };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
 
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -533,8 +604,9 @@ export default function AtlasPanel() {
                   className="ap-icon-btn"
                   onClick={clearChat}
                   title="Clear chat"
+                  aria-label="Clear chat"
                 >
-                  ↺
+                  <RotateCcw size={14} />
                 </button>
               )}
               <button
@@ -542,8 +614,9 @@ export default function AtlasPanel() {
                 className="ap-icon-btn"
                 onClick={() => setOpen(false)}
                 title="Close"
+                aria-label="Close Atlas"
               >
-                ✕
+                <X size={15} />
               </button>
             </div>
           </div>
@@ -576,7 +649,7 @@ export default function AtlasPanel() {
             {mode === "chat" ? (
               <>
                 <span className="ap-mode-hint__icon" aria-hidden="true">
-                  💬
+                  <MessageSquare size={14} />
                 </span>
                 <span>
                   Plan, book, or manage a trip — Atlas can search flights, hold
@@ -586,7 +659,7 @@ export default function AtlasPanel() {
             ) : (
               <>
                 <span className="ap-mode-hint__icon" aria-hidden="true">
-                  🧭
+                  <CompassIcon size={14} />
                 </span>
                 <span>
                   Quick highlights for any city — best time to go, top things to
@@ -625,7 +698,8 @@ export default function AtlasPanel() {
                 ))}
                 {error && (
                   <div className="ap-error">
-                    ⚠️ {error}
+                    <AlertTriangle size={14} className="ap-inline-icon" />{" "}
+                    {error}
                     <button
                       type="button"
                       className="ap-error__retry"
@@ -658,7 +732,11 @@ export default function AtlasPanel() {
                   disabled={!input.trim() || loading}
                   aria-label="Send"
                 >
-                  {loading ? <span className="ap-send__spinner" /> : "↑"}
+                  {loading ? (
+                    <span className="ap-send__spinner" />
+                  ) : (
+                    <ArrowUp size={16} />
+                  )}
                 </button>
               </div>
 
@@ -678,8 +756,13 @@ export default function AtlasPanel() {
       )}
 
       {/* ── FAB — hidden when date picker is open ── */}
+      <style>{FAB_CSS}</style>
       {!pickerActive && (
-        <div className="ap-fab-wrapper">
+        <div
+          className={`ap-fab-wrapper${
+            footerInView && !open ? " is-tucked" : ""
+          }`}
+        >
           <AtlasNudge
             visible={showNudge && !open}
             onDismiss={() => setShowNudge(false)}

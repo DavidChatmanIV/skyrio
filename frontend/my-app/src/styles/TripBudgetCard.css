@@ -1441,3 +1441,56 @@
     font-size: 14.5px;
   }
 }
+
+/* ── Mobile fixes for the budget pass ─────────────────────────────── */
+/* A finished typing caret shouldn't leave an empty line in the tip bubble */
+.tb-pass .tb-caret.is-done {
+  display: none;
+}
+
+@media (max-width: 992px) {
+  /* The pass's scroll cap was beating the mobile "no cap" rule, so the
+     card stopped early and Atlas Plan + barcode spilled out below it. */
+  .tb-card.tb-pass {
+    max-height: none;
+  }
+  .tb-pass .tb-bodyScroll {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 520px) {
+  .tb-pass .tb-band {
+    padding: 10px 12px 10px 16px;
+  }
+  .tb-pass .tb-status {
+    flex-wrap: wrap;
+  }
+  .tb-pass .tb-destBlock {
+    text-align: left;
+  }
+  .tb-pass .tb-aiActions {
+    grid-template-columns: 1fr;
+  }
+  .tb-pass .tb-aiTitle {
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.35;
+  }
+  .tb-pass .tb-novaBubble {
+    grid-template-columns: 28px 1fr;
+    padding: 10px 12px;
+  }
+  .tb-pass .tb-novaAvatar {
+    width: 28px;
+    height: 28px;
+  }
+  .tb-pass .tb-novaLine {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .tb-pass .tb-add-row {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+}

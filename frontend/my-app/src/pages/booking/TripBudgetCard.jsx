@@ -82,7 +82,7 @@ function buildAiSuggestion({ planned, spent, bookingTotal, tripDays }) {
     return {
       title: "Set a budget and Atlas will pace the trip for you.",
       detail:
-        "Most travelers budget $800–$1,500 for a week. Pick a number and I'll keep your spending on track.",
+        "Pick a total for the whole trip and I'll keep your spending on track day by day.",
       hint: null,
       tone: "neutral",
     };
@@ -170,9 +170,9 @@ function useTypewriter(text, { speed = 16, enabled = true } = {}) {
 
 const ATLAS_LINES = [
   "Atlas tip: lock your transport budget early — prices shift fast.",
-  "Atlas pick: flexible check-in dates save 15–30% on hotels most weeks.",
-  "Atlas move: book flights on Tuesday evenings for the best base fares.",
-  "Atlas insight: dining out for lunch instead of dinner cuts food spend by ~40%.",
+  "Atlas pick: if your dates are flexible, compare a few check-in days before you book.",
+  "Atlas move: log expenses as you go so the daily pace stays accurate.",
+  "Atlas insight: big lunches and lighter dinners are an easy way to stretch a food budget.",
 ];
 
 export default function TripBudgetCard({

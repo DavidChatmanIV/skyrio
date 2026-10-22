@@ -64,39 +64,46 @@ const AIRPORTS = [
 ];
 const DEFAULT_AIRPORT = AIRPORTS[0];
 
+// Time-of-day "modes". Tips are deliberately vibe-only — no price claims
+// we can't back up with real data.
 const TIME_PERIODS = {
   dawn: {
     hours: [5, 6, 7],
     label: "Dawn",
-    tip: "Early birds get the best deals.",
+    greeting: "Good morning",
+    tip: "Early start? Plan a sunrise trip while it's quiet.",
   },
   morning: {
     hours: [8, 9, 10, 11],
     label: "Morning",
-    tip: "Booking 6–8 weeks ahead hits the sweet spot.",
+    greeting: "Good morning",
+    tip: "Fresh coffee, fresh ideas. Compare a few flight times.",
   },
   afternoon: {
     hours: [12, 13, 14, 15, 16],
     label: "Afternoon",
-    tip: "Mid-week departures save up to $80 per ticket.",
+    greeting: "Good afternoon",
+    tip: "Afternoon break? Map out your next long weekend.",
   },
   dusk: {
     hours: [17, 18, 19],
     label: "Sunset",
-    tip: "Last-minute deals often drop after 5 PM.",
+    greeting: "Good evening",
+    tip: "Golden hour. Somewhere out there has a better sunset.",
   },
   night: {
     hours: [20, 21, 22, 23, 0, 1, 2, 3, 4],
     label: "Night",
-    tip: "Tuesday nights are 15–20% cheaper to book.",
+    greeting: "Good evening",
+    tip: "Late-night planning? Save a trip and pick it up tomorrow.",
   },
 };
 
 const HERO_COPY = {
-  eyebrow: "Your AI travel planner — free to use",
-  title: "Tell us where you want to go.\nWe'll handle the rest.",
+  eyebrow: "Discover · Your AI travel planner, free to use",
+  title: "Discover your\ndream vacation.",
   subtitle:
-    "Type a destination and budget. Skyrio's AI builds a full flight + hotel plan in seconds — then you book it directly.",
+    "Tell us where you want to go and your budget. Skyrio's AI builds a full flight + hotel plan in seconds, then you book it directly.",
   placeholder: "Plan your next trip…",
   ctaLabel: "Plan my trip",
   secondaryCta: {
@@ -210,11 +217,12 @@ const FALLBACK_PLANS = [
   },
 ];
 
+// Only claims that are true today — no unmeasured numbers.
 const SOCIAL_PROOF = [
-  { stat: "8 sec", label: "avg. plan build" },
-  { stat: "30+", label: "destinations" },
   { stat: "Free", label: "to plan" },
-  { stat: "Stripe", label: "payments" },
+  { stat: "Atlas AI", label: "trip planner" },
+  { stat: "XP", label: "on every booking" },
+  { stat: "Stripe", label: "secure checkout" },
 ];
 
 const TRUST_SIGNALS = [
@@ -464,6 +472,76 @@ function getTimePeriod(hour) {
   }
   return "night";
 }
+/* ── Sky dial — the sun (or moon) crossing the sky, live ── */
+const DIAL_START = 5; // 5 AM: sun on the left horizon
+const DIAL_END = 21; // 9 PM: sun on the right horizon
+
+function SkyDial({ period, meta, now }) {
+  const hour = now.getHours() + now.getMinutes() / 60;
+  const isNight = period === "night";
+  const t = Math.min(
+    1,
+    Math.max(0, (hour - DIAL_START) / (DIAL_END - DIAL_START))
+  );
+  const angle = Math.PI * (1 - t);
+  const sx = 60 + 50 * Math.cos(angle);
+  const sy = 58 - 50 * Math.sin(angle);
+  const time = now.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return (
+    <div
+      className="sk-dial"
+      role="status"
+      aria-label={`${meta.label} mode, ${time}`}
+    >
+      <svg
+        className="sk-dial__sky"
+        width="120"
+        height="66"
+        viewBox="0 0 120 66"
+        aria-hidden="true"
+      >
+        <path className="sk-dial__track" d="M10 58 A50 50 0 0 1 110 58" />
+        {!isNight && t > 0 && (
+          <path
+            className="sk-dial__progress"
+            d={`M10 58 A50 50 0 0 1 ${sx.toFixed(1)} ${sy.toFixed(1)}`}
+          />
+        )}
+        <line className="sk-dial__horizon" x1="2" y1="58" x2="118" y2="58" />
+        {isNight ? (
+          <g>
+            <circle className="sk-dial__star" cx="30" cy="22" r="1.2" />
+            <circle className="sk-dial__star" cx="88" cy="16" r="1.4" />
+            <circle className="sk-dial__star" cx="97" cy="38" r="1" />
+            <circle className="sk-dial__star" cx="22" cy="44" r="1" />
+            <path
+              className="sk-dial__moon"
+              transform="translate(48 14)"
+              d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"
+            />
+          </g>
+        ) : (
+          <g>
+            <circle className="sk-dial__glow" cx={sx} cy={sy} r="12" />
+            <circle className="sk-dial__sun" cx={sx} cy={sy} r="6.5" />
+          </g>
+        )}
+      </svg>
+      <div className="sk-dial__text">
+        <div className="sk-dial__top">
+          <span className="sk-dial__label">{meta.label} mode</span>
+          <span className="sk-dial__time">{time}</span>
+        </div>
+        <div className="sk-dial__tip">{meta.tip}</div>
+      </div>
+    </div>
+  );
+}
+
 const normalizePrompt = (v) => String(v || "").trim();
 
 const ICONS = {
@@ -793,6 +871,56 @@ const ICONS = {
     </svg>
   ),
 };
+// Small stroke icons for plan labels and the trip editor (replaces emoji)
+function StrokeIcon({ size = 14, children }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="sk-inline-icon"
+    >
+      {children}
+    </svg>
+  );
+}
+ICONS.plane = ({ size }) => (
+  <StrokeIcon size={size}>
+    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+  </StrokeIcon>
+);
+ICONS.bed = ({ size }) => (
+  <StrokeIcon size={size}>
+    <path d="M2 18V6M2 11h18a2 2 0 0 1 2 2v5M2 16h20" />
+    <circle cx="7" cy="8.5" r="1.8" />
+  </StrokeIcon>
+);
+ICONS.pencil = ({ size }) => (
+  <StrokeIcon size={size}>
+    <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    <path d="m15 5 4 4" />
+  </StrokeIcon>
+);
+ICONS.info = ({ size }) => (
+  <StrokeIcon size={size}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 7.5v.01" />
+  </StrokeIcon>
+);
+ICONS.users = ({ size }) => (
+  <StrokeIcon size={size}>
+    <path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20" />
+    <circle cx="10" cy="8" r="3.5" />
+    <path d="M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.6a3.5 3.5 0 0 1 0 6.8" />
+  </StrokeIcon>
+);
+
 function Icon({ name, size }) {
   const C = ICONS[name];
   return C ? <C size={size} /> : null;
@@ -838,10 +966,26 @@ function buildPlanUrl(plan, homeCode, extra = {}) {
 }
 
 const PLAN_KIND_LABEL = {
-  package: "✈️ + 🏨 Flight + hotel",
-  flight: "✈️ Flight only",
-  hotel: "🏨 Hotel only",
+  package: "Flight + hotel",
+  flight: "Flight only",
+  hotel: "Hotel only",
 };
+const PLAN_KIND_ICONS = {
+  package: ["plane", "bed"],
+  flight: ["plane"],
+  hotel: ["bed"],
+};
+function PlanKind({ kind }) {
+  const k = PLAN_KIND_LABEL[kind] ? kind : "package";
+  return (
+    <div className="sk-plan-kind">
+      {PLAN_KIND_ICONS[k].map((name) => (
+        <Icon key={name} name={name} size={13} />
+      ))}
+      {PLAN_KIND_LABEL[k]}
+    </div>
+  );
+}
 
 // ── Trip editor helpers (dates are YYYY-MM-DD, handled in UTC) ──
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -990,9 +1134,7 @@ function LivePlanCard({ plan, homeCode, homeCity, disabled }) {
       />
       <div className="sk-card__overlay" />
       <div className="sk-card__content">
-        <div className="sk-plan-kind">
-          {PLAN_KIND_LABEL[plan.kind] || PLAN_KIND_LABEL.package}
-        </div>
+        <PlanKind kind={plan.kind} />
         {/* AI estimate, not a live fare — real prices load on the booking page.
             Once the trip length or dates change, the estimate no longer
             applies, so say so instead of showing a wrong number. */}
@@ -1029,7 +1171,8 @@ function LivePlanCard({ plan, homeCode, homeCity, disabled }) {
                 onClick={() => setEditing(true)}
                 disabled={disabled}
               >
-                ✏️ Edit trip — dates, length of stay or travelers
+                <Icon name="pencil" size={13} /> Edit trip — dates, length of
+                stay or travelers
               </button>
             ) : (
               <div className="sk-trip-edit__panel">
@@ -1077,17 +1220,17 @@ function LivePlanCard({ plan, homeCode, homeCity, disabled }) {
                   />
                 )}
                 <p className="sk-trip-edit__note">
-                  💡 The price shown was for Atlas's original trip. Changing the
-                  dates, nights, travelers or rooms changes the price. You'll
-                  see the real price for your trip on the next page, before you
-                  pay anything.
+                  <Icon name="info" size={13} /> The price shown was for Atlas's
+                  original trip. Changing the dates, nights, travelers or rooms
+                  changes the price. You'll see the real price for your trip on
+                  the next page, before you pay anything.
                 </p>
                 {kind !== "hotel" && travelers >= MAX_FLIGHT_TRAVELERS && (
                   <p className="sk-trip-edit__note sk-trip-edit__note--group">
-                    👥 Traveling with more than {MAX_FLIGHT_TRAVELERS} people,
-                    like a team or a big family? Use{" "}
-                    <strong>Sync Together</strong> on the next page so everyone
-                    books and pays for their own seat.
+                    <Icon name="users" size={13} /> Traveling with more than{" "}
+                    {MAX_FLIGHT_TRAVELERS} people, like a team or a big family?
+                    Use <strong>Sync Together</strong> on the next page so
+                    everyone books and pays for their own seat.
                   </p>
                 )}
                 <div className="sk-trip-edit__actions">
@@ -1632,11 +1775,14 @@ export default function LandingPage() {
   const [timePeriod, setTimePeriod] = useState(() =>
     getTimePeriod(new Date().getHours())
   );
+  const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     if (landingRef.current)
       landingRef.current.setAttribute("data-time", timePeriod);
     const iv = setInterval(() => {
-      const next = getTimePeriod(new Date().getHours());
+      const current = new Date();
+      setNow(current);
+      const next = getTimePeriod(current.getHours());
       setTimePeriod(next);
       if (landingRef.current)
         landingRef.current.setAttribute("data-time", next);
@@ -1929,7 +2075,7 @@ export default function LandingPage() {
 
   return (
     <div
-      className="sk-landing"
+      className="sk-landing sk-discover"
       ref={landingRef}
       data-time={timePeriod}
       style={{ "--sk-hero-bg": `url(${heroBg})` }}
@@ -1938,10 +2084,7 @@ export default function LandingPage() {
       <div className="sk-landing__bg" />
 
       <div className="sk-time-badge-wrap">
-        <div className="sk-time-badge">
-          <span className="sk-time-dot" />
-          {timeMeta.label} mode
-        </div>
+        <SkyDial period={timePeriod} meta={timeMeta} now={now} />
       </div>
 
       <div className="sk-landing__content">
@@ -1987,7 +2130,7 @@ export default function LandingPage() {
                     color: "rgba(255,255,255,0.85)",
                   }}
                 >
-                  Welcome back,{" "}
+                  {timeMeta.greeting},{" "}
                   {user?.name?.split(" ")[0] || user?.username || "traveler"}
                 </span>
                 <span style={{ color: "rgba(255,255,255,0.25)" }}>·</span>
@@ -2010,154 +2153,184 @@ export default function LandingPage() {
           <h1 className="sk-hero__title">
             {HERO_COPY.title.split("\n").map((line, i, arr) => (
               <React.Fragment key={i}>
-                {line}
+                {i === arr.length - 1 ? (
+                  <span className="sk-disc-accent">{line}</span>
+                ) : (
+                  line
+                )}
                 {i < arr.length - 1 && <br />}
               </React.Fragment>
             ))}
           </h1>
           <p className="sk-hero__sub">{HERO_COPY.subtitle}</p>
 
-          <div className="sk-landing-tripPills">
-            {LANDING_TRIP_TYPES.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                className={`sk-landing-tripPill${
-                  landingTripType === t.key ? " active" : ""
-                }`}
-                onClick={() =>
-                  setLandingTripType((prev) => (prev === t.key ? null : t.key))
-                }
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="sk-hero__search" style={{ marginBottom: 0 }}>
-            <Input
-              size="large"
-              prefix={<SearchOutlined />}
-              value={q}
-              onChange={handleQueryChange}
-              onPressEnter={goPlan}
-              placeholder={HERO_COPY.placeholder}
-              className="sk-searchInput"
-              disabled={isRouting}
-            />
-            <Button
-              size="large"
-              type="primary"
-              className="sk-cta"
-              onClick={goPlan}
-              loading={isRouting}
+          <section className="sk-disc-map" aria-label="Plan your trip">
+            <div className="sk-disc-map__head">
+              <span className="sk-disc-map__label">Explorer&rsquo;s map</span>
+              <span className="sk-disc-map__from">
+                <EnvironmentOutlined /> From {homeCode}
+              </span>
+            </div>
+            <svg
+              className="sk-disc-compass"
+              width="76"
+              height="76"
+              viewBox="0 0 76 76"
+              aria-hidden="true"
             >
-              {HERO_COPY.ctaLabel}
-            </Button>
-          </div>
-
-          <div className="sk-hero__airportRow">
-            <span className="sk-home-airport__label">
-              <EnvironmentOutlined /> Flying from
-            </span>
-            <Select
-              value={homeCode}
-              onChange={(code) => {
-                const ap = AIRPORTS.find((a) => a.code === code);
-                if (ap) setHomeAirport(ap);
-              }}
-              classNames={{ popup: { root: "sk-home-airport-popup" } }}
-              showSearch
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                String(option?.children || "")
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
-              className="sk-home-airport"
-            >
-              {AIRPORTS.map((ap) => (
-                <Option key={ap.code} value={ap.code}>
-                  {ap.city} ({ap.code}) — {ap.name}
-                </Option>
+              <circle cx="38" cy="38" r="34" />
+              <circle cx="38" cy="38" r="26" className="is-dashed" />
+              <path d="M38 8 L43 38 L38 68 L33 38 Z" className="is-needle" />
+              <path d="M8 38 L38 33 L68 38 L38 43 Z" />
+              <text x="38" y="6" textAnchor="middle">
+                N
+              </text>
+            </svg>
+            <span className="sk-disc-map__kicker">Who&rsquo;s exploring?</span>
+            <div className="sk-landing-tripPills">
+              {LANDING_TRIP_TYPES.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`sk-landing-tripPill${
+                    landingTripType === t.key ? " active" : ""
+                  }`}
+                  onClick={() =>
+                    setLandingTripType((prev) =>
+                      prev === t.key ? null : t.key
+                    )
+                  }
+                >
+                  {t.label}
+                </button>
               ))}
-            </Select>
-          </div>
+            </div>
 
-          <div className="sk-filters">
-            <button
-              type="button"
-              className={`sk-filter-toggle ${showFilters ? "active" : ""}`}
-              onClick={() => setShowFilters((v) => !v)}
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                style={{
-                  display: "inline-block",
-                  verticalAlign: "middle",
-                  marginRight: 6,
-                }}
+            <div className="sk-hero__search" style={{ marginBottom: 0 }}>
+              <Input
+                size="large"
+                prefix={<SearchOutlined />}
+                value={q}
+                onChange={handleQueryChange}
+                onPressEnter={goPlan}
+                placeholder={HERO_COPY.placeholder}
+                className="sk-searchInput"
+                disabled={isRouting}
+              />
+              <Button
+                size="large"
+                type="primary"
+                className="sk-cta"
+                onClick={goPlan}
+                loading={isRouting}
               >
-                <line x1="4" y1="6" x2="20" y2="6" />
-                <line x1="8" y1="12" x2="16" y2="12" />
-                <line x1="11" y1="18" x2="13" y2="18" />
-              </svg>
-              {Object.values(activeFilters).filter(Boolean).length > 0
-                ? "Refine filters"
-                : "Pick your trip type, budget & duration"}
-              {Object.values(activeFilters).filter(Boolean).length > 0 && (
-                <span className="sk-filter-badge">
-                  {Object.values(activeFilters).filter(Boolean).length}
-                </span>
-              )}
-            </button>
-            {showFilters && (
-              <div className="sk-filter-groups">
-                {Object.entries(FILTER_OPTIONS).map(([group, opts]) => (
-                  <div key={group} className="sk-filter-group">
-                    <div className="sk-filter-group__label">{group}</div>
-                    <div className="sk-filter-group__pills">
-                      {opts.map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          className={`sk-filter-pill ${
-                            activeFilters[group] === opt.value ? "active" : ""
-                          }`}
-                          onClick={() => toggleFilter(group, opt.value)}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                {HERO_COPY.ctaLabel}
+              </Button>
+            </div>
+
+            <div className="sk-hero__airportRow">
+              <span className="sk-home-airport__label">
+                <EnvironmentOutlined /> You are here
+              </span>
+              <Select
+                value={homeCode}
+                onChange={(code) => {
+                  const ap = AIRPORTS.find((a) => a.code === code);
+                  if (ap) setHomeAirport(ap);
+                }}
+                classNames={{ popup: { root: "sk-home-airport-popup" } }}
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  String(option?.children || "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
+                }
+                className="sk-home-airport"
+              >
+                {AIRPORTS.map((ap) => (
+                  <Option key={ap.code} value={ap.code}>
+                    {ap.city} ({ap.code}) — {ap.name}
+                  </Option>
                 ))}
-                {Object.values(activeFilters).some(Boolean) && (
-                  <button
-                    type="button"
-                    className="sk-filter-clear"
-                    onClick={() => {
-                      setActiveFilters({
-                        budget: null,
-                        type: null,
-                        duration: null,
-                      });
-                      setShowSuggestion(false);
-                      setSuggestions([]);
-                    }}
-                  >
-                    Clear all filters
-                  </button>
+              </Select>
+            </div>
+
+            <div className="sk-filters">
+              <button
+                type="button"
+                className={`sk-filter-toggle ${showFilters ? "active" : ""}`}
+                onClick={() => setShowFilters((v) => !v)}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  style={{
+                    display: "inline-block",
+                    verticalAlign: "middle",
+                    marginRight: 6,
+                  }}
+                >
+                  <line x1="4" y1="6" x2="20" y2="6" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                  <line x1="11" y1="18" x2="13" y2="18" />
+                </svg>
+                {Object.values(activeFilters).filter(Boolean).length > 0
+                  ? "Refine filters"
+                  : "Pick your trip type, budget & duration"}
+                {Object.values(activeFilters).filter(Boolean).length > 0 && (
+                  <span className="sk-filter-badge">
+                    {Object.values(activeFilters).filter(Boolean).length}
+                  </span>
                 )}
-              </div>
-            )}
-          </div>
+              </button>
+              {showFilters && (
+                <div className="sk-filter-groups">
+                  {Object.entries(FILTER_OPTIONS).map(([group, opts]) => (
+                    <div key={group} className="sk-filter-group">
+                      <div className="sk-filter-group__label">{group}</div>
+                      <div className="sk-filter-group__pills">
+                        {opts.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            className={`sk-filter-pill ${
+                              activeFilters[group] === opt.value ? "active" : ""
+                            }`}
+                            onClick={() => toggleFilter(group, opt.value)}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {Object.values(activeFilters).some(Boolean) && (
+                    <button
+                      type="button"
+                      className="sk-filter-clear"
+                      onClick={() => {
+                        setActiveFilters({
+                          budget: null,
+                          type: null,
+                          duration: null,
+                        });
+                        setShowSuggestion(false);
+                        setSuggestions([]);
+                      }}
+                    >
+                      Clear all filters
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
 
           <section
             className={`sk-suggestion ${showSuggestion ? "is-visible" : ""}`}
@@ -2211,10 +2384,7 @@ export default function LandingPage() {
                         — {suggestion.dates}
                       </span>
                     </div>
-                    <div className="sk-plan-kind">
-                      {PLAN_KIND_LABEL[suggestion.kind] ||
-                        PLAN_KIND_LABEL.package}
-                    </div>
+                    <PlanKind kind={suggestion.kind} />
                     <div className="sk-suggestion__fit">{suggestion.fit}</div>
                     <div className="sk-suggestion__summary">
                       {suggestion.summary}
@@ -2463,7 +2633,11 @@ export default function LandingPage() {
           <div className="sk-divider" />
 
           {isAuthed ? (
-            <Reveal tag="section" className="sk-profile-banner" delay={0}>
+            <Reveal
+              tag="section"
+              className="sk-profile-banner sk-profile-banner--authed"
+              delay={0}
+            >
               <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto" }}>
                 {/* Badge + headline centered; the tab content below keeps its own alignment */}
                 <div style={{ textAlign: "center" }}>
@@ -2473,7 +2647,7 @@ export default function LandingPage() {
                 </div>
                 <h2
                   className="sk-profile-banner__title"
-                  style={{ marginBottom: 24, textAlign: "center" }}
+                  style={{ textAlign: "center" }}
                 >
                   Welcome back — here's <span>what's waiting for you.</span>
                 </h2>
@@ -2481,7 +2655,7 @@ export default function LandingPage() {
                     trips (solo + Sync Together). "Saved" holds saved
                     excursions. Tips removed for now. */}
                 <Tabs
-                  size="large"
+                  size="middle"
                   centered
                   defaultActiveKey="upcoming"
                   className="sk-authedTabs"

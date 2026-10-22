@@ -1,6 +1,3 @@
-// =============================
-// src/components/support/SupportWidget.jsx (fully fixed)
-// =============================
 import React, { useState } from "react";
 import {
   FloatButton,

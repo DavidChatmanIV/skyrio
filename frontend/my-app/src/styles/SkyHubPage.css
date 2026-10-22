@@ -2449,3 +2449,149 @@
     transform: none;
   }
 }
+
+/* ── Plain-language helpers ───────────────────────────────────────── */
+.shPC-steps {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  max-width: 640px;
+}
+.shPC-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border-radius: var(--r-pill);
+  background: rgba(16, 11, 34, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 13px;
+  color: rgba(240, 236, 255, 0.85);
+}
+.shPC-steps b {
+  color: #fff;
+}
+.shPC-stepNum {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.shPC-chipsLabel {
+  align-self: center;
+  flex-shrink: 0;
+  margin-right: 2px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(240, 236, 255, 0.62);
+}
+
+.shPC-helper {
+  margin: 0 4px 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(240, 236, 255, 0.75);
+}
+
+.sh-postcards .skyhub-sectionSubtext {
+  color: rgba(240, 236, 255, 0.72);
+}
+
+@media (max-width: 768px) {
+  .shPC-steps {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .shPC-steps li {
+    font-size: 12.5px;
+  }
+}
+
+/* ── Nearby: Near me / Everywhere switch ──────────────────────────── */
+.shPC-scope {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.shPC-scope__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: rgba(240, 236, 255, 0.78);
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.shPC-scope__btn:hover {
+  color: #fff;
+}
+.shPC-scope__btn.is-on {
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+}
+.shPC-scope__btn:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+
+/* ── Follow button on post cards (shows once the follow API is wired) ── */
+.skyhub-feedCard__follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(255, 138, 42, 0.45);
+  background: rgba(255, 138, 42, 0.1);
+  color: #ffb347;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast),
+    color var(--t-fast);
+}
+.skyhub-feedCard__follow:hover {
+  background: rgba(255, 138, 42, 0.2);
+}
+.skyhub-feedCard__follow.is-following {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(240, 236, 255, 0.85);
+}
+.skyhub-feedCard__follow:focus-visible,
+.skyhub-feedCard__action:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+.skyhub-feedCard__action.is-liked {
+  color: #ff6b85;
+  background: rgba(255, 107, 133, 0.12);
+}

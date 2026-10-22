@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Dropdown } from "antd";
+import { Dropdown, message } from "antd";
 import {
   MoreOutlined,
   FlagOutlined,
@@ -10,12 +10,101 @@ import {
   EyeInvisibleOutlined,
 } from "@ant-design/icons";
 
+/* ── Stroke SVG icons (replace the emoji) ── */
+function Svg({ size = 15, fill = "none", children }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={fill}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0, display: "block" }}
+    >
+      {children}
+    </svg>
+  );
+}
+const Icon = {
+  tip: (p) => (
+    <Svg {...p}>
+      <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z" />
+    </Svg>
+  ),
+  question: (p) => (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01" />
+    </Svg>
+  ),
+  story: (p) => (
+    <Svg {...p}>
+      <path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z" />
+    </Svg>
+  ),
+  photo: (p) => (
+    <Svg {...p}>
+      <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </Svg>
+  ),
+  plane: (p) => (
+    <Svg {...p}>
+      <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+    </Svg>
+  ),
+  shield: (p) => (
+    <Svg {...p}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="m9 12 2 2 4-4" />
+    </Svg>
+  ),
+  comment: (p) => (
+    <Svg {...p}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </Svg>
+  ),
+  heart: ({ filled, ...p }) => (
+    <Svg {...p} fill={filled ? "currentColor" : "none"}>
+      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z" />
+    </Svg>
+  ),
+  bookmark: ({ filled, ...p }) => (
+    <Svg {...p} fill={filled ? "currentColor" : "none"}>
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </Svg>
+  ),
+  share: (p) => (
+    <Svg {...p}>
+      <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />
+    </Svg>
+  ),
+  userPlus: (p) => (
+    <Svg {...p}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M19 8v6M22 11h-6" />
+    </Svg>
+  ),
+  userCheck: (p) => (
+    <Svg {...p}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="m16 11 2 2 4-4" />
+    </Svg>
+  ),
+};
+
 const TYPE_META = {
-  Tip: { e: "💡", c: "#fbbf24", bg: "rgba(251,191,36,0.1)" },
-  Question: { e: "❓", c: "#38bdf8", bg: "rgba(56,189,248,0.1)" },
-  Story: { e: "📖", c: "#34d399", bg: "rgba(52,211,153,0.1)" },
-  Photo: { e: "📷", c: "#f472b6", bg: "rgba(244,114,182,0.1)" },
-  "Join Trip": { e: "✈️", c: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
+  Tip: { icon: Icon.tip, c: "#fbbf24", bg: "rgba(251,191,36,0.1)" },
+  Question: { icon: Icon.question, c: "#38bdf8", bg: "rgba(56,189,248,0.1)" },
+  Story: { icon: Icon.story, c: "#34d399", bg: "rgba(52,211,153,0.1)" },
+  Photo: { icon: Icon.photo, c: "#f472b6", bg: "rgba(244,114,182,0.1)" },
+  "Join Trip": { icon: Icon.plane, c: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
 };
 
 const AV_COLORS = [
@@ -153,8 +242,12 @@ export default function SkyHubFeedCard({
   onEditPost,
   onDeletePost,
   onBlockUser,
+  // Optional: pass this (and post.following) once the follow API exists.
+  // Until then the Follow button stays hidden — no button that does nothing.
+  onToggleFollow,
 }) {
   const tm = TYPE_META[post.type] || TYPE_META.Story;
+  const TypeIcon = tm.icon;
   // currentUserId = "mongoId|username" (both passed from SkyHubPage)
   // The backend often returns username:"you" for own posts — we treat that as own too.
   const parts = currentUserId ? String(currentUserId).split("|") : [];
@@ -167,6 +260,25 @@ export default function SkyHubFeedCard({
     post.isMine ||
     (currentUserId && post.authorId && String(post.authorId) === myMongoId)
   );
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/skyhub`;
+    const where = post.destination ? ` about ${post.destination}` : "";
+    const text = `${post.author}'s SkyHub post${where}: ${(post.text || "")
+      .slice(0, 140)
+      .trim()}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "SkyHub on Skyrio", text, url });
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        message.success("Copied — paste it anywhere to share.");
+      }
+    } catch (err) {
+      if (err?.name !== "AbortError")
+        message.error("Couldn't share this post.");
+    }
+  };
 
   const menuItems = [
     ...(isOwner
@@ -218,6 +330,28 @@ export default function SkyHubFeedCard({
           <div className="skyhub-feedCard__line1">
             <span className="skyhub-feedCard__name">{post.author}</span>
             <span className="skyhub-feedCard__handle">{post.username}</span>
+            {onToggleFollow && !isOwner && post.authorId && (
+              <button
+                type="button"
+                className={`skyhub-feedCard__follow${
+                  post.following ? " is-following" : ""
+                }`}
+                onClick={() => onToggleFollow(post)}
+                aria-pressed={!!post.following}
+                aria-label={
+                  post.following
+                    ? `Unfollow ${post.author}`
+                    : `Follow ${post.author}`
+                }
+              >
+                {post.following ? (
+                  <Icon.userCheck size={13} />
+                ) : (
+                  <Icon.userPlus size={13} />
+                )}
+                {post.following ? "Following" : "Follow"}
+              </button>
+            )}
             {post.badge && (
               <span
                 style={{
@@ -272,9 +406,12 @@ export default function SkyHubFeedCard({
                   color: tm.c,
                   border: `1px solid ${tm.c}30`,
                   marginLeft: 4,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
                 }}
               >
-                {tm.e} {post.type}
+                <TypeIcon size={11} /> {post.type}
               </span>
             </div>
           )}
@@ -286,7 +423,11 @@ export default function SkyHubFeedCard({
           overlayClassName="skyhub-menu"
           menu={{ items: menuItems }}
         >
-          <button className="skyhub-feedCard__menu" aria-label="Post options">
+          <button
+            type="button"
+            className="skyhub-feedCard__menu"
+            aria-label="Post options"
+          >
             <MoreOutlined />
           </button>
         </Dropdown>
@@ -329,7 +470,9 @@ export default function SkyHubFeedCard({
         {/* Meetups with strangers: a quiet safety reminder (Couchsurfing-style) */}
         {post.type === "Join Trip" && !isOwner && (
           <div className="shMeetTip" role="note">
-            <span aria-hidden="true">🛡️</span>
+            <span style={{ color: "#c4b5fd", marginTop: 1 }}>
+              <Icon.shield size={15} />
+            </span>
             <span>
               Meeting up? Pick a public place, tell a friend your plans, and
               keep your hotel and room number to yourself.{" "}
@@ -358,31 +501,43 @@ export default function SkyHubFeedCard({
       <div className="skyhub-feedCard__footer">
         <div className="skyhub-feedCard__actions">
           <button
+            type="button"
             className="skyhub-feedCard__action"
             onClick={() => onOpenComments?.(post)}
+            aria-label={`Comments (${post.comments})`}
           >
-            💬 <span>{fmt(post.comments)}</span>
-          </button>
-          <button className="skyhub-feedCard__action">
-            🔁 <span>{fmt(post.shares)}</span>
+            <Icon.comment /> <span>{fmt(post.comments)}</span>
           </button>
           <button
+            type="button"
             className={`skyhub-feedCard__action${
               post.liked ? " is-liked" : ""
             }`}
             onClick={() => onToggleLike?.(post.id)}
+            aria-pressed={!!post.liked}
+            aria-label={`${post.liked ? "Unlike" : "Like"} (${post.likes})`}
           >
-            {post.liked ? "❤️" : "🤍"} <span>{fmt(post.likes)}</span>
+            <Icon.heart filled={post.liked} /> <span>{fmt(post.likes)}</span>
           </button>
           <button
+            type="button"
             className={`skyhub-feedCard__action${
               post.saved ? " is-bookmarked" : ""
             }`}
             onClick={() => onToggleSave?.(post.id)}
+            aria-pressed={!!post.saved}
+            aria-label={`${post.saved ? "Unsave" : "Save"} (${post.saves})`}
           >
-            {post.saved ? "🔖" : "🏷️"} <span>{fmt(post.saves)}</span>
+            <Icon.bookmark filled={post.saved} /> <span>{fmt(post.saves)}</span>
           </button>
-          <button className="skyhub-feedCard__action">↗️</button>
+          <button
+            type="button"
+            className="skyhub-feedCard__action"
+            onClick={handleShare}
+            aria-label="Share post"
+          >
+            <Icon.share /> <span>Share</span>
+          </button>
         </div>
       </div>
     </div>

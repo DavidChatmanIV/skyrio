@@ -42,6 +42,11 @@ export default function SupportRail() {
   // "closed" | "feedback" | "help"
   const [activePanel, setActivePanel] = useState("closed");
   const [pickerActive, setPickerActive] = useState(false);
+  // Mobile: one launcher that fans out Feedback + Help
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Mobile: tuck the launcher away while the site footer is on screen,
+  // so it never covers the footer logo / support email.
+  const [footerInView, setFooterInView] = useState(false);
 
   // ── Feedback state ──
   const [fbMessage, setFbMessage] = useState("");
@@ -73,6 +78,41 @@ export default function SupportRail() {
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      const footer = document.querySelector("footer");
+      if (!footer) return setFooterInView(false);
+      const top = footer.getBoundingClientRect().top;
+      setFooterInView(top < window.innerHeight - 40);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(check);
+    };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  // Escape closes the mobile menu
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => e.key === "Escape" && setMenuOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  function openPanel(panel) {
+    setMenuOpen(false);
+    setActivePanel(panel);
+  }
 
   function closePanel() {
     setActivePanel("closed");
@@ -170,50 +210,135 @@ export default function SupportRail() {
         @keyframes railPanelIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
         @keyframes railPop { from { opacity:0; transform:scale(0.85); } to { opacity:1; transform:scale(1); } }
 
-        .sr-icon-btn {
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
+        @keyframes railFan { from { opacity:0; transform:translateY(10px) scale(0.9); } to { opacity:1; transform:translateY(0) scale(1); } }
+
+        .sr-rail-wrapper { transition: transform 0.25s ease, opacity 0.25s ease; }
+
+        /* Action buttons: an icon circle that grows into a labelled pill */
+        .sr-action {
+          height: 44px;
+          padding: 0;
           border: none;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          align-self: flex-start;
+          cursor: pointer;
+          overflow: hidden;
+          font-family: 'DM Sans', sans-serif;
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .sr-action:active { transform: scale(0.96); }
+        .sr-action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+        .sr-action--feedback {
+          background: linear-gradient(135deg, #ff8a2a, #ffb347);
+          box-shadow: 0 8px 22px rgba(255,138,42,0.38);
+          color: #1a0e06;
+        }
+        .sr-action--help {
+          background: linear-gradient(135deg, #ff8a2a, #7c5cfc);
+          box-shadow: 0 8px 22px rgba(124,92,252,0.42);
+          color: #fff;
+        }
+        .sr-action__icon {
+          width: 44px;
+          height: 44px;
+          flex-shrink: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          cursor: pointer;
-          transition: transform 0.15s, box-shadow 0.15s;
-          flex-shrink: 0;
         }
-        .sr-icon-btn:hover { transform: translateY(-2px); }
-        .sr-icon-btn:active { transform: translateY(0) scale(0.96); }
+        .sr-action__label {
+          max-width: 0;
+          opacity: 0;
+          padding-right: 0;
+          white-space: nowrap;
+          font-size: 14px;
+          font-weight: 700;
+          transition: max-width 0.28s ease, opacity 0.2s ease, padding 0.28s ease;
+        }
 
-        /* This wrapper sits fixed at the bottom-left of the viewport
-           and always covers whatever page content scrolls into that
-           band — on BookingPage that's frequently the tab bar /
-           departure-city field. It can't fully get out of the way
-           (it's fixed), so shrink the two-icon stack's footprint as
-           much as possible: smaller circles, tighter gap. Gated at
-           768px to match BookingPage's own tab-bar mobile breakpoint
-           (.sk-tab-bar in BookingPage.css) — 480px alone missed
-           common phone/small-tablet widths like ~726px where the
-           overlap with the Flights tab was still fully visible. */
+        /* Desktop: hover (or keyboard focus) grows the button and slides out its label */
+        @media (hover: hover) and (min-width: 769px) {
+          .sr-action:hover,
+          .sr-action:focus-visible {
+            transform: scale(1.06);
+          }
+          .sr-action--feedback:hover { box-shadow: 0 12px 30px rgba(255,138,42,0.5); }
+          .sr-action--help:hover { box-shadow: 0 12px 30px rgba(124,92,252,0.55); }
+          .sr-action:hover .sr-action__label,
+          .sr-action:focus-visible .sr-action__label {
+            max-width: 140px;
+            opacity: 1;
+            padding-right: 18px;
+          }
+        }
+
+        /* Mobile launcher — hidden on desktop */
+        .sr-launcher { display: none; }
+
         @media (max-width: 768px) {
           .sr-rail-wrapper {
             bottom: 16px !important;
             left: 12px !important;
-            gap: 8px !important;
+            gap: 10px !important;
           }
-          .sr-rail-wrapper .sr-icon-btn {
-            width: 42px !important;
-            height: 42px !important;
+          .sr-rail-wrapper .sr-action { display: none; }
+          .sr-rail-wrapper.is-open .sr-action {
+            display: inline-flex;
+            animation: railFan 0.2s cubic-bezier(0.22,1,0.36,1) both;
           }
+          .sr-rail-wrapper.is-open .sr-action--feedback { animation-delay: 0.04s; }
+          .sr-rail-wrapper.is-open .sr-action__label {
+            max-width: 160px;
+            opacity: 1;
+            padding-right: 16px;
+          }
+          .sr-launcher {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            color: #fff;
+            background: linear-gradient(135deg, #ff8a2a, #7c5cfc);
+            box-shadow: 0 8px 22px rgba(124,92,252,0.42);
+            transition: transform 0.18s ease;
+          }
+          .sr-launcher:active { transform: scale(0.94); }
+          .sr-launcher:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+          .sr-rail-wrapper.is-tucked {
+            transform: translateX(-150%);
+            opacity: 0;
+            pointer-events: none;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .sr-action, .sr-action__label, .sr-rail-wrapper { transition: none; }
+          .sr-rail-wrapper.is-open .sr-action { animation: none; }
         }
         @media (max-width: 480px) {
           .sr-panel { width: calc(100vw - 24px) !important; left: 12px !important; }
         }
       `}</style>
 
-      {/* ── Collapsed icon rail — bottom-left, two 48px circles ── */}
+      {/* ── Mobile: tap outside to close the menu ── */}
+      {menuOpen && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 2147483629 }}
+        />
+      )}
+
+      {/* ── Rail — desktop: two buttons that grow + label on hover;
+             mobile: one launcher that fans them out ── */}
       <div
-        className="sr-rail-wrapper"
+        className={`sr-rail-wrapper${menuOpen ? " is-open" : ""}${
+          footerInView && !menuOpen ? " is-tucked" : ""
+        }`}
         style={{
           position: "fixed",
           left: 20,
@@ -226,30 +351,40 @@ export default function SupportRail() {
       >
         <button
           type="button"
-          className="sr-icon-btn"
-          onClick={() => setActivePanel("feedback")}
+          className="sr-action sr-action--feedback"
+          onClick={() => openPanel("feedback")}
           aria-label="Send feedback"
-          title="Feedback"
-          style={{
-            background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
-            boxShadow: "0 8px 24px rgba(255,138,42,0.4)",
-          }}
         >
-          <MessageSquare size={19} color="#1a0e06" />
+          <span className="sr-action__icon">
+            <MessageSquare size={19} />
+          </span>
+          <span className="sr-action__label" aria-hidden="true">
+            Feedback
+          </span>
         </button>
 
         <button
           type="button"
-          className="sr-icon-btn"
-          onClick={() => setActivePanel("help")}
-          aria-label="Need help?"
-          title="Need help?"
-          style={{
-            background: "linear-gradient(135deg, #ff8a2a, #7c5cfc)",
-            boxShadow: "0 8px 24px rgba(124,92,252,0.45)",
-          }}
+          className="sr-action sr-action--help"
+          onClick={() => openPanel("help")}
+          aria-label="Get help"
         >
-          <LifeBuoy size={19} color="#fff" />
+          <span className="sr-action__icon">
+            <LifeBuoy size={19} />
+          </span>
+          <span className="sr-action__label" aria-hidden="true">
+            Get help
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="sr-launcher"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-expanded={menuOpen}
+          aria-label={menuOpen ? "Close help menu" : "Help and feedback"}
+        >
+          {menuOpen ? <X size={20} /> : <LifeBuoy size={20} />}
         </button>
       </div>
 
