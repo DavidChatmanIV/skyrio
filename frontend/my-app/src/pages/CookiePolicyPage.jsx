@@ -1,8 +1,9 @@
 import { useNavigate } from "react-router-dom";
 
-const LAST_UPDATED = "May 14, 2026";
-const CONTACT_EMAIL = "support@skyrioofficial.com";
+const LAST_UPDATED = "October 22, 2026";
+const CONTACT_EMAIL = "skyriooffcial@gmail.com";
 const COMPANY = "Skyrio";
+const SITE_DOMAIN = "myskyrio.com";
 
 // Reuses the same .sk-legal CSS as PrivacyPolicyPage and TermsOfServicePage
 const css = `
@@ -282,7 +283,7 @@ export default function CookiePolicyPage() {
             <li>
               <strong>Clear local storage</strong> — you can clear Skyrio's
               locally stored preferences by clearing your browser's site data
-              for skyrio.app.
+              for {SITE_DOMAIN}.
             </li>
             <li>
               <strong>Opt-out of analytics</strong> — contact us at{" "}

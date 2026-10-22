@@ -2832,10 +2832,10 @@ export default function LandingPage() {
                 Still have questions? <strong>Our team is here to help.</strong>
               </div>
               <a
-                href="mailto:skyriooofficial@gmail.com"
+                href="mailto:skyrioofficial@gmail.com"
                 className="sk-support__email"
               >
-                <Icon name="mail" /> skyriooofficial@gmail.com
+                <Icon name="mail" /> skyrioofficial@gmail.com
               </a>
             </div>
           </Reveal>

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import "@/styles/Footer.css";
 
-const SUPPORT_EMAIL = "support@skyrioofficial.com";
+const SUPPORT_EMAIL = "skyriooffcial@gmail.com";
 const YEAR = new Date().getFullYear();
 
 const NAV_COLS = [
@@ -33,7 +33,7 @@ const NAV_COLS = [
       { label: "Report an Issue", href: `mailto:${SUPPORT_EMAIL}` },
     ],
   },
-  // ✅ NEW: Legal column — required for GDPR/CCPA compliance
+  // Legal column — required for GDPR/CCPA compliance
   {
     heading: "Legal",
     links: [
@@ -88,7 +88,6 @@ export default function Footer() {
           <span className="sk-footer__copy">
             © {YEAR} Skyrio. All rights reserved.
           </span>
-          {/* ✅ UPDATED: Added Cookie Policy to bottom legal bar */}
           <div className="sk-footer__legal">
             <Link to="/privacy" className="sk-footer__legal-link">
               Privacy Policy
