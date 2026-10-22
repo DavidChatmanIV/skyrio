@@ -1,46 +1,44 @@
 import { Card } from "antd";
-import {
-  ThunderboltOutlined,
-  RiseOutlined,
-  RadarChartOutlined,
-  FireOutlined,
-} from "@ant-design/icons";
+import { Sparkles, TrendingUp, Radar, Flame } from "lucide-react";
 import "@/styles/AtlasInsightCard.css";
 
+// Labels describe what the card is — an Atlas tip — without claiming it's
+// "live" data. Pass `trend` only when the message really comes from live
+// numbers on the page (e.g. trend="From today's prices").
 function getToneMeta(tone = "smart") {
   const normalized = String(tone || "smart").toLowerCase();
 
   if (normalized === "warn") {
     return {
-      badge: "Atlas warning",
-      icon: <FireOutlined />,
-      title: "Budget-sensitive signal",
+      badge: "Atlas · Heads-up",
+      icon: <Flame size={18} aria-hidden="true" />,
+      title: "Watch your budget",
       className: "is-warn",
     };
   }
 
   if (normalized === "trend") {
     return {
-      badge: "Atlas trend",
-      icon: <RiseOutlined />,
-      title: "Live trend insight",
+      badge: "Atlas · Trend",
+      icon: <TrendingUp size={18} aria-hidden="true" />,
+      title: "Worth knowing",
       className: "is-trend",
     };
   }
 
   if (normalized === "deep") {
     return {
-      badge: "Atlas analysis",
-      icon: <RadarChartOutlined />,
-      title: "Deeper trip analysis",
+      badge: "Atlas · Analysis",
+      icon: <Radar size={18} aria-hidden="true" />,
+      title: "A closer look at your trip",
       className: "is-deep",
     };
   }
 
   return {
     badge: "Atlas AI",
-    icon: <ThunderboltOutlined />,
-    title: "Smart trip insight",
+    icon: <Sparkles size={18} aria-hidden="true" />,
+    title: "Trip tip",
     className: "is-smart",
   };
 }
@@ -49,7 +47,7 @@ function clampMessage(message = "", max = 220) {
   const text = String(message || "").trim();
 
   if (!text) {
-    return "Atlas is watching your trip flow and will surface smarter guidance as you explore.";
+    return "Pick a destination and dates, and Atlas will share tips for your trip here.";
   }
 
   if (text.length <= max) return text;
@@ -60,16 +58,18 @@ function clampMessage(message = "", max = 220) {
 export default function AtlasInsightCard({
   message,
   tone = "smart",
-  trend = "Live insight",
+  trend = "Atlas tip",
 }) {
   const toneMeta = getToneMeta(tone);
   const safeMessage = clampMessage(message, 220);
 
   return (
     <Card
-      bordered={false}
+      variant="borderless"
       className={`atlasInsightCard atlasInsightInlineCard ${toneMeta.className}`}
-      bodyStyle={{ padding: 0 }}
+      styles={{ body: { padding: 0 } }}
+      role="note"
+      aria-label={`${toneMeta.badge}: ${toneMeta.title}`}
     >
       <div className="atlasInsightCardTop">
         <div className="atlasInsightCardIconWrap">{toneMeta.icon}</div>
@@ -79,7 +79,7 @@ export default function AtlasInsightCard({
           <div className="atlasInsightCardTitle">{toneMeta.title}</div>
         </div>
 
-        <div className="atlasInsightCardTrend">{trend}</div>
+        {trend && <div className="atlasInsightCardTrend">{trend}</div>}
       </div>
 
       <div className="atlasInsightCardBody">

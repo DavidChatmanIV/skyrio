@@ -1921,32 +1921,45 @@ export default function LandingPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let picksRetry = null;
+    let personalShown = false; // once picks show, examples never replace them
+
+    // Signed-in travelers with past bookings get picks shaped by their own
+    // trips. The server answers within a couple of seconds: either the
+    // picks, or "pending" while it makes them in the background.
+    const fetchPicks = async () => {
+      const params = new URLSearchParams({ homeCode, homeCity });
+      const res = await fetch(apiUrl(`/api/atlas/picks?${params}`), {
+        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.ok ? res.json() : null;
+    };
+    const showPicks = (data) => {
+      if (
+        cancelled ||
+        !data?.personalized ||
+        !Array.isArray(data.suggestions) ||
+        !data.suggestions.length
+      )
+        return false;
+      personalShown = true;
+      setExamplePlans(data.suggestions);
+      setPicksPersonal(true);
+      setExamplesLoading(false);
+      return true;
+    };
+
     async function load() {
       setExamplesLoading(true);
       setExamplesFailed(false);
 
-      // Signed-in travelers with past bookings get picks shaped by their own
-      // trips and spending. Anyone else (logged out, or no bookings yet)
-      // falls through to the general example trips below.
+      let picksPending = false;
       if (isAuthed && token) {
         try {
-          const params = new URLSearchParams({ homeCode, homeCity });
-          const res = await fetch(apiUrl(`/api/atlas/picks?${params}`), {
-            credentials: "include",
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = res.ok ? await res.json() : null;
-          if (
-            !cancelled &&
-            data?.personalized &&
-            Array.isArray(data.suggestions) &&
-            data.suggestions.length
-          ) {
-            setExamplePlans(data.suggestions);
-            setPicksPersonal(true);
-            setExamplesLoading(false);
-            return;
-          }
+          const data = await fetchPicks();
+          if (showPicks(data)) return;
+          picksPending = Boolean(data?.pending);
         } catch (err) {
           console.warn("[Atlas picks] falling back to general examples:", err);
         }
@@ -1954,8 +1967,18 @@ export default function LandingPage() {
       if (cancelled) return;
       setPicksPersonal(false);
 
+      // Picks still being made: show the general examples now, then swap in
+      // the personal picks once (they're usually ready a few seconds later).
+      if (picksPending) {
+        picksRetry = setTimeout(() => {
+          fetchPicks()
+            .then(showPicks)
+            .catch(() => {});
+        }, 9000);
+      }
+
       const timeout = setTimeout(() => {
-        if (!cancelled) {
+        if (!cancelled && !personalShown) {
           setExamplePlans(FALLBACK_PLANS);
           setExamplesLoading(false);
           setExamplesFailed(false);
@@ -1974,23 +1997,24 @@ export default function LandingPage() {
         const plans = results
           .filter((r) => r.status === "fulfilled" && r.value)
           .map((r) => r.value);
-        if (!cancelled) {
+        if (!cancelled && !personalShown) {
           setExamplePlans(plans.length > 0 ? plans : FALLBACK_PLANS);
           setExamplesFailed(false);
         }
       } catch {
         clearTimeout(timeout);
-        if (!cancelled) {
+        if (!cancelled && !personalShown) {
           setExamplePlans(FALLBACK_PLANS);
           setExamplesFailed(false);
         }
       } finally {
-        if (!cancelled) setExamplesLoading(false);
+        if (!cancelled && !personalShown) setExamplesLoading(false);
       }
     }
     load();
     return () => {
       cancelled = true;
+      if (picksRetry) clearTimeout(picksRetry);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeCity, homeCode, examplesKey, isAuthed, token]);

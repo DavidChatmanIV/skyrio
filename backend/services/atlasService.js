@@ -24,6 +24,11 @@ const PROVIDERS = {
 const PRIMARY_PROVIDER = process.env.ATLAS_PROVIDER || "claude";
 const FALLBACK_PROVIDER = process.env.ATLAS_FALLBACK_PROVIDER || "openai";
 
+// Longest one provider may take before we give up and try the other.
+// Without this a stuck request could hang for minutes (SDK default).
+const PROVIDER_TIMEOUT_MS =
+  Number(process.env.ATLAS_PROVIDER_TIMEOUT_MS) || 25000;
+
 // ─── Client initialisation ────────────────────────────────────
 
 let openaiClient = null;
@@ -34,7 +39,11 @@ function getOpenAIClient() {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("[atlasService] OPENAI_API_KEY is not set in .env");
     }
-    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      timeout: PROVIDER_TIMEOUT_MS,
+      maxRetries: 1, // the fallback provider is our real retry
+    });
   }
   return openaiClient;
 }
@@ -44,7 +53,11 @@ function getAnthropicClient() {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error("[atlasService] ANTHROPIC_API_KEY is not set in .env");
     }
-    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    anthropicClient = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      timeout: PROVIDER_TIMEOUT_MS,
+      maxRetries: 1, // the fallback provider is our real retry
+    });
   }
   return anthropicClient;
 }
@@ -96,6 +109,7 @@ export async function atlasChat({
       config.name
     } (${model}) | task: ${task} | tools: ${tools ? tools.length : 0}`
   );
+  const t0 = Date.now();
 
   try {
     if (resolvedProvider === "openai") {
@@ -124,8 +138,12 @@ export async function atlasChat({
   } catch (err) {
     // ── Automatic fallback ──
     if (!useFallback && resolvedProvider !== FALLBACK_PROVIDER) {
+      // Grep Render logs for this line: if it shows up a lot, the primary
+      // model name or API key is wrong and every chat is paying for 2 calls.
       console.warn(
-        `[atlasService] ${config.name} failed: ${err.message}. Falling back to ${FALLBACK_PROVIDER}...`
+        `[atlasService] ${config.name} (${model}) failed after ${
+          Date.now() - t0
+        }ms: ${err.message}. Falling back to ${FALLBACK_PROVIDER}...`
       );
       return atlasChat({
         systemPrompt,
