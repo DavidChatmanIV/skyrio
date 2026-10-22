@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import "@/styles/Footer.css";
 
-const SUPPORT_EMAIL = "skyriooffcial@gmail.com";
+const SUPPORT_EMAIL = "skyrioofficial@gmail.com";
 const YEAR = new Date().getFullYear();
 
 const NAV_COLS = [

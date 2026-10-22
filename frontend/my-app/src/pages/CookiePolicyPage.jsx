@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
 const LAST_UPDATED = "October 22, 2026";
-const CONTACT_EMAIL = "skyriooffcial@gmail.com";
+const CONTACT_EMAIL = "skyrioofficial@gmail.com";
 const COMPANY = "Skyrio";
 const SITE_DOMAIN = "myskyrio.com";
 
