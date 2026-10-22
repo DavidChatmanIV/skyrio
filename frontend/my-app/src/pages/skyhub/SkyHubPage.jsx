@@ -187,6 +187,7 @@ function mapBackendPost(post) {
     helpful: !!post.helpful,
     liked: !!post.viewerHasLiked,
     saved: !!post.viewerHasSaved,
+    following: !!post.viewerFollowsAuthor,
   };
 }
 
@@ -742,6 +743,29 @@ export default function SkyHubPage() {
     return () => clearTimeout(debounceRef.current);
   }, [searchValue]);
 
+  // ── Following tab: posts from people you follow (fetched on demand) ──
+  const [followingPosts, setFollowingPosts] = useState([]);
+  const [loadingFollowing, setLoadingFollowing] = useState(false);
+  const fetchFollowingFeed = useCallback(async () => {
+    try {
+      setLoadingFollowing(true);
+      const res = await skyFetch("/api/skyhub/feed?scope=following");
+      const data = await readJson(res);
+      if (!res.ok)
+        throw new Error(data?.message || "Couldn't load posts you follow.");
+      setFollowingPosts(
+        Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : []
+      );
+    } catch (err) {
+      message.error(err.message || "Couldn't load posts you follow.");
+    } finally {
+      setLoadingFollowing(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (activeTab === "following" && authUser) fetchFollowingFeed();
+  }, [activeTab, authUser, fetchFollowingFeed]);
+
   const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
@@ -782,7 +806,7 @@ export default function SkyHubPage() {
 
   const visiblePosts = useMemo(
     () =>
-      posts.filter((post) => {
+      (activeTab === "following" ? followingPosts : posts).filter((post) => {
         const s = debouncedSearch.trim().toLowerCase();
         const inText = (post.text || "").toLowerCase().includes(s);
         const inPlace = (post.destination || "").toLowerCase().includes(s);
@@ -811,6 +835,10 @@ export default function SkyHubPage() {
         let mt = true;
         switch (activeTab) {
           case "following":
+            // Already narrowed by the server (?scope=following)
+            mt = true;
+            break;
+          case "mine":
             mt =
               (post.username || "").replace("@", "").toLowerCase() ===
                 myUsername ||
@@ -835,6 +863,7 @@ export default function SkyHubPage() {
       }),
     [
       posts,
+      followingPosts,
       debouncedSearch,
       searchScope,
       activeFilter,
@@ -856,6 +885,16 @@ export default function SkyHubPage() {
       cta: "Write the first post",
     },
     following: {
+      icon: "globe",
+      title: currentUser
+        ? "You're not following anyone yet"
+        : "Log in to see who you follow",
+      sub: currentUser
+        ? "Tap Follow next to a traveler's name on any post. Their new posts will show up here."
+        : "Follow travelers to keep up with their posts in one place.",
+      cta: "Browse all posts",
+    },
+    mine: {
       icon: "edit",
       title: "You haven't posted yet",
       sub: "Anything you post shows up here so you can find it again.",
@@ -892,7 +931,8 @@ export default function SkyHubPage() {
   // One plain sentence per tab: what you're looking at.
   const TAB_HINTS = {
     forYou: "Everything travelers are posting, newest first.",
-    following: "Only the posts you've shared.",
+    following: "New posts from travelers you follow.",
+    mine: "Only the posts you've shared.",
     nearby: nearbyLocal
       ? `Posts about places in or around ${localCity.name}.`
       : localCity
@@ -904,7 +944,8 @@ export default function SkyHubPage() {
 
   const FEED_TITLES = {
     forYou: "Latest posts",
-    following: "Your posts",
+    following: "Following",
+    mine: "Your posts",
     nearby: nearbyLocal ? `Near ${localCity.name}` : "Around the world",
     questions: "Questions",
     trips: "Trips & Stories",
@@ -1036,6 +1077,39 @@ export default function SkyHubPage() {
       );
     } catch (err) {
       message.error(err.message || "Could not update like.");
+    }
+  };
+
+  const handleToggleFollow = async (post) => {
+    if (!currentUser) return message.info("Log in to follow travelers.");
+    if (!post?.authorId) return;
+    const authorId = String(post.authorId);
+    try {
+      const res = await skyFetch(`/api/skyhub/users/${authorId}/follow`, {
+        method: "POST",
+      });
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data?.message || "Couldn't update follow.");
+      const nowFollowing = !!data.following;
+      const mark = (list) =>
+        list.map((p) =>
+          String(p.authorId) === authorId
+            ? { ...p, following: nowFollowing }
+            : p
+        );
+      setPosts(mark);
+      setFollowingPosts((list) =>
+        nowFollowing
+          ? mark(list)
+          : list.filter((p) => String(p.authorId) !== authorId)
+      );
+      message.success(
+        nowFollowing
+          ? `You're following ${post.author}.`
+          : `Unfollowed ${post.author}.`
+      );
+    } catch (err) {
+      message.error(err.message);
     }
   };
 
@@ -1636,7 +1710,8 @@ export default function SkyHubPage() {
               </div>
 
               <div className="skyhub-feedList">
-                {loadingFeed ? (
+                {loadingFeed ||
+                (activeTab === "following" && loadingFollowing) ? (
                   <div className="skyhub-emptyState">
                     <div
                       style={{
@@ -1662,6 +1737,9 @@ export default function SkyHubPage() {
                       onEditPost={handleEditPost}
                       onDeletePost={handleDeletePost}
                       onBlockUser={handleBlockUser}
+                      onToggleFollow={
+                        currentUser ? handleToggleFollow : undefined
+                      }
                     />
                   ))
                 ) : (
@@ -1678,7 +1756,11 @@ export default function SkyHubPage() {
                     <p>{empty.sub}</p>
                     <Button
                       type="primary"
-                      onClick={focusComposer}
+                      onClick={
+                        activeTab === "following"
+                          ? () => setActiveTab("forYou")
+                          : focusComposer
+                      }
                       style={{ marginTop: 16 }}
                     >
                       {empty.cta}

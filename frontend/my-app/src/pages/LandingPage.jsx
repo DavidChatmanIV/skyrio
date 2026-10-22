@@ -100,10 +100,10 @@ const TIME_PERIODS = {
 };
 
 const HERO_COPY = {
-  eyebrow: "Discover · Your AI travel planner, free to use",
+  eyebrow: "Discover · Plan your trip with Atlas AI",
   title: "Discover your\ndream vacation.",
   subtitle:
-    "Tell us where you want to go and your budget. Skyrio's AI builds a full flight + hotel plan in seconds, then you book it directly.",
+    "Tell us where you want to go and your budget. Atlas suggests a flight + hotel plan, then you check live prices and book it right here.",
   placeholder: "Plan your next trip…",
   ctaLabel: "Plan my trip",
   secondaryCta: {
@@ -221,14 +221,14 @@ const FALLBACK_PLANS = [
 const SOCIAL_PROOF = [
   { stat: "Free", label: "to plan" },
   { stat: "Atlas AI", label: "trip planner" },
-  { stat: "XP", label: "on every booking" },
+  { stat: "XP", label: "earned on bookings" },
   { stat: "Stripe", label: "secure checkout" },
 ];
 
 const TRUST_SIGNALS = [
   "No credit card required",
   "Free to search & plan",
-  "Cancel within 24h",
+  "Live prices before you pay",
 ];
 
 /**
@@ -246,8 +246,8 @@ const ATLAS_FEATURES = [
   },
   {
     iconKey: "bolt",
-    title: "Builds your plan in seconds",
-    desc: "Flights, hotels, and budget breakdown — before you finish your coffee.",
+    title: "Builds your plan for you",
+    desc: "Flights, hotels, and a budget breakdown in one place.",
   },
   {
     iconKey: "compass",
@@ -288,7 +288,7 @@ const PROFILE_PERKS = [
   {
     iconKey: "xp",
     label: "XP & Levels",
-    desc: "Earn points every search, save, or booking.",
+    desc: "Earn XP when you book trips and share on SkyHub.",
   },
   {
     iconKey: "badge",
@@ -298,7 +298,7 @@ const PROFILE_PERKS = [
   {
     iconKey: "reward",
     label: "Rewards",
-    desc: "Redeem XP for credits, upgrades, and deals.",
+    desc: "Spend XP in the Skyrio Rewards catalog.",
   },
   {
     iconKey: "journey",
@@ -310,22 +310,24 @@ const PROFILE_PERKS = [
 const FAQS = [
   {
     q: "Is Skyrio free to use?",
-    a: "Yes — searching and planning with Atlas is completely free. You only pay when you book a flight or hotel.",
+    a: "Searching and planning with Atlas is free. You pay for the flights and hotels you book. Optional Explorer and Legend memberships add extra perks.",
   },
   {
     q: "How does Atlas AI work?",
-    a: "Atlas reads your natural language prompt, matches it to live inventory, and builds a budget-optimised plan in seconds.",
+    a: "Tell Atlas what you want in plain words. It suggests a flight + hotel plan with estimated prices. When you open a plan, Skyrio searches live prices before you book anything.",
   },
   {
     q: "Can I change or cancel my booking?",
-    a: "Yes. Most bookings include free cancellation within 24 hours. Policies vary by airline and hotel.",
+    a: "It depends on the booking. Every airline and hotel sets its own cancellation rules, so check the policy for your flight or hotel before you pay. If you need to cancel later, Atlas can help you with it.",
   },
   {
     q: "Is my payment information secure?",
-    a: "Absolutely. Payments are processed by Stripe — the same infrastructure used by Amazon. We never store your card details.",
+    a: "Yes. Payments are handled by Stripe. Your card details go straight to Stripe and aren't stored on Skyrio's servers.",
   },
 ];
 
+// Example conversation shown on the landing page. Kept free of specific
+// prices or cancellation promises — those depend on the real booking.
 const ATLAS_CHAT_INTRO = (homeCity) => [
   {
     id: 1,
@@ -335,13 +337,13 @@ const ATLAS_CHAT_INTRO = (homeCity) => [
   {
     id: 2,
     from: "atlas",
-    text: `Perfect timing — Tulum and Cartagena are both peaking in March. I can get you 5 nights in Tulum with flights from ${homeCity} for $1,640 total. Want me to lock that in?`,
+    text: `Good timing. A few warm places fit that budget from ${homeCity}. I'll pull live flight and hotel prices so you can compare them side by side.`,
   },
-  { id: 3, from: "user", text: "Yes! Can you find a hotel near the beach?" },
+  { id: 3, from: "user", text: "Can you find a hotel near the beach?" },
   {
     id: 4,
     from: "atlas",
-    text: "Found 3 beachfront options under $180/night. Top pick has free cancellation and a rooftop pool. Adding it to your plan now.",
+    text: "Sure. I'll show beachfront hotels that fit what's left of your budget, so you can pick the one you like.",
   },
   {
     id: 5,
@@ -351,7 +353,7 @@ const ATLAS_CHAT_INTRO = (homeCity) => [
   {
     id: 6,
     from: "atlas",
-    text: "No problem — this fare has free cancellation up to 48 hours out. If your plans change, just tell me and I'll cancel, refund, or move your flight to a new date. No hold music required.",
+    text: "Every flight and hotel has its own cancellation rules, so check the policy on yours before you pay. If you need to cancel later, I can help you with it.",
   },
 ];
 
@@ -2551,7 +2553,7 @@ export default function LandingPage() {
                     <div>
                       <div className="sk-atlas__chatName">Atlas</div>
                       <div className="sk-atlas__chatStatus">
-                        <span className="sk-atlas__statusDot" /> Always on
+                        <span className="sk-atlas__statusDot" /> Example chat
                       </div>
                     </div>
                   </div>
@@ -2773,7 +2775,7 @@ export default function LandingPage() {
                   <ArrowRightOutlined style={{ marginLeft: 6 }} />
                 </Button>
                 <div className="sk-profile-banner__note">
-                  Free forever · No credit card required
+                  Free account · No credit card required
                 </div>
               </div>
             </Reveal>

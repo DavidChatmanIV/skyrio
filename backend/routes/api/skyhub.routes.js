@@ -181,7 +181,12 @@ async function xpSummary(userId, result) {
   };
 }
 
-function mapPost(post, viewerId, xpByAuthorId = new Map()) {
+function mapPost(
+  post,
+  viewerId,
+  xpByAuthorId = new Map(),
+  followingIds = null
+) {
   const likeIds = (post.likes || []).map(String);
   const saveIds = (post.saves || []).map(String);
   const authorId = post.author?.toString() || null;
@@ -209,6 +214,9 @@ function mapPost(post, viewerId, xpByAuthorId = new Map()) {
     sharesCount: post.sharesCount || 0,
     viewerHasLiked: Boolean(viewerId && likeIds.includes(viewerId)),
     viewerHasSaved: Boolean(viewerId && saveIds.includes(viewerId)),
+    viewerFollowsAuthor: Boolean(
+      followingIds && authorId && followingIds.has(authorId)
+    ),
     // Only the author ever receives a hidden post (see /feed).
     underReview: Boolean(post.hidden && post.hiddenReason === "review"),
     timeAgo: getTimeAgo(post.createdAt),
@@ -277,6 +285,22 @@ router.get("/feed", async (req, res) => {
   try {
     const viewerId = req.skyUser?.id || null;
     const hide = await hiddenAuthorIds(viewerId);
+
+    // Who the viewer follows — used for the Follow buttons and ?scope=following
+    let followingIds = null;
+    if (viewerId) {
+      const me = await User.findById(viewerId).select("following").lean();
+      followingIds = new Set((me?.following || []).map(String));
+    }
+    const followingOnly = req.query.scope === "following";
+    if (followingOnly && !viewerId) return res.json({ posts: [] });
+
+    const hidden = new Set(hide.map(String));
+    const authorFilter = followingOnly
+      ? { author: { $in: [...followingIds].filter((id) => !hidden.has(id)) } }
+      : hide.length
+      ? { author: { $nin: hide } }
+      : {};
     const visible = viewerId
       ? {
           $or: [
@@ -287,13 +311,15 @@ router.get("/feed", async (req, res) => {
       : { hidden: { $ne: true } };
     const posts = await SkyHubPost.find({
       ...visible,
-      ...(hide.length ? { author: { $nin: hide } } : {}),
+      ...authorFilter,
     })
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
     const xp = await xpMapFor(posts);
-    return res.json({ posts: posts.map((p) => mapPost(p, viewerId, xp)) });
+    return res.json({
+      posts: posts.map((p) => mapPost(p, viewerId, xp, followingIds)),
+    });
   } catch (err) {
     console.error("[skyhub] feed error:", err);
     return res.status(500).json({ message: "Failed to load feed." });
@@ -857,6 +883,83 @@ router.get("/blocks", requireViewer, async (req, res) => {
       .json({ message: "Failed to load blocked travelers." });
   }
 });
+
+/* ─────────────────────────────────────────────────────────────
+   POST /api/skyhub/users/:id/follow   (logged in, rate-limited)
+   Toggles following. Uses the same User.following / followers arrays
+   (and counts) the block route already cleans up. No XP — following
+   must never be a way to farm points.
+───────────────────────────────────────────────────────────── */
+const MAX_FOLLOWING = 2000;
+
+router.post(
+  "/users/:id/follow",
+  requireViewer,
+  rateLimit("react"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const me = req.skyUser.id;
+      if (!validId(id))
+        return res.status(400).json({ message: "Invalid traveler." });
+      if (id === me)
+        return res.status(400).json({ message: "You can't follow yourself." });
+
+      const target = await User.findById(id).select("_id isActive");
+      if (!target || target.isActive === false)
+        return res.status(404).json({ message: "Traveler not found." });
+      if (await isBlockedBetween(me, id))
+        return res.status(404).json({ message: "Traveler not found." });
+
+      // Follow — only if not already following and under the cap.
+      // The conditions make this safe against double-taps.
+      const added = await User.updateOne(
+        {
+          _id: me,
+          following: { $ne: id },
+          followingCount: { $lt: MAX_FOLLOWING },
+        },
+        { $addToSet: { following: id }, $inc: { followingCount: 1 } }
+      );
+
+      if (added.modifiedCount === 1) {
+        await User.updateOne(
+          { _id: id, followers: { $ne: me } },
+          { $addToSet: { followers: me }, $inc: { followersCount: 1 } }
+        );
+        const t = await User.findById(id).select("followersCount").lean();
+        return res.json({
+          following: true,
+          followersCount: t?.followersCount ?? 0,
+        });
+      }
+
+      // Not added: either already following (→ unfollow) or at the cap.
+      const removed = await User.updateOne(
+        { _id: me, following: id },
+        { $pull: { following: id }, $inc: { followingCount: -1 } }
+      );
+      if (removed.modifiedCount === 1) {
+        await User.updateOne(
+          { _id: id, followers: me },
+          { $pull: { followers: me }, $inc: { followersCount: -1 } }
+        );
+        const t = await User.findById(id).select("followersCount").lean();
+        return res.json({
+          following: false,
+          followersCount: Math.max(0, t?.followersCount ?? 0),
+        });
+      }
+
+      return res.status(400).json({
+        message: `You can follow up to ${MAX_FOLLOWING.toLocaleString()} travelers.`,
+      });
+    } catch (err) {
+      console.error("[skyhub] follow error:", err);
+      return res.status(500).json({ message: "Couldn't update follow." });
+    }
+  }
+);
 
 router.post(
   "/users/:id/block",
