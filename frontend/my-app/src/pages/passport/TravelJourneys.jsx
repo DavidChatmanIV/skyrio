@@ -8,7 +8,7 @@ import { Plane, BedDouble, Compass, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
 
-// 👉 Trim each list to the one route that works once you've confirmed it in the console.
+// NOTE: Trim each list to the one route that works once you've confirmed it in the console.
 const BOOKINGS_ENDPOINTS = [
   "/api/bookings/mine",
   "/api/bookings/my",
@@ -49,14 +49,22 @@ const toDate = (v) => {
   const d = new Date(v);
   return isNaN(d) ? null : d;
 };
+// Dates are stored as midnight UTC — format in UTC so travelers in New York
+// don't see the day before their real trip date.
 const fmt = (d) =>
   d
-    ? d.toLocaleDateString(undefined, {
+    ? d.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
+        timeZone: "UTC",
       })
     : "";
+// "Hotel · 2026-11-20 → 2026-11-24 · shared room" → "Hotel · shared room"
+const stripDates = (t) =>
+  String(t || "")
+    .replace(/\s*·\s*\d{4}-\d{2}-\d{2}\s*(→|->|–|-)\s*\d{4}-\d{2}-\d{2}/g, "")
+    .trim();
 
 // Tries each path in order; returns the first array found, or null.
 async function fetchFirstList(paths, { token, signal, label, keys }) {
@@ -101,20 +109,46 @@ function normalizeBooking(b) {
     b.city
   );
   const start = toDate(
-    pick(b.departureDate, b.startDate, b.checkIn, flight.departureDate)
+    pick(
+      b.departureDate,
+      b.startDate,
+      b.checkIn,
+      b.checkInDate,
+      flight.departureDate,
+      b.dates?.start
+    )
   );
   const end =
-    toDate(pick(b.returnDate, b.endDate, b.checkOut, flight.returnDate)) ||
-    start;
+    toDate(
+      pick(
+        b.returnDate,
+        b.endDate,
+        b.checkOut,
+        b.checkOutDate,
+        flight.returnDate,
+        b.dates?.end
+      )
+    ) || start;
+  const type = String(pick(b.type, b.kind, b.category, "flight")).toLowerCase();
+  const hotelName = pick(b.hotelName, b.hotel?.name);
+  const isStay = type.includes("hotel") || type.includes("stay");
   return {
     id: `b-${b._id || b.id}`,
     kind: "booking",
-    type: String(pick(b.type, b.kind, b.category, "flight")).toLowerCase(),
+    type,
     title:
-      origin && destination
+      isStay && hotelName
+        ? hotelName
+        : origin && destination
         ? `${origin} → ${destination}`
-        : destination || b.title || "Trip",
-    subtitle: pick(b.airline, flight.airline, b.hotel?.name, b.providerName),
+        : stripDates(b.tripDetails) ||
+          hotelName ||
+          destination ||
+          b.title ||
+          (isStay ? "Hotel stay" : "Trip"),
+    subtitle: isStay
+      ? pick(destination !== hotelName ? destination : null, b.providerName)
+      : pick(b.airline, flight.airline, b.providerName),
     groupRef: String(
       pick(
         b.syncTripId,
@@ -171,122 +205,171 @@ function normalizeSync(t) {
   };
 }
 
-// ── UI pieces ──
-function TypeIcon({ type }) {
-  const props = { size: 18, color: "#ff8a2a" };
-  if (type === "group") return <Users {...props} />;
-  if (type.includes("hotel") || type.includes("stay"))
-    return <BedDouble {...props} />;
-  if (type.includes("excursion") || type.includes("activity"))
-    return <Compass {...props} />;
-  return <Plane {...props} />;
+// ── Styles (single drop-in file; matches the Upcoming trips list) ──
+const TJ_CSS = `
+.tj-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 12px; margin-bottom:12px; }
+.tj-filter { position:relative; display:inline-flex; align-items:center; }
+.tj-filter select { appearance:none; -webkit-appearance:none; height:34px; padding:0 32px 0 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:#fff; font-family:"DM Sans",sans-serif; font-size:13px; font-weight:600; cursor:pointer; }
+.tj-filter select:hover { border-color:rgba(255,138,42,0.5); }
+.tj-filter select:focus-visible { outline:2px solid #ff8a2a; outline-offset:2px; }
+.tj-filter select option { background:#1a1233; color:#fff; }
+.tj-filter svg { position:absolute; right:11px; pointer-events:none; color:rgba(255,255,255,0.7); }
+.tj-section + .tj-section { margin-top:16px; }
+.tj-label { font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size:11px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:rgba(255,255,255,0.6); margin:0 0 8px; }
+.tj-list { display:flex; flex-direction:column; gap:8px; }
+
+.tj-row { all:unset; box-sizing:border-box; display:flex; align-items:stretch; width:100%; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); transition:border-color .18s, background .18s; }
+.tj-row.is-link { cursor:pointer; }
+.tj-row.is-link:hover { border-color:rgba(255,138,42,0.45); background:rgba(255,138,42,0.06); }
+.tj-row:focus-visible { outline:2px solid #ff8a2a; outline-offset:2px; }
+.tj-row.is-stamped { background:rgba(255,138,42,0.06); border-color:rgba(255,138,42,0.3); }
+.tj-row__main { flex:1; min-width:0; display:flex; align-items:center; gap:10px; padding:9px 12px; }
+.tj-row__icon { flex-shrink:0; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#ffb347; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.28); }
+.tj-row__icon.is-group { color:#c4b5fd; background:rgba(139,92,255,0.14); border-color:rgba(139,92,255,0.35); }
+.tj-row__body { min-width:0; flex:1; }
+.tj-row__name { color:#fff; font-size:13.5px; font-weight:700; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tj-row__meta { margin-top:3px; display:flex; flex-wrap:wrap; align-items:center; gap:3px 10px; font-size:12px; color:rgba(255,255,255,0.68); }
+.tj-row__meta > span { display:inline-flex; align-items:center; gap:4px; }
+.tj-row__stub { flex-shrink:0; display:flex; align-items:center; gap:6px; padding:8px 12px; border-left:2px dashed rgba(255,255,255,0.14); }
+
+.tj-tag { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 8px; border-radius:999px; font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.72); white-space:nowrap; }
+.tj-tag--stamped { color:#ffb347; border-color:rgba(255,138,42,0.45); background:rgba(255,138,42,0.1); }
+.tj-tag--group { color:#c4b5fd; border-color:rgba(139,92,255,0.45); background:rgba(139,92,255,0.12); }
+
+.tj-more { all:unset; box-sizing:border-box; margin-top:8px; width:100%; min-height:38px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:10px; border:1px dashed rgba(255,255,255,0.18); color:rgba(255,255,255,0.8); font-size:13px; font-weight:700; cursor:pointer; }
+.tj-more:hover { border-color:rgba(255,138,42,0.5); color:#ffb347; }
+.tj-more:focus-visible { outline:2px solid #ff8a2a; outline-offset:2px; }
+
+@media (max-width: 600px) {
+  .tj-filter select { height:32px; font-size:12.5px; }
+  .tj-row__main { padding:8px 10px; gap:9px; }
+  .tj-row__icon { width:26px; height:26px; }
+  .tj-row__name { font-size:13px; }
+  .tj-row__meta { font-size:11.5px; }
+  .tj-row__stub { flex-direction:column; align-items:flex-end; justify-content:center; gap:4px; padding:8px 10px; }
+}
+`;
+
+function Chevron({ flip }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={flip ? { transform: "rotate(180deg)" } : undefined}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
 }
 
-function Chip({ children, tone = "muted" }) {
-  const tones = {
-    orange: { color: "#ff8a2a", border: "1px solid rgba(255,138,42,0.4)" },
-    purple: { color: "#b9a2ff", border: "1px solid rgba(139,92,255,0.45)" },
-    muted: {
-      color: "rgba(255,255,255,0.55)",
-      border: "1px solid rgba(255,255,255,0.15)",
-    },
-  };
-  return (
-    <span
-      style={{
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        padding: "4px 10px",
-        borderRadius: 999,
-        flexShrink: 0,
-        ...tones[tone],
-      }}
-    >
-      {children}
-    </span>
-  );
+const isGroupJourney = (j) => j.kind === "sync" || !!j.groupRef;
+const isStayType = (t) => t.includes("hotel") || t.includes("stay");
+const isActivityType = (t) => t.includes("excursion") || t.includes("activity");
+
+function TypeIcon({ type }) {
+  const props = { size: 15 };
+  if (type === "group") return <Users {...props} />;
+  if (isStayType(type)) return <BedDouble {...props} />;
+  if (isActivityType(type)) return <Compass {...props} />;
+  return <Plane {...props} />;
 }
 
 function JourneyStamp({ j, onOpen }) {
   const completed = j.stage === "completed";
-  const isGroup = j.kind === "sync";
+  const group = isGroupJourney(j);
+  const dates =
+    j.start &&
+    `${fmt(j.start)}${j.end && j.end > j.start ? ` → ${fmt(j.end)}` : ""}`;
+  const Tag = onOpen ? "button" : "div";
   return (
-    <div
-      onClick={onOpen}
-      role={onOpen ? "button" : undefined}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        padding: "14px 16px",
-        borderRadius: 14,
-        cursor: onOpen ? "pointer" : "default",
-        background: completed
-          ? "rgba(255,138,42,0.08)"
-          : "rgba(255,255,255,0.03)",
-        border: completed
-          ? "1px solid rgba(255,138,42,0.35)"
-          : isGroup
-          ? "1px dashed rgba(139,92,255,0.4)"
-          : "1px dashed rgba(255,255,255,0.15)",
-        opacity: completed ? 1 : 0.9,
-      }}
+    <Tag
+      {...(onOpen ? { type: "button", onClick: onOpen } : {})}
+      className={`tj-row${onOpen ? " is-link" : ""}${
+        completed ? " is-stamped" : ""
+      }`}
     >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          flexShrink: 0,
-          borderRadius: 11,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: isGroup
-            ? "rgba(139,92,255,0.14)"
-            : "rgba(255,138,42,0.12)",
-          border: isGroup
-            ? "1px solid rgba(139,92,255,0.3)"
-            : "1px solid rgba(255,138,42,0.22)",
-        }}
-      >
-        <TypeIcon type={j.type} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>
-          {j.title}
-        </div>
-        <div
-          style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 2 }}
-        >
-          {[
-            j.subtitle,
-            j.start &&
-              `${fmt(j.start)}${
-                j.end && j.end > j.start ? ` → ${fmt(j.end)}` : ""
-              }`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+      <div className="tj-row__main">
+        <span className={`tj-row__icon${j.kind === "sync" ? " is-group" : ""}`}>
+          <TypeIcon type={j.type} />
+        </span>
+        <div className="tj-row__body">
+          <div className="tj-row__name" title={j.title}>
+            {j.title}
+          </div>
+          {(j.subtitle || dates) && (
+            <div className="tj-row__meta">
+              {j.subtitle && <span>{j.subtitle}</span>}
+              {dates && <span>{dates}</span>}
+            </div>
+          )}
         </div>
       </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          flexWrap: "wrap",
-          justifyContent: "flex-end",
-        }}
-      >
-        {isGroup && <Chip tone="purple">Sync Together</Chip>}
-        <Chip tone={completed ? "orange" : "muted"}>
+      <div className="tj-row__stub">
+        {group && <span className="tj-tag tj-tag--group">Group</span>}
+        <span className={`tj-tag${completed ? " tj-tag--stamped" : ""}`}>
           {completed ? "Stamped" : "Upcoming"}
-        </Chip>
+        </span>
       </div>
+    </Tag>
+  );
+}
+
+// One section (Upcoming / Stamped) that shows 3 and expands
+function JourneySection({ label, items, openJourney }) {
+  const [showAll, setShowAll] = useState(false);
+  const PREVIEW = 3;
+  if (!items.length) return null;
+  const visible = showAll ? items : items.slice(0, PREVIEW);
+  const hidden = items.length - visible.length;
+  return (
+    <div className="tj-section">
+      <div className="tj-label">
+        {label} · {items.length}
+      </div>
+      <div className="tj-list">
+        {visible.map((j) => (
+          <JourneyStamp key={j.id} j={j} onOpen={openJourney(j)} />
+        ))}
+      </div>
+      {items.length > PREVIEW && (
+        <button
+          type="button"
+          className="tj-more"
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+        >
+          {showAll ? "Show fewer" : `Show ${hidden} more`}
+          <Chevron flip={showAll} />
+        </button>
+      )}
     </div>
   );
 }
+
+const FILTERS = [
+  { value: "all", label: "All journeys", test: () => true },
+  { value: "solo", label: "Solo", test: (j) => !isGroupJourney(j) },
+  { value: "group", label: "Group trips", test: isGroupJourney },
+  {
+    value: "flights",
+    label: "Flights",
+    test: (j) =>
+      j.kind === "booking" && !isStayType(j.type) && !isActivityType(j.type),
+  },
+  { value: "stays", label: "Hotels", test: (j) => isStayType(j.type) },
+  {
+    value: "activities",
+    label: "Excursions",
+    test: (j) => isActivityType(j.type),
+  },
+];
 
 // ── Main ──
 export default function TravelJourneys({ token }) {
@@ -353,27 +436,26 @@ export default function TravelJourneys({ token }) {
       );
   }, [bookings, syncTrips]);
 
-  const upcoming = journeys.filter((j) => j.stage === "upcoming");
-  const completed = journeys.filter((j) => j.stage === "completed").reverse();
+  // Filter options only list what you actually have, with counts
+  const [filter, setFilter] = useState("all");
+  const filterOptions = useMemo(
+    () =>
+      FILTERS.map((f) => ({
+        ...f,
+        count: journeys.filter(f.test).length,
+      })).filter((f) => f.value === "all" || f.count > 0),
+    [journeys]
+  );
+  const active =
+    filterOptions.find((f) => f.value === filter) || filterOptions[0];
+  const shown = active ? journeys.filter(active.test) : journeys;
 
-  // 👉 Adjust if your Sync Together detail route differs
+  const upcoming = shown.filter((j) => j.stage === "upcoming");
+  const completed = shown.filter((j) => j.stage === "completed").reverse();
+
+  // NOTE: Adjust if your Sync Together detail route differs
   const openJourney = (j) =>
     j.kind === "sync" ? () => navigate(`/sync-together/${j.rawId}`) : undefined;
-
-  const sectionLabel = (text) => (
-    <div
-      style={{
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        color: "rgba(255,255,255,0.35)",
-        margin: "4px 0 10px",
-      }}
-    >
-      {text}
-    </div>
-  );
 
   const emptyBox = (text) => (
     <div className="pp-journeysEmpty">
@@ -392,8 +474,35 @@ export default function TravelJourneys({ token }) {
 
   return (
     <Card variant="borderless" className="pp-card pp-journeysCard">
-      <div className="pp-journeysHeader">
+      <style>{TJ_CSS}</style>
+      <div className="pp-journeysHeader tj-head">
         <div className="pp-journeysTitle">Travel Journeys</div>
+        {!loading && !error && journeys.length > 0 && (
+          <label className="tj-filter">
+            <span
+              style={{
+                position: "absolute",
+                width: 1,
+                height: 1,
+                overflow: "hidden",
+                clip: "rect(0 0 0 0)",
+              }}
+            >
+              Filter journeys
+            </span>
+            <select
+              value={active?.value || "all"}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              {filterOptions.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label} ({f.count})
+                </option>
+              ))}
+            </select>
+            <Chevron />
+          </label>
+        )}
       </div>
 
       {loading ? (
@@ -403,31 +512,19 @@ export default function TravelJourneys({ token }) {
       ) : journeys.length === 0 ? (
         emptyBox("Your journeys will appear here after your first booking")
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {upcoming.length > 0 && (
-            <div>
-              {sectionLabel(`Upcoming · ${upcoming.length}`)}
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 10 }}
-              >
-                {upcoming.map((j) => (
-                  <JourneyStamp key={j.id} j={j} onOpen={openJourney(j)} />
-                ))}
-              </div>
-            </div>
-          )}
-          {completed.length > 0 && (
-            <div>
-              {sectionLabel(`Stamped · ${completed.length}`)}
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 10 }}
-              >
-                {completed.map((j) => (
-                  <JourneyStamp key={j.id} j={j} onOpen={openJourney(j)} />
-                ))}
-              </div>
-            </div>
-          )}
+        <div>
+          <JourneySection
+            key={`up-${active?.value}`}
+            label="Upcoming"
+            items={upcoming}
+            openJourney={openJourney}
+          />
+          <JourneySection
+            key={`done-${active?.value}`}
+            label="Stamped"
+            items={completed}
+            openJourney={openJourney}
+          />
         </div>
       )}
     </Card>
