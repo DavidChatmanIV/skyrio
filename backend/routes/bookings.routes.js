@@ -32,7 +32,11 @@ async function takeBackBookingXp(booking, reason) {
   try {
     await reverseBookingXp(booking._id, reason);
   } catch (e) {
-    console.error("[bookings] reverse booking XP failed", String(booking._id), e.message);
+    console.error(
+      "[bookings] reverse booking XP failed",
+      String(booking._id),
+      e.message
+    );
   }
 }
 
@@ -257,6 +261,65 @@ router.get("/upcoming", authRequired, async (req, res) => {
     res.status(500).json({ message: "Couldn't load your upcoming trips." });
   }
 });
+
+// ── Remove a cancelled trip from My Trips ──
+// Only HIDES it from the traveler's own list. The booking record is kept
+// exactly as it is (receipt, refunds, admin reporting). Owner only, and only
+// cancelled trips — a live booking can never be hidden by accident.
+async function setHiddenByUser(req, res, hidden) {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid booking id." });
+    }
+    const booking = await Booking.findById(req.params.id).select(
+      "user status hiddenByUser"
+    );
+    if (!booking)
+      return res.status(404).json({ message: "Booking not found." });
+    if (String(booking.user) !== String(req.user.id)) {
+      return res
+        .status(403)
+        .json({ message: "This booking belongs to a different account." });
+    }
+    if (hidden && booking.status !== "cancelled") {
+      return res.status(400).json({
+        message: "Only cancelled trips can be removed from your list.",
+      });
+    }
+    booking.hiddenByUser = hidden;
+    booking.hiddenAt = hidden ? new Date() : null;
+    await booking.save();
+    res.json({ ok: true, hiddenByUser: hidden });
+  } catch (err) {
+    console.error(
+      `PATCH /api/bookings/:id/${hidden ? "hide" : "unhide"} error:`,
+      err
+    );
+    res.status(500).json({ message: "Couldn't update this trip." });
+  }
+}
+
+// PATCH /api/bookings/mine/hide-cancelled — "Clear all" on the Cancelled tab.
+router.patch("/mine/hide-cancelled", authRequired, async (req, res) => {
+  try {
+    const r = await Booking.updateMany(
+      { user: req.user.id, status: "cancelled", hiddenByUser: { $ne: true } },
+      { $set: { hiddenByUser: true, hiddenAt: new Date() } }
+    );
+    res.json({ ok: true, hidden: r.modifiedCount ?? 0 });
+  } catch (err) {
+    console.error("PATCH /api/bookings/mine/hide-cancelled error:", err);
+    res.status(500).json({ message: "Couldn't clear your cancelled trips." });
+  }
+});
+
+// PATCH /api/bookings/:id/hide and /:id/unhide (Undo).
+router.patch("/:id/hide", authRequired, (req, res) =>
+  setHiddenByUser(req, res, true)
+);
+router.patch("/:id/unhide", authRequired, (req, res) =>
+  setHiddenByUser(req, res, false)
+);
 
 /**
  * GET /api/bookings/admin/search?q=&type=&status=&page=&limit=
@@ -485,11 +548,9 @@ router.post("/:id/cancel-request", authRequired, async (req, res) => {
     res.json({ ok: true, booking });
   } catch (err) {
     console.error("POST /api/bookings/:id/cancel-request error:", err);
-    res
-      .status(500)
-      .json({
-        message: "We couldn't send your request. Please contact support.",
-      });
+    res.status(500).json({
+      message: "We couldn't send your request. Please contact support.",
+    });
   }
 });
 
@@ -569,12 +630,9 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
     if (!booking)
       return res.status(404).json({ message: "Booking not found." });
     if (!["confirmed", "cancel_pending"].includes(booking.status)) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Only confirmed or cancel-pending bookings can be cancelled.",
-        });
+      return res.status(400).json({
+        message: "Only confirmed or cancel-pending bookings can be cancelled.",
+      });
     }
 
     const note = String(req.body?.note || "")
@@ -598,11 +656,9 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
     let refundAmount = round2(Number(req.body?.refundAmount) || 0);
     if (refundMethod === "none") refundAmount = 0;
     if (refundAmount < 0 || refundAmount > paid) {
-      return res
-        .status(400)
-        .json({
-          message: `Refund must be between 0 and the amount paid (${paid}).`,
-        });
+      return res.status(400).json({
+        message: `Refund must be between 0 and the amount paid (${paid}).`,
+      });
     }
     if (refundMethod !== "none" && refundAmount <= 0) {
       return res
@@ -1027,13 +1083,11 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       return res.json({ ok: true, alreadyCancelled: true, booking });
     }
     if (booking.status === "cancel_pending") {
-      return res
-        .status(202)
-        .json({
-          ok: true,
-          pending: true,
-          message: "The airline is still processing this cancellation.",
-        });
+      return res.status(202).json({
+        ok: true,
+        pending: true,
+        message: "The airline is still processing this cancellation.",
+      });
     }
     if (booking.status !== "confirmed") {
       return res
@@ -1042,11 +1096,9 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
     }
     const ids = supplierIds(booking);
     if (!ids.length) {
-      return res
-        .status(400)
-        .json({
-          message: "No supplier reference on file. Contact support to cancel.",
-        });
+      return res.status(400).json({
+        message: "No supplier reference on file. Contact support to cancel.",
+      });
     }
 
     const actor =
@@ -1266,7 +1318,7 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       await Notification.create({
         user: booking.user,
         type: "booking",
-        title: flightPending ? "Cancellation requested ✈️" : "Trip cancelled",
+        title: flightPending ? "Cancellation requested" : "Trip cancelled",
         message: flightPending
           ? "The airline is processing your cancellation. We'll update your trip when it's final."
           : customerRefund > 0
@@ -1302,12 +1354,10 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("POST /api/bookings/:id/cancel error:", err);
-    res
-      .status(500)
-      .json({
-        message:
-          "Cancellation failed. Nothing was charged; please contact support.",
-      });
+    res.status(500).json({
+      message:
+        "Cancellation failed. Nothing was charged; please contact support.",
+    });
   }
 });
 

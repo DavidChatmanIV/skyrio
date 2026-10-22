@@ -86,7 +86,12 @@ const bookingSchema = new Schema(
     // ── Sync Together ──
     // The group trip this booking belongs to (each member books their own
     // seat / room). Set only when the traveler is a member of that group.
-    syncGroup: { type: Schema.Types.ObjectId, ref: "SyncGroup", default: null, index: true },
+    syncGroup: {
+      type: Schema.Types.ObjectId,
+      ref: "SyncGroup",
+      default: null,
+      index: true,
+    },
     // Set when this record is ONE PERSON'S share of a room shared with the
     // group. Only the organizer can cancel a shared room (from the trip page).
     // { splitPaymentId, groupId, shareId, people, roomTotal, shareAmount }
@@ -177,6 +182,13 @@ const bookingSchema = new Schema(
     },
     refundAmount: { type: Number, default: null },
     refundedAt: { type: Date, default: null },
+
+    // ── Hidden from the traveler's own trip list ──
+    // Set when a traveler clears a CANCELLED trip from My Trips. The record
+    // is kept as-is (receipt, refunds, admin reporting) — this only hides
+    // it from their list. See the hide routes in routes/bookings.routes.js.
+    hiddenByUser: { type: Boolean, default: false },
+    hiddenAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
