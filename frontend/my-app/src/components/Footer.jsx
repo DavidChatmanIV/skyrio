@@ -22,7 +22,6 @@ const NAV_COLS = [
       { label: "XP & Levels", to: "/passport" },
       { label: "Badges & Rewards", to: "/passport" },
       { label: "Upgrade Passport", to: "/membership" },
-      { label: "Leaderboard", to: "/passport" },
     ],
   },
   {
