@@ -4599,3 +4599,42 @@ body.sk-roombar-on .sk-results-wrap {
   border-top: 1px dashed rgba(255, 255, 255, 0.14);
   line-height: 1.4;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   HOME AIRPORT — "Home" tag / "Make home" button on the From field
+   ───────────────────────────────────────────────────────────── */
+.sk-home-tag,
+.sk-home-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font: 700 9.5px "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.sk-home-tag {
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #34d399;
+}
+.sk-home-save {
+  background: transparent;
+  border: 1px dashed rgba(255, 179, 71, 0.6);
+  color: #ffb347;
+  cursor: pointer;
+}
+.sk-home-save:hover {
+  border-style: solid;
+  background: rgba(255, 138, 42, 0.14);
+  color: #fff;
+}
+.sk-home-save:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}

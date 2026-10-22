@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Card,
@@ -41,7 +42,13 @@ import {
   Circle,
   Search,
   X,
+  AtSign,
+  PlaneTakeoff,
+  PenLine,
+  Sparkles,
+  Check,
 } from "lucide-react";
+import AirportInput from "@/pages/booking/AirportInput";
 import { io } from "socket.io-client";
 
 import "../../styles/profile-passport.css";
@@ -73,6 +80,7 @@ import ShareRankPrompt from "./ShareRankPrompt";
 import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
 import TravelJourneys from "./TravelJourneys";
 import PassportDataPage from "./PassportDataPage";
+import { readHomeAirport, rememberHomeAirportLocally } from "@/lib/homeAirport";
 
 const { Title, Text } = Typography;
 
@@ -146,7 +154,11 @@ const PREVIEW_STATS = [
 
 const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
 
-// ── Travel vibe options ──────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
+// Edit Profile — Skyrio look (dark glass, orange→purple stripe,
+// mono labels, SVG icons). Centered panel on desktop, bottom sheet
+// on mobile, Save bar always visible. Includes Home airport.
+// ═════════════════════════════════════════════════════════════
 const VIBE_OPTIONS = [
   "Beach",
   "Adventure",
@@ -164,6 +176,464 @@ const VIBE_OPTIONS = [
   "History",
   "Backpacking",
 ];
+const MAX_VIBES = 5;
+const BIO_MAX = 160;
+
+const EP_CSS = `
+body.ep-open .ap-fab-wrapper, body.ep-open .sr-rail-wrapper { visibility: hidden; }
+.ep-scrim { position: fixed; inset: 0; z-index: 1040; background: rgba(6,4,14,0.72);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(var(--sk-nav-h, 104px) + 12px) 24px 24px;
+  animation: epFade .18s ease; }
+.ep-panel { all: unset; box-sizing: border-box; position: relative; width: min(560px, 100%);
+  max-height: min(calc(100vh - var(--sk-nav-h, 104px) - 36px), 820px); display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 22px; background: rgba(18,12,38,0.97); border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6); color: #fff;
+  font-family: "DM Sans", system-ui, sans-serif; animation: epUp .22s ease; }
+.ep-panel::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; z-index: 2;
+  background: linear-gradient(90deg,#ff8a2a,#ffb347 45%,#8b6cff); }
+.ep-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 20px 22px 14px; border-bottom: 2px dashed rgba(255,255,255,0.1); }
+.ep-eyebrow { font: 600 10.5px "JetBrains Mono", ui-monospace, monospace; letter-spacing: .2em;
+  text-transform: uppercase; color: #ffb347; }
+.ep-title { margin: 4px 0 0; font-size: 21px; font-weight: 800; line-height: 1.2; color: #fff; }
+.ep-close { width: 36px; height: 36px; flex-shrink: 0; display: inline-flex; align-items: center;
+  justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.8); cursor: pointer; }
+.ep-close:hover { border-color: rgba(255,138,42,0.6); color: #fff; }
+.ep-body { flex: 1; overflow-y: auto; padding: 18px 22px 8px; display: flex; flex-direction: column; gap: 18px;
+  overscroll-behavior: contain; }
+.ep-field { display: flex; flex-direction: column; gap: 7px; }
+.ep-label { display: flex; align-items: center; gap: 7px; font: 600 10.5px "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: .18em; text-transform: uppercase; color: rgba(255,255,255,0.78); }
+.ep-label svg { color: #ffb347; }
+.ep-label small { margin-left: auto; font: 500 11px "DM Sans", system-ui, sans-serif; letter-spacing: 0;
+  text-transform: none; color: rgba(255,255,255,0.6); }
+.ep-box { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 14px;
+  border-radius: 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14);
+  transition: border-color .15s, box-shadow .15s; }
+.ep-box:focus-within { border-color: rgba(255,138,42,0.75); box-shadow: 0 0 0 3px rgba(255,138,42,0.16); }
+.ep-box.is-error { border-color: rgba(255,107,133,0.75); }
+.ep-prefix { color: rgba(255,255,255,0.55); font-weight: 700; }
+.ep-input, .ep-textarea { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #fff;
+  font: 500 15px "DM Sans", system-ui, sans-serif; }
+.ep-input::placeholder, .ep-textarea::placeholder { color: rgba(255,255,255,0.45); }
+.ep-box--area { align-items: stretch; padding: 12px 14px; }
+.ep-textarea { resize: vertical; min-height: 78px; line-height: 1.5; }
+/* AirportInput draws its own field — no second box around it */
+.ep-airport { display: block; }
+.ep-airport > * { width: 100%; }
+.ep-airport input { font-size: 15px; }
+.ep-help { font-size: 12px; line-height: 1.45; color: rgba(255,255,255,0.62); }
+.ep-help.is-error { color: #ff8fa3; }
+.ep-help.is-hint { color: #ffb347; }
+.ep-chipRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ep-homeChip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+  background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.35); color: #34d399;
+  font: 700 12px "DM Sans", system-ui, sans-serif; }
+.ep-linkBtn { border: 0; background: transparent; color: rgba(255,255,255,0.7); cursor: pointer;
+  font: 600 12px "DM Sans", system-ui, sans-serif; text-decoration: underline; text-underline-offset: 3px; padding: 4px; }
+.ep-linkBtn:hover { color: #ff8fa3; }
+.ep-vibes { display: flex; flex-wrap: wrap; gap: 8px; }
+.ep-vibe { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px;
+  border-radius: 999px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.82); font: 600 13.5px "DM Sans", system-ui, sans-serif; cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s; }
+.ep-vibe:hover:not(:disabled) { border-color: rgba(255,138,42,0.55); color: #fff; }
+.ep-vibe.is-on { border-color: #ff8a2a; background: rgba(255,138,42,0.16); color: #ffb347; }
+.ep-vibe:disabled { opacity: .4; cursor: not-allowed; }
+.ep-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 22px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 2px dashed rgba(255,255,255,0.1); background: rgba(14,9,30,0.98); }
+.ep-status { font-size: 12.5px; color: rgba(255,255,255,0.62); }
+.ep-status.is-dirty { color: #ffb347; }
+.ep-actions { display: flex; gap: 8px; }
+.ep-btn { min-height: 44px; padding: 0 18px; display: inline-flex; align-items: center; gap: 7px;
+  border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: #fff;
+  font: 700 14px "DM Sans", system-ui, sans-serif; cursor: pointer; }
+.ep-btn:hover { border-color: rgba(255,255,255,0.35); }
+.ep-btn.is-primary { border: 0; background: linear-gradient(135deg,#ff8a2a,#ffb347); color: #1a0e06; }
+.ep-btn.is-primary:hover:not(:disabled) { filter: brightness(1.06); }
+.ep-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ep-spin { animation: epSpin 1s linear infinite; }
+.ep-panel :focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
+.ep-panel .ep-box input:focus-visible, .ep-panel .ep-box textarea:focus-visible { outline: none; }
+.ep-body { scrollbar-width: thin; scrollbar-color: rgba(255,138,42,0.45) transparent; }
+.ep-body::-webkit-scrollbar { width: 8px; }
+.ep-body::-webkit-scrollbar-track { background: transparent; }
+.ep-body::-webkit-scrollbar-thumb { background: rgba(255,138,42,0.4); border-radius: 999px; }
+@keyframes epFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes epUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes epSpin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) {
+  .ep-scrim { padding: 0; align-items: flex-end; }
+  .ep-panel { width: 100%; max-height: calc(100vh - var(--sk-nav-h-mobile, 76px));
+    border-radius: 22px 22px 0 0; }
+  .ep-head { padding: 18px 16px 12px; }
+  .ep-body { padding: 16px; }
+  .ep-foot { padding-left: 16px; padding-right: 16px; }
+  .ep-status { display: none; }
+  .ep-actions { flex: 1; }
+  .ep-actions .ep-btn { flex: 1; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ep-scrim, .ep-panel { animation: none; }
+}
+`;
+
+const USERNAME_RE = /^[a-z0-9_.]{3,30}$/;
+const airportLabel = (ap) =>
+  ap?.code ? `${ap.city || ap.code} (${ap.code})` : "";
+const sameAirport = (a, b) => (a?.code || null) === (b?.code || null);
+
+/**
+ * props:
+ *  open, onClose
+ *  initial: { username, city, bio, travelVibes, homeAirport }
+ *  suggestedAirport: airport picked on Discover but not on the account yet
+ *  saving
+ *  onSave(values) — values: { username, city, bio, travelVibes, homeAirport }
+ */
+function EditProfileSheet({
+  open,
+  onClose,
+  initial,
+  suggestedAirport = null,
+  saving = false,
+  onSave,
+}) {
+  const [username, setUsername] = useState("");
+  const [city, setCity] = useState("");
+  const [bio, setBio] = useState("");
+  const [vibes, setVibes] = useState([]);
+  const [airport, setAirport] = useState(null);
+  const [airportText, setAirportText] = useState("");
+  const [fromDiscover, setFromDiscover] = useState(false);
+  const panelRef = useRef(null);
+  const firstRef = useRef(null);
+
+  // Load the current values each time it opens.
+  useEffect(() => {
+    if (!open) return;
+    setUsername(initial?.username || "");
+    setCity(initial?.city || "");
+    setBio(initial?.bio || "");
+    setVibes(initial?.travelVibes || []);
+    const start = initial?.homeAirport?.code
+      ? initial.homeAirport
+      : suggestedAirport?.code
+      ? suggestedAirport
+      : null;
+    setAirport(start);
+    setAirportText(airportLabel(start));
+    setFromDiscover(!initial?.homeAirport?.code && !!suggestedAirport?.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Esc to close, focus inside, keep Tab in the panel, hide floating buttons.
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.body.classList.add("ep-open");
+    const back = document.activeElement;
+    setTimeout(() => firstRef.current?.focus(), 30);
+    const onKey = (e) => {
+      if (e.key === "Escape" && !saving) onClose?.();
+      if (e.key !== "Tab" || !panelRef.current) return;
+      const els = panelRef.current.querySelectorAll(
+        'button:not([disabled]), input, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!els.length) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      document.body.classList.remove("ep-open");
+      back?.focus?.();
+    };
+  }, [open, saving, onClose]);
+
+  const usernameError =
+    username && !USERNAME_RE.test(username)
+      ? "Use 3–30 characters: letters, numbers, _ and . only."
+      : null;
+
+  const dirty = useMemo(() => {
+    if (!open) return false;
+    return (
+      username !== (initial?.username || "") ||
+      city.trim() !== (initial?.city || "") ||
+      bio !== (initial?.bio || "") ||
+      !sameAirport(airport, initial?.homeAirport) ||
+      JSON.stringify([...vibes].sort()) !==
+        JSON.stringify([...(initial?.travelVibes || [])].sort())
+    );
+  }, [open, username, city, bio, vibes, airport, initial]);
+
+  const canSave = dirty && !usernameError && !saving;
+
+  const toggleVibe = (v) =>
+    setVibes((prev) =>
+      prev.includes(v)
+        ? prev.filter((x) => x !== v)
+        : prev.length < MAX_VIBES
+        ? [...prev, v]
+        : prev
+    );
+
+  const submit = (e) => {
+    e?.preventDefault();
+    if (!canSave) return;
+    onSave?.({
+      username: username.trim(),
+      city: city.trim(),
+      bio: bio.trim(),
+      travelVibes: vibes,
+      homeAirport: airport?.code ? airport : null,
+    });
+  };
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="ep-scrim"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !saving) onClose?.();
+      }}
+    >
+      <style>{EP_CSS}</style>
+      <form
+        ref={panelRef}
+        className="ep-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ep-title"
+        onSubmit={submit}
+      >
+        <div className="ep-head">
+          <div>
+            <div className="ep-eyebrow">Digital Passport</div>
+            <h2 className="ep-title" id="ep-title">
+              Edit profile
+            </h2>
+          </div>
+          <button
+            type="button"
+            className="ep-close"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="Close"
+          >
+            <X size={17} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="ep-body">
+          {/* Username */}
+          <div className="ep-field">
+            <label className="ep-label" htmlFor="ep-username">
+              <AtSign size={12} aria-hidden="true" /> Username
+            </label>
+            <div className={`ep-box${usernameError ? " is-error" : ""}`}>
+              <span className="ep-prefix" aria-hidden="true">
+                @
+              </span>
+              <input
+                ref={firstRef}
+                id="ep-username"
+                className="ep-input"
+                value={username}
+                onChange={(e) =>
+                  setUsername(
+                    e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, "")
+                  )
+                }
+                placeholder="skyexplorer99"
+                maxLength={30}
+                autoComplete="username"
+                aria-invalid={!!usernameError}
+                aria-describedby="ep-username-help"
+              />
+            </div>
+            <span
+              id="ep-username-help"
+              className={`ep-help${usernameError ? " is-error" : ""}`}
+            >
+              {usernameError ||
+                "Letters, numbers, _ and . only · 3–30 characters"}
+            </span>
+          </div>
+
+          {/* Home base */}
+          <div className="ep-field">
+            <label className="ep-label" htmlFor="ep-city">
+              <MapPin size={12} aria-hidden="true" /> Home base
+            </label>
+            <div className="ep-box">
+              <input
+                id="ep-city"
+                className="ep-input"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="New York, Miami, London…"
+                maxLength={60}
+                autoComplete="address-level2"
+              />
+            </div>
+          </div>
+
+          {/* Home airport */}
+          <div className="ep-field">
+            <span className="ep-label" id="ep-airport-label">
+              <PlaneTakeoff size={12} aria-hidden="true" /> Home airport
+            </span>
+            <div className="ep-airport" aria-labelledby="ep-airport-label">
+              <AirportInput
+                value={airportText}
+                placeholder="Closest airport, e.g. Newark"
+                onChange={(ap) => {
+                  const next = {
+                    code: String(ap.code || "").toUpperCase(),
+                    city: ap.city || ap.code,
+                    name: ap.name || ap.city || ap.code,
+                  };
+                  setAirport(next);
+                  setAirportText(airportLabel(next));
+                  setFromDiscover(false);
+                }}
+              />
+            </div>
+            {airport?.code ? (
+              <div className="ep-chipRow">
+                <span className="ep-homeChip">
+                  <Check size={13} aria-hidden="true" /> Flights start from{" "}
+                  {airport.code}
+                </span>
+                <button
+                  type="button"
+                  className="ep-linkBtn"
+                  onClick={() => {
+                    setAirport(null);
+                    setAirportText("");
+                    setFromDiscover(false);
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : null}
+            <span className={`ep-help${fromDiscover ? " is-hint" : ""}`}>
+              {fromDiscover
+                ? "Filled in from the airport you picked on Discover. Save to add it to your passport."
+                : "Flight searches start here. You can still fly from anywhere."}
+            </span>
+          </div>
+
+          {/* Bio */}
+          <div className="ep-field">
+            <label className="ep-label" htmlFor="ep-bio">
+              <PenLine size={12} aria-hidden="true" /> Bio
+              <small>
+                {bio.length} / {BIO_MAX}
+              </small>
+            </label>
+            <div className="ep-box ep-box--area">
+              <textarea
+                id="ep-bio"
+                className="ep-textarea"
+                value={bio}
+                onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX))}
+                placeholder="Tell the world about your travel style…"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          {/* Travel vibe */}
+          <div
+            className="ep-field"
+            role="group"
+            aria-labelledby="ep-vibes-label"
+          >
+            <span className="ep-label" id="ep-vibes-label">
+              <Sparkles size={12} aria-hidden="true" /> Travel vibe
+              <small>
+                {vibes.length}/{MAX_VIBES} picked
+              </small>
+            </span>
+            <div className="ep-vibes">
+              {VIBE_OPTIONS.map((v) => {
+                const on = vibes.includes(v);
+                const full = !on && vibes.length >= MAX_VIBES;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    className={`ep-vibe${on ? " is-on" : ""}`}
+                    aria-pressed={on}
+                    disabled={full}
+                    onClick={() => toggleVibe(v)}
+                  >
+                    {on && <Check size={13} aria-hidden="true" />}
+                    {v}
+                  </button>
+                );
+              })}
+            </div>
+            {vibes.length >= MAX_VIBES && (
+              <span className="ep-help">
+                That's 5. Tap one you picked to swap it out.
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="ep-foot">
+          <span
+            className={`ep-status${dirty ? " is-dirty" : ""}`}
+            role="status"
+          >
+            {dirty ? "You have unsaved changes" : "No changes yet"}
+          </span>
+          <div className="ep-actions">
+            <button
+              type="button"
+              className="ep-btn"
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="ep-btn is-primary"
+              disabled={!canSave}
+            >
+              {saving && (
+                <Loader2 size={15} className="ep-spin" aria-hidden="true" />
+              )}
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>,
+    document.body
+  );
+}
 
 function getYouTubeEmbedUrl(url) {
   try {
@@ -907,11 +1377,10 @@ export default function DigitalPassportPage() {
   const [profileMusic, setProfileMusic] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
   const [showShare, setShowShare] = useState(false);
-  const [editUsername, setEditUsername] = useState("");
-  const [editBio, setEditBio] = useState("");
-  const [editCity, setEditCity] = useState("");
-  const [editVibes, setEditVibes] = useState([]);
   const [editSaving, setEditSaving] = useState(false);
+  // Airport picked on Discover (this browser only) — offered in Edit
+  // Profile for accounts that don't have one saved yet.
+  const [discoverAirport, setDiscoverAirport] = useState(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [xpToastShown, setXpToastShown] = useState(false);
 
@@ -954,10 +1423,14 @@ export default function DigitalPassportPage() {
     return `@${String(base).toLowerCase()}`;
   }, [user]);
 
+  // "New Jersey · EWR" — home base plus home airport when both are set.
   const homeBaseLabel = useMemo(() => {
     const hb = user?.city || user?.homeBase;
-    return hb && typeof hb === "string" ? hb : "Not set";
-  }, [user?.city, user?.homeBase]);
+    const city = hb && typeof hb === "string" ? hb : "";
+    const code = user?.homeAirport?.code || "";
+    if (city && code) return `${city} · ${code}`;
+    return city || code || "Not set";
+  }, [user?.city, user?.homeBase, user?.homeAirport?.code]);
 
   // Ring progress is based on LIFETIME XP (rank), not the spendable balance.
   const xpGoal = useMemo(() => {
@@ -971,18 +1444,6 @@ export default function DigitalPassportPage() {
     const current = Number(totalEarned || 0);
     return Math.max(0, Math.min(100, Math.round((current / xpGoal) * 100)));
   }, [totalEarned, xpGoal]);
-
-  // ── FIX: dirty check so Save Changes is only active when there are edits ──
-  const isProfileDirty = useMemo(() => {
-    if (!editOpen) return false;
-    return (
-      editUsername !== (user?.username || "") ||
-      editBio !== (user?.bio || "") ||
-      editCity !== (user?.city || user?.homeBase || "") ||
-      JSON.stringify([...editVibes].sort()) !==
-        JSON.stringify([...(user?.travelVibes || [])].sort())
-    );
-  }, [editOpen, editUsername, editBio, editCity, editVibes, user]);
 
   const handleSearchFollowChange = useCallback(() => {
     fetch(apiUrl("/api/passport/stats"), {
@@ -1094,16 +1555,24 @@ export default function DigitalPassportPage() {
         if (setUser && data?.user) {
           const tier = data.user.verifiedTier ?? null;
           const pending = data.user.verificationPending ?? false;
+          const home = data.user.homeAirport?.code
+            ? data.user.homeAirport
+            : null;
+          // Keep this browser's copy in step with the account.
+          if (home) rememberHomeAirportLocally(home);
+          setDiscoverAirport(home ? null : readHomeAirport());
           setUser((prev) => {
             if (
               prev?.verifiedTier === tier &&
-              prev?.verificationPending === pending
+              prev?.verificationPending === pending &&
+              (prev?.homeAirport?.code || null) === (home?.code || null)
             )
               return prev;
             const updated = {
               ...prev,
               verifiedTier: tier,
               verificationPending: pending,
+              homeAirport: home,
             };
             try {
               localStorage.setItem(
@@ -1112,6 +1581,7 @@ export default function DigitalPassportPage() {
                   ...JSON.parse(localStorage.getItem("user") || "{}"),
                   verifiedTier: tier,
                   verificationPending: pending,
+                  homeAirport: home,
                 })
               );
             } catch {}
@@ -1304,21 +1774,18 @@ export default function DigitalPassportPage() {
     }
   };
 
-  // ── FIX 6: client-side validation before hitting the API ──
-  const handleSaveProfile = async () => {
-    const trimmedUsername = editUsername.trim();
-    if (trimmedUsername && trimmedUsername.length < 3) {
-      message.error("Username must be at least 3 characters.");
-      return;
-    }
+  // Save from the Edit Profile sheet — one request for every field,
+  // including the home airport.
+  const handleSaveProfile = async (values) => {
     setEditSaving(true);
-    let saved = false;
     try {
       const payload = {
-        username: editUsername.trim() || user?.username,
-        bio: editBio.trim(),
-        city: editCity.trim(),
-        travelVibes: editVibes,
+        username: values.username || user?.username,
+        bio: values.bio,
+        city: values.city,
+        travelVibes: values.travelVibes,
+        // null clears it
+        homeAirportData: values.homeAirport,
       };
       const res = await fetch(apiUrl("/api/profile/settings"), {
         method: "PATCH",
@@ -1329,40 +1796,39 @@ export default function DigitalPassportPage() {
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok)
+        throw new Error(data.message || "Couldn't save your profile.");
 
-      // Update local user state
+      const changes = {
+        username: payload.username,
+        city: payload.city,
+        bio: payload.bio,
+        travelVibes: payload.travelVibes,
+        homeAirport: values.homeAirport,
+      };
+      // Flight searches on this device use it right away.
+      rememberHomeAirportLocally(values.homeAirport);
+      setDiscoverAirport(null);
       if (setUser) {
-        setUser((prev) => ({
-          ...prev,
-          username: payload.username,
-          city: payload.city,
-          bio: payload.bio,
-          travelVibes: editVibes,
-        }));
+        setUser((prev) => ({ ...prev, ...changes }));
         try {
           localStorage.setItem(
             "user",
             JSON.stringify({
               ...JSON.parse(localStorage.getItem("user") || "{}"),
-              username: payload.username,
-              city: payload.city,
-              bio: payload.bio,
-              travelVibes: editVibes,
+              ...changes,
             })
           );
         } catch {}
       }
-
-      saved = true;
-      message.success("Profile updated ✓");
+      message.success("Profile saved");
+      setEditOpen(false);
     } catch (err) {
-      message.error(err.message || "Failed to save. Please try again.");
+      // Stay open so nothing typed is lost.
+      message.error(err.message || "Couldn't save. Please try again.");
     } finally {
       setEditSaving(false);
-      // Only close if save succeeded; keep open on error so user can fix
-      if (saved) setEditOpen(false);
     }
   };
 
@@ -1581,13 +2047,7 @@ export default function DigitalPassportPage() {
                       <Button
                         className="pp-actionBtn"
                         icon={<EditOutlined />}
-                        onClick={() => {
-                          setEditUsername(user?.username || "");
-                          setEditBio(user?.bio || "");
-                          setEditCity(user?.city || user?.homeBase || "");
-                          setEditVibes(user?.travelVibes || []);
-                          setEditOpen(true);
-                        }}
+                        onClick={() => setEditOpen(true)}
                       >
                         Edit Profile
                       </Button>
@@ -1702,176 +2162,21 @@ export default function DigitalPassportPage() {
         value={profileMusic}
       />
 
-      {/* ── Edit Profile Modal ── */}
-      <Modal
+      {/* ── Edit Profile ── */}
+      <EditProfileSheet
         open={editOpen}
-        onCancel={() => {
-          setEditOpen(false);
+        onClose={() => setEditOpen(false)}
+        saving={editSaving}
+        initial={{
+          username: user?.username || "",
+          city: user?.city || user?.homeBase || "",
+          bio: user?.bio || "",
+          travelVibes: user?.travelVibes || [],
+          homeAirport: user?.homeAirport?.code ? user.homeAirport : null,
         }}
-        onOk={handleSaveProfile}
-        confirmLoading={editSaving}
-        title="Edit Profile"
-        okText="Save Changes"
-        cancelText="Cancel"
-        // FIX: disable Save Changes when nothing has changed
-        okButtonProps={{ disabled: !isProfileDirty || editSaving }}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-            paddingTop: 8,
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: 12,
-                marginBottom: 6,
-                opacity: 0.6,
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-              }}
-            >
-              USERNAME
-            </div>
-            <Input
-              value={editUsername}
-              onChange={(e) =>
-                setEditUsername(
-                  e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, "")
-                )
-              }
-              prefix={<span style={{ opacity: 0.5 }}>@</span>}
-              placeholder="skyexplorer99"
-              maxLength={30}
-            />
-            <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
-              Letters, numbers, _ and . only · 3–30 characters
-            </div>
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: 12,
-                marginBottom: 6,
-                opacity: 0.6,
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-              }}
-            >
-              HOME BASE
-            </div>
-            <Input
-              value={editCity}
-              onChange={(e) => setEditCity(e.target.value)}
-              placeholder="New York, Miami, London..."
-              maxLength={60}
-            />
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: 12,
-                marginBottom: 6,
-                opacity: 0.6,
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-              }}
-            >
-              BIO
-            </div>
-            <Input.TextArea
-              value={editBio}
-              onChange={(e) => setEditBio(e.target.value)}
-              placeholder="Tell the world about your travel style..."
-              maxLength={160}
-              rows={3}
-              showCount
-            />
-          </div>
-
-          {/* ── Travel Vibe picker ── */}
-          <div>
-            <div
-              style={{
-                fontSize: 12,
-                marginBottom: 8,
-                opacity: 0.6,
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-              }}
-            >
-              TRAVEL VIBE{" "}
-              <span style={{ fontWeight: 400, opacity: 0.7 }}>
-                (pick up to 5)
-              </span>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {VIBE_OPTIONS.map((vibe) => {
-                const selected = editVibes.includes(vibe);
-                return (
-                  <button
-                    key={vibe}
-                    type="button"
-                    onClick={() => {
-                      setEditVibes((prev) =>
-                        selected
-                          ? prev.filter((v) => v !== vibe)
-                          : prev.length < 5
-                          ? [...prev, vibe]
-                          : prev
-                      );
-                    }}
-                    style={{
-                      padding: "6px 14px",
-                      borderRadius: 999,
-                      border: selected
-                        ? "1.5px solid #ff8a2a"
-                        : "1px solid rgba(255,255,255,0.15)",
-                      background: selected
-                        ? "rgba(255,138,42,0.15)"
-                        : "rgba(255,255,255,0.04)",
-                      color: selected ? "#ff8a2a" : "rgba(255,255,255,0.55)",
-                      fontSize: 13,
-                      fontWeight: selected ? 700 : 500,
-                      cursor:
-                        !selected && editVibes.length >= 5
-                          ? "not-allowed"
-                          : "pointer",
-                      opacity: !selected && editVibes.length >= 5 ? 0.4 : 1,
-                      transition: "all 0.15s",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    {vibe}
-                  </button>
-                );
-              })}
-            </div>
-            {editVibes.length > 0 && (
-              <div style={{ fontSize: 11, opacity: 0.4, marginTop: 6 }}>
-                {editVibes.length}/5 selected
-              </div>
-            )}
-          </div>
-
-          {/* FIX: visual hint when there's nothing to save */}
-          {!isProfileDirty && (
-            <div
-              style={{
-                fontSize: 12,
-                color: "rgba(255,255,255,0.3)",
-                textAlign: "center",
-                paddingTop: 4,
-              }}
-            >
-              No unsaved changes
-            </div>
-          )}
-        </div>
-      </Modal>
+        suggestedAirport={user?.homeAirport?.code ? null : discoverAirport}
+        onSave={handleSaveProfile}
+      />
 
       {/* ── Delete Account — Step 1 ── */}
       <Modal

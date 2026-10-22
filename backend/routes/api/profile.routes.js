@@ -69,6 +69,20 @@ router.get("/me", requireAuth, async (req, res) => {
         travelVibes: profile?.travelVibes?.length
           ? profile.travelVibes
           : safe.travelVibes || [],
+        // Home airport: the account's, else one saved on the older Profile.
+        homeAirport: safe.homeAirport?.code
+          ? safe.homeAirport
+          : profile?.homeAirportData?.code
+          ? {
+              code: profile.homeAirportData.code,
+              city:
+                profile.homeAirportData.city || profile.homeAirportData.code,
+              name:
+                profile.homeAirportData.name ||
+                profile.homeAirportData.city ||
+                "",
+            }
+          : null,
         // Verification — explicit so frontend always gets these
         verifiedTier: safe.verifiedTier ?? null,
         verificationPending: safe.verificationPending ?? false,
@@ -234,12 +248,32 @@ router.patch("/settings", requireAuth, async (req, res) => {
       userUpdates.travelVibes = travelVibes.slice(0, 5);
     }
 
-    if (homeAirportData?.code) {
-      profileUpdates.homeAirportData = {
-        code: homeAirportData.code,
-        city: homeAirportData.city || "",
-        name: homeAirportData.name || "",
+    // Home airport (Digital Passport). Saved on BOTH Profile and User:
+    // User.homeAirport is what the booking page reads on any device.
+    // Sending homeAirportData: null clears it.
+    if (homeAirportData === null) {
+      profileUpdates.homeAirportData = null;
+      userUpdates.homeAirport = { code: null, city: null, name: null };
+    } else if (homeAirportData?.code) {
+      const code = String(homeAirportData.code).trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(code)) {
+        return res.status(400).json({
+          ok: false,
+          message: "Pick your home airport from the list.",
+        });
+      }
+      const clip = (v) =>
+        String(v || "")
+          .replace(/[<>]/g, "")
+          .trim()
+          .slice(0, 120);
+      const ap = {
+        code,
+        city: clip(homeAirportData.city) || code,
+        name: clip(homeAirportData.name) || clip(homeAirportData.city) || code,
       };
+      profileUpdates.homeAirportData = ap;
+      userUpdates.homeAirport = ap;
     }
 
     const [profile] = await Promise.all([

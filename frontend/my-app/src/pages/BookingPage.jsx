@@ -62,6 +62,11 @@ import { useExcursionSearch } from "@/hooks/useExcursionSearch";
 import ExcursionResults from "@/pages/booking/ExcursionResults";
 import TripBudgetBar from "@/components/syncTogether/TripBudgetBar";
 import {
+  readHomeAirport,
+  fetchHomeAirport,
+  saveHomeAirport,
+} from "@/lib/homeAirport";
+import {
   tripBudgetFrom,
   priceFit,
   splitByBudget,
@@ -87,6 +92,7 @@ import {
   BedDouble,
   Check,
   X as XIcon,
+  Home as HomeIcon,
 } from "lucide-react";
 
 // Whole-dollar price with thousands commas: 1165 → "1,165". "—" if unknown.
@@ -1302,9 +1308,54 @@ function FlightsForm({
   retryRef,
   initial = null,
 }) {
-  const [originAirport, setOriginAirport] = useState(null);
+  // From starts on the traveler's home airport, unless the link says where
+  // to fly from. They can always change it.
+  const [homeAirport, setHomeAirport] = useState(readHomeAirport);
+  const startFromHome = !initial?.from && homeAirport ? homeAirport : null;
+  const [originAirport, setOriginAirport] = useState(startFromHome);
   const [destAirport, setDestAirport] = useState(null);
-  const [originDisplay, setOriginDisplay] = useState("");
+  const [originDisplay, setOriginDisplay] = useState(
+    startFromHome ? `${startFromHome.city} (${startFromHome.code})` : ""
+  );
+  // Fill the boarding pass's FROM with the home city right away.
+  useEffect(() => {
+    if (startFromHome) onOriginChange?.(startFromHome.city);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // New device: nothing saved in this browser yet, so ask the account
+  // (Digital Passport). Only fills From if it's still empty.
+  const originRef = useRef(originAirport);
+  originRef.current = originAirport;
+  useEffect(() => {
+    if (homeAirport || initial?.from) return;
+    let alive = true;
+    fetchHomeAirport().then(({ homeAirport: ap }) => {
+      if (!alive || !ap) return;
+      setHomeAirport(ap);
+      if (!originRef.current) {
+        setOriginAirport(ap);
+        setOriginDisplay(`${ap.city} (${ap.code})`);
+        onOriginChange?.(ap.city);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const isHomeOrigin =
+    !!originAirport?.code &&
+    originAirport.code.toUpperCase() === homeAirport?.code;
+  const makeHome = async () => {
+    const { homeAirport: saved, synced } = await saveHomeAirport(originAirport);
+    if (!saved) return;
+    setHomeAirport(saved);
+    antdMessage.success(
+      synced
+        ? `${saved.city} (${saved.code}) is now your home airport`
+        : `${saved.city} (${saved.code}) saved as home on this device`
+    );
+  };
   const [destDisplay, setDestDisplay] = useState("");
   const [dates, setDates] = useState([null, null]);
   const [cabin, setCabin] = useState("economy");
@@ -1526,6 +1577,20 @@ function FlightsForm({
               style={{ transform: "rotate(45deg)" }}
             />{" "}
             From
+            {isHomeOrigin ? (
+              <span className="sk-home-tag" title="Your home airport">
+                <HomeIcon size={10} aria-hidden="true" /> Home
+              </span>
+            ) : originAirport?.code ? (
+              <button
+                type="button"
+                className="sk-home-save"
+                onClick={makeHome}
+                title={`Start every flight search from ${originAirport.city}`}
+              >
+                <HomeIcon size={10} aria-hidden="true" /> Make home
+              </button>
+            ) : null}
           </span>
           <AirportInput
             value={originDisplay}
@@ -3843,7 +3908,8 @@ export default function BookingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
 
-  const fromCode = searchParams.get("from") || "EWR";
+  // Where flights leave from: the link, else the traveler's home airport.
+  const fromCode = searchParams.get("from") || readHomeAirport()?.code || "EWR";
 
   // ── Sync Together: booking your own part of a group trip ──
   // /booking?groupId=… comes from the trip page. Kept in sessionStorage so

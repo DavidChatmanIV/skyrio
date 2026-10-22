@@ -35,6 +35,13 @@ const UserSchema = new Schema(
     bio: { type: String, trim: true },
     city: { type: String, trim: true },
     travelVibes: { type: [String], default: [] },
+    // Airport closest to home — flight searches start here (Digital
+    // Passport). Saved with the account so it works on every device.
+    homeAirport: {
+      code: { type: String, trim: true, uppercase: true, default: null },
+      city: { type: String, trim: true, default: null },
+      name: { type: String, trim: true, default: null },
+    },
 
     // ---------- Verification ----------
     verifiedTier: {
@@ -203,6 +210,7 @@ UserSchema.methods.toSafeJSON = function () {
     bio: this.bio,
     city: this.city,
     travelVibes: this.travelVibes,
+    homeAirport: this.homeAirport?.code ? this.homeAirport : null,
     verifiedTier: this.verifiedTier,
     verificationPending: this.verificationPending,
     referredBy: this.referredBy,
