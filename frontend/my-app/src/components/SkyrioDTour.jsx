@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
+import { RANKS, RANK_PERKS, hasAnyRankPerks, XP_EARN } from "@/config/xpGuide";
 
 const STORAGE_KEY = "skyrio_tour_done";
 const START_DELAY_MS = 2500;
@@ -87,6 +88,28 @@ const Icon = {
       <path d="M20 6 9 17l-5-5" />
     </Svg>
   ),
+  wallet: (p) => (
+    <Svg {...p}>
+      <path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v3h-4a2 2 0 0 0 0 4h4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5" />
+    </Svg>
+  ),
+  trophy: (p) => (
+    <Svg {...p}>
+      <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3" />
+    </Svg>
+  ),
+  no: (p) => (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m5.6 5.6 12.8 12.8" />
+    </Svg>
+  ),
+  clock: (p) => (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </Svg>
+  ),
   tip: (p) => (
     <Svg {...p}>
       <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z" />
@@ -152,16 +175,57 @@ const STEPS = [
   },
   {
     icon: "passport",
-    kicker: "Passport",
-    title: "Earn XP and climb the ranks",
-    body: "Your Digital Passport tracks your trips, XP and rank. Booking trips earns the most XP; posting on SkyHub earns some too.",
+    kicker: "XP · how you earn it",
+    title: "Earn XP as you travel",
+    body: "XP (experience points) are Skyrio's reward points. You earn them by booking trips and taking part in the community. Your Digital Passport keeps track.",
     points: [
-      { icon: "check", text: "Booking XP unlocks once your trip starts" },
-      { icon: "check", text: "Spend XP on rewards in Passport Rewards" },
-      { icon: "check", text: "Spending XP never lowers your rank" },
+      {
+        icon: "plane",
+        text: `Book a flight: ${XP_EARN.flightMin}–${XP_EARN.flightMax} XP (nonstop earns the most)`,
+      },
+      { icon: "book", text: `Book a hotel: ${XP_EARN.hotel} XP` },
+      {
+        icon: "check",
+        text: `Firsts: +${XP_EARN.firstBooking} for your first booking, +${XP_EARN.profileCompleted} for completing your profile`,
+      },
+      {
+        icon: "skyhub",
+        text: `SkyHub posts, comments and daily visits: up to ${XP_EARN.engagementDaily} XP a day`,
+      },
+      {
+        icon: "clock",
+        text: `Booking XP shows as pending and counts ${XP_EARN.bookingHoldHours} hours after your trip starts. A cancelled booking earns no XP.`,
+      },
     ],
+  },
+  {
+    icon: "wallet",
+    kicker: "XP · what it's for",
+    title: "Spend XP on rewards",
+    body: "You have two XP numbers. Total earned decides your rank. Spendable XP is what you can trade for rewards. When you redeem, only your spendable XP goes down. Your rank never drops.",
+    points: [
+      {
+        icon: "check",
+        text: "Spend it in Passport Rewards on boosts, badges, perks and drops",
+      },
+      { icon: "check", text: "Spending XP never lowers your rank" },
+      {
+        icon: "no",
+        text: "XP isn't cash, and it can't be used to pay for flights or hotels right now",
+      },
+    ],
+    tip: "Using XP toward trips is something we want to add. If it happens, we'll announce it. Until then, XP is for rewards inside Skyrio.",
+    path: "/passport/rewards",
+    cta: "Open Passport Rewards",
+  },
+  {
+    icon: "trophy",
+    kicker: "XP · ranks",
+    title: "Climb 8 ranks",
+    body: "Every XP you earn moves you up a rank, and your rank shows on your passport and profile.",
+    ladder: true,
     path: "/passport",
-    cta: "Open Passport",
+    cta: "See my rank",
   },
   {
     icon: "group",
@@ -207,6 +271,15 @@ const TOUR_CSS = `
 .st-points li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); font-size: 13.5px; color: rgba(255,255,255,0.88); }
 .st-points li svg { color: #ffb347; flex-shrink: 0; }
 
+.st-points li.is-no svg { color: #ff8fa3; }
+.st-ladder { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.st-ladder li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
+.st-ladder b { display: flex; align-items: center; gap: 7px; font-size: 13.5px; }
+.st-ladder b i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.st-ladder small { font-family: ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size: 11px; color: rgba(255,255,255,0.65); }
+.st-ladder em { font-style: normal; font-size: 12px; color: #ffd2a3; }
+.st-ladder em.is-soon { color: rgba(255,255,255,0.6); }
+.st-perkNote { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.72); }
 .st-tip { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 14px; border-radius: 12px; background: rgba(255,138,42,0.09); border: 1px dashed rgba(255,138,42,0.4); font-size: 13px; line-height: 1.5; color: #ffd2a3; }
 .st-tip svg { flex-shrink: 0; margin-top: 1px; color: #ffb347; }
 
@@ -416,13 +489,48 @@ export default function SkyrioDTour() {
               {s.points.map((p) => {
                 const PIcon = Icon[p.icon];
                 return (
-                  <li key={p.text}>
+                  <li
+                    key={p.text}
+                    className={p.icon === "no" ? "is-no" : undefined}
+                  >
                     <PIcon size={17} />
                     {p.text}
                   </li>
                 );
               })}
             </ul>
+          )}
+
+          {s.ladder && (
+            <>
+              <ul className="st-ladder" aria-label="Skyrio ranks">
+                {RANKS.map((r) => (
+                  <li key={r.name}>
+                    <b>
+                      <i style={{ background: r.color }} aria-hidden="true" />
+                      {r.name}
+                    </b>
+                    <small>{r.minXp.toLocaleString()} XP</small>
+                    {(RANK_PERKS[r.name] || []).map((perk) => (
+                      <em
+                        key={perk.text}
+                        className={
+                          perk.status === "soon" ? "is-soon" : undefined
+                        }
+                      >
+                        {perk.text}
+                        {perk.status === "soon" ? " (coming soon)" : ""}
+                      </em>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+              <p className="st-perkNote">
+                {hasAnyRankPerks()
+                  ? "Higher ranks unlock more of Skyrio. Anything marked coming soon isn't available yet."
+                  : "We're adding perks that unlock as you rank up. Anything new will show here and in Passport Rewards first, and your XP already counts toward it."}
+              </p>
+            </>
           )}
 
           {s.tip && (

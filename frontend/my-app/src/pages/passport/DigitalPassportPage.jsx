@@ -134,7 +134,7 @@ const LOCK_PERKS = [
   },
   {
     icon: <LucideTag size={16} />,
-    text: "Redeem XP for real discounts on future bookings",
+    text: "Spend XP on rewards in Passport Rewards",
   },
   {
     icon: <MapPin size={16} />,
@@ -149,7 +149,7 @@ const LOCK_PERKS = [
 const PREVIEW_STATS = [
   { val: "2,840", label: "XP Earned" },
   { val: "12", label: "Trips Saved" },
-  { val: "15%", label: "Discount" },
+  { val: "Voyager", label: "Rank" },
 ];
 
 const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
