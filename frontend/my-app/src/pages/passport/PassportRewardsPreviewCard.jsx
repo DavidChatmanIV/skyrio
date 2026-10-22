@@ -18,7 +18,7 @@ export default function PassportRewardsPreviewCard({
   featuredDropCost, // optional override; lets you pass cost separately from title
   ctaLabel = "Open Passport Rewards",
   tier = "LOCKED", // LOCKED | ACTIVE | PREMIUM — ignored once canAfford is true
-  expiresLabel = "Issued—Expires: Dec 31, 2026",
+  expiresLabel = "", // only shown when a real end date is passed in
   disabled = true, // soft launch kill switch, independent of XP math
   onOpen,
 }) {
@@ -78,7 +78,7 @@ export default function PassportRewardsPreviewCard({
           </div>
         </div>
         <Text className="pp-muted" style={{ display: "block", marginTop: 6 }}>
-          Spend XP like currency. Earn it by traveling.
+          Earn XP as you travel. Spend it on rewards in Skyrio. (XP isn't cash.)
         </Text>
       </div>
 
@@ -117,9 +117,9 @@ export default function PassportRewardsPreviewCard({
           </Text>
           <div className="pp-prDropName">{dropTitle}</div>
           <Text className="pp-faint" style={{ fontSize: 12 }}>
-            {dropCost != null
-              ? `${dropCost} XP · ${expiresLabel}`
-              : expiresLabel}
+            {[dropCost != null ? `${dropCost} XP` : null, expiresLabel || null]
+              .filter(Boolean)
+              .join(" · ")}
           </Text>
         </div>
 

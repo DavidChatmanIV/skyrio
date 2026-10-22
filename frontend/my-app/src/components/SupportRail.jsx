@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { MessageSquare, LifeBuoy, X, Star } from "lucide-react";
+import { MessageSquare, LifeBuoy, X, Star, Compass } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -240,6 +240,12 @@ export default function SupportRail() {
           box-shadow: 0 8px 22px rgba(124,92,252,0.42);
           color: #fff;
         }
+        .sr-action--tour {
+          background: rgba(16,11,34,0.92);
+          border: 1px solid rgba(255,179,71,0.55);
+          box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+          color: #ffb347;
+        }
         .sr-action__icon {
           width: 44px;
           height: 44px;
@@ -266,6 +272,7 @@ export default function SupportRail() {
           }
           .sr-action--feedback:hover { box-shadow: 0 12px 30px rgba(255,138,42,0.5); }
           .sr-action--help:hover { box-shadow: 0 12px 30px rgba(124,92,252,0.55); }
+          .sr-action--tour:hover { box-shadow: 0 12px 30px rgba(255,138,42,0.35); color: #fff; }
           .sr-action:hover .sr-action__label,
           .sr-action:focus-visible .sr-action__label {
             max-width: 140px;
@@ -289,6 +296,7 @@ export default function SupportRail() {
             animation: railFan 0.2s cubic-bezier(0.22,1,0.36,1) both;
           }
           .sr-rail-wrapper.is-open .sr-action--feedback { animation-delay: 0.04s; }
+          .sr-rail-wrapper.is-open .sr-action--tour { animation-delay: 0.08s; }
           .sr-rail-wrapper.is-open .sr-action__label {
             max-width: 160px;
             opacity: 1;
@@ -349,6 +357,24 @@ export default function SupportRail() {
           gap: 10,
         }}
       >
+        {/* Replays the Skyrio tour (SkyrioDTour listens for this event) */}
+        <button
+          type="button"
+          className="sr-action sr-action--tour"
+          onClick={() => {
+            setMenuOpen(false);
+            window.dispatchEvent(new Event("skyrio:tour"));
+          }}
+          aria-label="Take the tour"
+        >
+          <span className="sr-action__icon">
+            <Compass size={19} />
+          </span>
+          <span className="sr-action__label" aria-hidden="true">
+            Take the tour
+          </span>
+        </button>
+
         <button
           type="button"
           className="sr-action sr-action--feedback"

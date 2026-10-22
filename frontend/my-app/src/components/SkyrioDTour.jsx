@@ -286,7 +286,7 @@ const TOUR_CSS = `
 .st-card .st-goto { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; font-size: 13px; font-weight: 700; color: #ffb347; border-bottom: 1px solid rgba(255,179,71,0.4); padding-bottom: 1px; }
 .st-card .st-goto:hover { color: #fff; border-color: #fff; }
 
-.st-foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding: 14px 22px calc(18px + env(safe-area-inset-bottom, 0px)); border-top: 1px dashed rgba(255,255,255,0.14); background: rgba(16,11,34,0.96); }
+.st-foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding: 14px 22px calc(18px + env(safe-area-inset-bottom, 0px)); border-top: 1px dashed rgba(255,255,255,0.14); background: #100b22; }
 .st-dots { display: flex; gap: 6px; align-items: center; }
 .st-card .st-dot { width: 8px; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.22); transition: width .25s ease, background .25s ease; }
 .st-card .st-dot.is-done { background: rgba(139,108,255,0.8); }
@@ -528,7 +528,7 @@ export default function SkyrioDTour() {
               <p className="st-perkNote">
                 {hasAnyRankPerks()
                   ? "Higher ranks unlock more of Skyrio. Anything marked coming soon isn't available yet."
-                  : "We're adding perks that unlock as you rank up. Anything new will show here and in Passport Rewards first, and your XP already counts toward it."}
+                  : "Perks that unlock as you rank up are on the way. When we add one, it'll show here and in Passport Rewards. The XP you earn now still counts toward your rank."}
               </p>
             </>
           )}

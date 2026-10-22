@@ -33,6 +33,7 @@ import {
   ArrowRight,
   Trophy,
   Wallet,
+  Ban,
 } from "lucide-react";
 
 import "../../styles/PassportRewards.css";
@@ -45,6 +46,7 @@ import {
   getTierProgress,
 } from "@/config/xpConfig";
 import TierIcon, { TierMedal } from "@/components/passport/TierIcon";
+import { RANKS, RANK_PERKS, hasAnyRankPerks, XP_EARN } from "@/config/xpGuide";
 
 // Same icon-key set as AdminDashboard.jsx's challenge creation form —
 // kept in sync so a challenge's icon renders identically for the admin
@@ -564,39 +566,138 @@ export default function PassportRewards({
             <ChevronDown size={16} className="pr-how-chev" />
           </button>
           {howOpen && (
-            <ol className="pr-how-steps">
-              <li>
-                <span className="pr-how-num">1</span>
-                <div>
-                  <strong>Earn</strong>
-                  <p>
-                    Booking trips earns the most XP. Reviews, challenges,
-                    invites and SkyHub add more. Booking XP stays pending until
-                    the free-cancellation window ends.
+            <>
+              <ol className="pr-how-steps">
+                <li>
+                  <span className="pr-how-num">1</span>
+                  <div>
+                    <strong>Earn</strong>
+                    <p>
+                      Book trips, join challenges, invite friends and post on
+                      SkyHub. Booking trips earns the most.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span className="pr-how-num">2</span>
+                  <div>
+                    <strong>Rank up</strong>
+                    <p>
+                      Every XP you earn adds to your rank, and spending never
+                      lowers it. Only a cancelled booking or a removed post
+                      takes XP back.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span className="pr-how-num">3</span>
+                  <div>
+                    <strong>Spend</strong>
+                    <p>
+                      Use your spendable XP on the boosts, badges, perks and
+                      drops below. Spending lowers spendable XP, not your rank.
+                    </p>
+                  </div>
+                </li>
+              </ol>
+
+              <div className="pr-how-more">
+                {/* What earns XP */}
+                <section className="pr-how-block" aria-labelledby="pr-earn-h">
+                  <h3 className="pr-how-h" id="pr-earn-h">
+                    <Trophy size={13} aria-hidden="true" /> What earns XP
+                  </h3>
+                  <ul className="pr-earn">
+                    <li>
+                      Book a flight
+                      <b>
+                        {XP_EARN.flightMin}–{XP_EARN.flightMax} XP
+                      </b>
+                    </li>
+                    <li>
+                      Book a hotel <b>{XP_EARN.hotel} XP</b>
+                    </li>
+                    <li>
+                      Your first booking <b>+{XP_EARN.firstBooking} XP</b>
+                    </li>
+                    <li>
+                      Complete your profile{" "}
+                      <b>+{XP_EARN.profileCompleted} XP</b>
+                    </li>
+                    <li>
+                      SkyHub & daily visits{" "}
+                      <b>up to {XP_EARN.engagementDaily} a day</b>
+                    </li>
+                  </ul>
+                  <p className="pr-how-note">
+                    Nonstop flights earn the most. Booking XP shows as pending,
+                    then counts {XP_EARN.bookingHoldHours} hours after your trip
+                    starts. A cancelled booking earns no XP.
                   </p>
-                </div>
-              </li>
-              <li>
-                <span className="pr-how-num">2</span>
-                <div>
-                  <strong>Rank up</strong>
-                  <p>
-                    Every XP you earn counts toward your rank — for good. Only a
-                    cancelled booking or removed post takes its XP back.
+                </section>
+
+                {/* What XP can't do */}
+                <section className="pr-how-block" aria-labelledby="pr-cant-h">
+                  <h3 className="pr-how-h" id="pr-cant-h">
+                    <Wallet size={13} aria-hidden="true" /> Good to know
+                  </h3>
+                  <div className="pr-cant">
+                    <Ban size={16} aria-hidden="true" />
+                    <span>
+                      <b>XP isn't cash.</b> It can't be used to pay for flights
+                      or hotels right now. Using XP toward trips is something we
+                      want to add. If it happens, we'll announce it.
+                    </span>
+                  </div>
+                </section>
+
+                {/* Ranks */}
+                <section className="pr-how-block" aria-labelledby="pr-ranks-h">
+                  <h3 className="pr-how-h" id="pr-ranks-h">
+                    <Award size={13} aria-hidden="true" /> The 8 ranks
+                  </h3>
+                  <ul className="pr-ranks">
+                    {RANKS.map((r) => {
+                      const you = !profileLoading && r.name === tier.name;
+                      return (
+                        <li key={r.name} className={you ? "is-you" : undefined}>
+                          <span className="pr-rank-top">
+                            <i
+                              className="pr-rank-dot"
+                              style={{ background: r.color }}
+                              aria-hidden="true"
+                            />
+                            <span className="pr-rank-name">{r.name}</span>
+                            {you && <span className="pr-rank-you">You</span>}
+                          </span>
+                          <span className="pr-rank-xp">
+                            {r.minXp === 0
+                              ? "Start here"
+                              : `${fmt(r.minXp)} XP`}
+                          </span>
+                          {(RANK_PERKS[r.name] || []).map((perk) => (
+                            <span
+                              key={perk.text}
+                              className={`pr-rank-perk${
+                                perk.status === "soon" ? " is-soon" : ""
+                              }`}
+                            >
+                              {perk.text}
+                              {perk.status === "soon" ? " (coming soon)" : ""}
+                            </span>
+                          ))}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="pr-how-note">
+                    {hasAnyRankPerks()
+                      ? "Higher ranks unlock more of Skyrio. Anything marked coming soon isn't available yet."
+                      : "Perks that unlock as you rank up are on the way. When we add one, it'll show here first. The XP you earn now still counts toward your rank."}
                   </p>
-                </div>
-              </li>
-              <li>
-                <span className="pr-how-num">3</span>
-                <div>
-                  <strong>Spend</strong>
-                  <p>
-                    Trade wallet XP for boosts, badges, perks and drops. Your
-                    wallet goes down — your rank stays.
-                  </p>
-                </div>
-              </li>
-            </ol>
+                </section>
+              </div>
+            </>
           )}
         </section>
 

@@ -436,6 +436,152 @@
   color: var(--pr-muted);
 }
 
+/* Details under the 3 steps: what earns XP, what XP can't do, the ranks */
+.pr-how-more {
+  margin: 2px 18px 0;
+  padding: 18px 0;
+  border-top: 2px dashed var(--pr-stroke-2);
+}
+.pr-how-block + .pr-how-block {
+  margin-top: 22px;
+}
+.pr-how-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pr-orange-2);
+}
+.pr-how-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--pr-muted);
+}
+
+/* what earns XP */
+.pr-earn {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+.pr-earn li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--pr-stroke-2);
+  font-size: 14px;
+  color: var(--pr-text);
+}
+.pr-earn b {
+  color: var(--pr-orange-2);
+  font-weight: 800;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* what XP can't do */
+.pr-cant {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 143, 163, 0.5);
+  background: rgba(255, 107, 133, 0.08);
+  font-size: 14px;
+  line-height: 1.55;
+  color: #ffe1e6;
+}
+.pr-cant svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: #ff8fa3;
+}
+.pr-cant b {
+  color: #fff;
+}
+
+/* the 8 ranks */
+.pr-ranks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.pr-ranks li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--pr-stroke-2);
+}
+.pr-ranks li.is-you {
+  border-color: rgba(255, 138, 42, 0.75);
+  background: rgba(255, 138, 42, 0.12);
+}
+.pr-rank-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.pr-rank-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pr-rank-name {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--pr-text);
+  overflow-wrap: anywhere;
+}
+.pr-rank-you {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--pr-orange);
+  color: #1d1008;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pr-rank-xp {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--pr-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pr-rank-perk {
+  font-size: 12.5px;
+  color: #ffd2a3;
+}
+.pr-rank-perk.is-soon {
+  color: var(--pr-faint);
+}
+
 /* ═════════ Tabs ═════════ */
 .pr-tabs {
   display: flex;
@@ -890,6 +1036,9 @@
   .pr-how-steps {
     grid-template-columns: 1fr;
   }
+  .pr-ranks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .pr-pass-segs {
     grid-template-columns: 1fr 1fr;
     row-gap: 16px;
@@ -934,6 +1083,17 @@
 @media (max-width: 560px) {
   .pr-page {
     padding: 14px 12px 48px;
+  }
+  .pr-how-more {
+    margin: 2px 14px 0;
+  }
+  .pr-earn li {
+    min-height: 0;
+    padding: 9px 12px;
+    font-size: 13.5px;
+  }
+  .pr-rank-you {
+    margin-left: 0;
   }
   .pr-pass-main {
     padding: 18px 16px 16px;

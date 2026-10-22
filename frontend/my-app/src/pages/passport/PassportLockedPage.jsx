@@ -258,7 +258,7 @@ function IconSparkle({ size = 14 }) {
 const PERKS = [
   { Icon: IconStar, text: "Earn XP on every flight, hotel, and activity" },
   { Icon: IconMedal, text: "Unlock badges and level up your traveller rank" },
-  { Icon: IconTag, text: "Redeem XP for real discounts on future bookings" },
+  { Icon: IconTag, text: "Spend XP on rewards in Passport Rewards" },
   { Icon: IconPin, text: "Save trips and build your personal travel map" },
   { Icon: IconPlane, text: "Get personalised AI trip recommendations" },
 ];
@@ -266,7 +266,7 @@ const PERKS = [
 const PREVIEW_STATS = [
   { val: "2,840", label: "XP Earned" },
   { val: "12", label: "Trips Saved" },
-  { val: "15%", label: "Discount" },
+  { val: "Voyager", label: "Rank" },
 ];
 
 const PREVIEW_BADGES = [
@@ -334,7 +334,7 @@ export default function PassportLockedPage() {
                   <h2 className="plk-lock-title">Your profile awaits</h2>
                   <p className="plk-lock-sub">
                     Create a free account to unlock your profile, earn XP on
-                    every booking, and access exclusive travel discounts.
+                    every booking, and spend it on rewards.
                   </p>
                 </div>
               </div>

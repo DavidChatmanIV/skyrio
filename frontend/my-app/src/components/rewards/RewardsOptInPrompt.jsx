@@ -39,14 +39,25 @@ export default function RewardsOptInPrompt({ open, onClose, onConfirm }) {
       <Text
         style={{
           display: "block",
-          marginBottom: 16,
+          marginBottom: 8,
           color: "rgba(255,255,255,0.75)",
           fontSize: 14,
           lineHeight: 1.6,
         }}
       >
-        Earn XP for bookings, saves, and challenges. Totally optional — you can
-        book normally either way.
+        Earn XP for bookings, saves, and challenges, then spend it on rewards in
+        Passport Rewards. Totally optional — you can book normally either way.
+      </Text>
+      <Text
+        style={{
+          display: "block",
+          marginBottom: 16,
+          color: "rgba(255,255,255,0.6)",
+          fontSize: 13,
+          lineHeight: 1.5,
+        }}
+      >
+        XP isn't cash and can't be used to pay for flights or hotels right now.
       </Text>
 
       <Space style={{ marginBottom: 20 }}>
@@ -56,6 +67,7 @@ export default function RewardsOptInPrompt({ open, onClose, onConfirm }) {
         <Switch
           checked={enabled}
           onChange={setEnabled}
+          aria-label="Turn rewards on or off"
           style={{
             backgroundColor: enabled ? "#ff8a2a" : "rgba(255,255,255,0.2)",
           }}
