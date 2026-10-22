@@ -54,6 +54,8 @@ import {
   Moon,
   History,
   Trash2,
+  Check,
+  ArrowRight,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
@@ -428,43 +430,70 @@ function AtlasPlanRenderer({ plan, onSearch }) {
   );
 }
 
+/* ═══ Display helpers ═══ */
+// "Dallas/Fort Worth International Airport" → "Dallas/Fort Worth"
+// Display only — the saved destination is untouched.
+function placeName(s) {
+  return String(s || "")
+    .replace(/\s+(International\s+)?Airport\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+function tripTitle(group) {
+  const raw = group?.title || "";
+  if (!raw)
+    return group?.destination
+      ? `${placeName(group.destination)} trip`
+      : "Untitled trip";
+  return placeName(raw);
+}
+// Show the destination next to the title only when the title doesn't
+// already say it.
+function showDestination(group) {
+  const d = placeName(group?.destination).toLowerCase();
+  return !!d && !tripTitle(group).toLowerCase().includes(d);
+}
+
+// What happens next, in plain words — shown under the stepper.
+function nextStepCopy({ status, prog, isOwner, myRsvp }) {
+  if (myRsvp === "pending")
+    return "You've been invited. Tap \u201cI'm in\u201d so the group knows to plan for you.";
+  if (prog?.allBooked || ["booked", "completed"].includes(status))
+    return "Everyone's booked. Have a great trip!";
+  if (prog?.anyBooked)
+    return `${prog.bookedCount} of ${prog.travelers} travelers have booked. Each person books and pays for their own flight and room.`;
+  switch (status) {
+    case "draft":
+    case "inviting":
+      return isOwner
+        ? "Waiting on your crew. Share the invite code or link so everyone can join."
+        : "Waiting for everyone to join. Once they're in, the trip moves to planning.";
+    case "planning":
+      return "Set the destination, dates and your private budget, then ask Atlas for a plan.";
+    case "reviewing":
+      return "Look over Atlas's plan and vote on the options in the shortlist.";
+    case "confirmed":
+    case "payment_pending":
+      return "The plan is approved. Each person books and pays for their own part.";
+    case "cancelled":
+      return "This trip was cancelled.";
+    default:
+      return null;
+  }
+}
+
 /* ═══ SECTION WRAPPER — consistent card style ═══ */
 const Section = ({ children, mt = 20 }) => (
-  <div
-    style={{
-      marginTop: mt,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.07)",
-      borderRadius: 16,
-      padding: "20px 18px",
-      backdropFilter: "blur(8px)",
-    }}
-  >
+  <div className="sk-sync-panel" style={{ marginTop: mt }}>
     {children}
   </div>
 );
 const SectionTitle = ({ icon, children, right }) => (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 14,
-    }}
-  >
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        fontSize: 15,
-        fontWeight: 700,
-        color: "#fff",
-      }}
-    >
+  <div className="sk-sync-panelHead">
+    <h3 className="sk-sync-panelTitle">
       {icon}
       {children}
-    </div>
+    </h3>
     {right}
   </div>
 );
@@ -1395,85 +1424,45 @@ export default function SyncGroupPage() {
           ? "booked"
           : group.status;
         const ci = order.indexOf(effective);
+        const hint = nextStepCopy({
+          status: group.status,
+          prog,
+          isOwner,
+          myRsvp,
+        });
         return (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              marginBottom: 12,
-              padding: "12px 0",
-            }}
-          >
-            {steps.map((s, i) => {
-              const si = order.indexOf(s.k);
-              const active = ci >= si;
-              const curr = !allBooked && effective === s.k;
-              return (
-                <div
-                  key={s.k}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    flex: 1,
-                    minWidth: 0,
-                  }}
-                >
-                  <div style={{ textAlign: "center", flex: 1 }}>
-                    <div
-                      aria-current={curr ? "step" : undefined}
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: "50%",
-                        margin: "0 auto 4px",
-                        background: active
-                          ? "#ff8a2a"
-                          : "rgba(255,255,255,0.06)",
-                        border: curr
-                          ? "2px solid #ffb347"
-                          : "2px solid transparent",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: active ? "#1b1024" : "rgba(255,255,255,0.25)",
-                        transition: "all 0.3s",
-                      }}
-                    >
-                      {active && !curr ? "✓" : i + 1}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        color: curr
-                          ? "#ff8a2a"
-                          : active
-                          ? "rgba(255,255,255,0.55)"
-                          : "rgba(255,255,255,0.2)",
-                      }}
-                    >
-                      {s.k === "booked" && prog?.anyBooked && !allBooked
-                        ? `Booked ${prog.bookedCount}/${prog.travelers}`
-                        : s.l}
-                    </div>
-                  </div>
-                  {i < 4 && (
-                    <div
-                      style={{
-                        height: 2,
-                        flex: 1,
-                        minWidth: 10,
-                        background:
-                          ci > si ? "#ff8a2a" : "rgba(255,255,255,0.06)",
-                        borderRadius: 1,
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
+          <div className="sk-sync-progress">
+            <ol className="sk-sync-stepper" aria-label="Trip progress">
+              {steps.map((s, i) => {
+                const si = order.indexOf(s.k);
+                const done = ci > si || (allBooked && ci >= si);
+                const curr = !allBooked && effective === s.k;
+                const label =
+                  s.k === "booked" && prog?.anyBooked && !allBooked
+                    ? `Booked ${prog.bookedCount}/${prog.travelers}`
+                    : s.l;
+                return (
+                  <li
+                    key={s.k}
+                    className={`sk-sync-step${done ? " is-done" : ""}${
+                      curr ? " is-current" : ""
+                    }`}
+                    aria-current={curr ? "step" : undefined}
+                  >
+                    <span className="sk-sync-stepDot">
+                      {done ? <Check size={14} strokeWidth={3} /> : i + 1}
+                    </span>
+                    <span className="sk-sync-stepLabel">{label}</span>
+                  </li>
+                );
+              })}
+            </ol>
+            {hint && (
+              <p className="sk-sync-nextStep" role="status">
+                <ArrowRight size={15} aria-hidden="true" />
+                {hint}
+              </p>
+            )}
           </div>
         );
       })()}
@@ -1580,7 +1569,7 @@ export default function SyncGroupPage() {
                     cursor: !isBooked && isOwner ? "pointer" : "default",
                   }}
                 >
-                  {group.title || "Untitled Trip"}
+                  {tripTitle(group)}
                   {!isBooked && isMember && (
                     <EditOutlined
                       style={{
@@ -1592,11 +1581,10 @@ export default function SyncGroupPage() {
                   )}
                 </span>
               )}
-              {group.destination && (
-                <span
-                  style={{ color: "#ff8a2a", fontSize: 14, fontWeight: 600 }}
-                >
-                  → {group.destination}
+              {showDestination(group) && (
+                <span className="sk-sync-dest">
+                  <MapPin size={14} aria-hidden="true" />
+                  {placeName(group.destination)}
                 </span>
               )}
             </div>
@@ -1627,8 +1615,8 @@ export default function SyncGroupPage() {
                 </span>
               )}
               {group.inviteCode && (
-                <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>
-                  Code: {group.inviteCode}
+                <span className="sk-sync-code" title="Invite code">
+                  Invite code <b>{group.inviteCode}</b>
                 </span>
               )}
             </div>
@@ -3499,9 +3487,11 @@ export default function SyncGroupPage() {
                 }}
               >
                 <strong style={{ color: "rgba(255,255,255,0.75)" }}>
-                  {group.title || "Untitled Trip"}
+                  {tripTitle(group)}
                 </strong>
-                {group.destination && <span> → {group.destination}</span>}
+                {showDestination(group) && (
+                  <span> · {placeName(group.destination)}</span>
+                )}
                 <br />
                 This cannot be undone.
               </p>

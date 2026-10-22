@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Avatar, message as antdMessage } from "antd";
 import {
-  Brain,
-  SplitSquareHorizontal,
-  Hotel,
-  Zap,
-  Plane,
   Users,
+  CalendarDays,
+  Sparkles,
+  Ticket,
+  Lock,
+  ThumbsUp,
+  Wallet,
+  Star,
+  ChevronRight,
   MapPin,
   Calendar,
-  ArrowRight,
   Trash2,
+  Plane,
+  ChevronDown,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
@@ -26,10 +30,8 @@ function authHeaders() {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
-// Same pattern already used in SyncGroupPage.jsx — needed here so the
-// delete button can be hidden for non-owners. The backend already
-// enforces owner-only deletion (403 otherwise), but showing the trash
-// icon to everyone just sets non-owners up for a confusing error.
+// The backend already enforces owner-only deletion (403 otherwise); this
+// just hides the delete button from everyone else.
 function getCurrentUserId() {
   try {
     return JSON.parse(localStorage.getItem("user")).id;
@@ -38,51 +40,94 @@ function getCurrentUserId() {
   }
 }
 
-const FEATURES = [
+// "Dallas/Fort Worth International Airport" → "Dallas/Fort Worth"
+function placeName(s) {
+  return String(s || "")
+    .replace(/\s+(International\s+)?Airport\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+function tripTitle(trip) {
+  if (trip?.title) return placeName(trip.title);
+  return trip?.destination
+    ? `${placeName(trip.destination)} trip`
+    : "Untitled trip";
+}
+
+/* ── Copy — only what Sync Together does today ─────────────────────── */
+// Same four stages as the progress bar on a trip page.
+const HOW_IT_WORKS = [
   {
-    icon: <Brain size={22} />,
-    title: "Smart Date Matching",
-    body: "Tell us when everyone's free. Atlas finds the overlap and picks the best window automatically.",
+    Icon: Users,
+    title: "Invite",
+    desc: "Add friends by name or email. They tap “I'm in.”",
   },
   {
-    icon: <SplitSquareHorizontal size={22} />,
-    title: "Fair Budget Split",
-    body: "Different budgets, same trip. Everyone stays comfortable — no awkward money conversations.",
+    Icon: CalendarDays,
+    title: "Details",
+    desc: "Pick the place and dates. Everyone sets a private budget.",
   },
   {
-    icon: <Hotel size={22} />,
-    title: "Group Stay Finder",
-    body: "Atlas finds hotels and rentals that fit your whole group — price, location, and vibe.",
+    Icon: Sparkles,
+    title: "Plan & vote",
+    desc: "Atlas suggests a plan. The group votes on flights and hotels.",
   },
   {
-    icon: <Zap size={22} />,
-    title: "XP for Everyone",
-    body: "Every traveler earns Passport XP on group trips. Plan together, level up together.",
+    Icon: Ticket,
+    title: "Book",
+    desc: "Each person books and pays for their own part.",
   },
 ];
 
-const HOW_IT_WORKS = [
+const FEATURES = [
   {
-    icon: <Users size={20} />,
-    title: "Add Your Crew",
-    desc: "Search and add friends by name or email",
+    Icon: Lock,
+    title: "Budgets stay private",
+    body: "Everyone sets their own budget and only they can see it. Atlas plans around what the whole group is comfortable spending.",
   },
   {
-    icon: <MapPin size={20} />,
-    title: "Set Details",
-    desc: "Destination, dates, budget, cabin class",
+    Icon: ThumbsUp,
+    title: "Suggest and vote",
+    body: "Anyone can suggest a flight or hotel to the group. Vote on the shortlist so nobody has to decide alone.",
   },
   {
-    icon: <Brain size={20} />,
-    title: "Atlas Plans",
-    desc: "AI finds flights, hotels, and builds your itinerary",
+    Icon: Sparkles,
+    title: "A plan for the whole group",
+    body: "Atlas pulls together flights, places to stay, a day-by-day itinerary and the weather for your dates.",
   },
   {
-    icon: <Plane size={20} />,
-    title: "Book Together",
-    desc: "Everyone reviews, approves, and you're set",
+    Icon: Wallet,
+    title: "Everyone pays their own way",
+    body: "Each traveler books and pays for their own flight and room, including shared rooms. Nobody has to front the whole trip.",
   },
 ];
+
+const TRUST = [
+  { Icon: Wallet, text: "You only pay for your part" },
+  { Icon: Lock, text: "Your budget is private" },
+  { Icon: Star, text: "Booking earns Passport XP" },
+];
+
+const STATUS = {
+  draft: { label: "Draft", tone: "muted" },
+  inviting: { label: "Inviting", tone: "orange" },
+  planning: { label: "Planning", tone: "orange" },
+  reviewing: { label: "Voting", tone: "purple" },
+  confirmed: { label: "Ready to book", tone: "green" },
+  payment_pending: { label: "Booking", tone: "orange" },
+  booked: { label: "Booked", tone: "green" },
+  completed: { label: "Completed", tone: "muted" },
+  cancelled: { label: "Cancelled", tone: "red" },
+};
+const ACTIVE = new Set([
+  "draft",
+  "inviting",
+  "planning",
+  "reviewing",
+  "confirmed",
+  "payment_pending",
+]);
+const PREVIEW_COUNT = 3;
 
 export default function SyncTogether() {
   const navigate = useNavigate();
@@ -96,10 +141,8 @@ export default function SyncTogether() {
     }
   }, []);
 
-  // ── Trip details (new) ──────────────────────────────────────
-  // Collected BEFORE invites are sent, so the invite email can
-  // actually say what kind of trip this is instead of showing
-  // "Untitled Trip" with no destination.
+  // Trip details collected before invites go out, so the invite says
+  // where the trip is instead of "Untitled Trip".
   const [destination, setDestination] = useState("");
   const [dateRange, setDateRange] = useState(null); // [dayjs, dayjs] | null
 
@@ -108,15 +151,21 @@ export default function SyncTogether() {
 
   const [myTrips, setMyTrips] = useState([]);
   const [tripsLoading, setTripsLoading] = useState(true);
+  const [tripsError, setTripsError] = useState(false);
   const [tripCount, setTripCount] = useState(0);
+
+  const [filter, setFilter] = useState("active");
+  const [showAll, setShowAll] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/sync-together/my-trips`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((data) => {
         if (data.ok) setMyTrips(data.groups || []);
+        else setTripsError(true);
       })
-      .catch(() => {})
+      .catch(() => setTripsError(true))
       .finally(() => setTripsLoading(false));
 
     fetch(`${API_BASE}/sync-together/count`, { headers: authHeaders() })
@@ -127,7 +176,6 @@ export default function SyncTogether() {
       .catch(() => {});
   }, []);
 
-  // From the boarding pass: a Skyrio user from search, or a typed email.
   const addTraveler = (user) => {
     const id = user._id || user.id || null;
     const email = user.email || null;
@@ -135,7 +183,7 @@ export default function SyncTogether() {
       (t) => (id && t.id === id) || (!id && email && t.email === email)
     );
     if (dup) {
-      antdMessage.warning("Already on the pass");
+      antdMessage.warning("They're already on the pass");
       return;
     }
     setTravelers((prev) => [
@@ -171,10 +219,12 @@ export default function SyncTogether() {
         email: t.email || undefined,
         name: t.name || undefined,
       }));
+      const dest = destination.trim();
       const body = {
         members,
-        title: destination.trim() ? `${destination.trim()} Trip` : undefined,
-        destination: destination.trim() || undefined,
+        // "Dallas/Fort Worth trip", not "Dallas/Fort Worth International Airport Trip"
+        title: dest ? `${placeName(dest)} trip` : undefined,
+        destination: dest || undefined,
         dateRangeStart: dateRange?.[0] ? dateRange[0].toISOString() : undefined,
         dateRangeEnd: dateRange?.[1] ? dateRange[1].toISOString() : undefined,
       };
@@ -185,487 +235,353 @@ export default function SyncTogether() {
       });
       const data = await res.json();
       if (data.ok) {
-        antdMessage.success("Group created!");
+        antdMessage.success("Trip created — invites are on the way");
         navigate(`/sync-together/${data.group.id}`);
       } else {
         antdMessage.error(data.error || "Something went wrong");
       }
-    } catch (err) {
-      antdMessage.error("Failed to create group.");
+    } catch {
+      antdMessage.error("Couldn't create the trip. Try again.");
     } finally {
       setCreating(false);
     }
   };
 
-  const deleteTrip = async (tripId, tripTitle, e) => {
-    e.stopPropagation();
-    if (
-      !window.confirm(
-        `Delete "${tripTitle || "Untitled Trip"}"? This cannot be undone.`
-      )
-    )
-      return;
+  const deleteTrip = async (tripId) => {
+    setConfirmDeleteId(null);
+    const before = myTrips;
+    setMyTrips((prev) => prev.filter((t) => t._id !== tripId));
     try {
       const res = await fetch(`${API_BASE}/sync-together/${tripId}`, {
         method: "DELETE",
         headers: authHeaders(),
       });
       const data = await res.json();
-      if (data.ok) {
-        setMyTrips((prev) => prev.filter((t) => t._id !== tripId));
-        antdMessage.success("Trip deleted");
-      } else {
-        antdMessage.error(data.error || "Failed to delete");
-      }
+      if (!data.ok) throw new Error(data.error || "Couldn't delete the trip");
+      antdMessage.success("Trip deleted");
     } catch (err) {
-      antdMessage.error("Failed to delete trip");
+      setMyTrips(before);
+      antdMessage.error(err.message || "Couldn't delete the trip");
     }
   };
 
-  const statusColors = {
-    draft: "rgba(255,255,255,0.45)",
-    inviting: "#ff8a2a",
-    planning: "#ff8a2a",
-    reviewing: "#1890ff",
-    confirmed: "#52c41a",
-    booked: "#52c41a",
-    completed: "rgba(255,255,255,0.45)",
-    cancelled: "#ff4d4f",
-  };
-  const statusLabels = {
-    draft: "Draft",
-    inviting: "Inviting",
-    planning: "Planning",
-    reviewing: "Reviewing",
-    confirmed: "Confirmed",
-    booked: "Booked",
-    completed: "Completed",
-    cancelled: "Cancelled",
-  };
+  /* ── Trip list filter ── */
+  const counts = useMemo(() => {
+    const c = { active: 0, booked: 0, all: myTrips.length };
+    myTrips.forEach((t) => {
+      if (ACTIVE.has(t.status)) c.active += 1;
+      else if (t.status === "booked" || t.status === "completed") c.booked += 1;
+    });
+    return c;
+  }, [myTrips]);
+  const filters = [
+    { key: "active", label: "In progress" },
+    { key: "booked", label: "Booked" },
+    { key: "all", label: "All" },
+  ].filter((f) => f.key === "all" || counts[f.key] > 0);
+  const activeFilter = filters.some((f) => f.key === filter)
+    ? filter
+    : filters[0]?.key || "all";
+  const shownTrips = myTrips.filter((t) =>
+    activeFilter === "active"
+      ? ACTIVE.has(t.status)
+      : activeFilter === "booked"
+      ? t.status === "booked" || t.status === "completed"
+      : true
+  );
+  const visibleTrips = showAll
+    ? shownTrips
+    : shownTrips.slice(0, PREVIEW_COUNT);
+  const hiddenCount = shownTrips.length - visibleTrips.length;
 
   return (
-    <section className="sk-sync-section">
-      {/* ── Header ── */}
-      <div className="sk-sync-header">
+    <section className="sk-sync-section sk-sync-landing">
+      {/* ── Hero ── */}
+      <header className="sk-sync-header">
         <div className="sk-sync-badge">
-          <Plane size={12} style={{ marginRight: 6 }} />
-          Group Travel
+          <Users size={13} aria-hidden="true" />
+          Sync Together · Group trips
         </div>
-        <h2 className="sk-sync-title">
+        <h1 className="sk-sync-title">
           Tell us who&apos;s coming.
           <br />
-          <span className="sk-sync-highlight">We&apos;ll handle the rest.</span>
-        </h2>
+          <span className="sk-sync-highlight">Plan it together.</span>
+        </h1>
         <p className="sk-sync-sub">
-          Add your travel crew, set everyone&apos;s budget and Atlas builds a
-          plan that works for the whole group flights, hotels and splits
-          included.
+          Invite your crew, vote on flights and hotels, and keep the whole plan
+          in one place. Each person books and pays for their own part, so nobody
+          has to front the whole trip.
         </p>
-        <div className="sk-sync-trust">
-          <span className="sk-sync-trust-dot">·</span>
-          <span>Free to use</span>
-          <span className="sk-sync-trust-dot">·</span>
-          <span>Everyone earns XP</span>
-        </div>
-      </div>
+        <ul className="sk-sync-trust">
+          {TRUST.map(({ Icon, text }) => (
+            <li key={text}>
+              <Icon size={14} aria-hidden="true" />
+              {text}
+            </li>
+          ))}
+        </ul>
+      </header>
 
-      {/* ── How it works ── */}
-      <div
-        style={{
-          display: "flex",
-          gap: 0,
-          justifyContent: "center",
-          flexWrap: "wrap",
-          maxWidth: 700,
-          margin: "0 auto",
-        }}
-      >
-        {HOW_IT_WORKS.map((s, i) => (
-          <div key={s.title} style={{ display: "flex", alignItems: "center" }}>
-            <div style={{ textAlign: "center", width: 140, padding: "0 8px" }}>
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "50%",
-                  margin: "0 auto 10px",
-                  background: "rgba(255,138,42,0.12)",
-                  border: "1px solid rgba(255,138,42,0.25)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#ff8a2a",
-                }}
-              >
-                {s.icon}
-              </div>
-              <div
-                style={{
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  marginBottom: 4,
-                }}
-              >
-                {s.title}
-              </div>
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.4)",
-                  fontSize: 11,
-                  lineHeight: 1.4,
-                }}
-              >
-                {s.desc}
-              </div>
-            </div>
-            {i < 3 && (
-              <div
-                style={{
-                  color: "rgba(255,138,42,0.3)",
-                  fontSize: 18,
-                  margin: "0 2px",
-                  paddingBottom: 30,
-                }}
-              >
-                →
-              </div>
-            )}
-          </div>
+      {/* ── How it works (same stages as a trip's progress bar) ── */}
+      <ol className="sk-sync-flow" aria-label="How Sync Together works">
+        {HOW_IT_WORKS.map(({ Icon, title, desc }, i) => (
+          <li key={title} className="sk-sync-flowStep">
+            <span className="sk-sync-flowIcon">
+              <Icon size={20} aria-hidden="true" />
+            </span>
+            <span className="sk-sync-flowNum">Step {i + 1}</span>
+            <span className="sk-sync-flowTitle">{title}</span>
+            <span className="sk-sync-flowDesc">{desc}</span>
+          </li>
         ))}
+      </ol>
+
+      {/* Boarding pass first, then your trips */}
+      {/* ── Start a trip: group boarding pass ── */}
+      <div id="sk-sync-start">
+        <SyncBoardingPass
+          destination={destination}
+          setDestination={setDestination}
+          dateRange={dateRange}
+          setDateRange={setDateRange}
+          travelers={travelers}
+          onAddTraveler={addTraveler}
+          onRemoveTraveler={removeTraveler}
+          onSubmit={handleStartPlanning}
+          creating={creating}
+          myName={myName}
+        />
       </div>
 
-      {/* ── Social proof ── */}
-      {tripCount > 0 && (
-        <div style={{ textAlign: "center" }}>
-          <span
-            style={{
-              background: "rgba(255,138,42,0.1)",
-              border: "1px solid rgba(255,138,42,0.2)",
-              borderRadius: 20,
-              padding: "6px 18px",
-              fontSize: 13,
-              fontWeight: 600,
-              color: "#ff8a2a",
-            }}
-          >
-            {tripCount.toLocaleString()} group trip{tripCount !== 1 ? "s" : ""}{" "}
-            planned on Skyrio
-          </span>
-        </div>
-      )}
-
-      {/* ── Feature grid ── */}
-      <div className="sk-sync-grid">
-        {FEATURES.map((f) => (
-          <div key={f.title} className="sk-sync-card">
-            <div className="sk-sync-card-icon">{f.icon}</div>
-            <div className="sk-sync-card-title">{f.title}</div>
-            <div className="sk-sync-card-body">{f.body}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Start a trip: group boarding pass ──
-          Destination and dates are collected up front so the invite
-          email says what trip people are joining. */}
-      <SyncBoardingPass
-        destination={destination}
-        setDestination={setDestination}
-        dateRange={dateRange}
-        setDateRange={setDateRange}
-        travelers={travelers}
-        onAddTraveler={addTraveler}
-        onRemoveTraveler={removeTraveler}
-        onSubmit={handleStartPlanning}
-        creating={creating}
-        myName={myName}
-      />
-
-      {/* ── My Group Trips ── */}
-      {!tripsLoading && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <h3
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: 18,
-                fontWeight: 700,
-                color: "#fff",
-                margin: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <Plane size={18} style={{ color: "#ff8a2a" }} />
-              My Group Trips
-            </h3>
-            {myTrips.length > 0 && (
-              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
-                {myTrips.length} trip{myTrips.length !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-
-          {myTrips.length === 0 && (
+      {/* ── My group trips ── */}
+      <div className="sk-sync-trips">
+        <div className="sk-sync-tripsHead">
+          <h2 className="sk-sync-tripsTitle">
+            <Plane size={18} aria-hidden="true" />
+            Your group trips
+          </h2>
+          {filters.length > 1 && (
             <div
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px dashed rgba(255,255,255,0.1)",
-                borderRadius: 16,
-                padding: "32px 24px",
-                textAlign: "center",
-              }}
+              className="sk-sync-filter"
+              role="tablist"
+              aria-label="Filter trips"
             >
-              <Plane
-                size={32}
-                style={{ color: "rgba(255,138,42,0.3)", marginBottom: 12 }}
-              />
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.5)",
-                  fontSize: 14,
-                  fontWeight: 500,
-                }}
-              >
-                No group trips yet
-              </div>
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.3)",
-                  fontSize: 13,
-                  marginTop: 4,
-                }}
-              >
-                Add your crew below and start your first group adventure
-              </div>
-            </div>
-          )}
-
-          {myTrips.map((trip) => {
-            const sc = statusColors[trip.status] || "#ff8a2a";
-            const memberCount = (trip.members?.length || 0) + 1;
-            return (
-              <div
-                key={trip._id}
-                onClick={() => navigate(`/sync-together/${trip._id}`)}
-                style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 16,
-                  padding: "18px 20px",
-                  cursor: "pointer",
-                  transition: "border-color 0.2s, transform 0.2s",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,138,42,0.3)";
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      marginBottom: 6,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <span
-                      style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}
-                    >
-                      {trip.title || "Untitled Trip"}
-                    </span>
-                    {trip.destination && (
-                      <span
-                        style={{
-                          color: "#ff8a2a",
-                          fontSize: 13,
-                          fontWeight: 600,
-                        }}
-                      >
-                        → {trip.destination}
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <span
-                      style={{
-                        background: `${sc}20`,
-                        color: sc,
-                        padding: "2px 10px",
-                        borderRadius: 12,
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {statusLabels[trip.status] || trip.status}
-                    </span>
-                    <span
-                      style={{
-                        color: "rgba(255,255,255,0.4)",
-                        fontSize: 12,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      <Users size={12} /> {memberCount} traveler
-                      {memberCount !== 1 ? "s" : ""}
-                    </span>
-                    {trip.dateRangeStart && trip.dateRangeEnd && (
-                      <span
-                        style={{
-                          color: "rgba(255,255,255,0.35)",
-                          fontSize: 12,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <Calendar size={12} />{" "}
-                        {dayjs(trip.dateRangeStart).format("MMM D")} –{" "}
-                        {dayjs(trip.dateRangeEnd).format("MMM D")}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", marginTop: 10 }}>
-                    {trip.owner && (
-                      <Avatar
-                        size={28}
-                        src={
-                          trip.owner.avatar !== "/default-avatar.png"
-                            ? trip.owner.avatar
-                            : undefined
-                        }
-                        style={{
-                          background: "#ff8a2a",
-                          color: "#1b1024",
-                          fontWeight: 800,
-                          border: "2px solid rgba(26,10,46,0.8)",
-                        }}
-                      >
-                        {(trip.owner.name ||
-                          trip.owner.username ||
-                          "?")[0].toUpperCase()}
-                      </Avatar>
-                    )}
-                    {trip.members?.slice(0, 4).map((m, idx) => (
-                      <Avatar
-                        key={m._id || idx}
-                        size={28}
-                        src={
-                          m.user?.avatar !== "/default-avatar.png"
-                            ? m.user?.avatar
-                            : undefined
-                        }
-                        style={{
-                          background: "#2a1f3d",
-                          color: "#ff8a2a",
-                          fontWeight: 800,
-                          marginLeft: -8,
-                          border: "2px solid rgba(26,10,46,0.8)",
-                        }}
-                      >
-                        {(m.name ||
-                          m.user?.name ||
-                          m.email ||
-                          "?")[0].toUpperCase()}
-                      </Avatar>
-                    ))}
-                    {(trip.members?.length || 0) > 4 && (
-                      <div
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: "50%",
-                          marginLeft: -8,
-                          background: "rgba(255,138,42,0.15)",
-                          border: "2px solid rgba(26,10,46,0.8)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: "#ff8a2a",
-                        }}
-                      >
-                        +{trip.members.length - 4}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 8,
-                    flexShrink: 0,
+              {filters.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeFilter === f.key}
+                  className={`sk-sync-filterBtn${
+                    activeFilter === f.key ? " is-on" : ""
+                  }`}
+                  onClick={() => {
+                    setFilter(f.key);
+                    setShowAll(false);
                   }}
                 >
-                  <ArrowRight
-                    size={18}
-                    style={{ color: "rgba(255,255,255,0.25)" }}
-                  />
-                  {/* Only the trip's organizer can delete it — the backend
-                      already enforces this (403 otherwise), this just
-                      keeps the button from appearing for anyone else. */}
-                  {currentUserId &&
-                    String(trip.owner?._id || trip.owner) ===
-                      String(currentUserId) && (
-                      <button
-                        onClick={(e) => deleteTrip(trip._id, trip.title, e)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: 4,
-                          color: "rgba(255,255,255,0.15)",
-                          transition: "color 0.15s",
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.color = "#ff4d4f")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.color =
-                            "rgba(255,255,255,0.15)")
-                        }
-                        title="Delete trip"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                </div>
-              </div>
-            );
-          })}
+                  {f.label} <span>{counts[f.key]}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        {tripsLoading ? (
+          <div className="sk-sync-tripsList">
+            <div className="sk-sync-skel" />
+            <div className="sk-sync-skel" />
+          </div>
+        ) : tripsError ? (
+          <div className="sk-sync-empty">
+            <div className="sk-sync-emptyTitle">
+              We couldn&apos;t load your trips
+            </div>
+            <div className="sk-sync-emptySub">
+              Check your connection and refresh the page.
+            </div>
+          </div>
+        ) : myTrips.length === 0 ? (
+          <div className="sk-sync-empty">
+            <Users size={28} aria-hidden="true" />
+            <div className="sk-sync-emptyTitle">No group trips yet</div>
+            <div className="sk-sync-emptySub">
+              Fill in the boarding pass above to start your first one.
+            </div>
+          </div>
+        ) : (
+          <>
+            <ul className="sk-sync-tripsList">
+              {visibleTrips.map((trip) => {
+                const st = STATUS[trip.status] || {
+                  label: trip.status,
+                  tone: "muted",
+                };
+                const memberCount = (trip.members?.length || 0) + 1;
+                const isOwner =
+                  currentUserId &&
+                  String(trip.owner?._id || trip.owner) ===
+                    String(currentUserId);
+                const title = tripTitle(trip);
+                const place = placeName(trip.destination);
+                const showPlace =
+                  place && !title.toLowerCase().includes(place.toLowerCase());
+                const confirming = confirmDeleteId === trip._id;
+                return (
+                  <li key={trip._id} className="sk-sync-trip">
+                    <button
+                      type="button"
+                      className="sk-sync-tripMain"
+                      onClick={() => navigate(`/sync-together/${trip._id}`)}
+                      aria-label={`Open ${title}`}
+                    >
+                      <span className="sk-sync-tripTop">
+                        <span className="sk-sync-tripName">{title}</span>
+                        <span className={`sk-sync-pill is-${st.tone}`}>
+                          {st.label}
+                        </span>
+                      </span>
+                      <span className="sk-sync-tripMeta">
+                        {showPlace && (
+                          <span>
+                            <MapPin size={13} aria-hidden="true" />
+                            {place}
+                          </span>
+                        )}
+                        {trip.dateRangeStart && trip.dateRangeEnd && (
+                          <span>
+                            <Calendar size={13} aria-hidden="true" />
+                            {dayjs(trip.dateRangeStart).format("MMM D")} –{" "}
+                            {dayjs(trip.dateRangeEnd).format("MMM D")}
+                          </span>
+                        )}
+                        <span>
+                          <Users size={13} aria-hidden="true" />
+                          {memberCount} traveler{memberCount !== 1 ? "s" : ""}
+                        </span>
+                      </span>
+                      <span className="sk-sync-avatars" aria-hidden="true">
+                        {trip.owner && (
+                          <Avatar
+                            size={26}
+                            src={
+                              trip.owner.avatar !== "/default-avatar.png"
+                                ? trip.owner.avatar
+                                : undefined
+                            }
+                            className="sk-sync-av is-owner"
+                          >
+                            {(trip.owner.name ||
+                              trip.owner.username ||
+                              "?")[0].toUpperCase()}
+                          </Avatar>
+                        )}
+                        {trip.members?.slice(0, 4).map((m, idx) => (
+                          <Avatar
+                            key={m._id || idx}
+                            size={26}
+                            src={
+                              m.user?.avatar !== "/default-avatar.png"
+                                ? m.user?.avatar
+                                : undefined
+                            }
+                            className="sk-sync-av"
+                          >
+                            {(m.name ||
+                              m.user?.name ||
+                              m.email ||
+                              "?")[0].toUpperCase()}
+                          </Avatar>
+                        ))}
+                        {(trip.members?.length || 0) > 4 && (
+                          <span className="sk-sync-av is-more">
+                            +{trip.members.length - 4}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+
+                    <div className="sk-sync-tripStub">
+                      {confirming ? (
+                        <div className="sk-sync-confirm" role="alertdialog">
+                          <span>Delete this trip?</span>
+                          <button
+                            type="button"
+                            className="sk-sync-confirmBtn is-danger"
+                            onClick={() => deleteTrip(trip._id)}
+                          >
+                            Delete
+                          </button>
+                          <button
+                            type="button"
+                            className="sk-sync-confirmBtn"
+                            onClick={() => setConfirmDeleteId(null)}
+                          >
+                            Keep
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="sk-sync-open" aria-hidden="true">
+                            Open <ChevronRight size={15} />
+                          </span>
+                          {isOwner && (
+                            <button
+                              type="button"
+                              className="sk-sync-del"
+                              onClick={() => setConfirmDeleteId(trip._id)}
+                              aria-label={`Delete ${title}`}
+                              title="Delete trip"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {shownTrips.length > PREVIEW_COUNT && (
+              <button
+                type="button"
+                className="sk-sync-more"
+                onClick={() => setShowAll((v) => !v)}
+                aria-expanded={showAll}
+              >
+                {showAll ? "Show fewer" : `Show ${hiddenCount} more`}
+                <ChevronDown
+                  size={15}
+                  style={showAll ? { transform: "rotate(180deg)" } : undefined}
+                />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── What you get ── */}
+      <div>
+        <h2 className="sk-sync-sectionLabel">Why plan with Sync Together</h2>
+        <div className="sk-sync-grid">
+          {FEATURES.map(({ Icon, title, body }) => (
+            <div key={title} className="sk-sync-card">
+              <div className="sk-sync-card-icon">
+                <Icon size={21} aria-hidden="true" />
+              </div>
+              <div className="sk-sync-card-title">{title}</div>
+              <div className="sk-sync-card-body">{body}</div>
+            </div>
+          ))}
+        </div>
+        {tripCount > 0 && (
+          <p className="sk-sync-count">
+            {tripCount.toLocaleString()} group trip{tripCount !== 1 ? "s" : ""}{" "}
+            planned on Skyrio so far
+          </p>
+        )}
+      </div>
     </section>
   );
 }

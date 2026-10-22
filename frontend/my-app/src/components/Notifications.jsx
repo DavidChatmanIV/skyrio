@@ -44,32 +44,38 @@ const POLL_MS = 90_000;
 
 /* ── Styles (single drop-in file) ─────────────────────────────────── */
 const NF_CSS = `
+/* Navbar/global button styles must not leak in */
+.nf-root button, .nf-panel button {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.nf-root button:focus-visible, .nf-panel button:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
+.nf-panel, .nf-panel * { box-sizing: border-box; text-transform: none; letter-spacing: normal; }
 .nf { position: relative; display: inline-flex; }
-.nf-bell { position: relative; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,0.82); cursor: pointer; transition: background .18s, color .18s; }
+.nf-root .nf-bell { position: relative; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,0.82); cursor: pointer; transition: background .18s, color .18s; }
 .nf-bell:hover, .nf-bell.is-open { background: rgba(255,255,255,0.08); color: #fff; }
 .nf-bell:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
 .nf-bell.is-ringing svg { animation: nfRing .9s ease; transform-origin: 50% 4px; }
 .nf-count { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#ff8a2a,#ffb347); color: #1a0e06; font: 800 10.5px/1 "DM Sans", sans-serif; box-shadow: 0 0 0 2px #1a0f2e; pointer-events: none; }
 
 .nf-scrim { position: fixed; inset: 0; z-index: 2147483600; background: transparent; }
-.nf-panel { position: absolute; top: calc(100% + 10px); right: -8px; z-index: 2147483601; width: 380px; max-height: min(72vh, 620px); display: flex; flex-direction: column; border-radius: 20px; background: rgba(16,11,34,0.97); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 28px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06); color: #fff; font-family: "DM Sans", system-ui, sans-serif; overflow: hidden; animation: nfIn .18s cubic-bezier(.22,1,.36,1) both; }
+.nf-panel { position: fixed; z-index: 2147483601; width: 380px; max-width: calc(100vw - 24px); max-height: min(72vh, 620px); display: flex; flex-direction: column; border-radius: 20px; background: rgba(16,11,34,0.97); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 28px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06); color: #fff; font-family: "DM Sans", system-ui, sans-serif; overflow: hidden; animation: nfIn .18s cubic-bezier(.22,1,.36,1) both; }
 .nf-panel::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg,#ff8a2a,#ffb347,rgba(147,51,234,.85)); }
 
 .nf-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 16px 10px; }
 .nf-title { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
 .nf-sub { margin-top: 2px; font-size: 12px; color: rgba(255,255,255,0.62); }
 .nf-actions { display: flex; gap: 4px; }
-.nf-iconBtn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: transparent; color: rgba(255,255,255,0.72); cursor: pointer; transition: background .15s, color .15s; }
+.nf-panel .nf-iconBtn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: transparent; color: rgba(255,255,255,0.72); cursor: pointer; transition: background .15s, color .15s; }
 .nf-iconBtn:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #fff; }
 .nf-iconBtn.is-danger:hover:not(:disabled) { background: rgba(255,107,133,0.14); color: #ff8fa3; }
 .nf-iconBtn:disabled { opacity: .35; cursor: default; }
 .nf-iconBtn:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 1px; }
 
-.nf-tabs { display: flex; gap: 4px; margin: 0 16px 8px; padding: 3px; border-radius: 999px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); overflow-x: auto; scrollbar-width: none; }
-.nf-tabs::-webkit-scrollbar { display: none; }
-.nf-tab { flex: 1 0 auto; min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,0.72); font: 700 12.5px "DM Sans", sans-serif; cursor: pointer; white-space: nowrap; }
-.nf-tab:hover { color: #fff; }
-.nf-tab.is-on { background: linear-gradient(135deg,#ff8a2a,#ffb347); color: #1a0e06; }
+.nf-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 16px 8px; padding: 3px; border-radius: 16px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); }
+.nf-panel .nf-tab { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; border-radius: 999px; background: transparent; color: rgba(255,255,255,0.72); font: 700 12.5px/1 "DM Sans", sans-serif; white-space: nowrap; text-align: center; }
+.nf-panel .nf-tab:hover { color: #fff; }
+.nf-panel .nf-tab.is-on { background: linear-gradient(135deg,#ff8a2a,#ffb347); color: #1a0e06; }
 .nf-tab:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 1px; }
 
 .nf-body { flex: 1; overflow-y: auto; padding: 0 8px 10px; overscroll-behavior: contain; }
@@ -79,7 +85,7 @@ const NF_CSS = `
 .nf-row:hover { background: rgba(255,255,255,0.05); }
 .nf-row.is-new { background: rgba(255,138,42,0.07); }
 .nf-row.is-new:hover { background: rgba(255,138,42,0.11); }
-.nf-row__link { all: unset; position: absolute; inset: 0; border-radius: 14px; cursor: pointer; }
+.nf-panel .nf-row__link { position: absolute; inset: 0; border-radius: 14px; cursor: pointer; }
 .nf-row__link:focus-visible { outline: 2px solid #ff8a2a; outline-offset: -2px; }
 .nf-row__icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 11px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .nf-row__text { flex: 1; min-width: 0; pointer-events: none; }
@@ -99,12 +105,20 @@ const NF_CSS = `
 
 .nf-confirm { margin: 0 16px 10px; padding: 12px; border-radius: 14px; background: rgba(255,107,133,0.08); border: 1px solid rgba(255,107,133,0.3); font-size: 13px; }
 .nf-confirm__btns { display: flex; gap: 8px; margin-top: 10px; }
-.nf-btn { min-height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: #fff; font: 700 12.5px "DM Sans", sans-serif; cursor: pointer; }
-.nf-btn.is-danger { border: 0; background: #ff6b85; color: #1a0e06; }
+.nf-panel .nf-btn { display: inline-flex; align-items: center; min-height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: #fff; font: 700 12.5px "DM Sans", sans-serif; cursor: pointer; }
+.nf-panel .nf-btn.is-danger { border: 0; background: #ff6b85; color: #1a0e06; }
+
+/* Menu-row variant (inside the mobile hamburger menu) */
+.nf.nf--menu { display: block; width: 100%; }
+.nf-root .nf-menuRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 0 18px; border-radius: 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #fff; font: 700 17px "DM Sans", sans-serif; }
+.nf-root .nf-menuRow:hover { background: rgba(255,255,255,0.08); }
+.nf-menuRow svg { color: #ffb347; flex-shrink: 0; }
+.nf-menuRow__label { flex: 1; text-align: left; }
+.nf-menuRow__count { min-width: 24px; height: 24px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#ff8a2a,#ffb347); color: #1a0e06; font: 800 12px/1 "DM Sans", sans-serif; }
 
 /* Mobile: bottom sheet */
 .nf-sheetScrim { position: fixed; inset: 0; z-index: 2147483600; background: rgba(5,3,12,0.6); animation: nfFade .2s ease both; }
-.nf-panel.is-sheet { position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 86vh; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom, 0); animation: nfUp .26s cubic-bezier(.22,1,.36,1) both; }
+.nf-panel.is-sheet { position: fixed; top: auto !important; left: 0 !important; right: 0 !important; bottom: 0; width: auto; max-width: none; max-height: 86vh; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom, 0); animation: nfUp .26s cubic-bezier(.22,1,.36,1) both; }
 .nf-grab { width: 40px; height: 4px; margin: 10px auto 0; border-radius: 99px; background: rgba(255,255,255,0.25); }
 .nf-panel.is-sheet .nf-row__del { opacity: 1; }
 
@@ -175,7 +189,7 @@ const isToday = (iso) => {
 function kindOf(n) {
   const t = `${n?.type || ""} ${n?.event || ""} ${n?.targetType || ""} ${
     n?.title || ""
-  }`.toLowerCase();
+  } ${n?.message || ""}`.toLowerCase();
   const tone = (c) => ({
     color: c,
     bg: `${c}1f`,
@@ -230,7 +244,10 @@ const useIsMobile = () => {
 };
 
 /* ── Component ────────────────────────────────────────────────────── */
-export default function Notifications() {
+// variant="bell" (default) — the navbar bell.
+// variant="menu" — a full-width "Notifications" row for the mobile
+// hamburger menu; tapping it opens the same bottom sheet.
+export default function Notifications({ variant = "bell", onOpen }) {
   const navigate = useNavigate();
   const auth = useAuth();
   const userId = auth?.user?.id || auth?.user?._id;
@@ -251,6 +268,31 @@ export default function Notifications() {
   openRef.current = open;
   const bellRef = useRef(null);
   const panelRef = useRef(null);
+  const [anchor, setAnchor] = useState(null);
+  const asSheet = mobile || variant === "menu";
+
+  // Desktop panel is portaled to <body> (so navbar CSS can't touch it) and
+  // pinned under the bell.
+  useEffect(() => {
+    if (!open || asSheet) return;
+    const place = () => {
+      const r = bellRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const width = Math.min(380, window.innerWidth - 24);
+      const left = Math.max(
+        12,
+        Math.min(r.right - width + 8, window.innerWidth - width - 12)
+      );
+      setAnchor({ top: r.bottom + 10, left });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, asSheet]);
 
   /* Load the list (also the source of truth for the badge) */
   const loadList = useCallback(async () => {
@@ -429,12 +471,12 @@ export default function Notifications() {
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
-    if (mobile) document.body.style.overflow = "hidden";
+    if (asSheet) document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open, mobile]);
+  }, [open, asSheet]);
 
   /* Show the unread count in the browser tab title too */
   useEffect(() => {
@@ -514,14 +556,17 @@ export default function Notifications() {
   const panel = (
     <div
       ref={panelRef}
-      className={`nf-panel${mobile ? " is-sheet" : ""}`}
+      className={`nf-panel${asSheet ? " is-sheet" : ""}`}
+      style={
+        !asSheet && anchor ? { top: anchor.top, left: anchor.left } : undefined
+      }
       role="dialog"
-      aria-modal={mobile ? "true" : undefined}
+      aria-modal={asSheet ? "true" : undefined}
       aria-label="Notifications"
       tabIndex={-1}
       onClick={(e) => e.stopPropagation()}
     >
-      {mobile && <div className="nf-grab" aria-hidden="true" />}
+      {asSheet && <div className="nf-grab" aria-hidden="true" />}
 
       <div className="nf-head">
         <div>
@@ -555,7 +600,7 @@ export default function Notifications() {
           >
             <Trash2 size={16} />
           </button>
-          {mobile && (
+          {asSheet && (
             <button
               type="button"
               className="nf-iconBtn"
@@ -694,45 +739,72 @@ export default function Notifications() {
     </div>
   );
 
+  const toggle = () => {
+    setOpen((v) => {
+      if (!v) onOpen?.();
+      return !v;
+    });
+  };
+  const countText = unread > 99 ? "99+" : String(unread);
+
   return (
-    <div className="nf">
+    <div className={`nf nf-root${variant === "menu" ? " nf--menu" : ""}`}>
       <style>{NF_CSS}</style>
-      <button
-        ref={bellRef}
-        type="button"
-        className={`nf-bell${open ? " is-open" : ""}${
-          ringing ? " is-ringing" : ""
-        }`}
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={
-          unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
-        }
-      >
-        <Bell size={20} />
-        {unread > 0 && (
-          <span className="nf-count" aria-hidden="true">
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
-      </button>
+      {variant === "menu" ? (
+        <button
+          ref={bellRef}
+          type="button"
+          className="nf-menuRow"
+          onClick={toggle}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          <Bell size={20} />
+          <span className="nf-menuRow__label">Notifications</span>
+          {unread > 0 && (
+            <span className="nf-menuRow__count" aria-label={`${unread} unread`}>
+              {countText}
+            </span>
+          )}
+        </button>
+      ) : (
+        <button
+          ref={bellRef}
+          type="button"
+          className={`nf-bell${open ? " is-open" : ""}${
+            ringing ? " is-ringing" : ""
+          }`}
+          onClick={toggle}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label={
+            unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
+          }
+        >
+          <Bell size={20} />
+          {unread > 0 && (
+            <span className="nf-count" aria-hidden="true">
+              {countText}
+            </span>
+          )}
+        </button>
+      )}
 
       {open &&
-        (mobile ? (
-          createPortal(
+        createPortal(
+          asSheet ? (
             <>
               <div className="nf-sheetScrim" onClick={() => setOpen(false)} />
               {panel}
-            </>,
-            document.body
-          )
-        ) : (
-          <>
-            <div className="nf-scrim" onClick={() => setOpen(false)} />
-            {panel}
-          </>
-        ))}
+            </>
+          ) : (
+            <>
+              <div className="nf-scrim" onClick={() => setOpen(false)} />
+              {anchor && panel}
+            </>
+          ),
+          document.body
+        )}
     </div>
   );
 }

@@ -1,33 +1,93 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { Avatar, Button, Space, Tooltip } from "antd";
-import {
-  LogoutOutlined,
-  MenuOutlined,
-  UserOutlined,
-  CloseOutlined,
-  HeartFilled,
-  HeartOutlined,
-  DownOutlined,
-  UpOutlined,
-} from "@ant-design/icons";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Avatar } from "antd";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
-import { apiUrl } from "@/lib/api";
 import skyrioLogo from "@/assets/logo/skyrio-logo-transparent.png";
 import Notifications from "@/components/Notifications";
 import "@/styles/Navbar.css";
 
+/* ── Icons (stroke SVG — one family across the navbar) ─────────── */
+function Svg({ size = 18, fill = "none", children }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={fill}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {children}
+    </svg>
+  );
+}
+const Icon = {
+  // Discover — compass
+  discover: (p) => (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15.5 8.5-2 5-5 2 2-5z" />
+    </Svg>
+  ),
+  // Book — boarding pass
+  book: (p) => (
+    <Svg {...p}>
+      <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6z" />
+      <path d="M15 5v14" strokeDasharray="2 2.5" />
+    </Svg>
+  ),
+  // SkyHub — postcard
+  skyhub: (p) => (
+    <Svg {...p}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2" />
+      <path d="M13 8v8M15.5 8.5h3v3h-3zM5.5 10h5M5.5 13h5" />
+    </Svg>
+  ),
+  // Passport — passport book
+  passport: (p) => (
+    <Svg {...p}>
+      <rect x="5" y="2.5" width="14" height="19" rx="2" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M9 16.5h6" />
+    </Svg>
+  ),
+  heart: ({ filled, ...p }) => (
+    <Svg {...p} fill={filled ? "currentColor" : "none"}>
+      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z" />
+    </Svg>
+  ),
+  logout: (p) => (
+    <Svg {...p}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+    </Svg>
+  ),
+  settings: (p) => (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </Svg>
+  ),
+  login: (p) => (
+    <Svg {...p}>
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" />
+    </Svg>
+  ),
+  chevron: (p) => (
+    <Svg {...p}>
+      <path d="m9 18 6-6-6-6" />
+    </Svg>
+  ),
+};
+
 const NAV_ITEMS = [
-  { key: "discover", label: "Discover", path: "/" },
-  { key: "book", label: "Book", path: "/booking" },
-  { key: "skyhub", label: "SkyHub", path: "/skyhub" },
-  { key: "passport", label: "Passport", path: "/passport" },
+  { key: "discover", label: "Discover", path: "/", hint: "Plan a trip" },
+  { key: "book", label: "Book", path: "/booking", hint: "Flights & stays" },
+  { key: "skyhub", label: "SkyHub", path: "/skyhub", hint: "Traveler posts" },
+  { key: "passport", label: "Passport", path: "/passport", hint: "XP & trips" },
 ];
 
 function getActiveKey(pathname) {
@@ -40,13 +100,8 @@ function getActiveKey(pathname) {
 }
 
 // ── Admin email — only this account sees the admin link ──
+// (The admin pages must still check the role on the server.)
 const ADMIN_EMAIL = "skyrioofficial@gmail.com";
-
-// ── Auth helper (same as Notifications.jsx) ──
-const authHeaders = () => {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
 
 export default function Navbar() {
   const location = useLocation();
@@ -56,12 +111,7 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef(null);
-
-  // ── Mobile notifications state ──
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [notifItems, setNotifItems] = useState([]);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifLoading, setNotifLoading] = useState(false);
+  const triggerRef = useRef(null);
 
   const activeKey = useMemo(
     () => getActiveKey(location.pathname),
@@ -85,7 +135,15 @@ export default function Navbar() {
       .slice(0, 2);
   }, [displayName]);
 
+  // Rank from the user record (lifetime XP) — only shown when it's there
+  const rank = user?.levelLabel || null;
+  const avatarSrc =
+    user?.avatar && user.avatar !== "/default-avatar.png"
+      ? user.avatar
+      : undefined;
+
   const isAdmin = isAuthed && user?.email === ADMIN_EMAIL;
+  const isSaved = activeKey === "saved";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -94,81 +152,37 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Close the mobile menu on outside tap / Escape; lock the page behind it
   useEffect(() => {
     if (!mobileOpen) return;
-    const handler = (e) => {
+    const onDown = (e) => {
+      // The notifications sheet opens on top of the page (outside the menu);
+      // tapping inside it must not close the menu underneath.
+      if (e.target.closest?.(".nf-panel, .nf-sheetScrim")) return;
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setMobileOpen(false);
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const onKey = (e) => {
+      if (e.key === "Escape" && !document.querySelector(".nf-panel")) {
+        setMobileOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [mobileOpen]);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
-
-  // Collapse the notifications list whenever the mobile menu closes
-  useEffect(() => {
-    if (!mobileOpen) setNotifOpen(false);
-  }, [mobileOpen]);
-
-  // ── Fetch notifications (same endpoint the desktop bell uses) ──
-  const fetchNotifs = useCallback(async () => {
-    try {
-      const res = await fetch(apiUrl("/api/notifications/mine"), {
-        credentials: "include",
-        headers: { ...authHeaders() },
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setUnreadCount(Number(data?.unread || 0));
-      setNotifItems(Array.isArray(data?.items) ? data.items.slice(0, 10) : []);
-      return data;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  // Poll for the mobile badge
-  useEffect(() => {
-    if (!isAuthed) return;
-    fetchNotifs();
-    const interval = setInterval(fetchNotifs, 60000);
-    return () => clearInterval(interval);
-  }, [isAuthed, fetchNotifs]);
-
-  // ── Tap "Notifications": show the list, then mark everything read ──
-  const toggleMobileNotifs = async () => {
-    if (notifOpen) {
-      setNotifOpen(false);
-      return;
-    }
-    setNotifOpen(true);
-    setNotifLoading(true);
-    await fetchNotifs(); // load fresh list first so NEW tags still show
-    setNotifLoading(false);
-
-    // Optimistic clear — badge drops immediately
-    setUnreadCount(0);
-    try {
-      const res = await fetch(apiUrl("/api/notifications/read-all"), {
-        method: "PATCH",
-        credentials: "include",
-        headers: { ...authHeaders() },
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      // Server didn't save it — restore the real count
-      fetchNotifs();
-    }
-  };
-
-  const handleNavigate = (path) => {
-    navigate(path);
-    setMobileOpen(false);
-  };
 
   const handleLogout = () => {
     logout();
@@ -176,32 +190,45 @@ export default function Navbar() {
     setMobileOpen(false);
   };
 
-  const isSaved = activeKey === "saved";
+  const userAvatar = (size) => (
+    <Avatar
+      size={size}
+      src={avatarSrc}
+      className="sk-avatar"
+      style={{ fontSize: Math.round(size * 0.4), fontWeight: 700 }}
+    >
+      {!avatarSrc ? initials : null}
+    </Avatar>
+  );
 
   return (
     <header className={`sk-navbar-wrap ${scrolled ? "is-scrolled" : ""}`}>
+      {mobileOpen && <div className="sk-mobile-backdrop" aria-hidden="true" />}
       <div className="sk-navbar-shell">
-        <nav className="sk-navbar" ref={menuRef}>
+        <nav className="sk-navbar" ref={menuRef} aria-label="Main">
           {/* ── BRAND ── */}
           <Link to="/" className="sk-brand" aria-label="Skyrio home">
-            <img src={skyrioLogo} alt="Skyrio" className="sk-brand-img" />
+            <img src={skyrioLogo} alt="" className="sk-brand-img" />
             <span className="sk-brand-wordmark">Skyrio</span>
           </Link>
 
           {/* ── DESKTOP NAV LINKS ── */}
-          <div className="sk-nav-links" role="navigation" aria-label="Primary">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`sk-nav-link ${
-                  activeKey === item.key ? "active" : ""
-                }`}
-                onClick={() => handleNavigate(item.path)}
-              >
-                {item.label}
-              </button>
-            ))}
+          <div className="sk-nav-links">
+            {NAV_ITEMS.map((item) => {
+              const NavIcon = Icon[item.key];
+              const active = activeKey === item.key;
+              return (
+                <Link
+                  key={item.key}
+                  to={item.path}
+                  className={`sk-nav-link ${active ? "active" : ""}`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <NavIcon size={16} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </div>
 
           {/* ── DESKTOP ACTIONS ── */}
@@ -209,326 +236,159 @@ export default function Navbar() {
             <div className="sk-nav-actions-desktop">
               {isAuthed ? (
                 <div className="sk-authed-actions">
-                  {/* ── Saved Trips heart icon ── */}
-                  <Tooltip title="Saved Trips">
-                    <button
-                      type="button"
-                      className="sk-icon-btn"
-                      onClick={() => handleNavigate("/saved-trips")}
-                      style={{
-                        color: isSaved ? "#ff8a2a" : undefined,
-                      }}
-                    >
-                      {isSaved ? <HeartFilled /> : <HeartOutlined />}
-                    </button>
-                  </Tooltip>
+                  <Link
+                    to="/saved-trips"
+                    className={`sk-icon-btn ${isSaved ? "is-on" : ""}`}
+                    aria-label="Saved trips"
+                    aria-current={isSaved ? "page" : undefined}
+                    title="Saved trips"
+                  >
+                    <Icon.heart size={19} filled={isSaved} />
+                  </Link>
 
-                  {/* ── Notifications dropdown ── */}
                   <Notifications />
 
-                  {/* ── User avatar + name ── */}
-                  <button
-                    type="button"
+                  <Link
+                    to="/passport"
                     className="sk-nav-user"
-                    onClick={() => handleNavigate("/passport")}
                     title="My Passport"
                   >
-                    <Avatar
-                      size={30}
-                      src={
-                        user?.avatar && user.avatar !== "/default-avatar.png"
-                          ? user.avatar
-                          : undefined
-                      }
-                      style={{
-                        backgroundColor: "#7c5cfc",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {!user?.avatar || user.avatar === "/default-avatar.png"
-                        ? initials
-                        : null}
-                    </Avatar>
-                    <span className="sk-nav-username">{displayName}</span>
+                    {userAvatar(30)}
+                    <span className="sk-nav-userText">
+                      <span className="sk-nav-username">{displayName}</span>
+                      {rank && <span className="sk-nav-rank">{rank}</span>}
+                    </span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    className="sk-icon-btn sk-logout-icon"
+                    onClick={handleLogout}
+                    aria-label="Log out"
+                    title="Log out"
+                  >
+                    <Icon.logout size={18} />
                   </button>
 
-                  {/* ── Logout icon button ── */}
-                  <Tooltip title="Log out">
-                    <button
-                      type="button"
-                      className="sk-icon-btn sk-logout-icon"
-                      onClick={handleLogout}
-                    >
-                      <LogoutOutlined />
-                    </button>
-                  </Tooltip>
-
-                  {/* ── Admin link — only visible to admin ── */}
                   {isAdmin && (
-                    <button
-                      type="button"
+                    <Link
+                      to="/admin/login"
                       className="sk-admin-btn"
-                      onClick={() => navigate("/admin/login")}
-                      title="Admin Dashboard"
+                      title="Admin dashboard"
                     >
-                      ⚙ Admin
-                    </button>
+                      <Icon.settings size={13} /> Admin
+                    </Link>
                   )}
                 </div>
               ) : (
-                <Space size={8}>
-                  <Button
-                    className="sk-btn sk-btn-ghost"
-                    onClick={() => navigate("/login")}
-                  >
+                <div className="sk-guest-actions">
+                  <Link to="/login" className="sk-nav-cta is-ghost">
                     Log in
-                  </Button>
-                  <Button
-                    className="sk-btn sk-btn-primary"
-                    onClick={() => navigate("/register")}
-                  >
-                    Sign up
-                  </Button>
-                </Space>
+                  </Link>
+                  <Link to="/register" className="sk-nav-cta">
+                    Sign up free
+                  </Link>
+                </div>
               )}
             </div>
 
             {/* ── MOBILE TRIGGER ── */}
             <button
+              ref={triggerRef}
               type="button"
-              className="sk-mobile-trigger"
+              className={`sk-mobile-trigger ${mobileOpen ? "is-open" : ""}`}
               onClick={() => setMobileOpen((v) => !v)}
-              aria-label="Toggle navigation menu"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+              aria-controls="sk-mobile-menu"
             >
-              {mobileOpen ? <CloseOutlined /> : <MenuOutlined />}
+              <span className="sk-burger" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
             </button>
           </div>
 
           {/* ── MOBILE MENU ── */}
           {mobileOpen && (
-            <div className="sk-mobile-menu">
-              {NAV_ITEMS.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={`sk-mobile-link ${
-                    activeKey === item.key ? "active" : ""
-                  }`}
-                  onClick={() => handleNavigate(item.path)}
-                >
-                  {item.label}
-                </button>
-              ))}
-
-              {/* Saved Trips in mobile menu */}
+            <div className="sk-mobile-menu" id="sk-mobile-menu">
               {isAuthed && (
-                <button
-                  type="button"
-                  className={`sk-mobile-link ${isSaved ? "active" : ""}`}
-                  onClick={() => handleNavigate("/saved-trips")}
-                  style={{ display: "flex", alignItems: "center", gap: 8 }}
-                >
-                  <HeartFilled style={{ color: "#ff8a2a", fontSize: 16 }} />
-                  Saved Trips
-                </button>
-              )}
-
-              {/* Notifications in mobile menu — expands inline */}
-              {isAuthed && (
-                <>
-                  <button
-                    type="button"
-                    className={`sk-mobile-link ${notifOpen ? "active" : ""}`}
-                    onClick={toggleMobileNotifs}
-                    aria-expanded={notifOpen}
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <span style={{ fontSize: 16 }}>🔔</span>
-                    Notifications
-                    {unreadCount > 0 && (
-                      <span
-                        style={{
-                          background: "#ff4d6d",
-                          color: "#fff",
-                          borderRadius: 99,
-                          fontSize: 10,
-                          padding: "1px 6px",
-                          marginLeft: 4,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {unreadCount}
-                      </span>
-                    )}
-                    <span style={{ marginLeft: "auto", fontSize: 12 }}>
-                      {notifOpen ? <UpOutlined /> : <DownOutlined />}
+                <Link to="/passport" className="sk-mobile-user">
+                  {userAvatar(40)}
+                  <span className="sk-mobile-userText">
+                    <span className="sk-mobile-userName">{displayName}</span>
+                    <span className="sk-mobile-userSub">
+                      {rank ? `${rank} · ` : ""}View your Passport
                     </span>
-                  </button>
-
-                  {notifOpen && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
-                        padding: "4px 4px 8px",
-                        maxHeight: 280,
-                        overflowY: "auto",
-                      }}
-                    >
-                      {notifLoading && !notifItems.length ? (
-                        <div
-                          style={{
-                            color: "rgba(255,255,255,.65)",
-                            fontSize: 13,
-                            padding: 10,
-                          }}
-                        >
-                          Loading…
-                        </div>
-                      ) : !notifItems.length ? (
-                        <div
-                          style={{
-                            color: "rgba(255,255,255,.70)",
-                            fontSize: 13,
-                            padding: 10,
-                          }}
-                        >
-                          You're all caught up ✅
-                        </div>
-                      ) : (
-                        notifItems.map((n) => (
-                          <button
-                            key={n._id}
-                            type="button"
-                            onClick={() => handleNavigate(n.link || "/")}
-                            style={{
-                              textAlign: "left",
-                              width: "100%",
-                              padding: 12,
-                              borderRadius: 14,
-                              border: "1px solid rgba(255,255,255,.10)",
-                              background: !n.isRead
-                                ? "linear-gradient(180deg, rgba(255,138,42,.18), rgba(18,14,34,.95))"
-                                : "rgba(18,14,34,.95)",
-                              color: "rgba(255,255,255,.92)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                fontWeight: 700,
-                                fontSize: 14,
-                              }}
-                            >
-                              {n.title || "Notification"}
-                              {!n.isRead && (
-                                <span
-                                  style={{
-                                    background: "#ff8a2a",
-                                    color: "#1a1030",
-                                    borderRadius: 6,
-                                    fontSize: 10,
-                                    padding: "1px 6px",
-                                    fontWeight: 800,
-                                  }}
-                                >
-                                  NEW
-                                </span>
-                              )}
-                            </div>
-                            {n.message && (
-                              <div
-                                style={{
-                                  marginTop: 4,
-                                  fontSize: 13,
-                                  color: "rgba(255,255,255,.75)",
-                                }}
-                              >
-                                {n.message}
-                              </div>
-                            )}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </>
+                  </span>
+                  <Icon.chevron size={18} />
+                </Link>
               )}
 
-              {/* Admin in mobile menu — only for admin email */}
-              {isAdmin && (
-                <button
-                  type="button"
-                  className="sk-mobile-link"
-                  data-admin="true"
-                  onClick={() => handleNavigate("/admin/login")}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    color: "rgba(255,138,42,0.7)",
-                  }}
-                >
-                  <span style={{ fontSize: 14 }}>⚙</span>
-                  Admin Dashboard
-                </button>
+              <div className="sk-mobile-grid">
+                {NAV_ITEMS.map((item) => {
+                  const NavIcon = Icon[item.key];
+                  const active = activeKey === item.key;
+                  return (
+                    <Link
+                      key={item.key}
+                      to={item.path}
+                      className={`sk-mobile-tile ${active ? "active" : ""}`}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <NavIcon size={20} />
+                      <span className="sk-mobile-tileLabel">{item.label}</span>
+                      <span className="sk-mobile-tileHint">{item.hint}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {isAuthed && (
+                <div className="sk-mobile-list">
+                  <Link
+                    to="/saved-trips"
+                    className={`sk-mobile-link ${isSaved ? "active" : ""}`}
+                    aria-current={isSaved ? "page" : undefined}
+                  >
+                    <Icon.heart size={19} filled={isSaved} />
+                    <span>Saved trips</span>
+                  </Link>
+
+                  {/* Opens the same notifications sheet as the desktop bell */}
+                  <Notifications variant="menu" />
+
+                  {isAdmin && (
+                    <Link
+                      to="/admin/login"
+                      className="sk-mobile-link"
+                      data-admin="true"
+                    >
+                      <Icon.settings size={18} />
+                      <span>Admin dashboard</span>
+                    </Link>
+                  )}
+                </div>
               )}
 
               <div className="sk-mobile-actions">
                 {isAuthed ? (
-                  <>
-                    <button
-                      type="button"
-                      className="sk-mobile-user"
-                      onClick={() => handleNavigate("/passport")}
-                    >
-                      <Avatar
-                        size={28}
-                        src={
-                          user?.avatar && user.avatar !== "/default-avatar.png"
-                            ? user.avatar
-                            : undefined
-                        }
-                        style={{ backgroundColor: "#7c5cfc", fontSize: 12 }}
-                      >
-                        {!user?.avatar || user.avatar === "/default-avatar.png"
-                          ? initials
-                          : null}
-                      </Avatar>
-                      <span>{displayName}</span>
-                    </button>
-                    <Button
-                      block
-                      className="sk-btn sk-btn-logout"
-                      icon={<LogoutOutlined />}
-                      onClick={handleLogout}
-                    >
-                      Log out
-                    </Button>
-                  </>
+                  <button
+                    type="button"
+                    className="sk-nav-cta is-ghost is-block"
+                    onClick={handleLogout}
+                  >
+                    <Icon.logout size={17} /> Log out
+                  </button>
                 ) : (
                   <>
-                    <Button
-                      block
-                      className="sk-btn sk-btn-ghost"
-                      icon={<UserOutlined />}
-                      onClick={() => handleNavigate("/login")}
-                    >
-                      Log in
-                    </Button>
-                    <Button
-                      block
-                      className="sk-btn sk-btn-primary"
-                      onClick={() => navigate("/register")}
-                    >
-                      Sign up
-                    </Button>
+                    <Link to="/register" className="sk-nav-cta is-block">
+                      Sign up free
+                    </Link>
+                    <Link to="/login" className="sk-nav-cta is-ghost is-block">
+                      <Icon.login size={17} /> Log in
+                    </Link>
                   </>
                 )}
               </div>

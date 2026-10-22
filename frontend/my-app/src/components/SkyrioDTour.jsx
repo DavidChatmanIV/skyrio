@@ -1,621 +1,514 @@
-import { useState, useEffect, useRef } from "react";
+// Skyrio welcome tour.
+//
+// • Shows once for new visitors (a couple of seconds after the page settles),
+//   never on login / checkout / admin pages.
+// • Finishing, closing or "Skip tour" all remember the choice, so it doesn't
+//   come back on every page load.
+// • Replay it from anywhere (e.g. a "Take the tour" link in Help):
+//     window.dispatchEvent(new Event("skyrio:tour"))
+// • Keyboard: ← / → to move, Esc to close. Focus stays inside the card.
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
-const ORANGE = "#ff8a2a";
-const ORANGE2 = "#ffb066";
-const PURPLE = "#7c5cfc";
+const STORAGE_KEY = "skyrio_tour_done";
+const START_DELAY_MS = 2500;
+// Pages where a tour popping up would get in the way
+const BLOCKED_PATHS = [
+  /^\/login/,
+  /^\/register/,
+  /^\/reset/,
+  /^\/verify/,
+  /^\/admin/,
+  /checkout/,
+  /^\/booking\/confirm/,
+];
 
-// ─── Filled SVG Icons ─────────────────────────────────────────────────────────
-
-function IconPlane({ size = 28, color = ORANGE }) {
+/* ── Icons (stroke SVG — same family as the navbar) ───────────────── */
+function Svg({ size = 26, children }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.925A1.5 1.5 0 0 0 5.135 9.25h6.115a.25.25 0 0 1 0 .5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.114A28.897 28.897 0 0 0 3.105 2.289z" />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {children}
     </svg>
   );
 }
+const Icon = {
+  plane: (p) => (
+    <Svg {...p}>
+      <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+    </Svg>
+  ),
+  discover: (p) => (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15.5 8.5-2 5-5 2 2-5z" />
+    </Svg>
+  ),
+  book: (p) => (
+    <Svg {...p}>
+      <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6z" />
+      <path d="M15 5v14" strokeDasharray="2 2.5" />
+    </Svg>
+  ),
+  skyhub: (p) => (
+    <Svg {...p}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2" />
+      <path d="M13 8v8M15.5 8.5h3v3h-3zM5.5 10h5M5.5 13h5" />
+    </Svg>
+  ),
+  passport: (p) => (
+    <Svg {...p}>
+      <rect x="5" y="2.5" width="14" height="19" rx="2" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M9 16.5h6" />
+    </Svg>
+  ),
+  group: (p) => (
+    <Svg {...p}>
+      <path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20" />
+      <circle cx="10" cy="8" r="3.5" />
+      <path d="M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.6a3.5 3.5 0 0 1 0 6.8" />
+    </Svg>
+  ),
+  check: (p) => (
+    <Svg {...p}>
+      <path d="M20 6 9 17l-5-5" />
+    </Svg>
+  ),
+  tip: (p) => (
+    <Svg {...p}>
+      <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z" />
+    </Svg>
+  ),
+  close: (p) => (
+    <Svg {...p}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </Svg>
+  ),
+  left: (p) => (
+    <Svg {...p}>
+      <path d="m15 18-6-6 6-6" />
+    </Svg>
+  ),
+  right: (p) => (
+    <Svg {...p}>
+      <path d="m9 18 6-6-6-6" />
+    </Svg>
+  ),
+};
 
-function IconSearch({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path
-        fillRule="evenodd"
-        d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5zM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconGlobe({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M21.721 12.752a9.711 9.711 0 0 0-.945-5.003 12.754 12.754 0 0 1-4.339 2.708 18.991 18.991 0 0 1-.214 4.772 17.165 17.165 0 0 0 5.498-2.477zM14.634 15.55a17.324 17.324 0 0 0 .332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 0 0 .332 4.647 17.385 17.385 0 0 0 5.268 0zM9.772 17.119a18.963 18.963 0 0 0 4.456 0A17.182 17.182 0 0 1 12 21.724a17.18 17.18 0 0 1-2.228-4.605zM7.777 15.23a18.87 18.87 0 0 1-.214-4.774 12.753 12.753 0 0 1-4.34-2.708 9.711 9.711 0 0 0-.944 5.004 17.165 17.165 0 0 0 5.498 2.477zM21.356 14.752a9.765 9.765 0 0 1-7.478 6.817 18.64 18.64 0 0 0 1.988-4.718 18.627 18.627 0 0 0 5.49-2.098zM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 0 0 1.988 4.718 9.765 9.765 0 0 1-7.478-6.816zM13.878 2.43a9.755 9.755 0 0 1 6.116 3.986 11.267 11.267 0 0 1-3.746 2.504 18.63 18.63 0 0 0-2.37-6.49zM12 2.276a17.152 17.152 0 0 1 2.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0 1 12 2.276zM10.122 2.43a18.629 18.629 0 0 0-2.37 6.49 11.266 11.266 0 0 1-3.746-2.504 9.754 9.754 0 0 1 6.116-3.985z" />
-    </svg>
-  );
-}
-
-function IconBookmark({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path
-        fillRule="evenodd"
-        d="M6.32 2.577a49.255 49.255 0 0 1 11.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 0 1-1.085.67L12 18.089l-7.165 3.583A.75.75 0 0 1 3.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconPassport({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M4.5 3.75a3 3 0 0 0-3 3v.75h21v-.75a3 3 0 0 0-3-3h-15z" />
-      <path
-        fillRule="evenodd"
-        d="M22.5 9.75h-21v7.5a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-7.5zm-18 3.75a.75.75 0 0 1 .75-.75h6a.75.75 0 0 1 0 1.5h-6a.75.75 0 0 1-.75-.75zm.75 2.25a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconGift({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M9.375 3a1.875 1.875 0 0 0 0 3.75h1.875v4.5H3.375A1.875 1.875 0 0 1 1.5 9.375v-.75a1.875 1.875 0 0 1 1.875-1.875h.375A3.375 3.375 0 0 1 9.375 3zM15 6.75h1.875A1.875 1.875 0 0 1 18.75 8.625v.75A1.875 1.875 0 0 1 16.875 11.25H12.75V6.75H15zM11.25 12.75H3v6.375C3 20.496 3.504 21 4.125 21h7.125v-8.25zM12.75 21h7.125A1.125 1.125 0 0 0 21 19.875V12.75h-8.25V21zM14.625 3a3.375 3.375 0 0 1 3.375 3.375h.375A1.875 1.875 0 0 1 20.25 8.25v.75a1.875 1.875 0 0 1-1.875 1.875H14.625V6.75H12.75V3h1.875z" />
-    </svg>
-  );
-}
-
-function IconUsers({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M4.5 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0zM14.25 8.625a3.375 3.375 0 1 1 6.75 0 3.375 3.375 0 0 1-6.75 0zM1.5 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122zM17.25 19.128l-.001.144a2.25 2.25 0 0 1-.233.96 10.088 10.088 0 0 0 5.06-1.01.75.75 0 0 0 .42-.643 4.875 4.875 0 0 0-6.957-4.611 8.586 8.586 0 0 1 1.71 5.157v.003z" />
-    </svg>
-  );
-}
-
-function IconRobot({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path
-        fillRule="evenodd"
-        d="M11.25 3a.75.75 0 0 1 .75-.75h.008a.75.75 0 0 1 0 1.5H12a.75.75 0 0 1-.75-.75zm0 0V4.5h1.5V3h-1.5zM3 9.75A2.25 2.25 0 0 1 5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v7.5A2.25 2.25 0 0 1 18.75 19.5H5.25A2.25 2.25 0 0 1 3 17.25v-7.5zm6.75 2.25a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm3.75 3a.75.75 0 0 0-1.5 0v.75h-.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-.75V15zm2.25-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM1.5 11.25a.75.75 0 0 1 .75-.75H3v3H2.25a.75.75 0 0 1-.75-.75v-1.5zM21 10.5h.75a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75H21v-3z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconShare({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path
-        fillRule="evenodd"
-        d="M15.75 4.5a3 3 0 1 1 .825 2.066l-8.421 4.679a3.002 3.002 0 0 1 0 1.51l8.421 4.679a3 3 0 1 1-.729 1.31l-8.421-4.678a3 3 0 1 1 0-4.132l8.421-4.679a3 3 0 0 1-.096-.755z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconRocket({ size = 28, color = ORANGE }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path
-        fillRule="evenodd"
-        d="M9.315 7.584C12.195 3.883 16.695 1.5 21.75 1.5a.75.75 0 0 1 .75.75c0 5.056-2.383 9.555-6.084 12.436A6.75 6.75 0 0 1 9.75 22.5a.75.75 0 0 1-.75-.75v-4.131A15.838 15.838 0 0 1 6.382 15H2.25a.75.75 0 0 1-.75-.75 6.75 6.75 0 0 1 7.815-6.666zM15 6.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5z"
-        clipRule="evenodd"
-      />
-      <path d="M5.26 17.242a.75.75 0 1 0-.897-1.203 5.243 5.243 0 0 0-2.05 5.022.75.75 0 0 0 .625.627 5.243 5.243 0 0 0 5.022-2.051.75.75 0 1 0-1.202-.897 3.744 3.744 0 0 1-3.008 1.51c0-1.23.592-2.323 1.51-3.008z" />
-    </svg>
-  );
-}
-
-// ─── Reward row SVG icons ─────────────────────────────────────────────────────
-function RewardPlane({ size = 18, color = "#ff8a2a" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.925A1.5 1.5 0 0 0 5.135 9.25h6.115a.25.25 0 0 1 0 .5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.114A28.897 28.897 0 0 0 3.105 2.289z" />
-    </svg>
-  );
-}
-function RewardGlobe({ size = 18, color = "#ff8a2a" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M21.721 12.752a9.711 9.711 0 0 0-.945-5.003 12.754 12.754 0 0 1-4.339 2.708 18.991 18.991 0 0 1-.214 4.772 17.165 17.165 0 0 0 5.498-2.477zM14.634 15.55a17.324 17.324 0 0 0 .332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 0 0 .332 4.647 17.385 17.385 0 0 0 5.268 0zM9.772 17.119a18.963 18.963 0 0 0 4.456 0A17.182 17.182 0 0 1 12 21.724a17.18 17.18 0 0 1-2.228-4.605zM7.777 15.23a18.87 18.87 0 0 1-.214-4.774 12.753 12.753 0 0 1-4.34-2.708 9.711 9.711 0 0 0-.944 5.004 17.165 17.165 0 0 0 5.498 2.477zM21.356 14.752a9.765 9.765 0 0 1-7.478 6.817 18.64 18.64 0 0 0 1.988-4.718 18.627 18.627 0 0 0 5.49-2.098zM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 0 0 1.988 4.718 9.765 9.765 0 0 1-7.478-6.816zM13.878 2.43a9.755 9.755 0 0 1 6.116 3.986 11.267 11.267 0 0 1-3.746 2.504 18.63 18.63 0 0 0-2.37-6.49zM12 2.276a17.152 17.152 0 0 1 2.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0 1 12 2.276zM10.122 2.43a18.629 18.629 0 0 0-2.37 6.49 11.266 11.266 0 0 1-3.746-2.504 9.754 9.754 0 0 1 6.116-3.985z" />
-    </svg>
-  );
-}
-function RewardGift({ size = 18, color = "#ff8a2a" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M9.375 3a1.875 1.875 0 0 0 0 3.75h1.875v4.5H3.375A1.875 1.875 0 0 1 1.5 9.375v-.75a1.875 1.875 0 0 1 1.875-1.875h.375A3.375 3.375 0 0 1 9.375 3zM15 6.75h1.875A1.875 1.875 0 0 1 18.75 8.625v.75A1.875 1.875 0 0 1 16.875 11.25H12.75V6.75H15zM11.25 12.75H3v6.375C3 20.496 3.504 21 4.125 21h7.125v-8.25zM12.75 21h7.125A1.125 1.125 0 0 0 21 19.875V12.75h-8.25V21zM14.625 3a3.375 3.375 0 0 1 3.375 3.375h.375A1.875 1.875 0 0 1 20.25 8.25v.75a1.875 1.875 0 0 1-1.875 1.875H14.625V6.75H12.75V3h1.875z" />
-    </svg>
-  );
-}
-
-// ─── Steps ────────────────────────────────────────────────────────────────────
+/* ── Steps — only things Skyrio actually does today ───────────────── */
 const STEPS = [
   {
-    Icon: IconPlane,
+    icon: "plane",
+    kicker: "Welcome aboard",
     title: "Welcome to Skyrio",
-    body: "A new way to travel — smarter, together. Let's show you around in 30 seconds.",
-    tip: null,
-  },
-  {
-    Icon: IconSearch,
-    title: "Search flights, hotels & more",
-    body: "Use the search bar to find flights, hotels, car rentals, and excursions — all in one place. No jumping between tabs.",
-    tip: "Atlas, your AI travel assistant, can search for you in plain English.",
-  },
-  {
-    Icon: IconGlobe,
-    title: "SkyHub — Your Travel Feed",
-    body: "SkyHub is Skyrio's social space. Share travel moments, follow other explorers, and discover trips through your community's eyes.",
-    tip: "Post a moment from any trip to earn XP and inspire other travelers.",
-  },
-  {
-    Icon: IconBookmark,
-    title: "Save & plan your trips",
-    body: "Hit the bookmark icon on any result to save it. Your saved trips live in the Saved Trips section — organised, shareable, and ready to book.",
-    tip: "Each save earns you XP on your Digital Passport.",
-  },
-  {
-    Icon: IconPassport,
-    title: "Your Digital Passport",
-    body: "Your Digital Passport is your Skyrio profile. Every booking, save, and adventure earns XP and unlocks badges that show up here as you explore the world.",
-    tip: "Check your passport from the profile menu anytime.",
-  },
-  {
-    Icon: IconGift,
-    title: "Spend your XP — Passport Rewards",
-    body: "Passport Rewards is your XP store. Redeem the XP you've earned for boosts, exclusive badges, priority support, and limited-edition drops.",
-    tip: "Open Passport Rewards from your Digital Passport to see what's redeemable right now.",
-  },
-  {
-    Icon: IconShare,
-    title: "Share & Earn XP Together",
-    body: "Love Skyrio? Share your passport link with friends and earn XP every time someone joins through your link. The more travelers in your crew, the more you all earn.",
-    tip: "Go to your Passport → Share Passport to get your referral link.",
-    rewards: [
-      { Icon: RewardPlane, label: "You share your link", xp: "+10 XP" },
-      { Icon: RewardGlobe, label: "Friend signs up", xp: "+50 XP to you" },
-      {
-        Icon: RewardGift,
-        label: "Friend's welcome bonus",
-        xp: "+25 XP to them",
-      },
+    body: "Plan, book and share your trips in one place. Here's a quick look at the four main sections. It takes about a minute.",
+    points: [
+      { icon: "discover", text: "Discover: plan a trip with Atlas AI" },
+      { icon: "book", text: "Book: search flights and hotels" },
+      { icon: "skyhub", text: "SkyHub: see and share travel tips" },
+      { icon: "passport", text: "Passport: your XP, rank and trips" },
     ],
   },
   {
-    Icon: IconUsers,
-    title: "Sync Together",
-    body: "Planning a trip with friends or family? Sync Together lets your group coordinate in one place — shared itineraries, group decisions, and split planning without the back-and-forth texts.",
-    tip: "Find Sync Together in the booking page to start or join a group trip.",
+    icon: "discover",
+    kicker: "Discover",
+    title: "Tell Atlas where you want to go",
+    body: "Type a destination and a budget in plain words, like “a warm beach trip in March under $1,500.” Atlas suggests a flight + hotel plan, then you see live prices before you book.",
+    tip: "Tap the Atlas AI button in the corner of any page to ask a question.",
+    path: "/",
+    cta: "Open Discover",
   },
   {
-    Icon: IconRobot,
-    title: "Meet Atlas",
-    body: "Atlas is your AI travel assistant. Ask it anything — 'Find me a beach trip under $800' or 'What's the weather in Tokyo in March?' It handles the research so you can focus on the adventure.",
-    tip: "If Atlas can't solve your issue, tap 'Need help?' and our team steps in.",
+    icon: "book",
+    kicker: "Book",
+    title: "Search flights and hotels",
+    body: "Fill in your boarding pass (where, when, who) and search. Prices are live, and checkout shows exactly what you'll pay before you pay it.",
+    tip: "Tap the heart on a trip to save it for later. Your saved trips live under the heart in the menu.",
+    path: "/booking",
+    cta: "Open Book",
   },
   {
-    Icon: IconRocket,
-    title: "You're ready to fly.",
-    body: "That's everything you need to know. Start by searching your first destination — your next adventure is one search away.",
-    tip: null,
+    icon: "skyhub",
+    kicker: "SkyHub",
+    title: "Share your trip as a postcard",
+    body: "SkyHub is where Skyrio travelers post tips, photos and questions about places they've been. Read what others found, follow travelers you like, or post your own.",
+    tip: "Add the place to your post so travelers nearby can find it.",
+    path: "/skyhub",
+    cta: "Open SkyHub",
+  },
+  {
+    icon: "passport",
+    kicker: "Passport",
+    title: "Earn XP and climb the ranks",
+    body: "Your Digital Passport tracks your trips, XP and rank. Booking trips earns the most XP; posting on SkyHub earns some too.",
+    points: [
+      { icon: "check", text: "Booking XP unlocks once your trip starts" },
+      { icon: "check", text: "Spend XP on rewards in Passport Rewards" },
+      { icon: "check", text: "Spending XP never lowers your rank" },
+    ],
+    path: "/passport",
+    cta: "Open Passport",
+  },
+  {
+    icon: "group",
+    kicker: "Sync Together",
+    title: "Plan a trip with friends",
+    body: "Start a group trip, suggest flights and hotels for everyone to vote on, and keep it all in one place. Each person books and pays for their own part, so nobody has to front the whole trip.",
+    tip: "Find Sync Together in your Passport.",
+    path: "/sync-together",
+    cta: "Open Sync Together",
+  },
+  {
+    icon: "plane",
+    kicker: "You're all set",
+    title: "Ready when you are",
+    body: "Start with a destination and Atlas will take it from there. You can replay this tour any time from Help.",
     isLast: true,
   },
 ];
 
-// ─── iOS Safari detect ────────────────────────────────────────────────────────
-function isIOSSafari() {
-  if (typeof window === "undefined") return false;
-  const ua = window.navigator.userAgent;
-  return (
-    /iP(ad|hone|od)/.test(ua) && /Safari/.test(ua) && !/Chrome|CriOS/.test(ua)
-  );
-}
+/* ── Styles ───────────────────────────────────────────────────────── */
+const TOUR_CSS = `
+.st-scrim { position: fixed; inset: 0; z-index: 2147483646; background: rgba(5,3,12,0.72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: stFade .25s ease both; }
+.st-card { position: relative; width: 100%; max-width: 460px; max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; border-radius: 24px; background: radial-gradient(120% 90% at 100% 0%, rgba(255,107,43,0.14), transparent 55%), radial-gradient(100% 90% at 0% 100%, rgba(139,108,255,0.16), transparent 60%), rgba(16,11,34,0.98); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 40px 100px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06); color: #fff; font-family: "DM Sans", system-ui, sans-serif; animation: stIn .3s cubic-bezier(.22,1,.36,1) both; }
+.st-card:focus { outline: none; }
+.st-card button { all: unset; box-sizing: border-box; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.st-card button:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+.st-progress { position: sticky; top: 0; z-index: 1; height: 3px; background: rgba(255,255,255,0.08); }
+.st-progress span { display: block; height: 100%; background: linear-gradient(90deg,#ff8a2a,#ffb347,#8b6cff); border-radius: 0 3px 3px 0; transition: width .35s ease; }
+
+.st-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 16px 0 22px; }
+.st-kicker { font-family: ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: #ffb347; }
+.st-card .st-close { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; color: rgba(255,255,255,0.7); }
+.st-card .st-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+.st-body { padding: 14px 22px 0; }
+.st-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.st-badge { flex-shrink: 0; width: 58px; height: 58px; border-radius: 18px; display: flex; align-items: center; justify-content: center; color: #ffb347; background: linear-gradient(135deg, rgba(255,138,42,0.2), rgba(139,108,255,0.18)); border: 1px solid rgba(255,138,42,0.35); box-shadow: 0 8px 24px rgba(255,138,42,0.18); }
+.st-title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+.st-text { margin: 0 0 14px; font-size: 14.5px; line-height: 1.6; color: rgba(255,255,255,0.82); }
+
+.st-points { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.st-points li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); font-size: 13.5px; color: rgba(255,255,255,0.88); }
+.st-points li svg { color: #ffb347; flex-shrink: 0; }
+
+.st-tip { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 14px; border-radius: 12px; background: rgba(255,138,42,0.09); border: 1px dashed rgba(255,138,42,0.4); font-size: 13px; line-height: 1.5; color: #ffd2a3; }
+.st-tip svg { flex-shrink: 0; margin-top: 1px; color: #ffb347; }
+
+.st-card .st-goto { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; font-size: 13px; font-weight: 700; color: #ffb347; border-bottom: 1px solid rgba(255,179,71,0.4); padding-bottom: 1px; }
+.st-card .st-goto:hover { color: #fff; border-color: #fff; }
+
+.st-foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding: 14px 22px calc(18px + env(safe-area-inset-bottom, 0px)); border-top: 1px dashed rgba(255,255,255,0.14); background: rgba(16,11,34,0.96); }
+.st-dots { display: flex; gap: 6px; align-items: center; }
+.st-card .st-dot { width: 8px; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.22); transition: width .25s ease, background .25s ease; }
+.st-card .st-dot.is-done { background: rgba(139,108,255,0.8); }
+.st-card .st-dot.is-on { width: 22px; background: #ff8a2a; }
+.st-btns { display: flex; gap: 8px; }
+.st-card .st-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 0 18px; border-radius: 999px; font-size: 14.5px; font-weight: 800; white-space: nowrap; }
+.st-card .st-btn.is-ghost { min-width: 46px; padding: 0 12px; color: rgba(255,255,255,0.82); border: 1px solid rgba(255,255,255,0.18); }
+.st-card .st-btn.is-ghost:hover { border-color: rgba(255,138,42,0.5); color: #ffb347; }
+.st-card .st-btn.is-primary { color: #1a0e06; background: linear-gradient(135deg,#ff8a2a,#ffb347); box-shadow: 0 8px 22px rgba(255,138,42,0.35); }
+.st-card .st-btn.is-primary:hover { filter: brightness(1.06); }
+
+.st-lastBtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+.st-card .st-lastBtns .st-btn { width: 100%; }
+
+.st-card .st-skip { display: block; margin: 14px 0 0; padding: 8px 12px; font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.6); }
+.st-card .st-skip:hover { color: #fff; }
+.st-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .st-scrim { align-items: flex-end; padding: 0; }
+  .st-card { max-width: none; max-height: 92dvh; border-radius: 24px 24px 0 0; animation-name: stUp; }
+  .st-title { font-size: 20px; }
+  .st-badge { width: 50px; height: 50px; border-radius: 15px; }
+  .st-lastBtns { grid-template-columns: 1fr; }
+}
+@keyframes stFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes stIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes stUp { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .st-scrim, .st-card { animation: none; }
+  .st-progress span, .st-card .st-dot { transition: none; }
+}
+`;
+
+const readDone = () => {
+  try {
+    return !!localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return true; // storage blocked — don't nag
+  }
+};
+const saveDone = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, "1");
+  } catch {
+    /* fine */
+  }
+};
+
+/* ── Component ────────────────────────────────────────────────────── */
 export default function SkyrioDTour() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
-  const overlayRef = useRef(null);
-  const scrollYRef = useRef(0);
-  const isSafariRef = useRef(false);
+  const cardRef = useRef(null);
+  const lastFocus = useRef(null);
 
+  const blocked = BLOCKED_PATHS.some((re) => re.test(location.pathname));
+
+  // First visit: show once the page has settled
   useEffect(() => {
-    isSafariRef.current = isIOSSafari();
-    if (localStorage.getItem("skyrio_tour_done")) return;
+    if (visible || blocked || readDone()) return;
     const t = setTimeout(() => {
+      lastFocus.current = document.activeElement;
+      setStep(0);
       setVisible(true);
-      if (!isSafariRef.current) {
-        scrollYRef.current = window.scrollY || window.pageYOffset;
-        Object.assign(document.body.style, {
-          overflow: "hidden",
-          position: "fixed",
-          top: `-${scrollYRef.current}px`,
-          left: "0",
-          right: "0",
-          width: "100%",
-        });
-      }
-    }, 2000);
+    }, START_DELAY_MS);
     return () => clearTimeout(t);
+  }, [blocked, visible]);
+
+  // Replay on demand
+  useEffect(() => {
+    const replay = () => {
+      lastFocus.current = document.activeElement;
+      setStep(0);
+      setVisible(true);
+    };
+    window.addEventListener("skyrio:tour", replay);
+    return () => window.removeEventListener("skyrio:tour", replay);
   }, []);
 
-  function unlock() {
-    if (!isSafariRef.current) {
-      Object.assign(document.body.style, {
-        overflow: "",
-        position: "",
-        top: "",
-        left: "",
-        right: "",
-        width: "",
-      });
-      window.scrollTo(0, scrollYRef.current);
-    }
-  }
+  const close = useCallback(() => {
+    saveDone();
+    setVisible(false);
+    setTimeout(() => lastFocus.current?.focus?.(), 0);
+  }, []);
 
-  function skipForNow() {
-    unlock();
-    setVisible(false);
-    setStep(0);
-  }
-  function neverShow() {
-    unlock();
-    localStorage.setItem("skyrio_tour_done", "1");
-    setVisible(false);
-    setStep(0);
-  }
-  function next() {
-    step < STEPS.length - 1 ? setStep((s) => s + 1) : skipForNow();
-  }
-  function prev() {
-    step > 0 && setStep((s) => s - 1);
-  }
+  const go = (path) => {
+    close();
+    if (path && path !== location.pathname) navigate(path);
+  };
+
+  const next = useCallback(
+    () => setStep((s) => Math.min(s + 1, STEPS.length - 1)),
+    []
+  );
+  const prev = useCallback(() => setStep((s) => Math.max(s - 1, 0)), []);
+
+  // Lock the page, keyboard controls, keep focus inside the card
+  useEffect(() => {
+    if (!visible) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const t = setTimeout(() => cardRef.current?.focus(), 30);
+
+    const onKey = (e) => {
+      if (e.key === "Escape") return close();
+      if (e.key === "ArrowRight") return next();
+      if (e.key === "ArrowLeft") return prev();
+      if (e.key !== "Tab" || !cardRef.current) return;
+      const els = cardRef.current.querySelectorAll(
+        'button, [href], [tabindex]:not([tabindex="-1"])'
+      );
+      if (!els.length) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [visible, close, next, prev]);
+
+  // Move focus to the card on each step so screen readers read it
+  useEffect(() => {
+    if (visible) cardRef.current?.focus();
+  }, [step, visible]);
 
   if (!visible) return null;
 
-  const current = STEPS[step];
+  const s = STEPS[step];
+  const HeroIcon = Icon[s.icon];
   const progress = ((step + 1) / STEPS.length) * 100;
-  const StepIcon = current.Icon;
 
   return createPortal(
     <div
-      onClick={skipForNow}
-      onTouchMove={(e) => {
-        if (overlayRef.current && !overlayRef.current.contains(e.target))
-          e.preventDefault();
-      }}
-      style={{
-        position: isSafariRef.current ? "absolute" : "fixed",
-        top: isSafariRef.current
-          ? `${scrollYRef.current || window.scrollY}px`
-          : 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
-        zIndex: 2147483647,
-        background: "rgba(0,0,0,0.88)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-        boxSizing: "border-box",
+      className="st-scrim"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) close();
       }}
     >
-      {/* Card */}
+      <style>{TOUR_CSS}</style>
       <div
-        ref={overlayRef}
-        onClick={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 480,
-          maxHeight: "88vh",
-          overflowY: "auto",
-          WebkitOverflowScrolling: "touch",
-          overscrollBehavior: "contain",
-          background: "#120f2a",
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: 22,
-          boxShadow: "0 40px 100px rgba(0,0,0,0.9)",
-          fontFamily: "'DM Sans', sans-serif",
-          color: "#f0edff",
-        }}
+        ref={cardRef}
+        className="st-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="st-title"
+        aria-describedby="st-text"
+        tabIndex={-1}
       >
-        {/* Progress bar */}
-        <div
-          style={{
-            height: 4,
-            borderRadius: "22px 22px 0 0",
-            background: `linear-gradient(90deg, ${ORANGE}, ${PURPLE})`,
-            width: `${progress}%`,
-            transition: "width .4s ease",
-          }}
-        />
+        <div className="st-progress" aria-hidden="true">
+          <span style={{ width: `${progress}%` }} />
+        </div>
 
-        {/* Dots + close */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "18px 20px 0",
-          }}
-        >
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            {STEPS.map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  width: i === step ? 18 : 6,
-                  height: 6,
-                  borderRadius: 3,
-                  background:
-                    i === step
-                      ? ORANGE
-                      : i < step
-                      ? PURPLE
-                      : "rgba(255,255,255,0.15)",
-                  transition: "all .3s ease",
-                }}
-              />
-            ))}
-          </div>
+        <div className="st-top">
+          <span className="st-kicker">
+            {s.kicker}
+            <span className="st-sr">
+              {" "}
+              — step {step + 1} of {STEPS.length}
+            </span>
+          </span>
           <button
-            onClick={skipForNow}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "rgba(240,237,255,0.45)",
-              fontSize: 26,
-              lineHeight: 1,
-              padding: "4px 8px",
-              minWidth: 44,
-              minHeight: 44,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              WebkitTapHighlightColor: "transparent",
-            }}
+            type="button"
+            className="st-close"
+            onClick={close}
+            aria-label="Close tour"
           >
-            ×
+            <Icon.close size={20} />
           </button>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: "20px 24px 28px" }}>
-          {/* Icon badge */}
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 16,
-              marginBottom: 18,
-              background:
-                "linear-gradient(135deg, rgba(255,138,42,0.2), rgba(124,92,252,0.15))",
-              border: "1px solid rgba(255,138,42,0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 4px 20px rgba(255,138,42,0.15)",
-            }}
-          >
-            <StepIcon size={28} color={ORANGE} />
+        <div className="st-body" key={step}>
+          <div className="st-hero">
+            <span className="st-badge">
+              <HeroIcon size={28} />
+            </span>
+            <h2 className="st-title" id="st-title">
+              {s.title}
+            </h2>
           </div>
 
-          <h2
-            style={{
-              margin: "0 0 10px",
-              fontSize: 21,
-              fontWeight: 700,
-              color: "#fff",
-              letterSpacing: "-0.4px",
-            }}
-          >
-            {current.title}
-          </h2>
-
-          <p
-            style={{
-              margin: "0 0 16px",
-              fontSize: 14,
-              color: "rgba(240,237,255,0.78)",
-              lineHeight: 1.7,
-            }}
-          >
-            {current.body}
+          <p className="st-text" id="st-text">
+            {s.body}
           </p>
 
-          {/* Referral reward rows */}
-          {current.rewards && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                marginBottom: 14,
-              }}
-            >
-              {current.rewards.map((r, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    borderRadius: 12,
-                    padding: "10px 14px",
-                  }}
-                >
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 10 }}
-                  >
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 9,
-                        background: "rgba(255,138,42,0.12)",
-                        border: "1px solid rgba(255,138,42,0.2)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <r.Icon size={16} color={ORANGE} />
-                    </div>
-                    <span
-                      style={{ fontSize: 13, color: "rgba(240,237,255,0.7)" }}
-                    >
-                      {r.label}
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: ORANGE,
-                      background: "rgba(255,138,42,0.12)",
-                      border: "1px solid rgba(255,138,42,0.22)",
-                      borderRadius: 20,
-                      padding: "3px 10px",
-                    }}
-                  >
-                    {r.xp}
-                  </span>
-                </div>
-              ))}
+          {s.points && (
+            <ul className="st-points">
+              {s.points.map((p) => {
+                const PIcon = Icon[p.icon];
+                return (
+                  <li key={p.text}>
+                    <PIcon size={17} />
+                    {p.text}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {s.tip && (
+            <div className="st-tip">
+              <Icon.tip size={17} />
+              <span>{s.tip}</span>
             </div>
           )}
 
-          {/* Tip */}
-          {current.tip && (
-            <div
-              style={{
-                background: "rgba(255,138,42,0.1)",
-                border: "1px solid rgba(255,138,42,0.25)",
-                borderRadius: 11,
-                padding: "10px 14px",
-                fontSize: 13,
-                color: ORANGE2,
-                lineHeight: 1.55,
-                marginBottom: 8,
-              }}
+          {s.path && (
+            <button
+              type="button"
+              className="st-goto"
+              onClick={() => go(s.path)}
             >
-              💡 {current.tip}
-            </div>
+              {s.cta} <Icon.right size={14} />
+            </button>
           )}
 
-          {/* Step counter */}
-          <p
-            style={{
-              fontSize: 11,
-              color: "rgba(255,255,255,0.2)",
-              margin: "14px 0 18px",
-              textAlign: "right",
-            }}
-          >
-            {step + 1} / {STEPS.length}
-          </p>
+          {!s.isLast && (
+            <button type="button" className="st-skip" onClick={close}>
+              Skip tour
+            </button>
+          )}
 
-          {/* Buttons */}
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              justifyContent: "flex-end",
-              flexWrap: "wrap",
-            }}
-          >
+          {s.isLast && (
+            <div className="st-lastBtns">
+              <button
+                type="button"
+                className="st-btn is-primary"
+                onClick={() => go("/")}
+              >
+                Plan my first trip
+              </button>
+              <button
+                type="button"
+                className="st-btn is-ghost"
+                onClick={() => go("/skyhub")}
+              >
+                Explore SkyHub
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="st-foot">
+          <div className="st-dots" role="tablist" aria-label="Tour steps">
+            {STEPS.map((st, i) => (
+              <button
+                key={st.title}
+                type="button"
+                role="tab"
+                aria-selected={i === step}
+                aria-label={`Step ${i + 1}: ${st.kicker}`}
+                className={`st-dot${i === step ? " is-on" : ""}${
+                  i < step ? " is-done" : ""
+                }`}
+                onClick={() => setStep(i)}
+              />
+            ))}
+          </div>
+          <div className="st-btns">
             {step > 0 && (
               <button
+                type="button"
+                className="st-btn is-ghost"
                 onClick={prev}
-                style={{
-                  padding: "0 16px",
-                  borderRadius: 11,
-                  minHeight: 48,
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "none",
-                  color: "rgba(240,237,255,0.55)",
-                  fontSize: 14,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  WebkitTapHighlightColor: "transparent",
-                }}
+                aria-label="Previous step"
               >
-                ← Back
+                <Icon.left size={18} />
               </button>
             )}
-            <button
-              onClick={skipForNow}
-              style={{
-                padding: "0 14px",
-                borderRadius: 11,
-                minHeight: 48,
-                border: "none",
-                background: "rgba(255,255,255,0.07)",
-                color: "rgba(240,237,255,0.55)",
-                fontSize: 14,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              Skip for now
-            </button>
-            <button
-              onClick={next}
-              style={{
-                padding: "0 24px",
-                borderRadius: 11,
-                minHeight: 48,
-                border: "none",
-                background: current.isLast
-                  ? `linear-gradient(135deg, ${ORANGE}, ${ORANGE2})`
-                  : `linear-gradient(135deg, ${ORANGE}, ${PURPLE})`,
-                color: "#fff",
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                boxShadow: "0 4px 16px rgba(255,138,42,0.3)",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              {current.isLast ? "Let's go →" : "Next →"}
-            </button>
-          </div>
-
-          <div style={{ textAlign: "center", marginTop: 18 }}>
-            <button
-              onClick={neverShow}
-              style={{
-                background: "none",
-                border: "none",
-                color: "rgba(240,237,255,0.25)",
-                fontSize: 12,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                textDecoration: "underline",
-                textUnderlineOffset: 3,
-                padding: "8px 12px",
-                minHeight: 44,
-                WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              Don't show again
-            </button>
+            {s.isLast ? (
+              <button type="button" className="st-btn is-ghost" onClick={close}>
+                Close
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="st-btn is-primary"
+                onClick={next}
+              >
+                {step === 0 ? "Show me around" : "Next"}
+                <Icon.right size={16} />
+              </button>
+            )}
           </div>
         </div>
       </div>

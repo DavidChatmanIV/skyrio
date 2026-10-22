@@ -740,3 +740,653 @@
     line-height: 36px;
   }
 }
+
+/* =====================================================================
+   SKYRIO THEME PASS — matches Book, SkyHub, Passport and the navbar
+   (dark glass, orange→purple stripe, mono labels, SVG icons)
+===================================================================== */
+.sk-sync-section {
+  --sync-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas,
+    monospace;
+  --sync-glass: rgba(16, 11, 34, 0.78);
+  color: #fff;
+}
+
+/* ── Hero ── */
+.sk-sync-landing .sk-sync-badge {
+  gap: 7px;
+  font-family: var(--sync-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  color: #ffb347;
+}
+.sk-sync-landing .sk-sync-title {
+  font-size: clamp(32px, 5vw, 52px);
+}
+.sk-sync-landing .sk-sync-sub {
+  max-width: 580px;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.82);
+}
+.sk-sync-landing .sk-sync-trust {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.sk-sync-landing .sk-sync-trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(16, 11, 34, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.sk-sync-landing .sk-sync-trust svg {
+  color: #ffb347;
+}
+
+/* ── How it works: a 4-stop route ── */
+.sk-sync-flow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  counter-reset: none;
+}
+.sk-sync-flowStep {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 14px;
+  border-radius: 18px;
+  background: var(--sync-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sk-sync-flowStep:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 34px;
+  right: -9px;
+  width: 8px;
+  border-top: 2px dashed rgba(255, 138, 42, 0.55);
+}
+.sk-sync-flowIcon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb347;
+  background: rgba(255, 138, 42, 0.12);
+  border: 1px solid rgba(255, 138, 42, 0.3);
+}
+.sk-sync-flowNum {
+  font-family: var(--sync-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+.sk-sync-flowTitle {
+  font-size: 15px;
+  font-weight: 800;
+}
+.sk-sync-flowDesc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ── Your group trips ── */
+.sk-sync-trips {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sk-sync-tripsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sk-sync-tripsTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+}
+.sk-sync-tripsTitle svg {
+  color: #ffb347;
+}
+.sk-sync-filter {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sk-sync-filterBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font: 700 13px "DM Sans", sans-serif;
+  cursor: pointer;
+}
+.sk-sync-filterBtn span {
+  font-family: var(--sync-mono);
+  font-size: 11px;
+  opacity: 0.8;
+}
+.sk-sync-filterBtn.is-on {
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+}
+.sk-sync-filterBtn:focus-visible,
+.sk-sync-more:focus-visible,
+.sk-sync-tripMain:focus-visible,
+.sk-sync-del:focus-visible,
+.sk-sync-confirmBtn:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+
+.sk-sync-tripsList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sk-sync-trip {
+  display: flex;
+  align-items: stretch;
+  border-radius: 16px;
+  background: var(--sync-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: border-color 0.18s;
+}
+.sk-sync-trip:hover {
+  border-color: rgba(255, 138, 42, 0.45);
+}
+.sk-sync-tripMain {
+  all: unset;
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 16px 0 0 16px;
+  cursor: pointer;
+}
+.sk-sync-tripTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sk-sync-tripName {
+  font-size: 15.5px;
+  font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sk-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 21px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-family: var(--sync-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+}
+.sk-sync-pill.is-orange {
+  color: #ffc27a;
+  border-color: rgba(255, 138, 42, 0.45);
+  background: rgba(255, 138, 42, 0.12);
+}
+.sk-sync-pill.is-purple {
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(167, 139, 250, 0.12);
+}
+.sk-sync-pill.is-green {
+  color: #6ee7a8;
+  border-color: rgba(110, 231, 168, 0.4);
+  background: rgba(110, 231, 168, 0.1);
+}
+.sk-sync-pill.is-red {
+  color: #ff8fa3;
+  border-color: rgba(255, 107, 133, 0.45);
+  background: rgba(255, 107, 133, 0.1);
+}
+
+.sk-sync-tripMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.72);
+}
+.sk-sync-tripMeta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sk-sync-avatars {
+  display: flex;
+  margin-top: 2px;
+}
+.sk-sync-av.ant-avatar,
+.sk-sync-av.is-more {
+  width: 26px;
+  height: 26px;
+  margin-left: -7px;
+  border: 2px solid #160b26;
+  background: #2a1f3d;
+  color: #ffb347;
+  font-size: 11px;
+  font-weight: 800;
+}
+.sk-sync-avatars > :first-child {
+  margin-left: 0;
+}
+.sk-sync-av.is-owner {
+  background: linear-gradient(135deg, #ff8a2a, #8b6cff);
+  color: #fff;
+}
+.sk-sync-av.is-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 10px;
+}
+
+.sk-sync-tripStub {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  min-width: 96px;
+  padding: 10px 14px;
+  border-left: 2px dashed rgba(255, 255, 255, 0.14);
+}
+.sk-sync-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.72);
+}
+.sk-sync-trip:hover .sk-sync-open {
+  color: #ffb347;
+}
+.sk-sync-del {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+.sk-sync-del:hover {
+  background: rgba(255, 107, 133, 0.14);
+  color: #ff8fa3;
+}
+.sk-sync-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+}
+.sk-sync-confirmBtn {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #fff;
+  font: 700 12.5px "DM Sans", sans-serif;
+  cursor: pointer;
+}
+.sk-sync-confirmBtn.is-danger {
+  border: 0;
+  background: #ff6b85;
+  color: #1a0e06;
+}
+.sk-sync-more {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sk-sync-more:hover {
+  border-color: rgba(255, 138, 42, 0.55);
+  color: #ffb347;
+}
+.sk-sync-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 28px 20px;
+  border-radius: 16px;
+  border: 2px dashed rgba(255, 255, 255, 0.14);
+  text-align: center;
+  color: #ffb347;
+}
+.sk-sync-emptyTitle {
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+}
+.sk-sync-emptySub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.sk-sync-skel {
+  height: 92px;
+  border-radius: 16px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.09),
+    rgba(255, 255, 255, 0.04)
+  );
+  background-size: 200% 100%;
+  animation: skSyncShimmer 1.2s linear infinite;
+}
+@keyframes skSyncShimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ── Features ── */
+.sk-sync-sectionLabel {
+  margin: 0 0 12px;
+  font-family: var(--sync-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+}
+.sk-sync-landing .sk-sync-card {
+  background: var(--sync-glass);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.sk-sync-landing .sk-sync-card-icon {
+  color: #ffb347;
+}
+.sk-sync-landing .sk-sync-card-body {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.sk-sync-landing .sk-sync-count {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* ── Trip page: panels, stepper, header bits ── */
+.sk-sync-panel {
+  position: relative;
+  background: var(--sync-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 20px 18px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.3);
+}
+.sk-sync-panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.sk-sync-panelTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+}
+.sk-sync-panelTitle svg {
+  color: #ffb347;
+}
+
+.sk-sync-progress {
+  margin-bottom: 14px;
+  padding: 16px 16px 14px;
+  border-radius: 18px;
+  background: var(--sync-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sk-sync-stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.sk-sync-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.sk-sync-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: calc(50% + 20px);
+  right: calc(-50% + 20px);
+  border-top: 2px dashed rgba(255, 255, 255, 0.16);
+}
+.sk-sync-step.is-done:not(:last-child)::after {
+  border-top-style: solid;
+  border-color: #ff8a2a;
+}
+.sk-sync-stepDot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+.sk-sync-step.is-done .sk-sync-stepDot {
+  color: #1a0e06;
+  background: #ff8a2a;
+  border-color: transparent;
+}
+.sk-sync-step.is-current .sk-sync-stepDot {
+  color: #1a0e06;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  border-color: transparent;
+  box-shadow: 0 0 0 4px rgba(255, 138, 42, 0.22);
+}
+.sk-sync-stepLabel {
+  font-family: var(--sync-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+.sk-sync-step.is-done .sk-sync-stepLabel {
+  color: rgba(255, 255, 255, 0.78);
+}
+.sk-sync-step.is-current .sk-sync-stepLabel {
+  color: #ffb347;
+}
+.sk-sync-nextStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 138, 42, 0.08);
+  border: 1px dashed rgba(255, 138, 42, 0.4);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #ffd2a3;
+}
+.sk-sync-nextStep svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #ffb347;
+}
+
+.sk-sync-dest {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffb347;
+}
+.sk-sync-code {
+  font-family: var(--sync-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.6);
+}
+.sk-sync-code b {
+  color: #fff;
+  letter-spacing: 0.14em;
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  /* The older rule pads every direct child div; the landing's wrappers
+     shouldn't get it. */
+  .sk-sync-section.sk-sync-landing > div {
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+  .sk-sync-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sk-sync-flowStep:nth-child(2)::after {
+    display: none;
+  }
+  .sk-sync-trip {
+    flex-direction: column;
+  }
+  .sk-sync-tripMain {
+    border-radius: 16px 16px 0 0;
+    padding: 12px 14px;
+  }
+  .sk-sync-tripStub {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    min-width: 0;
+    padding: 8px 12px;
+    border-left: 0;
+    border-top: 2px dashed rgba(255, 255, 255, 0.12);
+  }
+  .sk-sync-confirm {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .sk-sync-stepLabel {
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+  }
+  .sk-sync-stepDot {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+  .sk-sync-step:not(:last-child)::after {
+    top: 13px;
+    left: calc(50% + 17px);
+    right: calc(-50% + 17px);
+  }
+  .sk-sync-progress {
+    padding: 14px 10px 12px;
+  }
+}
+@media (max-width: 400px) {
+  .sk-sync-flow {
+    grid-template-columns: 1fr;
+  }
+  .sk-sync-flowStep::after {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-sync-skel {
+    animation: none;
+  }
+}
