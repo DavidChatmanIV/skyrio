@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Button,
   Modal,
@@ -29,18 +29,100 @@ import {
 import dayjs from "dayjs";
 import { apiUrl } from "@/lib/api";
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   API
+   One helper for every admin call: sends the session cookie, the login
+   token, and the admin email header, so no call site repeats them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 /* skyhub-login */
-const skyAuthFetch = (url, opts = {}) => {
+function adminFetch(path, { headers, ...opts } = {}) {
   const token = localStorage.getItem("token");
-  return fetch(url, {
+  return fetch(apiUrl(path), {
     credentials: "include",
     ...opts,
     headers: {
-      ...(opts.headers || {}),
+      "x-admin-email": localStorage.getItem("admin_email") || "",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
     },
   });
-};
+}
+
+/** JSON request that throws on a non-2xx response or `{ ok: false }`. */
+async function adminRequest(path, { method = "GET", body } = {}) {
+  const res = await adminFetch(path, {
+    method,
+    ...(body !== undefined && {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.ok === false) {
+    const err = new Error(json.message || `Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return json;
+}
+
+function clearAdminSession() {
+  localStorage.removeItem("admin");
+  localStorage.removeItem("admin_email");
+}
+
+/**
+ * Loads data and tracks loading/error state. Reloads when `key` changes,
+ * optionally polls every `intervalMs` (silently, no spinner), and ignores
+ * responses that arrive after a newer request has started.
+ */
+function useLoader(load, { key = "", intervalMs = 0 } = {}) {
+  const [state, setState] = useState({ data: null, loading: true, error: "" });
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const requestId = useRef(0);
+
+  const reload = useCallback(async ({ silent = false } = {}) => {
+    const id = ++requestId.current;
+    if (!silent) setState((s) => ({ ...s, loading: true, error: "" }));
+    try {
+      const data = await loadRef.current();
+      if (id === requestId.current)
+        setState({ data, loading: false, error: "" });
+    } catch (err) {
+      if (id === requestId.current) {
+        setState((s) => ({
+          ...s,
+          loading: false,
+          error: err?.message || "Something went wrong.",
+        }));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    reload();
+    if (!intervalMs) return undefined;
+    const t = setInterval(() => reload({ silent: true }), intervalMs);
+    return () => clearInterval(t);
+  }, [reload, intervalMs, key]);
+
+  return { ...state, reload };
+}
+
+/** Re-renders every `ms` so relative times ("3m ago") stay current. */
+function useTick(ms = 30_000) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 const CHALLENGE_ICONS = [
   { key: "trophy", label: "Trophy", Icon: TrophyOutlined },
@@ -56,44 +138,6 @@ const CHALLENGE_ICONS = [
   { key: "calendar", label: "Calendar", Icon: CalendarOutlined },
   { key: "environment", label: "Destination", Icon: EnvironmentOutlined },
 ];
-
-function ChallengeIconPicker({ value, onChange }) {
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {CHALLENGE_ICONS.map(({ key, label, Icon }) => {
-        const selected = value === key;
-        return (
-          <button
-            key={key}
-            type="button"
-            title={label}
-            onClick={() => onChange(key)}
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 10,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 16,
-              cursor: "pointer",
-              background: selected
-                ? "rgba(255,138,42,0.18)"
-                : "rgba(255,255,255,0.05)",
-              border: selected
-                ? "1px solid #ff8a2a"
-                : "1px solid rgba(255,255,255,0.12)",
-              color: selected ? "#ff8a2a" : "rgba(255,255,255,0.6)",
-              transition: "all 0.15s",
-            }}
-          >
-            <Icon />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 const REWARD_TYPES = [
   { value: "BOOST", label: "Boost" },
@@ -114,142 +158,198 @@ const CHALLENGE_ACTION_TYPES = [
   { value: "STREAK_DAY", label: "Daily login streak" },
 ];
 
+const ACTION_LABELS = Object.fromEntries(
+  CHALLENGE_ACTION_TYPES.map((a) => [a.value, a.label])
+);
+
+const TAKEDOWN_FILTERS = [
+  ["received", "Waiting"],
+  ["removed", "Removed"],
+  ["rejected", "Rejected"],
+  ["restored", "Restored"],
+];
+
+const TABS = ["overview", "moderation", "engagement"];
+
 const C = {
   bg: "#07060f",
   card: "rgba(255,255,255,0.04)",
   border: "rgba(255,255,255,0.08)",
-  borderAccent: "rgba(255,138,42,0.3)",
+  borderStrong: "rgba(255,255,255,0.16)",
   orange: "#ff8a2a",
-  orangeDim: "rgba(255,138,42,0.12)",
   purple: "#7c5cfc",
-  purpleDim: "rgba(124,92,252,0.12)",
   green: "#34d399",
-  greenDim: "rgba(52,211,153,0.12)",
   red: "#f87171",
-  redDim: "rgba(248,113,113,0.12)",
   blue: "#60a5fa",
-  blueDim: "rgba(96,165,250,0.12)",
+  amber: "#ffb347",
   white: "#fff",
+  text: "rgba(255,255,255,0.75)",
   muted: "rgba(255,255,255,0.45)",
 };
+
+/** Foreground + tinted background pairs. Use these instead of `color + "20"`,
+ *  which silently breaks for non-hex colors like C.muted. */
+const TONES = {
+  orange: { fg: C.orange, bg: "rgba(255,138,42,0.12)" },
+  purple: { fg: C.purple, bg: "rgba(124,92,252,0.14)" },
+  green: { fg: C.green, bg: "rgba(52,211,153,0.12)" },
+  red: { fg: C.red, bg: "rgba(248,113,113,0.13)" },
+  blue: { fg: C.blue, bg: "rgba(96,165,250,0.12)" },
+  amber: { fg: C.amber, bg: "rgba(255,179,71,0.14)" },
+  muted: { fg: C.muted, bg: "rgba(255,255,255,0.06)" },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 const INJECTED_CSS = `
   .sk-admin * { box-sizing: border-box; }
   .sk-admin { min-height: 100vh; background: ${C.bg}; color: ${C.white}; font-family: "DM Sans", sans-serif; }
-  .sk-admin__topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 32px; background: rgba(255,255,255,0.02);
-    border-bottom: 1px solid ${C.border};
-    position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px);
+
+  /* Top bar + tabs */
+  .sk-top { position: sticky; top: 0; z-index: 50; background: rgba(7,6,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid ${C.border}; }
+  .sk-top__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 32px 0; max-width: 1300px; margin: 0 auto; }
+  .sk-top__logo { font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .sk-top__badge { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; background: ${TONES.orange.bg}; border: 1px solid rgba(255,138,42,0.3); color: ${C.orange}; border-radius: 999px; padding: 3px 10px; }
+  .sk-top__right { display: flex; align-items: center; gap: 10px; }
+  .sk-top__updated { font-size: 11px; color: ${C.muted}; }
+  .sk-tabs { display: flex; gap: 4px; padding: 0 32px; max-width: 1300px; margin: 10px auto 0; overflow-x: auto; }
+  .sk-tabs__tab { background: none; border: none; border-bottom: 2px solid transparent; color: ${C.muted}; padding: 10px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; transition: color .15s, border-color .15s; }
+  .sk-tabs__tab:hover { color: ${C.white}; }
+  .sk-tabs__tab[aria-selected="true"] { color: ${C.white}; border-bottom-color: ${C.orange}; }
+  .sk-tabs__count { font-size: 10px; font-weight: 800; background: ${C.red}; color: #fff; border-radius: 999px; padding: 1px 7px; }
+
+  .sk-btn { background: none; border: 1px solid ${C.border}; color: ${C.muted}; padding: 6px 14px; border-radius: 999px; font: inherit; font-size: 12px; cursor: pointer; transition: border-color .2s, color .2s; }
+  .sk-btn:hover:not(:disabled) { border-color: ${C.orange}; color: ${C.orange}; }
+  .sk-btn:disabled { opacity: .5; cursor: default; }
+  .sk-btn--sm { padding: 4px 10px; font-size: 11px; }
+  .sk-btn--active { border-color: ${C.orange}; color: ${C.orange}; }
+  .sk-btn--danger:hover:not(:disabled) { border-color: ${C.red}; color: ${C.red}; }
+
+  /* Layout */
+  .sk-body { padding: 28px 32px 48px; max-width: 1300px; margin: 0 auto; }
+  .sk-section { margin-bottom: 32px; }
+  .sk-section__title { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: ${C.muted}; margin: 0 0 14px; }
+  .sk-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .sk-stack { display: flex; flex-direction: column; gap: 20px; }
+  .sk-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .sk-stats--3 { grid-template-columns: repeat(3, 1fr); }
+  .sk-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  @media (max-width: 900px) {
+    .sk-stats, .sk-stats--3 { grid-template-columns: repeat(2, 1fr); }
+    .sk-grid-2 { grid-template-columns: 1fr; }
   }
-  .sk-admin__logo { font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; color: ${C.white}; display: flex; align-items: center; gap: 8px; }
-  .sk-admin__badge { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; background: ${C.orangeDim}; border: 1px solid ${C.borderAccent}; color: ${C.orange}; border-radius: 999px; padding: 3px 10px; }
-  .sk-admin__body { padding: 32px; max-width: 1300px; margin: 0 auto; }
-  .sk-admin__section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: ${C.muted}; margin-bottom: 16px; }
-  .sk-admin__stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-  @media (max-width: 900px) { .sk-admin__stats { grid-template-columns: repeat(2,1fr); } }
-  @media (max-width: 500px) { .sk-admin__stats { grid-template-columns: 1fr; } }
-  .sk-stat { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 16px; padding: 20px; transition: border-color .2s, transform .2s; }
-  .sk-stat:hover { border-color: rgba(255,255,255,0.16); transform: translateY(-2px); }
-  .sk-stat__icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 14px; }
-  .sk-stat__val { font-family: "Syne", sans-serif; font-size: 28px; font-weight: 800; color: ${C.white}; line-height: 1; margin-bottom: 4px; }
+  @media (max-width: 560px) {
+    .sk-top__bar, .sk-tabs { padding-left: 16px; padding-right: 16px; }
+    .sk-body { padding: 20px 16px 40px; }
+    .sk-stats, .sk-stats--3 { grid-template-columns: 1fr; }
+    .sk-top__updated { display: none; }
+  }
+
+  /* Alert */
+  .sk-alert { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: ${TONES.red.bg}; border: 1px solid ${C.red}; border-radius: 12px; padding: 12px 18px; color: #fecaca; font-size: 13px; font-weight: 600; margin-bottom: 24px; }
+  .sk-alert--soft { border-color: rgba(248,113,113,0.3); color: ${C.red}; font-weight: 500; }
+
+  /* Attention tiles */
+  .sk-tile { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 16px 18px; background: ${C.card}; border: 1px solid ${C.border}; border-radius: 14px; color: inherit; font: inherit; cursor: pointer; transition: border-color .2s, background .2s, transform .2s; }
+  .sk-tile:hover { border-color: rgba(255,138,42,0.45); background: rgba(255,138,42,0.06); transform: translateY(-1px); }
+  .sk-tile--hot { border-color: rgba(255,138,42,0.35); background: rgba(255,138,42,0.07); }
+  .sk-tile--urgent { border-color: rgba(248,113,113,0.55); background: rgba(248,113,113,0.08); }
+  .sk-tile__icon { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 19px; background: rgba(255,255,255,0.05); border: 1px solid ${C.border}; }
+  .sk-tile__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .sk-tile__title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .sk-tile__sub { font-size: 12px; color: ${C.muted}; }
+  .sk-tile__arrow { color: ${C.orange}; font-size: 18px; font-weight: 700; flex-shrink: 0; }
+
+  /* Stat cards */
+  .sk-stat { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 14px; padding: 18px; }
+  .sk-stat__top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .sk-stat__label { font-size: 12px; color: ${C.muted}; }
-  .sk-admin__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-  @media (max-width: 860px) { .sk-admin__grid { grid-template-columns: 1fr; } }
-  .sk-admin__card { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 16px; overflow: hidden; }
-  .sk-admin__card-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid ${C.border}; }
-  .sk-admin__card-title { font-size: 13px; font-weight: 700; color: ${C.white}; }
-  .sk-admin__card-count { font-size: 11px; color: ${C.muted}; background: rgba(255,255,255,0.06); border-radius: 999px; padding: 2px 10px; }
-  .sk-admin__row { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid ${C.border}; transition: background .15s; }
-  .sk-admin__row:last-child { border-bottom: none; }
-  .sk-admin__row:hover { background: rgba(255,255,255,0.03); }
-  .sk-admin__row-left { display: flex; align-items: center; gap: 10px; }
-  .sk-admin__avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, ${C.purple}, ${C.orange}); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: ${C.white}; flex-shrink: 0; overflow: hidden; }
-  .sk-admin__name { font-size: 13px; font-weight: 600; color: ${C.white}; }
-  .sk-admin__sub { font-size: 11px; color: ${C.muted}; margin-top: 1px; }
-  .sk-admin__pill { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 999px; padding: 3px 10px; }
-  .sk-admin__feed { display: flex; flex-direction: column; }
-  .sk-admin__feed-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 20px; border-bottom: 1px solid ${C.border}; }
-  .sk-admin__feed-item:last-child { border-bottom: none; }
-  .sk-admin__feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
-  .sk-admin__feed-text { font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.5; }
-  .sk-admin__feed-time { font-size: 11px; color: ${C.muted}; margin-top: 2px; }
-  .sk-admin__rev { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; }
-  .sk-admin__rev-row { display: flex; flex-direction: column; gap: 5px; }
-  .sk-admin__rev-label { display: flex; justify-content: space-between; font-size: 12px; color: ${C.muted}; }
-  .sk-admin__rev-bar { height: 6px; background: rgba(255,255,255,0.07); border-radius: 999px; overflow: hidden; }
-  .sk-admin__rev-fill { height: 100%; border-radius: 999px; transition: width 0.8s ease; }
-  .sk-admin__spinner { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.1); border-top-color: ${C.orange}; animation: sk-spin 0.7s linear infinite; display: inline-block; }
+  .sk-stat__icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .sk-stat__val { font-family: "Syne", sans-serif; font-size: 26px; font-weight: 800; line-height: 1; min-height: 26px; }
+  .sk-stat__hint { font-size: 11px; color: ${C.muted}; margin-top: 8px; }
+
+  /* Panels + rows */
+  .sk-panel { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 14px; overflow: hidden; }
+  .sk-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid ${C.border}; flex-wrap: wrap; }
+  .sk-panel__title { margin: 0; font-size: 13px; font-weight: 700; color: ${C.white}; }
+  .sk-panel__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sk-panel__meta { font-size: 11px; color: ${C.muted}; background: rgba(255,255,255,0.06); border-radius: 999px; padding: 2px 10px; }
+  .sk-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 20px; border-bottom: 1px solid ${C.border}; transition: background .15s; }
+  .sk-row:last-child { border-bottom: none; }
+  .sk-row:hover { background: rgba(255,255,255,0.025); }
+  .sk-row--top { align-items: flex-start; }
+  .sk-row__left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+  .sk-row__right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .sk-row__right--col { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .sk-row__icon { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; background: ${TONES.orange.bg}; border: 1px solid rgba(255,138,42,0.3); color: ${C.orange}; }
+  .sk-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: linear-gradient(135deg, ${C.purple}, ${C.orange}); }
+  .sk-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .sk-name { font-size: 13px; font-weight: 600; color: ${C.white}; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sk-sub { font-size: 11px; color: ${C.muted}; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; }
+  .sk-text { font-size: 13px; color: ${C.text}; line-height: 1.5; margin-top: 6px; word-break: break-word; }
+  .sk-mono { font-family: ui-monospace, monospace; letter-spacing: 0.05em; }
+  .sk-amount { font-size: 12px; font-weight: 700; }
+
+  .sk-pill { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+
+  .sk-feed__item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 20px; border-bottom: 1px solid ${C.border}; }
+  .sk-feed__item:last-child { border-bottom: none; }
+  .sk-feed__dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+
+  .sk-rev { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; }
+  .sk-rev__label { display: flex; justify-content: space-between; font-size: 12px; color: ${C.muted}; margin-bottom: 5px; }
+  .sk-rev__bar { height: 6px; background: rgba(255,255,255,0.07); border-radius: 999px; overflow: hidden; }
+  .sk-rev__fill { height: 100%; border-radius: 999px; transition: width .8s ease; }
+
+  .sk-rank { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid ${C.border}; font-size: 13px; }
+  .sk-rank:last-child { border-bottom: none; }
+  .sk-rank__pos { font-size: 11px; color: ${C.muted}; width: 22px; display: inline-block; }
+
+  .sk-empty { padding: 32px 20px; text-align: center; font-size: 13px; color: ${C.muted}; }
+  .sk-spinner { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.1); border-top-color: ${C.orange}; animation: sk-spin .7s linear infinite; display: inline-block; vertical-align: middle; }
   @keyframes sk-spin { to { transform: rotate(360deg); } }
-  .sk-admin__empty { padding: 32px; text-align: center; font-size: 13px; color: ${C.muted}; }
-  .sk-admin__topbtn { background: none; border: 1px solid ${C.border}; color: ${C.muted}; padding: 6px 14px; border-radius: 999px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color .2s, color .2s; }
-  .sk-admin__topbtn:hover { border-color: ${C.orange}; color: ${C.orange}; }
 
-  .sk-admin__support-banner {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 16px; padding: 18px 24px;
-    background: rgba(255,138,42,0.08);
-    border: 1px solid rgba(255,138,42,0.28);
-    border-radius: 14px; margin-bottom: 28px;
-    cursor: pointer; transition: background .2s, border-color .2s;
-  }
-  .sk-admin__support-banner:hover {
-    background: rgba(255,138,42,0.14);
-    border-color: rgba(255,138,42,0.5);
-  }
-  .sk-admin__support-banner-left { display: flex; align-items: center; gap: 14px; }
-  .sk-admin__support-icon {
-    width: 42px; height: 42px; border-radius: 12px;
-    background: rgba(255,138,42,0.15); border: 1px solid rgba(255,138,42,0.3);
-    display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
-  }
-  .sk-admin__support-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 3px; }
-  .sk-admin__support-sub { font-size: 12px; color: rgba(255,255,255,0.45); }
-  .sk-admin__support-arrow { font-size: 20px; font-weight: 700; color: #ff8a2a; flex-shrink: 0; }
+  /* Icon picker */
+  .sk-icons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sk-icons__btn { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.6); transition: all .15s; }
+  .sk-icons__btn[aria-pressed="true"] { background: rgba(255,138,42,0.18); border-color: ${C.orange}; color: ${C.orange}; }
 
-  .sk-admin__challenge-actions { display: flex; align-items: center; gap: 8px; }
-  .sk-admin__challenge-action-btn {
-    background: none; border: 1px solid ${C.border}; color: ${C.muted};
-    padding: 4px 10px; border-radius: 999px; font-size: 11px; cursor: pointer;
-    font-family: inherit; transition: border-color .2s, color .2s;
-  }
-  .sk-admin__challenge-action-btn:hover { border-color: ${C.orange}; color: ${C.orange}; }
-  .sk-admin__challenge-action-btn--danger:hover { border-color: ${C.red}; color: ${C.red}; }
-
+  /* Modals (antd overrides) */
+  .sk-modal-hint { color: rgba(255,255,255,0.65); font-size: 13px; }
+  .sk-modal-label { font-size: 12px; color: ${C.muted}; margin: 10px 0 4px; }
+  .sk-field-help { color: rgba(255,255,255,0.4); }
   .sk-challenge-modal .ant-form-item-label > label { color: rgba(255,255,255,0.7) !important; }
   .sk-challenge-modal .ant-input,
-  .sk-challenge-modal textarea.ant-input {
-    background: rgba(255,255,255,0.06) !important;
-    border-color: rgba(255,255,255,0.15) !important;
-    color: #fff !important;
-  }
-  .sk-challenge-modal .ant-input::placeholder { color: rgba(255,255,255,0.35) !important; }
-  .sk-challenge-modal .ant-input-number {
-    background: rgba(255,255,255,0.06) !important;
-    border-color: rgba(255,255,255,0.15) !important;
-  }
-  .sk-challenge-modal .ant-input-number-input { color: #fff !important; }
-  .sk-challenge-modal .ant-select-selector {
-    background: rgba(255,255,255,0.06) !important;
-    border-color: rgba(255,255,255,0.15) !important;
-  }
-  .sk-challenge-modal .ant-select-selection-item,
-  .sk-challenge-modal .ant-select-selection-placeholder { color: #fff !important; }
-  .sk-challenge-modal .ant-select-selection-item {
-    background: rgba(255,138,42,0.18) !important;
-    border-color: rgba(255,138,42,0.4) !important;
-  }
+  .sk-challenge-modal textarea.ant-input,
+  .sk-challenge-modal .ant-input-number,
+  .sk-challenge-modal .ant-select-selector,
   .sk-challenge-modal .ant-picker {
     background: rgba(255,255,255,0.06) !important;
     border-color: rgba(255,255,255,0.15) !important;
   }
-  .sk-challenge-modal .ant-picker-input input { color: #fff !important; }
+  .sk-challenge-modal .ant-input,
+  .sk-challenge-modal textarea.ant-input,
+  .sk-challenge-modal .ant-input-number-input,
+  .sk-challenge-modal .ant-picker-input input,
+  .sk-challenge-modal .ant-select-selection-item,
+  .sk-challenge-modal .ant-select-selection-placeholder { color: #fff !important; }
+  .sk-challenge-modal .ant-input::placeholder { color: rgba(255,255,255,0.35) !important; }
+  .sk-challenge-modal .ant-select-selection-item {
+    background: rgba(255,138,42,0.18) !important;
+    border-color: rgba(255,138,42,0.4) !important;
+  }
   .sk-challenge-modal .ant-picker-separator,
   .sk-challenge-modal .ant-picker-suffix { color: rgba(255,255,255,0.5) !important; }
 `;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   FORMATTERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 function timeAgo(date) {
-  const diff = Math.floor((Date.now() - new Date(date)) / 1000);
+  const diff = Math.max(0, Math.floor((Date.now() - new Date(date)) / 1000));
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -267,223 +367,780 @@ function initials(name = "") {
   );
 }
 
-function fmt$(n) {
-  return `$${Number(n || 0).toLocaleString("en-US", {
+const fmt$ = (n) =>
+  `$${Number(n || 0).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-}
 
-function StatusPill({ status }) {
-  const map = {
-    confirmed: { bg: C.greenDim, color: C.green },
-    pending: { bg: C.orangeDim, color: C.orange },
-    cancelled: { bg: C.redDim, color: C.red },
-  };
-  const s = map[status] || { bg: C.card, color: C.muted };
+const fmtNum = (n) => Number(n || 0).toLocaleString();
+
+const plural = (n, one, many = `${one}s`) => (n === 1 ? one : many);
+
+const fmtRange = (start, end) =>
+  `${dayjs(start).format("MMM D")} – ${dayjs(end).format("MMM D, YYYY")}`;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UI PRIMITIVES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const Spinner = () => <span className="sk-spinner" />;
+
+function Pill({ tone = "muted", children }) {
+  const t = TONES[tone] || TONES.muted;
   return (
-    <span
-      className="sk-admin__pill"
-      style={{ background: s.bg, color: s.color }}
-    >
-      {status || "unknown"}
+    <span className="sk-pill" style={{ background: t.bg, color: t.fg }}>
+      {children}
     </span>
   );
 }
 
-function LevelPill({ xp = 0 }) {
-  const level =
-    xp >= 2000
-      ? { label: "Legend", color: C.orange }
-      : xp >= 1000
-      ? { label: "Expert", color: C.purple }
-      : xp >= 500
-      ? { label: "Adventurer", color: C.blue }
-      : xp >= 200
-      ? { label: "Traveler", color: C.green }
-      : { label: "Explorer", color: C.muted };
+function Section({ title, children }) {
   return (
-    <span
-      className="sk-admin__pill"
-      style={{ background: level.color + "20", color: level.color }}
-    >
-      {level.label}
-    </span>
+    <section className="sk-section">
+      {title && <h2 className="sk-section__title">{title}</h2>}
+      {children}
+    </section>
   );
 }
 
-function ChallengeStatusPill({ challenge }) {
-  const now = Date.now();
-  const start = new Date(challenge.startDate).getTime();
-  const end = new Date(challenge.endDate).getTime();
+function Panel({ title, meta, actions, children }) {
+  return (
+    <section className="sk-panel">
+      <header className="sk-panel__head">
+        <h3 className="sk-panel__title">{title}</h3>
+        {(meta != null || actions) && (
+          <div className="sk-panel__actions">
+            {meta != null && <span className="sk-panel__meta">{meta}</span>}
+            {actions}
+          </div>
+        )}
+      </header>
+      {children}
+    </section>
+  );
+}
 
-  let label, color;
-  if (!challenge.active) {
-    label = "Ended early";
-    color = C.red;
-  } else if (now < start) {
-    label = "Upcoming";
-    color = C.blue;
-  } else if (now > end) {
-    label = "Finished";
-    color = C.muted;
-  } else {
-    label = "Running";
-    color = C.green;
+/** Spinner while the first load is running, empty text if nothing came back. */
+function PanelContent({ loading, isEmpty, emptyText, children }) {
+  if (isEmpty) {
+    return <div className="sk-empty">{loading ? <Spinner /> : emptyText}</div>;
   }
-
-  return (
-    <span
-      className="sk-admin__pill"
-      style={{ background: color + "20", color }}
-    >
-      {label}
-    </span>
-  );
+  return children;
 }
 
-function resolveChallengeIcon(key) {
-  const found = CHALLENGE_ICONS.find((i) => i.key === key);
-  const Icon = found?.Icon || TrophyOutlined;
-  return <Icon />;
-}
-
-function StatCard({ icon, label, value, color, dim }) {
+function StatCard({ icon, label, value, hint, tone = "muted" }) {
+  const t = TONES[tone];
   return (
     <div className="sk-stat">
-      <div className="sk-stat__icon" style={{ background: dim, color }}>
-        {icon}
+      <div className="sk-stat__top">
+        <span className="sk-stat__label">{label}</span>
+        <span
+          className="sk-stat__icon"
+          style={{ background: t.bg, color: t.fg }}
+        >
+          {icon}
+        </span>
       </div>
       <div className="sk-stat__val">
-        {value ?? <span className="sk-admin__spinner" />}
+        {value === undefined ? <Spinner /> : value}
       </div>
-      <div className="sk-stat__label">{label}</div>
+      {hint && <div className="sk-stat__hint">{hint}</div>}
     </div>
   );
 }
 
-// ─── Support inbox open ticket count from the API ──────────────────────────
-// Previously read from localStorage("skyrio_support_tickets"), a leftover
-// from the pre-backend SupportRail prototype. "Need help" tickets now save
-// via POST /api/support instead, so this pulls the real open-ticket count
-// so the banner below stays accurate.
-function useSupportCount() {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    skyAuthFetch(apiUrl("/api/support?status=open&limit=200"), {
-      credentials: "include",
-      headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
-    })
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.ok) setCount(json.count || 0);
-      })
-      .catch(() => setCount(0));
-  }, []);
-  return count;
+function AttentionTile({ icon, title, sub, badges, state, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`sk-tile${state ? ` sk-tile--${state}` : ""}`}
+      onClick={onClick}
+    >
+      <span className="sk-tile__icon" aria-hidden>
+        {icon}
+      </span>
+      <span className="sk-tile__body">
+        <span className="sk-tile__title">
+          {title}
+          {badges}
+        </span>
+        <span className="sk-tile__sub">{sub}</span>
+      </span>
+      <span className="sk-tile__arrow" aria-hidden>
+        →
+      </span>
+    </button>
+  );
 }
 
-// Open cancellation requests (travelers waiting on a person). Uses the
-// signed-in admin account's login token, same as /admin/bookings.
-function useCancelRequestCount() {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-    skyAuthFetch(
-      apiUrl("/api/bookings/admin/search?status=cancel_requested&limit=1"),
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    )
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => setCount(json?.total || 0))
-      .catch(() => setCount(0));
-  }, []);
-  return count;
+function FilterChips({ options, value, onChange }) {
+  return (
+    <div className="sk-panel__actions">
+      {options.map(([v, label]) => (
+        <button
+          key={v}
+          type="button"
+          className={`sk-btn sk-btn--sm${value === v ? " sk-btn--active" : ""}`}
+          onClick={() => onChange(v)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
-const adminHeaders = (extra = {}) => {
-  const adminEmail = localStorage.getItem("admin_email");
-  return { ...extra, ...(adminEmail ? { "x-admin-email": adminEmail } : {}) };
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATUS PILLS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const BOOKING_TONES = {
+  confirmed: "green",
+  pending: "orange",
+  cancelled: "red",
 };
 
-// Reports + appeals + legal removal requests waiting in SkyHub moderation.
-function useSkyHubModerationCount() {
-  const [counts, setCounts] = useState({
-    reports: 0,
-    appeals: 0,
-    critical: 0,
-    takedowns: 0,
-    overdueTakedowns: 0,
-  });
-  const load = useCallback(() => {
-    skyAuthFetch(apiUrl("/api/skyhub/admin/open-counts"), {
-      credentials: "include",
-      headers: adminHeaders(),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (j) =>
-          j &&
-          setCounts({
-            reports: j.reports || 0,
-            appeals: j.appeals || 0,
-            critical: j.critical || 0,
-            takedowns: j.takedowns || 0,
-            overdueTakedowns: j.overdueTakedowns || 0,
-          })
-      )
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    load();
-    // Legal clocks are running — keep the count fresh while the page is open.
-    const t = setInterval(load, 60_000);
-    return () => clearInterval(t);
-  }, [load]);
-  return { ...counts, reload: load };
+function BookingStatusPill({ status }) {
+  return <Pill tone={BOOKING_TONES[status]}>{status || "unknown"}</Pill>;
 }
 
-/* ── Removal requests (TAKE IT DOWN Act + DMCA) ───────────── */
-function hoursLabel(t) {
+const LEVELS = [
+  { min: 2000, label: "Legend", tone: "orange" },
+  { min: 1000, label: "Expert", tone: "purple" },
+  { min: 500, label: "Adventurer", tone: "blue" },
+  { min: 200, label: "Traveler", tone: "green" },
+  { min: 0, label: "Explorer", tone: "muted" },
+];
+
+function LevelPill({ xp = 0 }) {
+  const level = LEVELS.find((l) => xp >= l.min);
+  return <Pill tone={level.tone}>{level.label}</Pill>;
+}
+
+const CHALLENGE_STATUS = {
+  running: { label: "Running", tone: "green", order: 0 },
+  upcoming: { label: "Upcoming", tone: "blue", order: 1 },
+  finished: { label: "Finished", tone: "muted", order: 2 },
+  ended: { label: "Ended early", tone: "red", order: 3 },
+};
+
+function challengeStatus(c) {
+  const now = Date.now();
+  if (!c.active) return "ended";
+  if (now < new Date(c.startDate).getTime()) return "upcoming";
+  if (now > new Date(c.endDate).getTime()) return "finished";
+  return "running";
+}
+
+function ChallengeIcon({ iconKey }) {
+  const Icon =
+    CHALLENGE_ICONS.find((i) => i.key === iconKey)?.Icon || TrophyOutlined;
+  return <Icon />;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DATA HOOKS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const EMPTY_SKYHUB = {
+  reports: 0,
+  appeals: 0,
+  critical: 0,
+  takedowns: 0,
+  overdueTakedowns: 0,
+};
+
+/** Counts for everything that needs a person: tickets, cancellations, SkyHub. */
+function useAttentionCounts(refreshKey) {
+  const support = useLoader(
+    async () =>
+      (await adminRequest("/api/support?status=open&limit=200")).count || 0,
+    { key: refreshKey }
+  );
+
+  const cancels = useLoader(
+    async () =>
+      (
+        await adminRequest(
+          "/api/bookings/admin/search?status=cancel_requested&limit=1"
+        )
+      ).total || 0,
+    { key: refreshKey }
+  );
+
+  // Legal clocks are running, so keep this one fresh while the page is open.
+  const skyhub = useLoader(
+    async () => {
+      const j = await adminRequest("/api/skyhub/admin/open-counts");
+      return Object.fromEntries(
+        Object.keys(EMPTY_SKYHUB).map((k) => [k, j[k] || 0])
+      );
+    },
+    { key: refreshKey, intervalMs: 60_000 }
+  );
+
+  return {
+    openTickets: support.data ?? 0,
+    cancelRequests: cancels.data ?? 0,
+    skyhub: skyhub.data ?? EMPTY_SKYHUB,
+    reloadSkyhub: skyhub.reload,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OVERVIEW TAB
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function NeedsAttention({ counts, onOpenModeration }) {
+  const navigate = useNavigate();
+  const { openTickets, cancelRequests, skyhub } = counts;
+  const skyhubOpen = skyhub.reports + skyhub.appeals;
+
+  return (
+    <div className="sk-tiles">
+      <AttentionTile
+        icon="📬"
+        title="Support inbox"
+        state={openTickets > 0 ? "hot" : undefined}
+        badges={
+          openTickets > 0 && <Pill tone="orange">{openTickets} open</Pill>
+        }
+        sub={
+          openTickets > 0
+            ? `${openTickets} ${plural(
+                openTickets,
+                "ticket"
+              )} waiting for a reply`
+            : "No open tickets"
+        }
+        onClick={() => navigate("/admin/support")}
+      />
+      <AttentionTile
+        icon="🧳"
+        title="Bookings"
+        state={cancelRequests > 0 ? "hot" : undefined}
+        badges={
+          cancelRequests > 0 && (
+            <Pill tone="amber">
+              {cancelRequests} {plural(cancelRequests, "cancellation")}
+            </Pill>
+          )
+        }
+        sub={
+          cancelRequests > 0
+            ? `${cancelRequests} ${plural(
+                cancelRequests,
+                "traveler"
+              )} waiting to hear back`
+            : "Search trips, cancel and refund, add notes"
+        }
+        onClick={() => navigate("/admin/bookings")}
+      />
+      <AttentionTile
+        icon="🛡️"
+        title="SkyHub reports"
+        state={
+          skyhub.critical > 0 ? "urgent" : skyhubOpen > 0 ? "hot" : undefined
+        }
+        badges={
+          <>
+            {skyhub.critical > 0 && (
+              <Pill tone="red">{skyhub.critical} urgent</Pill>
+            )}
+            {skyhubOpen > 0 && <Pill tone="orange">{skyhubOpen}</Pill>}
+          </>
+        }
+        sub={
+          skyhub.critical > 0
+            ? `${skyhub.critical} child-safety / intimate-image ${plural(
+                skyhub.critical,
+                "report"
+              )} first`
+            : `${skyhub.reports} to review · ${skyhub.appeals} ${plural(
+                skyhub.appeals,
+                "appeal"
+              )}`
+        }
+        onClick={() => navigate("/admin/skyhub")}
+      />
+      <AttentionTile
+        icon="⚖️"
+        title="Removal requests"
+        state={
+          skyhub.overdueTakedowns > 0
+            ? "urgent"
+            : skyhub.takedowns > 0
+            ? "hot"
+            : undefined
+        }
+        badges={
+          <>
+            {skyhub.overdueTakedowns > 0 && (
+              <Pill tone="red">{skyhub.overdueTakedowns} overdue</Pill>
+            )}
+            {skyhub.takedowns > 0 && (
+              <Pill tone="orange">{skyhub.takedowns}</Pill>
+            )}
+          </>
+        }
+        sub={
+          skyhub.takedowns > 0
+            ? `${skyhub.takedowns} TAKE IT DOWN / DMCA ${plural(
+                skyhub.takedowns,
+                "request"
+              )} waiting`
+            : "No removal requests waiting"
+        }
+        onClick={onOpenModeration}
+      />
+    </div>
+  );
+}
+
+function KeyMetrics({ stats, ready }) {
+  // undefined → spinner (still loading); "—" → loaded but missing.
+  const v = (x, format = (n) => n) =>
+    !ready ? undefined : x == null ? "—" : format(x);
+
+  return (
+    <div className="sk-stats">
+      <StatCard
+        icon="👤"
+        label="Total users"
+        tone="purple"
+        value={v(stats.totalUsers, fmtNum)}
+        hint={ready && `+${fmtNum(stats.newUsersWeek)} this week`}
+      />
+      <StatCard
+        icon="✈️"
+        label="Total bookings"
+        tone="orange"
+        value={v(stats.totalBookings, fmtNum)}
+        hint={ready && `+${fmtNum(stats.newBookingsWeek)} this week`}
+      />
+      <StatCard
+        icon="💰"
+        label="Confirmed revenue"
+        tone="green"
+        value={v(stats.totalRevenue, fmt$)}
+        hint={
+          ready &&
+          `${fmtNum(stats.confirmedBookings)} confirmed · ${fmtNum(
+            stats.pendingBookings
+          )} pending`
+        }
+      />
+      <StatCard
+        icon="🌟"
+        label="XP awarded"
+        tone="blue"
+        value={v(stats.totalXP, fmtNum)}
+      />
+    </div>
+  );
+}
+
+function GrowthMetrics({ metrics, ready }) {
+  const pct = (x) => (!ready ? undefined : x == null ? "—" : `${x}%`);
+  return (
+    <div className="sk-stats sk-stats--3">
+      <StatCard
+        icon="🔁"
+        label="Second-booking rate"
+        tone="green"
+        value={pct(metrics?.secondBookingRate)}
+        hint={
+          metrics &&
+          `Of ${fmtNum(
+            metrics.usersWithAtLeastOneBooking
+          )} users with 1+ booking`
+        }
+      />
+      <StatCard
+        icon="🤝"
+        label="Referral share rate"
+        tone="purple"
+        value={pct(metrics?.referralShareRate)}
+        hint={metrics && `Of ${fmtNum(metrics.totalUsers)} total users`}
+      />
+      <StatCard
+        icon="⚠️"
+        label="Cancellation rate"
+        tone="red"
+        value={pct(metrics?.cancellationRate)}
+      />
+    </div>
+  );
+}
+
+function RecentUsers({ users, loading }) {
+  return (
+    <Panel title="Recent users" meta={`${users.length} shown`}>
+      <PanelContent
+        loading={loading}
+        isEmpty={!users.length}
+        emptyText="No users yet"
+      >
+        {users.map((u) => (
+          <div key={u._id} className="sk-row">
+            <div className="sk-row__left">
+              <div className="sk-avatar">
+                {u.avatar ? (
+                  <img src={u.avatar} alt="" />
+                ) : (
+                  initials(u.name || u.username)
+                )}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div className="sk-name">{u.name || u.username}</div>
+                <div className="sk-sub">
+                  {u.email} · {timeAgo(u.createdAt)}
+                </div>
+              </div>
+            </div>
+            <div className="sk-row__right">
+              <LevelPill xp={u.xp} />
+              <span className="sk-amount" style={{ color: C.orange }}>
+                {fmtNum(u.xp)} XP
+              </span>
+            </div>
+          </div>
+        ))}
+      </PanelContent>
+    </Panel>
+  );
+}
+
+function RecentBookings({ bookings, loading }) {
+  const navigate = useNavigate();
+  return (
+    <Panel
+      title="Recent bookings"
+      actions={
+        <button
+          type="button"
+          className="sk-btn sk-btn--sm"
+          onClick={() => navigate("/admin/bookings")}
+        >
+          View all →
+        </button>
+      }
+    >
+      <PanelContent
+        loading={loading}
+        isEmpty={!bookings.length}
+        emptyText="No bookings yet"
+      >
+        {bookings.map((b) => (
+          <div key={b._id} className="sk-row">
+            <div className="sk-row__left">
+              <div className="sk-row__icon">✈️</div>
+              <div style={{ minWidth: 0 }}>
+                <div className="sk-name">
+                  {b.flight?.origin || "?"} → {b.flight?.destination || "?"}
+                </div>
+                <div className="sk-sub">
+                  {b.travelers?.[0]?.email || "Unknown"} ·{" "}
+                  {timeAgo(b.createdAt)}
+                </div>
+              </div>
+            </div>
+            <div className="sk-row__right sk-row__right--col">
+              <BookingStatusPill status={b.status} />
+              {b.total != null && (
+                <span className="sk-amount" style={{ color: C.green }}>
+                  {fmt$(b.total)}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </PanelContent>
+    </Panel>
+  );
+}
+
+const ACTIVITY_COLORS = { booking: C.green, xp: C.orange, signup: C.purple };
+
+function ActivityFeed({ activity, loading }) {
+  return (
+    <Panel title="Recent activity" meta="Notifications">
+      <PanelContent
+        loading={loading}
+        isEmpty={!activity.length}
+        emptyText="No activity yet"
+      >
+        {activity.map((a) => (
+          <div key={a._id} className="sk-feed__item">
+            <span
+              className="sk-feed__dot"
+              style={{ background: ACTIVITY_COLORS[a.type] || C.blue }}
+            />
+            <div>
+              <div className="sk-text" style={{ marginTop: 0 }}>
+                {a.message || a.title}
+              </div>
+              <div className="sk-sub">{timeAgo(a.createdAt)}</div>
+            </div>
+          </div>
+        ))}
+      </PanelContent>
+    </Panel>
+  );
+}
+
+const REVENUE_ROWS = [
+  { label: "Confirmed", key: "confirmed", color: C.green },
+  { label: "Pending", key: "pending", color: C.orange },
+  { label: "Cancelled", key: "cancelled", color: C.red },
+];
+
+function RevenueBreakdown({ revenue, totalRevenue }) {
+  const total = REVENUE_ROWS.reduce((sum, r) => sum + (revenue[r.key] || 0), 0);
+  return (
+    <Panel title="Revenue breakdown" meta={fmt$(totalRevenue)}>
+      <div className="sk-rev">
+        {REVENUE_ROWS.map(({ label, key, color }) => {
+          const val = revenue[key] || 0;
+          const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+          return (
+            <div key={key}>
+              <div className="sk-rev__label">
+                <span>{label}</span>
+                <span style={{ color }}>
+                  {fmt$(val)} · {pct}%
+                </span>
+              </div>
+              <div className="sk-rev__bar">
+                <div
+                  className="sk-rev__fill"
+                  style={{ width: `${pct}%`, background: color }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+function TopXP({ users, loading }) {
+  return (
+    <Panel title="Top XP earners">
+      <PanelContent
+        loading={loading}
+        isEmpty={!users.length}
+        emptyText="No XP data yet"
+      >
+        {users.map((u, i) => (
+          <div key={u._id} className="sk-rank">
+            <span>
+              <span className="sk-rank__pos">#{i + 1}</span>
+              {u.name || u.username}
+            </span>
+            <span className="sk-amount" style={{ color: C.orange }}>
+              {fmtNum(u.xp)} XP
+            </span>
+          </div>
+        ))}
+      </PanelContent>
+    </Panel>
+  );
+}
+
+function OverviewTab({ dashboard, growth, counts, onOpenModeration }) {
+  const data = dashboard.data;
+  const ready = !!data || (!dashboard.loading && !!dashboard.error);
+  const firstLoad = dashboard.loading && !data;
+
+  return (
+    <>
+      <Section title="Needs attention">
+        <NeedsAttention counts={counts} onOpenModeration={onOpenModeration} />
+      </Section>
+
+      <Section title="Key metrics">
+        <KeyMetrics stats={data?.stats || {}} ready={ready} />
+      </Section>
+
+      <Section title="Growth">
+        <GrowthMetrics
+          metrics={growth.data}
+          ready={!growth.loading || !!growth.data}
+        />
+      </Section>
+
+      <Section title="Recent">
+        <div className="sk-grid-2" style={{ marginBottom: 20 }}>
+          <RecentUsers users={data?.recentUsers || []} loading={firstLoad} />
+          <RecentBookings
+            bookings={data?.recentBookings || []}
+            loading={firstLoad}
+          />
+        </div>
+        <div className="sk-grid-2">
+          <ActivityFeed
+            activity={data?.recentActivity || []}
+            loading={firstLoad}
+          />
+          <div className="sk-stack">
+            <RevenueBreakdown
+              revenue={data?.revenueByStatus || {}}
+              totalRevenue={data?.stats?.totalRevenue}
+            />
+            <TopXP users={data?.topXP || []} loading={firstLoad} />
+          </div>
+        </div>
+      </Section>
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODERATION TAB — Removal requests (TAKE IT DOWN Act + DMCA)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function takedownClock(t) {
   if (t.kind !== "intimate" || t.hoursLeft == null) return null;
   if (t.overdue)
-    return { text: `OVERDUE ${Math.abs(t.hoursLeft)}h`, color: C.red };
-  if (t.hoursLeft <= 12) return { text: `${t.hoursLeft}h left`, color: C.red };
-  return { text: `${t.hoursLeft}h left`, color: C.orange };
+    return { text: `Overdue ${Math.abs(t.hoursLeft)}h`, tone: "red" };
+  return {
+    text: `${t.hoursLeft}h left`,
+    tone: t.hoursLeft <= 12 ? "red" : "orange",
+  };
 }
 
-function TakedownQueue({ onChange }) {
+const TAKEDOWN_ACTIONS = {
+  remove: {
+    verb: "Remove",
+    title: "Remove content for",
+    done: "Removed. The requester can see it's done.",
+  },
+  reject: { verb: "Reject", title: "Reject", done: "Rejected." },
+  restore: { verb: "Restore", title: "Restore content for", done: "Restored." },
+};
+
+function TakedownRow({ t, onAct }) {
+  const clock = takedownClock(t);
+  const counterDue =
+    t.counter && !t.counter.restored ? new Date(t.counter.restoreAfter) : null;
+  const postCount = t.posts?.length || 0;
+
+  return (
+    <div className="sk-row sk-row--top">
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="sk-name">
+          <span className="sk-mono">{t.ticket}</span>
+          <Pill tone={t.kind === "intimate" ? "red" : "blue"}>
+            {t.kind === "intimate" ? "Intimate image" : "Copyright"}
+          </Pill>
+          {clock && <Pill tone={clock.tone}>{clock.text}</Pill>}
+          {counterDue && (
+            <Pill tone="purple">
+              Counter-notice · restore after {counterDue.toLocaleDateString()}
+            </Pill>
+          )}
+        </div>
+        <div className="sk-sub">
+          {t.requesterName} · {t.requesterEmail} · {t.relationship} ·{" "}
+          {timeAgo(t.createdAt)}
+        </div>
+        {t.copyrightedWork && (
+          <div className="sk-text">
+            <b>Work:</b> {t.copyrightedWork}
+          </div>
+        )}
+        {(t.contentLinks || t.description) && (
+          <div className="sk-text">
+            {t.contentLinks && (
+              <>
+                <b>Where:</b> {t.contentLinks}
+                <br />
+              </>
+            )}
+            {t.description}
+          </div>
+        )}
+        <div className="sk-sub" style={{ marginTop: 6 }}>
+          {postCount
+            ? `${postCount} ${plural(postCount, "post")} matched${
+                t.kind === "intimate" && t.status === "received"
+                  ? " · already hidden"
+                  : ""
+              }`
+            : "No post matched yet. Find it and paste the post ID when you remove it."}
+          {t.duplicatesRemoved
+            ? ` · ${t.duplicatesRemoved} ${plural(
+                t.duplicatesRemoved,
+                "copy",
+                "copies"
+              )} also hidden`
+            : ""}
+        </div>
+        {t.decisionNote && t.status !== "received" && (
+          <div className="sk-sub">Decision: {t.decisionNote}</div>
+        )}
+      </div>
+
+      <div className="sk-row__right">
+        {t.status === "received" && (
+          <>
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm sk-btn--danger"
+              onClick={() => onAct(t, "remove")}
+            >
+              Remove
+            </button>
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              onClick={() => onAct(t, "reject")}
+            >
+              Reject
+            </button>
+          </>
+        )}
+        {t.status === "removed" && counterDue && (
+          <button
+            type="button"
+            className="sk-btn sk-btn--sm"
+            onClick={() => onAct(t, "restore")}
+          >
+            Restore
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TakedownQueue({ refreshKey, onChange }) {
   const [status, setStatus] = useState("received");
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, reload } = useLoader(
+    async () => {
+      const j = await adminRequest(
+        `/api/skyhub/admin/takedowns?status=${status}`
+      );
+      return { status, rows: j.takedowns || [] };
+    },
+    { key: `${status}:${refreshKey}` }
+  );
+  // Only show rows for the filter that's selected, never the previous one.
+  const rows = data?.status === status ? data.rows : [];
+
   const [acting, setActing] = useState(null); // { t, action }
   const [note, setNote] = useState("");
   const [posts, setPosts] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await skyAuthFetch(
-        apiUrl(`/api/skyhub/admin/takedowns?status=${status}`),
-        {
-          credentials: "include",
-          headers: adminHeaders(),
-        }
-      );
-      const j = await r.json().catch(() => ({}));
-      setRows(j.ok ? j.takedowns || [] : []);
-    } catch {
-      setRows([]);
-    }
-    setLoading(false);
-  }, [status]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const openAction = (t, action) => {
+    setActing({ t, action });
+    setNote("");
+    setPosts("");
+  };
 
   const submit = async () => {
     if (!acting) return;
@@ -493,248 +1150,66 @@ function TakedownQueue({ onChange }) {
     }
     setBusy(true);
     try {
-      const r = await skyAuthFetch(
-        apiUrl(`/api/skyhub/admin/takedowns/${acting.t.id}`),
-        {
-          method: "POST",
-          credentials: "include",
-          headers: adminHeaders({ "Content-Type": "application/json" }),
-          body: JSON.stringify({
-            action: acting.action,
-            note: note.trim(),
-            posts,
-          }),
-        }
-      );
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.message || "Couldn't update the request.");
-      message.success(
-        acting.action === "remove"
-          ? "Removed. The requester can see it's done."
-          : acting.action === "reject"
-          ? "Rejected."
-          : "Restored."
-      );
+      await adminRequest(`/api/skyhub/admin/takedowns/${acting.t.id}`, {
+        method: "POST",
+        body: { action: acting.action, note: note.trim(), posts },
+      });
+      message.success(TAKEDOWN_ACTIONS[acting.action].done);
       setActing(null);
-      load();
+      reload();
       onChange?.();
     } catch (err) {
-      message.error(err.message);
+      message.error(err.message || "Couldn't update the request.");
     } finally {
       setBusy(false);
     }
   };
 
-  const open = (t, action) => {
-    setActing({ t, action });
-    setNote("");
-    setPosts("");
-  };
+  const action = acting && TAKEDOWN_ACTIONS[acting.action];
 
   return (
-    <div className="sk-admin__card" style={{ marginBottom: 24 }}>
-      <div className="sk-admin__card-head">
-        <span className="sk-admin__card-title">⚖️ Removal requests</span>
-        <div style={{ display: "flex", gap: 6 }}>
-          {[
-            ["received", "Waiting"],
-            ["removed", "Removed"],
-            ["rejected", "Rejected"],
-            ["restored", "Restored"],
-          ].map(([v, l]) => (
-            <button
-              key={v}
-              type="button"
-              className="sk-admin__challenge-action-btn"
-              style={
-                status === v
-                  ? { borderColor: C.orange, color: C.orange }
-                  : undefined
-              }
-              onClick={() => setStatus(v)}
-            >
-              {l}
-            </button>
+    <Panel
+      title="⚖️ Removal requests"
+      actions={
+        <FilterChips
+          options={TAKEDOWN_FILTERS}
+          value={status}
+          onChange={setStatus}
+        />
+      }
+    >
+      {loading ? (
+        <div className="sk-empty">
+          <Spinner />
+        </div>
+      ) : (
+        <PanelContent
+          isEmpty={!rows.length}
+          emptyText={
+            status === "received"
+              ? "No removal requests waiting. You're all caught up."
+              : "Nothing here yet."
+          }
+        >
+          {rows.map((t) => (
+            <TakedownRow key={t.id} t={t} onAct={openAction} />
           ))}
-        </div>
-      </div>
-
-      {loading && (
-        <div className="sk-admin__empty">
-          <span className="sk-admin__spinner" />
-        </div>
+        </PanelContent>
       )}
-      {!loading && rows.length === 0 && (
-        <div className="sk-admin__empty">
-          {status === "received"
-            ? "No removal requests waiting. You're all caught up."
-            : "Nothing here yet."}
-        </div>
-      )}
-
-      {rows.map((t) => {
-        const clock = hoursLabel(t);
-        const counterDue =
-          t.counter && !t.counter.restored
-            ? new Date(t.counter.restoreAfter)
-            : null;
-        return (
-          <div
-            key={t.id}
-            className="sk-admin__row"
-            style={{ alignItems: "flex-start", gap: 16 }}
-          >
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div
-                className="sk-admin__name"
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <span
-                  style={{ fontFamily: "monospace", letterSpacing: "0.05em" }}
-                >
-                  {t.ticket}
-                </span>
-                <span
-                  className="sk-admin__pill"
-                  style={{
-                    background: t.kind === "intimate" ? C.redDim : C.blueDim,
-                    color: t.kind === "intimate" ? C.red : C.blue,
-                  }}
-                >
-                  {t.kind === "intimate" ? "Intimate image" : "Copyright"}
-                </span>
-                {clock && (
-                  <span
-                    className="sk-admin__pill"
-                    style={{
-                      background: clock.color + "22",
-                      color: clock.color,
-                    }}
-                  >
-                    {clock.text}
-                  </span>
-                )}
-                {counterDue && (
-                  <span
-                    className="sk-admin__pill"
-                    style={{ background: C.purpleDim, color: C.purple }}
-                  >
-                    Counter-notice · restore after{" "}
-                    {counterDue.toLocaleDateString()}
-                  </span>
-                )}
-              </div>
-              <div className="sk-admin__sub" style={{ marginTop: 4 }}>
-                {t.requesterName} · {t.requesterEmail} · {t.relationship} ·{" "}
-                {timeAgo(t.createdAt)}
-              </div>
-              {t.copyrightedWork && (
-                <div className="sk-admin__feed-text" style={{ marginTop: 6 }}>
-                  <b>Work:</b> {t.copyrightedWork}
-                </div>
-              )}
-              {(t.contentLinks || t.description) && (
-                <div
-                  className="sk-admin__feed-text"
-                  style={{ marginTop: 4, wordBreak: "break-word" }}
-                >
-                  {t.contentLinks && (
-                    <>
-                      <b>Where:</b> {t.contentLinks}
-                      <br />
-                    </>
-                  )}
-                  {t.description}
-                </div>
-              )}
-              <div className="sk-admin__sub" style={{ marginTop: 4 }}>
-                {t.posts?.length
-                  ? `${t.posts.length} post${
-                      t.posts.length > 1 ? "s" : ""
-                    } matched${
-                      t.kind === "intimate" && t.status === "received"
-                        ? " · already hidden"
-                        : ""
-                    }`
-                  : "No post matched yet. Find it and paste the post ID when you remove it."}
-                {t.duplicatesRemoved
-                  ? ` · ${t.duplicatesRemoved} cop${
-                      t.duplicatesRemoved > 1 ? "ies" : "y"
-                    } also hidden`
-                  : ""}
-              </div>
-              {t.decisionNote && t.status !== "received" && (
-                <div className="sk-admin__sub" style={{ marginTop: 4 }}>
-                  Decision: {t.decisionNote}
-                </div>
-              )}
-            </div>
-            <div
-              className="sk-admin__challenge-actions"
-              style={{ flexShrink: 0 }}
-            >
-              {t.status === "received" && (
-                <>
-                  <button
-                    type="button"
-                    className="sk-admin__challenge-action-btn sk-admin__challenge-action-btn--danger"
-                    onClick={() => open(t, "remove")}
-                  >
-                    Remove
-                  </button>
-                  <button
-                    type="button"
-                    className="sk-admin__challenge-action-btn"
-                    onClick={() => open(t, "reject")}
-                  >
-                    Reject
-                  </button>
-                </>
-              )}
-              {t.status === "removed" && counterDue && (
-                <button
-                  type="button"
-                  className="sk-admin__challenge-action-btn"
-                  onClick={() => open(t, "restore")}
-                >
-                  Restore
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
 
       <Modal
         open={!!acting}
-        title={
-          acting?.action === "remove"
-            ? `Remove content for ${acting?.t.ticket}`
-            : acting?.action === "reject"
-            ? `Reject ${acting?.t.ticket}`
-            : `Restore content for ${acting?.t.ticket}`
-        }
+        title={action && `${action.title} ${acting.t.ticket}`}
         onCancel={() => setActing(null)}
         onOk={submit}
-        okText={
-          acting?.action === "remove"
-            ? "Remove"
-            : acting?.action === "reject"
-            ? "Reject"
-            : "Restore"
-        }
+        okText={action?.verb}
         okButtonProps={{ danger: acting?.action === "remove", loading: busy }}
         className="sk-challenge-modal"
         destroyOnClose
       >
         {acting?.action === "remove" && (
           <>
-            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
+            <p className="sk-modal-hint">
               Removes the matched posts and any post using the same photo. The
               poster is notified
               {acting.t.kind === "copyright"
@@ -742,7 +1217,7 @@ function TakedownQueue({ onChange }) {
                 : ""}
               .
             </p>
-            <div style={{ fontSize: 12, color: C.muted, margin: "10px 0 4px" }}>
+            <div className="sk-modal-label">
               Extra post IDs or links you found (optional)
             </div>
             <Input.TextArea
@@ -754,12 +1229,12 @@ function TakedownQueue({ onChange }) {
           </>
         )}
         {acting?.action === "restore" && (
-          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
+          <p className="sk-modal-hint">
             Only restore if the waiting period is over and the claimant hasn't
             told you they filed a lawsuit.
           </p>
         )}
-        <div style={{ fontSize: 12, color: C.muted, margin: "10px 0 4px" }}>
+        <div className="sk-modal-label">
           {acting?.action === "reject"
             ? "Reason (the requester sees this)"
             : "Note to the requester (optional)"}
@@ -775,1092 +1250,248 @@ function TakedownQueue({ onChange }) {
           }
         />
       </Modal>
+    </Panel>
+  );
+}
+
+function ModerationTab({ refreshKey, counts }) {
+  const navigate = useNavigate();
+  const { skyhub, reloadSkyhub } = counts;
+  const skyhubOpen = skyhub.reports + skyhub.appeals;
+
+  return (
+    <>
+      <Section title="Legal removal requests">
+        <TakedownQueue refreshKey={refreshKey} onChange={reloadSkyhub} />
+      </Section>
+      <Section title="Community reports">
+        <div className="sk-tiles">
+          <AttentionTile
+            icon="🛡️"
+            title="Open SkyHub moderation"
+            state={
+              skyhub.critical > 0
+                ? "urgent"
+                : skyhubOpen > 0
+                ? "hot"
+                : undefined
+            }
+            badges={
+              skyhub.critical > 0 && (
+                <Pill tone="red">{skyhub.critical} urgent</Pill>
+              )
+            }
+            sub={`${skyhub.reports} to review · ${skyhub.appeals} ${plural(
+              skyhub.appeals,
+              "appeal"
+            )}`}
+            onClick={() => navigate("/admin/skyhub")}
+          />
+        </div>
+      </Section>
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ENGAGEMENT TAB — Challenges + Rewards catalog
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function ChallengeIconPicker({ value, onChange }) {
+  return (
+    <div className="sk-icons">
+      {CHALLENGE_ICONS.map(({ key, label, Icon }) => (
+        <button
+          key={key}
+          type="button"
+          title={label}
+          aria-label={label}
+          aria-pressed={value === key}
+          className="sk-icons__btn"
+          onClick={() => onChange(key)}
+        >
+          <Icon />
+        </button>
+      ))}
     </div>
   );
 }
 
-const AdminDashboard = () => {
-  const navigate = useNavigate();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [lastRefresh, setLastRefresh] = useState(null);
-  const openTickets = useSupportCount();
-  const skyhubQueue = useSkyHubModerationCount();
-  const cancelRequests = useCancelRequestCount();
+function toChallengePayload(values, icon) {
+  return {
+    title: values.title,
+    description: values.description,
+    theme: values.theme || "general",
+    icon,
+    requirement: {
+      actionType: Array.isArray(values.actionType)
+        ? values.actionType[0]
+        : values.actionType,
+      count: values.count,
+    },
+    bonusXP: values.bonusXP,
+    startDate: values.dateRange[0].toISOString(),
+    endDate: values.dateRange[1].toISOString(),
+  };
+}
 
-  const [growthMetrics, setGrowthMetrics] = useState(null);
-  const [growthLoading, setGrowthLoading] = useState(true);
+function ChallengesPanel({ refreshKey }) {
+  const { data, loading, reload } = useLoader(
+    async () => (await adminRequest("/api/challenges/admin")).challenges || [],
+    { key: refreshKey }
+  );
+  const challenges = useMemo(
+    () =>
+      [...(data || [])].sort(
+        (a, b) =>
+          CHALLENGE_STATUS[challengeStatus(a)].order -
+          CHALLENGE_STATUS[challengeStatus(b)].order
+      ),
+    [data]
+  );
 
-  const [challenges, setChallenges] = useState([]);
-  const [challengesLoading, setChallengesLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingChallenge, setEditingChallenge] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [selectedIcon, setSelectedIcon] = useState("trophy");
   const [form] = Form.useForm();
+  const [modal, setModal] = useState({ open: false, editing: null });
+  const [icon, setIcon] = useState("trophy");
+  const [saving, setSaving] = useState(false);
 
-  const fetchChallenges = useCallback(async () => {
-    setChallengesLoading(true);
-    try {
-      const res = await skyAuthFetch(apiUrl("/api/challenges/admin"), {
-        credentials: "include",
-        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json.ok) setChallenges(json.challenges || []);
-    } catch {
-      // Non-fatal — the rest of the dashboard still works without this.
-    }
-    setChallengesLoading(false);
-  }, []);
-
-  const openCreateModal = () => {
-    setEditingChallenge(null);
+  const openModal = (challenge = null) => {
     form.resetFields();
-    setSelectedIcon("trophy");
-    setModalOpen(true);
-  };
-
-  const openEditModal = (challenge) => {
-    setEditingChallenge(challenge);
-    form.setFieldsValue({
-      title: challenge.title,
-      description: challenge.description,
-      theme: challenge.theme,
-      actionType: challenge.requirement?.actionType
-        ? [challenge.requirement.actionType]
-        : undefined,
-      count: challenge.requirement?.count,
-      bonusXP: challenge.bonusXP,
-      dateRange: [dayjs(challenge.startDate), dayjs(challenge.endDate)],
-    });
-    const knownKey = CHALLENGE_ICONS.some((i) => i.key === challenge.icon);
-    setSelectedIcon(knownKey ? challenge.icon : "trophy");
-    setModalOpen(true);
-  };
-
-  const handleSaveChallenge = async () => {
-    try {
-      const values = await form.validateFields();
-      setSaving(true);
-
-      const payload = {
-        title: values.title,
-        description: values.description,
-        theme: values.theme || "general",
-        icon: selectedIcon,
-        requirement: {
-          actionType: Array.isArray(values.actionType)
-            ? values.actionType[0]
-            : values.actionType,
-          count: values.count,
-        },
-        bonusXP: values.bonusXP,
-        startDate: values.dateRange[0].toISOString(),
-        endDate: values.dateRange[1].toISOString(),
-      };
-
-      const url = editingChallenge
-        ? apiUrl(`/api/challenges/${editingChallenge.id}`)
-        : apiUrl("/api/challenges");
-      const method = editingChallenge ? "PATCH" : "POST";
-
-      const res = await skyAuthFetch(url, {
-        method,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-email": localStorage.getItem("admin_email") || "",
-        },
-        body: JSON.stringify(payload),
+    if (challenge) {
+      form.setFieldsValue({
+        title: challenge.title,
+        description: challenge.description,
+        theme: challenge.theme,
+        actionType: challenge.requirement?.actionType
+          ? [challenge.requirement.actionType]
+          : undefined,
+        count: challenge.requirement?.count,
+        bonusXP: challenge.bonusXP,
+        dateRange: [dayjs(challenge.startDate), dayjs(challenge.endDate)],
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.ok) {
-        throw new Error(json.message || "Failed to save challenge.");
-      }
+    }
+    const knownIcon = CHALLENGE_ICONS.some((i) => i.key === challenge?.icon);
+    setIcon(knownIcon ? challenge.icon : "trophy");
+    setModal({ open: true, editing: challenge });
+  };
 
-      message.success(
-        editingChallenge ? "Challenge updated." : "Challenge created."
+  const save = async () => {
+    let values;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return; // antd shows the field errors
+    }
+    const { editing } = modal;
+    setSaving(true);
+    try {
+      await adminRequest(
+        editing ? `/api/challenges/${editing.id}` : "/api/challenges",
+        {
+          method: editing ? "PATCH" : "POST",
+          body: toChallengePayload(values, icon),
+        }
       );
-      setModalOpen(false);
-      fetchChallenges();
+      message.success(editing ? "Challenge updated." : "Challenge created.");
+      setModal((m) => ({ ...m, open: false }));
+      reload();
     } catch (err) {
-      if (err?.errorFields) return;
       message.error(err.message || "Failed to save challenge.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEndChallenge = async (challenge) => {
+  const endEarly = async (challenge) => {
     try {
-      const res = await skyAuthFetch(
-        apiUrl(`/api/challenges/${challenge.id}`),
-        {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            "x-admin-email": localStorage.getItem("admin_email") || "",
-          },
-        }
-      );
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.ok) {
-        throw new Error(json.message || "Failed to end challenge.");
-      }
+      await adminRequest(`/api/challenges/${challenge.id}`, {
+        method: "DELETE",
+      });
       message.success("Challenge ended.");
-      fetchChallenges();
+      reload();
     } catch (err) {
       message.error(err.message || "Failed to end challenge.");
     }
   };
 
-  const [rewardItems, setRewardItems] = useState([]);
-  const [rewardItemsLoading, setRewardItemsLoading] = useState(true);
-  const [rewardModalOpen, setRewardModalOpen] = useState(false);
-  const [editingReward, setEditingReward] = useState(null);
-  const [rewardSaving, setRewardSaving] = useState(false);
-  const [rewardForm] = Form.useForm();
-
-  const fetchRewardItems = useCallback(async () => {
-    setRewardItemsLoading(true);
-    try {
-      const res = await skyAuthFetch(apiUrl("/api/rewards/items/admin"), {
-        credentials: "include",
-        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json.ok) setRewardItems(json.items || []);
-    } catch {
-      // Non-fatal — the rest of the dashboard still works without this.
-    }
-    setRewardItemsLoading(false);
-  }, []);
-
-  const openCreateRewardModal = () => {
-    setEditingReward(null);
-    rewardForm.resetFields();
-    setRewardModalOpen(true);
-  };
-
-  const openEditRewardModal = (item) => {
-    setEditingReward(item);
-    rewardForm.setFieldsValue({
-      itemId: item.itemId,
-      title: item.title,
-      desc: item.desc,
-      type: item.type,
-      cost: item.cost,
-      level: item.level,
-      featured: item.featured,
-      repeatable: item.repeatable,
-      isNew: item.isNew,
-    });
-    setRewardModalOpen(true);
-  };
-
-  const handleSaveReward = async () => {
-    try {
-      const values = await rewardForm.validateFields();
-      setRewardSaving(true);
-
-      const url = editingReward
-        ? apiUrl(`/api/rewards/items/${editingReward.itemId}`)
-        : apiUrl("/api/rewards/items");
-      const method = editingReward ? "PATCH" : "POST";
-
-      const payload = editingReward
-        ? {
-            title: values.title,
-            desc: values.desc,
-            type: values.type,
-            cost: values.cost,
-            level: values.level,
-            featured: values.featured,
-            repeatable: values.repeatable,
-            isNew: values.isNew,
-          }
-        : values;
-
-      const res = await skyAuthFetch(url, {
-        method,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-email": localStorage.getItem("admin_email") || "",
-        },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.ok) {
-        throw new Error(json.message || "Failed to save reward item.");
-      }
-
-      message.success(editingReward ? "Item updated." : "Item created.");
-      setRewardModalOpen(false);
-      fetchRewardItems();
-    } catch (err) {
-      if (err?.errorFields) return;
-      message.error(err.message || "Failed to save reward item.");
-    } finally {
-      setRewardSaving(false);
-    }
-  };
-
-  const handleRemoveReward = async (item) => {
-    try {
-      const res = await skyAuthFetch(
-        apiUrl(`/api/rewards/items/${item.itemId}`),
-        {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            "x-admin-email": localStorage.getItem("admin_email") || "",
-          },
-        }
-      );
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.ok) {
-        throw new Error(json.message || "Failed to remove item.");
-      }
-      message.success("Item removed.");
-      fetchRewardItems();
-    } catch (err) {
-      message.error(err.message || "Failed to remove item.");
-    }
-  };
-
-  useEffect(() => {
-    const isAdmin = localStorage.getItem("admin");
-    if (!isAdmin) navigate("/admin/login");
-  }, [navigate]);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await skyAuthFetch(apiUrl("/api/admin/dashboard"), {
-        credentials: "include",
-        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
-      });
-      if (res.status === 401) {
-        localStorage.removeItem("admin");
-        localStorage.removeItem("admin_email");
-        navigate("/admin/login");
-        return;
-      }
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.message || "Failed to load");
-      setData(json.data);
-      setLastRefresh(new Date());
-    } catch (err) {
-      setError(err.message || "Could not load dashboard.");
-    }
-    setLoading(false);
-  }, [navigate]);
-
-  const fetchGrowthMetrics = useCallback(async () => {
-    setGrowthLoading(true);
-    try {
-      const res = await skyAuthFetch(apiUrl("/api/admin/growth-metrics"), {
-        credentials: "include",
-        headers: { "x-admin-email": localStorage.getItem("admin_email") || "" },
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json.ok) setGrowthMetrics(json.data);
-    } catch {
-      // Non-fatal — rest of dashboard still works without this.
-    }
-    setGrowthLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    fetchChallenges();
-    fetchRewardItems();
-    fetchGrowthMetrics();
-  }, [fetchData, fetchChallenges, fetchRewardItems, fetchGrowthMetrics]);
-
-  const handleLogout = async () => {
-    await skyAuthFetch(apiUrl("/api/admin/logout"), {
-      method: "POST",
-      credentials: "include",
-    });
-    localStorage.removeItem("admin");
-    localStorage.removeItem("admin_email");
-    navigate("/admin/login");
-  };
-
-  const stats = data?.stats || {};
-  const users = data?.recentUsers || [];
-  const bookings = data?.recentBookings || [];
-  const activity = data?.recentActivity || [];
-  const revenue = data?.revenueByStatus || {};
-
   return (
-    <div className="sk-admin">
-      <style>{INJECTED_CSS}</style>
-
-      <div className="sk-admin__topbar">
-        <div className="sk-admin__logo">
-          ✦ Skyrio <span className="sk-admin__badge">Admin</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {lastRefresh && (
-            <span style={{ fontSize: 11, color: C.muted }}>
-              Updated {timeAgo(lastRefresh)}
-            </span>
-          )}
-          <button
-            className="sk-admin__topbtn"
-            onClick={fetchData}
-            disabled={loading}
-          >
-            {loading ? "Loading..." : "↻ Refresh"}
-          </button>
-          <button className="sk-admin__topbtn" onClick={() => navigate("/")}>
-            ← Skyrio
-          </button>
-          <Button type="primary" danger size="small" onClick={handleLogout}>
-            Logout
-          </Button>
-        </div>
-      </div>
-
-      <div className="sk-admin__body">
-        {error && (
-          <div
-            style={{
-              background: C.redDim,
-              border: `1px solid ${C.red}44`,
-              borderRadius: 12,
-              padding: "14px 20px",
-              color: C.red,
-              fontSize: 13,
-              marginBottom: 24,
-            }}
-          >
-            ⚠️ {error}
-          </div>
-        )}
-
-        <div
-          className="sk-admin__support-banner"
-          onClick={() => navigate("/admin/support")}
+    <Panel
+      title="Challenges"
+      meta={`${challenges.length} total`}
+      actions={
+        <Button
+          type="primary"
+          size="small"
+          onClick={() => openModal()}
+          style={{ background: C.orange, borderColor: C.orange }}
         >
-          <div className="sk-admin__support-banner-left">
-            <div className="sk-admin__support-icon">📬</div>
-            <div>
-              <div className="sk-admin__support-title">
-                Support Inbox
-                {openTickets > 0 && (
-                  <span
-                    style={{
-                      marginLeft: 10,
-                      background: "#ff8a2a",
-                      color: "#fff",
-                      borderRadius: 999,
-                      fontSize: 11,
-                      padding: "2px 9px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {openTickets} open
-                  </span>
-                )}
-              </div>
-              <div className="sk-admin__support-sub">
-                {openTickets > 0
-                  ? `${openTickets} customer ticket${
-                      openTickets > 1 ? "s" : ""
-                    } waiting for your reply`
-                  : "No open tickets — all caught up!"}
-              </div>
-            </div>
-          </div>
-          <div className="sk-admin__support-arrow">→</div>
-        </div>
-
-        <div
-          className="sk-admin__support-banner"
-          onClick={() => navigate("/admin/bookings")}
-        >
-          <div className="sk-admin__support-banner-left">
-            <div className="sk-admin__support-icon">🧳</div>
-            <div>
-              <div className="sk-admin__support-title">
-                Bookings
-                {cancelRequests > 0 && (
-                  <span
-                    style={{
-                      marginLeft: 10,
-                      background: "#ffb347",
-                      color: "#1a1030",
-                      borderRadius: 999,
-                      fontSize: 11,
-                      padding: "2px 9px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {cancelRequests} cancellation request
-                    {cancelRequests > 1 ? "s" : ""}
-                  </span>
-                )}
-              </div>
-              <div className="sk-admin__support-sub">
-                {cancelRequests > 0
-                  ? `${cancelRequests} traveler${
-                      cancelRequests > 1 ? "s are" : " is"
-                    } waiting to hear back about cancelling`
-                  : "Search trips, check live status, cancel and refund, add notes"}
-              </div>
-            </div>
-          </div>
-          <div className="sk-admin__support-arrow">→</div>
-        </div>
-
-        <div
-          className="sk-admin__support-banner"
-          onClick={() => navigate("/admin/skyhub")}
-        >
-          <div className="sk-admin__support-banner-left">
-            <div className="sk-admin__support-icon">🛡️</div>
-            <div>
-              <div className="sk-admin__support-title">
-                SkyHub reports
-                {skyhubQueue.critical > 0 && (
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      background: "#7f1d1d",
-                      color: "#fecaca",
-                      border: "1px solid #ef4444",
-                      borderRadius: 99,
-                      padding: "1px 8px",
-                      fontSize: 11,
-                      fontWeight: 800,
-                    }}
-                  >
-                    {skyhubQueue.critical} URGENT
-                  </span>
-                )}
-                {skyhubQueue.reports + skyhubQueue.appeals > 0 && (
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      background: "#ef4444",
-                      color: "#fff",
-                      borderRadius: 99,
-                      padding: "1px 8px",
-                      fontSize: 12,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {skyhubQueue.reports + skyhubQueue.appeals}
-                  </span>
-                )}
-              </div>
-              <div className="sk-admin__support-sub">
-                {skyhubQueue.critical > 0 && (
-                  <span style={{ color: "#fca5a5", fontWeight: 700 }}>
-                    {skyhubQueue.critical} child-safety / intimate-image report
-                    {skyhubQueue.critical === 1 ? "" : "s"} first ·{" "}
-                  </span>
-                )}
-                {skyhubQueue.reports} to review · {skyhubQueue.appeals} appeal
-                {skyhubQueue.appeals === 1 ? "" : "s"}
-              </div>
-            </div>
-          </div>
-          <span className="sk-admin__support-arrow">→</span>
-        </div>
-
-        {skyhubQueue.overdueTakedowns > 0 && (
-          <div
-            role="alert"
-            style={{
-              background: C.redDim,
-              border: `1px solid ${C.red}`,
-              borderRadius: 12,
-              padding: "12px 18px",
-              color: "#fecaca",
-              fontSize: 13,
-              fontWeight: 600,
-              marginBottom: 20,
-            }}
-          >
-            ⏰ {skyhubQueue.overdueTakedowns} intimate-image removal request
-            {skyhubQueue.overdueTakedowns === 1 ? " is" : "s are"} past the
-            48-hour legal deadline. Handle{" "}
-            {skyhubQueue.overdueTakedowns === 1 ? "it" : "them"} below now.
-          </div>
-        )}
-
-        <TakedownQueue onChange={skyhubQueue.reload} />
-
-        <div className="sk-admin__section-title">Overview</div>
-        <div className="sk-admin__stats">
-          <StatCard
-            icon="👤"
-            label="Total Users"
-            value={stats.totalUsers}
-            color={C.purple}
-            dim={C.purpleDim}
-          />
-          <StatCard
-            icon="✈️"
-            label="Total Bookings"
-            value={stats.totalBookings}
-            color={C.orange}
-            dim={C.orangeDim}
-          />
-          <StatCard
-            icon="💰"
-            label="Confirmed Revenue"
-            value={
-              stats.totalRevenue != null ? fmt$(stats.totalRevenue) : undefined
-            }
-            color={C.green}
-            dim={C.greenDim}
-          />
-          <StatCard
-            icon="🌟"
-            label="Total XP Awarded"
-            value={
-              stats.totalXP != null ? stats.totalXP.toLocaleString() : undefined
-            }
-            color={C.blue}
-            dim={C.blueDim}
-          />
-        </div>
-
-        <div className="sk-admin__stats" style={{ marginBottom: 32 }}>
-          <StatCard
-            icon="📅"
-            label="New Users (7d)"
-            value={stats.newUsersWeek}
-            color={C.purple}
-            dim={C.purpleDim}
-          />
-          <StatCard
-            icon="🎫"
-            label="Bookings (7d)"
-            value={stats.newBookingsWeek}
-            color={C.orange}
-            dim={C.orangeDim}
-          />
-          <StatCard
-            icon="✅"
-            label="Confirmed"
-            value={stats.confirmedBookings}
-            color={C.green}
-            dim={C.greenDim}
-          />
-          <StatCard
-            icon="⏳"
-            label="Pending"
-            value={stats.pendingBookings}
-            color={C.blue}
-            dim={C.blueDim}
-          />
-        </div>
-
-        <div className="sk-admin__section-title">Growth Metrics</div>
-        <div className="sk-admin__stats">
-          <StatCard
-            icon="🔁"
-            label="Second-Booking Rate"
-            value={
-              growthMetrics ? `${growthMetrics.secondBookingRate}%` : undefined
-            }
-            color={C.green}
-            dim={C.greenDim}
-          />
-          <StatCard
-            icon="🤝"
-            label="Referral Share Rate"
-            value={
-              growthMetrics ? `${growthMetrics.referralShareRate}%` : undefined
-            }
-            color={C.purple}
-            dim={C.purpleDim}
-          />
-          <StatCard
-            icon="⚠️"
-            label="Cancellation Rate"
-            value={
-              growthMetrics ? `${growthMetrics.cancellationRate}%` : undefined
-            }
-            color={C.red}
-            dim={C.redDim}
-          />
-        </div>
-        {!growthLoading && growthMetrics && (
-          <div
-            style={{
-              fontSize: 11,
-              color: C.muted,
-              marginTop: -20,
-              marginBottom: 32,
-            }}
-          >
-            Second-booking rate is of {growthMetrics.usersWithAtLeastOneBooking}{" "}
-            users with 1+ booking · Referral rate is of{" "}
-            {growthMetrics.totalUsers} total users
-          </div>
-        )}
-
-        <div className="sk-admin__grid">
-          <div className="sk-admin__card">
-            <div className="sk-admin__card-head">
-              <span className="sk-admin__card-title">Recent Users</span>
-              <span className="sk-admin__card-count">{users.length} shown</span>
-            </div>
-            {loading && (
-              <div className="sk-admin__empty">
-                <span className="sk-admin__spinner" />
-              </div>
-            )}
-            {!loading && users.length === 0 && (
-              <div className="sk-admin__empty">No users yet</div>
-            )}
-            {users.map((u) => (
-              <div key={u._id} className="sk-admin__row">
-                <div className="sk-admin__row-left">
-                  <div className="sk-admin__avatar">
-                    {u.avatar ? (
-                      <img
-                        src={u.avatar}
-                        alt=""
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
-                      />
-                    ) : (
-                      initials(u.name || u.username)
-                    )}
+          + New challenge
+        </Button>
+      }
+    >
+      <PanelContent
+        loading={loading}
+        isEmpty={!challenges.length}
+        emptyText="No challenges yet. Create one to get started."
+      >
+        {challenges.map((c) => {
+          const status = CHALLENGE_STATUS[challengeStatus(c)];
+          const action = c.requirement?.actionType;
+          return (
+            <div key={c.id} className="sk-row">
+              <div className="sk-row__left">
+                <div className="sk-row__icon">
+                  <ChallengeIcon iconKey={c.icon} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="sk-name">{c.title}</div>
+                  <div className="sk-sub">
+                    {ACTION_LABELS[action] || action} ×{c.requirement?.count} ·
+                    +{c.bonusXP} XP · {fmtRange(c.startDate, c.endDate)}
                   </div>
-                  <div>
-                    <div className="sk-admin__name">{u.name || u.username}</div>
-                    <div className="sk-admin__sub">
-                      {u.email} · {timeAgo(u.createdAt)}
-                    </div>
+                  <div className="sk-sub">
+                    {c.activatedCount || 0} activated · {c.completedCount || 0}{" "}
+                    completed
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <LevelPill xp={u.xp} />
-                  <span
-                    style={{ fontSize: 12, fontWeight: 700, color: C.orange }}
-                  >
-                    {(u.xp || 0).toLocaleString()} XP
-                  </span>
-                </div>
               </div>
-            ))}
-          </div>
-
-          <div className="sk-admin__card">
-            <div className="sk-admin__card-head">
-              <span className="sk-admin__card-title">Recent Bookings</span>
-              <button
-                type="button"
-                className="sk-admin__challenge-action-btn"
-                onClick={() => navigate("/admin/bookings")}
-              >
-                View all →
-              </button>
-            </div>
-            {loading && (
-              <div className="sk-admin__empty">
-                <span className="sk-admin__spinner" />
-              </div>
-            )}
-            {!loading && bookings.length === 0 && (
-              <div className="sk-admin__empty">No bookings yet</div>
-            )}
-            {bookings.map((b) => (
-              <div key={b._id} className="sk-admin__row">
-                <div className="sk-admin__row-left">
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      background: C.orangeDim,
-                      border: `1px solid ${C.borderAccent}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 14,
-                      flexShrink: 0,
-                    }}
-                  >
-                    ✈️
-                  </div>
-                  <div>
-                    <div className="sk-admin__name">
-                      {b.flight?.origin || "?"} → {b.flight?.destination || "?"}
-                    </div>
-                    <div className="sk-admin__sub">
-                      {b.travelers?.[0]?.email || "Unknown"} ·{" "}
-                      {timeAgo(b.createdAt)}
-                    </div>
-                  </div>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                    gap: 4,
-                  }}
+              <div className="sk-row__right">
+                <Pill tone={status.tone}>{status.label}</Pill>
+                <button
+                  type="button"
+                  className="sk-btn sk-btn--sm"
+                  onClick={() => openModal(c)}
                 >
-                  <StatusPill status={b.status} />
-                  {b.total != null && (
-                    <span
-                      style={{ fontSize: 12, color: C.green, fontWeight: 700 }}
-                    >
-                      {fmt$(b.total)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="sk-admin__grid">
-          <div className="sk-admin__card">
-            <div className="sk-admin__card-head">
-              <span className="sk-admin__card-title">Recent Activity</span>
-              <span className="sk-admin__card-count">Notifications</span>
-            </div>
-            {loading && (
-              <div className="sk-admin__empty">
-                <span className="sk-admin__spinner" />
-              </div>
-            )}
-            {!loading && activity.length === 0 && (
-              <div className="sk-admin__empty">No activity yet</div>
-            )}
-            <div className="sk-admin__feed">
-              {activity.map((a) => {
-                const dotColor =
-                  a.type === "booking"
-                    ? C.green
-                    : a.type === "xp"
-                    ? C.orange
-                    : a.type === "signup"
-                    ? C.purple
-                    : C.blue;
-                return (
-                  <div key={a._id} className="sk-admin__feed-item">
-                    <div
-                      className="sk-admin__feed-dot"
-                      style={{ background: dotColor }}
-                    />
-                    <div>
-                      <div className="sk-admin__feed-text">
-                        {a.message || a.title}
-                      </div>
-                      <div className="sk-admin__feed-time">
-                        {timeAgo(a.createdAt)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="sk-admin__card">
-            <div className="sk-admin__card-head">
-              <span className="sk-admin__card-title">Revenue Breakdown</span>
-              <span className="sk-admin__card-count" style={{ color: C.green }}>
-                {fmt$(stats.totalRevenue || 0)}
-              </span>
-            </div>
-            <div className="sk-admin__rev">
-              {[
-                { label: "Confirmed", key: "confirmed", color: C.green },
-                { label: "Pending", key: "pending", color: C.orange },
-                { label: "Cancelled", key: "cancelled", color: C.red },
-              ].map(({ label, key, color }) => {
-                const val = revenue[key] || 0;
-                const total =
-                  (revenue.confirmed || 0) +
-                  (revenue.pending || 0) +
-                  (revenue.cancelled || 0);
-                const pct = total > 0 ? Math.round((val / total) * 100) : 0;
-                return (
-                  <div key={key} className="sk-admin__rev-row">
-                    <div className="sk-admin__rev-label">
-                      <span>{label}</span>
-                      <span style={{ color }}>
-                        {fmt$(val)} · {pct}%
-                      </span>
-                    </div>
-                    <div className="sk-admin__rev-bar">
-                      <div
-                        className="sk-admin__rev-fill"
-                        style={{ width: `${pct}%`, background: color }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div
-                style={{
-                  marginTop: 16,
-                  borderTop: `1px solid ${C.border}`,
-                  paddingTop: 16,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    color: C.muted,
-                    marginBottom: 12,
-                  }}
-                >
-                  Top XP Earners
-                </div>
-                {(data?.topXP || []).map((u, i) => (
-                  <div
-                    key={u._id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginBottom: 8,
-                    }}
+                  Edit
+                </button>
+                {c.active && (
+                  <Popconfirm
+                    title="End this challenge early?"
+                    description="Already-earned bonuses and progress are kept. This just stops it from running."
+                    okText="End it"
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => endEarly(c)}
                   >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm sk-btn--danger"
                     >
-                      <span style={{ fontSize: 11, color: C.muted, width: 16 }}>
-                        #{i + 1}
-                      </span>
-                      <span style={{ fontSize: 13, color: C.white }}>
-                        {u.name || u.username}
-                      </span>
-                    </div>
-                    <span
-                      style={{ fontSize: 12, fontWeight: 700, color: C.orange }}
-                    >
-                      {(u.xp || 0).toLocaleString()} XP
-                    </span>
-                  </div>
-                ))}
-                {(!data?.topXP || data.topXP.length === 0) && (
-                  <div style={{ fontSize: 12, color: C.muted }}>
-                    No XP data yet
-                  </div>
+                      End early
+                    </button>
+                  </Popconfirm>
                 )}
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="sk-admin__card" style={{ marginBottom: 24 }}>
-          <div className="sk-admin__card-head">
-            <span className="sk-admin__card-title">Challenges</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="sk-admin__card-count">
-                {challenges.length} total
-              </span>
-              <Button
-                type="primary"
-                size="small"
-                onClick={openCreateModal}
-                style={{ background: C.orange, borderColor: C.orange }}
-              >
-                + New Challenge
-              </Button>
-            </div>
-          </div>
-          {challengesLoading && (
-            <div className="sk-admin__empty">
-              <span className="sk-admin__spinner" />
-            </div>
-          )}
-          {!challengesLoading && challenges.length === 0 && (
-            <div className="sk-admin__empty">
-              No challenges yet — create one to get started
-            </div>
-          )}
-          {challenges.map((c) => (
-            <div key={c.id} className="sk-admin__row">
-              <div className="sk-admin__row-left">
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 8,
-                    background: C.orangeDim,
-                    border: `1px solid ${C.borderAccent}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 14,
-                    flexShrink: 0,
-                  }}
-                >
-                  {resolveChallengeIcon(c.icon)}
-                </div>
-                <div>
-                  <div className="sk-admin__name">{c.title}</div>
-                  <div className="sk-admin__sub">
-                    {c.requirement?.actionType} ×{c.requirement?.count} · +
-                    {c.bonusXP} XP · {c.activatedCount || 0} activated ·{" "}
-                    {c.completedCount || 0} completed
-                  </div>
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  flexShrink: 0,
-                }}
-              >
-                <ChallengeStatusPill challenge={c} />
-                <div className="sk-admin__challenge-actions">
-                  <button
-                    type="button"
-                    className="sk-admin__challenge-action-btn"
-                    onClick={() => openEditModal(c)}
-                  >
-                    Edit
-                  </button>
-                  {c.active && (
-                    <Popconfirm
-                      title="End this challenge early?"
-                      description="Already-earned bonuses and progress are kept — this just stops it from running."
-                      okText="End it"
-                      okButtonProps={{ danger: true }}
-                      onConfirm={() => handleEndChallenge(c)}
-                    >
-                      <button
-                        type="button"
-                        className="sk-admin__challenge-action-btn sk-admin__challenge-action-btn--danger"
-                      >
-                        End early
-                      </button>
-                    </Popconfirm>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="sk-admin__card" style={{ marginBottom: 24 }}>
-          <div className="sk-admin__card-head">
-            <span className="sk-admin__card-title">Rewards Catalog</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="sk-admin__card-count">
-                {rewardItems.length} total
-              </span>
-              <Button
-                type="primary"
-                size="small"
-                onClick={openCreateRewardModal}
-                style={{ background: C.orange, borderColor: C.orange }}
-              >
-                + New Item
-              </Button>
-            </div>
-          </div>
-          {rewardItemsLoading && (
-            <div className="sk-admin__empty">
-              <span className="sk-admin__spinner" />
-            </div>
-          )}
-          {!rewardItemsLoading && rewardItems.length === 0 && (
-            <div className="sk-admin__empty">
-              No reward items yet — create one to get started
-            </div>
-          )}
-          {rewardItems.map((item) => (
-            <div key={item.id} className="sk-admin__row">
-              <div className="sk-admin__row-left">
-                <div>
-                  <div className="sk-admin__name">
-                    {item.title}
-                    {!item.active && (
-                      <span
-                        className="sk-admin__pill"
-                        style={{
-                          marginLeft: 8,
-                          background: C.redDim,
-                          color: C.red,
-                        }}
-                      >
-                        Removed
-                      </span>
-                    )}
-                  </div>
-                  <div className="sk-admin__sub">
-                    {item.type} · {item.cost} XP
-                    {item.repeatable ? " · repeatable" : ""}
-                    {item.featured ? " · featured" : ""}
-                  </div>
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  flexShrink: 0,
-                }}
-              >
-                <div className="sk-admin__challenge-actions">
-                  <button
-                    type="button"
-                    className="sk-admin__challenge-action-btn"
-                    onClick={() => openEditRewardModal(item)}
-                  >
-                    Edit
-                  </button>
-                  {item.active && (
-                    <Popconfirm
-                      title="Remove this item?"
-                      description="Anyone who already redeemed it keeps that history — this just stops it from showing in the live catalog."
-                      okText="Remove"
-                      okButtonProps={{ danger: true }}
-                      onConfirm={() => handleRemoveReward(item)}
-                    >
-                      <button
-                        type="button"
-                        className="sk-admin__challenge-action-btn sk-admin__challenge-action-btn--danger"
-                      >
-                        Remove
-                      </button>
-                    </Popconfirm>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+          );
+        })}
+      </PanelContent>
 
       <Modal
-        open={modalOpen}
-        title={editingChallenge ? "Edit Challenge" : "New Challenge"}
-        onCancel={() => setModalOpen(false)}
-        onOk={handleSaveChallenge}
-        okText={editingChallenge ? "Save Changes" : "Create Challenge"}
+        open={modal.open}
+        title={modal.editing ? "Edit challenge" : "New challenge"}
+        onCancel={() => setModal((m) => ({ ...m, open: false }))}
+        onOk={save}
+        okText={modal.editing ? "Save changes" : "Create challenge"}
         confirmLoading={saving}
         className="sk-challenge-modal"
         destroyOnClose
@@ -1880,28 +1511,25 @@ const AdminDashboard = () => {
           >
             <Input.TextArea
               rows={2}
-              placeholder="Save or book a trip for an away game this season — earn bonus XP."
+              placeholder="Save or book a trip for an away game this season to earn bonus XP."
             />
           </Form.Item>
           <Form.Item name="theme" label="Theme">
             <Input placeholder="football" />
           </Form.Item>
           <Form.Item label="Icon">
-            <ChallengeIconPicker
-              value={selectedIcon}
-              onChange={setSelectedIcon}
-            />
+            <ChallengeIconPicker value={icon} onChange={setIcon} />
           </Form.Item>
           <Form.Item
             name="actionType"
             label="What action counts toward this challenge?"
             rules={[{ required: true, message: "Pick or type an action" }]}
             extra={
-              <span style={{ color: "rgba(255,255,255,0.4)" }}>
+              <span className="sk-field-help">
                 Pick from the list, or type your own. A custom action only
-                tracks progress if that exact action is already being recorded
-                elsewhere in the app — otherwise this challenge won't have
-                anything to count, with no error to tell you why.
+                tracks progress if that exact action is already recorded
+                elsewhere in the app. Otherwise the challenge has nothing to
+                count, and no error will tell you why.
               </span>
             }
           >
@@ -1943,21 +1571,177 @@ const AdminDashboard = () => {
           </Form.Item>
         </Form>
       </Modal>
+    </Panel>
+  );
+}
+
+const REWARD_EDITABLE_FIELDS = [
+  "title",
+  "desc",
+  "type",
+  "cost",
+  "level",
+  "featured",
+  "repeatable",
+  "isNew",
+];
+
+function RewardsPanel({ refreshKey }) {
+  const { data, loading, reload } = useLoader(
+    async () => (await adminRequest("/api/rewards/items/admin")).items || [],
+    { key: refreshKey }
+  );
+  // Live items first, removed ones at the bottom.
+  const items = useMemo(
+    () =>
+      [...(data || [])].sort((a, b) => Number(!!b.active) - Number(!!a.active)),
+    [data]
+  );
+
+  const [form] = Form.useForm();
+  const [modal, setModal] = useState({ open: false, editing: null });
+  const [saving, setSaving] = useState(false);
+
+  const openModal = (item = null) => {
+    form.resetFields();
+    if (item) {
+      form.setFieldsValue({
+        itemId: item.itemId,
+        ...Object.fromEntries(REWARD_EDITABLE_FIELDS.map((k) => [k, item[k]])),
+      });
+    }
+    setModal({ open: true, editing: item });
+  };
+
+  const save = async () => {
+    let values;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return;
+    }
+    const { editing } = modal;
+    setSaving(true);
+    try {
+      await adminRequest(
+        editing ? `/api/rewards/items/${editing.itemId}` : "/api/rewards/items",
+        {
+          method: editing ? "PATCH" : "POST",
+          // itemId can't change after creation, so it's only sent on create.
+          body: editing
+            ? Object.fromEntries(
+                REWARD_EDITABLE_FIELDS.map((k) => [k, values[k]])
+              )
+            : values,
+        }
+      );
+      message.success(editing ? "Item updated." : "Item created.");
+      setModal((m) => ({ ...m, open: false }));
+      reload();
+    } catch (err) {
+      message.error(err.message || "Failed to save reward item.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (item) => {
+    try {
+      await adminRequest(`/api/rewards/items/${item.itemId}`, {
+        method: "DELETE",
+      });
+      message.success("Item removed.");
+      reload();
+    } catch (err) {
+      message.error(err.message || "Failed to remove item.");
+    }
+  };
+
+  return (
+    <Panel
+      title="Rewards catalog"
+      meta={`${items.filter((i) => i.active).length} live · ${
+        items.length
+      } total`}
+      actions={
+        <Button
+          type="primary"
+          size="small"
+          onClick={() => openModal()}
+          style={{ background: C.orange, borderColor: C.orange }}
+        >
+          + New item
+        </Button>
+      }
+    >
+      <PanelContent
+        loading={loading}
+        isEmpty={!items.length}
+        emptyText="No reward items yet. Create one to get started."
+      >
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="sk-row"
+            style={item.active ? undefined : { opacity: 0.6 }}
+          >
+            <div className="sk-row__left">
+              <div style={{ minWidth: 0 }}>
+                <div className="sk-name">
+                  {item.title}
+                  {!item.active && <Pill tone="red">Removed</Pill>}
+                  {item.featured && <Pill tone="orange">Featured</Pill>}
+                  {item.isNew && <Pill tone="blue">New</Pill>}
+                </div>
+                <div className="sk-sub">
+                  {item.type} · {fmtNum(item.cost)} XP
+                  {item.repeatable ? " · repeatable" : ""}
+                </div>
+              </div>
+            </div>
+            <div className="sk-row__right">
+              <button
+                type="button"
+                className="sk-btn sk-btn--sm"
+                onClick={() => openModal(item)}
+              >
+                Edit
+              </button>
+              {item.active && (
+                <Popconfirm
+                  title="Remove this item?"
+                  description="Anyone who already redeemed it keeps that history. This just hides it from the live catalog."
+                  okText="Remove"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => remove(item)}
+                >
+                  <button
+                    type="button"
+                    className="sk-btn sk-btn--sm sk-btn--danger"
+                  >
+                    Remove
+                  </button>
+                </Popconfirm>
+              )}
+            </div>
+          </div>
+        ))}
+      </PanelContent>
 
       <Modal
-        open={rewardModalOpen}
-        title={editingReward ? "Edit Reward Item" : "New Reward Item"}
-        onCancel={() => setRewardModalOpen(false)}
-        onOk={handleSaveReward}
-        okText={editingReward ? "Save Changes" : "Create Item"}
-        confirmLoading={rewardSaving}
+        open={modal.open}
+        title={modal.editing ? "Edit reward item" : "New reward item"}
+        onCancel={() => setModal((m) => ({ ...m, open: false }))}
+        onOk={save}
+        okText={modal.editing ? "Save changes" : "Create item"}
+        confirmLoading={saving}
         className="sk-challenge-modal"
         destroyOnClose
       >
-        <Form form={rewardForm} layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
             name="itemId"
-            label="Item ID (slug — can't be changed later)"
+            label="Item ID (slug, can't be changed later)"
             rules={[
               { required: true, message: "Item ID is required" },
               {
@@ -1966,7 +1750,7 @@ const AdminDashboard = () => {
               },
             ]}
           >
-            <Input placeholder="weekend_xp" disabled={!!editingReward} />
+            <Input placeholder="weekend_xp" disabled={!!modal.editing} />
           </Form.Item>
           <Form.Item
             name="title"
@@ -2011,9 +1795,9 @@ const AdminDashboard = () => {
             name="level"
             label="Level"
             extra={
-              <span style={{ color: "rgba(255,255,255,0.4)" }}>
-                Carried over from the original catalog data — not currently
-                wired up to restrict an item to any particular tier.
+              <span className="sk-field-help">
+                Carried over from the original catalog data. Not currently wired
+                up to restrict an item to any tier.
               </span>
             }
           >
@@ -2030,12 +1814,191 @@ const AdminDashboard = () => {
             >
               <Switch />
             </Form.Item>
-            <Form.Item name="isNew" label="Mark as New" valuePropName="checked">
+            <Form.Item name="isNew" label="Mark as new" valuePropName="checked">
               <Switch />
             </Form.Item>
           </div>
         </Form>
       </Modal>
+    </Panel>
+  );
+}
+
+function EngagementTab({ refreshKey }) {
+  return (
+    <>
+      <Section title="Challenges">
+        <ChallengesPanel refreshKey={refreshKey} />
+      </Section>
+      <Section title="Rewards">
+        <RewardsPanel refreshKey={refreshKey} />
+      </Section>
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = TABS.includes(searchParams.get("tab"))
+    ? searchParams.get("tab")
+    : "overview";
+  const setTab = (next) =>
+    setSearchParams(next === "overview" ? {} : { tab: next }, {
+      replace: true,
+    });
+
+  // Bumping this reloads every section on the page.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [lastRefresh, setLastRefresh] = useState(null);
+  useTick(30_000);
+
+  useEffect(() => {
+    if (!localStorage.getItem("admin")) navigate("/admin/login");
+  }, [navigate]);
+
+  const dashboard = useLoader(
+    async () => {
+      try {
+        return (await adminRequest("/api/admin/dashboard")).data;
+      } catch (err) {
+        if (err.status === 401) {
+          clearAdminSession();
+          navigate("/admin/login");
+        }
+        throw err;
+      }
+    },
+    { key: refreshKey }
+  );
+
+  const growth = useLoader(
+    async () => (await adminRequest("/api/admin/growth-metrics")).data,
+    { key: refreshKey }
+  );
+
+  const counts = useAttentionCounts(refreshKey);
+
+  useEffect(() => {
+    if (dashboard.data) setLastRefresh(new Date());
+  }, [dashboard.data]);
+
+  const handleLogout = async () => {
+    try {
+      await adminFetch("/api/admin/logout", { method: "POST" });
+    } catch {
+      // Clear the local session even if the server call fails.
+    }
+    clearAdminSession();
+    navigate("/admin/login");
+  };
+
+  const { skyhub } = counts;
+  const tabs = [
+    { key: "overview", label: "Overview" },
+    {
+      key: "moderation",
+      label: "Moderation",
+      count: skyhub.takedowns + skyhub.critical,
+    },
+    { key: "engagement", label: "Challenges & rewards" },
+  ];
+
+  return (
+    <div className="sk-admin">
+      <style>{INJECTED_CSS}</style>
+
+      <header className="sk-top">
+        <div className="sk-top__bar">
+          <div className="sk-top__logo">
+            ✦ Skyrio <span className="sk-top__badge">Admin</span>
+          </div>
+          <div className="sk-top__right">
+            {lastRefresh && (
+              <span className="sk-top__updated">
+                Updated {timeAgo(lastRefresh)}
+              </span>
+            )}
+            <button
+              type="button"
+              className="sk-btn"
+              onClick={() => setRefreshKey((k) => k + 1)}
+              disabled={dashboard.loading}
+            >
+              {dashboard.loading ? "Loading…" : "↻ Refresh"}
+            </button>
+            <button
+              type="button"
+              className="sk-btn"
+              onClick={() => navigate("/")}
+            >
+              ← Skyrio
+            </button>
+            <Button type="primary" danger size="small" onClick={handleLogout}>
+              Logout
+            </Button>
+          </div>
+        </div>
+
+        <nav className="sk-tabs" role="tablist" aria-label="Admin sections">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              className="sk-tabs__tab"
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+              {t.count > 0 && <span className="sk-tabs__count">{t.count}</span>}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main className="sk-body">
+        {/* Shown on every tab: missing a legal deadline is never OK. */}
+        {skyhub.overdueTakedowns > 0 && (
+          <div role="alert" className="sk-alert">
+            <span>
+              ⏰ {skyhub.overdueTakedowns} intimate-image removal{" "}
+              {plural(skyhub.overdueTakedowns, "request is", "requests are")}{" "}
+              past the 48-hour legal deadline.
+            </span>
+            {tab !== "moderation" && (
+              <button
+                type="button"
+                className="sk-btn sk-btn--sm sk-btn--danger"
+                onClick={() => setTab("moderation")}
+              >
+                Handle now →
+              </button>
+            )}
+          </div>
+        )}
+
+        {dashboard.error && tab === "overview" && (
+          <div className="sk-alert sk-alert--soft">⚠️ {dashboard.error}</div>
+        )}
+
+        {tab === "overview" && (
+          <OverviewTab
+            dashboard={dashboard}
+            growth={growth}
+            counts={counts}
+            onOpenModeration={() => setTab("moderation")}
+          />
+        )}
+        {tab === "moderation" && (
+          <ModerationTab refreshKey={refreshKey} counts={counts} />
+        )}
+        {tab === "engagement" && <EngagementTab refreshKey={refreshKey} />}
+      </main>
     </div>
   );
 };
