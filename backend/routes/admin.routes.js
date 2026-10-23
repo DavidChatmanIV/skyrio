@@ -15,29 +15,32 @@ function signAdminToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-function setAdminCookie(res, token) {
+// The frontend (myskyrio.com) and this API (onrender.com) are different
+// sites, so in production the cookie must be SameSite=None (which requires
+// Secure) or the browser won't send it back and the dashboard 401s.
+// Locally (http) it stays "lax".
+function adminCookieOptions() {
   const isProd = process.env.NODE_ENV === "production";
   const secure =
     String(process.env.COOKIE_SECURE).toLowerCase() === "true" || isProd;
-  res.cookie(COOKIE_NAME, token, {
+  return {
     httpOnly: true,
     secure,
-    sameSite: "lax",
+    sameSite: secure ? "none" : "lax",
     path: "/",
+  };
+}
+
+function setAdminCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, {
+    ...adminCookieOptions(),
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 }
 
 function clearAdminCookie(res) {
-  const isProd = process.env.NODE_ENV === "production";
-  const secure =
-    String(process.env.COOKIE_SECURE).toLowerCase() === "true" || isProd;
-  res.clearCookie(COOKIE_NAME, {
-    httpOnly: true,
-    secure,
-    sameSite: "lax",
-    path: "/",
-  });
+  // Must use the same options it was set with, or the browser keeps it
+  res.clearCookie(COOKIE_NAME, adminCookieOptions());
 }
 
 function readAdminFromCookie(req) {
