@@ -17,6 +17,7 @@ import {
   FlagOutlined,
 } from "@ant-design/icons";
 import { apiUrl } from "@/lib/api";
+import { SkyHubJoinCard } from "./SkyHubJoinPrompt";
 
 const { TextArea } = Input;
 
@@ -44,11 +45,47 @@ const REASONS = [
   { value: "other", label: "Something else" },
 ];
 
+/* ── SVG icons (no emoji) ── */
+const PinIcon = () => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+    style={{ verticalAlign: "-1px", marginRight: 3 }}
+  >
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
+const ChatIcon = () => (
+  <svg
+    width="32"
+    height="32"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+  </svg>
+);
+
 export default function SkyHubCommentDrawer({
   open,
   onClose,
   post,
   refreshPostComments,
+  onNeedAccount, // opens the "create a profile" prompt on SkyHubPage
 }) {
   const [comments, setComments] = useState([]);
   const [isPhone, setIsPhone] = useState(
@@ -62,6 +99,8 @@ export default function SkyHubCommentDrawer({
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+
+  const loggedIn = !!localStorage.getItem("token");
 
   useEffect(() => {
     if (!open || !post?.id) return;
@@ -90,7 +129,7 @@ export default function SkyHubCommentDrawer({
 
   const handlePostComment = async () => {
     if (!localStorage.getItem("token")) {
-      message.info("Log in to comment.");
+      onNeedAccount?.("comment");
       return;
     }
     if (!commentText.trim()) {
@@ -134,6 +173,7 @@ export default function SkyHubCommentDrawer({
       title: "Delete this comment?",
       okText: "Delete",
       okButtonProps: { danger: true },
+      zIndex: 2100,
       onOk: async () => {
         try {
           const res = await skyFetch(`/api/skyhub/comments/${comment._id}`, {
@@ -190,7 +230,7 @@ export default function SkyHubCommentDrawer({
       open={open}
       className="skyhub-commentDrawer skyhub-drawer"
       rootClassName="skyhub-drawer"
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="skyhub-commentDrawerInner">
         {post ? (
@@ -201,7 +241,8 @@ export default function SkyHubCommentDrawer({
               </span>
               {post.destination && (
                 <span className="skyhub-drawerPreview__dest">
-                  📍 {post.destination}
+                  <PinIcon />
+                  {post.destination}
                 </span>
               )}
               {post.timeAgo && (
@@ -229,27 +270,30 @@ export default function SkyHubCommentDrawer({
         ) : null}
 
         <div className="skyhub-commentComposer">
-          <TextArea
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder={
-              localStorage.getItem("token")
-                ? "Write a helpful reply..."
-                : "Log in to reply"
-            }
-            maxLength={600}
-            autoSize={{ minRows: 3, maxRows: 6 }}
-          />
+          {loggedIn ? (
+            <>
+              <TextArea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Write a helpful reply..."
+                maxLength={600}
+                autoSize={{ minRows: 3, maxRows: 6 }}
+              />
 
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handlePostComment}
-            loading={postingComment}
-            className="skyhub-primaryBtn"
-          >
-            Add Comment
-          </Button>
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                onClick={handlePostComment}
+                loading={postingComment}
+                className="skyhub-primaryBtn"
+              >
+                Add Comment
+              </Button>
+            </>
+          ) : (
+            // Logged out: read every comment, but replying needs a profile
+            <SkyHubJoinCard />
+          )}
         </div>
 
         <div className="skyhub-commentList">
@@ -337,8 +381,11 @@ export default function SkyHubCommentDrawer({
                                   icon: <FlagOutlined />,
                                   label: "Report",
                                   onClick: () => {
-                                    if (!localStorage.getItem("token"))
+                                    if (!localStorage.getItem("token")) {
+                                      if (onNeedAccount)
+                                        return onNeedAccount("report comments");
                                       return message.info("Log in to report.");
+                                    }
                                     setReason("spam");
                                     setReporting(comment);
                                   },
@@ -382,12 +429,15 @@ export default function SkyHubCommentDrawer({
           ) : (
             <div className="skyhub-drawerEmpty">
               <div className="skyhub-drawerEmpty__icon" aria-hidden="true">
-                💬
+                <ChatIcon />
               </div>
               <div className="skyhub-drawerEmpty__title">No comments yet</div>
               <div className="skyhub-drawerEmpty__sub">
-                Be the first to reply
-                {post?.author ? ` to ${post.author.split(" ")[0]}` : ""}.
+                {loggedIn
+                  ? `Be the first to reply${
+                      post?.author ? ` to ${post.author.split(" ")[0]}` : ""
+                    }.`
+                  : "Create a profile to be the first to reply."}
               </div>
             </div>
           )}
@@ -398,11 +448,12 @@ export default function SkyHubCommentDrawer({
         open={!!reporting}
         title="Report this comment"
         className="skyhub-modal"
+        zIndex={2100}
         onCancel={() => setReporting(null)}
         onOk={sendReport}
         okText="Send report"
         okButtonProps={{ danger: true }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Radio.Group
           value={reason}

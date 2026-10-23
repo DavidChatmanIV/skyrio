@@ -277,22 +277,6 @@ export default function LoginPage() {
     handleLogin();
   };
 
-  const onGuest = () => {
-    if (loading) return;
-    if (auth?.continueAsGuest) auth.continueAsGuest();
-    else if (auth?.guestLogin) auth.guestLogin();
-    notification.open({
-      message: null,
-      description: (
-        <BoardingPassToast name="Guest" routeFrom="Login" routeTo="Book" />
-      ),
-      placement: "topRight",
-      duration: 2.5,
-      style: { background: "transparent", boxShadow: "none", padding: 0 },
-    });
-    nav("/booking", { state: { fromAuth: true } });
-  };
-
   const emailHasError = errorFields === "both" || errorFields === "email";
   const passwordHasError = errorFields === "both" || errorFields === "password";
 
@@ -483,17 +467,6 @@ export default function LoginPage() {
                     </Button>
 
                     <div className="sk-secondary">
-                      <Button
-                        className="sk-ghostBtn"
-                        block
-                        onClick={onGuest}
-                        disabled={loading}
-                      >
-                        Preview as Guest
-                      </Button>
-                      <Text className="sk-muted sk-micro">
-                        Some features require a Skyrio account.
-                      </Text>
                       <Text className="sk-muted sk-signupLine">
                         New to Skyrio?{" "}
                         <Link className="sk-inlineBtnLink" to="/register">

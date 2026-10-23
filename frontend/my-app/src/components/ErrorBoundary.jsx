@@ -1,75 +1,92 @@
 import React from "react";
 
-class ErrorBoundary extends React.Component {
+/*
+  Catches crashes in any page (including lazy pages that fail to load)
+  so visitors see a message instead of a blank screen.
+  In development it also shows the actual error so it's easy to fix.
+*/
+export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { error: null };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error) {
+    return { error };
   }
 
   componentDidCatch(error, info) {
-    // Log for now — wire this into Sentry or similar once monitoring is set up.
-    console.error("[ErrorBoundary] Caught a render error:", error, info);
+    console.error("[Skyrio] Page crashed:", error, info?.componentStack);
   }
 
-  handleReload = () => {
-    window.location.reload();
-  };
+  componentDidUpdate(prevProps) {
+    // Clear the error when the user navigates to another page
+    if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
+  }
 
   render() {
-    if (this.state.hasError) {
-      return (
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "#0f0520",
-            color: "#fff",
-            fontFamily: "'DM Sans', sans-serif",
-            padding: 24,
-            textAlign: "center",
-          }}
-        >
-          <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 700 }}>
-            Something went wrong
-          </h2>
-          <p
-            style={{
-              color: "rgba(255,255,255,0.5)",
-              margin: "0 0 24px",
-              fontSize: 14,
-              maxWidth: 320,
-            }}
-          >
-            Your session may have just needed a refresh. Tap below to reload.
+    const { error } = this.state;
+    if (!error) return this.props.children;
+
+    return (
+      <div
+        role="alert"
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          padding: 20,
+          background: "#0a0617",
+          color: "#f0edff",
+          fontFamily: "'DM Sans', sans-serif",
+        }}
+      >
+        <div style={{ maxWidth: 520, textAlign: "center" }}>
+          <h1 style={{ fontSize: 24, margin: "0 0 10px" }}>
+            This page didn't load
+          </h1>
+          <p style={{ color: "rgba(240,237,255,0.65)", margin: "0 0 20px" }}>
+            Try reloading. If it keeps happening, let us know through Get help.
           </p>
           <button
-            onClick={this.handleReload}
+            type="button"
+            onClick={() => window.location.reload()}
             style={{
-              background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
-              color: "#1b1024",
+              padding: "12px 28px",
+              borderRadius: 12,
               border: "none",
-              borderRadius: 999,
-              padding: "14px 36px",
+              background: "linear-gradient(135deg, #ff8a2a, #ffb066)",
+              color: "#1a0800",
               fontWeight: 800,
               fontSize: 15,
               cursor: "pointer",
-              fontFamily: "inherit",
             }}
           >
-            Reload
+            Reload page
           </button>
+
+          {import.meta.env.DEV && (
+            <pre
+              style={{
+                marginTop: 24,
+                padding: 14,
+                borderRadius: 12,
+                background: "rgba(255,77,79,0.12)",
+                border: "1px solid rgba(255,99,99,0.4)",
+                color: "#ffd9d6",
+                fontSize: 12,
+                textAlign: "left",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+            >
+              {String(error?.stack || error)}
+            </pre>
+          )}
         </div>
-      );
-    }
-    return this.props.children;
+      </div>
+    );
   }
 }
-
-export default ErrorBoundary;

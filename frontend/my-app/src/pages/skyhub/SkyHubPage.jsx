@@ -27,6 +27,7 @@ import SkyHubPassportCard from "./SkyHubPassportCard";
 import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import SkyHubStanding from "./SkyHubStanding";
+import { SkyHubJoinModal, SkyHubJoinCard } from "./SkyHubJoinPrompt";
 import { apiUrl } from "@/lib/api";
 import { AuthContext } from "@/context/AuthContext";
 
@@ -695,6 +696,11 @@ export default function SkyHubPage() {
       }
     : null;
 
+  // Logged-out visitors can read everything; any action opens a
+  // "create a profile" prompt that brings them back to SkyHub.
+  const [joinAction, setJoinAction] = useState(null);
+  const askToJoin = (action) => setJoinAction(action);
+
   const [activeTab, setActiveTab] = useState("forYou");
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchValue, setSearchValue] = useState("");
@@ -954,7 +960,7 @@ export default function SkyHubPage() {
   /* Handlers */
   const handleCreatePost = async () => {
     if (!currentUser) {
-      message.info("Log in to post on SkyHub.");
+      askToJoin("post on SkyHub");
       return false;
     }
     if (!composerText.trim() && composerPhotos.length === 0) {
@@ -1049,7 +1055,7 @@ export default function SkyHubPage() {
       if (data.xp?.rankUp) {
         const rank =
           data.xp.rankUp.name || data.xp.rankUp.label || data.xp.rankUp;
-        message.success(`New rank unlocked: ${rank} 🎉`, 4);
+        message.success(`New rank unlocked: ${rank}`, 4);
       }
       return true;
     } catch (err) {
@@ -1062,7 +1068,7 @@ export default function SkyHubPage() {
 
   const handleToggleLike = async (id) => {
     try {
-      if (!currentUser) return message.info("Log in to like posts.");
+      if (!currentUser) return askToJoin("like posts");
       const res = await skyFetch(`/api/skyhub/posts/${id}/like`, {
         method: "POST",
       });
@@ -1081,7 +1087,7 @@ export default function SkyHubPage() {
   };
 
   const handleToggleFollow = async (post) => {
-    if (!currentUser) return message.info("Log in to follow travelers.");
+    if (!currentUser) return askToJoin("follow travelers");
     if (!post?.authorId) return;
     const authorId = String(post.authorId);
     try {
@@ -1115,7 +1121,7 @@ export default function SkyHubPage() {
 
   const handleToggleSave = async (id) => {
     try {
-      if (!currentUser) return message.info("Log in to save posts.");
+      if (!currentUser) return askToJoin("save posts");
       const res = await skyFetch(`/api/skyhub/posts/${id}/save`, {
         method: "POST",
       });
@@ -1215,7 +1221,7 @@ export default function SkyHubPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [reportSending, setReportSending] = useState(false);
   const handleReportPost = (post) => {
-    if (!currentUser) return message.info("Log in to report posts.");
+    if (!currentUser) return askToJoin("report posts");
     setReportReason("spam");
     setReportDetails("");
     setReportPost(post);
@@ -1247,7 +1253,7 @@ export default function SkyHubPage() {
 
   // Block: you won't see each other's posts or comments anymore.
   const handleBlockUser = (post) => {
-    if (!currentUser) return message.info("Log in to block travelers.");
+    if (!currentUser) return askToJoin("block travelers");
     if (!post.authorId) return;
     Modal.confirm({
       className: "skyhub-modal",
@@ -1290,6 +1296,10 @@ export default function SkyHubPage() {
     composer?.scrollIntoView({ behavior: "smooth", block: "center" });
     composer?.querySelector("textarea")?.focus({ preventScroll: true });
   };
+
+  // "Send a postcard" buttons: logged-out visitors get the sign-up prompt
+  const startPost = () =>
+    currentUser ? focusComposer() : askToJoin("send a postcard");
 
   const scrollToFeed = () =>
     document
@@ -1436,7 +1446,7 @@ export default function SkyHubPage() {
                 </span>
               </li>
             </ol>
-            <button type="button" className="shPC-cta" onClick={focusComposer}>
+            <button type="button" className="shPC-cta" onClick={startPost}>
               <svg
                 width="17"
                 height="17"
@@ -1600,18 +1610,22 @@ export default function SkyHubPage() {
                 question, or a quick story. Add the place and a photo so others
                 can find it.
               </p>
-              <SkyHubComposer
-                composerText={composerText}
-                setComposerText={setComposerText}
-                activePostType={activePostType}
-                setActivePostType={setActivePostType}
-                destination={destination}
-                setDestination={setDestination}
-                onCreatePost={handleCreatePost}
-                creatingPost={creatingPost}
-                onPhotosChange={setComposerPhotos}
-                user={currentUser}
-              />
+              {currentUser ? (
+                <SkyHubComposer
+                  composerText={composerText}
+                  setComposerText={setComposerText}
+                  activePostType={activePostType}
+                  setActivePostType={setActivePostType}
+                  destination={destination}
+                  setDestination={setDestination}
+                  onCreatePost={handleCreatePost}
+                  creatingPost={creatingPost}
+                  onPhotosChange={setComposerPhotos}
+                  user={currentUser}
+                />
+              ) : (
+                <SkyHubJoinCard />
+              )}
             </div>
 
             <section className="skyhub-feedSection">
@@ -1737,9 +1751,7 @@ export default function SkyHubPage() {
                       onEditPost={handleEditPost}
                       onDeletePost={handleDeletePost}
                       onBlockUser={handleBlockUser}
-                      onToggleFollow={
-                        currentUser ? handleToggleFollow : undefined
-                      }
+                      onToggleFollow={handleToggleFollow}
                     />
                   ))
                 ) : (
@@ -1759,7 +1771,7 @@ export default function SkyHubPage() {
                       onClick={
                         activeTab === "following"
                           ? () => setActiveTab("forYou")
-                          : focusComposer
+                          : startPost
                       }
                       style={{ marginTop: 16 }}
                     >
@@ -1806,7 +1818,7 @@ export default function SkyHubPage() {
         onOk={saveEdit}
         okText="Save"
         okButtonProps={{ loading: savingEdit }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Input.TextArea
           value={editText}
@@ -1848,7 +1860,7 @@ export default function SkyHubPage() {
         onOk={submitReport}
         okText="Send report"
         okButtonProps={{ loading: reportSending, danger: true }}
-        destroyOnClose
+        destroyOnHidden
       >
         <p style={{ marginBottom: 12, opacity: 0.75 }}>
           What's wrong with it? Reports are anonymous — the person won't know it
@@ -1882,11 +1894,17 @@ export default function SkyHubPage() {
         />
       </Modal>
 
+      <SkyHubJoinModal
+        action={joinAction}
+        onClose={() => setJoinAction(null)}
+      />
+
       <SkyHubCommentDrawer
         open={commentDrawerOpen}
         onClose={() => setCommentDrawerOpen(false)}
         post={activeCommentPost}
         refreshPostComments={refreshPostComments}
+        onNeedAccount={askToJoin}
       />
     </div>
   );

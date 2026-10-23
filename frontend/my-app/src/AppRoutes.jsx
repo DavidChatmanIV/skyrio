@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import RequireAccount from "./components/RequireAccount";
 import { useAuth } from "./auth/useAuth";
 import CookieBanner from "./components/CookieBanner";
 
@@ -13,7 +14,7 @@ const SkyHubGuidelines = lazy(() => import("./pages/skyhub/SkyHubGuidelines"));
 const DigitalPassportPage = lazy(() =>
   import("./pages/passport/DigitalPassportPage")
 );
-// ✅ NEW: Passport Rewards — the XP redemption store, linked from the
+// Passport Rewards — the XP redemption store, linked from the
 // "Passport Rewards" button in DigitalPassportPage's sidebar actions stack.
 const PassportRewardsPage = lazy(() =>
   import("./pages/passport/PassportRewards")
@@ -32,16 +33,15 @@ const JoinTripPage = lazy(() => import("./pages/JoinTripPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 
-// ✅ NEW: Flight checkout return page — Stripe sends the traveler here after
+// Flight checkout return page — Stripe sends the traveler here after
 // paying, and this page finalizes the booking with the airline.
 const FlightBookingComplete = lazy(() =>
   import("./pages/booking/FlightBookingComplete")
 );
-// ✅ NEW: Group split payments — "pay your share" link sent to each member.
-// (Was only registered in the old, unused App.jsx, so these links 404'd.)
+// Group split payments — "pay your share" link sent to each member.
 const PayShare = lazy(() => import("./pages/booking/PayShare"));
 
-// ✅ s2: Public passport page — no auth required, drives signups
+// Public passport page — no auth required, drives signups
 const PublicPassportPage = lazy(() =>
   import("./pages/passport/PublicPassportPage")
 );
@@ -50,10 +50,9 @@ const PublicPassportPage = lazy(() =>
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const SupportInbox = lazy(() => import("./pages/admin/SupportInbox"));
-// ✅ NEW: Admin booking search + management (cancel/refund, notes)
 const AdminBookings = lazy(() => import("./pages/admin/AdminBookings"));
-
 const AdminSkyHub = lazy(() => import("./pages/admin/AdminSkyHub"));
+
 // ── Legal ──
 const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
@@ -111,13 +110,14 @@ function TrackedRoutes() {
       <Route path="admin" element={<AdminDashboard />} />
       <Route path="admin/support" element={<SupportInbox />} />
       <Route path="admin/bookings" element={<AdminBookings />} />
-
       <Route path="admin/skyhub" element={<AdminSkyHub />} />
-      {/* ✅ s2: Public passport — outside AppLayout so it has its own nav/CTA bar */}
+
+      {/* Public passport — outside AppLayout so it has its own nav/CTA bar */}
       <Route path="u/:username" element={<PublicPassportPage />} />
 
       {/* ── Main app with AppLayout (navbar + footer) ── */}
       <Route element={<AppLayout />}>
+        {/* ── Open to everyone ── */}
         <Route index element={<LandingPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
@@ -126,59 +126,94 @@ function TrackedRoutes() {
         <Route path="verify-email" element={<VerifyEmailPage />} />
         <Route path="booking" element={<BookingPage />} />
 
-        {/* ✅ NEW: Flight checkout return page. Not wrapped in ProtectedRoute
-            on purpose: a login redirect here could interrupt finishing a
-            booking that was already paid for. The page itself sends the
-            saved login token, and the backend rejects it if not signed in. */}
+        {/* Not locked on purpose: a login redirect here could interrupt
+            finishing a booking that was already paid for. */}
         <Route
           path="checkout/flight/complete"
           element={<FlightBookingComplete />}
         />
 
-        {/* ✅ NEW: Group "pay your share" links (public — PayShare handles
-            a logged-out visitor itself). */}
+        {/* Public — PayShare handles a logged-out visitor itself. */}
         <Route
           path="pay-share/:splitPaymentId/:shareId"
           element={<PayShare />}
         />
 
+        {/* SkyHub stays open to browse. Lock posting/liking inside the page. */}
         <Route path="skyhub" element={<SkyHubPage />} />
-      <Route path="skyhub/guidelines" element={<SkyHubGuidelines />} />
+        <Route path="skyhub/guidelines" element={<SkyHubGuidelines />} />
         <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
         <Route path="feed" element={<Navigate to="/skyhub" replace />} />
-        <Route path="passport" element={<DigitalPassportPage />} />
-        {/* ✅ NEW: Passport Rewards — XP redemption store, sibling to /passport */}
-        <Route path="passport/rewards" element={<PassportRewardsPage />} />
+
+        {/* Plans and prices stay public so people can see what they'd get. */}
+        <Route path="membership" element={<MembershipPage />} />
+        <Route path="upgrade" element={<UpgradePage />} />
+
+        {/* ── Account-only features ── */}
+        <Route
+          path="passport"
+          element={
+            <RequireAccount
+              feature="Digital Passport"
+              benefit="Earn XP on every trip, collect stamps and climb the ranks."
+            >
+              <DigitalPassportPage />
+            </RequireAccount>
+          }
+        />
+        <Route
+          path="passport/rewards"
+          element={
+            <RequireAccount
+              feature="Passport Rewards"
+              benefit="Spend the XP you earn on rewards from the catalog."
+            >
+              <PassportRewardsPage />
+            </RequireAccount>
+          }
+        />
         <Route
           path="digital-passport"
           element={<Navigate to="/passport" replace />}
         />
-        <Route path="membership" element={<MembershipPage />} />
-        <Route path="upgrade" element={<UpgradePage />} />
 
-        {/* ── Sync Together — login wall for guests, full page for authed users ── */}
+        <Route
+          path="saved-trips"
+          element={
+            <RequireAccount
+              feature="Saved Trips"
+              benefit="Save trips you like and come back to them anytime."
+            >
+              <SavedTripsPage />
+            </RequireAccount>
+          }
+        />
+
+        {/* Sync Together keeps its own custom lock page */}
         <Route
           path="sync-together"
           element={
             loading ? null : isAuthed ? <SyncTogether /> : <SyncTogetherLock />
           }
         />
-        {/* NEW — public invite-link landing page. Must be registered as its
-            own literal route: "sync-together/:id" only matches ONE path
-            segment after "sync-together", so "sync-together/join/:code"
-            (two segments: "join" and the code) was never matching it and
-            fell all the way through to the catch-all "*" NotFound route
-            instead. Intentionally public (no auth gate here) — JoinTripPage
-            itself shows an inline login/signup form so someone can preview
-            the trip and sign up without leaving the invite flow. */}
+        {/* Public invite link — JoinTripPage has its own inline login/signup.
+            Must stay its own literal route (two segments after sync-together). */}
         <Route path="sync-together/join/:code" element={<JoinTripPage />} />
-        <Route path="sync-together/:id" element={<SyncGroupPage />} />
+        <Route
+          path="sync-together/:id"
+          element={
+            <RequireAccount
+              feature="Sync Together"
+              benefit="Plan trips with friends and each pay your own share."
+            >
+              <SyncGroupPage />
+            </RequireAccount>
+          }
+        />
         <Route
           path="team-travel"
           element={<Navigate to="/sync-together" replace />}
         />
-
-        <Route path="saved-trips" element={<SavedTripsPage />} />
 
         {/* ── Legal ── */}
         <Route path="privacy" element={<PrivacyPolicyPage />} />

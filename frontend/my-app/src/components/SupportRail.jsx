@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { MessageSquare, LifeBuoy, X, Star, Compass } from "lucide-react";
+import {
+  MessageSquare,
+  LifeBuoy,
+  X,
+  Star,
+  Compass,
+  Check,
+  Send,
+} from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -42,9 +50,9 @@ export default function SupportRail() {
   // "closed" | "feedback" | "help"
   const [activePanel, setActivePanel] = useState("closed");
   const [pickerActive, setPickerActive] = useState(false);
-  // Mobile: one launcher that fans out Feedback + Help
+  // One launcher (desktop + mobile) that fans out Tour, Feedback and Help
   const [menuOpen, setMenuOpen] = useState(false);
-  // Mobile: tuck the launcher away while the site footer is on screen,
+  // Tuck the launcher away while the site footer is on screen,
   // so it never covers the footer logo / support email.
   const [footerInView, setFooterInView] = useState(false);
 
@@ -101,7 +109,7 @@ export default function SupportRail() {
     };
   }, []);
 
-  // Escape closes the mobile menu
+  // Escape closes the menu
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e) => e.key === "Escape" && setMenuOpen(false);
@@ -153,7 +161,7 @@ export default function SupportRail() {
       setFbMessage("");
       setFbRating(0);
     } catch (err) {
-      setFbError(err.message || "Something went wrong — please try again.");
+      setFbError(err.message || "Something went wrong. Please try again.");
     } finally {
       setFbSubmitting(false);
     }
@@ -168,8 +176,10 @@ export default function SupportRail() {
       !helpForm.name.trim() ||
       !helpForm.email.trim() ||
       !helpForm.message.trim()
-    )
+    ) {
+      setHelpError("Please fill in your name, email and what's going on.");
       return;
+    }
 
     setHelpSubmitting(true);
     setHelpError("");
@@ -194,7 +204,7 @@ export default function SupportRail() {
         throw new Error(data.message || "Failed to send ticket");
       setHelpSent(true);
     } catch (err) {
-      setHelpError(err.message || "Something went wrong — please try again.");
+      setHelpError(err.message || "Something went wrong. Please try again.");
     } finally {
       setHelpSubmitting(false);
     }
@@ -209,18 +219,26 @@ export default function SupportRail() {
         @keyframes railSlideUp { from { transform:translateX(-50%) translateY(100%) } to { transform:translateX(-50%) translateY(0) } }
         @keyframes railPanelIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
         @keyframes railPop { from { opacity:0; transform:scale(0.85); } to { opacity:1; transform:scale(1); } }
-
         @keyframes railFan { from { opacity:0; transform:translateY(10px) scale(0.9); } to { opacity:1; transform:translateY(0) scale(1); } }
 
-        .sr-rail-wrapper { transition: transform 0.25s ease, opacity 0.25s ease; }
+        /* Same on desktop and mobile: one launcher that fans out the actions */
+        .sr-rail-wrapper {
+          position: fixed;
+          left: 20px;
+          bottom: 24px;
+          z-index: 2147483630;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          transition: transform 0.25s ease, opacity 0.25s ease;
+        }
 
-        /* Action buttons: an icon circle that grows into a labelled pill */
         .sr-action {
           height: 44px;
           padding: 0;
           border: none;
           border-radius: 999px;
-          display: inline-flex;
+          display: none;
           align-items: center;
           align-self: flex-start;
           cursor: pointer;
@@ -228,8 +246,15 @@ export default function SupportRail() {
           font-family: 'DM Sans', sans-serif;
           transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
+        .sr-rail-wrapper.is-open .sr-action {
+          display: inline-flex;
+          animation: railFan 0.2s cubic-bezier(0.22,1,0.36,1) both;
+        }
+        .sr-rail-wrapper.is-open .sr-action--feedback { animation-delay: 0.04s; }
+        .sr-rail-wrapper.is-open .sr-action--tour { animation-delay: 0.08s; }
         .sr-action:active { transform: scale(0.96); }
         .sr-action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
         .sr-action--feedback {
           background: linear-gradient(135deg, #ff8a2a, #ffb347);
           box-shadow: 0 8px 22px rgba(255,138,42,0.38);
@@ -255,85 +280,59 @@ export default function SupportRail() {
           justify-content: center;
         }
         .sr-action__label {
-          max-width: 0;
-          opacity: 0;
-          padding-right: 0;
           white-space: nowrap;
           font-size: 14px;
           font-weight: 700;
-          transition: max-width 0.28s ease, opacity 0.2s ease, padding 0.28s ease;
+          padding-right: 16px;
         }
 
-        /* Desktop: hover (or keyboard focus) grows the button and slides out its label */
-        @media (hover: hover) and (min-width: 769px) {
-          .sr-action:hover,
-          .sr-action:focus-visible {
+        .sr-launcher {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          border: none;
+          cursor: pointer;
+          color: #fff;
+          background: linear-gradient(135deg, #ff8a2a, #7c5cfc);
+          box-shadow: 0 8px 22px rgba(124,92,252,0.42);
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .sr-launcher:active { transform: scale(0.94); }
+        .sr-launcher:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+        .sr-rail-wrapper.is-tucked {
+          transform: translateX(-150%);
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        /* Desktop: a little hover lift, nothing else changes */
+        @media (hover: hover) {
+          .sr-launcher:hover {
             transform: scale(1.06);
+            box-shadow: 0 12px 30px rgba(124,92,252,0.55);
           }
-          .sr-action--feedback:hover { box-shadow: 0 12px 30px rgba(255,138,42,0.5); }
-          .sr-action--help:hover { box-shadow: 0 12px 30px rgba(124,92,252,0.55); }
-          .sr-action--tour:hover { box-shadow: 0 12px 30px rgba(255,138,42,0.35); color: #fff; }
-          .sr-action:hover .sr-action__label,
-          .sr-action:focus-visible .sr-action__label {
-            max-width: 140px;
-            opacity: 1;
-            padding-right: 18px;
-          }
+          .sr-action:hover { transform: translateX(3px); }
+          .sr-action--tour:hover { color: #fff; }
         }
-
-        /* Mobile launcher — hidden on desktop */
-        .sr-launcher { display: none; }
 
         @media (max-width: 768px) {
-          .sr-rail-wrapper {
-            bottom: 16px !important;
-            left: 12px !important;
-            gap: 10px !important;
-          }
-          .sr-rail-wrapper .sr-action { display: none; }
-          .sr-rail-wrapper.is-open .sr-action {
-            display: inline-flex;
-            animation: railFan 0.2s cubic-bezier(0.22,1,0.36,1) both;
-          }
-          .sr-rail-wrapper.is-open .sr-action--feedback { animation-delay: 0.04s; }
-          .sr-rail-wrapper.is-open .sr-action--tour { animation-delay: 0.08s; }
-          .sr-rail-wrapper.is-open .sr-action__label {
-            max-width: 160px;
-            opacity: 1;
-            padding-right: 16px;
-          }
-          .sr-launcher {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 46px;
-            height: 46px;
-            border-radius: 50%;
-            border: none;
-            cursor: pointer;
-            color: #fff;
-            background: linear-gradient(135deg, #ff8a2a, #7c5cfc);
-            box-shadow: 0 8px 22px rgba(124,92,252,0.42);
-            transition: transform 0.18s ease;
-          }
-          .sr-launcher:active { transform: scale(0.94); }
-          .sr-launcher:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-          .sr-rail-wrapper.is-tucked {
-            transform: translateX(-150%);
-            opacity: 0;
-            pointer-events: none;
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .sr-action, .sr-action__label, .sr-rail-wrapper { transition: none; }
-          .sr-rail-wrapper.is-open .sr-action { animation: none; }
+          .sr-rail-wrapper { bottom: 16px; left: 12px; }
+          .sr-launcher { width: 46px; height: 46px; }
         }
         @media (max-width: 480px) {
           .sr-panel { width: calc(100vw - 24px) !important; left: 12px !important; }
         }
+        @media (prefers-reduced-motion: reduce) {
+          .sr-action, .sr-launcher, .sr-rail-wrapper { transition: none; }
+          .sr-rail-wrapper.is-open .sr-action { animation: none; }
+        }
       `}</style>
 
-      {/* ── Mobile: tap outside to close the menu ── */}
+      {/* ── Tap/click outside to close the menu ── */}
       {menuOpen && (
         <div
           onClick={() => setMenuOpen(false)}
@@ -341,21 +340,11 @@ export default function SupportRail() {
         />
       )}
 
-      {/* ── Rail — desktop: two buttons that grow + label on hover;
-             mobile: one launcher that fans them out ── */}
+      {/* ── Rail: one launcher that fans out the three actions ── */}
       <div
         className={`sr-rail-wrapper${menuOpen ? " is-open" : ""}${
           footerInView && !menuOpen ? " is-tucked" : ""
         }`}
-        style={{
-          position: "fixed",
-          left: 20,
-          bottom: 24,
-          zIndex: 2147483630,
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-        }}
       >
         {/* Replays the Skyrio tour (SkyrioDTour listens for this event) */}
         <button
@@ -365,42 +354,33 @@ export default function SupportRail() {
             setMenuOpen(false);
             window.dispatchEvent(new Event("skyrio:tour"));
           }}
-          aria-label="Take the tour"
         >
-          <span className="sr-action__icon">
+          <span className="sr-action__icon" aria-hidden="true">
             <Compass size={19} />
           </span>
-          <span className="sr-action__label" aria-hidden="true">
-            Take the tour
-          </span>
+          <span className="sr-action__label">Take the tour</span>
         </button>
 
         <button
           type="button"
           className="sr-action sr-action--feedback"
           onClick={() => openPanel("feedback")}
-          aria-label="Send feedback"
         >
-          <span className="sr-action__icon">
+          <span className="sr-action__icon" aria-hidden="true">
             <MessageSquare size={19} />
           </span>
-          <span className="sr-action__label" aria-hidden="true">
-            Feedback
-          </span>
+          <span className="sr-action__label">Feedback</span>
         </button>
 
         <button
           type="button"
           className="sr-action sr-action--help"
           onClick={() => openPanel("help")}
-          aria-label="Get help"
         >
-          <span className="sr-action__icon">
+          <span className="sr-action__icon" aria-hidden="true">
             <LifeBuoy size={19} />
           </span>
-          <span className="sr-action__label" aria-hidden="true">
-            Get help
-          </span>
+          <span className="sr-action__label">Get help</span>
         </button>
 
         <button
@@ -409,6 +389,7 @@ export default function SupportRail() {
           onClick={() => setMenuOpen((v) => !v)}
           aria-expanded={menuOpen}
           aria-label={menuOpen ? "Close help menu" : "Help and feedback"}
+          title={menuOpen ? "Close" : "Help and feedback"}
         >
           {menuOpen ? <X size={20} /> : <LifeBuoy size={20} />}
         </button>
@@ -432,6 +413,8 @@ export default function SupportRail() {
       {activePanel === "feedback" && (
         <div
           className="sr-panel"
+          role="dialog"
+          aria-label="Send feedback"
           onClick={(e) => e.stopPropagation()}
           style={{
             position: "fixed",
@@ -493,7 +476,7 @@ export default function SupportRail() {
                 lineHeight: 1.5,
               }}
             >
-              Got it — thanks for helping us improve Skyrio. We read every
+              Got it. Thanks for helping us improve Skyrio. We read every
               submission.
               <button
                 type="button"
@@ -550,6 +533,7 @@ export default function SupportRail() {
                       transition: "color 0.15s",
                     }}
                     aria-label={`Rate ${n} out of 5`}
+                    aria-pressed={fbRating === n}
                   >
                     <Star
                       size={20}
@@ -565,6 +549,7 @@ export default function SupportRail() {
                 value={fbMessage}
                 onChange={(e) => setFbMessage(e.target.value)}
                 placeholder="Tell us what you think..."
+                aria-label="Your feedback"
                 rows={4}
                 style={{
                   width: "100%",
@@ -573,7 +558,7 @@ export default function SupportRail() {
                   borderRadius: 12,
                   color: "#fff",
                   fontFamily: "inherit",
-                  fontSize: 13.5,
+                  fontSize: 16,
                   padding: 12,
                   resize: "vertical",
                   outline: "none",
@@ -584,6 +569,7 @@ export default function SupportRail() {
 
               {fbError && (
                 <div
+                  role="alert"
                   style={{ fontSize: 12, color: "#f87171", marginBottom: 10 }}
                 >
                   {fbError}
@@ -617,9 +603,11 @@ export default function SupportRail() {
         </div>
       )}
 
-      {/* ── Need Help panel (slide-up sheet, kept from SupportWidget) ── */}
+      {/* ── Need Help panel (slide-up sheet) ── */}
       {activePanel === "help" && (
         <div
+          role="dialog"
+          aria-label="Contact support"
           onClick={(e) => e.stopPropagation()}
           style={{
             position: "fixed",
@@ -674,15 +662,14 @@ export default function SupportRail() {
               </h2>
             </div>
             <button
+              type="button"
               onClick={closePanel}
               aria-label="Close"
               style={{
                 background: "none",
                 border: "none",
-                color: "rgba(240,237,255,0.4)",
-                fontSize: 22,
+                color: "rgba(240,237,255,0.5)",
                 cursor: "pointer",
-                lineHeight: 1,
                 minWidth: 44,
                 minHeight: 44,
                 display: "flex",
@@ -692,13 +679,14 @@ export default function SupportRail() {
                 touchAction: "manipulation",
               }}
             >
-              ×
+              <X size={20} />
             </button>
           </div>
 
           {helpSent ? (
             <div style={{ textAlign: "center", padding: "20px 0" }}>
               <div
+                aria-hidden="true"
                 style={{
                   width: 56,
                   height: 56,
@@ -707,12 +695,12 @@ export default function SupportRail() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 24,
+                  color: "#fff",
                   margin: "0 auto 16px",
                   animation: "railPop 0.3s ease",
                 }}
               >
-                ✓
+                <Check size={26} strokeWidth={2.5} />
               </div>
               <p
                 style={{
@@ -722,45 +710,56 @@ export default function SupportRail() {
                   margin: "0 0 8px",
                 }}
               >
-                Got it — we'll be in touch.
+                Got it. We'll be in touch.
               </p>
               <p
                 style={{
-                  color: "rgba(240,237,255,0.5)",
+                  color: "rgba(240,237,255,0.55)",
                   fontSize: 14,
                   margin: "0 0 24px",
                 }}
               >
-                A real human will reply within 24 hours.
+                A real person will reply to {helpForm.email || "your email"}.
               </p>
-              <button onClick={closePanel} style={btnSecondary}>
+              <button type="button" onClick={closePanel} style={btnSecondary}>
                 Close
               </button>
             </div>
           ) : (
             <>
               <div style={field}>
-                <label style={labelStyle}>Your name</label>
+                <label style={labelStyle} htmlFor="sr-help-name">
+                  Your name
+                </label>
                 <input
+                  id="sr-help-name"
                   style={inputStyle}
                   value={helpForm.name}
                   onChange={(e) => setHelp("name", e.target.value)}
                   placeholder="Jane Smith"
+                  autoComplete="name"
                 />
               </div>
               <div style={field}>
-                <label style={labelStyle}>Email address</label>
+                <label style={labelStyle} htmlFor="sr-help-email">
+                  Email address
+                </label>
                 <input
+                  id="sr-help-email"
                   style={inputStyle}
                   type="email"
                   value={helpForm.email}
                   onChange={(e) => setHelp("email", e.target.value)}
                   placeholder="jane@example.com"
+                  autoComplete="email"
                 />
               </div>
               <div style={field}>
-                <label style={labelStyle}>Category</label>
+                <label style={labelStyle} htmlFor="sr-help-category">
+                  Category
+                </label>
                 <select
+                  id="sr-help-category"
                   style={inputStyle}
                   value={helpForm.category}
                   onChange={(e) => setHelp("category", e.target.value)}
@@ -774,17 +773,21 @@ export default function SupportRail() {
                 </select>
               </div>
               <div style={field}>
-                <label style={labelStyle}>What's going on?</label>
+                <label style={labelStyle} htmlFor="sr-help-message">
+                  What's going on?
+                </label>
                 <textarea
+                  id="sr-help-message"
                   style={{ ...inputStyle, height: 90, resize: "none" }}
                   value={helpForm.message}
                   onChange={(e) => setHelp("message", e.target.value)}
-                  placeholder="Describe the issue — what happened and what you expected…"
+                  placeholder="Describe the issue: what happened and what you expected"
                 />
               </div>
 
               {helpError && (
                 <div
+                  role="alert"
                   style={{ fontSize: 12, color: "#f87171", marginBottom: 10 }}
                 >
                   {helpError}
@@ -792,6 +795,7 @@ export default function SupportRail() {
               )}
 
               <button
+                type="button"
                 onClick={handleHelpSubmit}
                 disabled={helpSubmitting}
                 style={{
@@ -808,11 +812,22 @@ export default function SupportRail() {
                   opacity: helpSubmitting ? 0.6 : 1,
                   marginTop: 4,
                   minHeight: 48,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
                   touchAction: "manipulation",
                   WebkitTapHighlightColor: "transparent",
                 }}
               >
-                {helpSubmitting ? "Sending..." : "Send to support →"}
+                {helpSubmitting ? (
+                  "Sending..."
+                ) : (
+                  <>
+                    <Send size={16} aria-hidden="true" />
+                    Send to support
+                  </>
+                )}
               </button>
             </>
           )}
