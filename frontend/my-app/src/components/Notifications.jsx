@@ -703,7 +703,7 @@ export default function Notifications({ variant = "bell", onOpen }) {
                 const title = clean(n.title) || "Notification";
                 // `body` fallback for anything saved before the rename
                 const msg = clean(n.message || n.body);
-                const count = n?.metadata?.count;
+                const count = n?.count ?? n?.metadata?.count;
                 return (
                   <div key={id} className={`nf-row${isNew ? " is-new" : ""}`}>
                     <button

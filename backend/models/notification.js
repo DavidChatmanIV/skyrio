@@ -18,9 +18,11 @@ const notificationSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // Not required: collapsed notifications (group chat, likes, comments)
+    // are created first, then given their text in a second step.
     message: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     link: {
@@ -31,6 +33,30 @@ const notificationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    // What the notification points at (sync trip, post, booking...)
+    targetType: {
+      type: String,
+      default: "",
+    },
+    targetId: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
+
+    // Collapsing — used by backend/utils/notify.js
+    group: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SyncGroup", // change to your Sync Together model name
+    },
+    count: {
+      type: Number,
+      default: 1,
+    },
+    senders: {
+      type: [String],
+      default: [],
+    },
+
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
@@ -41,8 +67,10 @@ const notificationSchema = new mongoose.Schema(
 
 // Feed + unread count lookups
 notificationSchema.index({ user: 1, read: 1, updatedAt: -1 });
-// Finding the one open (unread) group-chat notification to collapse into
-notificationSchema.index({ user: 1, type: 1, "metadata.groupId": 1, read: 1 });
+// The one open (unread) group-chat notification to collapse into
+notificationSchema.index({ user: 1, type: 1, group: 1, read: 1 });
+// The one open like/comment notification per post
+notificationSchema.index({ user: 1, type: 1, targetId: 1, read: 1 });
 
 const Notification =
   mongoose.models.Notification ||

@@ -98,7 +98,13 @@ async function upsertCollapsed(
   const n = await Notification.findOneAndUpdate(
     { user: oid(userId), type, read: false, ...match },
     [{ $set: pipelineSet }],
-    { upsert: true, new: true, lean: true, timestamps: false }
+    {
+      upsert: true,
+      new: true,
+      lean: true,
+      timestamps: false,
+      updatePipeline: true, // Mongoose 9 rejects pipeline updates without this
+    }
   );
 
   const { title, message } = buildText(n);
