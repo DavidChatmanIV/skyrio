@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700;800&display=swap");
 
 :root {
   --sk-orange: #ff8a2a;
@@ -13,8 +13,13 @@
   --sk-stroke: rgba(255, 255, 255, 0.11);
   --sk-stroke2: rgba(255, 255, 255, 0.2);
   --sk-authText: rgba(255, 255, 255, 0.94);
-  --sk-authMuted: rgba(255, 255, 255, 0.62);
-  --sk-authFaint: rgba(255, 255, 255, 0.36);
+  --sk-authMuted: rgba(255, 255, 255, 0.66);
+  --sk-authFaint: rgba(
+    255,
+    255,
+    255,
+    0.46
+  ); /* was 0.36 — easier to read on dark */
 
   --sk-shadow: 0 40px 100px rgba(0, 0, 0, 0.65),
     0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.09);
@@ -102,6 +107,7 @@
   margin: 0 !important;
   line-height: 1.1 !important;
   text-shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
+  overflow-wrap: anywhere;
 }
 
 .sk-authSubtitle {
@@ -114,7 +120,6 @@
 
 /* ══════════════════════════════════════════════════════
    BOARDING PASS CARD
-   Matches the HTML mockup exactly
 ══════════════════════════════════════════════════════ */
 .sk-passCard {
   position: relative;
@@ -126,6 +131,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   outline: none;
+  margin-bottom: 0; /* card is now a <form> */
 }
 
 .sk-passWide {
@@ -178,7 +184,7 @@
   z-index: 1;
 }
 
-/* Holographic shimmer sweep */
+/* Holographic shimmer sweep — runs only while checking in */
 .sk-passScan {
   position: absolute;
   inset: 0;
@@ -239,6 +245,11 @@
   padding: 22px 20px 18px;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  background: linear-gradient(
+    180deg,
+    rgba(9, 7, 26, 0.35),
+    rgba(9, 7, 26, 0.55)
+  );
 }
 
 /* ── CARD HEADER ── */
@@ -258,7 +269,6 @@
   gap: 10px;
 }
 
-/* Orange dot matches Skyrio brand */
 .sk-dot {
   width: 28px;
   height: 28px;
@@ -338,7 +348,7 @@
 .sk-label {
   font-family: "DM Mono", monospace;
   color: var(--sk-authFaint);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   margin-bottom: 4px;
@@ -433,11 +443,28 @@
 
 .sk-plane {
   color: var(--sk-orange);
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Plane glides along the line while checking in */
+.sk-passCard.isScanning .sk-plane {
+  animation: skPlaneNudge 1.2s ease-in-out infinite;
+}
+
+@keyframes skPlaneNudge {
+  0%,
+  100% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
 }
 
 /* ═══════════════════════════════════════════
-   FORM FIELDS — tall, readable
+   FORM FIELDS
 ═══════════════════════════════════════════ */
 .sk-form {
   margin-top: 0;
@@ -449,13 +476,31 @@
 .sk-fieldLabel {
   font-family: "DM Mono", monospace;
   color: var(--sk-authFaint);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   margin-bottom: 7px;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Password label + "Forgot password?" on one row */
+.sk-fieldLabelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sk-fieldLabelRow .sk-linkSmall {
+  margin-bottom: 7px;
+}
+
+.sk-capsHint {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sk-orange2);
 }
 
 /* Ant Design input overrides */
@@ -489,6 +534,15 @@
   caret-color: var(--sk-orange) !important;
 }
 
+/* Keep Chrome autofill from turning fields white/yellow */
+.sk-input input:-webkit-autofill,
+.sk-input input:-webkit-autofill:hover,
+.sk-input input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--sk-authText) !important;
+  -webkit-box-shadow: 0 0 0 1000px rgba(20, 16, 44, 1) inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
 .sk-input .ant-input::placeholder,
 .sk-input input::placeholder {
   color: var(--sk-authFaint) !important;
@@ -507,13 +561,20 @@
   border-color: rgba(255, 255, 255, 0.24) !important;
 }
 
-/* Focus — purple glow matches Skyrio */
+/* Focus — purple glow */
 .sk-input.ant-input-affix-wrapper:focus,
 .sk-input.ant-input-affix-wrapper-focused,
 .sk-input.ant-input:focus {
   border-color: rgba(124, 92, 252, 0.65) !important;
   box-shadow: 0 0 0 4px rgba(124, 92, 252, 0.12) !important;
   background: rgba(9, 7, 26, 0.62) !important;
+}
+
+/* Error state — red outline that wins over the overrides above */
+.sk-input.ant-input-affix-wrapper-status-error,
+.sk-input.ant-input-status-error {
+  border-color: rgba(255, 92, 92, 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(255, 92, 92, 0.12) !important;
 }
 
 /* Password — big readable dots */
@@ -543,6 +604,49 @@
   font-size: 16px !important;
   color: var(--sk-authFaint) !important;
   cursor: pointer !important;
+}
+.sk-input .ant-input-suffix .anticon:hover {
+  color: var(--sk-authText) !important;
+}
+
+/* ── LOGIN ERROR BOX ── */
+.sk-loginError {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 77, 79, 0.14);
+  border: 1px solid rgba(255, 99, 99, 0.55);
+  border-left: 4px solid #ff5a4f;
+  color: #ffd9d6;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  backdrop-filter: blur(8px);
+  animation: skLoginShake 0.35s ease;
+}
+
+.sk-loginErrorIcon {
+  color: #ff6b61;
+  font-size: 18px;
+  margin-top: 1px;
+}
+
+@keyframes skLoginShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
 }
 
 /* ── CTA BUTTON — orange gradient ── */
@@ -586,10 +690,19 @@
   transform: translateY(0) !important;
 }
 
+/* Visible keyboard focus on buttons and links */
+.sk-ctaBtn.ant-btn:focus-visible,
+.sk-ghostBtn.ant-btn:focus-visible,
+.sk-inlineBtnLink:focus-visible,
+.sk-linkSmall:focus-visible {
+  outline: 2px solid var(--sk-purple2) !important;
+  outline-offset: 3px;
+}
+
 /* ── GHOST BUTTON ── */
 .sk-ghostBtn.ant-btn {
   height: 46px !important;
-  margin-top: 10px;
+  margin-top: 4px;
   border-radius: 14px !important;
   background: rgba(255, 255, 255, 0.05) !important;
   border: 1px solid var(--sk-stroke2) !important;
@@ -618,50 +731,33 @@
 .sk-micro {
   font-size: 12px;
   color: var(--sk-authFaint) !important;
+  text-align: center;
+}
+.sk-signupLine {
+  text-align: center;
+  padding-top: 4px;
 }
 
 .sk-inlineBtnLink {
-  appearance: none;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--sk-orange);
+  color: var(--sk-orange) !important;
   font-weight: 700;
   font-size: 13px;
-  font-family: inherit;
   text-decoration: underline;
   text-underline-offset: 3px;
   transition: color 0.2s;
 }
 .sk-inlineBtnLink:hover {
-  color: var(--sk-orange2);
-}
-
-.sk-linksRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 2px;
+  color: var(--sk-orange2) !important;
 }
 
 .sk-linkSmall {
-  color: var(--sk-authFaint);
+  color: var(--sk-authMuted);
   font-size: 12px;
   text-decoration: none;
   transition: color 0.2s;
 }
 .sk-linkSmall:hover {
-  color: var(--sk-authMuted);
-}
-.sk-linkSmall.sk-strong {
-  color: var(--sk-orange);
-  font-weight: 700;
-}
-.sk-sep {
-  color: var(--sk-authFaint);
+  color: var(--sk-orange2);
 }
 
 .sk-cardFooter {
@@ -673,7 +769,7 @@
 }
 
 /* ══════════════════════════════════════════
-   STUB
+   STUB — account benefits (QR code removed)
 ══════════════════════════════════════════ */
 .sk-stubTop {
   display: flex;
@@ -691,51 +787,41 @@
   opacity: 0.8;
 }
 
-.sk-qrBox {
+.sk-stubPerks {
+  align-self: center;
+  padding: 12px 0;
+}
+
+.sk-perkList {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
   display: grid;
-  place-items: center;
+  gap: 12px;
+}
+
+.sk-perkList li {
+  display: flex;
+  align-items: flex-start;
   gap: 10px;
-  padding: 16px 0;
-}
-
-.sk-qr {
-  width: 96px;
-  height: 96px;
-  border-radius: 12px;
-  background: rgba(255, 138, 42, 0.07);
-  border: 1px solid rgba(255, 138, 42, 0.25);
-  position: relative;
-  overflow: hidden;
-}
-
-/* QR grid pattern in orange */
-.sk-qr::after {
-  content: "";
-  position: absolute;
-  inset: 8px;
-  background: repeating-linear-gradient(
-      0deg,
-      rgba(255, 138, 42, 0.2) 0px,
-      rgba(255, 138, 42, 0.2) 2px,
-      transparent 2px,
-      transparent 8px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 138, 42, 0.2) 0px,
-      rgba(255, 138, 42, 0.2) 2px,
-      transparent 2px,
-      transparent 8px
-    );
-}
-
-.sk-qrHint {
-  font-family: "DM Mono", monospace;
-  color: var(--sk-authFaint);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  font-size: 9px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
   font-weight: 500;
+  line-height: 1.4;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+
+.sk-perkIcon {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sk-orange);
+  background: var(--sk-orange-dim);
+  border: 1px solid rgba(255, 138, 42, 0.3);
 }
 
 .sk-stubBarcode {
@@ -749,8 +835,13 @@
 
 .sk-bar {
   width: 2.5px;
+  height: 24px;
   border-radius: 2px;
   background: rgba(255, 138, 42, 0.35);
+}
+.sk-bar:nth-child(2n) {
+  height: 22px;
+  opacity: 0.5;
 }
 .sk-bar:nth-child(3n) {
   height: 28px;
@@ -763,10 +854,6 @@
 .sk-bar:nth-child(5n) {
   height: 32px;
   opacity: 0.65;
-}
-.sk-bar:nth-child(2n) {
-  height: 22px;
-  opacity: 0.5;
 }
 
 /* ══════════════════════════════════════════
@@ -873,8 +960,6 @@
   gap: 10px;
   margin-bottom: 24px;
 }
-.sk-depStop {
-}
 .sk-depStop.sk-depRight {
   text-align: right;
 }
@@ -960,7 +1045,6 @@
   gap: 0 14px;
 }
 
-/* username availability */
 .sk-un-status {
   font-size: 9px;
   font-weight: 700;
@@ -979,7 +1063,6 @@
   box-shadow: 0 0 0 3px rgba(255, 92, 122, 0.1) !important;
 }
 
-/* register CTA */
 .sk-ctaBtn-reg.ant-btn,
 .sk-ctaBtn-reg.ant-btn-primary {
   height: 52px !important;
@@ -1019,24 +1102,10 @@
 }
 
 /* ══════════════════════════════════════════
-   MOBILE
+   FORGOT PASSWORD — plain (non-Ant) input & button
+   Scoped so they no longer fight the Ant Design versions above
 ══════════════════════════════════════════ */
-@media (max-width: 860px) {
-  .sk-passGrid {
-    grid-template-columns: 1fr;
-  }
-  .sk-passStub {
-    display: none;
-  }
-  .sk-passMain {
-    border-right: none;
-  }
-}
-
-/* ══════════════════════════════════════════
-   FORGOT PASSWORD — plain input override
-══════════════════════════════════════════ */
-.sk-input {
+input.sk-input {
   height: 52px;
   width: 100%;
   background: rgba(9, 7, 26, 0.5);
@@ -1053,23 +1122,22 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.sk-input::placeholder {
-  color: rgba(255, 255, 255, 0.36);
+input.sk-input::placeholder {
+  color: rgba(255, 255, 255, 0.46);
   font-size: 14px;
 }
 
-.sk-input:hover {
+input.sk-input:hover {
   border-color: rgba(255, 255, 255, 0.24);
 }
 
-.sk-input:focus {
+input.sk-input:focus {
   border-color: rgba(124, 92, 252, 0.65);
   box-shadow: 0 0 0 4px rgba(124, 92, 252, 0.12);
   background: rgba(9, 7, 26, 0.62);
 }
 
-/* Send Reset Link button — plain button override */
-.sk-ctaBtn {
+button.sk-ctaBtn:not(.ant-btn) {
   height: 52px;
   width: 100%;
   margin-top: 16px;
@@ -1086,19 +1154,39 @@
   transition: filter 0.2s, transform 0.15s;
 }
 
-.sk-ctaBtn:hover {
+button.sk-ctaBtn:not(.ant-btn):hover {
   filter: brightness(1.07);
   transform: translateY(-1px);
 }
 
-.sk-ctaBtn:active {
+button.sk-ctaBtn:not(.ant-btn):active {
   transform: translateY(0);
 }
 
-.sk-ctaBtn:disabled {
+button.sk-ctaBtn:not(.ant-btn):disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* ══════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════ */
+@media (max-width: 860px) {
+  .sk-passGrid {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .sk-passStub {
+    display: none;
+  }
+  .sk-passMain {
+    border-right: none;
+  }
+  /* Card has no right-side art on mobile, so keep the background even */
+  .sk-passCard::after {
+    background: rgba(9, 7, 26, 0.9);
+  }
 }
 
 @media (max-width: 640px) {
@@ -1114,15 +1202,19 @@
   .sk-passMain {
     padding: 20px 18px 18px;
   }
-  .sk-idGrid {
-    grid-template-columns: 1fr 1fr;
+  .sk-chip:first-child {
+    display: none;
   }
   .sk-fieldRow {
     grid-template-columns: 1fr;
   }
 
+  /* 16px+ stops iPhone Safari from zooming into inputs */
   .sk-input.ant-input-affix-wrapper,
-  .sk-input.ant-input {
+  .sk-input.ant-input,
+  .sk-input .ant-input,
+  .sk-input input,
+  input.sk-input {
     height: 50px !important;
     font-size: 16px !important;
   }
@@ -1139,5 +1231,21 @@
   .sk-ghostBtn.ant-btn {
     height: 44px !important;
     font-size: 13px !important;
+  }
+}
+
+/* Respect "reduce motion" settings */
+@media (prefers-reduced-motion: reduce) {
+  .sk-passCard.isScanning .sk-passScan,
+  .sk-passCard.isScanning .sk-plane,
+  .sk-statusPill::before,
+  .sk-loginError,
+  .sk-departureCard,
+  .sk-depPlane {
+    animation: none !important;
+  }
+  .sk-ctaBtn.ant-btn:hover,
+  button.sk-ctaBtn:not(.ant-btn):hover {
+    transform: none !important;
   }
 }

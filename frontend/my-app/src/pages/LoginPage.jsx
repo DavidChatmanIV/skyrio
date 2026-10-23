@@ -1,16 +1,15 @@
 import React, { useState, useRef, useMemo, useEffect } from "react";
-import { Input, Button, message, Typography, notification } from "antd";
+import { Input, Button, Typography, notification } from "antd";
 import {
   UserOutlined,
   LockOutlined,
   EyeInvisibleOutlined,
-  EyeTwoTone,
+  EyeOutlined,
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 
 import BoardingPassToast from "../components/BoardingPassToast";
-import PassStub from "../components/PassStub";
 import AuthLayout from "../layout/AuthLayout";
 import { useAuth } from "../auth/useAuth";
 import { useAuthModal } from "../auth/useAuthModal";
@@ -21,6 +20,105 @@ import "../styles/login.css";
 
 const { Title, Text } = Typography;
 const API = import.meta.env.VITE_API_URL || "";
+
+/* Friendly names for the "TO" field instead of raw paths like /passport */
+const ROUTE_LABELS = {
+  "/passport": "Passport",
+  "/dashboard": "Dashboard",
+  "/booking": "Book",
+  "/skyhub": "SkyHub",
+  "/discover": "Discover",
+};
+
+function labelForRoute(path) {
+  if (ROUTE_LABELS[path]) return ROUTE_LABELS[path];
+  const first = (path || "").split(/[/?#]/).filter(Boolean)[0];
+  if (!first) return "Home";
+  return first
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/* ── SVG icons (no emoji) ── */
+const PlaneIcon = ({ size = 16 }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    fill="currentColor"
+    aria-hidden="true"
+    style={{ transform: "rotate(90deg)" }}
+  >
+    <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
+
+/* Right-hand stub: real account benefits instead of a fake QR code */
+function LoginStub() {
+  return (
+    <aside
+      className="sk-passStub"
+      aria-label="What you get with a Skyrio account"
+    >
+      <div className="sk-stubTop">
+        <span className="sk-stubGate">Boarding</span>
+      </div>
+
+      <div className="sk-stubPerks">
+        <div className="sk-label">WITH YOUR ACCOUNT</div>
+        <ul className="sk-perkList">
+          <li>
+            <span className="sk-perkIcon">
+              <CheckIcon />
+            </span>
+            Book flights, stays and excursions
+          </li>
+          <li>
+            <span className="sk-perkIcon">
+              <CheckIcon />
+            </span>
+            Earn XP toward your Passport rank
+          </li>
+          <li>
+            <span className="sk-perkIcon">
+              <CheckIcon />
+            </span>
+            Plan group trips with Sync Together
+          </li>
+          <li>
+            <span className="sk-perkIcon">
+              <CheckIcon />
+            </span>
+            Share trips on SkyHub
+          </li>
+        </ul>
+      </div>
+
+      <div className="sk-stubBarcode" aria-hidden="true">
+        {Array.from({ length: 28 }).map((_, i) => (
+          <span key={i} className="sk-bar" />
+        ))}
+      </div>
+    </aside>
+  );
+}
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -34,6 +132,7 @@ export default function LoginPage() {
   });
   const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
   // Shown in a visible box above the button (not just a toast)
   const [loginError, setLoginError] = useState("");
   // Which inputs get the red outline: "both" | "email" | "password" | ""
@@ -47,9 +146,12 @@ export default function LoginPage() {
 
   const redirectTo = useMemo(() => {
     const rt = location.state?.redirectTo || location.state?.from;
-    if (typeof rt === "string" && rt.trim().startsWith("/")) return rt;
+    // Only allow internal paths ("/x"), never "//evil.com"
+    if (typeof rt === "string" && /^\/(?!\/)/.test(rt.trim())) return rt.trim();
     return "/passport";
   }, [location.state]);
+
+  const routeLabel = labelForRoute(redirectTo);
 
   const passenger = useMemo(() => {
     const raw = (formData.emailOrUsername || "").trim();
@@ -58,9 +160,16 @@ export default function LoginPage() {
     return cleaned.length > 18 ? cleaned.slice(0, 18) + "…" : cleaned;
   }, [formData.emailOrUsername]);
 
+  // The shimmer only runs while actually checking in
   useEffect(() => {
     if (!loading) setIsScanning(false);
   }, [loading]);
+
+  const checkCapsLock = (e) => {
+    if (typeof e.getModifierState === "function") {
+      setCapsLockOn(e.getModifierState("CapsLock"));
+    }
+  };
 
   const handleLogin = async () => {
     if (loading || successHandledRef.current) return;
@@ -96,11 +205,9 @@ export default function LoginPage() {
         }),
       });
     } catch {
-      // Network down / server unreachable
       setLoginError(
         "Can't reach Skyrio right now. Check your connection and try again."
       );
-      setIsScanning(false);
       setLoading(false);
       return;
     }
@@ -109,8 +216,7 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 401 || res.status === 404) {
-          // Wrong password or unknown account — same message either way,
-          // so the page never reveals which emails have accounts.
+          // Same message either way, so the page never reveals which accounts exist.
           setLoginError("Wrong email/username or password. Please try again.");
           setErrorFields("both");
           setFormData((f) => ({ ...f, password: "" }));
@@ -124,7 +230,6 @@ export default function LoginPage() {
           );
         }
         successHandledRef.current = false;
-        setIsScanning(false);
         return;
       }
 
@@ -142,13 +247,14 @@ export default function LoginPage() {
 
       successHandledRef.current = true;
 
+      // One confirmation only (the boarding pass toast)
       notification.open({
         message: null,
         description: (
           <BoardingPassToast
             name={displayName}
             routeFrom="Login"
-            routeTo={redirectTo === "/dashboard" ? "Dashboard" : redirectTo}
+            routeTo={routeLabel}
           />
         ),
         placement: "topRight",
@@ -156,16 +262,19 @@ export default function LoginPage() {
         style: { background: "transparent", boxShadow: "none", padding: 0 },
       });
 
-      message.success(`Welcome aboard, ${displayName} ✈️`);
       authModal?.closeAuthModal?.();
       nav(redirectTo, { replace: true, state: { fromAuth: true } });
     } catch (err) {
       successHandledRef.current = false;
       setLoginError(err?.message || "Login failed. Please try again.");
-      setIsScanning(false);
     } finally {
       setLoading(false);
     }
+  };
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    handleLogin();
   };
 
   const onGuest = () => {
@@ -175,7 +284,7 @@ export default function LoginPage() {
     notification.open({
       message: null,
       description: (
-        <BoardingPassToast name="Guest" routeFrom="Login" routeTo="/booking" />
+        <BoardingPassToast name="Guest" routeFrom="Login" routeTo="Book" />
       ),
       placement: "topRight",
       duration: 2.5,
@@ -184,11 +293,8 @@ export default function LoginPage() {
     nav("/booking", { state: { fromAuth: true } });
   };
 
-  const goToSignup = () => nav("/register");
-  const onKeyDown = (e) => {
-    if (e.key === "Enter") handleLogin();
-  };
-  const routeLabel = redirectTo === "/dashboard" ? "Dashboard" : redirectTo;
+  const emailHasError = errorFields === "both" || errorFields === "email";
+  const passwordHasError = errorFields === "both" || errorFields === "password";
 
   return (
     <AuthLayout>
@@ -203,7 +309,7 @@ export default function LoginPage() {
           <div className="sk-loginWrap">
             <div className="sk-loginInner">
               <div className="sk-authHero">
-                <Title level={2} className="sk-authTitle">
+                <Title level={1} className="sk-authTitle">
                   Welcome back, {passenger}
                 </Title>
                 <Text className="sk-authSubtitle">
@@ -212,7 +318,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div
+            <form
               className={`sk-passCard sk-passWide ${
                 isScanning ? "isScanning" : ""
               }`}
@@ -220,21 +326,22 @@ export default function LoginPage() {
                 "--sk-pass-bg": `url(${galaxyLogin})`,
                 "--sk-gateImg": `url(${gateBg})`,
               }}
-              onKeyDown={onKeyDown}
-              role="form"
+              onSubmit={onSubmit}
+              noValidate
+              aria-label="Log in to Skyrio"
               aria-busy={loading ? "true" : "false"}
             >
-              <div className="sk-passGlow" />
+              <div className="sk-passGlow" aria-hidden="true" />
               <div className="sk-passScan" aria-hidden="true" />
 
               <div className="sk-passGrid">
                 <div className="sk-passMain">
                   <div className="sk-passHeader">
                     <div className="sk-brandRow">
-                      <span className="sk-dot" />
+                      <span className="sk-dot" aria-hidden="true" />
                       <span className="sk-brand">Skyrio</span>
                     </div>
-                    <div className="sk-chipRow">
+                    <div className="sk-chipRow" aria-hidden="true">
                       <span className="sk-chip">SKY</span>
                       <span className="sk-chip">Gate A3</span>
                     </div>
@@ -251,7 +358,7 @@ export default function LoginPage() {
                     </div>
                     <div className="sk-idBlock sk-right">
                       <div className="sk-label">STATUS</div>
-                      <div className="sk-statusPill">
+                      <div className="sk-statusPill" aria-live="polite">
                         {loading ? "Checking in…" : "Ready"}
                       </div>
                     </div>
@@ -268,146 +375,114 @@ export default function LoginPage() {
                   <div className="sk-flightLine" aria-hidden="true">
                     <div className="sk-lineDot" />
                     <div className="sk-line" />
-                    <div className="sk-plane">✈︎</div>
+                    <div className="sk-plane">
+                      <PlaneIcon />
+                    </div>
                     <div className="sk-line" />
                     <div className="sk-lineDot" />
                   </div>
 
                   <div className="sk-form">
                     <div className="sk-field">
-                      <div className="sk-fieldLabel">EMAIL OR USERNAME</div>
+                      <label className="sk-fieldLabel" htmlFor="sk-login-id">
+                        EMAIL OR USERNAME
+                      </label>
                       <Input
+                        id="sk-login-id"
+                        name="username"
                         value={formData.emailOrUsername}
                         onChange={(e) => {
                           clearError();
-                          setFormData({
-                            ...formData,
+                          setFormData((f) => ({
+                            ...f,
                             emailOrUsername: e.target.value,
-                          });
+                          }));
                         }}
                         placeholder="Email or username"
                         prefix={<UserOutlined />}
                         className="sk-input"
-                        status={
-                          errorFields === "both" || errorFields === "email"
-                            ? "error"
-                            : undefined
-                        }
-                        aria-invalid={
-                          errorFields === "both" || errorFields === "email"
+                        status={emailHasError ? "error" : undefined}
+                        aria-invalid={emailHasError}
+                        aria-describedby={
+                          loginError ? "sk-login-error" : undefined
                         }
                         autoComplete="username"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        autoFocus
                         size="large"
-                        onFocus={() => setIsScanning(true)}
-                        onBlur={() => !loading && setIsScanning(false)}
                       />
                     </div>
 
                     <div className="sk-field">
-                      <div className="sk-fieldLabel">PASSWORD</div>
+                      <div className="sk-fieldLabelRow">
+                        <label className="sk-fieldLabel" htmlFor="sk-login-pw">
+                          PASSWORD
+                        </label>
+                        <Link className="sk-linkSmall" to="/reset">
+                          Forgot password?
+                        </Link>
+                      </div>
                       <Input.Password
+                        id="sk-login-pw"
+                        name="password"
                         value={formData.password}
                         onChange={(e) => {
                           clearError();
-                          setFormData({
-                            ...formData,
+                          setFormData((f) => ({
+                            ...f,
                             password: e.target.value,
-                          });
+                          }));
                         }}
+                        onKeyDown={checkCapsLock}
+                        onKeyUp={checkCapsLock}
+                        onBlur={() => setCapsLockOn(false)}
                         placeholder="Password"
                         prefix={<LockOutlined />}
                         className="sk-input"
-                        status={
-                          errorFields === "both" || errorFields === "password"
-                            ? "error"
-                            : undefined
-                        }
-                        aria-invalid={
-                          errorFields === "both" || errorFields === "password"
+                        status={passwordHasError ? "error" : undefined}
+                        aria-invalid={passwordHasError}
+                        aria-describedby={
+                          loginError ? "sk-login-error" : undefined
                         }
                         autoComplete="current-password"
                         size="large"
-                        onFocus={() => setIsScanning(true)}
-                        onBlur={() => !loading && setIsScanning(false)}
                         iconRender={(visible) =>
-                          visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+                          visible ? <EyeOutlined /> : <EyeInvisibleOutlined />
                         }
                       />
+                      {capsLockOn && (
+                        <div className="sk-capsHint" role="status">
+                          Caps Lock is on
+                        </div>
+                      )}
                     </div>
 
                     {loginError && (
                       <div
+                        id="sk-login-error"
                         className="sk-loginError"
                         role="alert"
                         aria-live="assertive"
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 10,
-                          margin: "4px 0 14px",
-                          padding: "12px 14px",
-                          borderRadius: 12,
-                          background: "rgba(255, 77, 79, 0.14)",
-                          border: "1px solid rgba(255, 99, 99, 0.55)",
-                          borderLeft: "4px solid #ff5a4f",
-                          color: "#ffd9d6",
-                          fontSize: 14,
-                          fontWeight: 600,
-                          lineHeight: 1.4,
-                          backdropFilter: "blur(8px)",
-                          animation: "skLoginShake 0.35s ease",
-                        }}
                       >
-                        <ExclamationCircleOutlined
-                          style={{
-                            color: "#ff6b61",
-                            fontSize: 18,
-                            marginTop: 1,
-                          }}
-                        />
-                        <div>
-                          <div>{loginError}</div>
-                          {errorFields === "both" && (
-                            <Link
-                              to="/reset"
-                              style={{
-                                display: "inline-block",
-                                marginTop: 4,
-                                color: "#ff9a3c",
-                                fontWeight: 600,
-                                fontSize: 13,
-                              }}
-                            >
-                              Forgot your password?
-                            </Link>
-                          )}
-                        </div>
-                        <style>{`@keyframes skLoginShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}@media (prefers-reduced-motion: reduce){.sk-loginError{animation:none!important}}`}</style>
+                        <ExclamationCircleOutlined className="sk-loginErrorIcon" />
+                        <div>{loginError}</div>
                       </div>
                     )}
 
                     <Button
                       className="sk-ctaBtn"
                       type="primary"
+                      htmlType="submit"
                       block
                       size="large"
                       loading={loading}
-                      onClick={handleLogin}
                     >
-                      Confirm Boarding
+                      {loading ? "Checking in…" : "Confirm Boarding"}
                     </Button>
 
                     <div className="sk-secondary">
-                      <Text className="sk-muted">
-                        New to Skyrio?{" "}
-                        <button
-                          type="button"
-                          onClick={goToSignup}
-                          className="sk-inlineBtnLink"
-                        >
-                          Create your Skyrio access
-                        </button>
-                      </Text>
                       <Button
                         className="sk-ghostBtn"
                         block
@@ -417,17 +492,14 @@ export default function LoginPage() {
                         Preview as Guest
                       </Button>
                       <Text className="sk-muted sk-micro">
-                        Some features require Skyrio access.
+                        Some features require a Skyrio account.
                       </Text>
-                      <div className="sk-linksRow">
-                        <Link className="sk-linkSmall" to="/reset">
-                          Forgot password?
+                      <Text className="sk-muted sk-signupLine">
+                        New to Skyrio?{" "}
+                        <Link className="sk-inlineBtnLink" to="/register">
+                          Create your account
                         </Link>
-                        <span className="sk-sep">•</span>
-                        <Link className="sk-linkSmall sk-strong" to="/register">
-                          Create Skyrio access
-                        </Link>
-                      </div>
+                      </Text>
                     </div>
                   </div>
 
@@ -436,9 +508,9 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <PassStub />
+                <LoginStub />
               </div>
-            </div>
+            </form>
           </div>
         </div>
       </div>
