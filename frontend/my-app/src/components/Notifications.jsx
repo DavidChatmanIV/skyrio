@@ -185,21 +185,34 @@ const isToday = (iso) => {
 };
 
 /* ── What kind of notification is this? ──────────────────────────── */
-// Returns { cat, icon, color } — cat drives the tabs.
+// Returns { cat, Icon, color, bg, border } — cat drives the tabs.
+const tone = (c) => ({
+  color: c,
+  bg: `${c}1f`,
+  border: `${c}55`,
+});
+
+// Exact backend types first (see backend/utils/notify.js), so keywords in a
+// title like "liked your post about the Miami trip" can't misfile them.
+const BY_TYPE = {
+  sync_invite: { cat: "trips", Icon: Users, ...tone("#c4b5fd") },
+  group_message: { cat: "trips", Icon: MessageCircle, ...tone("#c4b5fd") },
+  post_like: { cat: "social", Icon: Heart, ...tone("#ff8fa3") },
+  post_comment: { cat: "social", Icon: MessageCircle, ...tone("#8fd0ff") },
+};
+
 function kindOf(n) {
+  if (BY_TYPE[n?.type]) return BY_TYPE[n.type];
+
+  // Older / untyped notifications: guess from the text
   const t = `${n?.type || ""} ${n?.event || ""} ${n?.targetType || ""} ${
     n?.title || ""
   } ${n?.message || ""}`.toLowerCase();
-  const tone = (c) => ({
-    color: c,
-    bg: `${c}1f`,
-    border: `${c}55`,
-  });
   if (/price|drop|fare/.test(t))
     return { cat: "trips", Icon: TrendingDown, ...tone("#6ee7a8") };
   if (/xp|reward|rank|badge|level/.test(t))
     return { cat: "rewards", Icon: Star, ...tone("#ffc657") };
-  if (/sync|group|someone's in|join/.test(t))
+  if (/sync|group|invite|someone's in|join/.test(t))
     return { cat: "trips", Icon: Users, ...tone("#c4b5fd") };
   if (/hotel|stay|room/.test(t))
     return { cat: "trips", Icon: BedDouble, ...tone("#ffb347") };
@@ -221,8 +234,13 @@ const TABS = [
   { key: "updates", label: "Updates" },
 ];
 
+// Backend sets `link` on everything new; these are fallbacks.
 function linkFor(n) {
   if (n.link) return n.link;
+  if (n.type === "group_message" && n.group) return `/sync/${n.group}/chat`;
+  if (n.targetType === "sync" && n.targetId) return `/sync/${n.targetId}`;
+  if (n.targetType === "post" && n.targetId)
+    return `/skyhub/post/${n.targetId}`;
   if (n.targetType === "booking" && n.targetId) return "/saved-trips";
   if (n.targetType === "trip" && n.targetId) return "/saved-trips";
   if (n.targetType === "dm" && n.targetId) return `/dm/${n.targetId}`;
@@ -683,7 +701,8 @@ export default function Notifications({ variant = "bell", onOpen }) {
                 const k = kindOf(n);
                 const isNew = freshIds.has(id) || !isReadOf(n);
                 const title = clean(n.title) || "Notification";
-                const msg = clean(n.message);
+                // `body` fallback for anything saved before the rename
+                const msg = clean(n.message || n.body);
                 const count = n?.metadata?.count;
                 return (
                   <div key={id} className={`nf-row${isNew ? " is-new" : ""}`}>

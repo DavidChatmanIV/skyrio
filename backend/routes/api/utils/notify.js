@@ -1,93 +1,226 @@
-// backend/utils/notify.js
+// Everything that creates a bell notification goes through here.
+//
+// Types the frontend knows about (keep these names in sync with Notifications.jsx):
+//   sync_invite   — someone invited you to a Sync Together trip
+//   group_message — new messages in a Sync Together group chat (collapsed per group)
+//   post_like     — likes on your SkyHub post (collapsed per post)
+//   post_comment  — comments on your SkyHub post (collapsed per post)
+//
+// Requires MongoDB 4.2+ (pipeline updates).
+
+import mongoose from "mongoose";
 import Notification from "../models/Notification.js";
 
-// Is this user currently in the group's chat room? (assumes chat sockets join `group:${groupId}`
-// and every socket has socket.data.userId set on auth)
-async function isViewingGroup(io, groupId, userId) {
-  const sockets = await io.in(`group:${groupId}`).fetchSockets();
-  return sockets.some((s) => String(s.data.userId) === String(userId));
+const oid = (id) => new mongoose.Types.ObjectId(String(id));
+// Wrap strings so values starting with "$" aren't read as field paths in pipeline updates
+const lit = (v) => (typeof v === "string" ? { $literal: v } : v);
+const same = (a, b) => String(a) === String(b);
+
+/* ── Shared plumbing ──────────────────────────────────────────────── */
+
+async function emitNew(io, userId, doc) {
+  const unread = await Notification.countDocuments({
+    user: oid(userId),
+    read: false,
+  });
+  // Spread the doc at the top level — the frontend reads _id, title, message from here.
+  io.to(`user:${userId}`).emit("notification:new", { ...doc, unread });
 }
 
-function summarize(senders, count, groupName) {
-  const [first, ...rest] = senders;
-  const who = rest.length
-    ? `${first} + ${rest.length} other${rest.length > 1 ? "s" : ""}`
-    : first;
-  return {
-    title: groupName,
-    body:
-      count === 1 ? `${who} sent a message` : `${who}: ${count} new messages`,
-  };
+// "Fernanda", "Fernanda + 1 other", "Fernanda + 2 others"
+function names(first, othersCount) {
+  if (!othersCount) return first;
+  return `${first} + ${othersCount} other${othersCount > 1 ? "s" : ""}`;
 }
 
 /**
- * Call this right after a Sync Together group message is saved.
+ * One-off notification (no collapsing).
+ */
+export async function notify(
+  io,
+  { to, from, type, title, message, targetType, targetId, link }
+) {
+  if (!to || same(to, from)) return null; // never notify yourself
+  const n = await Notification.create({
+    user: to,
+    type,
+    title,
+    message,
+    targetType,
+    targetId,
+    link,
+    read: false,
+  });
+  await emitNew(io, to, n.toObject());
+  return n;
+}
+
+/**
+ * Collapsing notification: bumps the existing unread one with the same
+ * user + type + match, or creates it. Atomic, so simultaneous events
+ * can't create duplicates.
+ *   match       — fields that identify "the same thing" (e.g. { group } or { targetId })
+ *   set         — fields to store (link, targetType, ...)
+ *   actorName   — who did it this time (kept in senders, newest first, max 3)
+ *   buildText   — (doc) => { title, message } from the collapsed state
+ */
+async function upsertCollapsed(
+  io,
+  { userId, type, match, set = {}, actorName, buildText }
+) {
+  const pipelineSet = {
+    user: oid(userId),
+    type: lit(type),
+    read: false,
+    count: { $add: [{ $ifNull: ["$count", 0] }, 1] },
+    senders: {
+      $slice: [
+        {
+          $concatArrays: [
+            [lit(actorName)],
+            {
+              $filter: {
+                input: { $ifNull: ["$senders", []] },
+                cond: { $ne: ["$$this", lit(actorName)] },
+              },
+            },
+          ],
+        },
+        3,
+      ],
+    },
+    createdAt: { $ifNull: ["$createdAt", "$$NOW"] },
+    updatedAt: "$$NOW",
+  };
+  for (const [k, v] of Object.entries({ ...match, ...set }))
+    pipelineSet[k] = lit(v);
+
+  const n = await Notification.findOneAndUpdate(
+    { user: oid(userId), type, read: false, ...match },
+    [{ $set: pipelineSet }],
+    { upsert: true, new: true, lean: true, timestamps: false }
+  );
+
+  const { title, message } = buildText(n);
+  await Notification.updateOne(
+    { _id: n._id },
+    { $set: { title, message } },
+    { timestamps: false }
+  );
+  await emitNew(io, userId, { ...n, title, message });
+}
+
+/* ── Sync Together ────────────────────────────────────────────────── */
+
+/** Call after an invite is created. */
+export function notifySyncInvite(
+  io,
+  { inviteeId, inviterId, inviterName, tripId, tripName }
+) {
+  return notify(io, {
+    to: inviteeId,
+    from: inviterId,
+    type: "sync_invite",
+    title: `${inviterName} invited you to ${tripName || "a group trip"}`,
+    message: "Tap to view the trip and respond.",
+    targetType: "sync",
+    targetId: tripId,
+    link: `/sync/${tripId}`,
+  });
+}
+
+/**
+ * Call right after a Sync Together group message is saved.
  * memberIds = all group member user IDs (strings or ObjectIds)
  */
 export async function notifyGroupMessage(
   io,
   { groupId, groupName, senderId, senderName, preview, memberIds }
 ) {
-  const recipients = memberIds.filter((id) => String(id) !== String(senderId));
+  // Who is in the chat right now? One lookup per message, not per member.
+  const sockets = await io.in(`group:${groupId}`).fetchSockets();
+  const viewing = new Set(sockets.map((s) => String(s.data.userId)));
+
+  const recipients = [...new Set(memberIds.map(String))].filter(
+    (id) => !same(id, senderId) && !viewing.has(id)
+  );
 
   await Promise.all(
-    recipients.map(async (userId) => {
-      if (await isViewingGroup(io, groupId, userId)) return; // they're already reading it
-
-      // Collapse into the existing unread notification for this group, if there is one
-      let n = await Notification.findOne({
-        user: userId,
+    recipients.map((userId) =>
+      upsertCollapsed(io, {
+        userId,
         type: "group_message",
-        group: groupId,
-        read: false,
-      });
-
-      if (n) {
-        n.count += 1;
-        n.senders = [
-          senderName,
-          ...n.senders.filter((s) => s !== senderName),
-        ].slice(0, 3);
-      } else {
-        n = new Notification({
-          user: userId,
-          type: "group_message",
-          group: groupId,
-          link: `/sync/${groupId}/chat`,
-          senders: [senderName],
-          count: 1,
-          title: groupName,
-        });
-      }
-      const { title, body } = summarize(n.senders, n.count, groupName);
-      n.title = title;
-      n.body =
-        n.count === 1 && preview
-          ? `${senderName}: ${preview.slice(0, 80)}`
-          : body;
-      await n.save();
-
-      const unread = await Notification.countDocuments({
-        user: userId,
-        read: false,
-      });
-      io.to(`user:${userId}`).emit("notification:new", {
-        notification: n,
-        unread,
-      });
-    })
+        match: { group: oid(groupId) },
+        set: { targetType: "sync", link: `/sync/${groupId}/chat` },
+        actorName: senderName,
+        buildText: ({ senders = [], count = 1 }) => {
+          const who = names(senders[0], senders.length - 1);
+          let message;
+          if (count === 1 && preview)
+            message = `${senders[0]}: ${preview.slice(0, 80)}`;
+          else if (count === 1) message = `${who} sent a message`;
+          else message = `${who}: ${count} new messages`;
+          return { title: groupName || "Group chat", message };
+        },
+      })
+    )
   );
 }
 
-/** Call when a user opens a group chat, so its bell entry clears. */
+/** Call when a user opens a group chat (joins `group:${groupId}`), so its bell entry clears. */
 export async function markGroupRead(io, userId, groupId) {
   await Notification.updateMany(
-    { user: userId, group: groupId, read: false },
-    { read: true }
+    { user: oid(userId), group: oid(groupId), read: false },
+    { $set: { read: true } }
   );
   const unread = await Notification.countDocuments({
-    user: userId,
+    user: oid(userId),
     read: false,
   });
   io.to(`user:${userId}`).emit("notification:unread", { unread });
+}
+
+/* ── SkyHub ───────────────────────────────────────────────────────── */
+
+/** Call after a like is added (not on unlike). */
+export function notifyPostLike(
+  io,
+  { postId, postAuthorId, likerId, likerName, postPreview }
+) {
+  if (same(postAuthorId, likerId)) return null;
+  return upsertCollapsed(io, {
+    userId: postAuthorId,
+    type: "post_like",
+    match: { targetId: oid(postId) },
+    set: { targetType: "post", link: `/skyhub/post/${postId}` },
+    actorName: likerName,
+    buildText: ({ senders = [], count = 1 }) => ({
+      title: `${names(senders[0], count - 1)} liked your post`,
+      message: postPreview ? `"${postPreview.slice(0, 80)}"` : "",
+    }),
+  });
+}
+
+/** Call after a comment is saved. */
+export function notifyPostComment(
+  io,
+  { postId, postAuthorId, commenterId, commenterName, commentPreview }
+) {
+  if (same(postAuthorId, commenterId)) return null;
+  return upsertCollapsed(io, {
+    userId: postAuthorId,
+    type: "post_comment",
+    match: { targetId: oid(postId) },
+    set: { targetType: "post", link: `/skyhub/post/${postId}` },
+    actorName: commenterName,
+    buildText: ({ senders = [], count = 1 }) => ({
+      title:
+        count === 1
+          ? `${senders[0]} commented on your post`
+          : `${count} new comments on your post`,
+      message: commentPreview
+        ? `${commenterName}: ${commentPreview.slice(0, 80)}`
+        : "",
+    }),
+  });
 }
