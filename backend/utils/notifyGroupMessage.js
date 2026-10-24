@@ -20,13 +20,14 @@ export function markViewing(groupId, userId) {
   }
 }
 
-// Skip anyone who already has the group chat open.
-async function isViewingGroup(io, groupId, userId) {
+// Skip anyone who has the group chat open right now.
+// Only the chat page's own polling counts. (The old version also checked the
+// "group:<id>" socket room — but the site uses one socket for the whole visit
+// and never leaves that room, so after opening a trip once, that person was
+// treated as "viewing" for the rest of the visit and never got notified.)
+function isViewingGroup(groupId, userId) {
   const t = lastViewed.get(`${groupId}:${userId}`);
-  if (t && Date.now() - t < VIEWING_WINDOW_MS) return true;
-  if (!io) return false;
-  const sockets = await io.in(groupRoom(groupId)).fetchSockets();
-  return sockets.some((s) => String(s.data?.userId) === String(userId));
+  return Boolean(t && Date.now() - t < VIEWING_WINDOW_MS);
 }
 
 function buildMessage(senders, count, preview) {
@@ -65,7 +66,10 @@ export async function notifyGroupMessage(
   await Promise.all(
     recipients.map(async (userId) => {
       try {
-        if (await isViewingGroup(io, gid, userId)) return;
+        if (isViewingGroup(gid, userId)) {
+          console.log(`[notify] chat: ${userId} has the chat open, skipped`);
+          return;
+        }
 
         // Atomic upsert so rapid-fire texts don't create duplicates
         const n = await Notification.findOneAndUpdate(
@@ -80,8 +84,9 @@ export async function notifyGroupMessage(
             $set: { title: groupName, link: `/sync-together/${gid}` },
             $setOnInsert: { message: "New message", "metadata.senders": [] },
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: "after" }
         );
+        if (!n) return;
 
         const senders = [
           senderName,
@@ -97,8 +102,9 @@ export async function notifyGroupMessage(
               message: buildMessage(senders, count, preview),
             },
           },
-          { new: true }
+          { returnDocument: "after" }
         );
+        if (!updated) return;
 
         io?.to(userRoom(userId)).emit("notification:new", {
           ...updated.toObject(),

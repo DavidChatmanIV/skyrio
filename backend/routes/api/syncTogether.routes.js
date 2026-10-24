@@ -23,6 +23,7 @@ import {
   markGroupRead,
   markViewing,
 } from "../../utils/notifyGroupMessage.js";
+import { notifySyncInvite } from "../../utils/notify.js";
 import {
   SyncError,
   HOLD_HOURS,
@@ -48,6 +49,41 @@ startSharedRoomJobs();
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const validId = (id) => mongoose.isValidObjectId(id);
+
+/* Bell notification for someone invited to a trip.
+   Invites can be by user or by email — if it's by email, look up whether
+   that email already has a Skyrio account. No account = nobody to notify
+   yet (they get the email and see the trip after signing up).
+   Never throws, so an invite never fails over a notification. */
+async function notifyInvitee(req, group, member, inviterId, inviterName) {
+  try {
+    let inviteeId = member?.user?._id || member?.user || null;
+    if (!inviteeId && member?.email) {
+      const u = await User.findOne({
+        email: new RegExp(`^${escapeRegex(String(member.email).trim())}$`, "i"),
+      })
+        .select("_id")
+        .lean();
+      inviteeId = u?._id || null;
+    }
+    if (!inviteeId) {
+      console.log(
+        "[notify] invite: no Skyrio account yet for",
+        member?.email || "(no email)"
+      );
+      return;
+    }
+    await notifySyncInvite(req.app.get("io"), {
+      inviteeId,
+      inviterId,
+      inviterName,
+      tripId: group._id,
+      tripName: group.title,
+    });
+  } catch (err) {
+    console.error("[notify] sync_invite failed:", err);
+  }
+}
 
 function sendSyncError(res, err, fallback) {
   if (err instanceof SyncError) {
@@ -390,6 +426,9 @@ router.post("/", async (req, res) => {
         .join(", ");
 
       for (const m of group.members || []) {
+        // Bell notification (separate from the email; never blocks it)
+        notifyInvitee(req, group, m, ownerId, inviterName);
+
         let email = m.email;
         if (!email && m.user) {
           const u = await User.findById(m.user).select("email").lean();
@@ -900,6 +939,16 @@ router.post("/:id/member", async (req, res) => {
     try {
       const owner = await User.findById(userId).select("name username").lean();
       const inviterName = owner?.name || owner?.username || "Someone";
+
+      // Bell notification (separate from the email; never blocks it)
+      notifyInvitee(
+        req,
+        group,
+        group.members[group.members.length - 1],
+        userId,
+        inviterName
+      );
+
       let memberEmail = email;
       if (!memberEmail && newUserId) {
         const u = await User.findById(newUserId).select("email").lean();

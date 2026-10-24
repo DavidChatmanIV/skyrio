@@ -150,6 +150,12 @@ function isNear(destination, city) {
   return code.length === 2 && new RegExp(`[ ,]${code}[ ,.]`).test(d);
 }
 
+// Topics you can put on a postcard — the TOPIC filter chips minus "All",
+// so every filter matches something a traveler can actually choose.
+const postTopics = skyhubFilters.filter(
+  (f) => f !== "All" && f !== "Team Travel"
+);
+
 /* ── Data helpers ─────────────────────────────────────────────── */
 // Photos saved on our own server come back as "/uploads/..."; the page runs
 // on a different port, so point them at the API.
@@ -168,6 +174,8 @@ function mapBackendPost(post) {
     verified: !!post.verified,
     badge: post.authorBadge || "Explorer",
     type: post.type || "Story",
+    // One of the TOPIC chips (Budget, Food, ...) chosen on the postcard
+    topic: post.topic || "",
     destination: post.destination || "",
     timeAgo: post.timeAgo || "just now",
     edited: !!post.edited,
@@ -732,6 +740,14 @@ export default function SkyHubPage() {
   const [composerText, setComposerText] = useState("");
   const [destination, setDestination] = useState("");
   const [activePostType, setActivePostType] = useState("Tip");
+  // Optional topic picked on the postcard — same list as the TOPIC filter
+  const [postTopic, setPostTopic] = useState("");
+  // Browsing Food? A new postcard starts tagged Food (still changeable).
+  useEffect(() => {
+    if (!composerText.trim()) {
+      setPostTopic(activeFilter === "All" ? "" : activeFilter);
+    }
+  }, [activeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
   const [composerPhotos, setComposerPhotos] = useState([]);
   const [posts, setPosts] = useState([]);
   const [loadingFeed, setLoadingFeed] = useState(false);
@@ -834,6 +850,7 @@ export default function SkyHubPage() {
             : inText || inPlace || inPerson || inTags);
         const mf =
           activeFilter === "All" ||
+          (post.topic || "").toLowerCase() === activeFilter.toLowerCase() ||
           (post.tags || []).some(
             (t) => t.toLowerCase() === activeFilter.toLowerCase()
           ) ||
@@ -860,6 +877,8 @@ export default function SkyHubPage() {
             mt = post.type === "Question";
             break;
           case "trips":
+            // "Join Trip" is no longer offered on the postcard; older
+            // Join Trip posts still show here.
             mt = post.type === "Join Trip" || post.type === "Story";
             break;
           default:
@@ -928,7 +947,7 @@ export default function SkyHubPage() {
     trips: {
       icon: "plane",
       title: "No trips shared yet",
-      sub: "Share a story from a trip, or invite people to join one you're planning.",
+      sub: "Share a story from a trip you took. Pick Story on the postcard.",
       cta: "Share a trip",
     },
   };
@@ -945,7 +964,7 @@ export default function SkyHubPage() {
       ? "Posts from places all over the world."
       : "Posts from places all over the world. Pick your city to see what's close to you.",
     questions: "Questions travelers are asking. Reply to one to help out.",
-    trips: "Trip stories and invites to join someone's trip.",
+    trips: "Stories travelers have shared from their trips.",
   };
 
   const FEED_TITLES = {
@@ -1018,6 +1037,8 @@ export default function SkyHubPage() {
         body: JSON.stringify({
           text: composerText.trim(),
           type: activePostType,
+          topic: postTopic || undefined,
+          tags: postTopic ? [postTopic] : [],
           destination: destination.trim(),
           images: urls,
           image: urls[0] || "",
@@ -1032,6 +1053,8 @@ export default function SkyHubPage() {
       }
       const enriched = {
         ...data.post,
+        // Keep the topic even if the server doesn't echo it back yet
+        topic: data.post.topic || postTopic,
         authorName: currentUser?.name || data.post.authorName,
         username: currentUser?.username || data.post.username,
         avatar: currentUser?.avatar || data.post.avatar,
@@ -1041,6 +1064,7 @@ export default function SkyHubPage() {
       setComposerText("");
       setDestination("");
       setActivePostType("Tip");
+      setPostTopic("");
       setComposerPhotos([]);
       applyXp(data.xp);
       if (data.xp?.awarded && data.xp.amount > 0) {
@@ -1534,7 +1558,10 @@ export default function SkyHubPage() {
             ))}
           </div>
           {/* Single scrolling row — no wrap on mobile */}
-          <div className="skyhub-navbar-vibes" style={{ flexWrap: "nowrap" }}>
+          <div
+            className="skyhub-navbar-vibes shPC-topicBar"
+            style={{ flexWrap: "nowrap" }}
+          >
             <span className="shPC-chipsLabel">Topic</span>
             {skyhubFilters
               .filter((f) => f !== "Team Travel")
@@ -1606,9 +1633,7 @@ export default function SkyHubPage() {
                 </span>
               </div>
               <p className="shPC-helper">
-                Write about a place you&rsquo;ve been or are going: a tip, a
-                question, or a quick story. Add the place and a photo so others
-                can find it.
+                Share a tip, question, or story about a place.
               </p>
               {currentUser ? (
                 <SkyHubComposer
@@ -1622,6 +1647,9 @@ export default function SkyHubPage() {
                   creatingPost={creatingPost}
                   onPhotosChange={setComposerPhotos}
                   user={currentUser}
+                  topic={postTopic}
+                  setTopic={setPostTopic}
+                  topics={postTopics}
                 />
               ) : (
                 <SkyHubJoinCard />

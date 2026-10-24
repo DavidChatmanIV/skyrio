@@ -27,6 +27,7 @@ import { apiUrl } from "@/lib/api";
 import SavedExcursions from "../components/excursions/SavedExcursions";
 import UpcomingBookings from "../components/dashboard/UpcomingBookings";
 import AtlasShowcase from "../components/landing/AtlasShowcase";
+import WhereToNext from "../components/landing/WhereToNext";
 import XPBadgeCard from "./passport/XPBadgeCard";
 
 const { Option } = Select;
@@ -1453,6 +1454,16 @@ export default function LandingPage() {
 
   const { homeAirport, setHomeAirport, homeCode, homeCity } = useHomeAirport();
 
+  // Signed-in travelers: use the home base saved on their account, so it
+  // follows them to every device (localStorage alone only knows this browser).
+  useEffect(() => {
+    const saved = user?.homeAirport;
+    if (isAuthed && saved?.code && saved.code !== homeCode) {
+      setHomeAirport(saved);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthed, user?.homeAirport?.code]);
+
   const [timePeriod, setTimePeriod] = useState(() =>
     getTimePeriod(new Date().getHours())
   );
@@ -2201,6 +2212,11 @@ export default function LandingPage() {
               No account needed to plan. Sign up when you're ready to book.
             </p>
           </Reveal>
+
+          <div className="sk-divider" />
+
+          {/* Where To Next — lowest fares found from the traveler's home base */}
+          <WhereToNext homeCode={homeCode} homeCity={homeCity} />
 
           <div className="sk-divider" />
 

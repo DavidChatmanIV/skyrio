@@ -7,9 +7,16 @@ import {
   SendOutlined,
 } from "@ant-design/icons";
 
-const POST_TYPES = ["Tip", "Question", "Story", "Photo", "Join Trip"];
+// "Join Trip" removed for now — old Join Trip posts still show in the feed.
+const POST_TYPES = ["Tip", "Question", "Story", "Photo"];
 const MAX_PHOTO_MB = 8;
-const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const PHOTO_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+];
 
 export default function SkyHubComposer({
   composerText,
@@ -22,6 +29,9 @@ export default function SkyHubComposer({
   creatingPost,
   onPhotosChange,
   user = {},
+  topic = "",
+  setTopic,
+  topics = [],
 }) {
   const fileRef = useRef(null);
   // ✅ NEW: lets SkyHubPage scroll to AND focus the textarea directly
@@ -44,7 +54,8 @@ export default function SkyHubComposer({
     }
     // Same rules the server uses, so people find out right away.
     const usable = incoming.filter((f) => {
-      const typeOk = PHOTO_TYPES.includes(f.type) || /\.(heic|heif)$/i.test(f.name);
+      const typeOk =
+        PHOTO_TYPES.includes(f.type) || /\.(heic|heif)$/i.test(f.name);
       if (!typeOk) {
         message.warning(`${f.name} isn't a photo (JPG, PNG, WebP or HEIC).`);
         return false;
@@ -55,7 +66,8 @@ export default function SkyHubComposer({
       }
       return true;
     });
-    if (incoming.length > remaining) message.info("Only the first 4 photos were added.");
+    if (incoming.length > remaining)
+      message.info("Only the first 4 photos were added.");
     const accepted = usable.slice(0, remaining);
     if (!accepted.length) {
       e.target.value = "";
@@ -206,6 +218,28 @@ export default function SkyHubComposer({
             </div>
           )}
 
+          {/* Topic pills — only when focused, optional */}
+          {focused && topics.length > 0 && setTopic && (
+            <div
+              className="shCmp-topics"
+              role="group"
+              aria-label="Topic (optional)"
+            >
+              <span className="shCmp-topicsLabel">Topic</span>
+              {topics.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  aria-pressed={topic === t}
+                  className={`shCmp-topic${topic === t ? " is-on" : ""}`}
+                  onClick={() => setTopic(topic === t ? "" : t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Textarea */}
           <textarea
             ref={textareaRef}
@@ -214,7 +248,7 @@ export default function SkyHubComposer({
             onFocus={() => setFocused(true)}
             placeholder={
               signedIn
-                ? "Share a travel tip, story, question, or meetup idea..."
+                ? "Share a travel tip, story, or question..."
                 : "Log in to share a tip, story or question with travelers"
             }
             aria-label="Write a SkyHub post"
@@ -323,7 +357,7 @@ export default function SkyHubComposer({
               paddingTop: focused ? 10 : 0,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}

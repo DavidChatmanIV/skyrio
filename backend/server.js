@@ -26,6 +26,9 @@ import profileTravelersRoutes from "./routes/profileTravelers.js";
 import stripeConfigRoutes from "./routes/stripeConfig.js";
 import billingWebhook from "./routes/billingWebhook.js";
 import billingRoutes from "./routes/billing.routes.js";
+// Where To Next (landing page map): reads cached lowest fares.
+import dealsRoutes from "./routes/deals.js";
+import { startDealScanJob } from "./services/dealScanner.js";
 import { startXpConfirmJob } from "./jobs/xpConfirmJob.js";
 import mongooseXp from "mongoose";
 import Contact from "./models/contact.js";
@@ -196,6 +199,7 @@ app.use("/api/sync-progress", syncProgressRoutes);
 app.use("/api/profile", profileTravelersRoutes);
 app.use("/api/stripe-config", stripeConfigRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/deals", dealsRoutes);
 app.use("/api", apiRouter);
 
 // Dedicated, tighter limiter for the public contact form — this route
@@ -342,6 +346,9 @@ await connectMongo();
 await assignFounderBadge();
 
 startJobs();
+
+// Where To Next fare scan. Off unless DEAL_SCAN_ENABLED=true.
+startDealScanJob();
 
 const PORT = Number(process.env.PORT) || 4000;
 

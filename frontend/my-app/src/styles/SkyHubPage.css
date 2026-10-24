@@ -2595,3 +2595,63 @@
   color: #ff6b85;
   background: rgba(255, 107, 133, 0.12);
 }
+
+/* ── Topics: plain pills, one quiet row ───────────────────────────── */
+.sh-postcards .shPC-topicBar {
+  gap: 6px;
+  padding: 8px 0 10px;
+  justify-content: safe center;
+}
+@media (max-width: 768px) {
+  .sh-postcards .shPC-topicBar {
+    justify-content: flex-start;
+  }
+}
+
+/* Topic pills inside the postcard — appear once you start writing */
+.shCmp-topics {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.shCmp-topics::-webkit-scrollbar {
+  display: none;
+}
+.shCmp-topicsLabel {
+  flex-shrink: 0;
+  margin-right: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+}
+.shCmp-topic {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border-radius: 99px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.shCmp-topic:hover {
+  color: #fff;
+  border-color: rgba(255, 138, 42, 0.6);
+}
+.shCmp-topic.is-on {
+  border-style: solid;
+  border-color: #ff8a2a;
+  background: rgba(255, 138, 42, 0.2);
+  color: #ff8a2a;
+}
+.shCmp-topic:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}

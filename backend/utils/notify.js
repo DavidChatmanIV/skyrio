@@ -9,7 +9,7 @@
 // Requires MongoDB 4.2+ (pipeline updates).
 
 import mongoose from "mongoose";
-import Notification from "../models/Notification.js";
+import Notification from "../models/notification.js";
 
 const oid = (id) => new mongoose.Types.ObjectId(String(id));
 // Wrap strings so values starting with "$" aren't read as field paths in pipeline updates

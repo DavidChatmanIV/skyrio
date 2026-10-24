@@ -68,7 +68,8 @@ const notificationSchema = new mongoose.Schema(
 // Feed + unread count lookups
 notificationSchema.index({ user: 1, read: 1, updatedAt: -1 });
 // The one open (unread) group-chat notification to collapse into
-notificationSchema.index({ user: 1, type: 1, group: 1, read: 1 });
+// (used by utils/notifyGroupMessage.js — keep this one)
+notificationSchema.index({ user: 1, type: 1, "metadata.groupId": 1, read: 1 });
 // The one open like/comment notification per post
 notificationSchema.index({ user: 1, type: 1, targetId: 1, read: 1 });
 
