@@ -1,24 +1,36 @@
+/* ─────────────────────────────────────────────────────────────
+   Atlas panel + floating button
+   Matches the Skyrio look: dark glass, orange gradient pills,
+   Syne headings, DM Sans body.
+   ───────────────────────────────────────────────────────────── */
+
 /* ── Tokens ── */
 :root {
   --ap-orange: #ff8a2a;
   --ap-orange-2: #ffb347;
   --ap-grad: linear-gradient(135deg, #ff8a2a, #ffb347);
-  --ap-glass: rgba(14, 8, 30, 0.92);
+  --ap-ink: #1a0d04;
+  --ap-bg: rgba(16, 10, 34, 0.94);
   --ap-border: rgba(255, 255, 255, 0.1);
-  --ap-text: rgba(255, 255, 255, 0.9);
-  --ap-muted: rgba(255, 255, 255, 0.45);
-  --ap-radius: 20px;
-  --ap-w: 440px;
-  --ap-h: 680px;
+  --ap-text: rgba(255, 255, 255, 0.92);
+  --ap-muted: rgba(255, 255, 255, 0.6);
+  --ap-faint: rgba(255, 255, 255, 0.42);
+  --ap-radius: 22px;
+  --ap-w: 420px;
+  --ap-h: 640px;
   /* Falls back to 86px if AppLayout's --sk-nav-h isn't in scope here */
   --ap-nav-h: var(--sk-nav-h, 86px);
 }
 
-/* ── FAB wrapper
-   Handles fixed positioning for the whole FAB stack
-   (nudge tooltip + button + hint label).
-   The .ap-fab itself is now position:relative inside this wrapper.
-──────────────────────────────────────────────────────────── */
+.ap-inline-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  flex-shrink: 0;
+}
+
+/* ═════════════════════════════════════════════════════════════
+   FLOATING BUTTON
+   ═════════════════════════════════════════════════════════════ */
 .ap-fab-wrapper {
   position: fixed;
   bottom: calc(28px + env(safe-area-inset-bottom, 0px));
@@ -29,102 +41,95 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
 
-/* ── FAB button ── */
 .ap-fab {
-  position: relative; /* no longer fixed — wrapper handles it */
-  bottom: unset;
-  right: unset;
-  z-index: unset;
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 18px 0 14px;
-  height: 48px;
-  border-radius: 999px;
+  gap: 8px;
+  height: 50px;
+  padding: 0 20px 0 15px;
   border: none;
+  border-radius: 999px;
   background: var(--ap-grad);
-  color: #1b1024;
+  color: var(--ap-ink);
   font-family: "DM Sans", sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 8px 28px rgba(255, 138, 42, 0.45);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 10px 30px rgba(255, 138, 42, 0.42);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   touch-action: manipulation;
 }
-.ap-fab:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 36px rgba(255, 138, 42, 0.58);
-}
-.ap-fab--open {
-  padding: 0;
-  width: 48px;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: none;
-}
-.ap-fab--open:hover {
-  background: rgba(255, 255, 255, 0.18);
-  box-shadow: none;
-  transform: none;
-}
 .ap-fab__icon {
-  font-size: 16px;
-  line-height: 1;
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
 }
-.ap-fab__label {
-  letter-spacing: 0.02em;
-}
-
-/* ── "Open Atlas AI" hint label under FAB when closed ── */
-.ap-fab-hint {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.25);
-  font-family: "DM Sans", sans-serif;
-  letter-spacing: 0.04em;
-  text-align: center;
-  pointer-events: none;
-  white-space: nowrap;
-  user-select: none;
+.ap-fab:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
 }
 
-/* ── Nudge tooltip ─────────────────────────────────────────── */
+/* Open state: quiet round close button */
+.ap-fab--open {
+  width: 50px;
+  padding: 0;
+  justify-content: center;
+  background: rgba(16, 10, 34, 0.9);
+  color: #fff;
+  border: 1px solid rgba(255, 138, 42, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@media (hover: hover) and (min-width: 769px) {
+  .ap-fab:not(.ap-fab--open):hover,
+  .ap-fab:not(.ap-fab--open):focus-visible {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 16px 40px rgba(255, 138, 42, 0.5);
+  }
+  .ap-fab:not(.ap-fab--open):hover .ap-fab__icon {
+    transform: rotate(-10deg) scale(1.08);
+  }
+  .ap-fab--open:hover {
+    border-color: rgba(255, 138, 42, 0.6);
+    color: var(--ap-orange);
+  }
+}
+
+/* ── Nudge tooltip ── */
 .ap-nudge {
   position: relative;
-  background: rgba(14, 8, 30, 0.97);
-  border: 1px solid rgba(255, 138, 42, 0.38);
-  border-radius: 14px;
-  padding: 12px 30px 12px 14px; /* right padding leaves room for ✕ */
-  max-width: 204px;
+  max-width: 214px;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 24px rgba(255, 138, 42, 0.07);
+  padding: 12px 30px 12px 14px;
+  border-radius: 14px;
+  background: rgba(16, 10, 34, 0.97);
+  border: 1px solid rgba(255, 138, 42, 0.38);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
   animation: apNudgeIn 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-
-/* Arrow pointing down-right toward FAB */
 .ap-nudge::after {
   content: "";
   position: absolute;
   bottom: -7px;
-  right: 22px;
+  right: 26px;
   width: 13px;
   height: 13px;
-  background: rgba(14, 8, 30, 0.97);
+  background: rgba(16, 10, 34, 0.97);
   border-right: 1px solid rgba(255, 138, 42, 0.38);
   border-bottom: 1px solid rgba(255, 138, 42, 0.38);
   transform: rotate(45deg);
 }
-
 @keyframes apNudgeIn {
   from {
     opacity: 0;
@@ -132,70 +137,77 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: none;
   }
 }
-
 .ap-nudge__title {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  color: #ffb830;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-family: "Syne", sans-serif;
-  line-height: 1.2;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ap-orange-2);
 }
-
 .ap-nudge__body {
-  display: block;
-  font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.58);
-  line-height: 1.45;
   font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ap-muted);
 }
-
 .ap-nudge__close {
   position: absolute;
   top: 8px;
-  right: 10px;
-  background: none;
+  right: 8px;
+  padding: 2px;
   border: none;
-  color: rgba(255, 255, 255, 0.25);
-  font-size: 10px;
+  background: none;
+  color: var(--ap-faint);
   cursor: pointer;
-  padding: 0;
   line-height: 1;
-  transition: color 0.15s;
-  font-family: inherit;
 }
 .ap-nudge__close:hover {
-  color: rgba(255, 255, 255, 0.65);
+  color: #fff;
 }
 
-/* ── Panel ── */
+/* ═════════════════════════════════════════════════════════════
+   PANEL
+   ═════════════════════════════════════════════════════════════ */
 .ap-panel {
   position: fixed;
-  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
   right: 24px;
-  /* Must sit above Navbar (99999) */
   z-index: 100000;
   width: var(--ap-w);
   max-width: calc(100vw - 32px);
   height: var(--ap-h);
-  /* Reserve space for the navbar height + FAB at the bottom so the
-     panel can never grow tall enough to slide under/behind the navbar */
-  max-height: min(var(--ap-h), calc(100dvh - var(--ap-nav-h) - 110px));
+  /* Never taller than the space between the navbar and the FAB */
+  max-height: min(var(--ap-h), calc(100dvh - var(--ap-nav-h) - 116px));
   display: flex;
   flex-direction: column;
-  background: var(--ap-glass);
-  border: 1px solid rgba(255, 138, 42, 0.22);
-  border-radius: var(--ap-radius);
-  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 138, 42, 0.08);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
   overflow: hidden;
-  animation: apSlideIn 0.22s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+  border-radius: var(--ap-radius);
+  border: 1px solid rgba(255, 138, 42, 0.28);
+  /* Same warm glow as the landing page banners */
+  background: radial-gradient(
+      120% 60% at 100% 0%,
+      rgba(255, 138, 42, 0.12) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      100% 50% at 0% 100%,
+      rgba(124, 58, 237, 0.16) 0%,
+      transparent 60%
+    ),
+    var(--ap-bg);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  font-family: "DM Sans", sans-serif;
+  color: var(--ap-text);
+  animation: apSlideIn 0.24s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  transform-origin: bottom right;
 }
-
 @keyframes apSlideIn {
   from {
     opacity: 0;
@@ -203,59 +215,72 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: none;
   }
+}
+.ap-panel :focus-visible {
+  outline: 2px solid var(--ap-orange);
+  outline-offset: 2px;
 }
 
 /* ── Header ── */
 .ap-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--ap-border);
-  background: rgba(255, 255, 255, 0.03);
+  gap: 11px;
+  padding: 14px 14px 12px 16px;
   flex-shrink: 0;
 }
-.ap-header__left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .ap-header__avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--ap-grad);
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  color: #1b1024;
-  flex-shrink: 0;
-  box-shadow: 0 4px 14px rgba(255, 138, 42, 0.35);
+  border-radius: 50%;
+  background: var(--ap-grad);
+  color: var(--ap-ink);
+  box-shadow: 0 6px 18px rgba(255, 138, 42, 0.35);
+}
+.ap-header__id {
+  min-width: 0;
+  flex: 1;
 }
 .ap-header__name {
-  font-family: "DM Sans", sans-serif;
-  font-size: 14px;
+  font-family: "Syne", sans-serif;
+  font-size: 17px;
   font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
   color: #fff;
-  line-height: 1;
 }
 .ap-header__status {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin-top: 3px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ap-muted);
+  min-width: 0;
+}
+.ap-header__statusText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ap-status-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: #34d399;
-  animation: apPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
+}
+.ap-status-dot.is-busy {
+  background: var(--ap-orange);
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.18);
+  animation: apPulse 1.2s ease-in-out infinite;
 }
 @keyframes apPulse {
   0%,
@@ -269,106 +294,103 @@
 .ap-header__actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 .ap-icon-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: var(--ap-muted);
-  font-size: 14px;
-  cursor: pointer;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ap-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .ap-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
 
-/* ── Mode tabs ── */
-.ap-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 10px 14px 0;
+/* ── Mode switch (pill, like the main nav) ── */
+.ap-modebar {
+  padding: 0 16px 12px;
   border-bottom: 1px solid var(--ap-border);
   flex-shrink: 0;
 }
-.ap-tab {
+.ap-seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ap-seg__btn {
+  flex: 1;
+  height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: none;
+  justify-content: center;
+  gap: 7px;
   border: none;
-  padding: 9px 12px;
-  font-family: "DM Sans", sans-serif;
-  font-size: 12.5px;
-  font-weight: 700;
+  border-radius: 999px;
+  background: transparent;
   color: var(--ap-muted);
+  font-family: "DM Sans", sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
   touch-action: manipulation;
 }
-.ap-tab:hover {
-  color: rgba(255, 255, 255, 0.75);
-}
-.ap-tab--active {
+.ap-seg__btn:hover:not(.is-active) {
   color: #fff;
-  border-bottom-color: var(--ap-orange);
+  background: rgba(255, 255, 255, 0.06);
 }
-
-/* ── Mode hint — clarifies what Chat vs Compass is for ── */
+.ap-seg__btn.is-active {
+  background: var(--ap-grad);
+  color: var(--ap-ink);
+  box-shadow: 0 4px 14px rgba(255, 138, 42, 0.3);
+}
 .ap-mode-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 16px;
-  font-family: "DM Sans", sans-serif;
-  font-size: 12px;
+  margin: 10px 2px 0;
+  font-size: 12.5px;
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.55);
-  background: rgba(255, 138, 42, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  flex-shrink: 0;
-  animation: apModeHintIn 0.2s ease forwards;
+  color: var(--ap-muted);
+  animation: apFade 0.2s ease both;
 }
-.ap-mode-hint__icon {
-  flex-shrink: 0;
-  font-size: 13px;
-  line-height: 1.4;
-}
-@keyframes apModeHintIn {
+@keyframes apFade {
   from {
     opacity: 0;
     transform: translateY(-2px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
 /* ── Messages ── */
 .ap-messages {
   flex: 1;
+  min-height: 120px;
   overflow-y: auto;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 138, 42, 0.2) transparent;
+  scrollbar-color: rgba(255, 138, 42, 0.25) transparent;
 }
 .ap-messages::-webkit-scrollbar {
   width: 4px;
 }
 .ap-messages::-webkit-scrollbar-thumb {
-  background: rgba(255, 138, 42, 0.2);
+  background: rgba(255, 138, 42, 0.25);
   border-radius: 4px;
 }
 
@@ -377,52 +399,66 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-bottom: 4px;
 }
 .ap-starters__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ap-muted);
-  margin-bottom: 4px;
+  color: var(--ap-orange);
 }
-.ap-starters__sublabel {
-  font-family: "DM Sans", sans-serif;
-  font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.4);
-  margin: -4px 0 10px;
-  line-height: 1.5;
+.ap-starters__label::before {
+  content: "";
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ap-orange);
 }
 .ap-starter-btn {
   width: 100%;
-  padding: 10px 14px;
-  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.85);
   font-family: "DM Sans", sans-serif;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
+  line-height: 1.4;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
-  line-height: 1.4;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   touch-action: manipulation;
+}
+.ap-starter-btn svg {
+  flex-shrink: 0;
+  color: var(--ap-faint);
+  transition: transform 0.15s, color 0.15s;
 }
 .ap-starter-btn:hover {
   background: rgba(255, 138, 42, 0.1);
-  border-color: rgba(255, 138, 42, 0.35);
+  border-color: rgba(255, 138, 42, 0.4);
   color: #fff;
+}
+.ap-starter-btn:hover svg {
+  color: var(--ap-orange);
   transform: translateX(3px);
 }
 
-/* ── Message bubbles ── */
+/* ── Bubbles ── */
 .ap-bubble {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  animation: apBubble 0.22s ease forwards;
+  animation: apBubble 0.22s ease both;
 }
 @keyframes apBubble {
   from {
@@ -431,7 +467,7 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 .ap-bubble--user {
@@ -440,50 +476,107 @@
 .ap-bubble__avatar {
   width: 26px;
   height: 26px;
-  border-radius: 50%;
-  background: var(--ap-grad);
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  color: #1b1024;
-  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ap-grad);
+  color: var(--ap-ink);
 }
 .ap-bubble__text {
   max-width: 82%;
   padding: 10px 14px;
   border-radius: 16px;
-  font-family: "DM Sans", sans-serif;
   font-size: 13.5px;
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
 }
 .ap-bubble--atlas .ap-bubble__text {
-  background: rgba(255, 138, 42, 0.1);
-  border: 1px solid rgba(255, 138, 42, 0.22);
-  color: rgba(255, 255, 255, 0.92);
+  white-space: normal;
+  background: rgba(255, 138, 42, 0.12);
+  border: 1px solid rgba(255, 138, 42, 0.26);
+  color: var(--ap-text);
   border-bottom-left-radius: 4px;
 }
 .ap-bubble--user .ap-bubble__text {
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  color: rgba(255, 255, 255, 0.82);
   border-bottom-right-radius: 4px;
 }
 .ap-bubble--streaming .ap-bubble__text {
-  border-color: rgba(255, 138, 42, 0.4);
+  border-color: rgba(255, 138, 42, 0.45);
 }
 
-/* Typing cursor */
+/* Reply formatting: paragraphs, lists, bold */
+.ap-bubble__text p {
+  margin: 0;
+}
+.ap-bubble__text p + p,
+.ap-bubble__text p + ul,
+.ap-bubble__text ul + p,
+.ap-bubble__text p + ol,
+.ap-bubble__text ol + p {
+  margin-top: 8px;
+}
+.ap-bubble__text ul,
+.ap-bubble__text ol {
+  margin: 0;
+  padding-left: 18px;
+}
+.ap-bubble__text li + li {
+  margin-top: 4px;
+}
+.ap-bubble__text li::marker {
+  color: var(--ap-orange-2);
+}
+.ap-bubble__text strong {
+  color: #fff;
+  font-weight: 800;
+}
+
+/* Thinking dots + typing cursor */
+.ap-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 0;
+}
+.ap-typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ap-orange);
+  animation: apDot 1.2s ease-in-out infinite;
+}
+.ap-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ap-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes apDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
 .ap-cursor {
   display: inline-block;
   width: 2px;
   height: 14px;
-  background: var(--ap-orange);
   margin-left: 2px;
   vertical-align: middle;
   border-radius: 1px;
+  background: var(--ap-orange);
   animation: apBlink 0.8s ease-in-out infinite;
 }
 @keyframes apBlink {
@@ -500,55 +593,70 @@
 .ap-error {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 10px 12px;
   border-radius: 12px;
   background: rgba(255, 77, 109, 0.1);
-  border: 1px solid rgba(255, 77, 109, 0.25);
+  border: 1px solid rgba(255, 77, 109, 0.28);
   font-size: 13px;
-  color: rgba(255, 160, 180, 0.9);
+  color: #ffb3c1;
+}
+.ap-error > span {
+  flex: 1;
 }
 .ap-error__retry {
-  margin-left: auto;
-  background: transparent;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 138, 42, 0.4);
+  border-radius: 999px;
+  background: rgba(255, 138, 42, 0.1);
   color: var(--ap-orange);
+  font-family: "DM Sans", sans-serif;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 6px;
-  transition: background 0.15s;
+  white-space: nowrap;
 }
 .ap-error__retry:hover {
-  background: rgba(255, 138, 42, 0.12);
+  background: rgba(255, 138, 42, 0.2);
 }
 
-/* ── Input ── */
+/* ── Composer ── */
 .ap-input-wrap {
+  padding: 12px 14px 10px;
+  border-top: 1px solid var(--ap-border);
+  background: rgba(8, 5, 20, 0.35);
+  flex-shrink: 0;
+}
+.ap-composer {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 12px 14px;
-  border-top: 1px solid var(--ap-border);
-  background: rgba(255, 255, 255, 0.02);
-  flex-shrink: 0;
+  padding: 6px 6px 6px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.ap-composer:focus-within {
+  border-color: rgba(255, 138, 42, 0.6);
+  box-shadow: 0 0 0 4px rgba(255, 138, 42, 0.1);
 }
 .ap-input {
   flex: 1;
-  min-height: 38px;
+  min-height: 36px;
   max-height: 120px;
-  padding: 9px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
+  padding: 8px 0;
+  border: none;
+  outline: none;
+  background: transparent;
   color: #fff;
   font-family: "DM Sans", sans-serif;
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.45;
   resize: none;
-  outline: none;
-  transition: border-color 0.18s, box-shadow 0.18s;
   caret-color: var(--ap-orange);
   scrollbar-width: none;
 }
@@ -556,41 +664,37 @@
   display: none;
 }
 .ap-input::placeholder {
-  color: rgba(255, 255, 255, 0.28);
-}
-.ap-input:focus {
-  border-color: rgba(255, 138, 42, 0.5);
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.1);
+  color: var(--ap-faint);
 }
 .ap-input:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
+}
+/* The composer draws the focus ring, not the textarea */
+.ap-panel .ap-input:focus-visible {
+  outline: none;
 }
 
 .ap-send {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 17px;
-  font-weight: 700;
-  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.18s;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ap-faint);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.18s;
   touch-action: manipulation;
 }
 .ap-send--active {
   background: var(--ap-grad);
-  border-color: transparent;
-  color: #1b1024;
+  color: var(--ap-ink);
   box-shadow: 0 4px 14px rgba(255, 138, 42, 0.35);
 }
 .ap-send--active:hover {
-  box-shadow: 0 6px 20px rgba(255, 138, 42, 0.5);
   transform: translateY(-1px);
 }
 .ap-send:disabled {
@@ -600,7 +704,7 @@
   width: 14px;
   height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #fff;
+  border-top-color: var(--ap-orange);
   border-radius: 50%;
   animation: apSpin 0.7s linear infinite;
 }
@@ -609,103 +713,99 @@
     transform: rotate(360deg);
   }
 }
-
-/* ── Footer ── */
-.ap-footer {
-  padding: 6px 14px 10px;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.2);
-  text-align: center;
-  flex-shrink: 0;
-  letter-spacing: 0.02em;
+.ap-spin {
+  animation: apSpin 0.8s linear infinite;
 }
 
-/* ── Guide wrapper ── */
+.ap-footer {
+  margin-top: 8px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--ap-faint);
+}
+
+/* ═════════════════════════════════════════════════════════════
+   COMPASS (city highlights)
+   ═════════════════════════════════════════════════════════════ */
 .ap-guide-wrap {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 138, 42, 0.2) transparent;
+  scrollbar-color: rgba(255, 138, 42, 0.25) transparent;
 }
 .ap-guide-wrap::-webkit-scrollbar {
   width: 4px;
 }
 .ap-guide-wrap::-webkit-scrollbar-thumb {
-  background: rgba(255, 138, 42, 0.2);
+  background: rgba(255, 138, 42, 0.25);
   border-radius: 4px;
 }
-
-/* ── Guide intro line — reinforces what this tab is for ── */
 .ap-guide-intro {
-  font-family: "DM Sans", sans-serif;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1.5;
   margin-bottom: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ap-muted);
 }
-
-/* ── Guide form ── */
 .ap-guide-form {
   display: flex;
   gap: 8px;
 }
 .ap-guide-input {
   flex: 1;
-  height: 42px;
+  height: 44px;
   padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-family: "DM Sans", sans-serif;
-  font-size: 13.5px;
+  font-size: 14px;
   outline: none;
-  transition: border-color 0.18s, box-shadow 0.18s;
   caret-color: var(--ap-orange);
+  transition: border-color 0.18s, box-shadow 0.18s;
 }
 .ap-guide-input::placeholder {
-  color: rgba(255, 255, 255, 0.28);
+  color: var(--ap-faint);
 }
 .ap-guide-input:focus {
-  border-color: rgba(255, 138, 42, 0.5);
-  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.1);
+  border-color: rgba(255, 138, 42, 0.6);
+  box-shadow: 0 0 0 4px rgba(255, 138, 42, 0.1);
 }
 .ap-guide-input:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 .ap-guide-submit {
-  height: 42px;
-  padding: 0 16px;
-  border-radius: 12px;
+  height: 44px;
+  padding: 0 18px;
   border: none;
+  border-radius: 999px;
   background: var(--ap-grad);
-  color: #1b1024;
+  color: var(--ap-ink);
   font-family: "DM Sans", sans-serif;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 800;
-  cursor: pointer;
   white-space: nowrap;
-  transition: box-shadow 0.18s, transform 0.18s;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(255, 138, 42, 0.28);
+  transition: filter 0.18s, transform 0.18s;
   touch-action: manipulation;
 }
 .ap-guide-submit:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(255, 138, 42, 0.4);
+  filter: brightness(1.08);
   transform: translateY(-1px);
 }
 .ap-guide-submit:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
 }
-
 .ap-guide-hint {
-  font-size: 12px;
-  color: var(--ap-muted);
   margin-top: 8px;
-  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  color: var(--ap-faint);
 }
 
-/* ── Guide skeleton loading ── */
 .ap-guide-skeleton {
   display: flex;
   flex-direction: column;
@@ -715,17 +815,16 @@
 .ap-guide-skeleton__line {
   height: 12px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
   animation: apPulse 1.4s ease-in-out infinite;
 }
 
-/* ── Guide result ── */
 .ap-guide-card {
   margin-top: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 138, 42, 0.22);
-  background: rgba(255, 255, 255, 0.03);
   padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 138, 42, 0.25);
+  background: rgba(8, 5, 20, 0.45);
 }
 .ap-guide-card__head {
   display: flex;
@@ -736,31 +835,31 @@
 }
 .ap-guide-card__title {
   font-family: "Syne", sans-serif;
-  font-size: 17px;
-  font-weight: 700;
-  color: #fff;
+  font-size: 19px;
+  font-weight: 800;
   line-height: 1.2;
+  color: #fff;
 }
 .ap-guide-card__reset {
-  background: none;
-  border: none;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 138, 42, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 138, 42, 0.08);
   color: var(--ap-orange);
   font-family: "DM Sans", sans-serif;
   font-size: 12px;
   font-weight: 700;
-  cursor: pointer;
   white-space: nowrap;
-  padding: 4px 0;
+  cursor: pointer;
 }
 .ap-guide-card__reset:hover {
-  color: var(--ap-orange-2);
+  background: rgba(255, 138, 42, 0.18);
 }
 .ap-guide-card__summary {
-  font-family: "DM Sans", sans-serif;
-  font-size: 13px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.75);
   margin-bottom: 16px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
 }
 .ap-guide-section {
   margin-bottom: 14px;
@@ -769,102 +868,230 @@
   margin-bottom: 0;
 }
 .ap-guide-section__label {
+  margin-bottom: 6px;
   font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ap-orange-2);
-  margin-bottom: 5px;
-  font-family: "DM Sans", sans-serif;
 }
 .ap-guide-section__body {
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.55;
-  color: rgba(255, 255, 255, 0.88);
-  font-family: "DM Sans", sans-serif;
+  color: var(--ap-text);
 }
 .ap-guide-section__list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 .ap-guide-section__list-item {
   display: flex;
   gap: 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.88);
-  font-family: "DM Sans", sans-serif;
+  color: var(--ap-text);
 }
 .ap-guide-section__list-item span {
-  color: rgba(255, 138, 42, 0.5);
   flex-shrink: 0;
+  color: var(--ap-orange);
 }
-
 .ap-guide-error {
   margin-top: 12px;
   padding: 10px 14px;
   border-radius: 12px;
   background: rgba(255, 77, 109, 0.1);
-  border: 1px solid rgba(255, 77, 109, 0.25);
+  border: 1px solid rgba(255, 77, 109, 0.28);
   font-size: 13px;
-  color: rgba(255, 160, 180, 0.9);
-  font-family: "DM Sans", sans-serif;
+  color: #ffb3c1;
 }
 
-/* ── Tablet / large phone ──────────────────────────────────
-   Collapse to an icon-only circle whenever the viewport is
-   narrow enough that BookingPage's own tab bar switches to its
-   mobile layout (768px — see .sk-tab-bar in BookingPage.css).
-   The full "Atlas AI" label + "Open Atlas AI" hint roughly
-   doubled this widget's real footprint. Because the wrapper is
-   `position: fixed`, it always covers this same bottom-right
-   band of the viewport no matter what page content scrolls
-   underneath it — on BookingPage that band frequently lands on
-   the tab bar / destination field. Shrinking the FAB itself is
-   what actually reduces that overlap; nudging bottom/right
-   offsets alone does not, since the tab bar can scroll into any
-   offset. This was previously gated at 480px, which missed
-   common phone/small-tablet widths like ~726px where the
-   overlap was still fully visible.
-==================================================================== */
+/* ═════════════════════════════════════════════════════════════
+   CANCEL CARD (customer support)
+   ═════════════════════════════════════════════════════════════ */
+.ap-card {
+  margin: 2px 0 0 34px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(16, 11, 34, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  animation: apBubble 0.22s ease both;
+}
+.ap-card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
+}
+.ap-card__top svg {
+  color: var(--ap-orange-2);
+  flex-shrink: 0;
+}
+.ap-card__eyebrow {
+  font: 700 10px ui-monospace, Menlo, monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ap-orange-2);
+}
+.ap-card__trip {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.ap-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.8);
+}
+.ap-card__rows {
+  display: grid;
+  gap: 4px;
+}
+.ap-card__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ap-card__row b {
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.ap-card__row.is-refund b {
+  color: #34d399;
+}
+.ap-card__note {
+  font-size: 11.5px;
+  color: var(--ap-muted);
+}
+.ap-card__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ap-card__btn {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #fff;
+  font: 700 12.5px "DM Sans", sans-serif;
+  cursor: pointer;
+}
+.ap-card__btn:hover:not(:disabled) {
+  border-color: rgba(255, 138, 42, 0.6);
+}
+.ap-card__btn.is-danger {
+  border: 0;
+  background: #ff6b85;
+  color: var(--ap-ink);
+}
+.ap-card__btn.is-primary {
+  border: 0;
+  background: var(--ap-grad);
+  color: var(--ap-ink);
+}
+.ap-card__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ap-card__done {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #d1fae5;
+}
+.ap-card__done svg {
+  color: #34d399;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.ap-card__warn {
+  color: #ffd2a3;
+}
+
+/* ═════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═════════════════════════════════════════════════════════════ */
+
+/* Short windows: drop the mode description so the chat has room */
+@media (max-height: 720px) {
+  .ap-mode-hint {
+    display: none;
+  }
+  .ap-modebar {
+    padding-bottom: 10px;
+  }
+  .ap-header {
+    padding-top: 12px;
+    padding-bottom: 10px;
+  }
+}
+
+/* Tablet / phone: icon-only round FAB so it covers less of the page */
 @media (max-width: 768px) {
   .ap-fab-wrapper {
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
     right: 16px;
   }
-
   .ap-fab:not(.ap-fab--open) {
-    width: 48px;
+    width: 50px;
     padding: 0;
     justify-content: center;
   }
   .ap-fab:not(.ap-fab--open) .ap-fab__label {
     display: none;
   }
-  .ap-fab-hint {
-    display: none;
+  .ap-fab:active {
+    transform: scale(0.94);
+  }
+  /* Step aside while the site footer is on screen */
+  .ap-fab-wrapper.is-tucked {
+    transform: translateX(150%);
+    opacity: 0;
+    pointer-events: none;
   }
 }
 
-/* ── Mobile — narrow phones ── */
+/* Narrow phones: panel spans the width */
 @media (max-width: 480px) {
-  :root {
-    --ap-w: calc(100vw - 24px);
-  }
-
   .ap-panel {
+    left: 12px;
     right: 12px;
-    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-    max-height: min(var(--ap-h), calc(100dvh - var(--ap-nav-h) - 90px));
+    width: auto;
+    max-width: none;
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+    max-height: min(var(--ap-h), calc(100dvh - var(--ap-nav-h) - 96px));
   }
-
   .ap-nudge {
-    max-width: 180px;
+    max-width: 190px;
   }
+  .ap-card {
+    margin-left: 0;
+  }
+}
 
-  .ap-mode-hint {
-    padding: 8px 14px;
-    font-size: 11.5px;
+@media (prefers-reduced-motion: reduce) {
+  .ap-fab-wrapper,
+  .ap-fab,
+  .ap-fab__icon,
+  .ap-panel,
+  .ap-bubble,
+  .ap-nudge {
+    transition: none;
+    animation: none;
+  }
+  .ap-typing i,
+  .ap-status-dot.is-busy {
+    animation: none;
   }
 }

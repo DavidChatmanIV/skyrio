@@ -8,11 +8,10 @@ import React, {
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import Compass from "@/components/Atlas/Compass";
 import {
-  Bot,
   X,
-  MessageSquare,
   RotateCcw,
   ArrowUp,
+  ArrowRight,
   AlertTriangle,
   Sparkles,
   RefreshCw,
@@ -24,94 +23,6 @@ import {
 import "@/styles/AtlasPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
-
-/* FAB behaviour — desktop grows on hover, mobile gets its own compact
-   version and steps aside while the site footer is on screen. Layered on
-   top of AtlasPanel.css so nothing there needs to change. */
-const FAB_CSS = `
-.ap-fab-wrapper { transition: transform 0.25s ease, opacity 0.25s ease; }
-.ap-fab-wrapper .ap-fab { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-.ap-fab-wrapper .ap-fab__icon { transition: transform 0.2s ease; }
-.ap-fab-wrapper .ap-fab:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-.ap-inline-icon { display: inline-block; vertical-align: -2px; flex-shrink: 0; }
-
-@media (hover: hover) and (min-width: 769px) {
-  .ap-fab-wrapper .ap-fab:hover,
-  .ap-fab-wrapper .ap-fab:focus-visible {
-    transform: translateY(-2px) scale(1.07);
-    box-shadow: 0 16px 40px rgba(255, 138, 42, 0.5);
-  }
-  .ap-fab-wrapper .ap-fab:not(.ap-fab--open):hover .ap-fab__icon {
-    transform: rotate(-10deg) scale(1.08);
-  }
-}
-
-@media (max-width: 768px) {
-  /* The "Open Atlas AI" caption under the button is desktop-only */
-  .ap-fab-wrapper .ap-fab-hint { display: none; }
-  .ap-fab-wrapper .ap-fab:active { transform: scale(0.94); }
-  .ap-fab-wrapper.is-tucked {
-    transform: translateX(150%);
-    opacity: 0;
-    pointer-events: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ap-fab-wrapper, .ap-fab-wrapper .ap-fab, .ap-fab-wrapper .ap-fab__icon { transition: none; }
-}
-
-/* Replies: short paragraphs, bullet lists and bold, no raw ** marks */
-.ap-bubble__text p { margin: 0; }
-.ap-bubble__text p + p, .ap-bubble__text p + ul, .ap-bubble__text ul + p,
-.ap-bubble__text p + ol, .ap-bubble__text ol + p { margin-top: 8px; }
-.ap-bubble__text ul, .ap-bubble__text ol { margin: 0; padding-left: 18px; }
-.ap-bubble__text li + li { margin-top: 4px; }
-.ap-bubble__text li::marker { color: #ffb347; }
-.ap-bubble__text strong { color: #fff; font-weight: 800; }
-.ap-bubble--atlas .ap-bubble__text { white-space: normal; }
-
-/* "Atlas is thinking" dots while waiting for the first words */
-.ap-typing { display: inline-flex; gap: 4px; align-items: center; padding: 3px 0; }
-.ap-typing i { width: 6px; height: 6px; border-radius: 50%; background: #ff8a2a;
-  animation: apDot 1.2s ease-in-out infinite; }
-.ap-typing i:nth-child(2) { animation-delay: .15s; }
-.ap-typing i:nth-child(3) { animation-delay: .3s; }
-@keyframes apDot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
-
-.ap-error__retry { display: inline-flex; align-items: center; gap: 4px; }
-.ap-panel :focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
-
-/* Cancel card (customer support) */
-.ap-card { margin: 2px 0 0 34px; border-radius: 14px; overflow: hidden;
-  background: rgba(16,11,34,0.9); border: 1px solid rgba(255,255,255,0.12);
-  font-family: "DM Sans", sans-serif; color: #fff; animation: apBubble .22s ease; }
-.ap-card__top { display: flex; align-items: center; gap: 8px; padding: 10px 12px;
-  border-bottom: 1px dashed rgba(255,255,255,0.14); }
-.ap-card__top svg { color: #ffb347; flex-shrink: 0; }
-.ap-card__eyebrow { font: 700 10px ui-monospace, Menlo, monospace; letter-spacing: .16em;
-  text-transform: uppercase; color: #ffb347; }
-.ap-card__trip { font-size: 13px; font-weight: 800; line-height: 1.3; }
-.ap-card__body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px;
-  line-height: 1.5; color: rgba(255,255,255,0.8); }
-.ap-card__rows { display: grid; gap: 4px; }
-.ap-card__row { display: flex; justify-content: space-between; gap: 10px; }
-.ap-card__row b { color: #fff; font-variant-numeric: tabular-nums; }
-.ap-card__row.is-refund b { color: #34d399; }
-.ap-card__note { font-size: 11.5px; color: rgba(255,255,255,0.6); }
-.ap-card__btns { display: flex; gap: 6px; flex-wrap: wrap; }
-.ap-card__btn { min-height: 34px; padding: 0 12px; border-radius: 999px; display: inline-flex; align-items: center;
-  gap: 6px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff;
-  font: 700 12.5px "DM Sans", sans-serif; cursor: pointer; }
-.ap-card__btn:hover:not(:disabled) { border-color: rgba(255,138,42,0.6); }
-.ap-card__btn.is-danger { border: 0; background: #ff6b85; color: #1a0e06; }
-.ap-card__btn.is-primary { border: 0; background: linear-gradient(135deg,#ff8a2a,#ffb347); color: #1a0e06; }
-.ap-card__btn:disabled { opacity: .5; cursor: not-allowed; }
-.ap-card__done { display: flex; gap: 8px; align-items: flex-start; color: #d1fae5; }
-.ap-card__done svg { color: #34d399; flex-shrink: 0; margin-top: 2px; }
-.ap-card__warn { color: #ffd2a3; }
-.ap-spin { animation: apSpin .8s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .ap-typing i { animation: none; } }
-`;
 
 // Chat is kept for this browser tab, so moving between pages (or a
 // refresh) doesn't wipe the conversation.
@@ -268,29 +179,23 @@ function buildStarterPrompts(ctx) {
   return merged.slice(0, 4);
 }
 
-function RobotIcon() {
+// Same robot as the FAB and the landing page, so Atlas looks the same
+// everywhere.
+function RobotIcon({ size = 20 }) {
   return (
     <svg
-      width="20"
-      height="20"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
+      style={{ display: "block", flexShrink: 0 }}
     >
       <rect x="5.5" y="10" width="13" height="9.5" rx="2.5" />
       <rect x="8" y="5.5" width="8" height="5.5" rx="2" opacity=".9" />
-      <circle cx="10" cy="14" r="1.5" fill="#1a0d04" />
-      <circle cx="14" cy="14" r="1.5" fill="#1a0d04" />
-      <rect
-        x="10"
-        y="17"
-        width="4"
-        height="1.2"
-        rx=".6"
-        fill="#1a0d04"
-        opacity=".55"
-      />
+      <circle cx="10" cy="14" r="1.5" fill="#FFD060" />
+      <circle cx="14" cy="14" r="1.5" fill="#FFD060" />
       <line
         x1="12"
         y1="5.5"
@@ -323,6 +228,25 @@ function RobotIcon() {
   );
 }
 
+function ChatIcon({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" />
+    </svg>
+  );
+}
+
 function CompassIcon({ size = 14 }) {
   return (
     <svg
@@ -331,22 +255,32 @@ function CompassIcon({ size = 14 }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
       style={{ display: "block" }}
     >
       <circle cx="12" cy="12" r="10" />
-      <polygon
-        points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"
-        fill="currentColor"
-        opacity=".9"
-        stroke="none"
-      />
+      <path d="m16.2 7.8-2.1 6.3-6.3 2.1 2.1-6.3 6.3-2.1Z" />
     </svg>
   );
 }
+
+const MODES = {
+  chat: {
+    label: "Chat",
+    Icon: ChatIcon,
+    status: "Trip help & bookings",
+    hint: "Ask about your trip or get help with a booking. To search and book, use Book.",
+  },
+  compass: {
+    label: "Compass",
+    Icon: CompassIcon,
+    status: "City highlights",
+    hint: "Type a city to get the best time to go and top things to do. Nothing to book.",
+  },
+};
 
 // ─────────────────────────────────────────────────────────────
 // Cancel card — Atlas brings it up; the TRAVELER confirms.
@@ -664,7 +598,7 @@ function Bubble({ msg, onActionResolved }) {
       >
         {!isUser && (
           <div className="ap-bubble__avatar">
-            <Bot size={12} />
+            <RobotIcon size={13} />
           </div>
         )}
         <div className="ap-bubble__text">
@@ -718,6 +652,31 @@ export default function AtlasPanel() {
   // Mobile: step aside while the site footer is on screen
   const [footerInView, setFooterInView] = useState(false);
 
+  // ── Other parts of the site can open Atlas in a mode ──
+  // e.g. the landing page's "Open Compass" button:
+  //   window.dispatchEvent(new CustomEvent("skyrio:open-atlas",
+  //     { detail: { mode: "compass" } }))
+  useEffect(() => {
+    const onOpen = (e) => {
+      if (e.detail) e.detail.handled = true; // tells the sender it worked
+      const next = e.detail?.mode;
+      setMode(next === "compass" ? "compass" : "chat");
+      setOpen(true);
+    };
+    window.addEventListener("skyrio:open-atlas", onOpen);
+    return () => window.removeEventListener("skyrio:open-atlas", onOpen);
+  }, []);
+
+  // ── Esc closes the panel ──
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   useEffect(() => {
     let frame = 0;
     const check = () => {
@@ -747,6 +706,14 @@ export default function AtlasPanel() {
 
   useEffect(() => saveChat(messages), [messages]);
 
+  // Message box grows with the text (up to ~5 lines).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input, open, mode]);
+
   const starterPrompts = useMemo(
     () => buildStarterPrompts(atlasContext),
     [atlasContext]
@@ -762,6 +729,7 @@ export default function AtlasPanel() {
       clearPendingAtlasMessage();
     }, 350);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAtlasMessage]);
 
   // ── Observe DOM for open date picker ──
@@ -970,31 +938,34 @@ export default function AtlasPanel() {
     lastAskRef.current = "";
   }, []);
 
-  const headerLabel = atlasDestination
-    ? `Atlas · ${atlasDestination}`
-    : "Atlas";
+  const current = MODES[mode];
+  const statusText =
+    mode === "chat" && loading
+      ? "Thinking…"
+      : atlasDestination
+      ? `${current.status} · ${atlasDestination}`
+      : current.status;
   const showStarters = messages.length === 0 && !loading;
 
   return (
     <>
       {/* ── Chat / Compass Panel ── */}
       {open && (
-        <div className="ap-panel" role="dialog" aria-label="Atlas AI panel">
+        <div
+          className="ap-panel"
+          role="dialog"
+          aria-label="Atlas AI"
+          data-mode={mode}
+        >
           <div className="ap-header">
-            <div className="ap-header__left">
-              <div className="ap-header__avatar">
-                <Bot size={16} />
-              </div>
-              <div>
-                <div className="ap-header__name">{headerLabel}</div>
-                <div className="ap-header__status">
-                  <span className="ap-status-dot" />
-                  {mode === "chat"
-                    ? loading
-                      ? "Thinking…"
-                      : "Ready"
-                    : "Ready"}
-                </div>
+            <div className="ap-header__avatar">
+              <RobotIcon size={18} />
+            </div>
+            <div className="ap-header__id">
+              <div className="ap-header__name">Atlas</div>
+              <div className="ap-header__status">
+                <span className={`ap-status-dot${loading ? " is-busy" : ""}`} />
+                <span className="ap-header__statusText">{statusText}</span>
               </div>
             </div>
             <div className="ap-header__actions">
@@ -1003,8 +974,8 @@ export default function AtlasPanel() {
                   type="button"
                   className="ap-icon-btn"
                   onClick={clearChat}
-                  title="Clear chat"
-                  aria-label="Clear chat"
+                  title="Start a new chat"
+                  aria-label="Start a new chat"
                 >
                   <RotateCcw size={14} />
                 </button>
@@ -1016,58 +987,31 @@ export default function AtlasPanel() {
                 title="Close"
                 aria-label="Close Atlas"
               >
-                <X size={15} />
+                <X size={16} />
               </button>
             </div>
           </div>
 
-          {/* ── Mode tabs ── */}
-          <div className="ap-tabs" role="tablist" aria-label="Atlas mode">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "chat"}
-              className={`ap-tab${mode === "chat" ? " ap-tab--active" : ""}`}
-              onClick={() => setMode("chat")}
-            >
-              Chat
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "compass"}
-              className={`ap-tab${mode === "compass" ? " ap-tab--active" : ""}`}
-              onClick={() => setMode("compass")}
-            >
-              <CompassIcon size={13} />
-              Compass
-            </button>
-          </div>
-
-          {/* ── Mode hint — clarifies what each tab is for ── */}
-          <div className="ap-mode-hint" key={mode}>
-            {mode === "chat" ? (
-              <>
-                <span className="ap-mode-hint__icon" aria-hidden="true">
-                  <MessageSquare size={14} />
-                </span>
-                <span>
-                  Ask about your trip, or get help with a booking. Atlas can
-                  bring up a cancellation for you to confirm. To search and
-                  book, use Book.
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="ap-mode-hint__icon" aria-hidden="true">
-                  <CompassIcon size={14} />
-                </span>
-                <span>
-                  Quick highlights for any city — best time to go, top things to
-                  do, no booking needed.
-                </span>
-              </>
-            )}
+          {/* ── Mode switch — pill style, like the main nav ── */}
+          <div className="ap-modebar">
+            <div className="ap-seg" role="tablist" aria-label="Atlas mode">
+              {Object.entries(MODES).map(([key, m]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === key}
+                  className={`ap-seg__btn${mode === key ? " is-active" : ""}`}
+                  onClick={() => setMode(key)}
+                >
+                  <m.Icon size={14} />
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="ap-mode-hint" key={mode}>
+              {current.hint}
+            </p>
           </div>
 
           {mode === "chat" ? (
@@ -1075,12 +1019,7 @@ export default function AtlasPanel() {
               <div className="ap-messages">
                 {showStarters && (
                   <div className="ap-starters">
-                    <div className="ap-starters__label">
-                      Ask Atlas anything about your trip
-                    </div>
-                    <div className="ap-starters__sublabel">
-                      Tap one to start, or type your own question.
-                    </div>
+                    <div className="ap-starters__label">Try asking</div>
                     {starterPrompts.map((prompt) => (
                       <button
                         key={prompt}
@@ -1088,7 +1027,8 @@ export default function AtlasPanel() {
                         className="ap-starter-btn"
                         onClick={() => sendMessage(prompt)}
                       >
-                        {prompt}
+                        <span>{prompt}</span>
+                        <ArrowRight size={14} aria-hidden="true" />
                       </button>
                     ))}
                   </div>
@@ -1103,7 +1043,7 @@ export default function AtlasPanel() {
                 {error && (
                   <div className="ap-error" role="alert">
                     <AlertTriangle size={14} className="ap-inline-icon" />{" "}
-                    {error}
+                    <span>{error}</span>
                     {lastAskRef.current ? (
                       <button
                         type="button"
@@ -1127,45 +1067,42 @@ export default function AtlasPanel() {
               </div>
 
               <div className="ap-input-wrap">
-                <textarea
-                  ref={inputRef}
-                  className="ap-input"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask Atlas about your trip…"
-                  aria-label="Message Atlas"
-                  maxLength={2000}
-                  rows={1}
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  className={`ap-send${
-                    input.trim() && !loading ? " ap-send--active" : ""
-                  }`}
-                  onClick={() => sendMessage()}
-                  disabled={!input.trim() || loading}
-                  aria-label="Send"
-                >
-                  {loading ? (
-                    <span className="ap-send__spinner" />
-                  ) : (
-                    <ArrowUp size={16} />
-                  )}
-                </button>
-              </div>
-
-              <div className="ap-footer">
-                Atlas can make mistakes. Check prices and details on Book before
-                you pay.
+                <div className="ap-composer">
+                  <textarea
+                    ref={inputRef}
+                    className="ap-input"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ask Atlas about your trip…"
+                    aria-label="Message Atlas"
+                    maxLength={2000}
+                    rows={1}
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    className={`ap-send${
+                      input.trim() && !loading ? " ap-send--active" : ""
+                    }`}
+                    onClick={() => sendMessage()}
+                    disabled={!input.trim() || loading}
+                    aria-label="Send"
+                  >
+                    {loading ? (
+                      <span className="ap-send__spinner" />
+                    ) : (
+                      <ArrowUp size={16} />
+                    )}
+                  </button>
+                </div>
+                <div className="ap-footer">
+                  Atlas can make mistakes. Check prices on Book before you pay.
+                </div>
               </div>
             </>
           ) : (
             <div className="ap-guide-wrap">
-              <div className="ap-guide-intro">
-                Just want the highlights, not a booking? Type a city below.
-              </div>
               <Compass />
             </div>
           )}
@@ -1173,7 +1110,6 @@ export default function AtlasPanel() {
       )}
 
       {/* ── FAB — hidden when date picker is open ── */}
-      <style>{FAB_CSS}</style>
       {!pickerActive && (
         <div
           className={`ap-fab-wrapper${
@@ -1189,10 +1125,11 @@ export default function AtlasPanel() {
             className={`ap-fab${open ? " ap-fab--open" : ""}`}
             onClick={() => setOpen((v) => !v)}
             aria-label={open ? "Close Atlas" : "Open Atlas"}
+            aria-expanded={open}
           >
             {open ? (
               <span className="ap-fab__icon">
-                <X size={16} />
+                <X size={18} />
               </span>
             ) : (
               <>
@@ -1203,7 +1140,6 @@ export default function AtlasPanel() {
               </>
             )}
           </button>
-          {!open && <span className="ap-fab-hint">Open Atlas AI</span>}
         </div>
       )}
     </>

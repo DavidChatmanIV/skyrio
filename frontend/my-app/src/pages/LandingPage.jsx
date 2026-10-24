@@ -26,6 +26,7 @@ import { apiUrl } from "@/lib/api";
 
 import SavedExcursions from "../components/excursions/SavedExcursions";
 import UpcomingBookings from "../components/dashboard/UpcomingBookings";
+import AtlasShowcase from "../components/landing/AtlasShowcase";
 import XPBadgeCard from "./passport/XPBadgeCard";
 
 const { Option } = Select;
@@ -231,59 +232,6 @@ const TRUST_SIGNALS = [
   "Live prices before you pay",
 ];
 
-/**
- * Atlas has two modes:
- *  - Chat: plans, prices, and books (flights/hotels), handles budget & cancellations
- *  - Compass: quick destination highlights, no booking required
- * The feature list below is ordered so both modes get explained clearly,
- * rather than reading as an all-booking feature list.
- */
-const ATLAS_FEATURES = [
-  {
-    iconKey: "brain",
-    title: "Understands natural language",
-    desc: "Just tell Atlas what you want — no dropdowns, no filters.",
-  },
-  {
-    iconKey: "bolt",
-    title: "Builds your plan for you",
-    desc: "Flights, hotels, and a budget breakdown in one place.",
-  },
-  {
-    iconKey: "compass",
-    title: "Or just get the highlights",
-    desc: "Switch to Compass for a quick city snapshot — best time to visit, top things to do. No booking required.",
-  },
-  {
-    iconKey: "target",
-    title: "Learns your travel style",
-    desc: "The more you travel with Skyrio, the smarter Atlas gets.",
-  },
-  {
-    iconKey: "lock",
-    title: "Books it too",
-    desc: "Atlas doesn't just suggest — it takes you all the way to confirmed.",
-  },
-  {
-    iconKey: "headset",
-    title: "Handles the unexpected, too",
-    desc: "Need to cancel, get a refund, or change a flight? Atlas is your 24/7 customer service — no waiting on hold.",
-  },
-];
-
-const ATLAS_MODES = [
-  {
-    iconKey: "chat",
-    title: "Chat",
-    desc: "Plan, price, and book flights + hotels. Cancel or change a trip anytime.",
-  },
-  {
-    iconKey: "compass",
-    title: "Compass",
-    desc: "Type a city, get the highlights — best time to visit, top things to do. Nothing to book.",
-  },
-];
-
 const PROFILE_PERKS = [
   {
     iconKey: "xp",
@@ -323,37 +271,6 @@ const FAQS = [
   {
     q: "Is my payment information secure?",
     a: "Yes. Payments are handled by Stripe. Your card details go straight to Stripe and aren't stored on Skyrio's servers.",
-  },
-];
-
-// Example conversation shown on the landing page. Kept free of specific
-// prices or cancellation promises — those depend on the real booking.
-const ATLAS_CHAT_INTRO = (homeCity) => [
-  {
-    id: 1,
-    from: "user",
-    text: "I want to go somewhere warm in March, budget around $1,800.",
-  },
-  {
-    id: 2,
-    from: "atlas",
-    text: `Good timing. A few warm places fit that budget from ${homeCity}. I'll pull live flight and hotel prices so you can compare them side by side.`,
-  },
-  { id: 3, from: "user", text: "Can you find a hotel near the beach?" },
-  {
-    id: 4,
-    from: "atlas",
-    text: "Sure. I'll show beachfront hotels that fit what's left of your budget, so you can pick the one you like.",
-  },
-  {
-    id: 5,
-    from: "user",
-    text: "What if something comes up and I need to cancel later?",
-  },
-  {
-    id: 6,
-    from: "atlas",
-    text: "Every flight and hotel has its own cancellation rules, so check the policy on yours before you pay. If you need to cancel later, I can help you with it.",
   },
 ];
 
@@ -547,179 +464,6 @@ function SkyDial({ period, meta, now }) {
 const normalizePrompt = (v) => String(v || "").trim();
 
 const ICONS = {
-  robot: ({ size = 18 }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-      style={{ display: "block", flexShrink: 0 }}
-    >
-      <rect x="5.5" y="10" width="13" height="9.5" rx="2.5" />
-      <rect x="8" y="5.5" width="8" height="5.5" rx="2" opacity=".9" />
-      <circle cx="10" cy="14" r="1.5" fill="#FFD060" />
-      <circle cx="14" cy="14" r="1.5" fill="#FFD060" />
-      <rect
-        x="10"
-        y="17"
-        width="4"
-        height="1.2"
-        rx=".6"
-        fill="#1a0d04"
-        opacity=".55"
-      />
-      <line
-        x1="12"
-        y1="5.5"
-        x2="12"
-        y2="3.5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx="12" cy="3" r="1.3" />
-      <line
-        x1="5.5"
-        y1="13"
-        x2="3.5"
-        y2="13"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <line
-        x1="18.5"
-        y1="13"
-        x2="20.5"
-        y2="13"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  ),
-  brain: () => (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <path d="M9.5 2a4.5 4.5 0 0 1 4.5 4.5v.5" />
-      <path d="M14 7a4 4 0 0 1 4 4v.5a3.5 3.5 0 0 1-3.5 3.5H14" />
-      <path d="M9.5 2A3.5 3.5 0 0 0 6 5.5V6a4 4 0 0 0 2 3.46" />
-      <path d="M8 9.5A3.5 3.5 0 0 0 4.5 13v.5A3.5 3.5 0 0 0 8 17h.5" />
-      <path d="M14.5 15H15a3 3 0 0 1 3 3v1" />
-      <path d="M8.5 15A3.5 3.5 0 0 0 5 18.5V20" />
-      <path d="M9 17v4" />
-      <path d="M15 17v4" />
-      <path d="M9 12h6" />
-    </svg>
-  ),
-  bolt: () => (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <polygon
-        points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"
-        fill="currentColor"
-        opacity=".9"
-        stroke="none"
-      />
-    </svg>
-  ),
-  target: () => (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-      <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
-    </svg>
-  ),
-  lock: () => (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      <circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none" />
-    </svg>
-  ),
-  headset: () => (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <path d="M3 13a9 9 0 0 1 18 0" />
-      <path d="M21 13v4a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z" />
-      <path d="M3 13v4a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
-    </svg>
-  ),
-  compass: () => (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <polygon
-        points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"
-        fill="currentColor"
-        opacity=".9"
-        stroke="none"
-      />
-    </svg>
-  ),
   xp: ({ size = 18 }) => (
     <svg
       width={size}
@@ -1567,71 +1311,6 @@ const INJECTED_CSS = `
 .sk-skeleton--short  { width:55%; }
 .sk-skeleton--btn    { height:34px; width:110px; margin-top:16px; border-radius:999px; }
 
-.sk-atlas { padding:0 24px 80px; max-width:1100px; margin:0 auto; }
-.sk-atlas__head { text-align:center; margin-bottom:48px; }
-.sk-atlas__eyebrow { display:inline-flex; align-items:center; gap:6px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.25); border-radius:999px; padding:5px 16px; font-size:12px; font-weight:500; letter-spacing:0.04em; color:#ff8a2a; margin-bottom:18px; }
-.sk-atlas__title { font-family:"Syne",sans-serif!important; font-size:clamp(28px,4.5vw,42px)!important; font-weight:800!important; letter-spacing:-0.02em!important; color:#fff!important; margin:0 0 14px!important; line-height:1.1!important; }
-.sk-atlas__name { background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
-.sk-atlas__sub { font-size:15px; color:rgba(255,255,255,0.6); max-width:480px; margin:0 auto; line-height:1.7; }
-
-.sk-atlas__modes {
-  display:flex; gap:12px; justify-content:center; flex-wrap:wrap;
-  margin:24px auto 0; max-width:560px;
-}
-.sk-atlas__mode-card {
-  flex:1; min-width:220px; display:flex; gap:12px; align-items:flex-start;
-  text-align:left; padding:16px 18px;
-  background:rgba(255,138,42,0.06); border:1px solid rgba(255,138,42,0.22);
-  border-radius:14px; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-  transition:border-color 0.2s, background 0.2s, transform 0.2s;
-}
-.sk-atlas__mode-card:hover {
-  border-color:rgba(255,138,42,0.4); background:rgba(255,138,42,0.1); transform:translateY(-2px);
-}
-.sk-atlas__mode-icon {
-  width:32px; height:32px; border-radius:9px;
-  background:rgba(255,138,42,0.14); border:1px solid rgba(255,138,42,0.28);
-  display:flex; align-items:center; justify-content:center; color:#ff8a2a; flex-shrink:0;
-}
-.sk-atlas__mode-title { font-family:"Syne",sans-serif; font-size:13.5px; font-weight:800; color:#fff; margin-bottom:4px; }
-.sk-atlas__mode-desc { font-size:12px; line-height:1.5; color:rgba(255,255,255,0.55); }
-@media(max-width:640px) {
-  .sk-atlas__modes { flex-direction:column; }
-  .sk-atlas__mode-card { min-width:100%; }
-}
-
-.sk-atlas__body { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
-.sk-atlas__chat { background:rgba(8,5,20,0.5); border:1px solid rgba(255,255,255,0.14); border-radius:20px; overflow:hidden; display:flex; flex-direction:column; transition:border-color 0.22s, box-shadow 0.22s; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
-.sk-atlas__chat:hover { border-color:rgba(255,255,255,0.22); box-shadow:0 8px 32px rgba(0,0,0,0.25); }
-.sk-atlas__chatHeader { display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); }
-.sk-atlas__avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%); display:flex; align-items:center; justify-content:center; color:#1a0d04; flex-shrink:0; box-shadow:0 4px 14px rgba(255,138,42,0.35); }
-.sk-atlas__bubbleAvatar { width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#ff8a2a 0%,#ffb347 100%); display:flex; align-items:center; justify-content:center; color:#1a0d04; flex-shrink:0; }
-.sk-atlas__chatName { font-family:"Syne",sans-serif; font-size:14px; font-weight:700; color:#fff; line-height:1; }
-.sk-atlas__chatStatus { display:flex; align-items:center; gap:5px; font-size:11px; color:rgba(255,255,255,0.35); margin-top:3px; }
-.sk-atlas__statusDot { width:6px; height:6px; border-radius:50%; background:#34d399; animation:sk-pulse 2s infinite; }
-.sk-atlas__messages { padding:20px; display:flex; flex-direction:column; gap:12px; min-height:220px; }
-.sk-atlas__bubble { display:flex; align-items:flex-end; gap:8px; animation:sk-bubbleIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
-@keyframes sk-bubbleIn { from{opacity:0;transform:translateY(8px) scale(0.95)} to{opacity:1;transform:translateY(0) scale(1)} }
-.sk-atlas__bubble--user { flex-direction:row-reverse; }
-.sk-atlas__bubbleText { max-width:78%; padding:10px 14px; border-radius:14px; font-size:13px; line-height:1.5; }
-.sk-atlas__bubble--atlas .sk-atlas__bubbleText { background:rgba(255,138,42,0.14); border:1px solid rgba(255,138,42,0.25); color:rgba(255,255,255,0.9); border-bottom-left-radius:4px; }
-.sk-atlas__bubble--user .sk-atlas__bubbleText { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:rgba(255,255,255,0.65); border-bottom-right-radius:4px; }
-.sk-atlas__typing { display:flex; align-items:center; gap:4px; padding:12px 16px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.22); border-radius:14px; border-bottom-left-radius:4px; }
-.sk-atlas__typing span { width:6px; height:6px; border-radius:50%; background:#ff8a2a; animation:sk-typing 1.2s ease infinite; }
-.sk-atlas__typing span:nth-child(2){animation-delay:0.2s} .sk-atlas__typing span:nth-child(3){animation-delay:0.4s}
-@keyframes sk-typing { 0%,60%,100%{transform:translateY(0);opacity:0.4} 30%{transform:translateY(-5px);opacity:1} }
-.sk-atlas__chatFooter { padding:14px 20px; border-top:1px solid rgba(255,255,255,0.08); display:flex; gap:10px; align-items:center; }
-.sk-atlas__fakeInput { flex:1; padding:9px 14px; border-radius:10px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); font-size:12px; color:rgba(255,255,255,0.25); }
-.sk-atlas__fabHint { font-size:11px; font-weight:600; color:rgba(255,138,42,0.7); flex-shrink:0; text-align:center; line-height:1.35; }
-.sk-atlas__modeFootnote { padding:8px 20px 14px; font-size:10.5px; color:rgba(255,138,42,0.6); text-align:center; border-top:1px solid rgba(255,255,255,0.06); letter-spacing:0.01em; }
-.sk-atlas__features { display:flex; flex-direction:column; gap:12px; }
-.sk-atlas__feature { display:flex; gap:14px; align-items:flex-start; padding:16px 18px; background:rgba(8,5,20,0.45); border:1px solid rgba(255,255,255,0.12); border-radius:14px; transition:border-color 0.22s, transform 0.22s, background 0.22s; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
-.sk-atlas__feature:hover { border-color:rgba(255,138,42,0.35); transform:translateX(4px); background:rgba(255,138,42,0.08); }
-.sk-atlas__featureIcon { width:40px; height:40px; border-radius:10px; background:rgba(255,138,42,0.12); border:1px solid rgba(255,138,42,0.25); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#ff8a2a; }
-.sk-atlas__featureTitle { font-size:14px; font-weight:700; color:#fff; margin-bottom:3px; }
-.sk-atlas__featureDesc { font-size:12.5px; color:rgba(255,255,255,0.55); line-height:1.5; }
-@media(max-width:820px){.sk-atlas__body{grid-template-columns:1fr} .sk-atlas{padding:0 16px 60px} .sk-atlas__head{margin-bottom:32px}}
-
 .sk-profile-banner { margin:0 24px 80px; max-width:1100px; margin-left:auto; margin-right:auto; position:relative; border-radius:24px; overflow:hidden; background:rgba(8,5,20,0.45); border:1px solid rgba(255,138,42,0.28); padding:52px 48px; display:flex; align-items:center; justify-content:space-between; gap:32px; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
 .sk-profile-banner::before { content:""; position:absolute; inset:0; background:linear-gradient(135deg,rgba(124,58,237,0.18) 0%,rgba(255,138,42,0.12) 50%,rgba(236,72,153,0.12) 100%); pointer-events:none; }
 .sk-profile-banner__left { flex:1; position:relative; z-index:1; }
@@ -1817,20 +1496,6 @@ export default function LandingPage() {
   const [showFilters, setShowFilters] = useState(false);
 
   const suggestion = suggestions[activeIdx] ?? null;
-
-  const [visibleBubbles, setVisibleBubbles] = useState(1);
-  const atlasConversation = useMemo(
-    () => ATLAS_CHAT_INTRO(homeCity),
-    [homeCity]
-  );
-  useEffect(() => {
-    if (visibleBubbles >= atlasConversation.length) return;
-    const t = setTimeout(
-      () => setVisibleBubbles((v) => v + 1),
-      visibleBubbles === 1 ? 1400 : 1800
-    );
-    return () => clearTimeout(t);
-  }, [visibleBubbles, atlasConversation.length]);
 
   // Only the newest request may update the suggestion box. Without this, a
   // slow answer for "mia" can land after the answer for "miami" and replace it.
@@ -2539,122 +2204,8 @@ export default function LandingPage() {
 
           <div className="sk-divider" />
 
-          <Reveal tag="section" className="sk-atlas">
-            <div className="sk-atlas__head">
-              <div className="sk-atlas__eyebrow">
-                <Icon name="sparkle" size={11} /> Meet your travel companion
-              </div>
-              <h2 className="sk-atlas__title">
-                Say hello to <span className="sk-atlas__name">Atlas</span>
-              </h2>
-              <p className="sk-atlas__sub">
-                Atlas works two ways: chat with it to plan and book a trip end
-                to end, or open Compass for a quick snapshot of any city — no
-                booking required.
-              </p>
-
-              <div className="sk-atlas__modes">
-                {ATLAS_MODES.map((m) => (
-                  <div key={m.title} className="sk-atlas__mode-card">
-                    <div className="sk-atlas__mode-icon">
-                      <Icon name={m.iconKey} size={16} />
-                    </div>
-                    <div>
-                      <div className="sk-atlas__mode-title">{m.title}</div>
-                      <div className="sk-atlas__mode-desc">{m.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="sk-atlas__body">
-              <Reveal delay={1}>
-                <div className="sk-atlas__chat">
-                  <div className="sk-atlas__chatHeader">
-                    <div className="sk-atlas__avatar">
-                      <Icon name="robot" size={20} />
-                    </div>
-                    <div>
-                      <div className="sk-atlas__chatName">Atlas</div>
-                      <div className="sk-atlas__chatStatus">
-                        <span className="sk-atlas__statusDot" /> Example chat
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sk-atlas__messages">
-                    {atlasConversation.map((bubble, i) => {
-                      if (i >= visibleBubbles) return null;
-                      return (
-                        <div
-                          key={bubble.id}
-                          className={`sk-atlas__bubble sk-atlas__bubble--${bubble.from}`}
-                        >
-                          {bubble.from === "atlas" && (
-                            <div className="sk-atlas__bubbleAvatar">
-                              <Icon name="robot" size={13} />
-                            </div>
-                          )}
-                          <div className="sk-atlas__bubbleText">
-                            {bubble.text}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {visibleBubbles < atlasConversation.length &&
-                      atlasConversation[visibleBubbles]?.from === "atlas" && (
-                        <div className="sk-atlas__bubble sk-atlas__bubble--atlas">
-                          <div className="sk-atlas__bubbleAvatar">
-                            <Icon name="robot" size={13} />
-                          </div>
-                          <div className="sk-atlas__typing">
-                            <span />
-                            <span />
-                            <span />
-                          </div>
-                        </div>
-                      )}
-                  </div>
-                  <div className="sk-atlas__chatFooter">
-                    <div className="sk-atlas__fakeInput">
-                      Ask Atlas anything about your trip...
-                    </div>
-                    <div className="sk-atlas__fabHint">
-                      Open Atlas AI
-                      <span
-                        style={{
-                          display: "block",
-                          fontSize: "9px",
-                          opacity: 0.45,
-                          fontWeight: 400,
-                          marginTop: 1,
-                        }}
-                      >
-                        ↘ bottom right
-                      </span>
-                    </div>
-                  </div>
-                  <div className="sk-atlas__modeFootnote">
-                    Chat plans and books · Compass gives quick city highlights
-                  </div>
-                </div>
-              </Reveal>
-              <div className="sk-atlas__features">
-                {ATLAS_FEATURES.map((f, i) => (
-                  <Reveal key={f.title} delay={i + 1}>
-                    <div className="sk-atlas__feature">
-                      <div className="sk-atlas__featureIcon">
-                        <Icon name={f.iconKey} />
-                      </div>
-                      <div>
-                        <div className="sk-atlas__featureTitle">{f.title}</div>
-                        <div className="sk-atlas__featureDesc">{f.desc}</div>
-                      </div>
-                    </div>
-                  </Reveal>
-                ))}
-              </div>
-            </div>
-          </Reveal>
+          {/* Atlas intro — preview only; the real Atlas is the bottom-right button */}
+          <AtlasShowcase homeCity={homeCity} />
 
           <div className="sk-divider" />
 
