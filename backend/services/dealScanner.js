@@ -7,7 +7,9 @@
 
 import User from "../models/user.js";
 import DealSnapshot from "../models/DealSnapshot.js";
+import HotelSnapshot from "../models/HotelSnapshot.js";
 import { searchCheapestFare } from "../routes/api/flights/Liteapiflights.deals.js";
+import { searchCheapestStay } from "../routes/api/hotels/hotels.deals.js";
 import {
   DESTINATIONS,
   DEFAULT_ORIGINS,
@@ -18,6 +20,9 @@ const ENV = process.env.LITEAPI_ENV || "sandbox";
 const CONCURRENCY = Number(process.env.DEAL_SCAN_CONCURRENCY || 3);
 const MAX_SEARCHES = Number(process.env.DEAL_SCAN_MAX_SEARCHES || 150);
 const MAX_ORIGINS = Number(process.env.DEAL_SCAN_MAX_ORIGINS || 6);
+// Hotel prices for "Flight + hotel". One search per destination per trip
+// type (~40 per run). Set DEAL_SCAN_HOTELS=false to skip them.
+const SCAN_HOTELS = process.env.DEAL_SCAN_HOTELS !== "false";
 
 // ── Dates ─────────────────────────────────────────────────────
 const iso = (d) => d.toISOString().slice(0, 10);
@@ -66,6 +71,63 @@ async function runPool(tasks, limit) {
     }
   );
   await Promise.all(workers);
+}
+
+// Same check-in/check-out dates as the flights, so "flight + hotel" is one
+// real trip. Hotels don't depend on the origin: one row per destination.
+export async function scanHotels() {
+  let saved = 0;
+  let empty = 0;
+  let failed = 0;
+  const jobs = [];
+  for (const tripType of ["weekend", "getaway"]) {
+    const { departDate, returnDate } = tripDates(tripType);
+    for (const dest of DESTINATIONS) {
+      if (!dest.hotelCity || !dest.country) continue;
+      jobs.push({ dest, tripType, checkin: departDate, checkout: returnDate });
+    }
+  }
+
+  await runPool(
+    jobs.map(({ dest, tripType, checkin, checkout }) => async () => {
+      try {
+        const best = await searchCheapestStay({
+          cityName: dest.hotelCity,
+          countryCode: dest.country,
+          checkin,
+          checkout,
+        });
+        if (!best) {
+          empty++;
+          return;
+        }
+        await HotelSnapshot.findOneAndUpdate(
+          { destination: dest.code, tripType },
+          {
+            destination: dest.code,
+            tripType,
+            checkin,
+            checkout,
+            ...best,
+            env: ENV,
+            foundAt: new Date(),
+          },
+          { upsert: true, new: true }
+        );
+        saved++;
+      } catch (err) {
+        failed++;
+        console.warn(
+          `[DealScan] hotels ${dest.code} (${tripType}) failed:`,
+          err?.status || err?.message
+        );
+      }
+    }),
+    CONCURRENCY
+  );
+  console.log(
+    `[DealScan] hotels · saved ${saved} · no stays ${empty} · failed ${failed}`
+  );
 }
 
 let running = false;
@@ -136,6 +198,8 @@ export async function runDealScan() {
       }),
       CONCURRENCY
     );
+
+    if (SCAN_HOTELS) await scanHotels();
   } finally {
     running = false;
     console.log(

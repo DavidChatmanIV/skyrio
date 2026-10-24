@@ -8,13 +8,22 @@ import { apiUrl } from "@/lib/api";
 // Where To Next — "where can my budget take me from my home base?"
 // Prices come from the deal cache (refreshed every few hours), so every
 // price says when it was found, and tapping one runs a real live search.
+//
+// Two modes:
+//   Flight only    → round-trip fare, 1 traveler
+//   Flight + hotel → that fare + the cheapest well-rated hotel for the
+//                    same dates, 1 traveler and 1 room
 
 const TRIP_TYPES = [
   { key: "weekend", label: "Weekend trip", sub: "Fri–Sun" },
   { key: "getaway", label: "4-night getaway", sub: "Thu–Mon" },
 ];
+const MODES = [
+  { key: "flight", label: "Flight only" },
+  { key: "package", label: "Flight + hotel" },
+];
 const BUDGET_MIN = 100;
-const BUDGET_MAX = 1000;
+const BUDGET_MAX = 2500;
 const BUDGET_STEP = 25;
 
 function timeAgo(date) {
@@ -31,15 +40,24 @@ function shortDates(a, b) {
   return `${d1} – ${d2}`;
 }
 
+function nightsBetween(a, b) {
+  const n = Math.round(
+    (new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000
+  );
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const money = (n) => `$${Number(n).toLocaleString("en-US")}`;
+
 // Ticket-stub pin: "MIA | $142"
-function pinIcon(deal, { active, dim }) {
+function pinIcon(code, price, { active, dim }) {
   return L.divIcon({
     className: "",
     html: `<div class="wtn-pin${active ? " is-active" : ""}${
       dim ? " is-dim" : ""
     }">
-      <span class="wtn-pin__code">${deal.destination}</span>
-      <span class="wtn-pin__price">$${deal.price}</span>
+      <span class="wtn-pin__code">${code}</span>
+      <span class="wtn-pin__price">${money(price)}</span>
     </div>`,
     iconSize: null,
     iconAnchor: [34, 30],
@@ -62,6 +80,23 @@ const PlaneIcon = () => (
   </svg>
 );
 
+const BedIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M2 18V6M2 11h18a2 2 0 0 1 2 2v5M2 16h20" />
+    <circle cx="7" cy="8.5" r="1.8" />
+  </svg>
+);
+
 export default function WhereToNext({ homeCode, homeCity }) {
   const nav = useNavigate();
   const mapEl = useRef(null);
@@ -69,6 +104,7 @@ export default function WhereToNext({ homeCode, homeCity }) {
   const layerRef = useRef(null);
 
   const [tripType, setTripType] = useState("weekend");
+  const [mode, setMode] = useState("flight");
   const [budget, setBudget] = useState(300);
   const [warmOnly, setWarmOnly] = useState(false);
   const [view, setView] = useState("map");
@@ -76,6 +112,8 @@ export default function WhereToNext({ homeCode, homeCity }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [selected, setSelected] = useState(null);
+
+  const withHotel = mode === "package";
 
   // ── Load cached deals for this home base ──
   useEffect(() => {
@@ -96,12 +134,36 @@ export default function WhereToNext({ homeCode, homeCity }) {
     return () => controller.abort();
   }, [homeCode, tripType]);
 
+  // The number shown everywhere: the fare, or fare + hotel.
+  const priceOf = (d) => (withHotel ? d.tripTotal : d.price);
+
+  const allDeals = data?.deals || [];
   const deals = useMemo(() => {
-    const list = data?.deals || [];
-    return warmOnly ? list.filter((d) => d.tags?.includes("warm")) : list;
-  }, [data, warmOnly]);
-  const inBudget = deals.filter((d) => d.price <= budget);
+    let list = allDeals;
+    if (withHotel) list = list.filter((d) => d.tripTotal != null);
+    // Warm = the city's typical high is 75°F+ in the month of the trip.
+    if (warmOnly) list = list.filter((d) => d.climate?.warm);
+    return [...list].sort((a, b) =>
+      withHotel ? a.tripTotal - b.tripTotal : a.price - b.price
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, warmOnly, withHotel]);
+
+  const inBudget = deals.filter((d) => priceOf(d) <= budget);
   const hasDeals = deals.length > 0;
+  const noFares = !loading && allDeals.length === 0;
+  const noHotels =
+    !noFares && withHotel && !allDeals.some((d) => d.tripTotal != null);
+  const tripLabel =
+    tripType === "weekend" ? "weekend trips" : "4-night getaways";
+
+  // Switching to Flight + hotel: a flight-sized budget would hide every
+  // trip, so start it at a sensible trip-sized number.
+  const chooseMode = (next) => {
+    setMode(next);
+    setSelected(null);
+    if (next === "package" && budget < 700) setBudget(700);
+  };
 
   // ── Map: create once there are trips to show ──
   useEffect(() => {
@@ -128,30 +190,34 @@ export default function WhereToNext({ homeCode, homeCity }) {
     };
   }, [view, hasDeals]);
 
-  // ── Map: redraw pins when deals / budget / selection change ──
+  // ── Map: redraw pins when deals / budget / selection / mode change ──
   useEffect(() => {
     const layer = layerRef.current;
     if (!layer) return;
     layer.clearLayers();
     deals.forEach((deal) => {
+      const price = priceOf(deal);
       const marker = L.marker([deal.lat, deal.lng], {
-        icon: pinIcon(deal, {
+        icon: pinIcon(deal.destination, price, {
           active: selected?.destination === deal.destination,
-          dim: deal.price > budget,
+          dim: price > budget,
         }),
         keyboard: true,
-        title: `${deal.city}, $${deal.price}`,
-        zIndexOffset: deal.price <= budget ? 500 : 0,
+        title: `${deal.city}, ${money(price)}`,
+        zIndexOffset: price <= budget ? 500 : 0,
       });
       marker.on("click", () => setSelected(deal));
       marker.addTo(layer);
     });
-  }, [deals, budget, selected, view, hasDeals]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deals, budget, selected, view, hasDeals, withHotel]);
 
+  // Opens the booking page and runs the live search. Flight + hotel uses
+  // the booking page's package flow (flight first, then "find your stay").
   const seeLivePrice = (deal) => {
     const params = new URLSearchParams({
       tab: "Flights",
-      kind: "flight",
+      kind: withHotel ? "package" : "flight",
       from: deal.fromCode,
       fromName: deal.fromCode === homeCode ? homeCity : deal.fromCode,
       to: deal.destination,
@@ -169,23 +235,49 @@ export default function WhereToNext({ homeCode, homeCity }) {
       <div className="wtn__head">
         <div className="wtn__kicker">Where To Next</div>
         <h2 className="wtn__title">
-          Where can <span>${budget}</span> take you from {homeCode}?
+          Where can <span>{money(budget)}</span> take you from {homeCode}?
         </h2>
         <p className="wtn__sub">
-          The lowest round-trip fares Skyrio found in the last day, for one
-          traveler, including taxes and fees. Fares change often, so tap a trip
-          to see today's live price before you book.
+          {withHotel
+            ? "Round-trip flight plus a well-rated hotel for the same dates, for one traveler and one room, found by Skyrio in the last day. Prices change often, so tap a trip to see today's live prices before you book."
+            : "The lowest round-trip fares Skyrio found in the last day, for one traveler, including taxes and fees. Fares change often, so tap a trip to see today's live price before you book."}
         </p>
       </div>
 
       {data?.preview && (
         <div className="wtn__preview" role="note">
-          Preview: these are test fares while Skyrio finishes setup. They aren't
-          real prices yet.
+          Preview: these are test prices while Skyrio finishes setup. They
+          aren't real prices yet.
         </div>
       )}
 
       <div className="wtn__controls">
+        <div
+          className="wtn__toggle wtn__toggle--mode"
+          role="tablist"
+          aria-label="What to include"
+        >
+          {MODES.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              role="tab"
+              aria-selected={mode === m.key}
+              className={mode === m.key ? "is-on" : ""}
+              onClick={() => chooseMode(m.key)}
+            >
+              {m.key === "flight" ? (
+                <PlaneIcon />
+              ) : (
+                <>
+                  <PlaneIcon /> <BedIcon />
+                </>
+              )}{" "}
+              {m.label}
+            </button>
+          ))}
+        </div>
+
         <label className="wtn__budget">
           <span className="wtn__label">My budget</span>
           <input
@@ -195,9 +287,9 @@ export default function WhereToNext({ homeCode, homeCity }) {
             step={BUDGET_STEP}
             value={budget}
             onChange={(e) => setBudget(Number(e.target.value))}
-            aria-valuetext={`$${budget}`}
+            aria-valuetext={money(budget)}
           />
-          <strong>${budget}</strong>
+          <strong>{money(budget)}</strong>
         </label>
 
         <div className="wtn__chips">
@@ -215,6 +307,12 @@ export default function WhereToNext({ homeCode, homeCity }) {
             type="button"
             className={`wtn-chip${warmOnly ? " is-on" : ""}`}
             onClick={() => setWarmOnly((v) => !v)}
+            disabled={noFares}
+            title={
+              noFares
+                ? "Available once prices are loaded"
+                : "Places where the typical high is 75°F or warmer in the month of your trip"
+            }
           >
             Warm weather
           </button>
@@ -228,6 +326,8 @@ export default function WhereToNext({ homeCode, homeCity }) {
               role="tab"
               aria-selected={view === v}
               className={view === v ? "is-on" : ""}
+              disabled={noFares}
+              title={noFares ? "Available once prices are loaded" : undefined}
               onClick={() => {
                 setView(v);
                 setSelected(null);
@@ -244,16 +344,42 @@ export default function WhereToNext({ homeCode, homeCity }) {
           ? "Loading trips…"
           : failed
           ? "Couldn't load trips right now."
-          : deals.length === 0
-          ? ""
-          : `${inBudget.length} of ${deals.length} trips fit your budget`}
+          : hasDeals
+          ? `${inBudget.length} of ${deals.length} trips fit your budget`
+          : ""}
       </div>
 
-      {!hasDeals ? (
-        // No trips yet: a small note instead of a big empty map.
+      {loading ? null : noFares ? (
+        // No fares for this trip type yet: a small note, not a blank map.
         <div className="wtn__empty">
-          New fares from {homeCode} are added every few hours. Check back soon,
-          or tell Atlas your budget above.
+          No {tripLabel} from {homeCode} yet. New prices are added every few
+          hours, so check back soon, or tell Atlas your budget above.
+        </div>
+      ) : noHotels ? (
+        // Flights are in, hotel prices aren't yet.
+        <div className="wtn__empty">
+          Hotel prices for {tripLabel} aren't in yet. They're added every few
+          hours.{" "}
+          <button
+            type="button"
+            className="wtn__linkBtn"
+            onClick={() => chooseMode("flight")}
+          >
+            Show flights only
+          </button>
+        </div>
+      ) : !hasDeals ? (
+        // Prices exist, but the Warm weather filter hid them all.
+        <div className="wtn__empty">
+          None of the {tripLabel} from {homeCode} are usually 75°F or warmer at
+          that time of year.{" "}
+          <button
+            type="button"
+            className="wtn__linkBtn"
+            onClick={() => setWarmOnly(false)}
+          >
+            Show all trips
+          </button>
         </div>
       ) : view === "map" ? (
         <div className="wtn__mapWrap">
@@ -261,6 +387,7 @@ export default function WhereToNext({ homeCode, homeCity }) {
           {selected && (
             <DealSheet
               deal={selected}
+              withHotel={withHotel}
               homeCode={homeCode}
               budget={budget}
               onClose={() => setSelected(null)}
@@ -274,7 +401,7 @@ export default function WhereToNext({ homeCode, homeCity }) {
             <li key={d.destination}>
               <button
                 type="button"
-                className={`wtn-row${d.price > budget ? " is-dim" : ""}`}
+                className={`wtn-row${priceOf(d) > budget ? " is-dim" : ""}`}
                 onClick={() => seeLivePrice(d)}
               >
                 <span className="wtn-row__stub">
@@ -283,16 +410,22 @@ export default function WhereToNext({ homeCode, homeCity }) {
                 <span className="wtn-row__city">
                   {d.city}
                   <small>
-                    {shortDates(d.departDate, d.returnDate)} · found{" "}
+                    {shortDates(d.departDate, d.returnDate)}
+                    {d.climate ? ` · usually ${d.climate.avgHighF}°F` : ""}
+                    {withHotel && d.hotel ? ` · ${d.hotel.name}` : ""} · found{" "}
                     {timeAgo(d.foundAt)}
                   </small>
                 </span>
                 <span className="wtn-row__price">
-                  ${d.price}
-                  {d.savesVsHome > 0 && (
-                    <small>
-                      ${d.savesVsHome} less than {homeCode}
-                    </small>
+                  {money(priceOf(d))}
+                  {withHotel ? (
+                    <small className="is-plain">flight + hotel</small>
+                  ) : (
+                    d.savesVsHome > 0 && (
+                      <small>
+                        ${d.savesVsHome} less than {homeCode}
+                      </small>
+                    )
                   )}
                 </span>
               </button>
@@ -304,8 +437,18 @@ export default function WhereToNext({ homeCode, homeCity }) {
   );
 }
 
-function DealSheet({ deal, homeCode, budget, onClose, onGo }) {
+function DealSheet({ deal, withHotel, homeCode, budget, onClose, onGo }) {
   const fromOther = deal.fromCode !== homeCode;
+  const hotel = withHotel ? deal.hotel : null;
+  const shown = hotel ? deal.tripTotal : deal.price;
+  const nights = nightsBetween(deal.departDate, deal.returnDate);
+  const stops =
+    deal.stops == null
+      ? null
+      : deal.stops === 0
+      ? "Nonstop"
+      : `${deal.stops} stop${deal.stops > 1 ? "s" : ""}`;
+
   return (
     <div className="wtn-sheet" role="dialog" aria-label={`${deal.city} trip`}>
       <button
@@ -321,31 +464,74 @@ function DealSheet({ deal, homeCode, budget, onClose, onGo }) {
       </div>
       <div className="wtn-sheet__city">{deal.city}</div>
       <div className="wtn-sheet__price">
-        ${deal.price} <span>round trip · found {timeAgo(deal.foundAt)}</span>
+        {money(shown)}{" "}
+        <span>
+          {hotel ? "total · 1 traveler, 1 room" : "round trip"} · found{" "}
+          {timeAgo(deal.foundAt)}
+        </span>
       </div>
       <div className="wtn-sheet__meta">
         {shortDates(deal.departDate, deal.returnDate)}
-        {deal.stops != null &&
-          ` · ${
-            deal.stops === 0
-              ? "Nonstop"
-              : `${deal.stops} stop${deal.stops > 1 ? "s" : ""}`
-          }`}
-        {deal.airline && ` · ${deal.airline}`}
+        {nights ? ` · ${nights} night${nights === 1 ? "" : "s"}` : ""}
       </div>
-      {fromOther && deal.savesVsHome > 0 && (
+      {deal.climate && (
+        <div className="wtn-sheet__meta">
+          Usually around {deal.climate.avgHighF}°F in {deal.climate.month}{" "}
+          (typical high, not a forecast)
+        </div>
+      )}
+
+      {hotel ? (
+        <div className="wtn-sheet__parts">
+          <div className="wtn-sheet__part">
+            <span>
+              <PlaneIcon /> Flight
+              <small>
+                {[stops, deal.airline].filter(Boolean).join(" · ") ||
+                  "Round trip"}
+              </small>
+            </span>
+            <strong>{money(deal.price)}</strong>
+          </div>
+          <div className="wtn-sheet__part">
+            <span>
+              <BedIcon /> {hotel.name}
+              <small>
+                {[
+                  hotel.stars ? `${hotel.stars}-star` : null,
+                  hotel.rating ? `${hotel.rating}/10 guest rating` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </small>
+            </span>
+            <strong>{money(hotel.price)}</strong>
+          </div>
+          {hotel.payAtHotel > 0 && (
+            <div className="wtn-sheet__tip is-over">
+              Plus about {money(hotel.payAtHotel)} in fees paid at the hotel.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="wtn-sheet__meta">
+          {[stops, deal.airline].filter(Boolean).join(" · ")}
+        </div>
+      )}
+
+      {!hotel && fromOther && deal.savesVsHome > 0 && (
         <div className="wtn-sheet__tip">
           When we checked, flying from {deal.fromCode} was about $
           {deal.savesVsHome} less than from {homeCode}.
         </div>
       )}
-      {deal.price > budget && (
+      {shown > budget && (
         <div className="wtn-sheet__tip is-over">
-          ${deal.price - budget} over your budget.
+          {money(shown - budget)} over your budget.
         </div>
       )}
       <button type="button" className="wtn-sheet__go" onClick={onGo}>
-        See live price
+        {hotel ? "See live prices" : "See live price"}
       </button>
     </div>
   );

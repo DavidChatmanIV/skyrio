@@ -1,13 +1,20 @@
-// GET /api/deals?origin=EWR&tripType=weekend&maxPrice=300
+// GET /api/deals?origin=EWR&tripType=weekend
 //
-// Reads ONLY from the DealSnapshot cache — fast, and no LiteAPI calls.
-// For each destination it returns the cheapest fare across the home base
-// and its nearby airports (EWR / JFK / LGA, etc.), plus how much that
-// saves compared with flying from the home base itself.
+// Reads ONLY from the deal cache (DealSnapshot + HotelSnapshot) — fast,
+// and no LiteAPI calls. For each destination it returns:
+//   - the cheapest flight across the home base and its nearby airports
+//     (EWR / JFK / LGA, etc.), plus how much less that was than the home base
+//   - the cheapest well-rated hotel for the SAME dates, when one was found,
+//     so the page can show "Flight + hotel" as one real trip.
 
 import express from "express";
 import DealSnapshot from "../models/DealSnapshot.js";
-import { DESTINATION_BY_CODE, airportGroupFor } from "../config/dealRoutes.js";
+import HotelSnapshot from "../models/HotelSnapshot.js";
+import {
+  DESTINATION_BY_CODE,
+  airportGroupFor,
+  climateFor,
+} from "../config/dealRoutes.js";
 
 const router = express.Router();
 
@@ -20,16 +27,23 @@ router.get("/", async (req, res) => {
       .toUpperCase()
       .slice(0, 3);
     const tripType = req.query.tripType === "getaway" ? "getaway" : "weekend";
-    const maxPrice = Number(req.query.maxPrice) || null;
     const group = airportGroupFor(origin);
-
     const since = new Date(Date.now() - MAX_AGE_HOURS * 3600 * 1000);
-    const rows = await DealSnapshot.find({
-      origin: { $in: group },
-      tripType,
-      env: ENV,
-      foundAt: { $gte: since },
-    }).lean();
+
+    const [rows, hotelRows] = await Promise.all([
+      DealSnapshot.find({
+        origin: { $in: group },
+        tripType,
+        env: ENV,
+        foundAt: { $gte: since },
+      }).lean(),
+      HotelSnapshot.find({
+        tripType,
+        env: ENV,
+        foundAt: { $gte: since },
+      }).lean(),
+    ]);
+    const hotelByDest = new Map(hotelRows.map((h) => [h.destination, h]));
 
     // destination → { home: row from home airport, best: cheapest row in group }
     const byDest = new Map();
@@ -44,26 +58,46 @@ router.get("/", async (req, res) => {
     for (const [code, { home, best }] of byDest) {
       const place = DESTINATION_BY_CODE[code];
       if (!place || !best) continue;
-      const savings =
+      const lessThanHome =
         home && best.origin !== origin
           ? Math.round(home.price - best.price)
           : 0;
+
+      // Only pair a hotel whose dates match this flight exactly.
+      const h = hotelByDest.get(code);
+      const hotel =
+        h && h.checkin === best.departDate && h.checkout === best.returnDate
+          ? {
+              name: h.hotelName,
+              stars: h.stars,
+              rating: h.rating,
+              price: Math.round(h.price),
+              payAtHotel: Math.round(h.payAtHotel || 0),
+              foundAt: h.foundAt,
+            }
+          : null;
+
       deals.push({
         destination: code,
         city: place.city,
         lat: place.lat,
         lng: place.lng,
         tags: place.tags,
+        // Typical high for the trip's month — drives "Warm weather".
+        climate: climateFor(code, best.departDate),
         price: Math.round(best.price),
         currency: best.currency,
         fromCode: best.origin,
-        savesVsHome: savings > 0 ? savings : 0,
+        savesVsHome: lessThanHome > 0 ? lessThanHome : 0,
         airline: best.airline,
         stops: best.stops,
         departDate: best.departDate,
         returnDate: best.returnDate,
         foundAt: best.foundAt,
-        fitsBudget: maxPrice ? best.price <= maxPrice : true,
+        hotel,
+        // Flight + hotel, 1 traveler and 1 room. Fees paid at the hotel
+        // are NOT in this number; the page lists them separately.
+        tripTotal: hotel ? Math.round(best.price) + hotel.price : null,
       });
     }
     deals.sort((a, b) => a.price - b.price);
