@@ -2436,6 +2436,30 @@ function StaysForm({
     [onDatesChange]
   );
 
+  // Choose which hotels to price so every star level gets a fair share
+  // (5★, 4★, 3★, then the rest), keeping LiteAPI's order inside each level.
+  // Without this, the first 15 found could all be 2–3★, and "4★ and up"
+  // would show almost nothing.
+  function pickHotelMix(list, max) {
+    if (list.length <= max) return list;
+    const levels = [5, 4, 3, "other"];
+    const groups = Object.fromEntries(levels.map((l) => [l, []]));
+    for (const h of list) {
+      const s = Math.floor(Number(h.stars));
+      groups[s >= 3 && s <= 5 ? s : "other"].push(h);
+    }
+    const picked = [];
+    // Round-robin across levels until full, so no level crowds out the rest.
+    while (picked.length < max && levels.some((l) => groups[l].length)) {
+      for (const l of levels) {
+        if (picked.length >= max) break;
+        const next = groups[l].shift();
+        if (next) picked.push(next);
+      }
+    }
+    return picked;
+  }
+
   // opts lets a prefilled link run the search right away with its own
   // values (state updates aren't visible until the next render), and
   // `hotel` searches just one hotel — the Sync Together group's hotel.
@@ -2483,12 +2507,15 @@ function StaysForm({
       // only if the user typed a destination without picking a
       // suggestion (LiteAPI's docs note this fallback needs an exact
       // string match and can return zero results for larger cities).
+      // Look up more hotels than we price (60 vs 15) so the 15 we price can
+      // be a real mix of star levels — that's what makes the Stars filter
+      // useful. Pricing is the slow/costly step; the lookup is cheap.
       const lookupParams = place
-        ? new URLSearchParams({ placeId: place.placeId, limit: "20" })
+        ? new URLSearchParams({ placeId: place.placeId, limit: "60" })
         : new URLSearchParams({
             countryCode,
             cityName: qCity.split(",")[0].trim(),
-            limit: "20",
+            limit: "60",
           });
 
       let hotelsFound;
@@ -2526,7 +2553,7 @@ function StaysForm({
 
       // Limit how many hotels we price-check at once — keeps the
       // rates call fast. Adjust this cap as your UI/UX needs grow.
-      const hotelIds = hotelsFound.slice(0, 15).map((h) => h.id);
+      const hotelIds = pickHotelMix(hotelsFound, 15).map((h) => h.id);
 
       // ── Step 2: get live rates for those hotels ──
       const searchParams = new URLSearchParams({

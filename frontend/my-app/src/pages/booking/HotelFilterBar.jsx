@@ -66,8 +66,12 @@ export function compareHotels(sortKey) {
 // Panels
 // ─────────────────────────────────────────────
 
+// options can carry `count` (how many hotels match). An option that matches
+// nothing is grayed out, so a filter can never leave an empty page. "Any"
+// options have no count and are always available.
 function OptionsPanel({ title, value, options, onChange, close, note }) {
   const [local, setLocal] = useState(value);
+  const countLabel = (n) => `${n} hotel${n === 1 ? "" : "s"}`;
   return (
     <>
       <PanelLabel>{title}</PanelLabel>
@@ -83,15 +87,45 @@ function OptionsPanel({ title, value, options, onChange, close, note }) {
           {note}
         </div>
       )}
-      {options.map((o) => (
-        <RadioRow
-          key={String(o.val)}
-          checked={String(local) === String(o.val)}
-          onClick={() => setLocal(o.val)}
-        >
-          {o.label}
-        </RadioRow>
-      ))}
+      {options.map((o) => {
+        const empty = o.count === 0;
+        return (
+          <div
+            key={String(o.val)}
+            style={empty ? { opacity: 0.35, pointerEvents: "none" } : undefined}
+            aria-disabled={empty || undefined}
+            title={empty ? "No hotels in these results match" : undefined}
+          >
+            <RadioRow
+              checked={String(local) === String(o.val)}
+              onClick={() => !empty && setLocal(o.val)}
+            >
+              <span
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  width: "100%",
+                }}
+              >
+                <span>{o.label}</span>
+                {o.count != null && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 400,
+                      color: "rgba(255,255,255,0.45)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {countLabel(o.count)}
+                  </span>
+                )}
+              </span>
+            </RadioRow>
+          </div>
+        );
+      })}
       <ApplyBtn
         onClick={() => {
           onChange(local);
@@ -244,13 +278,43 @@ export default function HotelFilterBar({
           id: r.hotelId,
           name: r.name || "Unnamed hotel",
           stars: num(r.stars),
+          rating: num(r.rating),
           rooms: 1,
           from: price ?? Infinity,
+          refundable: r.refundableTag === "RFN",
         });
       }
+      // A hotel counts as refundable if ANY of its room offers is.
+      if (cur && r.refundableTag === "RFN") cur.refundable = true;
     });
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [hotelResults]);
+
+  // How many HOTELS (not room offers) each option would keep — shown next
+  // to the option, and used to gray out ones that would show nothing.
+  const counts = useMemo(() => {
+    const atLeast = (key, min) =>
+      hotels.filter((h) => (h[key] ?? 0) >= min).length;
+    return {
+      stars: {
+        3: atLeast("stars", 3),
+        4: atLeast("stars", 4),
+        5: atLeast("stars", 5),
+      },
+      rating: {
+        7: atLeast("rating", 7),
+        8: atLeast("rating", 8),
+        9: atLeast("rating", 9),
+      },
+      price: Object.fromEntries(
+        [200, 400, 800, 1500].map((p) => [
+          p,
+          hotels.filter((h) => h.from <= p).length,
+        ])
+      ),
+      refundable: hotels.filter((h) => h.refundable).length,
+    };
+  }, [hotels]);
 
   const boards = useMemo(
     () =>
@@ -282,7 +346,9 @@ export default function HotelFilterBar({
     board: filters.board === "any" ? "Meals" : `Meals · ${filters.board}`,
   };
 
-  if (!visible) return null;
+  // No hotels yet (before a search): nothing to filter, so no filter row.
+  // Keeps empty dropdowns from covering the buttons underneath.
+  if (!visible || hotelResults.length === 0) return null;
 
   const truncate = {
     display: "inline-block",
@@ -340,10 +406,10 @@ export default function HotelFilterBar({
             close={close}
             options={[
               { val: "any", label: "Any price" },
-              { val: 200, label: "Under $200" },
-              { val: 400, label: "Under $400" },
-              { val: 800, label: "Under $800" },
-              { val: 1500, label: "Under $1,500" },
+              { val: 200, label: "Under $200", count: counts.price[200] },
+              { val: 400, label: "Under $400", count: counts.price[400] },
+              { val: 800, label: "Under $800", count: counts.price[800] },
+              { val: 1500, label: "Under $1,500", count: counts.price[1500] },
             ]}
           />
         )}
@@ -358,9 +424,9 @@ export default function HotelFilterBar({
             close={close}
             options={[
               { val: "any", label: "Any stars" },
-              { val: 3, label: "3★ and up" },
-              { val: 4, label: "4★ and up" },
-              { val: 5, label: "5★ only" },
+              { val: 3, label: "3★ and up", count: counts.stars[3] },
+              { val: 4, label: "4★ and up", count: counts.stars[4] },
+              { val: 5, label: "5★ only", count: counts.stars[5] },
             ]}
           />
         )}
@@ -375,9 +441,9 @@ export default function HotelFilterBar({
             close={close}
             options={[
               { val: "any", label: "Any rating" },
-              { val: 7, label: "Good · 7+" },
-              { val: 8, label: "Very good · 8+" },
-              { val: 9, label: "Excellent · 9+" },
+              { val: 7, label: "Good · 7+", count: counts.rating[7] },
+              { val: 8, label: "Very good · 8+", count: counts.rating[8] },
+              { val: 9, label: "Excellent · 9+", count: counts.rating[9] },
             ]}
           />
         )}
@@ -396,7 +462,11 @@ export default function HotelFilterBar({
             close={close}
             options={[
               { val: "any", label: "Any policy" },
-              { val: "refundable", label: "Refundable only" },
+              {
+                val: "refundable",
+                label: "Refundable only",
+                count: counts.refundable,
+              },
             ]}
           />
         )}
