@@ -14,6 +14,7 @@ import {
   DESTINATION_BY_CODE,
   airportGroupFor,
   climateFor,
+  ORIGIN_COORDS,
 } from "../config/dealRoutes.js";
 
 const router = express.Router();
@@ -88,6 +89,8 @@ router.get("/", async (req, res) => {
         price: Math.round(best.price),
         currency: best.currency,
         fromCode: best.origin,
+        // [lat, lng] of the departure airport, for the map's route line.
+        from: ORIGIN_COORDS[best.origin] || null,
         savesVsHome: lessThanHome > 0 ? lessThanHome : 0,
         airline: best.airline,
         stops: best.stops,
@@ -95,9 +98,12 @@ router.get("/", async (req, res) => {
         returnDate: best.returnDate,
         foundAt: best.foundAt,
         hotel,
-        // Flight + hotel, 1 traveler and 1 room. Fees paid at the hotel
-        // are NOT in this number; the page lists them separately.
-        tripTotal: hotel ? Math.round(best.price) + hotel.price : null,
+        // Flight + hotel, 1 traveler and 1 room — EVERYTHING they'd pay,
+        // including fees paid at the hotel (resort fees, city tax), so the
+        // number on the map is never lower than the real cost.
+        tripTotal: hotel
+          ? Math.round(best.price) + hotel.price + hotel.payAtHotel
+          : null,
       });
     }
     deals.sort((a, b) => a.price - b.price);

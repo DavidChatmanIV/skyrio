@@ -240,6 +240,42 @@ export function climateFor(code, isoDate) {
   return { month: MONTHS[m], avgHighF, warm: avgHighF >= WARM_AVG_HIGH_F };
 }
 
+// Where each home-base airport is, for the route line on the map
+// (home base → tapped city). Covers the airports in the landing page's
+// "You are here" picker; an airport missing here just gets no line.
+export const ORIGIN_COORDS = {
+  EWR: [40.692, -74.174],
+  JFK: [40.641, -73.778],
+  LGA: [40.777, -73.873],
+  LAX: [33.942, -118.408],
+  ORD: [41.974, -87.907],
+  MDW: [41.786, -87.752],
+  ATL: [33.64, -84.427],
+  MIA: [25.795, -80.29],
+  FLL: [26.072, -80.15],
+  DFW: [32.899, -97.04],
+  IAH: [29.99, -95.337],
+  DEN: [39.856, -104.674],
+  SEA: [47.45, -122.309],
+  SFO: [37.621, -122.379],
+  SJC: [37.364, -121.929],
+  OAK: [37.712, -122.22],
+  BOS: [42.366, -71.01],
+  PHL: [39.874, -75.243],
+  DCA: [38.852, -77.04],
+  IAD: [38.953, -77.456],
+  MSP: [44.885, -93.222],
+  DTW: [42.216, -83.355],
+  PHX: [33.437, -112.008],
+  LAS: [36.084, -115.154],
+  MCO: [28.431, -81.308],
+  TPA: [27.976, -82.533],
+  CLT: [35.214, -80.943],
+  BNA: [36.124, -86.678],
+  AUS: [30.197, -97.666],
+  HNL: [21.319, -157.922],
+};
+
 // Airports close enough that a traveler would happily use either one.
 // The map shows the cheapest airport in the home base's group.
 export const AIRPORT_GROUPS = {

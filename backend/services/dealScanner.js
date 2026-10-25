@@ -146,17 +146,23 @@ export async function runDealScan() {
   try {
     const origins = await originsToScan();
     const jobs = [];
-    for (const tripType of ["weekend", "getaway"]) {
-      const { departDate, returnDate } = tripDates(tripType);
-      for (const origin of origins) {
-        for (const dest of DESTINATIONS) {
-          if (dest.code === origin) continue;
+    // Order matters: the list is cut at MAX_SEARCHES. Most-used home bases
+    // come first, and each destination gets BOTH trip types back to back,
+    // so even a small limit fills Weekend and 4-night getaway evenly.
+    const dates = {
+      weekend: tripDates("weekend"),
+      getaway: tripDates("getaway"),
+    };
+    for (const origin of origins) {
+      for (const dest of DESTINATIONS) {
+        if (dest.code === origin) continue;
+        for (const tripType of ["weekend", "getaway"]) {
           jobs.push({
             origin,
             destination: dest.code,
             tripType,
-            departDate,
-            returnDate,
+            departDate: dates[tripType].departDate,
+            returnDate: dates[tripType].returnDate,
           });
         }
       }

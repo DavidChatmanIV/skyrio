@@ -40,6 +40,19 @@ function shortDates(a, b) {
   return `${d1} – ${d2}`;
 }
 
+// "Fri, Nov 6 – Sun, Nov 8" for the trip summary line
+function longDates(a, b) {
+  const opts = {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  };
+  const d1 = new Date(`${a}T00:00:00Z`).toLocaleDateString("en-US", opts);
+  const d2 = new Date(`${b}T00:00:00Z`).toLocaleDateString("en-US", opts);
+  return `${d1} – ${d2}`;
+}
+
 function nightsBetween(a, b) {
   const n = Math.round(
     (new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000
@@ -49,14 +62,14 @@ function nightsBetween(a, b) {
 
 const money = (n) => `$${Number(n).toLocaleString("en-US")}`;
 
-// Ticket-stub pin: "MIA | $142"
-function pinIcon(code, price, { active, dim }) {
+// Ticket-stub pin: "Miami | $142" — city names read easier than codes
+function pinIcon(city, price, { active, dim }) {
   return L.divIcon({
     className: "",
     html: `<div class="wtn-pin${active ? " is-active" : ""}${
       dim ? " is-dim" : ""
     }">
-      <span class="wtn-pin__code">${code}</span>
+      <span class="wtn-pin__code">${city}</span>
       <span class="wtn-pin__price">${money(price)}</span>
     </div>`,
     iconSize: null,
@@ -150,6 +163,13 @@ export default function WhereToNext({ homeCode, homeCity }) {
   }, [data, warmOnly, withHotel]);
 
   const inBudget = deals.filter((d) => priceOf(d) <= budget);
+  // Lowest price on the map right now. Trips that TIE for it all count
+  // as cheapest (deals are sorted by price, so the first one has it).
+  const lowestPrice = deals.length ? priceOf(deals[0]) : null;
+  // Every trip of one type shares the same dates, so any deal gives them.
+  const tripDates = allDeals[0]
+    ? longDates(allDeals[0].departDate, allDeals[0].returnDate)
+    : null;
   const hasDeals = deals.length > 0;
   const noFares = !loading && allDeals.length === 0;
   const noHotels =
@@ -166,8 +186,19 @@ export default function WhereToNext({ homeCode, homeCity }) {
   };
 
   // ── Map: create once there are trips to show ──
+  // `loading` is in the deps on purpose: while trips load, the map box is
+  // taken off the page and a NEW box appears afterwards. The cleanup below
+  // removes the old map, and this rebuilds it on the new box — otherwise
+  // pins and tiles get drawn on a map nobody can see (blank box).
   useEffect(() => {
-    if (view !== "map" || !hasDeals || !mapEl.current || mapRef.current) return;
+    if (
+      loading ||
+      view !== "map" ||
+      !hasDeals ||
+      !mapEl.current ||
+      mapRef.current
+    )
+      return;
     const map = L.map(mapEl.current, {
       zoomControl: false,
       attributionControl: true,
@@ -183,22 +214,45 @@ export default function WhereToNext({ homeCode, homeCity }) {
     L.control.zoom({ position: "bottomright" }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+    // Measure the box once it's laid out, so tiles fill it fully.
+    const sizeFix = setTimeout(() => map.invalidateSize(), 0);
     return () => {
+      clearTimeout(sizeFix);
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
     };
-  }, [view, hasDeals]);
+  }, [view, hasDeals, loading]);
 
   // ── Map: redraw pins when deals / budget / selection / mode change ──
   useEffect(() => {
     const layer = layerRef.current;
     if (!layer) return;
     layer.clearLayers();
+    // Tapped trip: dashed orange line from the departure airport, plus a
+    // small dot marking home, so the whole trip reads at a glance.
+    if (selected?.from) {
+      L.polyline([selected.from, [selected.lat, selected.lng]], {
+        color: "#ff8a2a",
+        weight: 2.5,
+        opacity: 0.9,
+        dashArray: "6 8",
+        interactive: false,
+      }).addTo(layer);
+      L.circleMarker(selected.from, {
+        radius: 6,
+        color: "#fff",
+        weight: 2,
+        fillColor: "#ff8a2a",
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(layer);
+    }
+
     deals.forEach((deal) => {
       const price = priceOf(deal);
       const marker = L.marker([deal.lat, deal.lng], {
-        icon: pinIcon(deal.destination, price, {
+        icon: pinIcon(deal.city, price, {
           active: selected?.destination === deal.destination,
           dim: price > budget,
         }),
@@ -210,7 +264,7 @@ export default function WhereToNext({ homeCode, homeCity }) {
       marker.addTo(layer);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deals, budget, selected, view, hasDeals, withHotel]);
+  }, [deals, budget, selected, view, hasDeals, withHotel, loading]);
 
   // Opens the booking page and runs the live search. Flight + hotel uses
   // the booking page's package flow (flight first, then "find your stay").
@@ -248,6 +302,18 @@ export default function WhereToNext({ homeCode, homeCity }) {
         <div className="wtn__preview" role="note">
           Preview: these are test prices while Skyrio finishes setup. They
           aren't real prices yet.
+        </div>
+      )}
+
+      {/* What every price on the map means, in one line */}
+      {tripDates && (
+        <div className="wtn__summary">
+          <span>
+            <PlaneIcon /> From {homeCode}
+          </span>
+          <span>{tripDates}</span>
+          <span>1 traveler{withHotel ? " · 1 room" : ""}</span>
+          <span>Economy</span>
         </div>
       )}
 
@@ -390,6 +456,9 @@ export default function WhereToNext({ homeCode, homeCity }) {
               withHotel={withHotel}
               homeCode={homeCode}
               budget={budget}
+              isCheapest={
+                lowestPrice != null && priceOf(selected) === lowestPrice
+              }
               onClose={() => setSelected(null)}
               onGo={() => seeLivePrice(selected)}
             />
@@ -437,7 +506,15 @@ export default function WhereToNext({ homeCode, homeCity }) {
   );
 }
 
-function DealSheet({ deal, withHotel, homeCode, budget, onClose, onGo }) {
+function DealSheet({
+  deal,
+  withHotel,
+  homeCode,
+  budget,
+  isCheapest,
+  onClose,
+  onGo,
+}) {
   const fromOther = deal.fromCode !== homeCode;
   const hotel = withHotel ? deal.hotel : null;
   const shown = hotel ? deal.tripTotal : deal.price;
@@ -463,6 +540,15 @@ function DealSheet({ deal, withHotel, homeCode, budget, onClose, onGo }) {
         <PlaneIcon /> {deal.fromCode} → {deal.destination}
       </div>
       <div className="wtn-sheet__city">{deal.city}</div>
+      {/* Only facts we can back up from the data */}
+      {(isCheapest || deal.stops === 0) && (
+        <div className="wtn-sheet__tags">
+          {isCheapest && (
+            <span className="wtn-tag is-green">Cheapest on the map</span>
+          )}
+          {deal.stops === 0 && <span className="wtn-tag">Nonstop</span>}
+        </div>
+      )}
       <div className="wtn-sheet__price">
         {money(shown)}{" "}
         <span>
@@ -505,11 +591,14 @@ function DealSheet({ deal, withHotel, homeCode, budget, onClose, onGo }) {
                   .join(" · ")}
               </small>
             </span>
-            <strong>{money(hotel.price)}</strong>
+            <strong>{money(hotel.price + (hotel.payAtHotel || 0))}</strong>
           </div>
+          {/* The hotel line includes fees paid at check-in, so it adds up
+              to the total. Say how it splits so nothing is a surprise. */}
           {hotel.payAtHotel > 0 && (
-            <div className="wtn-sheet__tip is-over">
-              Plus about {money(hotel.payAtHotel)} in fees paid at the hotel.
+            <div className="wtn-sheet__meta">
+              Hotel: {money(hotel.price)} when you book +{" "}
+              {money(hotel.payAtHotel)} in fees paid at the hotel.
             </div>
           )}
         </div>

@@ -42,6 +42,8 @@ async function wellRatedHotels(cityName, countryCode) {
       (h) =>
         h.id &&
         h.name &&
+        // Hostel / dorm prices are often a shared bed, not a private room.
+        !/hostel|dorm|capsule|bunk/i.test(h.name) &&
         h.stars != null &&
         h.stars >= MIN_STARS &&
         h.rating != null &&
