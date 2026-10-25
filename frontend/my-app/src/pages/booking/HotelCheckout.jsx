@@ -1109,6 +1109,11 @@ export default function HotelCheckout({
   groupId = null,
   tripBudget = null,
   onBudgetSaved,
+  // Runs the moment the hotel confirms (the confirmation screen stays up).
+  onBooked,
+  // "Back to Stays" from the confirmation screen: clears the booked rooms
+  // from the cart. Falls back to onBack.
+  onBookingComplete,
 }) {
   // Accept either `rooms` (array, preferred) or a single legacy `hotel`.
   const rooms = useMemo(
@@ -1233,7 +1238,7 @@ export default function HotelCheckout({
     return (
       <ConfirmationScreen
         confirmation={confirmation}
-        onBack={onBack}
+        onBack={onBookingComplete || onBack}
         showSyncTip={showSyncTip}
       />
     );
@@ -1489,7 +1494,10 @@ export default function HotelCheckout({
                   guests={guests}
                   contactEmail={contactEmail}
                   groupId={groupId}
-                  onSuccess={setConfirmation}
+                  onSuccess={(c) => {
+                    setConfirmation(c);
+                    onBooked?.(c);
+                  }}
                   onInvalid={() => setShowErrors(true)}
                   onUnavailable={() => setRoomGone(true)}
                 />

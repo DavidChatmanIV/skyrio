@@ -40,6 +40,7 @@ import heroImg from "@/assets/Booking/skyrio-hero.jpg";
 import skyrioLogo from "@/assets/logo/skyrio-logo-transparent.png";
 import "@/styles/BookingPage.css";
 import "@/styles/stays-search.css";
+import "@/styles/package-tray.css";
 
 import BookingCheckout from "@/pages/booking/BookingCheckout";
 import HotelCheckout from "@/pages/booking/HotelCheckout";
@@ -1296,6 +1297,227 @@ function MultiCityForm({ onDestChange, onDatesChange }) {
   );
 }
 
+// ─────────────────────────────────────────────
+// "Your trip" tray for packages: flight + stay with a running total, so
+// nobody picks a hotel without seeing what the whole trip costs.
+// It's two separate bookings (each paid and cancelled on its own), and the
+// tray says so — no bundle "savings", just the two real prices added up.
+// ─────────────────────────────────────────────
+function PackageTray({
+  plan,
+  tab,
+  stayRooms,
+  flightBusy,
+  onNextStay,
+  onChangeFlight,
+  onPayFlight,
+  onPayStay,
+  onDone,
+}) {
+  const usd = (n) => `$${Math.round(Number(n) || 0).toLocaleString("en-US")}`;
+  const flight = plan.flight;
+  const bookedStay = plan.stay?.booked ? plan.stay : null;
+  // A booked stay wins; otherwise the rooms picked in this search.
+  const cartTotal = (stayRooms || []).reduce(
+    (sum, r) => sum + (Number(r.totalAmount) || 0),
+    0
+  );
+  const stayTotal = bookedStay ? bookedStay.total : cartTotal;
+  const roomsPicked = bookedStay ? bookedStay.rooms : (stayRooms || []).length;
+  const total = (flight?.price || 0) + (roomsPicked ? stayTotal : 0);
+  const nights =
+    plan.depart && plan.ret
+      ? dayjs(plan.ret).diff(dayjs(plan.depart), "day")
+      : null;
+  const allBooked = flight?.booked && bookedStay;
+
+  const Booked = () => (
+    <span className="sk-pkg-tray-booked">
+      <Check size={12} aria-hidden="true" /> Booked
+    </span>
+  );
+
+  return (
+    <div className="sk-pkg-tray" role="status" aria-label="Your trip">
+      <div className="sk-pkg-tray-head">
+        <span className="sk-pkg-tray-title">Your trip</span>
+        <span className="sk-pkg-tray-steps">
+          <span
+            className={tab === "Flights" ? "is-now" : flight ? "is-done" : ""}
+          >
+            1 · Flight{flight ? " ✓" : ""}
+          </span>
+          <span className="sk-pkg-step-line" aria-hidden="true" />
+          <span
+            className={
+              tab === "Stays" && !(flight && roomsPicked)
+                ? "is-now"
+                : roomsPicked
+                ? "is-done"
+                : ""
+            }
+          >
+            2 · Stay{roomsPicked ? " ✓" : ""}
+          </span>
+          <span className="sk-pkg-step-line" aria-hidden="true" />
+          <span className={flight && roomsPicked ? "is-now" : ""}>3 · Pay</span>
+        </span>
+      </div>
+
+      {/* ── Flight ── */}
+      <div className="sk-pkg-tray-row">
+        <span className="sk-pkg-tray-icon">
+          <IconFlight size={14} />
+        </span>
+        <span className="sk-pkg-tray-what">
+          {flight ? (
+            <>
+              Flight · {flight.origin} → {flight.destination}
+              <small>
+                {[
+                  flight.airline,
+                  `${plan.adults} traveler${plan.adults !== 1 ? "s" : ""}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </small>
+            </>
+          ) : (
+            <>
+              Flight
+              <small>
+                {tab === "Flights" ? "Pick a flight below" : "Not picked yet"}
+              </small>
+            </>
+          )}
+        </span>
+        <span className="sk-pkg-tray-amt">
+          {flight ? usd(flight.price) : "—"}
+          {flight?.booked ? (
+            <Booked />
+          ) : (
+            tab === "Stays" && (
+              <button
+                type="button"
+                className="sk-pkg-tray-link"
+                onClick={onChangeFlight}
+              >
+                {flight ? "Change" : "Pick flight"}
+              </button>
+            )
+          )}
+        </span>
+      </div>
+
+      {/* ── Stay ── */}
+      <div className="sk-pkg-tray-row">
+        <span className="sk-pkg-tray-icon">
+          <IconHotel size={14} />
+        </span>
+        <span className="sk-pkg-tray-what">
+          {bookedStay?.name || `Stay in ${plan.city}`}
+          <small>
+            {roomsPicked
+              ? `${roomsPicked} room${roomsPicked !== 1 ? "s" : ""}${
+                  nights ? ` · ${nights} night${nights !== 1 ? "s" : ""}` : ""
+                }`
+              : tab === "Stays"
+              ? "Pick a room below (Add to trip)"
+              : "Next step"}
+          </small>
+        </span>
+        <span className="sk-pkg-tray-amt">
+          {roomsPicked ? usd(stayTotal) : "—"}
+          {bookedStay && <Booked />}
+        </span>
+      </div>
+
+      {/* ── Total + what to do next ── */}
+      <div className="sk-pkg-tray-foot">
+        <span className="sk-pkg-tray-total">
+          {total > 0 ? (
+            <>
+              {allBooked ? "Trip total paid" : "Trip total"}{" "}
+              <strong>{usd(total)}</strong>
+            </>
+          ) : (
+            "Pick a flight and a stay to see your trip total"
+          )}
+        </span>
+        <span className="sk-pkg-tray-actions">
+          {tab === "Flights" && !flight && (
+            <button
+              type="button"
+              className="sk-pkg-banner-btn sk-pkg-banner-btn--ghost"
+              onClick={onNextStay}
+            >
+              Skip to stays <ArrowRight size={14} />
+            </button>
+          )}
+          {tab === "Flights" && flight && !roomsPicked && (
+            <button
+              type="button"
+              className="sk-pkg-banner-btn"
+              onClick={onNextStay}
+            >
+              Next: find your stay <ArrowRight size={14} />
+            </button>
+          )}
+          {flight && !flight.booked && roomsPicked > 0 && (
+            <button
+              type="button"
+              className="sk-pkg-banner-btn"
+              onClick={onPayFlight}
+              disabled={flightBusy}
+            >
+              {flightBusy
+                ? "Checking your fare…"
+                : `Pay for flight · ${usd(flight.price)}`}
+            </button>
+          )}
+          {roomsPicked > 0 && !bookedStay && tab === "Stays" && (
+            <button
+              type="button"
+              className={`sk-pkg-banner-btn${
+                flight && !flight.booked ? " sk-pkg-banner-btn--ghost" : ""
+              }`}
+              onClick={onPayStay}
+            >
+              Pay for stay · {usd(stayTotal)}
+            </button>
+          )}
+          {allBooked && (
+            <button
+              type="button"
+              className="sk-pkg-banner-btn sk-pkg-banner-btn--ghost"
+              onClick={onDone}
+            >
+              Done
+            </button>
+          )}
+        </span>
+      </div>
+      <p className="sk-pkg-tray-note">
+        {allBooked
+          ? "You're all set. Your flight and hotel are two separate bookings — each has its own confirmation email and cancellation rules, in My Trips."
+          : flight && !flight.booked
+          ? "Your flight and hotel are two separate bookings, each paid on its own. Flight prices can change; we recheck the fare with the airline right before you pay."
+          : "Your flight and hotel are two separate bookings, each with its own confirmation and cancellation rules."}
+      </p>
+    </div>
+  );
+}
+
+// "Las Vegas (LAS)" — or just "LAS" when we only know the code, never
+// "LAS (LAS)".
+function airportLabel(ap) {
+  if (!ap?.code) return "";
+  const city = String(ap.city || "").trim();
+  return city && city.toUpperCase() !== ap.code.toUpperCase()
+    ? `${city} (${ap.code})`
+    : ap.code;
+}
+
 function FlightsForm({
   onSearch,
   onDestChange,
@@ -1398,12 +1620,32 @@ function FlightsForm({
       if (!q) return null;
       if (/^[A-Za-z]{3}$/.test(q.trim())) {
         const code = q.trim().toUpperCase();
-        // "New Orleans, LA" → "New Orleans"; no name given → the code itself.
-        const city =
-          String(name || "")
-            .split(",")[0]
-            .trim() || code;
-        return { code, city };
+        // "New Orleans, LA" → "New Orleans".
+        const named = String(name || "")
+          .split(",")[0]
+          .trim();
+        if (named) return { code, city: named };
+        // Link only gave a code. The home airport already has its name…
+        const home = readHomeAirport();
+        if (home?.code?.toUpperCase() === code) return { ...home, code };
+        // …otherwise look the code up so it reads "Las Vegas (LAS)",
+        // not "LAS (LAS)".
+        try {
+          const res = await fetch(
+            `${API}/api/airports?q=${encodeURIComponent(code)}`
+          );
+          const data = await res.json();
+          const list = Array.isArray(data)
+            ? data
+            : data?.airports || data?.data || data?.results || [];
+          const match = list
+            .map((a) => asAirport(a, code))
+            .find((a) => a?.code?.toUpperCase() === code);
+          if (match) return { ...match, code };
+        } catch {
+          /* fall through to the code alone */
+        }
+        return { code, city: code };
       }
       try {
         const res = await fetch(
@@ -1425,12 +1667,12 @@ function FlightsForm({
       ]);
       if (o) {
         setOriginAirport(o);
-        setOriginDisplay(`${o.city} (${o.code})`);
+        setOriginDisplay(airportLabel(o));
         onOriginChange?.(o.city);
       }
       if (d) {
         setDestAirport(d);
-        setDestDisplay(`${d.city} (${d.code})`);
+        setDestDisplay(airportLabel(d));
         onDestChange?.(d.city);
       }
       // From the trip page: run the search right away.
@@ -1631,7 +1873,8 @@ function FlightsForm({
         <div className="sk-pass-seg sk-pass-seg--when sk-pass-flat">
           <span className="sk-pass-label">
             <Calendar size={12} aria-hidden="true" />
-            {tripType === "roundtrip" ? "Depart → Return" : "Depart"}
+            {/* Short label: "Depart → Return · 4 nights" ran into "Who". */}
+            {tripType === "roundtrip" ? "When" : "Depart"}
             {tripType === "roundtrip" && dates[0] && dates[1] && (
               <span className="sk-pass-nights">
                 · {dates[1].diff(dates[0], "day")} night
@@ -2887,8 +3130,34 @@ function CarsForm({ onDestChange }) {
 // Flight + Stay. There's no bundled package rate, so this runs the real
 // searches in order: the flight first, then the stay at the destination.
 function PackagesForm({ onDestChange, onDatesChange, onHandoff }) {
-  const [origin, setOrigin] = useState(null);
-  const [originDisplay, setOriginDisplay] = useState("");
+  // From starts on the traveler's home airport, same as Flights.
+  const [homeAirport, setHomeAirport] = useState(readHomeAirport);
+  const [origin, setOrigin] = useState(() => readHomeAirport() || null);
+  const [originDisplay, setOriginDisplay] = useState(() =>
+    airportLabel(readHomeAirport())
+  );
+  // New device: nothing saved in this browser, so ask the account.
+  const originRef = useRef(origin);
+  originRef.current = origin;
+  useEffect(() => {
+    if (homeAirport) return;
+    let alive = true;
+    fetchHomeAirport().then(({ homeAirport: ap }) => {
+      if (!alive || !ap) return;
+      setHomeAirport(ap);
+      if (!originRef.current) {
+        setOrigin(ap);
+        setOriginDisplay(airportLabel(ap));
+      }
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const isHomeOrigin =
+    !!origin?.code &&
+    origin.code.toUpperCase() === homeAirport?.code?.toUpperCase();
   const [dest, setDest] = useState(null);
   const [destDisplay, setDestDisplay] = useState("");
   const [dates, setDates] = useState([null, null]);
@@ -2913,8 +3182,28 @@ function PackagesForm({ onDestChange, onDatesChange, onHandoff }) {
     const ret = dates[1].format("YYYY-MM-DD");
     onHandoff?.({
       tab: "Flights",
-      params: { from: origin.code, to: dest.code, depart, return: ret, adults },
-      plan: { city: dest.city, code: dest.code, depart, ret, adults, rooms },
+      // Names travel with the codes so the flight step reads
+      // "Newark (EWR) → Las Vegas (LAS)", not "EWR (EWR)".
+      params: {
+        from: origin.code,
+        fromName: origin.city,
+        to: dest.code,
+        toName: dest.city,
+        depart,
+        return: ret,
+        adults,
+      },
+      plan: {
+        city: dest.city,
+        code: dest.code,
+        from: origin.code,
+        fromName: origin.city,
+        depart,
+        ret,
+        adults,
+        rooms,
+        flight: null, // filled in when a flight is picked
+      },
     });
   };
 
@@ -2941,13 +3230,18 @@ function PackagesForm({ onDestChange, onDatesChange, onHandoff }) {
               style={{ transform: "rotate(45deg)" }}
             />{" "}
             From
+            {isHomeOrigin && (
+              <span className="sk-home-tag" title="Your home airport">
+                <HomeIcon size={10} aria-hidden="true" /> Home
+              </span>
+            )}
           </span>
           <AirportInput
             value={originDisplay}
             placeholder="Leaving from"
             onChange={(ap) => {
               setOrigin(ap);
-              setOriginDisplay(`${ap.city} (${ap.code})`);
+              setOriginDisplay(airportLabel(ap));
             }}
           />
         </div>
@@ -2960,7 +3254,7 @@ function PackagesForm({ onDestChange, onDatesChange, onHandoff }) {
             placeholder="Going to"
             onChange={(ap) => {
               setDest(ap);
-              setDestDisplay(`${ap.city} (${ap.code})`);
+              setDestDisplay(airportLabel(ap));
               onDestChange?.(ap.city);
             }}
           />
@@ -5096,8 +5390,40 @@ export default function BookingPage() {
   // person straight to checkout with that exact flight object — used
   // both for single-return groups ("Book Now") and for a chosen return
   // time in step 2 of the round-trip flow.
+  // Package mode is set further down; this ref lets the flight buttons
+  // know about it without reordering the component.
+  const packageRef = useRef({ plan: null, toStays: null });
   const selectFlightForCheckout = useCallback(
     (flight) => {
+      // Building a package: pick now, pay at the end. Add the flight to
+      // the trip and go straight to stays — no checkout yet.
+      if (packageRef.current.plan) {
+        setPackagePlan((p) =>
+          p
+            ? {
+                ...p,
+                flight: {
+                  id: flight.id,
+                  airline: flight.owner || null,
+                  origin: flight.origin,
+                  destination: flight.destination,
+                  price: Number(flight.totalAmount) || 0,
+                  currency: flight.totalCurrency || "USD",
+                  raw: flight, // the exact offer, for checkout later
+                  booked: false,
+                },
+              }
+            : p
+        );
+        handleSelectResult({
+          id: flight.id,
+          title: `${flight.owner} · ${flight.origin} → ${flight.destination}`,
+          total: parseFloat(flight.totalAmount),
+        });
+        antdMessage.success("Flight added to your trip. Now pick your stay.");
+        packageRef.current.toStays?.();
+        return;
+      }
       setSelectedFlight(flight);
       setShowCheckout(true);
       handleSelectResult({
@@ -5123,10 +5449,13 @@ export default function BookingPage() {
     return {
       city,
       code: searchParams.get("to"),
+      from: searchParams.get("from") || null,
+      fromName: searchParams.get("fromName") || null,
       depart,
       ret,
       adults: Number(searchParams.get("adults")) || 1,
       rooms: Number(searchParams.get("rooms")) || 1,
+      flight: null, // filled in when a flight is picked
     };
   });
   const runHandoff = useCallback(
@@ -5153,6 +5482,118 @@ export default function BookingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParams, setSearchParams]
   );
+
+  // ── Package actions ──
+  const goToPackageStays = useCallback(() => {
+    if (!packagePlan) return;
+    runHandoff({
+      tab: "Stays",
+      params: {
+        city: packagePlan.city,
+        depart: packagePlan.depart,
+        return: packagePlan.ret,
+        adults: packagePlan.adults,
+        rooms: packagePlan.rooms,
+      },
+    });
+  }, [packagePlan, runHandoff]);
+  packageRef.current = { plan: packagePlan, toStays: goToPackageStays };
+
+  const goToPackageFlights = useCallback(() => {
+    if (!packagePlan) return;
+    runHandoff({
+      tab: "Flights",
+      params: {
+        from: packagePlan.from,
+        fromName: packagePlan.fromName,
+        to: packagePlan.code,
+        toName: packagePlan.city,
+        depart: packagePlan.depart,
+        return: packagePlan.ret,
+        adults: packagePlan.adults,
+      },
+    });
+  }, [packagePlan, runHandoff]);
+
+  // "Pay for flight": a fare picked a while ago may have expired (LiteAPI
+  // offers last ~15 min). Ask the server to re-check first — /flights/verify
+  // re-finds the same flight and gives back a fresh offer — so checkout
+  // opens on a live fare instead of an "expired" screen.
+  const [pkgFlightBusy, setPkgFlightBusy] = useState(false);
+  const payForPackageFlight = useCallback(async () => {
+    const saved = packagePlan?.flight;
+    if (!saved?.raw || saved.booked) return;
+    const open = (f) => {
+      setSelectedFlight(f);
+      setShowCheckout(true);
+    };
+    const left = Date.parse(saved.raw.expiresAt) - Date.now();
+    if (!(left < 3 * 60 * 1000)) return open(saved.raw); // still fresh
+    setPkgFlightBusy(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API}/api/flights/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({
+          offerId: saved.raw.offerId || saved.raw.id,
+          flight: saved.raw,
+          search: {
+            origin: saved.origin,
+            destination: saved.destination,
+            departureDate: packagePlan.depart,
+            returnDate: packagePlan.ret,
+            adults: packagePlan.adults,
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        const fresh = data.refreshed && data.flight ? data.flight : saved.raw;
+        const newPrice = Number(fresh.totalAmount);
+        if (data.refreshed) {
+          setPackagePlan((p) =>
+            p?.flight
+              ? {
+                  ...p,
+                  flight: {
+                    ...p.flight,
+                    raw: fresh,
+                    price: Number.isFinite(newPrice)
+                      ? newPrice
+                      : p.flight.price,
+                  },
+                }
+              : p
+          );
+          antdMessage.info(
+            data.priceChanged && Number.isFinite(newPrice)
+              ? `We refreshed your fare with the airline. The price is now $${wholeUsd(
+                  newPrice
+                )} (was $${wholeUsd(saved.price)}).`
+              : "We refreshed your fare with the airline. Same price."
+          );
+        }
+        open(fresh);
+      } else if (data.soldOut || res.status === 409) {
+        antdMessage.warning(
+          "That flight sold out with the airline. Please pick another flight."
+        );
+        setPackagePlan((p) => (p ? { ...p, flight: null } : p));
+        goToPackageFlights();
+      } else {
+        // The check itself failed (airline system); checkout verifies again.
+        open(saved.raw);
+      }
+    } catch {
+      open(saved.raw);
+    } finally {
+      setPkgFlightBusy(false);
+    }
+  }, [packagePlan, goToPackageFlights]);
 
   const searchFormProps = {
     onDestChange: setDestCity,
@@ -5511,6 +5952,12 @@ export default function BookingPage() {
           groupId={syncGroupId}
           tripBudget={budgetOn ? tripBudget : null}
           onBudgetSaved={handleBudgetSaved}
+          // Package: mark the trip's flight as booked once it's paid.
+          onBooked={() =>
+            setPackagePlan((p) =>
+              p?.flight ? { ...p, flight: { ...p.flight, booked: true } } : p
+            )
+          }
           onBack={() => {
             setShowCheckout(false);
             setSelectedFlight(null);
@@ -5533,6 +5980,28 @@ export default function BookingPage() {
           onBudgetSaved={handleBudgetSaved}
           onBack={handleHotelCheckoutBack}
           onBookingComplete={handleHotelBookingComplete}
+          // Package: remember the booked stay (the cart is cleared after).
+          onBooked={(c) =>
+            setPackagePlan((p) =>
+              p
+                ? {
+                    ...p,
+                    stay: {
+                      booked: true,
+                      rooms: (c?.rooms || checkoutRooms).length,
+                      total:
+                        typeof c?.totalPaid === "number"
+                          ? c.totalPaid
+                          : (c?.rooms || checkoutRooms).reduce(
+                              (s, r) => s + (Number(r.totalAmount) || 0),
+                              0
+                            ),
+                      name: (c?.rooms || checkoutRooms)[0]?.name || null,
+                    },
+                  }
+                : p
+            )
+          }
         />
       </div>
     ) : null;
@@ -5635,6 +6104,10 @@ export default function BookingPage() {
           <section
             className="sk-bp-ticket"
             aria-label="Your trip boarding pass"
+            // Lift the pass above the buttons below it, so pop-ups that open
+            // from the search bar (Who / travelers & rooms) aren't covered
+            // by "Sort" and "Sync Together".
+            style={{ position: "relative", zIndex: 3 }}
           >
             <div className="sk-bp-band">
               <span className="sk-bp-airline">
@@ -5684,47 +6157,17 @@ export default function BookingPage() {
 
                 {/* Package in progress: flight first, then the stay */}
                 {packagePlan && (tab === "Flights" || tab === "Stays") && (
-                  <div className="sk-pkg-banner" role="status">
-                    <span className="sk-pkg-banner-steps">
-                      <span
-                        className={tab === "Flights" ? "is-now" : "is-done"}
-                      >
-                        <IconFlight size={12} /> 1 · Flight
-                      </span>
-                      <span className="sk-pkg-step-line" aria-hidden="true" />
-                      <span className={tab === "Stays" ? "is-now" : ""}>
-                        <IconHotel size={12} /> 2 · Stay in {packagePlan.city}
-                      </span>
-                    </span>
-                    {tab === "Flights" ? (
-                      <button
-                        type="button"
-                        className="sk-pkg-banner-btn"
-                        onClick={() =>
-                          runHandoff({
-                            tab: "Stays",
-                            params: {
-                              city: packagePlan.city,
-                              depart: packagePlan.depart,
-                              return: packagePlan.ret,
-                              adults: packagePlan.adults,
-                              rooms: packagePlan.rooms,
-                            },
-                          })
-                        }
-                      >
-                        Next: find your stay <ArrowRight size={14} />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="sk-pkg-banner-btn sk-pkg-banner-btn--ghost"
-                        onClick={() => setPackagePlan(null)}
-                      >
-                        Done
-                      </button>
-                    )}
-                  </div>
+                  <PackageTray
+                    plan={packagePlan}
+                    tab={tab}
+                    stayRooms={tab === "Stays" ? roomCart : []}
+                    flightBusy={pkgFlightBusy}
+                    onNextStay={goToPackageStays}
+                    onChangeFlight={goToPackageFlights}
+                    onPayFlight={payForPackageFlight}
+                    onPayStay={handleCheckoutCart}
+                    onDone={() => setPackagePlan(null)}
+                  />
                 )}
               </div>
 
@@ -6339,7 +6782,7 @@ export default function BookingPage() {
                               selectFlightForCheckout(flight);
                             }}
                           >
-                            Book Now
+                            {packagePlan ? "Add to trip" : "Book Now"}
                           </Button>
                         </div>
                       </div>
@@ -6840,7 +7283,7 @@ export default function BookingPage() {
                                       selectFlightForCheckout(opt);
                                     }}
                                   >
-                                    Select
+                                    {packagePlan ? "Add to trip" : "Select"}
                                   </Button>
                                 </div>
                               </div>
@@ -6977,6 +7420,26 @@ export default function BookingPage() {
                                 </div>
                               );
                             })()}
+                            {/* Package with a flight picked: what the WHOLE
+                                trip costs with this room — just the two real
+                                prices added up, no bundle "discount". */}
+                            {packagePlan?.flight &&
+                              Number.isFinite(Number(hotel.totalAmount)) && (
+                                <div className="sk-pkg-trip-total">
+                                  <strong>
+                                    $
+                                    {wholeUsd(
+                                      packagePlan.flight.price +
+                                        Number(hotel.totalAmount)
+                                    )}{" "}
+                                    trip total
+                                  </strong>
+                                  <span>
+                                    ${wholeUsd(packagePlan.flight.price)} flight
+                                    + ${wholeUsd(hotel.totalAmount)} stay
+                                  </span>
+                                </div>
+                              )}
                             <SaveTripButton
                               size="small"
                               variant="ghost"

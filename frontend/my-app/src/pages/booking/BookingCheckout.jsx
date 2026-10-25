@@ -3465,6 +3465,9 @@ export default function BookingCheckout({
   onGroupBookingComplete,
   tripBudget = null,
   onBudgetSaved,
+  // Runs once the flight is actually booked (used by the package tray to
+  // mark the flight "Booked").
+  onBooked,
 }) {
   // After verify: the fare's real expiry, and — if the backend had to
   // refresh an expired fare — the new offerId and price.
@@ -3737,7 +3740,10 @@ export default function BookingCheckout({
   // True once a booking completes — nothing left to protect, and asking
   // "discard your progress?" right after paying would be confusing.
   const [bookingComplete, setBookingComplete] = useState(false);
-  const handleBookingSuccess = useCallback(() => setBookingComplete(true), []);
+  const handleBookingSuccess = useCallback(() => {
+    setBookingComplete(true);
+    onBooked?.();
+  }, [onBooked]);
 
   const hasProgress = !bookingComplete && (step > 0 || formDirty);
 

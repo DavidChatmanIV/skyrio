@@ -1,0 +1,185 @@
+/* Packages — "Your trip" tray + trip total on hotel cards.
+   Dark glass with orange accents, matching the boarding-pass search. */
+
+.sk-pkg-tray {
+  margin-top: 16px;
+  padding: 14px 16px 12px;
+  border-radius: 16px;
+  background: rgba(8, 5, 20, 0.55);
+  border: 1px dashed rgba(255, 138, 42, 0.45);
+  color: #fff;
+}
+
+.sk-pkg-tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.sk-pkg-tray-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #ff8a2a;
+}
+.sk-pkg-tray-steps {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+}
+.sk-pkg-tray-steps .is-now {
+  color: #ff8a2a;
+}
+.sk-pkg-tray-steps .is-done {
+  color: #9be7a8;
+}
+
+.sk-pkg-tray-row {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sk-pkg-tray-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: rgba(255, 138, 42, 0.14);
+  color: #ffb066;
+}
+.sk-pkg-tray-what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.sk-pkg-tray-what small {
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 1px;
+}
+.sk-pkg-tray-amt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: "Syne", sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.sk-pkg-tray-link {
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: 600 12px "DM Sans", sans-serif;
+  color: #ff8a2a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sk-pkg-tray-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.sk-pkg-tray-total {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.sk-pkg-tray-total strong {
+  margin-left: 6px;
+  font-family: "Syne", sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #ff8a2a;
+}
+.sk-pkg-tray-note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Hotel card: "$612 trip total · $214 flight + $398 stay" */
+.sk-pkg-trip-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin: 4px 0 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255, 138, 42, 0.12);
+  border: 1px solid rgba(255, 138, 42, 0.3);
+  text-align: right;
+}
+.sk-pkg-trip-total strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffb066;
+}
+.sk-pkg-trip-total span {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@media (max-width: 640px) {
+  .sk-pkg-trip-total {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .sk-pkg-tray-foot .sk-pkg-banner-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Pay buttons sit together; Booked badge under a price */
+.sk-pkg-tray-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sk-pkg-tray-actions .sk-pkg-banner-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.sk-pkg-tray-booked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font: 700 11px "DM Sans", sans-serif;
+  color: #9be7a8;
+  background: rgba(155, 231, 168, 0.12);
+  border: 1px solid rgba(155, 231, 168, 0.35);
+}
+@media (max-width: 640px) {
+  .sk-pkg-tray-actions {
+    width: 100%;
+  }
+  .sk-pkg-tray-actions .sk-pkg-banner-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
