@@ -2,14 +2,17 @@
 //
 // Types the frontend knows about (keep these names in sync with Notifications.jsx):
 //   sync_invite   — someone invited you to a Sync Together trip
-//   group_message — new messages in a Sync Together group chat (collapsed per group)
+//   group_message — lives in utils/notifyGroupMessage.js (not here)
 //   post_like     — likes on your SkyHub post (collapsed per post)
 //   post_comment  — comments on your SkyHub post (collapsed per post)
 //
 // Requires MongoDB 4.2+ (pipeline updates).
 
 import mongoose from "mongoose";
+// Lowercase on purpose — the file is models/notification.js and Render (Linux) is case-sensitive
 import Notification from "../models/notification.js";
+// Same room server.js joins on "notifications:join" (plain userId)
+import { userRoom } from "./notifyGroupMessage.js";
 
 const oid = (id) => new mongoose.Types.ObjectId(String(id));
 // Wrap strings so values starting with "$" aren't read as field paths in pipeline updates
@@ -24,7 +27,7 @@ async function emitNew(io, userId, doc) {
     read: false,
   });
   // Spread the doc at the top level — the frontend reads _id, title, message from here.
-  io.to(`user:${userId}`).emit("notification:new", { ...doc, unread });
+  io?.to(userRoom(userId)).emit("notification:new", { ...doc, unread });
 }
 
 // "Fernanda", "Fernanda + 1 other", "Fernanda + 2 others"
@@ -131,59 +134,8 @@ export function notifySyncInvite(
     message: "Tap to view the trip and respond.",
     targetType: "sync",
     targetId: tripId,
-    link: `/sync/${tripId}`,
+    link: `/sync-together/${tripId}`,
   });
-}
-
-/**
- * Call right after a Sync Together group message is saved.
- * memberIds = all group member user IDs (strings or ObjectIds)
- */
-export async function notifyGroupMessage(
-  io,
-  { groupId, groupName, senderId, senderName, preview, memberIds }
-) {
-  // Who is in the chat right now? One lookup per message, not per member.
-  const sockets = await io.in(`group:${groupId}`).fetchSockets();
-  const viewing = new Set(sockets.map((s) => String(s.data.userId)));
-
-  const recipients = [...new Set(memberIds.map(String))].filter(
-    (id) => !same(id, senderId) && !viewing.has(id)
-  );
-
-  await Promise.all(
-    recipients.map((userId) =>
-      upsertCollapsed(io, {
-        userId,
-        type: "group_message",
-        match: { group: oid(groupId) },
-        set: { targetType: "sync", link: `/sync/${groupId}/chat` },
-        actorName: senderName,
-        buildText: ({ senders = [], count = 1 }) => {
-          const who = names(senders[0], senders.length - 1);
-          let message;
-          if (count === 1 && preview)
-            message = `${senders[0]}: ${preview.slice(0, 80)}`;
-          else if (count === 1) message = `${who} sent a message`;
-          else message = `${who}: ${count} new messages`;
-          return { title: groupName || "Group chat", message };
-        },
-      })
-    )
-  );
-}
-
-/** Call when a user opens a group chat (joins `group:${groupId}`), so its bell entry clears. */
-export async function markGroupRead(io, userId, groupId) {
-  await Notification.updateMany(
-    { user: oid(userId), group: oid(groupId), read: false },
-    { $set: { read: true } }
-  );
-  const unread = await Notification.countDocuments({
-    user: oid(userId),
-    read: false,
-  });
-  io.to(`user:${userId}`).emit("notification:unread", { unread });
 }
 
 /* ── SkyHub ───────────────────────────────────────────────────────── */

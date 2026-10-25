@@ -23,7 +23,7 @@ import {
   markGroupRead,
   markViewing,
 } from "../../utils/notifyGroupMessage.js";
-import { notifySyncInvite } from "../../utils/notify.js";
+import { notify, notifySyncInvite } from "../../utils/notify.js";
 import {
   SyncError,
   HOLD_HOURS,
@@ -56,6 +56,11 @@ const validId = (id) => mongoose.isValidObjectId(id);
    yet (they get the email and see the trip after signing up).
    Never throws, so an invite never fails over a notification. */
 async function notifyInvitee(req, group, member, inviterId, inviterName) {
+  console.log(
+    `[notify] invite: trip ${group?._id}, member user=${idStr(
+      member?.user
+    )} email=${member?.email || "-"}`
+  );
   try {
     let inviteeId = member?.user?._id || member?.user || null;
     if (!inviteeId && member?.email) {
@@ -73,13 +78,18 @@ async function notifyInvitee(req, group, member, inviterId, inviterName) {
       );
       return;
     }
-    await notifySyncInvite(req.app.get("io"), {
+    const n = await notifySyncInvite(req.app.get("io"), {
       inviteeId,
       inviterId,
       inviterName,
       tripId: group._id,
       tripName: group.title,
     });
+    console.log(
+      n
+        ? `[notify] invite saved for user ${inviteeId} (notification ${n._id})`
+        : `[notify] invite skipped: invitee ${inviteeId} is the inviter`
+    );
   } catch (err) {
     console.error("[notify] sync_invite failed:", err);
   }
@@ -131,6 +141,7 @@ router.get("/preview/:code", async (req, res) => {
 router.use(authRequired);
 router.use((req, _res, next) => {
   setSyncIo(req.app.get("io"));
+  tripIo = req.app.get("io");
   next();
 });
 // ── Budgets are private ──
@@ -281,6 +292,158 @@ function logActivity(group, type, userId, message) {
     message,
     createdAt: new Date(),
   });
+  // Everything that lands in the trip's activity log also goes to the
+  // rest of the group's notification bell (Sync Together tab).
+  if (TRIP_BELLS[type]) bellTrip(group, type, userId, message);
+}
+
+/* ── Sync Together → notification bell ──────────────────────────────
+   Shows up in the bell's "Sync Together" tab (type "sync_update").
+   Invites, group chat, RSVPs, shortlist and group-hotel notifications
+   are sent elsewhere in this file. */
+let tripIo = null; // set by the router middleware above
+
+const idStr = (v) => String(v?._id || v || "");
+
+// Everyone on the trip who should hear about it: organizer + members who
+// haven't declined, minus whoever did the thing.
+function tripRecipients(group, actorId, exclude = []) {
+  const skip = new Set([idStr(actorId), ...exclude.map(idStr)]);
+  const ids = [
+    idStr(group.owner),
+    ...(group.members || [])
+      .filter((m) => m.user && m.status !== "declined")
+      .map((m) => idStr(m.user)),
+  ];
+  return [...new Set(ids)].filter((id) => id && !skip.has(id));
+}
+
+// (actor name, trip name, activity-log message) → { title, message }
+const TRIP_BELLS = {
+  member_added: (who, trip, msg) => ({
+    title: `New traveler on ${trip}`,
+    message: msg,
+  }),
+  member_left: (who, trip) => ({
+    title: trip,
+    message: `${who} left the trip.`,
+  }),
+  plan_generated: (who, trip) => ({
+    title: `The plan for ${trip} is ready`,
+    message: `${who} made the trip plan. Take a look and approve it.`,
+  }),
+  plan_updated: (who, trip) => ({
+    title: `The plan for ${trip} changed`,
+    message: `${who} updated the plan. Take a look and approve it again.`,
+  }),
+  approved: (who, trip, msg) => ({
+    title: trip,
+    message:
+      msg === "Everyone approved"
+        ? "Everyone approved the plan."
+        : `${who} approved the plan.`,
+  }),
+  change_requested: (who, trip, msg) => ({
+    title: `${who} asked for a change`,
+    message: `${trip}: ${String(msg || "").slice(0, 100)}`,
+  }),
+  start_booking: (who, trip) => ({
+    title: `Booking is open for ${trip}`,
+    message: "Book your own flight and room from the trip page.",
+  }),
+  booked: (who, trip, msg) =>
+    /^added their/.test(msg || "")
+      ? {
+          title: trip,
+          message: `${who} booked their ${
+            /flight/.test(msg) ? "flight" : "room"
+          } and added it to the trip.`,
+        }
+      : {
+          title: `${trip} is confirmed`,
+          message: `${who} locked in the trip.`,
+        },
+  booking_removed: (who, trip, msg) => ({
+    title: trip,
+    message: `${who} took their ${
+      /flight/.test(msg || "") ? "flight" : "room"
+    } off the trip.`,
+  }),
+  arrival_window: (who, trip, msg) => ({
+    title: trip,
+    message: /^Cleared/.test(msg || "")
+      ? `${who} cleared the arrival window.`
+      : `${who} set the arrival window. Check it before you book your flight.`,
+  }),
+};
+
+async function nameOf(userId) {
+  const u = await User.findById(userId).select("name username").lean();
+  return u?.name || u?.username || "Someone";
+}
+
+// Fire-and-forget: never slows down or breaks the request.
+async function bellTrip(group, type, actorId, logMessage) {
+  try {
+    // Someone just added gets their invite notification instead
+    const exclude =
+      type === "member_added" && !/joined/.test(logMessage || "")
+        ? [group.members?.[group.members.length - 1]?.user]
+        : [];
+    // Work out recipients now, before anything else changes the group
+    const to = tripRecipients(group, actorId, exclude);
+    if (!to.length) return;
+    const tripId = group._id;
+    const tripName = group.title || "your trip";
+    const who = await nameOf(actorId);
+    const { title, message } = TRIP_BELLS[type](who, tripName, logMessage);
+    await Promise.all(
+      to.map((u) =>
+        notify(tripIo, {
+          to: u,
+          from: actorId,
+          type: "sync_update",
+          title,
+          message,
+          targetType: "sync",
+          targetId: tripId,
+          link: `/sync-together/${tripId}`,
+        })
+      )
+    );
+  } catch (err) {
+    console.error(`[notify] trip update (${type}) failed:`, err);
+  }
+}
+
+// Saves notifications built as plain documents AND pushes them live
+// (Notification.insertMany saved them but never rang the bell).
+function bellDocs(docs) {
+  return Promise.all(
+    (docs || []).map(({ user, ...d }) =>
+      notify(tripIo, {
+        ...d,
+        to: idStr(user),
+        type: "sync_update",
+        targetType: "sync",
+      })
+    )
+  );
+}
+
+// One person, one message (removed from a trip, reminders, trip deleted)
+function bellOne(toUserId, actorId, { title, message, tripId, link }) {
+  if (!toUserId) return;
+  notify(tripIo, {
+    to: idStr(toUserId),
+    from: actorId,
+    type: "sync_update",
+    title,
+    message,
+    targetType: "sync",
+    targetId: tripId,
+    link,
+  }).catch((err) => console.error("[notify] trip message failed:", err));
 }
 
 /* ── Helper: full populate chain ── */
@@ -849,6 +1012,22 @@ router.delete("/:id/member/:memberId", async (req, res) => {
 
     if (leavingSelf) return res.json({ ok: true, left: true });
 
+    // Bell for the removed member (they can't open the trip anymore)
+    if (removedUserId) {
+      nameOf(userId)
+        .then((who) =>
+          bellOne(removedUserId, userId, {
+            title: "You were removed from a trip",
+            message: `${who} removed you from ${
+              group.title || "a group trip"
+            }.`,
+            tripId: group._id,
+            link: "/sync-together",
+          })
+        )
+        .catch(() => {});
+    }
+
     // Notify the removed member (non-blocking)
     try {
       const remover = await User.findById(userId)
@@ -1043,6 +1222,16 @@ router.delete("/:id", async (req, res) => {
     try {
       const owner = await User.findById(userId).select("name username").lean();
       const ownerName = owner?.name || owner?.username || "The organizer";
+
+      // Bell for everyone on the trip
+      for (const u of tripRecipients(group, userId)) {
+        bellOne(u, userId, {
+          title: "A trip was deleted",
+          message: `${ownerName} deleted ${group.title || "a group trip"}.`,
+          tripId: group._id,
+          link: "/sync-together",
+        });
+      }
 
       for (const m of group.members) {
         let email = m.email;
@@ -1603,6 +1792,14 @@ router.post("/:id/remind", async (req, res) => {
       });
     }
     member.lastRemindedAt = new Date();
+    bellOne(member.user, userId, {
+      title: `Reminder: ${group.title || "your group trip"}`,
+      message: `${
+        group.owner?.name || group.owner?.username || "The organizer"
+      } is waiting on you. Open the trip to see what's left.`,
+      tripId: group._id,
+      link: `/sync-together/${group._id}`,
+    });
     logActivity(
       group,
       "reminder_sent",
@@ -1683,6 +1880,14 @@ router.post("/:id/resend-invite", async (req, res) => {
       });
     }
     lastInviteSent.set(key, Date.now());
+    // Bell too, in case they have an account and missed the first one
+    notifyInvitee(
+      req,
+      group,
+      member,
+      userId,
+      group.owner?.name || group.owner?.username || "Someone"
+    );
     logActivity(
       group,
       "invite_resent",
@@ -1851,7 +2056,7 @@ router.post("/:id/shortlist", async (req, res) => {
         .filter((m) => m.user && m.status !== "declined")
         .map((m) => m.user._id),
     ].filter((id) => id && String(id) !== String(userId));
-    Notification.insertMany(
+    bellDocs(
       others.map((u) => ({
         user: u,
         type: "booking",
@@ -1981,7 +2186,7 @@ router.post("/:id/shortlist/:itemId/unavailable", async (req, res) => {
         .filter((m) => m.user && m.status !== "declined")
         .map((m) => m.user._id),
     ].filter((id) => id && String(id) !== String(userId));
-    Notification.insertMany(
+    bellDocs(
       others.map((u) => ({
         user: u,
         type: "booking",
@@ -2064,7 +2269,7 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
     const others = group.members
       .filter((m) => m.user && m.status !== "declined")
       .map((m) => m.user._id);
-    Notification.insertMany(
+    bellDocs(
       others.map((u) => ({
         user: u,
         type: "booking",
@@ -2198,7 +2403,7 @@ router.put("/:id/group-hotel", async (req, res) => {
       const others = group.members
         .filter((m) => m.user && m.status !== "declined")
         .map((m) => m.user);
-      Notification.insertMany(
+      bellDocs(
         others.map((u) => ({
           user: u,
           type: "booking",
@@ -2299,15 +2504,17 @@ router.post("/:id/rsvp", async (req, res) => {
         going ? `${who} is going` : `${who} can't make it`
       );
       await group.save();
-      Notification.create({
-        user: group.owner,
-        type: "booking",
-        title: going ? "Someone's in 🎉" : "Someone can't make it",
-        message: `${who} ${going ? "is going on" : "can't make it to"} ${
-          group.title || "your trip"
-        }.`,
-        link: `/sync-together/${group._id}`,
-      }).catch(() => {});
+      bellDocs([
+        {
+          user: group.owner,
+          type: "booking",
+          title: going ? "Someone's in 🎉" : "Someone can't make it",
+          message: `${who} ${going ? "is going on" : "can't make it to"} ${
+            group.title || "your trip"
+          }.`,
+          link: `/sync-together/${group._id}`,
+        },
+      ]).catch(() => {});
     }
     const populated = await fullPopulate(SyncGroup.findById(group._id)).lean();
     return res.json({ ok: true, group: populated });
