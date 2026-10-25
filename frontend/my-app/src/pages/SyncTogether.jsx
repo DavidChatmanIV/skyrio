@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import "@/styles/SyncTogether.css";
 import SyncBoardingPass from "./SyncBoardingPass";
+import CancelTripDialog from "./CancelTripDialog";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
@@ -156,7 +157,8 @@ export default function SyncTogether() {
 
   const [filter, setFilter] = useState("active");
   const [showAll, setShowAll] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  // Trip whose "Cancel trip" dialog is open
+  const [cancelTripId, setCancelTripId] = useState(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/sync-together/my-trips`, { headers: authHeaders() })
@@ -247,22 +249,17 @@ export default function SyncTogether() {
     }
   };
 
-  const deleteTrip = async (tripId) => {
-    setConfirmDeleteId(null);
-    const before = myTrips;
+  // Called by the dialog once the trip (and any bookings you chose) are cancelled
+  const handleTripCancelled = (tripId, { cancelledBookings, keptBookings }) => {
+    setCancelTripId(null);
     setMyTrips((prev) => prev.filter((t) => t._id !== tripId));
-    try {
-      const res = await fetch(`${API_BASE}/sync-together/${tripId}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Couldn't delete the trip");
-      antdMessage.success("Trip deleted");
-    } catch (err) {
-      setMyTrips(before);
-      antdMessage.error(err.message || "Couldn't delete the trip");
-    }
+    antdMessage.success(
+      cancelledBookings
+        ? "Trip cancelled. Your cancellation emails are on the way."
+        : keptBookings
+        ? "Trip cancelled. Your bookings are still in My Trips."
+        : "Trip cancelled."
+    );
   };
 
   /* ── Trip list filter ── */
@@ -426,7 +423,6 @@ export default function SyncTogether() {
                 const place = placeName(trip.destination);
                 const showPlace =
                   place && !title.toLowerCase().includes(place.toLowerCase());
-                const confirming = confirmDeleteId === trip._id;
                 return (
                   <li key={trip._id} className="sk-sync-trip">
                     <button
@@ -502,41 +498,19 @@ export default function SyncTogether() {
                     </button>
 
                     <div className="sk-sync-tripStub">
-                      {confirming ? (
-                        <div className="sk-sync-confirm" role="alertdialog">
-                          <span>Delete this trip?</span>
-                          <button
-                            type="button"
-                            className="sk-sync-confirmBtn is-danger"
-                            onClick={() => deleteTrip(trip._id)}
-                          >
-                            Delete
-                          </button>
-                          <button
-                            type="button"
-                            className="sk-sync-confirmBtn"
-                            onClick={() => setConfirmDeleteId(null)}
-                          >
-                            Keep
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="sk-sync-open" aria-hidden="true">
-                            Open <ChevronRight size={15} />
-                          </span>
-                          {isOwner && (
-                            <button
-                              type="button"
-                              className="sk-sync-del"
-                              onClick={() => setConfirmDeleteId(trip._id)}
-                              aria-label={`Delete ${title}`}
-                              title="Delete trip"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          )}
-                        </>
+                      <span className="sk-sync-open" aria-hidden="true">
+                        Open <ChevronRight size={15} />
+                      </span>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          className="sk-sync-del"
+                          onClick={() => setCancelTripId(trip._id)}
+                          aria-label={`Cancel ${title}`}
+                          title="Cancel trip"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       )}
                     </div>
                   </li>
@@ -582,6 +556,13 @@ export default function SyncTogether() {
           </p>
         )}
       </div>
+      {cancelTripId && (
+        <CancelTripDialog
+          tripId={cancelTripId}
+          onClose={() => setCancelTripId(null)}
+          onCancelled={(result) => handleTripCancelled(cancelTripId, result)}
+        />
+      )}
     </section>
   );
 }

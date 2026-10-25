@@ -103,7 +103,7 @@ async function upsertCollapsed(
     [{ $set: pipelineSet }],
     {
       upsert: true,
-      new: true,
+      returnDocument: "after",
       lean: true,
       timestamps: false,
       updatePipeline: true, // Mongoose 9 rejects pipeline updates without this
@@ -140,6 +140,11 @@ export function notifySyncInvite(
 
 /* ── SkyHub ───────────────────────────────────────────────────────── */
 
+// There's no single-post page yet, so open the SkyHub feed. The post id
+// rides along in ?post= so the feed (or a future post page) can jump to it.
+const skyhubPostLink = (postId) =>
+  `/skyhub?post=${encodeURIComponent(String(postId))}`;
+
 /** Call after a like is added (not on unlike). */
 export function notifyPostLike(
   io,
@@ -150,7 +155,7 @@ export function notifyPostLike(
     userId: postAuthorId,
     type: "post_like",
     match: { targetId: oid(postId) },
-    set: { targetType: "post", link: `/skyhub/post/${postId}` },
+    set: { targetType: "post", link: skyhubPostLink(postId) },
     actorName: likerName,
     buildText: ({ senders = [], count = 1 }) => ({
       title: `${names(senders[0], count - 1)} liked your post`,
@@ -169,7 +174,7 @@ export function notifyPostComment(
     userId: postAuthorId,
     type: "post_comment",
     match: { targetId: oid(postId) },
-    set: { targetType: "post", link: `/skyhub/post/${postId}` },
+    set: { targetType: "post", link: skyhubPostLink(postId) },
     actorName: commenterName,
     buildText: ({ senders = [], count = 1 }) => ({
       title:

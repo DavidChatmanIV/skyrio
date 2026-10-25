@@ -1,10 +1,12 @@
-import React, { lazy, Suspense, useEffect } from "react";
+import React, { Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RequireAccount from "./components/RequireAccount";
 import { useAuth } from "./auth/useAuth";
 import CookieBanner from "./components/CookieBanner";
+// Reload-safe React.lazy: survives stale chunks after a deploy.
+import { lazyWithReload as lazy } from "./utils/lazyWithReload";
 
 // ── Core pages ──
 const LandingPage = lazy(() => import("./pages/LandingPage"));

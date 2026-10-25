@@ -1170,6 +1170,104 @@ router.post("/:id/member", async (req, res) => {
    DELETE /api/sync-together/:id
    Delete a group (owner only).
    ────────────────────────────────────────────── */
+/* GET /api/sync-together/:id/cancel-preview — organizer only.
+   Everything the "Cancel trip" dialog needs, in one call: whether the trip
+   can be cancelled, who will be told, and the organizer's own bookings on it
+   (the dialog then asks /api/bookings/:id/cancel-quote for each refund). */
+router.get("/:id/cancel-preview", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id)
+      .populate("members.user", "name username")
+      .lean();
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+    if (String(group.owner) !== String(userId)) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can cancel this trip" });
+    }
+
+    const nameOfMember = (m) =>
+      m.user?.name || m.user?.username || m.name || m.email || "A traveler";
+
+    const linked = await Booking.find({
+      status: { $in: ["confirmed", "cancel_pending"] },
+      ...linkedToGroup(group._id),
+    })
+      .select(
+        "user type status tripDetails dates hotelStay.rooms flight sharedRoom totalAmount total totalCurrency"
+      )
+      .lean();
+
+    // Other travelers who already booked → the trip can't be cancelled
+    const othersBookedIds = new Set(
+      linked
+        .filter((b) => String(b.user) !== String(userId))
+        .map((b) => String(b.user))
+    );
+    const othersBooked = (group.members || [])
+      .filter(
+        (m) => m.user && othersBookedIds.has(String(m.user._id || m.user))
+      )
+      .map(nameOfMember);
+
+    const liveSharedRoom = await SplitPayment.exists({
+      group: group._id,
+      kind: "shared_room",
+      status: { $in: ["booking", "booked"] },
+    });
+
+    let blockReason = null;
+    if (othersBooked.length) {
+      blockReason = `${othersBooked.join(", ")} ${
+        othersBooked.length > 1 ? "have" : "has"
+      } already booked, so this trip can't be cancelled. They can take their booking off the trip first.`;
+    } else if (liveSharedRoom) {
+      blockReason =
+        "This trip has a booked shared room. Cancel the shared room on the trip page first.";
+    }
+
+    const myBookings = linked
+      .filter((b) => String(b.user) === String(userId) && !b.sharedRoom)
+      .map((b) => {
+        const room = b.hotelStay?.rooms?.[0];
+        return {
+          id: String(b._id),
+          type: b.type,
+          status: b.status,
+          title:
+            b.type === "Hotel" ? room?.name || b.tripDetails : b.tripDetails,
+          start:
+            b.dates?.start ||
+            room?.checkin ||
+            b.flight?.departureDate ||
+            b.flight?.departDate ||
+            null,
+          end: b.dates?.end || room?.checkout || b.flight?.returnDate || null,
+          paid: Number(b.totalAmount ?? b.total) || 0,
+          currency: b.totalCurrency || "USD",
+        };
+      });
+
+    // Everyone who'll get the "trip cancelled" notification
+    const notify = (group.members || [])
+      .filter((m) => m.status !== "declined")
+      .map(nameOfMember);
+
+    return res.json({
+      ok: true,
+      trip: { id: String(group._id), title: group.title || "this trip" },
+      canCancel: !blockReason,
+      blockReason,
+      notify,
+      myBookings,
+    });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't load the trip");
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   try {
     const userId = req.user?.id ?? req.user?._id;
@@ -1182,17 +1280,29 @@ router.delete("/:id", async (req, res) => {
         .json({ ok: false, error: "Only the organizer can delete this trip" });
     }
 
-    // NEW: travelers' real bookings point at this trip — don't delete it
-    // out from under them.
-    const linkedBookings = await Booking.countDocuments({
+    // Real bookings on this trip. Other travelers' bookings block the
+    // delete — it can't be pulled out from under them. The organizer's own
+    // bookings don't: they're taken off the trip (NOT cancelled) and stay
+    // in the organizer's My Trips, so they can keep or cancel them there.
+    const linkedBookings = await Booking.find({
       status: { $in: ["confirmed", "cancel_pending"] },
       ...linkedToGroup(group._id),
-    });
-    if (linkedBookings) {
+    })
+      .select("_id user")
+      .lean();
+    const othersBooked = linkedBookings.filter(
+      (b) => String(b.user) !== String(userId)
+    );
+    const myBookings = linkedBookings.filter(
+      (b) => String(b.user) === String(userId)
+    );
+    if (othersBooked.length) {
+      const people = new Set(othersBooked.map((b) => String(b.user))).size;
       return res.status(409).json({
         ok: false,
-        error:
-          "Travelers have already booked parts of this trip. Each person can take their booking off the trip (or cancel it from My Trips) before it can be deleted.",
+        error: `${people} other traveler${
+          people > 1 ? "s have" : " has"
+        } already booked part of this trip, so it can't be deleted. They can take their booking off the trip (or cancel it from My Trips) first.`,
       });
     }
 
@@ -1226,8 +1336,10 @@ router.delete("/:id", async (req, res) => {
       // Bell for everyone on the trip
       for (const u of tripRecipients(group, userId)) {
         bellOne(u, userId, {
-          title: "A trip was deleted",
-          message: `${ownerName} deleted ${group.title || "a group trip"}.`,
+          title: "A trip was cancelled",
+          message: `${ownerName} cancelled ${
+            group.title || "a group trip"
+          }. Nothing was booked for you, so there's nothing else to do.`,
           tripId: group._id,
           link: "/sync-together",
         });
@@ -1255,8 +1367,20 @@ router.delete("/:id", async (req, res) => {
       );
     }
 
+    // Take the organizer's own bookings off the trip. They stay confirmed.
+    if (myBookings.length) {
+      await Booking.updateMany(
+        { _id: { $in: myBookings.map((x) => x._id) } },
+        { $set: { syncGroup: null }, $unset: { "flight.groupId": "" } }
+      );
+    }
+
     await SyncGroup.findByIdAndDelete(req.params.id);
-    return res.json({ ok: true });
+    return res.json({
+      ok: true,
+      // Lets the page say "Your booking is still in My Trips"
+      keptBookings: myBookings.length,
+    });
   } catch (err) {
     console.error("[sync-together] delete error:", err);
     return res.status(500).json({ ok: false, error: "Failed to delete" });

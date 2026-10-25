@@ -7,8 +7,13 @@
 //      reads STRIPE_PUBLISHABLE_KEY on Render).
 // So the live site works even when the Vercel build has no key.
 // A publishable key (pk_…) is safe to expose — it can't move money.
+//
+// Uses "@stripe/stripe-js/pure" so Stripe's script is only added to the page
+// when getSkyrioStripe() is actually called (checkout), not the moment this
+// file is bundled in. The plain import injected the script on every page that
+// shared this chunk, which caused "Failed to load Stripe.js" on Sync Together.
 import { useEffect, useState } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe } from "@stripe/stripe-js/pure";
 
 const API = import.meta.env.VITE_API_URL || "";
 const clean = (k) =>
@@ -47,7 +52,12 @@ export function getSkyrioStripe() {
       stripePromise = null; // let a later page try again
       return null;
     }
-    return loadStripe(key);
+    return loadStripe(key).catch((err) => {
+      // Script blocked (ad blocker, CSP) or offline. Clear the cache so a
+      // later page can try again instead of being stuck on a failed load.
+      stripePromise = null;
+      throw err;
+    });
   })();
   return stripePromise;
 }
