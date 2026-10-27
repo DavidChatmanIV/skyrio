@@ -10,6 +10,8 @@ import {
   Send,
   Award,
   Sparkles,
+  Lock,
+  Globe,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -114,6 +116,8 @@ async function api(path, { method = "GET", body } = {}) {
   const token = localStorage.getItem("token");
   const res = await fetch(`${API}${path}`, {
     method,
+    // Sends the login cookie too, in case auth is cookie-based.
+    credentials: "include",
     headers: {
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -121,8 +125,19 @@ async function api(path, { method = "GET", body } = {}) {
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.ok === false)
-    throw new Error(data.message || "Something went wrong. Please try again.");
+  if (!res.ok || data.ok === false) {
+    const detail = data.message || data.error;
+    console.warn(`[SupportRail] ${method} ${path} → ${res.status}`, data);
+    if (res.status === 401)
+      throw new Error("Your session expired. Sign in again and retry.");
+    if (res.status === 429)
+      throw new Error("Too many requests. Wait a minute and try again.");
+    throw new Error(
+      detail
+        ? `${detail} (${res.status})`
+        : `Something went wrong (${res.status}). Please try again.`
+    );
+  }
   return data;
 }
 
@@ -280,6 +295,94 @@ function Done({ xp, note, children, onClose }) {
   );
 }
 
+/* Switch between "Feedback" and "Review" inside one panel */
+function ModeToggle({ mode, onChange }) {
+  const opts = [
+    ["feedback", "Feedback", MessageSquare],
+    ["review", "Review", Award],
+  ];
+  return (
+    <>
+      <div
+        role="tablist"
+        aria-label="What would you like to send?"
+        style={{
+          display: "flex",
+          gap: 4,
+          padding: 4,
+          marginBottom: 14,
+          borderRadius: 12,
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        {opts.map(([value, label, Icon]) => {
+          const active = mode === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(value)}
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                minHeight: 36,
+                borderRadius: 9,
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: 13,
+                fontWeight: 700,
+                background: active
+                  ? "linear-gradient(135deg, #ff8a2a, #ffb347)"
+                  : "transparent",
+                color: active ? "#1a0e06" : "rgba(255,255,255,0.6)",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >
+              <Icon size={15} aria-hidden="true" />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 12,
+          color: "rgba(255,255,255,0.55)",
+          margin: "-6px 2px 14px",
+          lineHeight: 1.4,
+        }}
+      >
+        {mode === "feedback" ? (
+          <Lock
+            size={13}
+            aria-hidden="true"
+            style={{ flexShrink: 0, color: "#ffb347" }}
+          />
+        ) : (
+          <Globe
+            size={13}
+            aria-hidden="true"
+            style={{ flexShrink: 0, color: "#ffb347" }}
+          />
+        )}
+        {mode === "feedback"
+          ? "Private. Only the Skyrio team sees this. Report bugs or share ideas."
+          : "Public. Shown to other travelers once approved. Tell them how it went."}
+      </div>
+    </>
+  );
+}
+
 const FEEDBACK_TYPES = [
   ["general", "General"],
   ["idea", "Idea"],
@@ -382,21 +485,46 @@ export default function SupportRail() {
   // review. The server handles timing (24h–14d after the trip), one review
   // per trip, and the 30-day snooze after "Not now".
   useEffect(() => {
-    if (promptChecked.current || !isSignedIn()) return;
+    if (promptChecked.current) return;
     promptChecked.current = true;
-    if (sessionStorage.getItem("skyrio_review_prompt_seen")) return;
+
+    // TEST MODE: add ?testReview to any URL (e.g. myskyrio.com/?testReview)
+    // to force the pop-up, skipping every timing and once-per-session rule.
+    if (new URLSearchParams(window.location.search).has("testReview")) {
+      const t = setTimeout(
+        () =>
+          setPrompt({ bookingId: null, destination: null, xp: XP.TESTIMONIAL }),
+        800
+      );
+      return () => clearTimeout(t);
+    }
+
+    if (!isSignedIn()) {
+      console.info("[review prompt] skipped: not signed in");
+      return;
+    }
+    if (sessionStorage.getItem("skyrio_review_prompt_seen")) {
+      console.info("[review prompt] skipped: already shown this session");
+      return;
+    }
     const t = setTimeout(async () => {
       try {
-        const { prompt: p } = await api("/api/testimonials/prompt");
-        if (!p) return;
+        const { prompt: p, reason } = await api("/api/testimonials/prompt");
+        if (!p) {
+          console.info(
+            `[review prompt] skipped: ${reason || "no trip to ask about"}`
+          );
+          return;
+        }
         setPrompt(p);
         sessionStorage.setItem("skyrio_review_prompt_seen", "1");
         api(`/api/testimonials/prompt/${p.bookingId}/seen`, {
           method: "POST",
           body: {},
         }).catch(() => {});
-      } catch {
+      } catch (err) {
         // Never bother the user over a failed nudge check.
+        console.info("[review prompt] check failed:", err.message);
       }
     }, 4000); // let the page settle first
     return () => clearTimeout(t);
@@ -429,7 +557,7 @@ export default function SupportRail() {
   }
 
   function dismissPrompt() {
-    if (prompt) {
+    if (prompt?.bookingId) {
       api(`/api/testimonials/prompt/${prompt.bookingId}/dismiss`, {
         method: "POST",
         body: {},
@@ -586,8 +714,7 @@ export default function SupportRail() {
           animation: railFan 0.2s cubic-bezier(0.22,1,0.36,1) both;
         }
         .sr-rail-wrapper.is-open .sr-action--feedback { animation-delay: 0.04s; }
-        .sr-rail-wrapper.is-open .sr-action--review { animation-delay: 0.08s; }
-        .sr-rail-wrapper.is-open .sr-action--tour { animation-delay: 0.12s; }
+        .sr-rail-wrapper.is-open .sr-action--tour { animation-delay: 0.08s; }
         .sr-action:active { transform: scale(0.96); }
         .sr-action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
@@ -830,22 +957,6 @@ export default function SupportRail() {
 
         <button
           type="button"
-          className="sr-action sr-action--review"
-          onClick={() => openReview()}
-        >
-          <span className="sr-action__icon" aria-hidden="true">
-            <Award size={19} />
-          </span>
-          <span className="sr-action__label">
-            Leave a review
-            {signedIn && (
-              <span className="sr-action__xp">+{XP.TESTIMONIAL} XP</span>
-            )}
-          </span>
-        </button>
-
-        <button
-          type="button"
           className="sr-action sr-action--feedback"
           onClick={() => openPanel("feedback")}
         >
@@ -853,7 +964,7 @@ export default function SupportRail() {
             <MessageSquare size={19} />
           </span>
           <span className="sr-action__label">
-            Feedback
+            Feedback & reviews
             {signedIn && <span className="sr-action__xp">+XP</span>}
           </span>
         </button>
@@ -917,6 +1028,13 @@ export default function SupportRail() {
             }
           />
 
+          {!fbResult && (
+            <ModeToggle
+              mode="feedback"
+              onChange={(m) => m === "review" && openReview()}
+            />
+          )}
+
           {fbResult ? (
             <Done
               xp={fbResult.xpAwarded}
@@ -928,11 +1046,6 @@ export default function SupportRail() {
             </Done>
           ) : (
             <>
-              <div style={hintText}>
-                What's working, what's not, what would you change? We read
-                everything.
-              </div>
-
               <div
                 role="group"
                 aria-label="Feedback type"
@@ -1025,6 +1138,13 @@ export default function SupportRail() {
             }
           />
 
+          {!rvResult && !review.bookingId && (
+            <ModeToggle
+              mode="review"
+              onChange={(m) => m === "feedback" && setActivePanel("feedback")}
+            />
+          )}
+
           {!signedIn ? (
             <div
               style={{
@@ -1057,11 +1177,6 @@ export default function SupportRail() {
             </Done>
           ) : (
             <>
-              <div style={hintText}>
-                Honest reviews help other travelers and help us get better. You
-                earn the same XP whatever you rate us.
-              </div>
-
               <StarPicker
                 value={review.rating}
                 onChange={(n) => setReview((r) => ({ ...r, rating: n }))}
@@ -1087,8 +1202,10 @@ export default function SupportRail() {
                 }}
               >
                 {rvChars < MIN_CHARS
-                  ? `${MIN_CHARS - rvChars} more characters`
-                  : `${rvChars}/1000`}
+                  ? `${
+                      MIN_CHARS - rvChars
+                    } more characters · Same XP whatever you rate us`
+                  : `${rvChars}/1000 · Same XP whatever you rate us`}
               </div>
 
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>

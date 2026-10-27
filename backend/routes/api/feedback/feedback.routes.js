@@ -76,19 +76,26 @@ const adminOf = (req) =>
 /** The signed-in user's id. */
 const userIdOf = (req) => req.user?._id || req.user?.id;
 
-/** Bookings that belong to a user. Adjust if your field is named differently. */
-const bookingOwnerQuery = (userId) => ({
-  $or: [{ user: userId }, { userId }],
-});
+/** Bookings that belong to a user (Booking.user). */
+const bookingOwnerQuery = (userId) => ({ user: userId });
 
-/** When a trip is over. Adjust to your Booking shape. */
+/**
+ * When a trip is over. Uses dates.end, then the latest hotel checkout,
+ * then dates.start as a last resort (one-way flights with no end date).
+ */
 function tripEndDate(b) {
-  const d =
-    b.flight?.returnDate ||
-    b.flight?.arrivalDate ||
-    b.flight?.departureDate ||
-    b.endDate;
-  return d ? new Date(d) : null;
+  if (b.dates?.end) return new Date(b.dates.end);
+  const checkouts = (b.hotelStay?.rooms || [])
+    .map((r) => (r.checkout ? new Date(r.checkout) : null))
+    .filter((d) => d && !isNaN(d));
+  if (checkouts.length) return new Date(Math.max(...checkouts));
+  if (b.dates?.start) return new Date(b.dates.start);
+  return null;
+}
+
+/** A short name for the trip, used in "How was ___?" */
+function tripName(b) {
+  return b.flight?.destination || b.hotelStay?.rooms?.[0]?.name || null;
 }
 
 /** In-app notification. Uses your Notification model if it exists. */
@@ -161,6 +168,12 @@ const clean = (s, max) =>
     .slice(0, max);
 const badId = (id) => !mongoose.isValidObjectId(id);
 
+/** Real error text while developing, a friendly line in production. */
+const devMessage = (err, fallback) =>
+  process.env.NODE_ENV === "production"
+    ? fallback
+    : `${fallback} ${err.message}`;
+
 /* ═══════════════════════════════════════════════════════════════════════════
    ROUTES
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -222,7 +235,9 @@ router.post("/feedback", optionalUser, async (req, res) => {
     res.json({ ok: true, id: fb._id, xpAwarded, xpNote });
   } catch (err) {
     console.error("[feedback] create", err);
-    res.status(500).json({ ok: false, message: "Couldn't save feedback." });
+    res
+      .status(500)
+      .json({ ok: false, message: devMessage(err, "Couldn't save feedback.") });
   }
 });
 
@@ -236,19 +251,33 @@ router.get("/testimonials/prompt", requireUser, async (req, res) => {
       user: userId,
       dismissedAt: { $gte: new Date(Date.now() - PROMPT_SNOOZE_DAYS * DAY) },
     });
-    if (snoozed) return res.json({ ok: true, prompt: null });
+    if (snoozed)
+      return res.json({ ok: true, prompt: null, reason: "snoozed_30_days" });
 
     const bookings = await Booking()
-      .find({ ...bookingOwnerQuery(userId), status: "confirmed" })
+      .find({
+        ...bookingOwnerQuery(userId),
+        status: "confirmed",
+        hiddenByUser: { $ne: true },
+      })
       .sort({ createdAt: -1 })
       .limit(20)
       .lean();
 
+    if (!bookings.length)
+      return res.json({
+        ok: true,
+        prompt: null,
+        reason: "no_confirmed_bookings",
+      });
+
     const now = Date.now();
+    let inWindow = 0;
     for (const b of bookings) {
       const end = tripEndDate(b);
       // Ask 24 hours to 14 days after the trip ends.
       if (!end || now - end < DAY || now - end > 14 * DAY) continue;
+      inWindow++;
       const [reviewed, prompt] = await Promise.all([
         Testimonial.exists({ user: userId, booking: b._id }),
         ReviewPrompt.findOne({ user: userId, booking: b._id }).lean(),
@@ -258,12 +287,18 @@ router.get("/testimonials/prompt", requireUser, async (req, res) => {
         ok: true,
         prompt: {
           bookingId: b._id,
-          destination: b.flight?.destination || null,
+          destination: tripName(b),
           xp: XP.TESTIMONIAL,
         },
       });
     }
-    res.json({ ok: true, prompt: null });
+    res.json({
+      ok: true,
+      prompt: null,
+      reason: inWindow
+        ? "trips_already_reviewed_or_dismissed"
+        : "no_trip_ended_1_to_14_days_ago",
+    });
   } catch (err) {
     console.error("[testimonials] prompt", err);
     res.json({ ok: true, prompt: null }); // never block the page over this
@@ -362,7 +397,10 @@ router.post("/testimonials", requireUser, async (req, res) => {
     res.json({ ok: true, id: t._id, xpAwarded: XP.TESTIMONIAL });
   } catch (err) {
     console.error("[testimonials] create", err);
-    res.status(500).json({ ok: false, message: "Couldn't save your review." });
+    res.status(500).json({
+      ok: false,
+      message: devMessage(err, "Couldn't save your review."),
+    });
   }
 });
 
@@ -547,7 +585,7 @@ admin.get("/testimonials/admin", async (req, res) => {
     .sort({ createdAt: status === "pending" ? 1 : -1 }) // oldest pending first
     .limit(200)
     .populate("user", userFields)
-    .populate("booking", "flight status total")
+    .populate("booking", "type flight hotelStay dates status total")
     .lean();
   res.json({ ok: true, testimonials: rows });
 });

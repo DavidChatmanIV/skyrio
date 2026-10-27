@@ -58,9 +58,9 @@ await mount("/rewards", "./rewards.routes.js");
 //  NEW: Challenges — fully data-driven, controllable live via the admin
 // endpoints in challenges.routes.js with no deploys needed.
 await mount("/challenges", "./challenges.routes.js");
-// NEW: Feedback — floating widget submissions, reviewable via
-// GET /api/feedback (admin) and status updates via PATCH.
-await mount("/feedback", "./feedback/feedback.routes.js");
+// Feedback + testimonials + feedback XP.
+// Mounted at "/" because it serves both /api/feedback/* and /api/testimonials/*.
+await mount("/", "./feedback/feedback.routes.js");
 // NEW: Support tickets — "Need help?" panel submissions, reviewable via
 // GET /api/support (admin) and status updates via PATCH.
 await mount("/support", "../support.routes.js");
@@ -128,6 +128,7 @@ api.get("/", (_req, res) => {
       "/verification",
       "/referral",
       "/feedback",
+      "/testimonials",
       "/support",
       "/split-payments",
       "/hotel-payments",

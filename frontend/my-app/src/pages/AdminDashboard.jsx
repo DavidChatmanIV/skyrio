@@ -169,7 +169,42 @@ const TAKEDOWN_FILTERS = [
   ["restored", "Restored"],
 ];
 
-const TABS = ["overview", "moderation", "engagement"];
+const TABS = ["overview", "moderation", "feedback", "engagement"];
+
+const FEEDBACK_STATUSES = [
+  { value: "new", label: "New", tone: "orange" },
+  { value: "reviewing", label: "Reviewing", tone: "blue" },
+  { value: "planned", label: "Planned", tone: "purple" },
+  { value: "shipped", label: "Shipped", tone: "green" },
+  { value: "closed", label: "Closed", tone: "muted" },
+];
+const FEEDBACK_STATUS = Object.fromEntries(
+  FEEDBACK_STATUSES.map((s) => [s.value, s])
+);
+const FEEDBACK_TYPE_LABELS = { bug: "Bug", idea: "Idea", general: "General" };
+const FEEDBACK_TYPE_TONES = { bug: "red", idea: "purple", general: "muted" };
+
+const REVIEW_FILTERS = [
+  ["pending", "Pending"],
+  ["approved", "Approved"],
+  ["rejected", "Rejected"],
+];
+// The only reasons a review can be rejected. Negative is never one of them.
+const REJECT_REASONS = [
+  { value: "spam", label: "Spam or fake" },
+  { value: "profanity", label: "Profanity or abuse" },
+  { value: "personal_info", label: "Contains personal info" },
+];
+const REJECT_LABELS = Object.fromEntries(
+  REJECT_REASONS.map((r) => [r.value, r.label])
+);
+
+const XP_REASON_LABELS = {
+  FEEDBACK_QUICK: "Quick feedback",
+  FEEDBACK_DETAILED: "Detailed feedback",
+  TESTIMONIAL: "Review",
+  FEEDBACK_SHIPPED: "Feedback shipped",
+};
 
 const C = {
   bg: "#07060f",
@@ -342,6 +377,20 @@ const INJECTED_CSS = `
   }
   .sk-challenge-modal .ant-picker-separator,
   .sk-challenge-modal .ant-picker-suffix { color: rgba(255,255,255,0.5) !important; }
+
+  /* Feedback & reviews */
+  .sk-stars { color: ${C.orange}; letter-spacing: 1px; font-size: 13px; }
+  .sk-stars__off { color: rgba(255,255,255,0.18); }
+  .sk-select-dark .ant-select-selector { background: rgba(255,255,255,0.06) !important; border-color: ${C.border} !important; }
+  .sk-select-dark .ant-select-selection-item { color: #fff !important; }
+  .sk-select-dark .ant-select-arrow { color: ${C.muted}; }
+  .sk-trend { display: flex; align-items: flex-end; gap: 10px; height: 96px; padding: 16px 20px 8px; }
+  .sk-trend__col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 100%; min-width: 0; }
+  .sk-trend__bar { width: 100%; max-width: 36px; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, ${C.orange}, rgba(255,138,42,0.35)); }
+  .sk-trend__val { font-size: 11px; font-weight: 700; color: ${C.white}; }
+  .sk-trend__label { font-size: 10px; color: ${C.muted}; padding: 0 20px 14px; display: flex; gap: 10px; }
+  .sk-trend__label span { flex: 1; text-align: center; }
+  .sk-quote { border-left: 2px solid rgba(255,138,42,0.4); padding-left: 10px; }
 `;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -559,20 +608,14 @@ function useAttentionCounts(refreshKey) {
     { key: refreshKey }
   );
 
-  // Cancellation requests (and which are urgent) + flights the airline is
-  // still cancelling. Refreshes every 5 minutes — urgent ones cost travelers
-  // money if they wait (24-hour free-cancel window, trips leaving soon).
   const cancels = useLoader(
-    async () => {
-      const j = await adminRequest("/api/bookings/admin/cancel-summary");
-      return {
-        requests: j.requests || 0,
-        urgent: j.urgentRequests || 0,
-        oldestAt: j.oldestRequestAt || null,
-        cancelling: j.cancelling || 0,
-      };
-    },
-    { key: refreshKey, intervalMs: 5 * 60_000 }
+    async () =>
+      (
+        await adminRequest(
+          "/api/bookings/admin/search?status=cancel_requested&limit=1"
+        )
+      ).total || 0,
+    { key: refreshKey }
   );
 
   // Legal clocks are running, so keep this one fresh while the page is open.
@@ -588,10 +631,7 @@ function useAttentionCounts(refreshKey) {
 
   return {
     openTickets: support.data ?? 0,
-    cancelRequests: cancels.data?.requests ?? 0,
-    urgentCancels: cancels.data?.urgent ?? 0,
-    oldestCancelAt: cancels.data?.oldestAt ?? null,
-    cancellingFlights: cancels.data?.cancelling ?? 0,
+    cancelRequests: cancels.data ?? 0,
     skyhub: skyhub.data ?? EMPTY_SKYHUB,
     reloadSkyhub: skyhub.reload,
   };
@@ -601,16 +641,11 @@ function useAttentionCounts(refreshKey) {
    OVERVIEW TAB
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function NeedsAttention({ counts, onOpenModeration }) {
+function NeedsAttention({ counts, onOpenModeration, onOpenFeedback }) {
   const navigate = useNavigate();
-  const {
-    openTickets,
-    cancelRequests,
-    urgentCancels,
-    oldestCancelAt,
-    cancellingFlights,
-    skyhub,
-  } = counts;
+  const { openTickets, cancelRequests, skyhub, feedback } = counts;
+  const fbWaiting =
+    (feedback?.newFeedback || 0) + (feedback?.pendingReviews || 0);
   const skyhubOpen = skyhub.reports + skyhub.appeals;
 
   return (
@@ -635,42 +670,20 @@ function NeedsAttention({ counts, onOpenModeration }) {
       <AttentionTile
         icon="🧳"
         title="Bookings"
-        state={
-          urgentCancels > 0 ? "urgent" : cancelRequests > 0 ? "hot" : undefined
-        }
+        state={cancelRequests > 0 ? "hot" : undefined}
         badges={
-          <>
-            {urgentCancels > 0 && (
-              <Pill tone="red">{urgentCancels} urgent</Pill>
-            )}
-            {cancelRequests > 0 && (
-              <Pill tone="amber">
-                {cancelRequests} {plural(cancelRequests, "cancellation")}
-              </Pill>
-            )}
-            {cancellingFlights > 0 && (
-              <Pill tone="muted">{cancellingFlights} cancelling</Pill>
-            )}
-          </>
+          cancelRequests > 0 && (
+            <Pill tone="amber">
+              {cancelRequests} {plural(cancelRequests, "cancellation")}
+            </Pill>
+          )
         }
         sub={
-          urgentCancels > 0
-            ? `${urgentCancels} ${plural(
-                urgentCancels,
-                "request"
-              )} can't wait — booked in the last 24h, leaving within 3 days, or waiting 4h+`
-            : cancelRequests > 0
+          cancelRequests > 0
             ? `${cancelRequests} ${plural(
                 cancelRequests,
                 "traveler"
-              )} waiting to hear back${
-                oldestCancelAt ? ` · oldest ${timeAgo(oldestCancelAt)}` : ""
-              }`
-            : cancellingFlights > 0
-            ? `${cancellingFlights} ${plural(
-                cancellingFlights,
-                "flight"
-              )} waiting on the airline to finish cancelling — checked automatically`
+              )} waiting to hear back`
             : "Search trips, cancel and refund, add notes"
         }
         onClick={() => navigate("/admin/bookings")}
@@ -731,6 +744,30 @@ function NeedsAttention({ counts, onOpenModeration }) {
             : "No removal requests waiting"
         }
         onClick={onOpenModeration}
+      />
+      <AttentionTile
+        icon="⭐"
+        title="Feedback & reviews"
+        state={fbWaiting > 0 ? "hot" : undefined}
+        badges={
+          <>
+            {feedback?.pendingReviews > 0 && (
+              <Pill tone="orange">
+                {feedback.pendingReviews}{" "}
+                {plural(feedback.pendingReviews, "review")}
+              </Pill>
+            )}
+            {feedback?.newFeedback > 0 && (
+              <Pill tone="blue">{feedback.newFeedback} new</Pill>
+            )}
+          </>
+        }
+        sub={
+          fbWaiting > 0
+            ? "Approve reviews, triage feedback, ship fixes"
+            : "No reviews or feedback waiting"
+        }
+        onClick={onOpenFeedback}
       />
     </div>
   );
@@ -988,7 +1025,13 @@ function TopXP({ users, loading }) {
   );
 }
 
-function OverviewTab({ dashboard, growth, counts, onOpenModeration }) {
+function OverviewTab({
+  dashboard,
+  growth,
+  counts,
+  onOpenModeration,
+  onOpenFeedback,
+}) {
   const data = dashboard.data;
   const ready = !!data || (!dashboard.loading && !!dashboard.error);
   const firstLoad = dashboard.loading && !data;
@@ -996,7 +1039,11 @@ function OverviewTab({ dashboard, growth, counts, onOpenModeration }) {
   return (
     <>
       <Section title="Needs attention">
-        <NeedsAttention counts={counts} onOpenModeration={onOpenModeration} />
+        <NeedsAttention
+          counts={counts}
+          onOpenModeration={onOpenModeration}
+          onOpenFeedback={onOpenFeedback}
+        />
       </Section>
 
       <Section title="Key metrics">
@@ -1876,6 +1923,645 @@ function EngagementTab({ refreshKey }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   FEEDBACK TAB: Feedback inbox, reviews queue, XP log, stats
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const EMPTY_FEEDBACK_COUNTS = { newFeedback: 0, pendingReviews: 0 };
+
+function useFeedbackCounts(refreshKey) {
+  const { data, reload } = useLoader(
+    async () => {
+      const j = await adminRequest("/api/feedback/admin/counts");
+      return {
+        newFeedback: j.newFeedback || 0,
+        pendingReviews: j.pendingReviews || 0,
+      };
+    },
+    { key: refreshKey, intervalMs: 120_000 }
+  );
+  return { ...(data || EMPTY_FEEDBACK_COUNTS), reload };
+}
+
+function Stars({ value = 0 }) {
+  return (
+    <span className="sk-stars" aria-label={`${value} out of 5 stars`}>
+      {"★".repeat(value)}
+      <span className="sk-stars__off">{"★".repeat(5 - value)}</span>
+    </span>
+  );
+}
+
+const userLabel = (u) =>
+  u
+    ? `${u.name || u.username || "User"}${u.email ? ` · ${u.email}` : ""}`
+    : "Signed out";
+
+function FeedbackStats({ refreshKey }) {
+  const { data, loading } = useLoader(
+    async () => (await adminRequest("/api/feedback/admin/stats")).data,
+    { key: refreshKey }
+  );
+  const ready = !!data || !loading;
+  const v = (x, f = (n) => n) => (!ready ? undefined : x == null ? "—" : f(x));
+  const byType = data?.feedbackByType30d || {};
+  const typeTotal = Object.values(byType).reduce((a, b) => a + b, 0);
+  const months = data?.ratingByMonth || [];
+
+  return (
+    <>
+      <div className="sk-stats" style={{ marginBottom: 20 }}>
+        <StatCard
+          icon="⭐"
+          label="Average rating"
+          tone="orange"
+          value={v(data?.averageRating, (n) => `${n} / 5`)}
+          hint={
+            data && `${fmtNum(data.reviewCount)} reviews, all ratings counted`
+          }
+        />
+        <StatCard
+          icon="📝"
+          label="Review response rate"
+          tone="purple"
+          value={v(data?.responseRate, (n) => `${n}%`)}
+          hint={
+            data && `Of ${fmtNum(data.promptsShown)} people asked after a trip`
+          }
+        />
+        <StatCard
+          icon="💬"
+          label="Feedback (30 days)"
+          tone="blue"
+          value={v(ready ? typeTotal : undefined, fmtNum)}
+          hint={
+            data &&
+            `${byType.bug || 0} bugs · ${byType.idea || 0} ideas · ${
+              byType.general || 0
+            } general`
+          }
+        />
+        <StatCard
+          icon="🚀"
+          label="Feedback shipped"
+          tone="green"
+          value={v(data?.shippedCount, fmtNum)}
+          hint="Each one earned its sender a bonus"
+        />
+      </div>
+
+      <div className="sk-grid-2">
+        <Panel title="Average rating by month" meta="Last 6 months">
+          <PanelContent
+            loading={loading}
+            isEmpty={!months.length}
+            emptyText="No reviews yet"
+          >
+            <div className="sk-trend">
+              {months.map((m) => (
+                <div
+                  key={m.month}
+                  className="sk-trend__col"
+                  title={`${m.count} reviews`}
+                >
+                  <span className="sk-trend__val">{m.avg}</span>
+                  <div
+                    className="sk-trend__bar"
+                    style={{ height: `${(m.avg / 5) * 60}px` }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="sk-trend__label">
+              {months.map((m) => (
+                <span key={m.month}>
+                  {dayjs(`${m.month}-01`).format("MMM")}
+                </span>
+              ))}
+            </div>
+          </PanelContent>
+        </Panel>
+
+        <Panel title="Feedback by type" meta="Last 30 days">
+          <div className="sk-rev">
+            {["bug", "idea", "general"].map((t) => {
+              const n = byType[t] || 0;
+              const pct = typeTotal ? Math.round((n / typeTotal) * 100) : 0;
+              const tone = TONES[FEEDBACK_TYPE_TONES[t]];
+              return (
+                <div key={t}>
+                  <div className="sk-rev__label">
+                    <span>{FEEDBACK_TYPE_LABELS[t]}</span>
+                    <span style={{ color: tone.fg }}>
+                      {n} · {pct}%
+                    </span>
+                  </div>
+                  <div className="sk-rev__bar">
+                    <div
+                      className="sk-rev__fill"
+                      style={{ width: `${pct}%`, background: tone.fg }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function FeedbackInbox({ refreshKey, onChange }) {
+  const [status, setStatus] = useState("new");
+  const [type, setType] = useState("all");
+  const key = `${status}:${type}`;
+  const { data, loading, reload } = useLoader(
+    async () => {
+      const j = await adminRequest(
+        `/api/feedback/admin?status=${status}&type=${type}`
+      );
+      return { key, rows: j.feedback || [] };
+    },
+    { key: `${key}:${refreshKey}` }
+  );
+  const rows = data?.key === key ? data.rows : [];
+  const [busyId, setBusyId] = useState(null);
+
+  const setItemStatus = async (fb, next) => {
+    setBusyId(fb._id);
+    try {
+      const j = await adminRequest(`/api/feedback/admin/${fb._id}`, {
+        method: "PATCH",
+        body: { status: next },
+      });
+      message.success(
+        j.bonusAwarded
+          ? `Marked shipped. +${j.bonusAwarded} XP sent and the user was notified.`
+          : `Moved to ${FEEDBACK_STATUS[next].label}.`
+      );
+      reload();
+      onChange?.();
+    } catch (err) {
+      message.error(err.message || "Couldn't update feedback.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <Panel
+      title="💬 Feedback inbox"
+      actions={
+        <>
+          <FilterChips
+            options={[
+              ...FEEDBACK_STATUSES.map((s) => [s.value, s.label]),
+              ["all", "All"],
+            ]}
+            value={status}
+            onChange={setStatus}
+          />
+          <Select
+            size="small"
+            value={type}
+            onChange={setType}
+            className="sk-select-dark"
+            style={{ width: 110 }}
+            options={[
+              { value: "all", label: "All types" },
+              { value: "bug", label: "Bugs" },
+              { value: "idea", label: "Ideas" },
+              { value: "general", label: "General" },
+            ]}
+          />
+        </>
+      }
+    >
+      {loading ? (
+        <div className="sk-empty">
+          <Spinner />
+        </div>
+      ) : (
+        <PanelContent
+          isEmpty={!rows.length}
+          emptyText={
+            status === "new"
+              ? "No new feedback. You're caught up."
+              : "Nothing here."
+          }
+        >
+          {rows.map((fb) => (
+            <div key={fb._id} className="sk-row sk-row--top">
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="sk-name">
+                  <Pill tone={FEEDBACK_TYPE_TONES[fb.type] || "muted"}>
+                    {FEEDBACK_TYPE_LABELS[fb.type] || fb.type}
+                  </Pill>
+                  {fb.rating ? <Stars value={fb.rating} /> : null}
+                  {fb.xpAwarded > 0 && (
+                    <Pill tone="amber">+{fb.xpAwarded} XP</Pill>
+                  )}
+                  {fb.shippedBonusAwarded && (
+                    <Pill tone="green">Bonus sent</Pill>
+                  )}
+                </div>
+                <div className="sk-text">{fb.message}</div>
+                <div className="sk-sub" style={{ marginTop: 6 }}>
+                  {userLabel(fb.user)} · {fb.page || "unknown page"} ·{" "}
+                  {timeAgo(fb.createdAt)}
+                </div>
+              </div>
+              <div className="sk-row__right">
+                {busyId === fb._id ? (
+                  <Spinner />
+                ) : (
+                  <Select
+                    size="small"
+                    value={fb.status}
+                    className="sk-select-dark"
+                    style={{ width: 120 }}
+                    options={FEEDBACK_STATUSES.map((s) => ({
+                      value: s.value,
+                      label: s.label,
+                    }))}
+                    onChange={(next) => {
+                      if (
+                        next !== "shipped" ||
+                        !fb.user ||
+                        fb.shippedBonusAwarded
+                      ) {
+                        setItemStatus(fb, next);
+                        return;
+                      }
+                      Modal.confirm({
+                        title: "Mark as shipped?",
+                        content:
+                          "This sends the user a +100 XP bonus and a notification. It can only happen once per item.",
+                        okText: "Mark shipped",
+                        onOk: () => setItemStatus(fb, next),
+                      });
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          ))}
+        </PanelContent>
+      )}
+    </Panel>
+  );
+}
+
+function TestimonialsQueue({ refreshKey, onChange }) {
+  const [status, setStatus] = useState("pending");
+  const { data, loading, reload } = useLoader(
+    async () => {
+      const j = await adminRequest(`/api/testimonials/admin?status=${status}`);
+      return { status, rows: j.testimonials || [] };
+    },
+    { key: `${status}:${refreshKey}` }
+  );
+  const rows = data?.status === status ? data.rows : [];
+
+  const [rejecting, setRejecting] = useState(null);
+  const [reason, setReason] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const act = async (t, action, extra = {}) => {
+    setBusy(true);
+    try {
+      await adminRequest(`/api/testimonials/admin/${t._id}`, {
+        method: "PATCH",
+        body: { action, ...extra },
+      });
+      message.success(
+        {
+          approve: "Approved.",
+          reject: "Rejected.",
+          feature: "Featured on the homepage.",
+          unfeature: "Removed from the homepage.",
+        }[action]
+      );
+      setRejecting(null);
+      reload();
+      onChange?.();
+    } catch (err) {
+      message.error(err.message || "Couldn't update the review.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Panel
+      title="⭐ Reviews"
+      actions={
+        <FilterChips
+          options={REVIEW_FILTERS}
+          value={status}
+          onChange={setStatus}
+        />
+      }
+    >
+      {loading ? (
+        <div className="sk-empty">
+          <Spinner />
+        </div>
+      ) : (
+        <PanelContent
+          isEmpty={!rows.length}
+          emptyText={
+            status === "pending" ? "No reviews waiting." : "Nothing here yet."
+          }
+        >
+          {rows.map((t) => {
+            const b = t.booking;
+            const tripLabel = !b
+              ? "General review (no trip)"
+              : b.flight
+              ? `Trip: ${b.flight.origin || "?"} → ${
+                  b.flight.destination || "?"
+                }`
+              : b.hotelStay?.rooms?.[0]?.name
+              ? `Stay: ${b.hotelStay.rooms[0].name}`
+              : `Trip: ${b.type || "booking"}`;
+            return (
+              <div key={t._id} className="sk-row sk-row--top">
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="sk-name">
+                    <Stars value={t.rating} />
+                    {t.featured && <Pill tone="orange">Featured</Pill>}
+                    {!t.consent && <Pill tone="muted">Not OK to feature</Pill>}
+                    {t.rejectReason && (
+                      <Pill tone="red">{REJECT_LABELS[t.rejectReason]}</Pill>
+                    )}
+                  </div>
+                  <div className="sk-text sk-quote">{t.text}</div>
+                  <div className="sk-sub" style={{ marginTop: 6 }}>
+                    Shown as “{t.displayName || "Skyrio traveler"}”
+                    {t.city ? `, ${t.city}` : ""} · {userLabel(t.user)}
+                  </div>
+                  <div className="sk-sub">
+                    {tripLabel} · {timeAgo(t.createdAt)}
+                    {t.reviewedBy &&
+                      ` · ${t.status} by ${t.reviewedBy} ${timeAgo(
+                        t.reviewedAt
+                      )}`}
+                  </div>
+                </div>
+                <div className="sk-row__right">
+                  {t.status !== "approved" && (
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm"
+                      disabled={busy}
+                      onClick={() => act(t, "approve")}
+                    >
+                      Approve
+                    </button>
+                  )}
+                  {t.status === "approved" && (
+                    <button
+                      type="button"
+                      className={`sk-btn sk-btn--sm${
+                        t.featured ? " sk-btn--active" : ""
+                      }`}
+                      disabled={busy || (!t.featured && !t.consent)}
+                      title={
+                        !t.consent
+                          ? "The author didn't OK featuring this review"
+                          : undefined
+                      }
+                      onClick={() =>
+                        act(t, t.featured ? "unfeature" : "feature")
+                      }
+                    >
+                      {t.featured ? "★ Featured" : "Feature"}
+                    </button>
+                  )}
+                  {t.status !== "rejected" && (
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm sk-btn--danger"
+                      disabled={busy}
+                      onClick={() => {
+                        setReason(null);
+                        setRejecting(t);
+                      }}
+                    >
+                      Reject
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </PanelContent>
+      )}
+
+      <Modal
+        open={!!rejecting}
+        title="Reject this review?"
+        onCancel={() => setRejecting(null)}
+        onOk={() => {
+          if (!reason) {
+            message.warning("Pick a reason.");
+            return;
+          }
+          act(rejecting, "reject", { reason });
+        }}
+        okText="Reject"
+        okButtonProps={{ danger: true, loading: busy }}
+        className="sk-challenge-modal"
+        destroyOnClose
+      >
+        <p className="sk-modal-hint">
+          Reviews can only be rejected for these reasons. A low rating or
+          criticism is never one of them. Spam also loses its XP.
+        </p>
+        <Select
+          value={reason}
+          onChange={setReason}
+          options={REJECT_REASONS}
+          placeholder="Choose a reason"
+          style={{ width: "100%" }}
+        />
+      </Modal>
+    </Panel>
+  );
+}
+
+function XpLog({ refreshKey }) {
+  const { data, loading, reload } = useLoader(
+    async () => adminRequest("/api/feedback/admin/xp-log"),
+    { key: refreshKey }
+  );
+  const awards = data?.awards || [];
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const shown = flaggedOnly ? awards.filter((a) => a.flag) : awards;
+
+  const reverse = async (a) => {
+    try {
+      await adminRequest(`/api/feedback/admin/xp-log/${a._id}/reverse`, {
+        method: "POST",
+        body: {},
+      });
+      message.success(`Reversed ${a.amount} XP.`);
+      reload();
+    } catch (err) {
+      message.error(err.message || "Couldn't reverse XP.");
+    }
+  };
+
+  return (
+    <Panel
+      title="🌟 Feedback XP log"
+      meta={
+        data
+          ? `${data.flaggedUsers} flagged ${plural(data.flaggedUsers, "user")}`
+          : undefined
+      }
+      actions={
+        <FilterChips
+          options={[
+            ["all", "All"],
+            ["flagged", "Flagged"],
+          ]}
+          value={flaggedOnly ? "flagged" : "all"}
+          onChange={(v) => setFlaggedOnly(v === "flagged")}
+        />
+      }
+    >
+      <PanelContent
+        loading={loading}
+        isEmpty={!shown.length}
+        emptyText={
+          flaggedOnly
+            ? "No one looks like they're farming XP."
+            : "No feedback XP awarded yet."
+        }
+      >
+        {shown.map((a) => (
+          <div
+            key={a._id}
+            className="sk-row"
+            style={a.reversed ? { opacity: 0.55 } : undefined}
+          >
+            <div className="sk-row__left">
+              <div style={{ minWidth: 0 }}>
+                <div className="sk-name">
+                  {a.user?.name || a.user?.username || "Unknown user"}
+                  {a.flag && (
+                    <Pill tone="red">
+                      Flag: {a.flag.thisWeek} this week · {a.flag.last30} in 30d
+                    </Pill>
+                  )}
+                  {a.reversed && <Pill tone="muted">Reversed</Pill>}
+                </div>
+                <div className="sk-sub">
+                  {XP_REASON_LABELS[a.reason] || a.reason} ·{" "}
+                  {timeAgo(a.createdAt)}
+                  {a.reversed &&
+                    a.reversedBy &&
+                    ` · reversed by ${a.reversedBy}`}
+                </div>
+              </div>
+            </div>
+            <div className="sk-row__right">
+              <span
+                className="sk-amount"
+                style={{ color: a.reversed ? C.muted : C.orange }}
+              >
+                +{a.amount} XP
+              </span>
+              {!a.reversed && (
+                <Popconfirm
+                  title="Reverse this XP?"
+                  description={`Takes ${a.amount} XP back from this user. This is logged.`}
+                  okText="Reverse"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => reverse(a)}
+                >
+                  <button
+                    type="button"
+                    className="sk-btn sk-btn--sm sk-btn--danger"
+                  >
+                    Reverse
+                  </button>
+                </Popconfirm>
+              )}
+            </div>
+          </div>
+        ))}
+      </PanelContent>
+    </Panel>
+  );
+}
+
+function FeedbackAudit({ refreshKey }) {
+  const { data, loading } = useLoader(
+    async () => (await adminRequest("/api/feedback/admin/audit")).entries || [],
+    { key: refreshKey }
+  );
+  const rows = data || [];
+  return (
+    <Panel
+      title="📜 Decision log"
+      meta="Every approve, reject, feature, ship and reversal"
+    >
+      <PanelContent
+        loading={loading}
+        isEmpty={!rows.length}
+        emptyText="No decisions yet"
+      >
+        {rows.slice(0, 30).map((e) => (
+          <div key={e._id} className="sk-feed__item">
+            <span className="sk-feed__dot" style={{ background: C.blue }} />
+            <div>
+              <div className="sk-text" style={{ marginTop: 0 }}>
+                <b>{e.action}</b> · {e.detail}
+              </div>
+              <div className="sk-sub">
+                {e.admin} · {dayjs(e.createdAt).format("MMM D, YYYY h:mm A")}
+              </div>
+            </div>
+          </div>
+        ))}
+      </PanelContent>
+    </Panel>
+  );
+}
+
+function FeedbackTab({ refreshKey, onCountsChange }) {
+  // Bump after any action so the stats, XP log and decision log stay in sync.
+  const [localKey, setLocalKey] = useState(0);
+  const key = `${refreshKey}:${localKey}`;
+  const changed = () => {
+    setLocalKey((k) => k + 1);
+    onCountsChange?.();
+  };
+  return (
+    <>
+      <Section title="At a glance">
+        <FeedbackStats refreshKey={key} />
+      </Section>
+      <Section title="Reviews">
+        <TestimonialsQueue refreshKey={refreshKey} onChange={changed} />
+      </Section>
+      <Section title="Feedback">
+        <FeedbackInbox refreshKey={refreshKey} onChange={changed} />
+      </Section>
+      <Section title="XP & records">
+        <div className="sk-grid-2">
+          <XpLog refreshKey={key} />
+          <FeedbackAudit refreshKey={key} />
+        </div>
+      </Section>
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    PAGE
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1919,7 +2605,9 @@ const AdminDashboard = () => {
     { key: refreshKey }
   );
 
-  const counts = useAttentionCounts(refreshKey);
+  const attention = useAttentionCounts(refreshKey);
+  const feedbackCounts = useFeedbackCounts(refreshKey);
+  const counts = { ...attention, feedback: feedbackCounts };
 
   useEffect(() => {
     if (dashboard.data) setLastRefresh(new Date());
@@ -1942,6 +2630,11 @@ const AdminDashboard = () => {
       key: "moderation",
       label: "Moderation",
       count: skyhub.takedowns + skyhub.critical,
+    },
+    {
+      key: "feedback",
+      label: "Feedback & reviews",
+      count: feedbackCounts.newFeedback + feedbackCounts.pendingReviews,
     },
     { key: "engagement", label: "Challenges & rewards" },
   ];
@@ -2030,10 +2723,17 @@ const AdminDashboard = () => {
             growth={growth}
             counts={counts}
             onOpenModeration={() => setTab("moderation")}
+            onOpenFeedback={() => setTab("feedback")}
           />
         )}
         {tab === "moderation" && (
           <ModerationTab refreshKey={refreshKey} counts={counts} />
+        )}
+        {tab === "feedback" && (
+          <FeedbackTab
+            refreshKey={refreshKey}
+            onCountsChange={feedbackCounts.reload}
+          />
         )}
         {tab === "engagement" && <EngagementTab refreshKey={refreshKey} />}
       </main>
