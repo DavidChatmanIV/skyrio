@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   MessageSquare,
@@ -8,9 +8,15 @@ import {
   Compass,
   Check,
   Send,
+  Award,
+  Sparkles,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
+
+/* XP shown to users. Keep in sync with XP in server/routes/feedback.routes.js */
+const XP = { FEEDBACK_QUICK: 10, FEEDBACK_DETAILED: 25, TESTIMONIAL: 50 };
+const MIN_CHARS = 20;
 
 /* ─── Shared field styles (support form) ────────────────────── */
 const field = { marginBottom: 14 };
@@ -45,24 +51,279 @@ const btnSecondary = {
   fontSize: 14,
   cursor: "pointer",
 };
+const btnPrimary = (busy) => ({
+  width: "100%",
+  padding: "11px 0",
+  borderRadius: 12,
+  border: "none",
+  background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
+  color: "#1a0e06",
+  fontWeight: 700,
+  fontSize: 13.5,
+  cursor: busy ? "not-allowed" : "pointer",
+  opacity: busy ? 0.6 : 1,
+  fontFamily: "inherit",
+  transition: "opacity 0.15s",
+  minHeight: 44,
+});
+const panelStyle = {
+  position: "fixed",
+  left: 20,
+  bottom: 24,
+  width: 340,
+  maxWidth: "calc(100vw - 40px)",
+  maxHeight: "calc(100vh - 48px)",
+  overflowY: "auto",
+  background: "rgba(12, 9, 28, 0.97)",
+  backdropFilter: "blur(24px)",
+  WebkitBackdropFilter: "blur(24px)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 18,
+  boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
+  padding: 20,
+  zIndex: 2147483641,
+  fontFamily: "'DM Sans', sans-serif",
+  color: "#fff",
+  boxSizing: "border-box",
+  animation: "railPanelIn 0.22s cubic-bezier(0.22,1,0.36,1) both",
+};
+const hintText = {
+  fontSize: 12.5,
+  color: "rgba(255,255,255,0.55)",
+  marginBottom: 12,
+  lineHeight: 1.4,
+};
+const textareaStyle = {
+  width: "100%",
+  background: "rgba(255,255,255,0.07)",
+  border: "1px solid rgba(255,255,255,0.13)",
+  borderRadius: 12,
+  color: "#fff",
+  fontFamily: "inherit",
+  fontSize: 16,
+  padding: 12,
+  resize: "vertical",
+  outline: "none",
+  boxSizing: "border-box",
+  marginBottom: 6,
+};
+
+const isSignedIn = () => !!localStorage.getItem("token");
+
+async function api(path, { method = "GET", body } = {}) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: {
+      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false)
+    throw new Error(data.message || "Something went wrong. Please try again.");
+  return data;
+}
+
+/* ─── Small pieces ──────────────────────────────────────────── */
+
+function StarPicker({ value, onChange, size = 20, label = "Rate" }) {
+  const [hover, setHover] = useState(0);
+  const shown = hover || value;
+  return (
+    <div
+      style={{ display: "flex", gap: 4, marginBottom: 12 }}
+      onMouseLeave={() => setHover(0)}
+    >
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          onMouseEnter={() => setHover(n)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 2,
+            color: n <= shown ? "#ff8a2a" : "rgba(255,255,255,0.2)",
+            transition: "color 0.15s",
+          }}
+          aria-label={`${label} ${n} out of 5`}
+          aria-pressed={value === n}
+        >
+          <Star size={size} fill={n <= shown ? "#ff8a2a" : "none"} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function XpChip({ children }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 11,
+        fontWeight: 800,
+        color: "#ffb347",
+        background: "rgba(255,179,71,0.12)",
+        border: "1px solid rgba(255,179,71,0.35)",
+        borderRadius: 999,
+        padding: "2px 8px",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Sparkles size={11} aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
+
+function PanelHeader({ title, onClose, chip }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 14,
+        gap: 8,
+      }}
+    >
+      <div
+        style={{
+          fontWeight: 800,
+          fontSize: 16,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        {title}
+        {chip}
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          background: "none",
+          border: "none",
+          color: "rgba(255,255,255,0.5)",
+          cursor: "pointer",
+          padding: 4,
+          display: "flex",
+          minWidth: 32,
+          minHeight: 32,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <X size={18} />
+      </button>
+    </div>
+  );
+}
+
+function Done({ xp, note, children, onClose }) {
+  return (
+    <div
+      style={{
+        fontSize: 13.5,
+        color: "rgba(255,255,255,0.7)",
+        lineHeight: 1.5,
+      }}
+    >
+      {xp > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 12px",
+            marginBottom: 12,
+            borderRadius: 12,
+            background: "rgba(255,179,71,0.1)",
+            border: "1px solid rgba(255,179,71,0.3)",
+            color: "#ffb347",
+            fontWeight: 800,
+            animation: "railPop 0.3s ease",
+          }}
+        >
+          <Sparkles size={18} aria-hidden="true" />+{xp} XP earned
+        </div>
+      )}
+      {children}
+      {note && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "rgba(255,255,255,0.45)",
+            marginTop: 8,
+          }}
+        >
+          {note}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onClose}
+        style={{ ...btnPrimary(false), display: "block", marginTop: 14 }}
+      >
+        Close
+      </button>
+    </div>
+  );
+}
+
+const FEEDBACK_TYPES = [
+  ["general", "General"],
+  ["idea", "Idea"],
+  ["bug", "Bug"],
+];
+
+/* ═══════════════════════════════════════════════════════════════ */
 
 export default function SupportRail() {
-  // "closed" | "feedback" | "help"
+  // "closed" | "feedback" | "review" | "help"
   const [activePanel, setActivePanel] = useState("closed");
   const [pickerActive, setPickerActive] = useState(false);
-  // One launcher (desktop + mobile) that fans out Tour, Feedback and Help
+  // One launcher (desktop + mobile) that fans out Tour, Review, Feedback and Help
   const [menuOpen, setMenuOpen] = useState(false);
   // Tuck the launcher away while the site footer is on screen,
   // so it never covers the footer logo / support email.
   const [footerInView, setFooterInView] = useState(false);
 
   // ── Feedback state ──
+  const [fbType, setFbType] = useState("general");
   const [fbMessage, setFbMessage] = useState("");
   const [fbRating, setFbRating] = useState(0);
-  const [fbHoverRating, setFbHoverRating] = useState(0);
   const [fbSubmitting, setFbSubmitting] = useState(false);
-  const [fbSubmitted, setFbSubmitted] = useState(false);
+  const [fbResult, setFbResult] = useState(null); // { xpAwarded, xpNote }
   const [fbError, setFbError] = useState("");
+
+  // ── Review (testimonial) state ──
+  const emptyReview = {
+    rating: 0,
+    text: "",
+    displayName: "",
+    city: "",
+    consent: true,
+    bookingId: null,
+    destination: null,
+  };
+  const [review, setReview] = useState(emptyReview);
+  const [rvSubmitting, setRvSubmitting] = useState(false);
+  const [rvResult, setRvResult] = useState(null);
+  const [rvError, setRvError] = useState("");
+
+  // ── Post-trip nudge ──
+  const [prompt, setPrompt] = useState(null); // { bookingId, destination, xp }
+  const promptChecked = useRef(false);
 
   // ── Support ticket state ──
   const [helpSent, setHelpSent] = useState(false);
@@ -117,16 +378,74 @@ export default function SupportRail() {
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
 
+  // Ask the server once per session whether there's a finished trip to
+  // review. The server handles timing (24h–14d after the trip), one review
+  // per trip, and the 30-day snooze after "Not now".
+  useEffect(() => {
+    if (promptChecked.current || !isSignedIn()) return;
+    promptChecked.current = true;
+    if (sessionStorage.getItem("skyrio_review_prompt_seen")) return;
+    const t = setTimeout(async () => {
+      try {
+        const { prompt: p } = await api("/api/testimonials/prompt");
+        if (!p) return;
+        setPrompt(p);
+        sessionStorage.setItem("skyrio_review_prompt_seen", "1");
+        api(`/api/testimonials/prompt/${p.bookingId}/seen`, {
+          method: "POST",
+          body: {},
+        }).catch(() => {});
+      } catch {
+        // Never bother the user over a failed nudge check.
+      }
+    }, 4000); // let the page settle first
+    return () => clearTimeout(t);
+  }, []);
+
+  // Anywhere in the app can open the review panel, e.g. a "Review this trip"
+  // button on a past booking:
+  //   window.dispatchEvent(new CustomEvent("skyrio:review",
+  //     { detail: { bookingId, destination } }))
+  useEffect(() => {
+    const onReview = (e) => openReview(e.detail || {});
+    const onFeedback = () => openPanel("feedback");
+    window.addEventListener("skyrio:review", onReview);
+    window.addEventListener("skyrio:feedback", onFeedback);
+    return () => {
+      window.removeEventListener("skyrio:review", onReview);
+      window.removeEventListener("skyrio:feedback", onFeedback);
+    };
+  }, []);
+
   function openPanel(panel) {
     setMenuOpen(false);
     setActivePanel(panel);
   }
 
+  function openReview({ bookingId = null, destination = null } = {}) {
+    setReview((r) => ({ ...r, bookingId, destination }));
+    setPrompt(null);
+    openPanel("review");
+  }
+
+  function dismissPrompt() {
+    if (prompt) {
+      api(`/api/testimonials/prompt/${prompt.bookingId}/dismiss`, {
+        method: "POST",
+        body: {},
+      }).catch(() => {});
+    }
+    setPrompt(null);
+  }
+
   function closePanel() {
     setActivePanel("closed");
     setTimeout(() => {
-      setFbSubmitted(false);
+      setFbResult(null);
       setFbError("");
+      setRvResult(null);
+      setRvError("");
+      setReview(emptyReview);
       setHelpSent(false);
       setHelpError("");
       setHelpForm({ name: "", email: "", category: "technical", message: "" });
@@ -141,29 +460,49 @@ export default function SupportRail() {
     setFbSubmitting(true);
     setFbError("");
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API}/api/feedback`, {
+      const data = await api("/api/feedback", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
+        body: {
+          type: fbType,
           message: fbMessage.trim(),
           rating: fbRating || undefined,
           page: window.location.pathname,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok)
-        throw new Error(data.message || "Failed to send feedback");
-      setFbSubmitted(true);
+      setFbResult({ xpAwarded: data.xpAwarded || 0, xpNote: data.xpNote });
       setFbMessage("");
       setFbRating(0);
+      setFbType("general");
     } catch (err) {
-      setFbError(err.message || "Something went wrong. Please try again.");
+      setFbError(err.message);
     } finally {
       setFbSubmitting(false);
+    }
+  }
+
+  async function handleReviewSubmit() {
+    if (!review.rating) return setRvError("Pick a star rating.");
+    if (review.text.trim().length < MIN_CHARS)
+      return setRvError(`Write at least ${MIN_CHARS} characters.`);
+    setRvSubmitting(true);
+    setRvError("");
+    try {
+      const data = await api("/api/testimonials", {
+        method: "POST",
+        body: {
+          rating: review.rating,
+          text: review.text.trim(),
+          displayName: review.displayName.trim(),
+          city: review.city.trim(),
+          consent: review.consent,
+          bookingId: review.bookingId || undefined,
+        },
+      });
+      setRvResult({ xpAwarded: data.xpAwarded || 0 });
+    } catch (err) {
+      setRvError(err.message);
+    } finally {
+      setRvSubmitting(false);
     }
   }
 
@@ -184,33 +523,29 @@ export default function SupportRail() {
     setHelpSubmitting(true);
     setHelpError("");
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API}/api/support`, {
+      await api("/api/support", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
+        body: {
           name: helpForm.name.trim(),
           email: helpForm.email.trim(),
           category: helpForm.category,
           message: helpForm.message.trim(),
           page: window.location.pathname,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok)
-        throw new Error(data.message || "Failed to send ticket");
       setHelpSent(true);
     } catch (err) {
-      setHelpError(err.message || "Something went wrong. Please try again.");
+      setHelpError(err.message);
     } finally {
       setHelpSubmitting(false);
     }
   }
 
   if (pickerActive) return null;
+
+  const signedIn = isSignedIn();
+  const fbChars = fbMessage.trim().length;
+  const rvChars = review.text.trim().length;
 
   return createPortal(
     <>
@@ -251,7 +586,8 @@ export default function SupportRail() {
           animation: railFan 0.2s cubic-bezier(0.22,1,0.36,1) both;
         }
         .sr-rail-wrapper.is-open .sr-action--feedback { animation-delay: 0.04s; }
-        .sr-rail-wrapper.is-open .sr-action--tour { animation-delay: 0.08s; }
+        .sr-rail-wrapper.is-open .sr-action--review { animation-delay: 0.08s; }
+        .sr-rail-wrapper.is-open .sr-action--tour { animation-delay: 0.12s; }
         .sr-action:active { transform: scale(0.96); }
         .sr-action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
@@ -259,6 +595,12 @@ export default function SupportRail() {
           background: linear-gradient(135deg, #ff8a2a, #ffb347);
           box-shadow: 0 8px 22px rgba(255,138,42,0.38);
           color: #1a0e06;
+        }
+        .sr-action--review {
+          background: rgba(16,11,34,0.92);
+          border: 1px solid rgba(255,138,42,0.6);
+          box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+          color: #ff8a2a;
         }
         .sr-action--help {
           background: linear-gradient(135deg, #ff8a2a, #7c5cfc);
@@ -284,9 +626,18 @@ export default function SupportRail() {
           font-size: 14px;
           font-weight: 700;
           padding-right: 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .sr-action__xp {
+          font-size: 10.5px;
+          font-weight: 800;
+          opacity: 0.8;
         }
 
         .sr-launcher {
+          position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -309,6 +660,53 @@ export default function SupportRail() {
           pointer-events: none;
         }
 
+        /* Post-trip review nudge */
+        .sr-nudge {
+          position: fixed;
+          left: 20px;
+          bottom: 84px;
+          z-index: 2147483631;
+          width: 300px;
+          max-width: calc(100vw - 40px);
+          background: rgba(12, 9, 28, 0.97);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,138,42,0.4);
+          border-radius: 16px;
+          box-shadow: 0 18px 48px rgba(0,0,0,0.5);
+          padding: 14px 16px;
+          font-family: 'DM Sans', sans-serif;
+          color: #fff;
+          animation: railPanelIn 0.3s cubic-bezier(0.22,1,0.36,1) both;
+        }
+        .sr-nudge__btns { display: flex; gap: 8px; margin-top: 12px; }
+        .sr-nudge__btn {
+          flex: 1;
+          min-height: 38px;
+          border-radius: 10px;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .sr-chip {
+          border: 1px solid rgba(255,255,255,0.14);
+          background: rgba(255,255,255,0.05);
+          color: rgba(255,255,255,0.65);
+          border-radius: 999px;
+          padding: 5px 12px;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .sr-chip[aria-pressed="true"] {
+          border-color: #ff8a2a;
+          background: rgba(255,138,42,0.14);
+          color: #ff8a2a;
+        }
+
         /* Desktop: a little hover lift, nothing else changes */
         @media (hover: hover) {
           .sr-launcher:hover {
@@ -322,13 +720,14 @@ export default function SupportRail() {
         @media (max-width: 768px) {
           .sr-rail-wrapper { bottom: 16px; left: 12px; }
           .sr-launcher { width: 46px; height: 46px; }
+          .sr-nudge { left: 12px; bottom: 74px; }
         }
         @media (max-width: 480px) {
           .sr-panel { width: calc(100vw - 24px) !important; left: 12px !important; }
         }
         @media (prefers-reduced-motion: reduce) {
           .sr-action, .sr-launcher, .sr-rail-wrapper { transition: none; }
-          .sr-rail-wrapper.is-open .sr-action { animation: none; }
+          .sr-rail-wrapper.is-open .sr-action, .sr-nudge { animation: none; }
         }
       `}</style>
 
@@ -340,7 +739,75 @@ export default function SupportRail() {
         />
       )}
 
-      {/* ── Rail: one launcher that fans out the three actions ── */}
+      {/* ── Post-trip review nudge (once per session, server decides when) ── */}
+      {prompt && activePanel === "closed" && !menuOpen && !footerInView && (
+        <div className="sr-nudge" role="dialog" aria-label="Review your trip">
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>
+                {prompt.destination
+                  ? `How was ${prompt.destination}?`
+                  : "How was your trip?"}
+              </div>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "rgba(255,255,255,0.6)",
+                  lineHeight: 1.4,
+                }}
+              >
+                Tell other travelers how it went. Good or bad, you earn the same{" "}
+                <span style={{ color: "#ffb347", fontWeight: 700 }}>
+                  +{prompt.xp || XP.TESTIMONIAL} XP
+                </span>
+                .
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissPrompt}
+              aria-label="Dismiss"
+              style={{
+                background: "none",
+                border: "none",
+                color: "rgba(255,255,255,0.45)",
+                cursor: "pointer",
+                padding: 2,
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="sr-nudge__btns">
+            <button
+              type="button"
+              className="sr-nudge__btn"
+              onClick={dismissPrompt}
+              style={{
+                background: "none",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "rgba(255,255,255,0.6)",
+              }}
+            >
+              Not now
+            </button>
+            <button
+              type="button"
+              className="sr-nudge__btn"
+              onClick={() => openReview(prompt)}
+              style={{
+                border: "none",
+                background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
+                color: "#1a0e06",
+              }}
+            >
+              Leave a review
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Rail: one launcher that fans out the actions ── */}
       <div
         className={`sr-rail-wrapper${menuOpen ? " is-open" : ""}${
           footerInView && !menuOpen ? " is-tucked" : ""
@@ -363,13 +830,32 @@ export default function SupportRail() {
 
         <button
           type="button"
+          className="sr-action sr-action--review"
+          onClick={() => openReview()}
+        >
+          <span className="sr-action__icon" aria-hidden="true">
+            <Award size={19} />
+          </span>
+          <span className="sr-action__label">
+            Leave a review
+            {signedIn && (
+              <span className="sr-action__xp">+{XP.TESTIMONIAL} XP</span>
+            )}
+          </span>
+        </button>
+
+        <button
+          type="button"
           className="sr-action sr-action--feedback"
           onClick={() => openPanel("feedback")}
         >
           <span className="sr-action__icon" aria-hidden="true">
             <MessageSquare size={19} />
           </span>
-          <span className="sr-action__label">Feedback</span>
+          <span className="sr-action__label">
+            Feedback
+            {signedIn && <span className="sr-action__xp">+XP</span>}
+          </span>
         </button>
 
         <button
@@ -395,7 +881,7 @@ export default function SupportRail() {
         </button>
       </div>
 
-      {/* ── Backdrop (both panels share it) ── */}
+      {/* ── Backdrop (all panels share it) ── */}
       {activePanel !== "closed" && (
         <div
           onClick={closePanel}
@@ -416,156 +902,83 @@ export default function SupportRail() {
           role="dialog"
           aria-label="Send feedback"
           onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "fixed",
-            left: 20,
-            bottom: 24,
-            width: 340,
-            maxWidth: "calc(100vw - 40px)",
-            background: "rgba(12, 9, 28, 0.97)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: 18,
-            boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
-            padding: 20,
-            zIndex: 2147483641,
-            fontFamily: "'DM Sans', sans-serif",
-            color: "#fff",
-            boxSizing: "border-box",
-            animation: "railPanelIn 0.22s cubic-bezier(0.22,1,0.36,1) both",
-          }}
+          style={panelStyle}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 14,
-            }}
-          >
-            <div style={{ fontWeight: 800, fontSize: 16 }}>
-              {fbSubmitted ? "Thank you!" : "Send feedback"}
-            </div>
-            <button
-              type="button"
-              onClick={closePanel}
-              aria-label="Close feedback panel"
-              style={{
-                background: "none",
-                border: "none",
-                color: "rgba(255,255,255,0.5)",
-                cursor: "pointer",
-                padding: 4,
-                display: "flex",
-                minWidth: 32,
-                minHeight: 32,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <X size={18} />
-            </button>
-          </div>
+          <PanelHeader
+            title={fbResult ? "Thank you!" : "Send feedback"}
+            onClose={closePanel}
+            chip={
+              !fbResult &&
+              signedIn && (
+                <XpChip>
+                  +{XP.FEEDBACK_QUICK}–{XP.FEEDBACK_DETAILED} XP
+                </XpChip>
+              )
+            }
+          />
 
-          {fbSubmitted ? (
-            <div
-              style={{
-                fontSize: 13.5,
-                color: "rgba(255,255,255,0.7)",
-                lineHeight: 1.5,
-              }}
+          {fbResult ? (
+            <Done
+              xp={fbResult.xpAwarded}
+              note={fbResult.xpNote}
+              onClose={closePanel}
             >
               Got it. Thanks for helping us improve Skyrio. We read every
-              submission.
-              <button
-                type="button"
-                onClick={closePanel}
-                style={{
-                  display: "block",
-                  marginTop: 14,
-                  width: "100%",
-                  padding: "10px 0",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
-                  color: "#1a0e06",
-                  fontWeight: 700,
-                  fontSize: 13.5,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                Close
-              </button>
-            </div>
+              submission, and if we build what you suggested you'll get a bonus.
+            </Done>
           ) : (
             <>
-              <div
-                style={{
-                  fontSize: 12.5,
-                  color: "rgba(255,255,255,0.55)",
-                  marginBottom: 12,
-                  lineHeight: 1.4,
-                }}
-              >
+              <div style={hintText}>
                 What's working, what's not, what would you change? We read
                 everything.
               </div>
 
-              <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-                {[1, 2, 3, 4, 5].map((n) => (
+              <div
+                role="group"
+                aria-label="Feedback type"
+                style={{ display: "flex", gap: 6, marginBottom: 12 }}
+              >
+                {FEEDBACK_TYPES.map(([v, label]) => (
                   <button
-                    key={n}
+                    key={v}
                     type="button"
-                    onClick={() => setFbRating(n)}
-                    onMouseEnter={() => setFbHoverRating(n)}
-                    onMouseLeave={() => setFbHoverRating(0)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 2,
-                      color:
-                        n <= (fbHoverRating || fbRating)
-                          ? "#ff8a2a"
-                          : "rgba(255,255,255,0.2)",
-                      transition: "color 0.15s",
-                    }}
-                    aria-label={`Rate ${n} out of 5`}
-                    aria-pressed={fbRating === n}
+                    className="sr-chip"
+                    aria-pressed={fbType === v}
+                    onClick={() => setFbType(v)}
                   >
-                    <Star
-                      size={20}
-                      fill={
-                        n <= (fbHoverRating || fbRating) ? "#ff8a2a" : "none"
-                      }
-                    />
+                    {label}
                   </button>
                 ))}
               </div>
 
+              <StarPicker value={fbRating} onChange={setFbRating} />
+
               <textarea
                 value={fbMessage}
                 onChange={(e) => setFbMessage(e.target.value)}
-                placeholder="Tell us what you think..."
+                placeholder={
+                  fbType === "bug"
+                    ? "What happened, and what did you expect?"
+                    : "Tell us what you think..."
+                }
                 aria-label="Your feedback"
                 rows={4}
+                maxLength={4000}
+                style={textareaStyle}
+              />
+              <div
                 style={{
-                  width: "100%",
-                  background: "rgba(255,255,255,0.07)",
-                  border: "1px solid rgba(255,255,255,0.13)",
-                  borderRadius: 12,
-                  color: "#fff",
-                  fontFamily: "inherit",
-                  fontSize: 16,
-                  padding: 12,
-                  resize: "vertical",
-                  outline: "none",
-                  boxSizing: "border-box",
+                  fontSize: 11.5,
+                  color: "rgba(255,255,255,0.4)",
                   marginBottom: 10,
                 }}
-              />
+              >
+                {!signedIn
+                  ? "Sign in to earn XP for feedback."
+                  : fbChars < MIN_CHARS
+                  ? `${MIN_CHARS - fbChars} more characters to earn XP`
+                  : "XP is the same whatever you rate us."}
+              </div>
 
               {fbError && (
                 <div
@@ -580,23 +993,166 @@ export default function SupportRail() {
                 type="button"
                 onClick={handleFeedbackSubmit}
                 disabled={fbSubmitting}
-                style={{
-                  width: "100%",
-                  padding: "11px 0",
-                  borderRadius: 12,
-                  border: "none",
-                  background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
-                  color: "#1a0e06",
-                  fontWeight: 700,
-                  fontSize: 13.5,
-                  cursor: fbSubmitting ? "not-allowed" : "pointer",
-                  opacity: fbSubmitting ? 0.6 : 1,
-                  fontFamily: "inherit",
-                  transition: "opacity 0.15s",
-                  minHeight: 44,
-                }}
+                style={btnPrimary(fbSubmitting)}
               >
                 {fbSubmitting ? "Sending..." : "Send feedback"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Review (testimonial) panel ── */}
+      {activePanel === "review" && (
+        <div
+          className="sr-panel"
+          role="dialog"
+          aria-label="Leave a review"
+          onClick={(e) => e.stopPropagation()}
+          style={panelStyle}
+        >
+          <PanelHeader
+            title={
+              rvResult
+                ? "Thanks for the review!"
+                : review.destination
+                ? `Review ${review.destination}`
+                : "Leave a review"
+            }
+            onClose={closePanel}
+            chip={
+              !rvResult && signedIn && <XpChip>+{XP.TESTIMONIAL} XP</XpChip>
+            }
+          />
+
+          {!signedIn ? (
+            <div
+              style={{
+                fontSize: 13.5,
+                color: "rgba(255,255,255,0.7)",
+                lineHeight: 1.5,
+              }}
+            >
+              Sign in to leave a review. Reviews are tied to your account so
+              other travelers know they're real.
+              <a
+                href="/login"
+                style={{
+                  ...btnPrimary(false),
+                  display: "block",
+                  marginTop: 14,
+                  textAlign: "center",
+                  textDecoration: "none",
+                  lineHeight: "22px",
+                  boxSizing: "border-box",
+                }}
+              >
+                Sign in
+              </a>
+            </div>
+          ) : rvResult ? (
+            <Done xp={rvResult.xpAwarded} onClose={closePanel}>
+              Your review goes live once we've checked it for spam and personal
+              info. We never hide a review for being negative.
+            </Done>
+          ) : (
+            <>
+              <div style={hintText}>
+                Honest reviews help other travelers and help us get better. You
+                earn the same XP whatever you rate us.
+              </div>
+
+              <StarPicker
+                value={review.rating}
+                onChange={(n) => setReview((r) => ({ ...r, rating: n }))}
+                size={24}
+              />
+
+              <textarea
+                value={review.text}
+                onChange={(e) =>
+                  setReview((r) => ({ ...r, text: e.target.value }))
+                }
+                placeholder="What stood out about booking with Skyrio?"
+                aria-label="Your review"
+                rows={4}
+                maxLength={1000}
+                style={textareaStyle}
+              />
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: "rgba(255,255,255,0.4)",
+                  marginBottom: 12,
+                }}
+              >
+                {rvChars < MIN_CHARS
+                  ? `${MIN_CHARS - rvChars} more characters`
+                  : `${rvChars}/1000`}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input
+                  style={{ ...inputStyle, fontSize: 16 }}
+                  value={review.displayName}
+                  onChange={(e) =>
+                    setReview((r) => ({ ...r, displayName: e.target.value }))
+                  }
+                  placeholder="Name (optional)"
+                  aria-label="Display name (optional)"
+                  maxLength={40}
+                />
+                <input
+                  style={{ ...inputStyle, fontSize: 16 }}
+                  value={review.city}
+                  onChange={(e) =>
+                    setReview((r) => ({ ...r, city: e.target.value }))
+                  }
+                  placeholder="City (optional)"
+                  aria-label="City (optional)"
+                  maxLength={60}
+                />
+              </div>
+
+              <label
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
+                  fontSize: 12.5,
+                  color: "rgba(255,255,255,0.65)",
+                  marginBottom: 12,
+                  cursor: "pointer",
+                  lineHeight: 1.4,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={review.consent}
+                  onChange={(e) =>
+                    setReview((r) => ({ ...r, consent: e.target.checked }))
+                  }
+                  style={{ marginTop: 2, accentColor: "#ff8a2a" }}
+                />
+                OK to show this review on Skyrio
+              </label>
+
+              {rvError && (
+                <div
+                  role="alert"
+                  style={{ fontSize: 12, color: "#f87171", marginBottom: 10 }}
+                >
+                  {rvError}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleReviewSubmit}
+                disabled={rvSubmitting}
+                style={btnPrimary(rvSubmitting)}
+              >
+                {rvSubmitting ? "Sending..." : "Post review"}
               </button>
             </>
           )}

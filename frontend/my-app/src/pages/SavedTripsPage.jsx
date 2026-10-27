@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Plane,
   BedDouble,
@@ -11,6 +11,9 @@ import {
   X,
   Search,
   Users,
+  User,
+  Ticket,
+  Copy,
   RotateCcw,
   ChevronDown,
 } from "lucide-react";
@@ -56,6 +59,17 @@ const MT_CSS = `
 .mt-meta b { color: #fff; font-weight: 700; }
 .mt-note { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; font-size: 12.5px; line-height: 1.45; }
 .mt-note svg { flex-shrink: 0; margin-top: 2px; }
+.mt-kind { display: inline-flex; align-items: center; gap: 5px; margin: 6px 0 2px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1px solid rgba(255,255,255,0.16); color: rgba(255,255,255,0.78); background: rgba(255,255,255,0.04); max-width: 100%; }
+.mt-kind span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-kind.is-group { color: #c4b5fd; border-color: rgba(167,139,250,.45); background: rgba(139,108,255,.14); cursor: pointer; }
+.mt-kind.is-group:hover { border-color: #c4b5fd; color: #fff; }
+.mt-card.is-focus { border-color: #ff8a2a; box-shadow: 0 0 0 2px rgba(255,138,42,.55), 0 14px 40px rgba(0,0,0,0.28); animation: mtFocus 1.6s ease 2; }
+@keyframes mtFocus { 50% { box-shadow: 0 0 0 6px rgba(255,138,42,.18), 0 14px 40px rgba(0,0,0,0.28); } }
+.mt-credit { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(110,231,168,.07); border: 1px solid rgba(110,231,168,.3); font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,.85); }
+.mt-credit b { color: #6ee7a8; }
+.mt-creditHead { display: flex; align-items: center; gap: 6px; font-weight: 800; color: #6ee7a8; font-size: 13px; }
+.mt-code { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 3px 4px 3px 10px; border-radius: 8px; background: rgba(0,0,0,.3); border: 1px dashed rgba(255,255,255,.25); }
+.mt-code button { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 0 8px; border: 0; border-radius: 6px; background: rgba(255,255,255,.08); color: #fff; font-size: 11.5px; font-weight: 700; cursor: pointer; }
 .mt-note.is-warn { color: #ffc27a; }
 .mt-note.is-good { color: #6ee7a8; }
 .mt-note.is-muted { color: rgba(255,255,255,0.68); }
@@ -113,7 +127,7 @@ const MT_CSS = `
   .mt-modal { max-width: none; border-radius: 22px 22px 0 0; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 }
 @keyframes mtShimmer { to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .mt-skel { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .mt-skel, .mt-card.is-focus { animation: none; } }
 `;
 
 /* ── Helpers — every value shown comes from the saved booking record ── */
@@ -193,8 +207,54 @@ const STATUS = {
   cancelled: { label: "Cancelled", tone: "red" },
 };
 
+/* ── Airline credit (the airline gave credit instead of money back) ── */
+function AirlineCredit({ credit, airline }) {
+  const [copied, setCopied] = useState(null);
+  const vouchers = credit.vouchers?.length ? credit.vouchers : [null];
+  const who = airline || "the airline";
+  const copy = async (code) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(code);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      /* clipboard blocked — the code is still on screen */
+    }
+  };
+  return (
+    <div className="mt-credit">
+      <div className="mt-creditHead">
+        <Ticket size={14} aria-hidden="true" />
+        {credit.amount
+          ? `${fmtMoney(credit.amount, credit.currency)} airline credit`
+          : "Airline credit"}
+      </div>
+      <div>
+        {who} gave you credit instead of money back. Use it to book a new flight
+        directly with {who}
+        {vouchers[0]?.expiresAt
+          ? ` before ${fmtDate(vouchers[0].expiresAt)}`
+          : " before it expires"}
+        . Skyrio can&apos;t apply airline credit to new bookings yet.
+      </div>
+      {vouchers
+        .filter((v) => v?.code)
+        .map((v) => (
+          <div key={v.code} className="mt-code">
+            <span className="mt-mono">{v.code}</span>
+            <button type="button" onClick={() => copy(v.code)}>
+              <Copy size={12} aria-hidden="true" />
+              {copied === v.code ? "Copied" : "Copy"}
+            </button>
+          </div>
+        ))}
+    </div>
+  );
+}
+
 /* ── One booked trip ─────────────────────────────────────────────── */
-function BookedTripCard({ b, onCancel, onRemove }) {
+function BookedTripCard({ b, onCancel, onRemove, focused }) {
+  const navigate = useNavigate();
   const isHotel = b.type === "Hotel";
   const room = b.hotelStay?.rooms?.[0];
   const code = confirmationCodeOf(b);
@@ -217,7 +277,12 @@ function BookedTripCard({ b, onCancel, onRemove }) {
     !hasOpenCancelRequest(b);
 
   return (
-    <article className={`mt-card${cancelled ? " is-cancelled" : ""}`}>
+    <article
+      id={`mt-booking-${b._id}`}
+      className={`mt-card${cancelled ? " is-cancelled" : ""}${
+        focused ? " is-focus" : ""
+      }`}
+    >
       <div className="mt-main">
         <div
           className="mt-thumb"
@@ -234,6 +299,22 @@ function BookedTripCard({ b, onCancel, onRemove }) {
         <div className="mt-body">
           <div className="mt-name">{title || "Trip"}</div>
           {subtitle && <div className="mt-sub2">{subtitle}</div>}
+          {b.syncTrip ? (
+            <button
+              type="button"
+              className="mt-kind is-group"
+              onClick={() => navigate(`/sync-together/${b.syncTrip.id}`)}
+              title="Open the group trip"
+            >
+              <Users size={12} aria-hidden="true" />
+              <span>Sync Together · {b.syncTrip.title}</span>
+            </button>
+          ) : (
+            <span className="mt-kind">
+              <User size={12} aria-hidden="true" />
+              <span>Solo trip</span>
+            </span>
+          )}
           <div className="mt-meta">
             {(start || end) && (
               <span>
@@ -251,6 +332,12 @@ function BookedTripCard({ b, onCancel, onRemove }) {
             )}
           </div>
 
+          {cancelled && b.cancellation?.airlineCredit && (
+            <AirlineCredit
+              credit={b.cancellation.airlineCredit}
+              airline={b.flight?.airline}
+            />
+          )}
           {cancelled && b.refundAmount > 0 && (
             <div className="mt-note is-good">
               <Receipt size={13} aria-hidden="true" />
@@ -264,7 +351,8 @@ function BookedTripCard({ b, onCancel, onRemove }) {
             <div className="mt-note is-warn">
               <Clock size={13} aria-hidden="true" />
               The {isHotel ? "hotel" : "airline"} is processing your
-              cancellation.
+              cancellation. This usually takes a few hours to a couple of days —
+              we&apos;ll notify you when it&apos;s final.
             </div>
           )}
           {b.status === "confirmed" && hasOpenCancelRequest(b) && (
@@ -462,7 +550,16 @@ function CancelTripModal({ booking, onClose, onDone }) {
           <>
             <p style={{ fontSize: 14, lineHeight: 1.6, margin: "0 0 18px" }}>
               {result.pending
-                ? "Your cancellation request was sent. The airline will confirm it shortly, and we'll notify you."
+                ? "Your cancellation request was sent. The airline usually confirms within a few hours to a couple of days, and we'll notify you."
+                : result.airlineCredit
+                ? `Cancelled. The airline gave you ${
+                    result.airlineCredit.amount
+                      ? `${fmtMoney(
+                          result.airlineCredit.amount,
+                          result.airlineCredit.currency || cur
+                        )} in airline credit`
+                      : "airline credit"
+                  } instead of a refund. You'll find it on this trip in My Trips.`
                 : result.partial
                 ? result.message
                 : result.customerRefund > 0
@@ -488,20 +585,35 @@ function CancelTripModal({ booking, onClose, onDone }) {
                 {quote.reason}
               </p>
             )}
+
             {quote && quote.cancellable !== false && (
               <div className="mt-quote">
                 <div className="mt-row">
                   <span>You paid</span>
                   <strong>{fmtMoney(quote.paid, quote.currency)}</strong>
                 </div>
-                <div className="mt-row">
-                  <span>Estimated refund</span>
-                  <strong style={{ color: "#6ee7a8" }}>
-                    {quote.estimatedRefund != null
-                      ? fmtMoney(quote.estimatedRefund, quote.currency)
-                      : "set by the airline at cancellation"}
-                  </strong>
-                </div>
+                {quote.refundTo === "airline_credit" ? (
+                  <div className="mt-row">
+                    <span>You get back</span>
+                    <strong style={{ color: "#ffc27a" }}>
+                      {quote.airlineCredit?.amount
+                        ? `${fmtMoney(
+                            quote.airlineCredit.amount,
+                            quote.airlineCredit.currency || quote.currency
+                          )} airline credit`
+                        : "Airline credit"}
+                    </strong>
+                  </div>
+                ) : (
+                  <div className="mt-row">
+                    <span>Estimated refund</span>
+                    <strong style={{ color: "#6ee7a8" }}>
+                      {quote.estimatedRefund != null
+                        ? fmtMoney(quote.estimatedRefund, quote.currency)
+                        : "set by the airline at cancellation"}
+                    </strong>
+                  </div>
+                )}
                 {quote.estimatedFee != null && quote.estimatedFee > 0 && (
                   <div className="mt-row">
                     <span>Cancellation fee</span>
@@ -609,6 +721,11 @@ const PREVIEW_COUNT = 3;
 
 function BookedTrips() {
   const [state, setState] = useState({ loading: true, items: [], error: "" });
+  // ?booking=<id> — opened from a notification: show and highlight that trip
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get("booking");
+  const [focused, setFocused] = useState(null);
+  const jumped = useRef(null);
   const [cancelling, setCancelling] = useState(null);
   const [tab, setTab] = useState("upcoming");
   const [showAll, setShowAll] = useState(false);
@@ -672,10 +789,34 @@ function BookedTrips() {
             new Date(b.dates?.start || 0) - new Date(a.dates?.start || 0)
         ),
       cancelled: state.items.filter(
-        (b) => b.status === "cancelled" && !b.hiddenByUser && !hidden.has(b._id)
+        (b) =>
+          b.status === "cancelled" &&
+          // a trip opened from a notification shows even if you'd cleared it
+          (b._id === focusId || (!b.hiddenByUser && !hidden.has(b._id)))
       ),
     };
-  }, [state.items, hidden]);
+  }, [state.items, hidden, focusId]);
+
+  // Opened from a notification: switch to the right tab, show it, scroll
+  // to it and highlight it for a moment.
+  useEffect(() => {
+    if (!focusId || state.loading || jumped.current === focusId) return;
+    const key = ["upcoming", "past", "cancelled"].find((k) =>
+      groups[k].some((b) => b._id === focusId)
+    );
+    if (!key) return; // not one of your trips (or not loaded)
+    jumped.current = focusId;
+    setTab(key);
+    if (groups[key].findIndex((b) => b._id === focusId) >= PREVIEW_COUNT)
+      setShowAll(true);
+    setFocused(focusId);
+    setTimeout(() => {
+      document
+        .getElementById(`mt-booking-${focusId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    setTimeout(() => setFocused(null), 4000);
+  }, [focusId, state.loading, groups]);
 
   const tabs = [
     { key: "upcoming", label: "Upcoming" },
@@ -854,6 +995,7 @@ function BookedTrips() {
                 <BookedTripCard
                   key={b._id}
                   b={b}
+                  focused={focused === b._id}
                   onCancel={activeTab === "upcoming" ? setCancelling : null}
                   onRemove={removeOne}
                 />

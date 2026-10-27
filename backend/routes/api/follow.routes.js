@@ -64,54 +64,113 @@ router.get("/mine/list", requireAuth, async (req, res) => {
   }
 });
 
-// ─── GET /api/follow/:userId/followers ───────────────────────
-// Logged-in travelers only — returns users who follow this person
-router.get("/:userId/followers", requireAuth, async (req, res) => {
+// ─── Shared list loader for followers / following ───────────
+// Reads the User.followers / User.following arrays (the same data the
+// follow + unfollow routes write), so the list always matches the count.
+// Each person comes back with:
+//   isFollowing — the logged-in traveler follows them
+//   followsYou  — they follow the logged-in traveler
+//   isMe        — it's the logged-in traveler
+const LIST_FIELDS = "username name avatar bio city homeBase verifiedTier";
+
+async function sendFollowList(req, res, field) {
   try {
     const { userId } = req.params;
+    const me = String(req.user?._id || req.user?.id || "");
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ ok: false, error: "Invalid user id" });
     }
 
-    const user = await User.findById(userId)
-      .select("followers")
-      .populate("followers", "username name avatar bio city verifiedTier")
-      .lean();
+    const [owner, caller] = await Promise.all([
+      User.findById(userId)
+        .select(`${field} followersCount followingCount`)
+        .populate(field, LIST_FIELDS)
+        .lean(),
+      User.findById(me).select("following followers").lean(),
+    ]);
 
-    if (!user) {
+    if (!owner) {
       return res.status(404).json({ ok: false, error: "User not found" });
     }
 
-    return res.json({ ok: true, users: user.followers || [] });
+    // populate drops accounts that were deleted, so filter out any gaps
+    const people = (owner[field] || []).filter((u) => u && u._id);
+
+    const iFollow = new Set((caller?.following || []).map(String));
+    const followMe = new Set((caller?.followers || []).map(String));
+
+    const users = people
+      .map((u) => {
+        const id = String(u._id);
+        return {
+          ...u,
+          isMe: id === me,
+          isFollowing: iFollow.has(id),
+          followsYou: followMe.has(id),
+        };
+      })
+      .reverse(); // newest first ($addToSet appends to the end)
+
+    // Self-heal: if the stored counter drifted from the real list
+    // (e.g. a follower deleted their account), fix it quietly.
+    const counterField =
+      field === "followers" ? "followersCount" : "followingCount";
+    if (owner[counterField] !== users.length) {
+      User.updateOne(
+        { _id: userId },
+        { $set: { [counterField]: users.length } }
+      ).catch(() => {});
+    }
+
+    return res.json({ ok: true, users, count: users.length });
   } catch (err) {
-    console.error("get followers error:", err);
+    console.error(`get ${field} error:`, err);
     return res.status(500).json({ ok: false, error: "Server error" });
   }
-});
+}
+
+// ─── GET /api/follow/:userId/followers ───────────────────────
+router.get("/:userId/followers", requireAuth, (req, res) =>
+  sendFollowList(req, res, "followers")
+);
 
 // ─── GET /api/follow/:userId/following ───────────────────────
-// Logged-in travelers only — returns users this person follows
-router.get("/:userId/following", requireAuth, async (req, res) => {
-  try {
-    const { userId } = req.params;
+router.get("/:userId/following", requireAuth, (req, res) =>
+  sendFollowList(req, res, "following")
+);
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
+// ─── DELETE /api/follow/followers/:followerId ────────────────
+// Remove someone from YOUR followers (they stop following you).
+router.delete("/followers/:followerId", requireAuth, async (req, res) => {
+  try {
+    const me = String(req.user?._id || req.user?.id);
+    const follower = req.params.followerId;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(me) ||
+      !mongoose.Types.ObjectId.isValid(follower) ||
+      me === follower
+    ) {
       return res.status(400).json({ ok: false, error: "Invalid user id" });
     }
 
-    const user = await User.findById(userId)
-      .select("following")
-      .populate("following", "username name avatar bio city verifiedTier")
-      .lean();
+    const meUpdate = await User.updateOne(
+      { _id: me, followers: follower },
+      { $pull: { followers: follower }, $inc: { followersCount: -1 } }
+    );
+    const changed = meUpdate.modifiedCount === 1;
 
-    if (!user) {
-      return res.status(404).json({ ok: false, error: "User not found" });
+    if (changed) {
+      await User.updateOne(
+        { _id: follower, following: me },
+        { $pull: { following: me }, $inc: { followingCount: -1 } }
+      );
     }
 
-    return res.json({ ok: true, users: user.following || [] });
+    return res.json({ ok: true, removed: changed });
   } catch (err) {
-    console.error("get following error:", err);
+    console.error("remove follower error:", err);
     return res.status(500).json({ ok: false, error: "Server error" });
   }
 });

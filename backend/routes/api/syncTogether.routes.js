@@ -324,6 +324,11 @@ const TRIP_BELLS = {
     title: `New traveler on ${trip}`,
     message: msg,
   }),
+  // The new organizer gets their own message from the hand-off route
+  organizer_changed: (who, trip, msg) => ({
+    title: `${trip} has a new organizer`,
+    message: `${msg}. The trip is still on.`,
+  }),
   member_left: (who, trip) => ({
     title: trip,
     message: `${who} left the trip.`,
@@ -377,6 +382,13 @@ const TRIP_BELLS = {
   }),
 };
 
+const joinNames = (names) =>
+  names.length <= 2
+    ? names.join(" and ")
+    : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+const nameOfUser = (id) => nameOf(id);
+
 async function nameOf(userId) {
   const u = await User.findById(userId).select("name username").lean();
   return u?.name || u?.username || "Someone";
@@ -389,6 +401,8 @@ async function bellTrip(group, type, actorId, logMessage) {
     const exclude =
       type === "member_added" && !/joined/.test(logMessage || "")
         ? [group.members?.[group.members.length - 1]?.user]
+        : type === "organizer_changed"
+        ? [group.owner] // the new organizer gets their own message
         : [];
     // Work out recipients now, before anything else changes the group
     const to = tripRecipients(group, actorId, exclude);
@@ -1171,9 +1185,11 @@ router.post("/:id/member", async (req, res) => {
    Delete a group (owner only).
    ────────────────────────────────────────────── */
 /* GET /api/sync-together/:id/cancel-preview — organizer only.
-   Everything the "Cancel trip" dialog needs, in one call: whether the trip
-   can be cancelled, who will be told, and the organizer's own bookings on it
-   (the dialog then asks /api/bookings/:id/cancel-quote for each refund). */
+   Everything the "Leave or end trip" dialog needs in one call:
+     • can the trip be ended for everyone (not if someone else booked)?
+     • who could take over as organizer so the trip keeps going?
+     • the organizer's own bookings (the dialog asks
+       /api/bookings/:id/cancel-quote for each refund). */
 router.get("/:id/cancel-preview", async (req, res) => {
   try {
     const userId = req.user?.id ?? req.user?._id;
@@ -1185,7 +1201,7 @@ router.get("/:id/cancel-preview", async (req, res) => {
     if (String(group.owner) !== String(userId)) {
       return res
         .status(403)
-        .json({ ok: false, error: "Only the organizer can cancel this trip" });
+        .json({ ok: false, error: "Only the organizer can do this" });
     }
 
     const nameOfMember = (m) =>
@@ -1200,32 +1216,86 @@ router.get("/:id/cancel-preview", async (req, res) => {
       )
       .lean();
 
-    // Other travelers who already booked → the trip can't be cancelled
-    const othersBookedIds = new Set(
-      linked
-        .filter((b) => String(b.user) !== String(userId))
-        .map((b) => String(b.user))
+    const others = linked.filter((b) => String(b.user) !== String(userId));
+    const bookedIds = new Set(others.map((b) => String(b.user)));
+    // Bookings of their own (not a share of a shared room)
+    const ownBookedIds = new Set(
+      others.filter((b) => !b.sharedRoom).map((b) => String(b.user))
     );
-    const othersBooked = (group.members || [])
-      .filter(
-        (m) => m.user && othersBookedIds.has(String(m.user._id || m.user))
-      )
-      .map(nameOfMember);
+    const namesFor = (ids) =>
+      (group.members || [])
+        .filter((m) => m.user && ids.has(String(m.user._id || m.user)))
+        .map(nameOfMember);
+    const othersOwnBooked = namesFor(ownBookedIds);
 
-    const liveSharedRoom = await SplitPayment.exists({
+    // Booked shared rooms — the organizer decides what happens to them
+    const rooms = await SplitPayment.find({
       group: group._id,
       kind: "shared_room",
       status: { $in: ["booking", "booked"] },
-    });
+    }).lean();
+    const roomBeingBooked = rooms.some((r) => r.status === "booking");
+    const sharedRooms = rooms
+      .filter((r) => r.status === "booked")
+      .map((r) => {
+        const mine = (r.shares || []).find(
+          (x) => String(x.user) === String(userId)
+        );
+        return {
+          id: String(r._id),
+          name: r.room?.name || "Shared room",
+          checkin: r.room?.checkin || null,
+          checkout: r.room?.checkout || null,
+          currency: String(r.currency || "usd").toUpperCase(),
+          includesMe: Boolean(mine),
+          myShare: mine ? (mine.capturedCents || 0) / 100 : 0,
+          others: (r.shares || [])
+            .filter((x) => String(x.user) !== String(userId))
+            .map((x) => x.name || "A traveler"),
+        };
+      });
 
-    let blockReason = null;
-    if (othersBooked.length) {
-      blockReason = `${othersBooked.join(", ")} ${
-        othersBooked.length > 1 ? "have" : "has"
-      } already booked, so this trip can't be cancelled. They can take their booking off the trip first.`;
-    } else if (liveSharedRoom) {
-      blockReason =
-        "This trip has a booked shared room. Cancel the shared room on the trip page first.";
+    // ── Ending the trip for everyone ──
+    // Not if someone else booked their own flight/room. If the only thing
+    // they booked is a share of a shared room, cancelling that room first
+    // makes ending possible (endOkIfRoomsCancelled).
+    let endBlockReason = null;
+    let endOkIfRoomsCancelled = false;
+    if (roomBeingBooked) {
+      endBlockReason =
+        "A shared room is being booked right now. Try again in a few minutes.";
+    } else if (othersOwnBooked.length) {
+      endBlockReason = `${joinNames(
+        othersOwnBooked
+      )} already booked, so the trip can't be ended for everyone. You can hand it off instead.`;
+    } else if (sharedRooms.length) {
+      endOkIfRoomsCancelled = true;
+      endBlockReason =
+        "Someone is sharing a booked room on this trip. Cancel the shared room below to end the trip.";
+    }
+
+    // ── Handing it off: anyone who said they're going (or already booked) ──
+    const candidates = (group.members || [])
+      .filter((m) => m.user && m.status !== "declined")
+      .map((m) => {
+        const id = String(m.user._id || m.user);
+        return {
+          userId: id,
+          name: nameOfMember(m),
+          booked: bookedIds.has(id),
+          going: m.status === "accepted",
+        };
+      })
+      .filter((c) => c.booked || c.going)
+      // People who booked first, then people who said they're going
+      .sort((a, b) => Number(b.booked) - Number(a.booked));
+
+    let handOffBlockReason = null;
+    if (!candidates.length) {
+      handOffBlockReason = "Nobody else has said they're going yet.";
+    } else if (roomBeingBooked) {
+      handOffBlockReason =
+        "A shared room is being booked right now. Try again in a few minutes.";
     }
 
     const myBookings = linked
@@ -1250,7 +1320,7 @@ router.get("/:id/cancel-preview", async (req, res) => {
         };
       });
 
-    // Everyone who'll get the "trip cancelled" notification
+    // Everyone who'll be told
     const notify = (group.members || [])
       .filter((m) => m.status !== "declined")
       .map(nameOfMember);
@@ -1258,13 +1328,120 @@ router.get("/:id/cancel-preview", async (req, res) => {
     return res.json({
       ok: true,
       trip: { id: String(group._id), title: group.title || "this trip" },
-      canCancel: !blockReason,
-      blockReason,
+      canEnd: !endBlockReason,
+      endBlockReason,
+      endOkIfRoomsCancelled,
+      sharedRooms,
+      canHandOff: !handOffBlockReason,
+      handOffBlockReason,
+      candidates,
       notify,
       myBookings,
     });
   } catch (err) {
     return sendSyncError(res, err, "Couldn't load the trip");
+  }
+});
+
+/* POST /api/sync-together/:id/hand-off  { newOwnerId } — organizer only.
+   The organizer leaves and another traveler takes over, so the trip keeps
+   going for everyone else. The leaving organizer's own bookings are taken
+   off the trip (NOT cancelled) — the dialog cancels them first through
+   /api/bookings/:id/cancel if they chose to. */
+router.post("/:id/hand-off", async (req, res) => {
+  try {
+    const userId = req.user?.id ?? req.user?._id;
+    const group = await SyncGroup.findById(req.params.id);
+    if (!group)
+      return res.status(404).json({ ok: false, error: "Group not found" });
+    if (String(group.owner) !== String(userId)) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Only the organizer can hand off the trip" });
+    }
+
+    const newOwnerId = String(req.body?.newOwnerId || "");
+    const idx = group.members.findIndex(
+      (m) => m.user && String(m.user) === newOwnerId
+    );
+    const next = idx === -1 ? null : group.members[idx];
+    if (!next || next.status === "declined") {
+      return res.status(400).json({
+        ok: false,
+        error: "Pick someone who's still on the trip.",
+      });
+    }
+
+    const roomBeingBooked = await SplitPayment.exists({
+      group: group._id,
+      kind: "shared_room",
+      status: "booking",
+    });
+    if (roomBeingBooked) {
+      return res.status(409).json({
+        ok: false,
+        error:
+          "A shared room is being booked right now. Try again in a few minutes.",
+      });
+    }
+
+    // Shared rooms still collecting holds can't go ahead without you
+    await releaseRoomsForUser(group._id, userId);
+
+    // Your own bookings leave the trip with you (they stay in My Trips).
+    // A share of a shared room you kept stays with the room.
+    const mine = await Booking.find({
+      user: userId,
+      status: { $in: ["confirmed", "cancel_pending"] },
+      $and: [
+        linkedToGroup(group._id),
+        { $or: [{ sharedRoom: { $exists: false } }, { sharedRoom: null }] },
+      ],
+    })
+      .select("_id")
+      .lean();
+    if (mine.length) {
+      await Booking.updateMany(
+        { _id: { $in: mine.map((b) => b._id) } },
+        { $set: { syncGroup: null }, $unset: { "flight.groupId": "" } }
+      );
+    }
+
+    // The new organizer moves from members[] to owner, keeping their own
+    // budget and airport.
+    group.owner = next.user;
+    // isOrganizer() also reads tripComposition.organizerId — move it too
+    if (group.tripComposition?.organizerId) {
+      group.tripComposition.organizerId = next.user;
+      group.markModified("tripComposition");
+    }
+    group.ownerBudget = next.budget ?? null;
+    if (next.departureAirport) group.departureAirport = next.departureAirport;
+    group.members.splice(idx, 1);
+
+    const [oldName, newName] = await Promise.all([
+      nameOfUser(userId),
+      nameOfUser(next.user),
+    ]);
+    logActivity(
+      group,
+      "organizer_changed",
+      userId,
+      `${oldName} left and handed the trip to ${newName}`
+    );
+    await group.save();
+
+    // Tell the new organizer what they can do now
+    bellOne(next.user, userId, {
+      title: `You're now organizing ${group.title || "the trip"}`,
+      message: `${oldName} had to drop out and handed the trip to you. Keep planning, or cancel it from Sync Together if it's not happening.`,
+      tripId: group._id,
+      link: `/sync-together/${group._id}`,
+    });
+
+    return res.json({ ok: true, newOwner: newName, keptBookings: mine.length });
+  } catch (err) {
+    return sendSyncError(res, err, "Couldn't hand off the trip");
   }
 });
 
@@ -1333,13 +1510,19 @@ router.delete("/:id", async (req, res) => {
       const owner = await User.findById(userId).select("name username").lean();
       const ownerName = owner?.name || owner?.username || "The organizer";
 
+      // ?solo=1 — the organizer is keeping their bookings and going alone
+      const goingSolo = req.query.solo === "1" && myBookings.length > 0;
+      const tripName = group.title || "a group trip";
+
       // Bell for everyone on the trip
       for (const u of tripRecipients(group, userId)) {
         bellOne(u, userId, {
-          title: "A trip was cancelled",
-          message: `${ownerName} cancelled ${
-            group.title || "a group trip"
-          }. Nothing was booked for you, so there's nothing else to do.`,
+          title: goingSolo
+            ? "A group trip is now solo"
+            : "A trip was cancelled",
+          message: goingSolo
+            ? `${ownerName} is going on ${tripName} solo, so the group trip is closed. Nothing was booked for you, so there's nothing else to do.`
+            : `${ownerName} cancelled ${tripName}. Nothing was booked for you, so there's nothing else to do.`,
           tripId: group._id,
           link: "/sync-together",
         });

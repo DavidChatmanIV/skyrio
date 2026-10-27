@@ -1,4 +1,3 @@
-// backend/services/bookingEmails.js
 // Booking lifecycle emails: hotel confirmation, cancellation, refund issued.
 // Built on the shared layout (./emailLayout.js): light-first, solid colors,
 // table layout — readable in light and dark mode on every mail app.
@@ -159,6 +158,9 @@ ${total ? `Total charged: ${total}\n` : ""}${
 /**
  * Cancellation — flights and hotels.
  * pending: airline accepted but hasn't finalized (flights).
+ * airlineCredit: { amount, currency, vouchers: [{ code, amount, currency,
+ *   expiresAt, airline }] } when the airline gave CREDIT instead of money
+ *   back (LiteAPI destination "voucher"). Never described as a card refund.
  */
 export async function sendCancellationEmail({
   to,
@@ -171,8 +173,22 @@ export async function sendCancellationEmail({
   cancellationFee = 0,
   currency = "USD",
   bookingId,
+  airlineCredit = null,
 }) {
   const isHotel = type === "Hotel";
+  const credit =
+    !pending && airlineCredit
+      ? {
+          amount: Number(airlineCredit.amount) || 0,
+          currency: airlineCredit.currency || currency,
+          vouchers: (airlineCredit.vouchers || []).filter(Boolean),
+        }
+      : null;
+  const creditMoney = credit?.amount
+    ? formatMoney(credit.amount, credit.currency)
+    : null;
+  const creditExpiry = formatDate(credit?.vouchers?.[0]?.expiresAt);
+  const creditAirline = credit?.vouchers?.[0]?.airline || "the airline";
   const refund = formatMoney(customerRefund, currency);
   const fee =
     cancellationFee > 0 ? formatMoney(cancellationFee, currency) : null;
@@ -191,6 +207,14 @@ export async function sendCancellationEmail({
       customerRefund > 0
         ? `A refund of ${refund} for the cancelled part is on its way to your card.`
         : "No refund applies to the part that was cancelled.";
+  } else if (credit) {
+    title = "Your flight is cancelled";
+    intro = `<strong>${trip}</strong> is cancelled.`;
+    refundLine = `Instead of money back, ${creditAirline} gave you ${
+      creditMoney ? `${creditMoney} in airline credit` : "airline credit"
+    }. Use it to book a new flight directly with ${creditAirline}${
+      creditExpiry ? ` before ${creditExpiry}` : " before it expires"
+    }. Skyrio can't apply airline credit to new bookings yet. Your credit details are also saved on this trip in My Trips.`;
   } else {
     title = "Your trip is cancelled";
     intro = `<strong>${trip}</strong> is cancelled.`;
@@ -211,10 +235,20 @@ export async function sendCancellationEmail({
     title,
     introHtml: `${name ? `Hi ${esc(name)}, ` : ""}${intro}`,
     bodyHtml: detailBox(
-      "REFUND",
-      (!pending && customerRefund > 0
-        ? kvRow("Refund amount", esc(refund), { highlight: true })
+      credit ? "AIRLINE CREDIT" : "REFUND",
+      (credit
+        ? (creditMoney
+            ? kvRow("Airline credit", esc(creditMoney), { highlight: true })
+            : "") +
+          credit.vouchers
+            .filter((v) => v.code)
+            .map((v) => kvRow("Credit code", esc(v.code)))
+            .join("") +
+          (creditExpiry ? kvRow("Use by", esc(creditExpiry)) : "")
         : "") +
+        (!pending && !credit && customerRefund > 0
+          ? kvRow("Refund amount", esc(refund), { highlight: true })
+          : "") +
         (!pending && fee ? kvRow("Cancellation fee", esc(fee)) : "") +
         subLine(esc(refundLine)) +
         (bookingId ? noteLine(`Skyrio booking ID: ${esc(bookingId)}`) : "")
@@ -226,15 +260,26 @@ export async function sendCancellationEmail({
 
 ${name ? `Hi ${name}, ` : ""}${intro.replace(/<[^>]+>/g, "")}
 
-${!pending && customerRefund > 0 ? `Refund amount: ${refund}\n` : ""}${
-    !pending && fee ? `Cancellation fee: ${fee}\n` : ""
-  }${refundLine}
+${
+  credit
+    ? `${creditMoney ? `Airline credit: ${creditMoney}\n` : ""}${credit.vouchers
+        .filter((v) => v.code)
+        .map((v) => `Credit code: ${v.code}\n`)
+        .join("")}${creditExpiry ? `Use by: ${creditExpiry}\n` : ""}`
+    : ""
+}${
+    !pending && !credit && customerRefund > 0
+      ? `Refund amount: ${refund}\n`
+      : ""
+  }${!pending && fee ? `Cancellation fee: ${fee}\n` : ""}${refundLine}
 ${bookingId ? `Skyrio booking ID: ${bookingId}` : ""}${textFooter}`;
 
   return sendEmail({
     to,
     subject: pending
       ? `Cancellation requested: ${tripDetails}`
+      : credit
+      ? `Cancelled: ${tripDetails} — airline credit inside`
       : `Cancelled: ${tripDetails}`,
     html,
     text,
@@ -339,7 +384,25 @@ export async function sendCancellationRequestAlert({
 }) {
   const supportTo = process.env.SUPPORT_EMAIL;
   if (!supportTo) return { ok: false, error: "SUPPORT_EMAIL not set" };
-  const text = `New cancellation request — action needed.
+  // Same rule as the admin dashboard: waiting could cost the traveler money
+  // if it was booked in the last 24h (free-cancel window) or leaves soon.
+  const now = Date.now();
+  const booked = new Date(booking.paidAt || booking.createdAt).getTime();
+  const startRaw =
+    booking.dates?.start ||
+    booking.hotelStay?.rooms?.[0]?.checkin ||
+    booking.flight?.departureDate ||
+    booking.flight?.departDate;
+  const start = startRaw ? new Date(startRaw).getTime() : NaN;
+  const urgentWhy =
+    now - booked < 24 * 3600 * 1000
+      ? "Booked in the last 24 hours — the airline's free-cancel window may still be open."
+      : Number.isFinite(start) && start - now < 3 * 24 * 3600 * 1000
+      ? "The trip starts within 3 days."
+      : null;
+  const text = `${
+    urgentWhy ? `URGENT: ${urgentWhy}\n\n` : ""
+  }New cancellation request — action needed.
 
 Trip: ${booking.tripDetails}
 Type: ${booking.type}
@@ -353,7 +416,9 @@ Traveler's note: ${reason || "(none)"}
 Automatic cancellation terms weren't available. Confirm terms with the supplier, contact the traveler, then cancel and mark the request resolved in /admin/bookings.`;
   return sendEmail({
     to: supportTo,
-    subject: `[Action needed] Cancellation request: ${booking.tripDetails}`,
+    subject: `${
+      urgentWhy ? "[URGENT]" : "[Action needed]"
+    } Cancellation request: ${booking.tripDetails}`,
     html: `<pre style="font-family:Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap">${esc(
       text
     )}</pre>`,

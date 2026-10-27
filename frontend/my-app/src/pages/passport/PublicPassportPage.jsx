@@ -16,7 +16,6 @@ import {
   Globe,
   Calendar,
   Compass,
-  Play,
   Map,
   ExternalLink,
   Copy,
@@ -28,6 +27,7 @@ import {
 import { useAuth } from "../../auth/useAuth";
 import FollowButton from "./FollowButton";
 import PlaneBadge from "./PlaneBadge";
+import SoundtrackPlayer from "./SoundtrackPlayer";
 import passportBg from "../../assets/DigitalPassport/worldmap.png";
 import "../../styles/profile-passport.css";
 
@@ -133,10 +133,6 @@ const getYouTubeEmbedUrl = (url) => {
     ? `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1`
     : null;
 };
-const getYouTubeThumbnail = (url) => {
-  const id = extractYouTubeId(url);
-  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
-};
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function Skeleton({ w = "100%", h = 16, radius = 8 }) {
@@ -205,118 +201,21 @@ function SectionLabel({ icon: Icon, label }) {
 }
 
 // ─── Music card ───────────────────────────────────────────────────────────────
-function MusicCard({ profileMusic, embedUrl }) {
-  const [expanded, setExpanded] = useState(false);
-  const thumbnail = getYouTubeThumbnail(profileMusic?.url);
+// Autoplays for visitors (falls back to muted + "Tap for sound" when the
+// browser blocks sound). Never autoplays on your own public page.
+function MusicCard({ profileMusic, embedUrl, isOwnProfile }) {
   if (!embedUrl) return null;
+  const name = String(profileMusic?.title || profileMusic?.name || "")
+    .replace(/^▶️\s*/, "")
+    .trim();
   return (
     <div className="pp-pub-card pp-pub-section">
-      <SectionLabel icon={Music} label="Travel Soundtrack" />
-      {!expanded ? (
-        <div className="pp-pub-music-row" onClick={() => setExpanded(true)}>
-          <div className="pp-pub-music-thumb">
-            {thumbnail && (
-              <img
-                src={thumbnail}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-            )}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "rgba(0,0,0,0.35)",
-              }}
-            >
-              <Play size={18} color="#fff" fill="#fff" />
-            </div>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: "#fff",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {profileMusic?.title || "Travel Soundtrack"}
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: "rgba(255,255,255,0.4)",
-                marginTop: 2,
-              }}
-            >
-              Tap to play
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-end",
-              gap: 2,
-              height: 20,
-            }}
-          >
-            {[10, 16, 8, 14, 12].map((h, i) => (
-              <div
-                key={i}
-                style={{
-                  width: 3,
-                  height: h,
-                  borderRadius: 2,
-                  background: "#ff8a2a",
-                  opacity: 0.5,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div>
-          <div
-            style={{
-              borderRadius: 14,
-              overflow: "hidden",
-              border: "1px solid rgba(255,138,42,0.2)",
-              marginBottom: 10,
-            }}
-          >
-            <iframe
-              width="100%"
-              height="200"
-              src={embedUrl}
-              title="Travel Soundtrack"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{ display: "block" }}
-            />
-          </div>
-          <button
-            onClick={() => setExpanded(false)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "rgba(255,255,255,0.4)",
-              fontSize: 12,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              padding: 0,
-            }}
-          >
-            ▲ Collapse
-          </button>
-        </div>
-      )}
+      <SoundtrackPlayer
+        url={profileMusic.url}
+        name={name || undefined}
+        artworkUrl={profileMusic?.artworkUrl}
+        autoPlay={!isOwnProfile}
+      />
     </div>
   );
 }
@@ -951,7 +850,7 @@ function FollowListModal({
                       border: "1.5px solid rgba(255,255,255,0.1)",
                     }}
                   >
-                    {displayName[0].toUpperCase()}
+                    {(displayName || "?")[0].toUpperCase()}
                     {user.avatar && (
                       <img
                         src={user.avatar}
@@ -1185,8 +1084,10 @@ export default function PublicPassportPage() {
       prev
         ? {
             ...prev,
-            followersCount:
-              (prev.followersCount || 0) + (nowFollowing ? 1 : -1),
+            followersCount: Math.max(
+              0,
+              (prev.followersCount || 0) + (nowFollowing ? 1 : -1)
+            ),
           }
         : prev
     );
@@ -1574,10 +1475,11 @@ export default function PublicPassportPage() {
                 </div>
               )}
 
-              {/* Music */}
+              {/* Music — autoplays for visitors */}
               <MusicCard
                 profileMusic={profile.profileMusic}
                 embedUrl={embedUrl}
+                isOwnProfile={isOwnProfile}
               />
 
               {/* Journeys */}

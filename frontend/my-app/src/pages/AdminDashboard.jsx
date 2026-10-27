@@ -559,14 +559,20 @@ function useAttentionCounts(refreshKey) {
     { key: refreshKey }
   );
 
+  // Cancellation requests (and which are urgent) + flights the airline is
+  // still cancelling. Refreshes every 5 minutes — urgent ones cost travelers
+  // money if they wait (24-hour free-cancel window, trips leaving soon).
   const cancels = useLoader(
-    async () =>
-      (
-        await adminRequest(
-          "/api/bookings/admin/search?status=cancel_requested&limit=1"
-        )
-      ).total || 0,
-    { key: refreshKey }
+    async () => {
+      const j = await adminRequest("/api/bookings/admin/cancel-summary");
+      return {
+        requests: j.requests || 0,
+        urgent: j.urgentRequests || 0,
+        oldestAt: j.oldestRequestAt || null,
+        cancelling: j.cancelling || 0,
+      };
+    },
+    { key: refreshKey, intervalMs: 5 * 60_000 }
   );
 
   // Legal clocks are running, so keep this one fresh while the page is open.
@@ -582,7 +588,10 @@ function useAttentionCounts(refreshKey) {
 
   return {
     openTickets: support.data ?? 0,
-    cancelRequests: cancels.data ?? 0,
+    cancelRequests: cancels.data?.requests ?? 0,
+    urgentCancels: cancels.data?.urgent ?? 0,
+    oldestCancelAt: cancels.data?.oldestAt ?? null,
+    cancellingFlights: cancels.data?.cancelling ?? 0,
     skyhub: skyhub.data ?? EMPTY_SKYHUB,
     reloadSkyhub: skyhub.reload,
   };
@@ -594,7 +603,14 @@ function useAttentionCounts(refreshKey) {
 
 function NeedsAttention({ counts, onOpenModeration }) {
   const navigate = useNavigate();
-  const { openTickets, cancelRequests, skyhub } = counts;
+  const {
+    openTickets,
+    cancelRequests,
+    urgentCancels,
+    oldestCancelAt,
+    cancellingFlights,
+    skyhub,
+  } = counts;
   const skyhubOpen = skyhub.reports + skyhub.appeals;
 
   return (
@@ -619,20 +635,42 @@ function NeedsAttention({ counts, onOpenModeration }) {
       <AttentionTile
         icon="🧳"
         title="Bookings"
-        state={cancelRequests > 0 ? "hot" : undefined}
+        state={
+          urgentCancels > 0 ? "urgent" : cancelRequests > 0 ? "hot" : undefined
+        }
         badges={
-          cancelRequests > 0 && (
-            <Pill tone="amber">
-              {cancelRequests} {plural(cancelRequests, "cancellation")}
-            </Pill>
-          )
+          <>
+            {urgentCancels > 0 && (
+              <Pill tone="red">{urgentCancels} urgent</Pill>
+            )}
+            {cancelRequests > 0 && (
+              <Pill tone="amber">
+                {cancelRequests} {plural(cancelRequests, "cancellation")}
+              </Pill>
+            )}
+            {cancellingFlights > 0 && (
+              <Pill tone="muted">{cancellingFlights} cancelling</Pill>
+            )}
+          </>
         }
         sub={
-          cancelRequests > 0
+          urgentCancels > 0
+            ? `${urgentCancels} ${plural(
+                urgentCancels,
+                "request"
+              )} can't wait — booked in the last 24h, leaving within 3 days, or waiting 4h+`
+            : cancelRequests > 0
             ? `${cancelRequests} ${plural(
                 cancelRequests,
                 "traveler"
-              )} waiting to hear back`
+              )} waiting to hear back${
+                oldestCancelAt ? ` · oldest ${timeAgo(oldestCancelAt)}` : ""
+              }`
+            : cancellingFlights > 0
+            ? `${cancellingFlights} ${plural(
+                cancellingFlights,
+                "flight"
+              )} waiting on the airline to finish cancelling — checked automatically`
             : "Search trips, cancel and refund, add notes"
         }
         onClick={() => navigate("/admin/bookings")}

@@ -10,6 +10,7 @@ import {
 } from "../services/bookingEmails.js";
 import mongoose from "mongoose";
 import SplitPayment from "../models/SplitPayment.js";
+import SyncGroup from "../models/SyncGroup.js";
 import { cancelSharedRoom, SyncError } from "../services/sharedRooms.js";
 import Stripe from "stripe";
 import Notification from "../models/notification.js";
@@ -99,6 +100,86 @@ function ownerOrAdmin(req, res, next) {
 }
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
+// ── Flight cancellation helpers (LiteAPI flights) ──────────────────
+// Docs: GET/POST /v3.0/flights/bookings/{id}/cancellations
+//  • 202 = accepted, not final (status stays CONFIRMED until the airline
+//    finishes). Retries are safe.
+//  • 200 = final: CANCELLED or CANCELLED_WITH_CHARGES.
+//  • 409 / code 49007 CONCURRENT_OPERATION = a cancellation is already
+//    being processed — not an error for the traveler.
+//  • destination: original_payment | agency_deposit | voucher. "voucher"
+//    means AIRLINE CREDIT (vouchers[]), not money back to the card.
+const unwrap = (d) => (d && typeof d === "object" && d.data ? d.data : d) || {};
+
+function isConcurrentCancel(err) {
+  const text = `${err?.message || ""} ${JSON.stringify(err?.lite || {})}`;
+  return (
+    /49007|CONCURRENT_OPERATION|already in progress|in progress/i.test(text) ||
+    err?.status === 409 ||
+    err?.httpStatus === 409
+  );
+}
+
+// A number, or an object like { amount, currency } / { display: { amount } }
+function amountOf(v) {
+  if (v == null) return null;
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v)))
+    return Number(v);
+  if (typeof v === "object") {
+    for (const k of ["amount", "value", "total"]) {
+      const n = amountOf(v[k]);
+      if (n != null) return n;
+    }
+    return amountOf(v.display) ?? amountOf(v.pricing?.display);
+  }
+  return null;
+}
+
+// LiteAPI doesn't publish the voucher item schema, so read the common
+// names and keep the raw item too.
+function readVouchers(data) {
+  const d = unwrap(data);
+  const list = Array.isArray(d.vouchers) ? d.vouchers : [];
+  return list.map((v) => ({
+    code: v?.code || v?.voucherCode || v?.number || v?.id || null,
+    amount:
+      amountOf(v?.pricing?.display) ??
+      amountOf(v?.amount) ??
+      amountOf(v?.value),
+    currency:
+      v?.currency || v?.pricing?.display?.currency || d.currency || null,
+    expiresAt:
+      v?.expiresAt || v?.expiryDate || v?.validUntil || v?.expiry || null,
+    airline: v?.airline || v?.carrier || v?.airlineName || null,
+    raw: v,
+  }));
+}
+
+function refundDestinationOf(data) {
+  const dest = String(unwrap(data).destination || "").toLowerCase();
+  if (dest === "voucher") return "airline_credit";
+  if (dest === "agency_deposit") return "agency";
+  if (dest === "original_payment") return "card";
+  return null; // unknown — treat like a card refund, as before
+}
+
+// One summary of airline credit for the traveler
+function airlineCreditOf(data, fallbackAmount, currency) {
+  const vouchers = readVouchers(data);
+  const total = vouchers.reduce((a, v) => a + (Number(v.amount) || 0), 0);
+  return {
+    amount: round2(total || fallbackAmount || 0),
+    currency: vouchers[0]?.currency || currency,
+    vouchers,
+  };
+}
+
+const moneyText = (n, currency = "USD") =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
+    Number(n) || 0
+  );
 
 // LiteAPI booking IDs on a Skyrio booking record.
 function supplierIds(b) {
@@ -393,6 +474,59 @@ router.get("/admin/search", adminOnly, async (req, res) => {
 });
 
 /**
+ * GET /api/bookings/admin/cancel-summary — admin only. For the dashboard.
+ * A cancellation request is URGENT when waiting could cost the traveler:
+ *  • it was booked in the last 24 hours (airlines' free-cancel window),
+ *  • the trip starts within 3 days, or
+ *  • it has been waiting more than 4 hours.
+ * Defined before "/admin/:id" so "cancel-summary" isn't read as an id.
+ */
+const URGENT = {
+  bookedWithinMs: 24 * 3600 * 1000,
+  departsWithinMs: 3 * 24 * 3600 * 1000,
+  waitingOverMs: 4 * 3600 * 1000,
+};
+export function isUrgentCancelRequest(b, now = Date.now()) {
+  if (b.cancelRequest?.status !== "open") return false;
+  const booked = new Date(b.paidAt || b.createdAt).getTime();
+  const start = tripDates(b).start?.getTime();
+  const asked = new Date(b.cancelRequest.at || b.updatedAt).getTime();
+  return (
+    now - booked < URGENT.bookedWithinMs ||
+    (start != null && start - now < URGENT.departsWithinMs) ||
+    now - asked > URGENT.waitingOverMs
+  );
+}
+
+router.get("/admin/cancel-summary", adminOnly, async (_req, res) => {
+  try {
+    const [open, cancelling] = await Promise.all([
+      Booking.find({ "cancelRequest.status": "open" })
+        .select(
+          "cancelRequest createdAt paidAt updatedAt dates hotelStay.rooms flight.departureDate flight.departDate flight.returnDate tripDetails"
+        )
+        .lean(),
+      Booking.countDocuments({ status: "cancel_pending" }),
+    ]);
+    const now = Date.now();
+    const urgent = open.filter((b) => isUrgentCancelRequest(b, now));
+    const oldest = open
+      .map((b) => new Date(b.cancelRequest?.at || b.updatedAt).getTime())
+      .sort((a, b) => a - b)[0];
+    res.json({
+      ok: true,
+      requests: open.length,
+      urgentRequests: urgent.length,
+      oldestRequestAt: oldest ? new Date(oldest) : null,
+      cancelling, // flights the airline is still finalizing
+    });
+  } catch (err) {
+    console.error("GET /api/bookings/admin/cancel-summary error:", err);
+    res.status(500).json({ message: "Couldn't load cancellations." });
+  }
+});
+
+/**
  * GET /api/bookings/admin/:id — admin only, full record incl. supplier data.
  */
 router.get("/admin/:id", adminOnly, async (req, res) => {
@@ -537,7 +671,7 @@ router.post("/:id/cancel-request", authRequired, async (req, res) => {
         title: "Cancellation request received",
         message:
           "We'll confirm the cancellation terms with the airline or hotel and contact you before anything is cancelled.",
-        link: "/saved-trips",
+        link: `/saved-trips?booking=${booking._id}`,
       });
     } catch (e) {
       console.error(
@@ -793,7 +927,7 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
               : `Your ${
                   booking.type === "Hotel" ? "stay" : "flight"
                 } is cancelled. No refund applies to this booking.`,
-          link: "/saved-trips",
+          link: `/saved-trips?booking=${booking._id}`,
         });
       } catch (e) {
         console.error(
@@ -1003,13 +1137,39 @@ router.get("/:id/cancel-quote", ownerOrAdmin, async (req, res) => {
     try {
       ({ data } = await flightCancelQuote(ids[0]));
     } catch (quoteErr) {
+      // A cancellation is already being processed by the airline. That's
+      // not "terms unavailable" — mark it pending so it's finalized later.
+      if (isConcurrentCancel(quoteErr)) {
+        if (booking.status === "confirmed") {
+          booking.status = "cancel_pending";
+          booking.adminNotes.push({
+            text: "LiteAPI reports a cancellation already in progress (49007). Marked cancel_pending; the flight cancel job will finalize it.",
+            by: "system",
+            at: new Date(),
+          });
+          await booking.save();
+        }
+        return res.json({
+          cancellable: false,
+          inProgress: true,
+          reason:
+            "The airline is already processing your cancellation. We'll let you know as soon as it's final.",
+        });
+      }
       // A cancelled booking can't be quoted. Check its live status so the
       // traveler/admin sees the truth instead of "try again later".
       try {
         const live = await flightGetBooking(ids[0]);
-        const st = String(
-          live.data?.status || live.data?.data?.status || ""
-        ).toUpperCase();
+        const liveData = unwrap(live.data);
+        const st = String(liveData.status || "").toUpperCase();
+        if (liveData.cancelIntentAt && !st.startsWith("CANCELLED")) {
+          return res.json({
+            cancellable: false,
+            inProgress: true,
+            reason:
+              "The airline is already processing your cancellation. We'll let you know as soon as it's final.",
+          });
+        }
         if (st.startsWith("CANCELLED")) {
           return res.json({
             cancellable: true,
@@ -1027,28 +1187,58 @@ router.get("/:id/cancel-quote", ownerOrAdmin, async (req, res) => {
       }
       throw quoteErr;
     }
-    const refund = pickAmount(data, [
-      "refund",
-      "refundAmount",
-      "refund_amount",
-      "maxRefund",
-    ]);
+    const refund =
+      amountOf(unwrap(data).refund) ??
+      pickAmount(data, [
+        "refund",
+        "refundAmount",
+        "refund_amount",
+        "maxRefund",
+      ]);
+    const refundTo = refundDestinationOf(data);
+    const confidence = unwrap(data).confidence || "unknown";
     const fee = pickAmount(data, [
       "penalty",
       "cancellationFee",
       "cancellation_fee",
       "fee",
     ]);
+    const credit =
+      refundTo === "airline_credit"
+        ? airlineCreditOf(data, refund, currency)
+        : null;
+    // How sure the airline is about the number, in plain words
+    const sureness =
+      confidence === "confirmed"
+        ? "The airline confirmed this amount."
+        : confidence === "estimated"
+        ? "This is the airline's estimate."
+        : "This is a rough estimate — the airline sets the final amount when you cancel, and it may be lower.";
     return res.json({
-      cancellable: data?.isCancellable !== false,
+      cancellable: unwrap(data).isCancellable !== false,
       type: "Flight",
       paid,
       currency,
-      isRefundable: data?.isRefundable ?? null,
-      isVoidable: data?.isVoidable ?? null,
-      estimatedRefund: refund != null ? round2(Math.min(refund, paid)) : null,
+      isRefundable: unwrap(data).isRefundable ?? null,
+      isVoidable: unwrap(data).isVoidable ?? null,
+      confidence,
+      refundTo: refundTo || "card",
+      airlineCredit: credit,
+      estimatedRefund:
+        refund != null && refundTo !== "airline_credit"
+          ? round2(Math.min(refund, paid))
+          : refundTo === "airline_credit"
+          ? 0
+          : null,
       estimatedFee: fee != null ? round2(fee) : null,
-      note: "This is the airline's maximum possible refund, not a guarantee. The airline confirms the final amount, and refunds go back to the card used.",
+      note:
+        refundTo === "airline_credit"
+          ? `The airline gives airline credit instead of money back${
+              credit?.amount
+                ? ` (about ${moneyText(credit.amount, credit.currency)})`
+                : ""
+            }. You use it to book with the airline later. ${sureness}`
+          : `${sureness} Refunds go back to the card you paid with.`,
       raw: isAdminUser(req) ? data : undefined,
     });
   } catch (err) {
@@ -1134,8 +1324,32 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
           data: r.data,
         });
       } catch (e) {
-        supplier.push({ bookingId: ids[0], ok: false, message: e.message });
+        supplier.push({
+          bookingId: ids[0],
+          ok: false,
+          message: e.message,
+          concurrent: isConcurrentCancel(e),
+        });
       }
+    }
+
+    // The airline is already processing a cancellation for this flight
+    // (LiteAPI 49007). Nothing failed — it's pending.
+    if (booking.type === "Flight" && supplier[0]?.concurrent) {
+      booking.status = "cancel_pending";
+      booking.adminNotes.push({
+        text: "Cancel requested while LiteAPI already had one in progress (49007). Marked cancel_pending; the flight cancel job will finalize it.",
+        by: "system",
+        at: new Date(),
+      });
+      await booking.save();
+      return res.status(202).json({
+        ok: true,
+        pending: true,
+        message:
+          "The airline is already processing this cancellation. We'll let you know when it's final.",
+        booking,
+      });
     }
 
     // "Already cancelled" means the supplier's side is ALREADY in the state
@@ -1208,6 +1422,10 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
         String(succeeded[0].data?.status || "").toUpperCase() === "CONFIRMED");
 
     // ── 2. Refund (hotels only — Skyrio holds that payment) ──
+    // Flights: where the airline sends the money (card or airline credit)
+    const refundTo =
+      booking.type === "Flight" ? refundDestinationOf(succeeded[0].data) : null;
+    let airlineCredit = null;
     let customerRefund = 0;
     let stripeRefundId = null;
     let refundStatus = booking.refundStatus || "none";
@@ -1241,8 +1459,19 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
         }
       }
     } else if (booking.type === "Flight") {
-      customerRefund = supplierRefund;
-      refundStatus = supplierRefund > 0 ? "pending" : "none"; // refunded by LiteAPI/airline
+      if (refundTo === "airline_credit") {
+        // Airline credit, not money back — never call it a card refund.
+        airlineCredit = airlineCreditOf(
+          succeeded[0].data,
+          supplierRefund,
+          currency
+        );
+        customerRefund = 0;
+        refundStatus = "none";
+      } else {
+        customerRefund = supplierRefund;
+        refundStatus = supplierRefund > 0 ? "pending" : "none"; // refunded by LiteAPI/airline
+      }
     }
 
     // ── 3. Save ──
@@ -1267,6 +1496,8 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       stripeRefundId,
       refundError,
       partial,
+      refundTo: refundTo || (booking.type === "Hotel" ? "card" : null),
+      airlineCredit,
     };
     booking.markModified("cancellation");
     if (
@@ -1308,6 +1539,8 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
         cancellationFee,
         currency,
         bookingId: String(booking._id),
+        // Airline credit instead of a refund — the email must say so
+        airlineCredit,
       });
     })();
     try {
@@ -1321,6 +1554,15 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
         title: flightPending ? "Cancellation requested" : "Trip cancelled",
         message: flightPending
           ? "The airline is processing your cancellation. We'll update your trip when it's final."
+          : airlineCredit
+          ? `Your flight is cancelled. The airline gave you ${
+              airlineCredit.amount
+                ? `${moneyText(
+                    airlineCredit.amount,
+                    airlineCredit.currency
+                  )} in airline credit`
+                : "airline credit"
+            } instead of a refund. See My Trips for how to use it.`
           : customerRefund > 0
           ? `Your ${
               booking.type === "Hotel" ? "stay" : "flight"
@@ -1330,7 +1572,7 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
             } is cancelled. Under the ${
               booking.type === "Hotel" ? "hotel's" : "airline's"
             } policy, no refund applies.`,
-        link: "/saved-trips",
+        link: `/saved-trips?booking=${booking._id}`,
       });
     } catch (e) {
       console.error("[bookings/cancel] notification failed:", e.message);
@@ -1345,6 +1587,7 @@ router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
       cancellationFee,
       currency,
       refundStatus,
+      airlineCredit,
       message: partial
         ? "Some rooms were cancelled but at least one wasn't. We've recorded what happened — contact support to finish."
         : flightPending
@@ -1405,8 +1648,42 @@ router.get("/", authRequired, async (req, res) => {
       Booking.countDocuments(baseFilter),
     ]);
 
+    // Which Sync Together trip each booking belongs to (if any), so My Trips
+    // can label it "Sync Together · Miami Trip" vs "Solo trip". A booking
+    // whose group no longer exists (ended / went solo) counts as solo.
+    const groupIdOf = (b) =>
+      b.syncGroup || b.flight?.groupId || b.sharedRoom?.groupId || null;
+    const groupIds = [
+      ...new Set(items.map(groupIdOf).filter(Boolean).map(String)),
+    ].filter((id) => mongoose.isValidObjectId(id));
+    const groups = groupIds.length
+      ? await SyncGroup.find({ _id: { $in: groupIds } })
+          .select("title owner members.user")
+          .lean()
+      : [];
+    const groupById = new Map(groups.map((g) => [String(g._id), g]));
+    // Only tag it "Sync Together" if this traveler is still on that trip,
+    // so My Trips always matches their Sync Together list.
+    const onTrip = (g, userId) =>
+      String(g.owner) === String(userId) ||
+      (g.members || []).some(
+        (m) => m.user && String(m.user) === String(userId)
+      );
+
     res.json({
-      items,
+      items: items.map((doc) => {
+        const b = doc.toJSON();
+        const gid = groupIdOf(b);
+        const g = gid ? groupById.get(String(gid)) : null;
+        const owner = b.user?._id || b.user;
+        return {
+          ...b,
+          syncTrip:
+            g && onTrip(g, owner)
+              ? { id: String(g._id), title: g.title || "Group trip" }
+              : null,
+        };
+      }),
       page,
       limit,
       total,
@@ -1594,6 +1871,198 @@ router.delete("/:id", adminOnly, async (req, res) => {
   } catch (err) {
     console.error("DELETE /api/bookings/:id error:", err);
     res.status(500).json({ message: "Couldn't remove the record." });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   Finish pending flight cancellations
+   A flight cancel can come back 202 ("accepted, not final"). Nothing
+   else moves those bookings from cancel_pending to cancelled, so this
+   checks each one with LiteAPI (GET /flights/bookings/{id} — the booking
+   itself, NOT the quote, which LiteAPI asks you not to poll).
+   LiteAPI also sends flight booking webhooks; this job is the safety
+   net either way.
+   ══════════════════════════════════════════════════════════════════ */
+const STUCK_AFTER_MS = 48 * 60 * 60 * 1000; // no cancel on file for 2 days
+
+export async function finalizePendingFlightCancels({ limit = 50 } = {}) {
+  const pending = await Booking.find({
+    type: "Flight",
+    status: "cancel_pending",
+  })
+    .sort({ updatedAt: 1 })
+    .limit(limit);
+  let finalized = 0;
+
+  for (const booking of pending) {
+    const id = supplierIds(booking)[0];
+    if (!id) continue;
+    let live;
+    try {
+      live = unwrap((await flightGetBooking(id)).data);
+    } catch (e) {
+      console.error(
+        "[flight-cancel-job] lookup failed",
+        String(booking._id),
+        e.message
+      );
+      continue;
+    }
+    const st = String(live.status || "").toUpperCase();
+    const currency = booking.totalCurrency || "USD";
+
+    if (st.startsWith("CANCELLED")) {
+      // Final. Read the outcome from the live booking where it's there,
+      // otherwise keep what the cancel call returned.
+      const prev = booking.cancellation || {};
+      const refundTo = refundDestinationOf(live) || prev.refundTo || null;
+      const supplierRefund =
+        pickAmount(live, ["refund_amount", "refundAmount", "refund"]) ??
+        prev.supplierRefund ??
+        0;
+      const fee =
+        pickAmount(live, ["cancellation_fee", "cancellationFee", "penalty"]) ??
+        prev.cancellationFee ??
+        0;
+      const airlineCredit =
+        refundTo === "airline_credit"
+          ? airlineCreditOf(live, supplierRefund, currency)
+          : null;
+      const customerRefund = airlineCredit ? 0 : round2(supplierRefund || 0);
+
+      booking.status = "cancelled";
+      booking.refundAmount = customerRefund || null;
+      booking.refundStatus = customerRefund > 0 ? "pending" : "none";
+      booking.cancellation = {
+        ...prev,
+        finalizedAt: new Date(),
+        finalStatus: st,
+        supplierRefund,
+        cancellationFee: fee,
+        customerRefund,
+        currency,
+        refundTo: refundTo || prev.refundTo || "card",
+        airlineCredit,
+      };
+      booking.markModified("cancellation");
+      booking.adminNotes.push({
+        text: `Airline finalized the cancellation (${st}). ${
+          airlineCredit
+            ? `Airline credit: ${moneyText(
+                airlineCredit.amount,
+                airlineCredit.currency
+              )}.`
+            : `Refund: ${moneyText(
+                customerRefund,
+                currency
+              )} (paid by the airline/LiteAPI).`
+        }`,
+        by: "system",
+        at: new Date(),
+      });
+      await booking.save();
+      await takeBackBookingXp(booking, "booking cancelled");
+      finalized++;
+
+      // Tell the traveler
+      (async () => {
+        let to = booking.email;
+        if (!to) {
+          const u = await User.findById(booking.user)
+            .select("email")
+            .lean()
+            .catch(() => null);
+          to = u?.email;
+        }
+        await sendCancellationEmail({
+          to,
+          name: (booking.name || "").split(" ")[0],
+          type: booking.type,
+          tripDetails: booking.tripDetails,
+          pending: false,
+          partial: false,
+          customerRefund,
+          cancellationFee: fee,
+          currency,
+          bookingId: String(booking._id),
+          airlineCredit,
+        });
+      })().catch((e) =>
+        console.error("[flight-cancel-job] email failed", e.message)
+      );
+      Notification.create({
+        user: booking.user,
+        type: "booking",
+        title: "Flight cancellation is final",
+        message: airlineCredit
+          ? `Your flight is cancelled. The airline gave you ${
+              airlineCredit.amount
+                ? `${moneyText(
+                    airlineCredit.amount,
+                    airlineCredit.currency
+                  )} in airline credit`
+                : "airline credit"
+            } instead of a refund. See My Trips for how to use it.`
+          : customerRefund > 0
+          ? `Your flight is cancelled. The airline is refunding ${moneyText(
+              customerRefund,
+              currency
+            )} to your card (5–10 business days).`
+          : "Your flight is cancelled. Under the airline's policy, no refund applies.",
+        link: `/saved-trips?booking=${booking._id}`,
+      }).catch(() => {});
+      continue;
+    }
+
+    // Still CONFIRMED. If the airline still has a cancel on file, wait.
+    // If it has none for 2 days, the cancel didn't go through — put the
+    // booking back and tell the traveler instead of leaving it hanging.
+    const since = new Date(
+      booking.cancellation?.at || booking.updatedAt
+    ).getTime();
+    if (!live.cancelIntentAt && Date.now() - since > STUCK_AFTER_MS) {
+      booking.status = "confirmed";
+      booking.adminNotes.push({
+        text: "Airline never finalized the cancellation and has no cancel on file. Put back to confirmed — follow up with the traveler.",
+        by: "system",
+        at: new Date(),
+      });
+      await booking.save();
+      Notification.create({
+        user: booking.user,
+        type: "booking",
+        title: "Your flight cancellation didn't go through",
+        message:
+          "The airline didn't complete your cancellation, so your flight is still booked. Try cancelling again from My Trips, or contact support.",
+        link: `/saved-trips?booking=${booking._id}`,
+      }).catch(() => {});
+    }
+  }
+  return { checked: pending.length, finalized };
+}
+
+let _flightCancelTimer = null;
+export function startFlightCancelJob({ everyMs = 20 * 60 * 1000 } = {}) {
+  if (_flightCancelTimer) return;
+  const tick = () => {
+    if (mongoose.connection.readyState !== 1) return;
+    finalizePendingFlightCancels().catch((e) =>
+      console.error("[flight-cancel-job] error", e.message)
+    );
+  };
+  _flightCancelTimer = setInterval(tick, everyMs);
+  _flightCancelTimer.unref?.();
+  setTimeout(tick, 60 * 1000).unref?.();
+}
+startFlightCancelJob();
+
+/* POST /api/bookings/admin/flight-cancels/check — admin: run it now */
+router.post("/admin/flight-cancels/check", adminOnly, async (_req, res) => {
+  try {
+    res.json({ ok: true, ...(await finalizePendingFlightCancels()) });
+  } catch (err) {
+    console.error("POST /admin/flight-cancels/check error:", err);
+    res.status(500).json({ message: "Couldn't check pending cancellations." });
   }
 });
 

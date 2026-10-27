@@ -250,15 +250,26 @@ export default function SyncTogether() {
   };
 
   // Called by the dialog once the trip (and any bookings you chose) are cancelled
-  const handleTripCancelled = (tripId, { cancelledBookings, keptBookings }) => {
+  const handleTripCancelled = (
+    tripId,
+    { mode, newOwner, solo, cancelledBookings, keptBookings }
+  ) => {
     setCancelTripId(null);
+    // Either way you're no longer on the trip, so it leaves your list
     setMyTrips((prev) => prev.filter((t) => t._id !== tripId));
+    const bookingsNote = cancelledBookings
+      ? " Your cancellation emails are on the way."
+      : keptBookings
+      ? " Your bookings are in My Trips."
+      : "";
     antdMessage.success(
-      cancelledBookings
-        ? "Trip cancelled. Your cancellation emails are on the way."
-        : keptBookings
-        ? "Trip cancelled. Your bookings are still in My Trips."
-        : "Trip cancelled."
+      mode === "handoff"
+        ? `${newOwner || "They"} ${
+            newOwner ? "is" : "are"
+          } organizing the trip now. You've left it.${bookingsNote}`
+        : solo
+        ? "You're going solo. Your trip is in My Trips."
+        : `Trip ended.${bookingsNote}`
     );
   };
 
@@ -506,8 +517,8 @@ export default function SyncTogether() {
                           type="button"
                           className="sk-sync-del"
                           onClick={() => setCancelTripId(trip._id)}
-                          aria-label={`Cancel ${title}`}
-                          title="Cancel trip"
+                          aria-label={`Leave or end ${title}`}
+                          title="Can't make it?"
                         >
                           <Trash2 size={15} />
                         </button>
