@@ -184,29 +184,65 @@ const router = express.Router();
 router.post("/feedback", optionalUser, async (req, res) => {
   try {
     const message = clean(req.body.message, 4000);
-    if (!message)
-      return res.status(400).json({ ok: false, message: "Feedback is empty." });
-
-    const type = ["bug", "idea", "general"].includes(req.body.type)
+    const type = ["bug", "idea", "general", "checkout"].includes(req.body.type)
       ? req.body.type
       : "general";
     const rating = Number(req.body.rating);
+    const validRating = rating >= 1 && rating <= 5 ? rating : undefined;
     const userId = userIdOf(req);
+    const isCheckout = type === "checkout";
 
-    const fb = await Feedback.create({
-      user: userId,
-      type,
-      message,
-      rating: rating >= 1 && rating <= 5 ? rating : undefined,
-      page: clean(req.body.page, 200),
-    });
+    // Checkout ratings: stars required, comment optional, signed in, own booking.
+    let bookingId;
+    if (isCheckout) {
+      if (!userId)
+        return res
+          .status(401)
+          .json({ ok: false, message: "Sign in to rate your booking." });
+      if (!validRating)
+        return res
+          .status(400)
+          .json({ ok: false, message: "Pick a star rating." });
+      if (badId(req.body.bookingId))
+        return res.status(400).json({ ok: false, message: "Unknown booking." });
+      const owns = await Booking().exists({
+        _id: req.body.bookingId,
+        ...bookingOwnerQuery(userId),
+      });
+      if (!owns)
+        return res.status(403).json({ ok: false, message: "Unknown booking." });
+      bookingId = req.body.bookingId;
+    } else if (!message) {
+      return res.status(400).json({ ok: false, message: "Feedback is empty." });
+    }
+
+    let fb;
+    try {
+      fb = await Feedback.create({
+        user: userId,
+        booking: bookingId,
+        type,
+        message,
+        rating: validRating,
+        page: clean(req.body.page, 200),
+      });
+    } catch (err) {
+      if (err.code === 11000)
+        return res.status(409).json({
+          ok: false,
+          already: true,
+          message: "You've already rated this booking. Thanks!",
+        });
+      throw err;
+    }
 
     // XP: signed in, long enough, under the weekly cap. Rating plays no part.
+    // Checkout ratings earn quick XP without text (once per booking, so no farming).
     let xpAwarded = 0;
     let xpNote = null;
     if (!userId) {
       xpNote = "Sign in to earn XP for feedback.";
-    } else if (message.length < MIN_CHARS_FOR_XP) {
+    } else if (!isCheckout && message.length < MIN_CHARS_FOR_XP) {
       xpNote = `Write at least ${MIN_CHARS_FOR_XP} characters to earn XP.`;
     } else {
       const recent = await XpAward.countDocuments({
@@ -239,6 +275,25 @@ router.post("/feedback", optionalUser, async (req, res) => {
       .status(500)
       .json({ ok: false, message: devMessage(err, "Couldn't save feedback.") });
   }
+});
+
+/* ─── User: add a comment to their own checkout rating ────────────────── */
+router.patch("/feedback/:id/comment", requireUser, async (req, res) => {
+  if (badId(req.params.id)) return res.status(400).json({ ok: false });
+  const message = clean(req.body.message, 2000);
+  if (!message)
+    return res.status(400).json({ ok: false, message: "Comment is empty." });
+  // Only the author, only checkout ratings, only once (no XP for this step).
+  const fb = await Feedback.findOneAndUpdate(
+    { _id: req.params.id, user: userIdOf(req), type: "checkout", message: "" },
+    { $set: { message } },
+    { new: true }
+  );
+  if (!fb)
+    return res
+      .status(404)
+      .json({ ok: false, message: "Couldn't add your comment." });
+  res.json({ ok: true });
 });
 
 /* ─── User: is there a trip to ask about? (drives the pop-up) ─────────── */

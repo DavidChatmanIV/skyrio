@@ -18,13 +18,15 @@ const ref = (name, extra = {}) => ({
 const FeedbackSchema = new Schema(
   {
     user: ref("User", { index: true }), // empty when sent while signed out
+    booking: ref("Booking"), // set for "checkout" ratings
     type: {
       type: String,
-      enum: ["bug", "idea", "general"],
+      enum: ["bug", "idea", "general", "checkout"],
       default: "general",
       index: true,
     },
-    message: { type: String, required: true, maxlength: 4000 },
+    // Optional only for checkout ratings (stars alone are enough there).
+    message: { type: String, default: "", maxlength: 4000 },
     rating: { type: Number, min: 1, max: 5 },
     page: String,
     status: {
@@ -38,6 +40,14 @@ const FeedbackSchema = new Schema(
     shippedBonusAwarded: { type: Boolean, default: false },
   },
   { timestamps: true }
+);
+// One checkout rating per booking.
+FeedbackSchema.index(
+  { user: 1, booking: 1, type: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { type: "checkout" },
+  }
 );
 
 /* ─── Testimonial ─────────────────────────────────────────────────────── */

@@ -20,7 +20,7 @@ const PREF_KEY = "skyrio_profile_music_autoplay"; // "off" = visitor opted out
 const VOLUME = 40;
 
 const SP_CSS = `
-.sp { font-family: "DM Sans", system-ui, sans-serif; color: #fff; }
+.sp { font-family: "DM Sans", system-ui, sans-serif; color: #fff; container-type: inline-size; }
 .sp-row { display: flex; align-items: center; gap: 14px; }
 .sp-cover { width: 64px; height: 64px; border-radius: 12px; flex-shrink: 0; background: #1a1430 center/cover no-repeat;
   border: 1px solid rgba(255,255,255,0.1); }
@@ -46,12 +46,27 @@ const SP_CSS = `
 .sp-pill { display: inline-flex; align-items: center; gap: 7px; margin-top: 12px; min-height: 36px; padding: 0 14px;
   border-radius: 999px; cursor: pointer; border: 1px solid rgba(255,138,42,0.5); background: rgba(255,138,42,0.14);
   color: #ffb347; font: 700 13px "DM Sans", system-ui, sans-serif; animation: spPulse 2s ease-in-out infinite; }
-.sp-video { margin-top: 12px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,138,42,0.2);
-  aspect-ratio: 16 / 9; max-height: 220px; background: #000; }
+.sp-video { margin-top: 12px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,138,42,0.2);
+  aspect-ratio: 16 / 9; background: #000; }
 .sp-video iframe, .sp-video > div { width: 100%; height: 100%; display: block; border: 0; }
 .sp-err { margin-top: 12px; padding: 12px 14px; border-radius: 10px; font-size: 13px; text-align: center;
   background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.65); }
 .sp :focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
+/* Wide cards (desktop): video left, song + controls right */
+@container (min-width: 620px) {
+  .sp-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: center; }
+  .sp-info { order: 2; }
+  .sp-video, .sp-err { order: 1; margin-top: 0; }
+  .sp-cover { display: none; }
+  .sp-row { flex-wrap: wrap; gap: 12px; }
+  .sp-meta { flex-basis: 100%; }
+  .sp-title { font-size: 22px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .sp-sub { margin-top: 6px; font-size: 13px; }
+  .sp-meta { order: 0; }
+  .sp-btn--main { order: 1; }
+  .sp-btn:not(.sp-btn--main) { order: 2; }
+  .sp-pill { margin-top: 14px; }
+}
 @keyframes spBar { 0%,100% { height: 4px; } 50% { height: 12px; } }
 @keyframes spPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,138,42,0.35); } 50% { box-shadow: 0 0 0 6px rgba(255,138,42,0); } }
 @media (prefers-reduced-motion: reduce) { .sp-bars.is-on i, .sp-pill { animation: none; } }
@@ -272,81 +287,85 @@ export default function SoundtrackPlayer({
     <div className="sp">
       <style>{SP_CSS}</style>
 
-      <div className="sp-row">
-        <div
-          className="sp-cover"
-          style={{ backgroundImage: `url(${cover})` }}
-          aria-hidden="true"
-        />
-        <div className="sp-meta">
-          <div className="sp-kicker">{label}</div>
-          <div className="sp-title">{name || "My Playlist"}</div>
-          <div className="sp-sub">
-            <span
-              className={`sp-bars${playing && !muted ? " is-on" : ""}`}
+      <div className="sp-layout">
+        <div className="sp-info">
+          <div className="sp-row">
+            <div
+              className="sp-cover"
+              style={{ backgroundImage: `url(${cover})` }}
               aria-hidden="true"
-            >
-              <i />
-              <i />
-              <i />
-              <i />
-            </span>
-            {busy
-              ? "Loading…"
-              : status === "error"
-              ? "Unavailable"
-              : playing
-              ? muted
-                ? "Playing (muted)"
-                : "Now playing"
-              : "Tap to play"}
-          </div>
-        </div>
+            />
+            <div className="sp-meta">
+              <div className="sp-kicker">{label}</div>
+              <div className="sp-title">{name || "My Playlist"}</div>
+              <div className="sp-sub">
+                <span
+                  className={`sp-bars${playing && !muted ? " is-on" : ""}`}
+                  aria-hidden="true"
+                >
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                {busy
+                  ? "Loading…"
+                  : status === "error"
+                  ? "Unavailable"
+                  : playing
+                  ? muted
+                    ? "Playing (muted)"
+                    : "Now playing"
+                  : "Tap to play"}
+              </div>
+            </div>
 
-        {playing && (
-          <button
-            type="button"
-            className="sp-btn"
-            onClick={toggleMute}
-            aria-label={muted ? "Unmute soundtrack" : "Mute soundtrack"}
-          >
-            {muted ? (
-              <VolumeX size={18} aria-hidden="true" />
-            ) : (
-              <Volume2 size={18} aria-hidden="true" />
+            {playing && (
+              <button
+                type="button"
+                className="sp-btn"
+                onClick={toggleMute}
+                aria-label={muted ? "Unmute soundtrack" : "Mute soundtrack"}
+              >
+                {muted ? (
+                  <VolumeX size={18} aria-hidden="true" />
+                ) : (
+                  <Volume2 size={18} aria-hidden="true" />
+                )}
+              </button>
             )}
-          </button>
-        )}
-        <button
-          type="button"
-          className="sp-btn sp-btn--main"
-          onClick={togglePlay}
-          disabled={busy || status === "error"}
-          aria-label={playing ? "Pause soundtrack" : "Play soundtrack"}
-        >
-          {playing ? (
-            <Pause size={20} aria-hidden="true" />
-          ) : (
-            <Play size={20} aria-hidden="true" style={{ marginLeft: 2 }} />
+            <button
+              type="button"
+              className="sp-btn sp-btn--main"
+              onClick={togglePlay}
+              disabled={busy || status === "error"}
+              aria-label={playing ? "Pause soundtrack" : "Play soundtrack"}
+            >
+              {playing ? (
+                <Pause size={20} aria-hidden="true" />
+              ) : (
+                <Play size={20} aria-hidden="true" style={{ marginLeft: 2 }} />
+              )}
+            </button>
+          </div>
+
+          {needsTap && (
+            <button type="button" className="sp-pill" onClick={toggleMute}>
+              <Volume2 size={15} aria-hidden="true" />
+              Tap for sound
+            </button>
           )}
-        </button>
-      </div>
-
-      {needsTap && (
-        <button type="button" className="sp-pill" onClick={toggleMute}>
-          <Volume2 size={15} aria-hidden="true" />
-          Tap for sound
-        </button>
-      )}
-
-      {status === "error" ? (
-        <div className="sp-err">
-          This song can't be played here. It may be private or blocked from
-          embedding.
         </div>
-      ) : (
-        <div className="sp-video" ref={hostRef} />
-      )}
+
+        {status === "error" ? (
+          <div className="sp-err">
+            This song can't be played here. It may be private or blocked from
+            embedding.
+          </div>
+        ) : (
+          <div className="sp-video" ref={hostRef} />
+        )}
+      </div>
     </div>
   );
 }

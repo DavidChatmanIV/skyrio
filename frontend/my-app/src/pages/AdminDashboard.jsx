@@ -181,8 +181,18 @@ const FEEDBACK_STATUSES = [
 const FEEDBACK_STATUS = Object.fromEntries(
   FEEDBACK_STATUSES.map((s) => [s.value, s])
 );
-const FEEDBACK_TYPE_LABELS = { bug: "Bug", idea: "Idea", general: "General" };
-const FEEDBACK_TYPE_TONES = { bug: "red", idea: "purple", general: "muted" };
+const FEEDBACK_TYPE_LABELS = {
+  bug: "Bug",
+  idea: "Idea",
+  general: "General",
+  checkout: "Checkout",
+};
+const FEEDBACK_TYPE_TONES = {
+  bug: "red",
+  idea: "purple",
+  general: "muted",
+  checkout: "blue",
+};
 
 const REVIEW_FILTERS = [
   ["pending", "Pending"],
@@ -1996,8 +2006,8 @@ function FeedbackStats({ refreshKey }) {
           hint={
             data &&
             `${byType.bug || 0} bugs · ${byType.idea || 0} ideas · ${
-              byType.general || 0
-            } general`
+              byType.checkout || 0
+            } checkout · ${byType.general || 0} general`
           }
         />
         <StatCard
@@ -2043,7 +2053,7 @@ function FeedbackStats({ refreshKey }) {
 
         <Panel title="Feedback by type" meta="Last 30 days">
           <div className="sk-rev">
-            {["bug", "idea", "general"].map((t) => {
+            {["bug", "idea", "general", "checkout"].map((t) => {
               const n = byType[t] || 0;
               const pct = typeTotal ? Math.round((n / typeTotal) * 100) : 0;
               const tone = TONES[FEEDBACK_TYPE_TONES[t]];
@@ -2132,6 +2142,7 @@ function FeedbackInbox({ refreshKey, onChange }) {
               { value: "bug", label: "Bugs" },
               { value: "idea", label: "Ideas" },
               { value: "general", label: "General" },
+              { value: "checkout", label: "Checkout" },
             ]}
           />
         </>
@@ -2165,7 +2176,13 @@ function FeedbackInbox({ refreshKey, onChange }) {
                     <Pill tone="green">Bonus sent</Pill>
                   )}
                 </div>
-                <div className="sk-text">{fb.message}</div>
+                <div className="sk-text">
+                  {fb.message || (
+                    <span style={{ color: C.muted, fontStyle: "italic" }}>
+                      Rating only, no comment
+                    </span>
+                  )}
+                </div>
                 <div className="sk-sub" style={{ marginTop: 6 }}>
                   {userLabel(fb.user)} · {fb.page || "unknown page"} ·{" "}
                   {timeAgo(fb.createdAt)}

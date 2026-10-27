@@ -598,6 +598,10 @@ export default function SupportRail() {
         },
       });
       setFbResult({ xpAwarded: data.xpAwarded || 0, xpNote: data.xpNote });
+      if (data.xpAwarded)
+        window.dispatchEvent(
+          new CustomEvent("skyrio:xp", { detail: { amount: data.xpAwarded } })
+        );
       setFbMessage("");
       setFbRating(0);
       setFbType("general");
@@ -627,6 +631,10 @@ export default function SupportRail() {
         },
       });
       setRvResult({ xpAwarded: data.xpAwarded || 0 });
+      if (data.xpAwarded)
+        window.dispatchEvent(
+          new CustomEvent("skyrio:xp", { detail: { amount: data.xpAwarded } })
+        );
     } catch (err) {
       setRvError(err.message);
     } finally {
