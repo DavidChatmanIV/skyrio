@@ -8,6 +8,44 @@ const PreferencesSchema = new Schema(
   { _id: false }
 );
 
+// Atlas booking: people the user books for (partner, kids, friends).
+// Legal names + DOB are sent to airlines/hotels; never shown to Atlas.
+const CompanionSchema = new Schema(
+  {
+    relation: { type: String, trim: true },
+    firstName: { type: String, trim: true },
+    legalFirstName: { type: String, trim: true },
+    legalMiddleName: { type: String, trim: true },
+    legalLastName: { type: String, trim: true },
+    dateOfBirth: { type: String },
+    gender: { type: String, enum: ["M", "F", "X"] },
+    ktnEnc: { type: String }, // encrypted Known Traveler Number (utils/fieldCrypto.js)
+  },
+  { timestamps: true }
+);
+
+const TravelProfileSchema = new Schema(
+  {
+    legalFirstName: { type: String, trim: true },
+    legalMiddleName: { type: String, trim: true },
+    legalLastName: { type: String, trim: true },
+    dateOfBirth: { type: String },
+    gender: { type: String, enum: ["M", "F", "X"] },
+    phone: { type: String, trim: true },
+    ktnEnc: { type: String },
+    // Home airport lives in the existing top-level `homeAirport.code` field.
+    seatPreference: {
+      type: String,
+      enum: ["window", "aisle", "no_preference"],
+      default: "no_preference",
+    },
+    cabin: { type: String, default: "economy" },
+    hotelPrefs: { type: Schema.Types.Mixed, default: null },
+    companions: { type: [CompanionSchema], default: [] },
+  },
+  { _id: false }
+);
+
 const UserSchema = new Schema(
   {
     // ---------- Core Identity ----------
@@ -145,6 +183,20 @@ const UserSchema = new Schema(
       updatedAt: { type: Date, default: null },
     },
 
+    // ---------- Atlas booking ----------
+    // Saved card for one-tap Atlas bookings (Stripe SetupIntent). Card
+    // numbers never touch Skyrio; this is only Stripe's payment method id.
+    defaultPaymentMethodId: { type: String, default: null },
+    defaultPaymentMethodSummary: {
+      brand: { type: String, default: null },
+      last4: { type: String, default: null },
+      expMonth: { type: Number, default: null },
+      expYear: { type: Number, default: null },
+    },
+    travelProfile: { type: TravelProfileSchema, default: () => ({}) },
+    // "Let Atlas learn" switch on Settings > What Atlas knows about you
+    atlasLearningEnabled: { type: Boolean, default: true },
+
     // ---------- Saved Trips ----------
     savedTrips: [{ type: Schema.Types.ObjectId, ref: "Place" }],
 
@@ -250,6 +302,10 @@ UserSchema.set("toJSON", {
     delete ret.passwordHash;
     delete ret.followers;
     delete ret.following;
+    // Never send legal names, birth dates or traveler numbers to the browser
+    // by accident. The travel-profile routes return their own safe view.
+    delete ret.travelProfile;
+    delete ret.defaultPaymentMethodId;
     return ret;
   },
 });

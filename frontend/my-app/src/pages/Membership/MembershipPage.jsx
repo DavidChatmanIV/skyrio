@@ -121,7 +121,7 @@ const PLANS = [
       },
       {
         icon: "star",
-        text: "2× XP multiplier on every flight & hotel booking",
+        text: "1.5× XP on everything you earn — bookings, SkyHub & challenges",
       },
       {
         icon: "early",
@@ -155,7 +155,7 @@ const PLANS = [
       },
       {
         icon: "star",
-        text: "5× XP multiplier — climb the ranks at record speed",
+        text: "2.5× XP on everything you earn — climb the ranks faster",
       },
       {
         icon: "badge",
@@ -476,7 +476,8 @@ export default function MembershipPage() {
     if (!isAuthed) return;
     const fromCheckout = params.get("checkout") === "success";
     const sessionId = params.get("session_id");
-    if (fromCheckout) setBanner({ kind: "pending", text: "Confirming your payment…" });
+    if (fromCheckout)
+      setBanner({ kind: "pending", text: "Confirming your payment…" });
 
     let cancelled = false;
     (async () => {
@@ -501,7 +502,12 @@ export default function MembershipPage() {
       if (fromCheckout) {
         setBanner(
           data?.subscription?.entitled
-            ? { kind: "success", text: `Welcome to ${PLAN_NAMES[data.plan]}! Your membership is active.` }
+            ? {
+                kind: "success",
+                text: `Welcome to ${
+                  PLAN_NAMES[data.plan]
+                }! Your membership is active.`,
+              }
             : {
                 kind: "error",
                 text: "We couldn't confirm your membership yet. If you were charged, refresh in a minute or email support.",
@@ -526,7 +532,10 @@ export default function MembershipPage() {
       const { url } = await openBillingPortal();
       window.location.assign(url);
     } catch (err) {
-      setBanner({ kind: "error", text: err.message || "Couldn't open billing." });
+      setBanner({
+        kind: "error",
+        text: err.message || "Couldn't open billing.",
+      });
       setPortalBusy(false);
     }
   }
@@ -567,7 +576,11 @@ export default function MembershipPage() {
   function handleCta(plan) {
     const billingParam = annual ? "annual" : "monthly";
     if (!isAuthed) {
-      nav(plan.id === "free" ? "/register" : `/register?plan=${plan.id}&billing=${billingParam}`);
+      nav(
+        plan.id === "free"
+          ? "/register"
+          : `/register?plan=${plan.id}&billing=${billingParam}`
+      );
       return;
     }
     if (plan.id === activePlan) return;
@@ -586,7 +599,10 @@ export default function MembershipPage() {
   function ctaLabel(plan) {
     if (!isAuthed) return plan.cta;
     if (plan.id === activePlan) return "Current plan";
-    if (hasPaidSub) return plan.id === "free" ? "Cancel in Manage billing" : `Switch to ${plan.name}`;
+    if (hasPaidSub)
+      return plan.id === "free"
+        ? "Cancel in Manage billing"
+        : `Switch to ${plan.name}`;
     if (plan.id === "free") return "Go to Dashboard";
     return plan.cta;
   }
@@ -677,24 +693,35 @@ export default function MembershipPage() {
       )}
 
       {banner && (
-        <div className={`mp-banner mp-banner--${banner.kind}`}>{banner.text}</div>
+        <div className={`mp-banner mp-banner--${banner.kind}`}>
+          {banner.text}
+        </div>
       )}
 
       {isAuthed && hasPaidSub && (
         <div className="mp-billing">
           <span>
-            <b>{PLAN_NAMES[billing.plan]}</b> · {sub.interval === "annual" ? "Annual" : "Monthly"}
+            <b>{PLAN_NAMES[billing.plan]}</b> ·{" "}
+            {sub.interval === "annual" ? "Annual" : "Monthly"}
             {sub.status === "past_due" ? (
               <span className="mp-billing__warn">
-                {" "}· Your last payment failed — update your card to keep your perks
+                {" "}
+                · Your last payment failed — update your card to keep your perks
               </span>
             ) : sub.cancelAtPeriodEnd ? (
-              <> · Ends {formatDate(sub.currentPeriodEnd)}, then moves to Free</>
+              <>
+                {" "}
+                · Ends {formatDate(sub.currentPeriodEnd)}, then moves to Free
+              </>
             ) : sub.currentPeriodEnd ? (
               <> · Renews {formatDate(sub.currentPeriodEnd)}</>
             ) : null}
           </span>
-          <button className="mp-billing__btn" onClick={handlePortal} disabled={portalBusy}>
+          <button
+            className="mp-billing__btn"
+            onClick={handlePortal}
+            disabled={portalBusy}
+          >
             {portalBusy ? "Opening…" : "Manage billing"}
           </button>
         </div>

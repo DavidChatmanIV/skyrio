@@ -15,6 +15,13 @@ import {
   TRIP_TYPE_GUIDANCE,
 } from "../../services/atlasPrompt.js";
 import Booking from "../../models/booking.js";
+import {
+  ATLAS_BOOKING_TOOLS,
+  isBookingTool,
+  runBookingTool,
+} from "../../services/atlas/atlasBookingTools.js";
+import { ATLAS_BOOKING_PROMPT } from "../../services/atlas/atlasBookingPrompt.js";
+import { buildLearnedContext } from "../../services/atlas/atlasLearning.js";
 import authRequired from "../../middleware/authRequired.js";
 
 const router = Router();
@@ -719,6 +726,21 @@ router.post("/chat", chatLimit, async (req, res) => {
       finalSystemPrompt = buildPanelSystemPrompt(context || {}, lastUserText, {
         signedIn: Boolean(userId),
       });
+
+      // Signed-in travelers: Atlas can book, set up their profile, and use
+      // what it has learned about them (see services/atlas/*).
+      if (userId) {
+        finalSystemPrompt += `\n\n${ATLAS_BOOKING_PROMPT}`;
+        const learned = await buildLearnedContext(userId).catch(() => "");
+        if (learned) finalSystemPrompt += `\n\n${learned}`;
+
+        // On a Sync Together page, the panel sends the trip id so Atlas can
+        // call get_sync_trip without asking for it.
+        const syncTripId = String(context?.syncTripId || "");
+        if (/^[a-f0-9]{24}$/i.test(syncTripId)) {
+          finalSystemPrompt += `\n\nThe traveler is looking at their Sync Together trip (syncTripId: ${syncTripId}). Use it with get_sync_trip and propose_booking when they want to book their share.`;
+        }
+      }
     } else {
       // Other callers (SyncGroupPage) send `context` as key/value facts.
       finalSystemPrompt =
@@ -743,14 +765,21 @@ router.post("/chat", chatLimit, async (req, res) => {
     }
 
     // Signed-in travelers in the chat panel get the support tools (look up
-    // their bookings, bring up a cancel card). Guests just chat.
-    const tools = source === "panel" && userId ? ATLAS_SUPPORT_TOOLS : null;
+    // their bookings, bring up a cancel card) plus the booking tools (search,
+    // propose a booking, set up their profile, remember preferences).
+    // Guests just chat.
+    const tools =
+      source === "panel" && userId
+        ? [...ATLAS_SUPPORT_TOOLS, ...ATLAS_BOOKING_TOOLS]
+        : null;
     const actions = [];
+    const toolsUsed = new Set();
     let convo = normalizedMessages;
     let result = null;
 
-    // Up to 3 rounds: Atlas asks for a tool → we run it → Atlas answers.
-    for (let round = 0; round < 3; round++) {
+    // Up to 5 rounds: Atlas asks for a tool → we run it → Atlas answers.
+    // Booking needs a few in one turn (profile → search → answer).
+    for (let round = 0; round < 5; round++) {
       result = await atlasChat({
         systemPrompt: finalSystemPrompt,
         messages: convo,
@@ -764,8 +793,11 @@ router.post("/chat", chatLimit, async (req, res) => {
 
       const toolResults = [];
       for (const call of result.toolCalls.slice(0, 4)) {
-        const ran = await runAtlasTool(call.name, call.arguments, { userId });
-        if (ran.action && actions.length < 2) actions.push(ran.action);
+        toolsUsed.add(call.name);
+        const ran = isBookingTool(call.name)
+          ? await runBookingTool(call.name, call.arguments, { userId })
+          : await runAtlasTool(call.name, call.arguments, { userId });
+        if (ran.action && actions.length < 3) actions.push(ran.action);
         toolResults.push({ id: call.id, name: call.name, result: ran.result });
       }
       convo = [
@@ -776,7 +808,11 @@ router.post("/chat", chatLimit, async (req, res) => {
 
     const reply =
       result?.text ||
-      (actions.length
+      (actions.some((a) => a.type === "booking")
+        ? "Here's your booking. Review the details and tap Confirm & Pay."
+        : actions.some((a) => a.type === "profile_setup")
+        ? "I opened a secure form below. Your details go straight to Skyrio."
+        : actions.length
         ? "Here are the details. Check the refund on the card before you confirm."
         : "");
     if (!reply) {
@@ -789,6 +825,7 @@ router.post("/chat", chatLimit, async (req, res) => {
       ok: true,
       reply,
       actions,
+      toolsUsed: [...toolsUsed],
       provider: result?.provider,
       model: result?.model,
     });

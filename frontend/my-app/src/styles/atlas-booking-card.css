@@ -1,0 +1,170 @@
+/* src/styles/atlas-booking-card.css — dark-glass card with Skyrio orange accents */
+.abc-card {
+  margin: 10px 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(20, 20, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #f3f3f6;
+  max-width: 380px;
+}
+.abc-loading { opacity: 0.7; font-size: 14px; }
+
+.abc-head { display: flex; gap: 10px; align-items: center; }
+.abc-icon {
+  display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, #ff8a3d, #ff5e62);
+  color: #fff;
+}
+.abc-title { font-weight: 600; font-size: 15px; }
+.abc-tag { font-size: 12px; color: #c9b8ff; margin-top: 2px; }
+
+.abc-lines { list-style: none; margin: 12px 0 0; padding: 0; font-size: 14px; color: #d6d6de; }
+.abc-lines li { padding: 3px 0; }
+
+.abc-policy { font-size: 12px; color: #a0a0ad; margin: 10px 0 0; }
+
+.abc-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.15);
+}
+.abc-total span { font-size: 13px; color: #a0a0ad; }
+.abc-total strong { font-size: 20px; }
+
+.abc-hold { font-size: 12px; color: #a0a0ad; margin: 8px 0 0; }
+
+.abc-actions { display: flex; gap: 8px; margin-top: 12px; }
+.abc-btn {
+  flex: 1; padding: 11px 14px; border-radius: 12px;
+  font-weight: 600; font-size: 14px; border: 0; cursor: pointer;
+}
+.abc-btn:disabled { opacity: 0.6; cursor: default; }
+.abc-primary { background: linear-gradient(135deg, #ff8a3d, #ff5e62); color: #fff; }
+.abc-ghost { background: rgba(255, 255, 255, 0.08); color: #e6e6ec; }
+
+.abc-done {
+  display: flex; gap: 6px; align-items: center;
+  margin-top: 12px; color: #6ee7a8; font-weight: 600; font-size: 14px;
+}
+.abc-msg { margin-top: 12px; font-size: 13px; color: #ffb4a1; }
+
+.abc-expired, .abc-cancelled, .abc-price_changed { opacity: 0.75; }
+
+/* ── Atlas profile setup card ── */
+.apc-card { max-width: 420px; }
+.apc-secure {
+  display: flex; gap: 6px; align-items: flex-start;
+  margin: 8px 0 12px; font-size: 12px; color: #c9b8ff;
+}
+.apc-secure svg { flex: none; margin-top: 2px; }
+
+.apc-steps { display: flex; gap: 6px; margin-bottom: 12px; }
+.apc-steps span {
+  flex: 1; text-align: center; font-size: 12px; padding: 5px 0;
+  border-radius: 999px; background: rgba(255, 255, 255, 0.06); color: #a0a0ad;
+}
+.apc-steps span.on { background: linear-gradient(135deg, #ff8a3d, #ff5e62); color: #fff; font-weight: 600; }
+
+.apc-row { display: flex; gap: 8px; }
+.apc-row > * { flex: 1; min-width: 0; }
+
+.apc-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.apc-label { font-size: 12px; color: #a0a0ad; }
+.apc-field input,
+.apc-field select {
+  width: 100%; box-sizing: border-box;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f3f3f6; font-size: 16px; /* 16px stops iOS zoom on focus */
+}
+.apc-field input:focus,
+.apc-field select:focus { outline: none; border-color: #ff8a3d; }
+.apc-hint { font-size: 11px; color: #8a8a96; }
+.apc-error { font-size: 12px; color: #ffb4a1; }
+
+.apc-full { width: 100%; margin-top: 8px; }
+
+.apc-list { list-style: none; padding: 0; margin: 8px 0; }
+.apc-list li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 14px;
+}
+.apc-list em { font-style: normal; font-size: 12px; color: #a0a0ad; margin-left: 6px; text-transform: capitalize; }
+.apc-link { background: none; border: 0; color: #ff8a3d; font-weight: 600; cursor: pointer; }
+
+/* ── Atlas feedback bar ── */
+.afb { margin: 4px 0 8px; }
+.afb-row { display: flex; align-items: center; gap: 4px; }
+.afb-btn {
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 8px; border: 0; background: transparent; color: #8a8a96; cursor: pointer;
+}
+.afb-btn:hover { background: rgba(255, 255, 255, 0.06); color: #e6e6ec; }
+.afb-btn.on { color: #ff8a3d; }
+.afb-thanks { font-size: 12px; color: #a0a0ad; margin-left: 6px; }
+.afb-panel {
+  margin-top: 6px; padding: 12px; border-radius: 14px; max-width: 380px;
+  background: rgba(20, 20, 30, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.afb-q { margin: 0 0 8px; font-size: 13px; color: #d6d6de; }
+.afb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.afb-chip {
+  padding: 6px 10px; border-radius: 999px; font-size: 12px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.14); background: transparent; color: #d6d6de;
+}
+.afb-chip.on { border-color: #ff8a3d; background: rgba(255, 138, 61, 0.15); color: #fff; }
+.afb-comment {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 10px; resize: vertical;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f3f3f6; font-size: 16px; font-family: inherit;
+}
+
+/* ── What Atlas knows about you ── */
+.alp { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; color: #f3f3f6; }
+.alp-title { font-size: 24px; margin: 0 0 6px; }
+.alp-sub { font-size: 14px; color: #a0a0ad; margin: 0 0 16px; }
+.alp-toggle { display: flex; justify-content: space-between; align-items: center; gap: 12px; max-width: none; }
+.alp-switch {
+  flex: none; width: 46px; height: 26px; border-radius: 999px; border: 0; padding: 3px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.15); transition: background 0.2s;
+}
+.alp-switch span { display: block; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.alp-switch.on { background: linear-gradient(135deg, #ff8a3d, #ff5e62); }
+.alp-switch.on span { transform: translateX(20px); }
+.alp-section h2, .alp-h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: #c9b8ff; margin: 22px 0 6px; }
+.alp-item { max-width: none; margin: 8px 0; }
+.alp-item.off { opacity: 0.55; }
+.alp-text { font-size: 15px; }
+.alp-meta { font-size: 12px; color: #8a8a96; margin-top: 4px; }
+.alp-actions { display: flex; gap: 14px; margin-top: 8px; }
+.alp-input {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); color: #f3f3f6; font-size: 16px;
+}
+.alp-danger { color: #ff8f7a; }
+.alp-danger-btn { background: #c2412d; color: #fff; }
+.alp-empty { font-size: 14px; color: #a0a0ad; margin-top: 18px; }
+.alp-clear { margin-top: 24px; }
+.alp-foot { font-size: 12px; color: #8a8a96; margin-top: 24px; }
+
+/* ── Atlas insights (admin) ── */
+.ain-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ain-stats .abc-card { max-width: none; }
+.ain-num { font-size: 28px; font-weight: 700; }
+.ain-bars { list-style: none; padding: 0; margin: 10px 0 0; }
+.ain-bars li { display: grid; grid-template-columns: 130px 1fr 28px; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; }
+.ain-bar { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.ain-bar span { display: block; height: 100%; background: linear-gradient(90deg, #ff8a3d, #ff5e62); }
+.ain-comment { font-size: 14px; margin: 8px 0 0; }
+.ain-reply {
+  font-size: 13px; color: #a0a0ad; margin: 8px 0; padding-left: 10px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15); white-space: pre-wrap; max-height: 160px; overflow: auto;
+}
+.abc-card:has(.ain-bars), .alp > .abc-card { max-width: none; margin-top: 10px; }
+@media (max-width: 420px) { .ain-stats { grid-template-columns: 1fr; } .ain-bars li { grid-template-columns: 100px 1fr 24px; } }

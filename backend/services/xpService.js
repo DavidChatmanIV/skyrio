@@ -465,7 +465,12 @@ function bookingStartDate(b) {
 function flightStops(f) {
   if (!f) return null;
   for (const k of ["stops", "numberOfStops", "stopCount"]) {
-    if (f[k] !== undefined && f[k] !== null && f[k] !== "" && Number.isFinite(Number(f[k]))) {
+    if (
+      f[k] !== undefined &&
+      f[k] !== null &&
+      f[k] !== "" &&
+      Number.isFinite(Number(f[k]))
+    ) {
       return Number(f[k]);
     }
   }
@@ -509,7 +514,9 @@ export async function awardXpForBooking(bookingId, { notify = true } = {}) {
       title: `🌟 +${total} XP on the way!`,
       message: `You earned ${total} XP for booking this trip. It unlocks once your trip starts — check your Passport to see it.`,
       link: "/passport",
-    }).catch((e) => console.error("[xp] booking XP notification failed:", e.message));
+    }).catch((e) =>
+      console.error("[xp] booking XP notification failed:", e.message)
+    );
   }
   return { booking, results, total };
 }
@@ -630,12 +637,26 @@ export const awardProfileCompletedXp = ({ userId }) =>
 
 /* ───────────────────────── passive activity ───────────────────────── */
 
+// The frontend hook (useXPSystem) reports rule-style names; older callers may
+// send the short names. Both map to the same three activity types here.
+// STREAK_DAY → "session": streaks are handled inside the daily session, which
+// can only be claimed once per day, so a repeat call just returns
+// "already_counted_today".
+const PASSIVE_TYPE_ALIASES = {
+  DAILY_SESSION: "session",
+  STREAK_DAY: "session",
+  ACTIVE_INTERVAL: "active",
+  PAGE_VISIT: "page",
+};
+
 /**
  * Backs POST /api/xp/activity. The client only REPORTS { type, path };
  * the server decides what counts. Returns a flat array of award results.
  *   type: "session" | "active" | "page"
+ *         (or DAILY_SESSION | STREAK_DAY | ACTIVE_INTERVAL | PAGE_VISIT)
  */
 export async function awardPassiveActivity({ userId, type, path }) {
+  type = PASSIVE_TYPE_ALIASES[type] ?? type;
   const now = new Date();
   const day = dayKey(now);
 

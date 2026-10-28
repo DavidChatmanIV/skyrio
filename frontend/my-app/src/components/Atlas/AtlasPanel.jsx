@@ -7,6 +7,9 @@ import React, {
 } from "react";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import Compass from "@/components/Atlas/Compass";
+import AtlasBookingCard from "@/components/Atlas/AtlasBookingCard";
+import AtlasProfileCard from "@/components/Atlas/AtlasProfileCard";
+import AtlasFeedbackBar from "@/components/Atlas/AtlasFeedbackBar";
 import {
   X,
   RotateCcw,
@@ -40,6 +43,35 @@ const loadChat = () => {
     return [];
   }
 };
+// One id per chat, so feedback XP pays once per conversation.
+const CONVO_KEY = "skyrio_atlas_convo";
+const newConvoId = () =>
+  `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+const loadConvoId = () => {
+  try {
+    const id = sessionStorage.getItem(CONVO_KEY);
+    if (id) return id;
+    const fresh = newConvoId();
+    sessionStorage.setItem(CONVO_KEY, fresh);
+    return fresh;
+  } catch {
+    return newConvoId();
+  }
+};
+const isSignedIn = () => {
+  try {
+    return Boolean(localStorage.getItem("token"));
+  } catch {
+    return false;
+  }
+};
+
+// Cards Atlas can bring up in chat
+const KNOWN_ACTION = (a) =>
+  (a?.type === "cancel" && a.bookingId) ||
+  (a?.type === "booking" && a.proposalId) ||
+  a?.type === "profile_setup";
+
 const saveChat = (list) => {
   try {
     sessionStorage.setItem(
@@ -62,6 +94,8 @@ function contextForServer(ctx) {
     bookingTotal: c.bookingTotal || null,
     spent: c.spent || null,
     tripType: c.tripType || null,
+    // Set by SyncGroupPage so Atlas can book this traveler's share
+    syncTripId: c.syncTripId || null,
     flights: Array.isArray(c.flights)
       ? c.flights.slice(0, 50).map((f) => ({
           owner: f?.owner,
@@ -272,7 +306,7 @@ const MODES = {
     label: "Chat",
     Icon: ChatIcon,
     status: "Trip help & bookings",
-    hint: "Ask about your trip or get help with a booking. To search and book, use Book.",
+    hint: "Ask about your trip, book flights and hotels, or get help with a booking.",
   },
   compass: {
     label: "Compass",
@@ -585,10 +619,12 @@ function AtlasNudge({ visible, onDismiss }) {
   );
 }
 
-function Bubble({ msg, onActionResolved }) {
+function Bubble({ msg, onActionResolved, conversationId, onProfileDone }) {
   const isUser = msg.role === "user";
   const isStream = msg.streaming;
   const cards = !isUser && Array.isArray(msg.actions) ? msg.actions : [];
+  const showFeedback =
+    !isUser && !isStream && msg.content && isSignedIn() && !msg.noFeedback;
   return (
     <>
       <div
@@ -618,14 +654,49 @@ function Bubble({ msg, onActionResolved }) {
           )}
         </div>
       </div>
-      {cards.map((action, i) =>
-        action?.type === "cancel" ? (
-          <CancelCard
-            key={`${action.bookingId}-${i}`}
-            action={action}
-            onResolved={(done) => onActionResolved?.(msg.id, i, done)}
-          />
-        ) : null
+      {cards.map((action, i) => {
+        if (action?.type === "cancel")
+          return (
+            <CancelCard
+              key={`${action.bookingId}-${i}`}
+              action={action}
+              onResolved={(done) => onActionResolved?.(msg.id, i, done)}
+            />
+          );
+        if (action?.type === "booking")
+          return (
+            <AtlasBookingCard
+              key={`${action.proposalId}-${i}`}
+              proposalId={action.proposalId}
+            />
+          );
+        if (action?.type === "profile_setup")
+          return action.done ? (
+            <div key={`profile-${i}`} className="ap-card__done" role="status">
+              <CheckCircle2 size={15} aria-hidden="true" />
+              <span>Travel profile saved</span>
+            </div>
+          ) : (
+            <AtlasProfileCard
+              key={`profile-${i}`}
+              focus={action.focus || "full"}
+              travelerId={action.travelerId}
+              reason={action.reason}
+              onDone={(summary) => {
+                onActionResolved?.(msg.id, i, { text: summary });
+                onProfileDone?.(summary);
+              }}
+            />
+          );
+        return null;
+      })}
+      {showFeedback && (
+        <AtlasFeedbackBar
+          conversationId={conversationId}
+          messageId={msg.id}
+          atlasReply={msg.content}
+          toolsUsed={msg.toolsUsed || []}
+        />
       )}
     </>
   );
@@ -643,6 +714,7 @@ export default function AtlasPanel() {
   const [mode, setMode] = useState("chat"); // "chat" | "compass"
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState(loadChat);
+  const [conversationId, setConversationId] = useState(loadConvoId);
   // Last thing the traveler asked — so "Try again" can resend it.
   const lastAskRef = useRef("");
   const [loading, setLoading] = useState(false);
@@ -870,7 +942,10 @@ export default function AtlasPanel() {
             data.message ||
             "I couldn't come up with an answer. Please try again.";
           const actions = Array.isArray(data.actions)
-            ? data.actions.filter((a) => a?.type === "cancel" && a.bookingId)
+            ? data.actions.filter(KNOWN_ACTION)
+            : [];
+          const toolsUsed = Array.isArray(data.toolsUsed)
+            ? data.toolsUsed.slice(0, 10)
             : [];
           setMessages((prev) =>
             prev.map((m) =>
@@ -879,6 +954,7 @@ export default function AtlasPanel() {
                     ...m,
                     content,
                     streaming: false,
+                    toolsUsed,
                     ...(actions.length ? { actions } : {}),
                   }
                 : m
@@ -933,6 +1009,14 @@ export default function AtlasPanel() {
   const clearChat = useCallback(() => {
     abortRef.current?.abort();
     setMessages([]);
+    // A new chat gets a new id (feedback XP is once per conversation)
+    const fresh = newConvoId();
+    try {
+      sessionStorage.setItem(CONVO_KEY, fresh);
+    } catch {
+      /* storage blocked */
+    }
+    setConversationId(fresh);
     setError(null);
     setLoading(false);
     lastAskRef.current = "";
@@ -1038,6 +1122,12 @@ export default function AtlasPanel() {
                     key={msg.id}
                     msg={msg}
                     onActionResolved={markActionDone}
+                    conversationId={conversationId}
+                    onProfileDone={(summary) =>
+                      sendMessage(
+                        `I finished my travel profile (${summary}). Let's keep going.`
+                      )
+                    }
                   />
                 ))}
                 {error && (
@@ -1097,7 +1187,7 @@ export default function AtlasPanel() {
                   </button>
                 </div>
                 <div className="ap-footer">
-                  Atlas can make mistakes. Check prices on Book before you pay.
+                  Atlas can make mistakes. Check the details on the card before you pay.
                 </div>
               </div>
             </>
