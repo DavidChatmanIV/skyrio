@@ -345,6 +345,25 @@ function providerError(err, label) {
       },
     };
   }
+  // LiteAPI rejected the request body (e.g. 43001 "required prebook field
+  // is missing"). Retrying won't help. Outside production, `detail` names
+  // the exact field so it shows up in the checkout while developing.
+  if (err?.response?.status === 400) {
+    const { key, description } = err.response.data?.error || {};
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        code,
+        field: key || null,
+        message:
+          "We couldn't send your traveler details to the airline. Please check them and try again.",
+        ...(process.env.NODE_ENV !== "production" && {
+          detail: [description, key].filter(Boolean).join(" · "),
+        }),
+      },
+    };
+  }
   return {
     status: 502,
     body: { ok: false, code, message: upstream || err.message },

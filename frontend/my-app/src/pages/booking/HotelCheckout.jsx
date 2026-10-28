@@ -187,78 +187,116 @@ function authHeaders() {
 // ─────────────────────────────────────────────
 // Per-room summary line
 // ─────────────────────────────────────────────
-function RoomLineItem({ room, index }) {
+// Plain words for LiteAPI's board codes ("Room Only" means no meals).
+function boardLabel(board) {
+  if (!board) return "";
+  if (/room\s*only|^ro$/i.test(board)) return "No meals included";
+  return board;
+}
+
+// Fees the hotel collects at check-in (resort fees, city tax). Only shown
+// when the rate actually lists them — we never guess.
+function payAtHotelFees(room) {
+  const lists = [
+    room?.taxesAndFees,
+    room?.retailRate?.taxesAndFees,
+    room?.rate?.retailRate?.taxesAndFees,
+  ].filter(Array.isArray);
+  const fees = (lists[0] || []).filter((f) => f && f.included === false);
+  if (!fees.length) return null;
+  const amount = fees.reduce((s, f) => s + (Number(f.amount) || 0), 0);
+  return {
+    amount,
+    currency: fees[0].currency || room?.totalCurrency || "USD",
+    names: fees.map((f) => f.description).filter(Boolean),
+  };
+}
+
+const HC_CSS = `
+  .sk-hc-grid { align-items: start !important; }
+  @media (min-width: 900px) {
+    .sk-hc-summary { position: sticky; top: 96px; }
+  }
+  .sk-hc-room { display: flex; gap: 14px; padding: 4px 0 16px; }
+  .sk-hc-room + .sk-hc-room { border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px; }
+  .sk-hc-thumb { width: 96px; height: 96px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(255,255,255,0.06) center / cover no-repeat; }
+  .sk-hc-info { min-width: 0; flex: 1; }
+  .sk-hc-tag { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: rgba(255,255,255,0.5); }
+  .sk-hc-hotel { font-size: 16px; font-weight: 700; color: #fff; line-height: 1.3; margin-top: 2px; }
+  .sk-hc-line { display: flex; align-items: flex-start; gap: 7px; margin-top: 6px;
+    font-size: 13px; line-height: 1.45; color: rgba(255,255,255,0.68); }
+  .sk-hc-line svg { flex-shrink: 0; margin-top: 2px; opacity: .85; }
+  .sk-hc-price { margin-top: 8px; font-size: 14px; font-weight: 700; color: #fff; }
+  @media (max-width: 480px) { .sk-hc-thumb { width: 72px; height: 72px; } }
+`;
+
+function RoomLineItem({ room, index, total }) {
   const nights = nightsBetween(room.checkin, room.checkout);
+  const c = cancellationOf(room);
+  const board = boardLabel(room.boardName);
   return (
-    <div className="sk-checkout-room-line">
+    <div className="sk-hc-room">
       <div
-        className="sk-thumb sk-checkout-room-thumb"
+        className="sk-hc-thumb"
         style={
-          room.thumbnail
-            ? {
-                backgroundImage: `url(${room.thumbnail})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }
-            : undefined
+          room.thumbnail ? { backgroundImage: `url(${room.thumbnail})` } : {}
         }
+        aria-hidden="true"
       />
-      <div className="sk-checkout-room-info">
-        <div className="sk-checkout-room-title">
-          Room {index + 1} · {room.name}
+      <div className="sk-hc-info">
+        {total > 1 && <div className="sk-hc-tag">Room {index + 1}</div>}
+        <div className="sk-hc-hotel">{room.name}</div>
+        <div className="sk-hc-line">
+          <BedDouble size={14} aria-hidden="true" />
+          <span>
+            {room.roomName || "Standard room"}
+            {board ? ` · ${board}` : ""}
+          </span>
         </div>
-        <div className="sk-checkout-room-meta">
-          <BedDouble
-            size={12}
-            style={{ marginRight: 4, verticalAlign: "middle" }}
-          />
-          {room.roomName || "Standard room"}
-          {room.boardName ? ` · ${room.boardName}` : ""}
+        <div className="sk-hc-line">
+          <CalendarCheck size={14} aria-hidden="true" />
+          <span>
+            {room.checkin && room.checkout
+              ? `${dayjs(room.checkin).format("ddd, MMM D")} → ${dayjs(
+                  room.checkout
+                ).format("ddd, MMM D")}${
+                  nights ? ` · ${nights} night${nights !== 1 ? "s" : ""}` : ""
+                }`
+              : "Dates to be confirmed"}
+          </span>
         </div>
         {room.address && (
-          <div className="sk-checkout-room-meta">
-            <MapPin
-              size={12}
-              style={{ marginRight: 4, verticalAlign: "middle" }}
-            />
-            {room.address}
+          <div className="sk-hc-line">
+            <MapPin size={14} aria-hidden="true" />
+            <span>{room.address}</span>
           </div>
         )}
-        <div className="sk-checkout-room-meta">
-          {room.checkin && room.checkout
-            ? `${dayjs(room.checkin).format("MMM D")} → ${dayjs(
-                room.checkout
-              ).format("MMM D")}${
-                nights ? ` · ${nights} night${nights !== 1 ? "s" : ""}` : ""
-              }`
-            : "Dates TBD"}
-        </div>
-        {(() => {
-          const c = cancellationOf(room);
-          if (!c) return null;
-          return (
-            <div
-              className="sk-checkout-room-meta"
-              style={{ color: c.refundable ? "#34d399" : "#ffb347" }}
-            >
-              <CalendarCheck
-                size={12}
-                style={{ marginRight: 4, verticalAlign: "middle" }}
-              />
+        {c && (
+          <div
+            className="sk-hc-line"
+            style={{ color: c.refundable ? "#34d399" : "#ffb347" }}
+          >
+            {c.refundable ? (
+              <Check size={14} aria-hidden="true" />
+            ) : (
+              <Info size={14} aria-hidden="true" />
+            )}
+            <span>
               {c.refundable
                 ? c.deadline
                   ? `Free cancellation until ${dayjs(c.deadline).format(
                       "MMM D, h:mm A"
                     )}`
                   : "Refundable rate"
-                : "Non-refundable rate"}
-            </div>
-          );
-        })()}
-      </div>
-      <div className="sk-checkout-room-price">
-        ${usd2(room.totalAmount)}
-        <span className="sk-priceSub">{room.totalCurrency || "USD"}</span>
+                : "Non-refundable — can't be cancelled for a refund"}
+            </span>
+          </div>
+        )}
+        {total > 1 && (
+          <div className="sk-hc-price">${usd2(room.totalAmount)}</div>
+        )}
       </div>
     </div>
   );
@@ -274,8 +312,94 @@ function RoomGuestField({
   onChange,
   showErrors,
   savedOptions = [],
+  collapsed = false,
+  email = "",
+  onEdit,
+  total = 1,
 }) {
   const g = value || {};
+  // Filled from the profile and complete: a short summary, not 3 fields.
+  if (collapsed) {
+    return (
+      <div className="sk-checkout-guest-field" style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+            padding: "14px 16px",
+            borderRadius: 12,
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.10)",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: ".06em",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.5)",
+              }}
+            >
+              {total > 1 ? `Room ${index + 1} guest` : "Guest"} · from your
+              profile
+            </div>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 16,
+                color: "#fff",
+                marginTop: 4,
+              }}
+            >
+              {g.firstName} {g.lastName}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "rgba(255,255,255,0.6)",
+                marginTop: 2,
+                overflowWrap: "anywhere",
+              }}
+            >
+              Confirmation goes to {email}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "rgba(255,255,255,0.45)",
+                marginTop: 8,
+              }}
+            >
+              The name must match the ID they'll show at check-in.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onEdit}
+            style={{
+              flexShrink: 0,
+              padding: "6px 14px",
+              minHeight: 34,
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.16)",
+              background: "transparent",
+              color: "#fff",
+              fontFamily: "inherit",
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            Edit
+          </button>
+        </div>
+        <AlsoStaying room={room} index={index} value={g} onChange={onChange} />
+      </div>
+    );
+  }
   const err = (v) =>
     showErrors || v ? (!v ? "Required" : !nameOk(v) ? NAME_HINT : null) : null;
   const firstErr = err(g.firstName);
@@ -283,7 +407,7 @@ function RoomGuestField({
   return (
     <div className="sk-checkout-guest-field" style={{ marginBottom: 16 }}>
       <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
-        Room {index + 1} guest
+        {total > 1 ? `Room ${index + 1} guest` : "Guest"}
       </div>
       <div
         style={{
@@ -292,7 +416,7 @@ function RoomGuestField({
           marginBottom: 10,
         }}
       >
-        {room.name} · the name must match the guest's ID at check-in
+        The name must match the ID they'll show at check-in
       </div>
       {savedOptions.length > 0 && (
         <div
@@ -337,7 +461,6 @@ function RoomGuestField({
           <span style={LABEL}>First name{REQ}</span>
           <Input
             className="sk-prefill-input"
-            placeholder="First name"
             autoComplete={index === 0 ? "given-name" : "off"}
             value={g.firstName || ""}
             status={firstErr && (showErrors || g.firstName) ? "error" : ""}
@@ -353,7 +476,6 @@ function RoomGuestField({
           <span style={LABEL}>Last name{REQ}</span>
           <Input
             className="sk-prefill-input"
-            placeholder="Last name"
             autoComplete={index === 0 ? "family-name" : "off"}
             value={g.lastName || ""}
             status={lastErr && (showErrors || g.lastName) ? "error" : ""}
@@ -1127,6 +1249,7 @@ export default function HotelCheckout({
   const [contactEmail, setContactEmail] = useState("");
   const [showErrors, setShowErrors] = useState(false);
   const [autofilled, setAutofilled] = useState(false);
+  const [leadEditing, setLeadEditing] = useState(false);
   const [roomGone, setRoomGone] = useState(false);
   // People saved on the profile (partner, family…) — tap to fill a room.
   const [savedTravelers, setSavedTravelers] = useState([]);
@@ -1198,6 +1321,11 @@ export default function HotelCheckout({
       return next;
     });
   }, []);
+  const leadCollapsed =
+    autofilled &&
+    !leadEditing &&
+    guestComplete(guests[0]) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
   const emailBad =
     (showErrors || contactEmail) &&
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
@@ -1206,6 +1334,16 @@ export default function HotelCheckout({
     () => rooms.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0),
     [rooms]
   );
+  // Fees the hotel collects at check-in, summed across rooms (if listed).
+  const payAtHotel = useMemo(() => {
+    const all = rooms.map(payAtHotelFees).filter(Boolean);
+    if (!all.length) return null;
+    return {
+      amount: all.reduce((s, f) => s + f.amount, 0),
+      currency: all[0].currency,
+      names: [...new Set(all.flatMap((f) => f.names))],
+    };
+  }, [rooms]);
 
   // Booking for more than one person, and not already a group trip →
   // mention Sync Together once (skippable).
@@ -1268,25 +1406,55 @@ export default function HotelCheckout({
             : "Review the details below before paying."}
         </Text>
 
-        <div className="sk-checkout-grid">
+        <style>{HC_CSS}</style>
+        <div className="sk-checkout-grid sk-hc-grid">
           <Card
             variant="borderless"
-            className="sk-result-card sk-checkout-summary-card"
+            className="sk-result-card sk-checkout-summary-card sk-hc-summary"
           >
             <div className="sk-checkout-summary-header">
               <Users
                 size={15}
                 style={{ marginRight: 6, verticalAlign: "middle" }}
               />
-              {rooms.length} room{rooms.length !== 1 ? "s" : ""} in this trip
+              {rooms.length > 1 ? `${rooms.length} rooms` : "Your stay"}
             </div>
             {rooms.map((r, i) => (
-              <RoomLineItem key={roomKey(r)} room={r} index={i} />
+              <RoomLineItem
+                key={roomKey(r)}
+                room={r}
+                index={i}
+                total={rooms.length}
+              />
             ))}
-            <Divider style={{ borderColor: "rgba(255,255,255,0.1)" }} />
-            <div className="sk-checkout-total-row">
-              <span>Total</span>
-              <span className="sk-priceAmt">${usd2(grandTotal)}</span>
+            <div
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.1)",
+                paddingTop: 14,
+                marginTop: 2,
+              }}
+            >
+              <div className="sk-checkout-total-row">
+                <span>Total</span>
+                <span className="sk-priceAmt">${usd2(grandTotal)}</span>
+              </div>
+              {payAtHotel && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 12.5,
+                    lineHeight: 1.5,
+                    color: "#ffb347",
+                  }}
+                >
+                  Plus ${usd2(payAtHotel.amount)} {payAtHotel.currency} paid to
+                  the hotel at check-in
+                  {payAtHotel.names.length
+                    ? ` (${payAtHotel.names.join(", ")})`
+                    : ""}
+                  .
+                </div>
+              )}
             </div>
           </Card>
 
@@ -1314,8 +1482,7 @@ export default function HotelCheckout({
                 account, so you need to be signed in before you pay.
               </div>
             )}
-            {showSyncTip && <SyncTogetherNudge kind="hotel" />}
-            {autofilled && (
+            {autofilled && !leadCollapsed && (
               <span
                 style={{
                   display: "inline-block",
@@ -1332,7 +1499,12 @@ export default function HotelCheckout({
                 Filled from your profile
               </span>
             )}
-            <label style={{ display: "block", marginBottom: 18 }}>
+            <label
+              style={{
+                display: leadCollapsed ? "none" : "block",
+                marginBottom: 18,
+              }}
+            >
               <span style={LABEL}>Contact email{REQ}</span>
               <Input
                 className="sk-prefill-input"
@@ -1358,6 +1530,10 @@ export default function HotelCheckout({
                 value={guests[i]}
                 showErrors={showErrors}
                 onChange={(v) => updateGuest(i, v)}
+                collapsed={i === 0 && leadCollapsed}
+                email={contactEmail}
+                onEdit={() => setLeadEditing(true)}
+                total={rooms.length}
                 savedOptions={savedTravelers.filter(
                   (t) =>
                     !guests.some(
@@ -1502,6 +1678,11 @@ export default function HotelCheckout({
                   onUnavailable={() => setRoomGone(true)}
                 />
               </Elements>
+            )}
+            {showSyncTip && !shareMode && (
+              <div style={{ marginTop: 20 }}>
+                <SyncTogetherNudge kind="hotel" />
+              </div>
             )}
           </Card>
         </div>

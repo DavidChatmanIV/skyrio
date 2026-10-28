@@ -4755,7 +4755,6 @@ export default function BookingPage() {
   const [sortBy, setSortBy] = useState("price");
   const [hotelFilters, setHotelFilters] = useState(DEFAULT_HOTEL_FILTERS);
   const [hotelSortBy, setHotelSortBy] = useState("price");
-  const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
@@ -5619,13 +5618,9 @@ export default function BookingPage() {
     : tab === "Flights" && flightResults.length > 0
     ? `${flightResults.length} flight${
         flightResults.length !== 1 ? "s" : ""
-      } found${
-        bpLowestFare ? ` · from $${wholeUsd(bpLowestFare)}` : ""
-      } — scroll down to pick`
+      } found${bpLowestFare ? ` · from $${wholeUsd(bpLowestFare)}` : ""}`
     : tab === "Stays" && hotelResults.length > 0
-    ? `${hotelResults.length} stay${
-        hotelResults.length !== 1 ? "s" : ""
-      } found — scroll down to pick`
+    ? `${hotelResults.length} stay${hotelResults.length !== 1 ? "s" : ""} found`
     : destCity
     ? "Ready — hit search to see live prices"
     : "Add a destination to fill in your pass";
@@ -5819,7 +5814,6 @@ export default function BookingPage() {
               // traveler picked before searching (price, stops, time,
               // airline, XP) should apply to the results that come back.
               setVisibleCount(RESULTS_PER_PAGE);
-              setAiInsightDismissed(false);
               if (f.length > 0) {
                 const cheapest = [...f].sort(
                   (a, b) =>
@@ -6200,7 +6194,17 @@ export default function BookingPage() {
                       <dd>{tab}</dd>
                     </div>
                   </dl>
-                  <div className="sk-tripAssist" role="status">
+                  {/* Fixed 2-line height: the text changes after a search,
+                      the pass size doesn't. */}
+                  <div
+                    className="sk-tripAssist"
+                    role="status"
+                    style={{
+                      alignItems: "flex-start",
+                      lineHeight: 1.45,
+                      minHeight: "2.9em",
+                    }}
+                  >
                     {bpStatus}
                   </div>
 
@@ -6358,7 +6362,7 @@ export default function BookingPage() {
                       />
                     </button>
                   </div>
-                  <div className="sk-pwc-desc">
+                  <div className="sk-pwc-desc" style={{ minHeight: "2.9em" }}>
                     {priceWatchOn
                       ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
                           priceWatchRoute?.to ?? "destination"
@@ -6366,42 +6370,11 @@ export default function BookingPage() {
                           Number.isFinite(Number(priceWatchRoute?.price))
                             ? ` from $${wholeUsd(priceWatchRoute.price)}`
                             : ""
-                        }. We'll send a notification if the price drops.`
+                        } — we'll alert you if it drops.`
                       : priceWatchRoute
-                      ? `Turn on to get a notification if ${priceWatchRoute.from} → ${priceWatchRoute.to} drops below today's lowest price.`
-                      : "Search for a route above, then turn on price alerts."}
+                      ? `Get an alert if ${priceWatchRoute.from} → ${priceWatchRoute.to} drops below today's lowest price.`
+                      : "Search a route, then turn on price alerts."}
                   </div>
-                  {!aiInsightDismissed &&
-                    priceWatchRoute &&
-                    flightResults.length >= 3 &&
-                    (() => {
-                      const prices = flightResults
-                        .map((f) => parseFloat(f.totalAmount))
-                        .filter(Boolean);
-                      const cheapest = Math.min(...prices);
-                      const avg =
-                        prices.reduce((a, b) => a + b, 0) / prices.length;
-                      const delta = Math.round(avg - cheapest);
-                      if (delta < 20) return null;
-                      return (
-                        <div className="sk-pwc-insight">
-                          <Zap size={12} className="sk-pwc-insight-icon" />
-                          <span className="sk-pwc-insight-text">
-                            The cheapest option is ${wholeUsd(cheapest)} —
-                            prices on this route vary by up to ${delta} right
-                            now. Turn on Price Watch to catch any drops.
-                          </span>
-                          <button
-                            type="button"
-                            className="sk-pwc-insight-dismiss"
-                            onClick={() => setAiInsightDismissed(true)}
-                            aria-label="Dismiss AI insight"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      );
-                    })()}
                 </div>
 
                 <div className="sk-bp-barcode" aria-hidden="true" />

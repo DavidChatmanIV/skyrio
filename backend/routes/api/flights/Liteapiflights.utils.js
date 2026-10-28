@@ -346,6 +346,25 @@ export function buildVerifyPayload({ offerId }) {
   return { offerId };
 }
 
+// LiteAPI's numeric passenger codes: 0 = adult, 1 = child, 2 = infant.
+const PASSENGER_TYPE_CODE = {
+  ADT: 0,
+  ADULT: 0,
+  CHD: 1,
+  CHILD: 1,
+  INF: 2,
+  INFANT: 2,
+};
+function toPassengerTypeCode(v) {
+  if (v === 0 || v === 1 || v === 2) return v;
+  if (typeof v === "string") {
+    if (/^[012]$/.test(v)) return Number(v);
+    const code = PASSENGER_TYPE_CODE[v.trim().toUpperCase()];
+    if (code !== undefined) return code;
+  }
+  return 0; // default to adult
+}
+
 export function buildPrebookPayload({
   offerId,
   contact = {},
@@ -360,7 +379,16 @@ export function buildPrebookPayload({
     includeCreditBalance,
     payment,
     contact,
-    passengers,
+    // LiteAPI requires passengerType on every traveler as a NUMBER.
+    // A missing value or a string like "ADT" fails with error 43001.
+    passengers: passengers.map((p) => ({
+      ...p,
+      passengerType: toPassengerTypeCode(p.passengerType ?? p.type),
+      // LiteAPI accepts only "passport" or "id"; map common variants.
+      ...(p.documentType && {
+        documentType: /passport/i.test(p.documentType) ? "passport" : "id",
+      }),
+    })),
   };
 }
 
