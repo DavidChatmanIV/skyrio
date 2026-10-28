@@ -824,6 +824,44 @@ export async function createPrebook(req, res) {
 /**
  * GET /api/flights/prebook/:prebookId
  */
+/**
+ * Paid bags LiteAPI lets us add to this prebook (servicesAttachable,
+ * category "baggage"). Only real, attachable services with a serviceId and
+ * a price are returned — nothing is guessed. Also returns how many services
+ * of each category were offered, for the dev-only note in checkout.
+ */
+function parsePrebookBagOptions(data) {
+  const record = Array.isArray(data?.data) ? data.data[0] : data?.data || data;
+  const services = (record?.servicesAttachable?.groups || []).flatMap(
+    (g) => g?.services || []
+  );
+  const serviceCategories = {};
+  services.forEach((sv) => {
+    const c = sv?.category || "unknown";
+    serviceCategories[c] = (serviceCategories[c] || 0) + 1;
+  });
+  const bags = services
+    .filter((sv) => /bag|luggage/i.test(String(sv?.category || "")))
+    .map((sv) => {
+      const meta = sv?.metadata?.baggage || {};
+      const price = Number(sv?.pricing?.display?.amount);
+      return {
+        serviceId: sv?.serviceId ? String(sv.serviceId) : null,
+        segmentKey: sv?.segmentKey || null,
+        passengerType: sv?.passengerType || "ALL",
+        name: sv?.name || null,
+        bagType: meta.bagType || null,
+        pieces: Number(meta.pieces) || 1,
+        weightKg: Number(meta.weightKg) || null,
+        maxQuantity: Number(meta.maxQuantity) || 1,
+        price: Number.isFinite(price) ? price : null,
+        currency: sv?.pricing?.display?.currency || "USD",
+      };
+    })
+    .filter((b) => b.serviceId && b.price != null && b.price >= 0);
+  return { bags, serviceCategories };
+}
+
 export async function getPrebookDetails(req, res) {
   try {
     const { prebookId } = req.params;
@@ -835,8 +873,57 @@ export async function getPrebookDetails(req, res) {
 
     const { data } = await liteApiFlights.get(`/flights/prebooks/${prebookId}`);
     const seats = parsePrebookSeatOptions(data);
+    const { bags, serviceCategories } = parsePrebookBagOptions(data);
 
-    return res.status(200).json({ ok: true, seats, raw: data });
+    // Diagnostic (temporary): what can be added to this fare besides seats?
+    // Tells us whether LiteAPI offers bags we could sell inside checkout.
+    try {
+      const record = Array.isArray(data?.data)
+        ? data.data[0]
+        : data?.data || data;
+      const groups = record?.servicesAttachable?.groups || [];
+      const byCategory = {};
+      groups
+        .flatMap((g) => g?.services || [])
+        .forEach((sv) => {
+          const c = sv?.category || "unknown";
+          byCategory[c] = (byCategory[c] || 0) + 1;
+        });
+      const findPaid = (o, d = 0) => {
+        if (!o || typeof o !== "object" || d > 6) return null;
+        if (o.baggage && Array.isArray(o.baggage.paid)) return o.baggage.paid;
+        for (const v of Object.values(o)) {
+          const f = findPaid(v, d + 1);
+          if (f) return f;
+        }
+        return null;
+      };
+      const paidBags = findPaid(record) || [];
+      const bagSamples = groups
+        .flatMap((g) => g?.services || [])
+        .filter((sv) => sv?.category === "baggage")
+        .slice(0, 3)
+        .map((sv) => ({
+          name: sv.name,
+          segmentKey: sv.segmentKey,
+          passengerType: sv.passengerType,
+          price: sv.pricing?.display,
+          baggage: sv.metadata?.baggage,
+        }));
+      console.log(
+        "[flights/prebook] services offered:",
+        JSON.stringify(byCategory),
+        "| paid bag options:",
+        paidBags.length,
+        bagSamples.length ? `| bag examples: ${JSON.stringify(bagSamples)}` : ""
+      );
+    } catch {
+      // logging only
+    }
+
+    return res
+      .status(200)
+      .json({ ok: true, seats, bags, serviceCategories, raw: data });
   } catch (err) {
     const { status, body } = providerError(err, "prebook/details");
     return res.status(status).json(body);

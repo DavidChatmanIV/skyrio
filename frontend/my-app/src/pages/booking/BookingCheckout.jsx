@@ -1445,7 +1445,14 @@ function bagDetail(items) {
     const kg = Number(it.weightKg);
     parts.push(`up to ${kg} kg (${Math.round(kg * 2.20462)} lb)`);
   }
-  if (it.size) parts.push(it.size + " cm");
+  if (it.size) {
+    const size = String(it.size)
+      .replace(/\s*cm\s*$/i, "")
+      .split(/\s*[x*×]\s*/i)
+      .filter(Boolean)
+      .join(" × ");
+    if (size) parts.push(`${size} cm`);
+  }
   return parts.join(" · ");
 }
 // Rows for an adult on this fare: { key, label, included, detail }.
@@ -1488,13 +1495,71 @@ function bagRows(baggage) {
   });
   return rows;
 }
-function BagAllowance({ baggage, airline, compact = false }) {
+const BAG_TYPE_LABEL = {
+  checked: "Checked bag",
+  cabin: "Carry-on bag",
+  personal: "Personal item",
+  equipment: "Sports equipment",
+};
+function bagOptionLabel(b) {
+  const name = BAG_TYPE_LABEL[b.bagType] || b.name || "Bag";
+  const parts = [];
+  if (b.pieces > 1) parts.push(`${b.pieces} bags`);
+  if (b.weightKg) {
+    parts.push(
+      `up to ${b.weightKg} kg (${Math.round(b.weightKg * 2.20462)} lb)`
+    );
+  }
+  return { name, detail: parts.join(" · ") };
+}
+function bagSegmentLabel(segmentKey, segments = []) {
+  if (!segmentKey) return "Whole trip";
+  const seg = segments.find((s) => s.key === segmentKey);
+  if (!seg) return "Flight";
+  return `${seg.label}${seg.direction ? ` · ${seg.direction}` : ""}`;
+}
+// Can this traveler take this bag option? (LiteAPI prices bags per
+// passenger type; "ALL" or missing means anyone.)
+function bagFitsPassenger(b, p) {
+  return (
+    !b.passengerType || b.passengerType === "ALL" || b.passengerType === p.type
+  );
+}
+const bagKey = (serviceId, passengerIndex) => `${serviceId}|${passengerIndex}`;
+
+function BagAllowance({
+  baggage,
+  airline,
+  compact = false,
+  // Paid bags LiteAPI offers for this fare (Seats step only).
+  bagOptions = [],
+  selectedBags = [],
+  onToggleBag,
+  passengers = [],
+  segments = [],
+  serviceCategories = null,
+}) {
   const carrier = airline && airline !== "Unknown" ? airline : "the airline";
   const carrierPossessive = carrier.endsWith("s")
     ? `${carrier}'`
     : `${carrier}'s`;
   const rows = bagRows(baggage);
-  const missing = rows.filter((r) => !r.included);
+  // A bag type counts as covered once it's added in checkout.
+  const isAdded = (r) =>
+    !r.included && selectedBags.some((b) => b.name === r.label);
+  const missing = rows.filter((r) => !r.included && !isAdded(r));
+  // "added for outbound", "added for outbound & return", or plain "added".
+  const addedText = (r) => {
+    const dirs = [
+      ...new Set(
+        selectedBags
+          .filter((b) => b.name === r.label && b.dir && b.dir !== "Your trip")
+          .map((b) => b.dir.toLowerCase())
+      ),
+    ];
+    return dirs.length ? `added for ${dirs.join(" & ")}` : "added in checkout";
+  };
+  const canAdd = Boolean(onToggleBag) && bagOptions.length > 0;
   return (
     <section
       data-note="skyrio-bags"
@@ -1540,18 +1605,31 @@ function BagAllowance({ baggage, airline, compact = false }) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: r.included
-                      ? "rgba(52,211,153,.15)"
-                      : "rgba(255,255,255,.06)",
-                    color: r.included ? "#34d399" : G.muted,
+                    background:
+                      r.included || isAdded(r)
+                        ? "rgba(52,211,153,.15)"
+                        : "rgba(255,255,255,.06)",
+                    color: r.included || isAdded(r) ? "#34d399" : G.muted,
                   }}
                 >
-                  {r.included ? <Check size={12} /> : <X size={12} />}
+                  {r.included || isAdded(r) ? (
+                    <Check size={12} />
+                  ) : (
+                    <X size={12} />
+                  )}
                 </span>
                 <div style={{ fontSize: 13, lineHeight: 1.45 }}>
                   <span style={{ fontWeight: 600 }}>{r.label}</span>{" "}
-                  <span style={{ color: r.included ? "#34d399" : G.muted }}>
-                    {r.included ? "included" : "not included"}
+                  <span
+                    style={{
+                      color: r.included || isAdded(r) ? "#34d399" : G.muted,
+                    }}
+                  >
+                    {r.included
+                      ? "included"
+                      : isAdded(r)
+                      ? addedText(r)
+                      : "not included"}
                   </span>
                   {r.detail && (
                     <span style={{ color: G.muted }}> · {r.detail}</span>
@@ -1560,6 +1638,16 @@ function BagAllowance({ baggage, airline, compact = false }) {
               </div>
             ))}
           </div>
+          {canAdd ? (
+            <BagOptions
+              bagOptions={bagOptions}
+              selectedBags={selectedBags}
+              onToggleBag={onToggleBag}
+              passengers={passengers}
+              segments={segments}
+              carrier={carrier}
+            />
+          ) : null}
           <div
             style={{
               fontSize: 12,
@@ -1568,7 +1656,9 @@ function BagAllowance({ baggage, airline, compact = false }) {
               lineHeight: 1.5,
             }}
           >
-            {missing.length
+            {canAdd
+              ? `Bags you add here are booked with ${carrier} together with your ticket, at ${carrierPossessive} price. You can also add bags later with ${carrier}.`
+              : missing.length
               ? `Need a ${missing
                   .map((r) => r.label.toLowerCase())
                   .join(
@@ -1585,15 +1675,200 @@ function BagAllowance({ baggage, airline, compact = false }) {
           there using your confirmation code.
         </div>
       )}
+      {import.meta.env?.DEV && serviceCategories && (
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 11,
+            color: "rgba(255,255,255,0.4)",
+            fontFamily: "ui-monospace, monospace",
+          }}
+        >
+          Dev only: LiteAPI offered {bagOptions.length} bag option
+          {bagOptions.length === 1 ? "" : "s"} for this fare · services:{" "}
+          {Object.entries(serviceCategories)
+            .map(([k, v]) => `${k} ${v}`)
+            .join(", ") || "none"}
+        </div>
+      )}
     </section>
   );
 }
-function PriceSummary({ base, passengers, seatsPrice = 0 }) {
+// "Add bags" list. LiteAPI sells bags per flight, but a checked bag travels
+// with you through a connection, so options are bundled per DIRECTION
+// (Outbound / Return): one tap adds the same bag on every flight of that
+// direction, at the sum of the airline's own per-flight prices.
+function bundleBagOptions(bagOptions, segments) {
+  const bundles = [];
+  bagOptions.forEach((b) => {
+    const seg = segments.find((s) => s.key === b.segmentKey);
+    const dir = b.segmentKey ? seg?.direction || "Your trip" : "Your trip";
+    const kind = [b.bagType, b.weightKg, b.pieces, b.passengerType].join("|");
+    let x = bundles.find((y) => y.dir === dir && y.kind === kind);
+    if (!x) bundles.push((x = { dir, kind, items: [], segLabels: [] }));
+    x.items.push(b);
+    if (seg) x.segLabels.push(seg.label);
+  });
+  return bundles.map((x) => ({
+    ...x,
+    sample: x.items[0],
+    price: x.items.reduce((s, b) => s + (Number(b.price) || 0), 0),
+  }));
+}
+function BagOptions({
+  bagOptions,
+  selectedBags,
+  onToggleBag,
+  passengers,
+  segments,
+  carrier,
+}) {
+  const bundles = bundleBagOptions(bagOptions, segments);
+  const dirs = [...new Set(bundles.map((x) => x.dir))];
+  const allOn = (x, p) =>
+    x.items.every((b) =>
+      selectedBags.some(
+        (s) => s.serviceId === b.serviceId && s.passengerIndex === p.index
+      )
+    );
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+        Add bags now
+      </div>
+      <div style={{ fontSize: 12, color: G.muted, marginBottom: 6 }}>
+        {carrier.endsWith("s") ? `${carrier}'` : `${carrier}'s`} own prices. A
+        bag you add covers every flight in that direction, including
+        connections.
+      </div>
+      {dirs.map((dir) => (
+        <div key={dir} style={{ marginTop: 10 }}>
+          {dirs.length > 1 && (
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: ".06em",
+                textTransform: "uppercase",
+                color: G.faint,
+                marginBottom: 6,
+              }}
+            >
+              {dir}
+            </div>
+          )}
+          {bundles
+            .filter((x) => x.dir === dir)
+            .map((x) => {
+              const { name, detail } = bagOptionLabel(x.sample);
+              const eligible = passengers.filter((p) =>
+                bagFitsPassenger(x.sample, p)
+              );
+              if (!eligible.length) return null;
+              const flightsNote =
+                x.items.length > 1
+                  ? `${x.segLabels.join(", ")} · ${x.items.length} flights`
+                  : x.segLabels[0] || "";
+              return (
+                <div
+                  key={x.dir + x.kind}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    padding: "10px 12px",
+                    marginBottom: 6,
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,0.03)",
+                    border: `1px solid ${G.border}`,
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                      {name}{" "}
+                      <span style={{ color: "#fff" }}>· +${usd2(x.price)}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: G.muted }}>
+                      {[detail, flightsNote].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {eligible.map((p) => {
+                      const on = allOn(x, p);
+                      const who =
+                        passengers.length > 1
+                          ? p.firstName || `Traveler ${p.index + 1}`
+                          : null;
+                      return (
+                        <button
+                          key={p.index}
+                          type="button"
+                          aria-pressed={on}
+                          aria-label={`${
+                            on ? "Remove" : "Add"
+                          } ${name.toLowerCase()} for ${dir.toLowerCase()}${
+                            who ? `, ${who}` : ""
+                          }`}
+                          onClick={() =>
+                            onToggleBag(
+                              x.items.map((b) => ({
+                                serviceId: b.serviceId,
+                                passengerIndex: p.index,
+                                price: b.price,
+                                name,
+                                dir,
+                                who,
+                              })),
+                              !on
+                            )
+                          }
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            minHeight: 34,
+                            padding: "0 12px",
+                            borderRadius: 10,
+                            border: `1px solid ${
+                              on ? "rgba(52,211,153,.5)" : "rgba(249,115,22,.5)"
+                            }`,
+                            background: on
+                              ? "rgba(52,211,153,.12)"
+                              : "rgba(249,115,22,.1)",
+                            color: on ? "#34d399" : G.orange,
+                            fontFamily: "inherit",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {on ? (
+                            <Check size={13} />
+                          ) : (
+                            <span aria-hidden="true">+</span>
+                          )}
+                          {on ? "Added" : "Add"}
+                          {who ? ` · ${who}` : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      ))}
+    </div>
+  );
+}
+function PriceSummary({ base, passengers, seatsPrice = 0, bagsPrice = 0 }) {
   const fareTotal = passengers.reduce(
     (sum, p) => sum + base * (FARE_MULTIPLIER[p.type] ?? 1),
     0
   );
-  const total = fareTotal + seatsPrice;
+  const total = fareTotal + seatsPrice + bagsPrice;
   const lines = [
     {
       label: `Fare (${passengers.length} traveler${
@@ -1602,6 +1877,7 @@ function PriceSummary({ base, passengers, seatsPrice = 0 }) {
       amt: fareTotal,
     },
     seatsPrice > 0 && { label: "Seat selection", amt: seatsPrice },
+    bagsPrice > 0 && { label: "Bags", amt: bagsPrice },
   ].filter(Boolean);
   return (
     <div
@@ -1666,6 +1942,7 @@ function TripSidebar({
   passengers,
   selectedSeats = {},
   seatsPrice = 0,
+  bagsPrice = 0,
   basePrice,
   onFareExpired,
   segments = [],
@@ -1674,7 +1951,7 @@ function TripSidebar({
     (sum, p) => sum + basePrice * (FARE_MULTIPLIER[p.type] ?? 1),
     0
   );
-  const total = fareTotal + seatsPrice;
+  const total = fareTotal + seatsPrice + bagsPrice;
   const anySeatsChosen = anySeats(selectedSeats);
   return (
     <div
@@ -1700,7 +1977,13 @@ function TripSidebar({
           <div style={{ fontWeight: 700, fontSize: 15 }}>Estimated total</div>
           <div style={{ fontSize: 12, color: G.muted }}>
             {passengers.length} traveler{passengers.length !== 1 ? "s" : ""}
-            {seatsPrice > 0 ? " · seats included" : ""}
+            {seatsPrice > 0 && bagsPrice > 0
+              ? " · seats & bags included"
+              : seatsPrice > 0
+              ? " · seats included"
+              : bagsPrice > 0
+              ? " · bags included"
+              : ""}
           </div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -1791,6 +2074,22 @@ function TripSidebar({
             </div>
           )}
         </div>
+        {bagsPrice > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 13,
+              color: G.muted,
+              marginBottom: 12,
+            }}
+          >
+            <span>Bags</span>
+            <span style={{ color: "#fff", fontWeight: 600 }}>
+              +${usd2(bagsPrice)}
+            </span>
+          </div>
+        )}
         {/* key: a refreshed fare has a new expiry, so the countdown (and its
             one-shot "expired" flag) starts over cleanly. */}
         <FareCountdown
@@ -2678,6 +2977,7 @@ function StepSeatsBags({
   groupId,
   initialSeats,
   baggage,
+  initialBags,
 }) {
   // Lap infants (INF) sit on an adult's lap, so they never get a seat.
   // Everything seat-related uses this list; p.index still matches the
@@ -2698,6 +2998,23 @@ function StepSeatsBags({
   // services to a prebookId, so the parent creates the prebook when
   // Passengers submits and this effect waits for it.
   const [seatServices, setSeatServices] = useState([]);
+  // Paid bags LiteAPI offers for this prebook, and the ones picked.
+  const [bagOptions, setBagOptions] = useState([]);
+  const [serviceCategories, setServiceCategories] = useState(null);
+  const [selectedBags, setSelectedBags] = useState(() => initialBags || []);
+  const bagsPrice = selectedBags.reduce(
+    (s, b) => s + (Number(b.price) || 0),
+    0
+  );
+  // Adds or removes a whole direction's bags for one traveler at once.
+  function toggleBag(list, add) {
+    setSelectedBags((prev) => {
+      const same = (x, b) =>
+        x.serviceId === b.serviceId && x.passengerIndex === b.passengerIndex;
+      const rest = prev.filter((x) => !list.some((b) => same(x, b)));
+      return add ? [...rest, ...list] : rest;
+    });
+  }
   const [seatMapLoading, setSeatMapLoading] = useState(true);
   const [seatMapUnavailable, setSeatMapUnavailable] = useState(false);
   useEffect(() => {
@@ -2719,6 +3036,8 @@ function StepSeatsBags({
           throw new Error("seatmap not available");
         }
         setSeatServices(data.seats);
+        setBagOptions(Array.isArray(data.bags) ? data.bags : []);
+        setServiceCategories(data.serviceCategories || {});
       } catch {
         // No fake fallback: showing fabricated seats/prices would be worse
         // than saying seat selection isn't available.
@@ -2883,10 +3202,10 @@ function StepSeatsBags({
   // Reserves the chosen seats with the airline against the real prebook.
   // Returns false on failure so the traveler stays on this step — they
   // never pay for seats that weren't actually reserved.
-  async function attachSeatServices(seatsMap) {
+  async function attachSeatServices(seatsMap, bagsList = []) {
     if (!prebookId) return;
     const serviceIds = collectServiceIds(seatsMap);
-    if (!serviceIds.length) return;
+    if (!serviceIds.length && !bagsList.length) return;
     try {
       const token = localStorage.getItem("token");
       const API = import.meta.env?.VITE_API_URL || "";
@@ -2899,15 +3218,22 @@ function StepSeatsBags({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            selectedServices: Object.values(seatsMap || {}).flatMap((seg) =>
-              Object.entries(seg || {})
-                .filter(([, v]) => v?.serviceId)
-                .map(([pi, v]) => ({
-                  passengerIndex: Number(pi),
-                  serviceId: v.serviceId,
-                  quantity: 1,
-                }))
-            ),
+            selectedServices: [
+              ...Object.values(seatsMap || {}).flatMap((seg) =>
+                Object.entries(seg || {})
+                  .filter(([, v]) => v?.serviceId)
+                  .map(([pi, v]) => ({
+                    passengerIndex: Number(pi),
+                    serviceId: v.serviceId,
+                    quantity: 1,
+                  }))
+              ),
+              ...bagsList.map((b) => ({
+                passengerIndex: b.passengerIndex,
+                serviceId: b.serviceId,
+                quantity: 1,
+              })),
+            ],
           }),
         }
       );
@@ -2915,7 +3241,9 @@ function StepSeatsBags({
       if (!res.ok || !data.ok) {
         console.error("[attach seat services] failed:", data);
         setNotice(
-          "We couldn't reserve those seats with the airline. Pick different seats or skip seat selection."
+          bagsList.length
+            ? "We couldn't add those seats or bags with the airline. Try again, or remove them and continue."
+            : "We couldn't reserve those seats with the airline. Pick different seats or skip seat selection."
         );
         return false;
       }
@@ -3046,6 +3374,12 @@ function StepSeatsBags({
             <BagAllowance
               baggage={baggage}
               airline={flight?.outbound?.airline}
+              bagOptions={bagOptions}
+              selectedBags={selectedBags}
+              onToggleBag={toggleBag}
+              passengers={passengers}
+              segments={segments}
+              serviceCategories={serviceCategories}
             />
           )}
           {fareExpired ? (
@@ -3150,12 +3484,19 @@ function StepSeatsBags({
                   style={{ flex: 1 }}
                   disabled={prebookLoading}
                   onClick={async () => {
-                    if ((await attachSeatServices(selectedSeats)) === false)
+                    if (
+                      (await attachSeatServices(
+                        selectedSeats,
+                        selectedBags
+                      )) === false
+                    )
                       return;
                     onNext({
                       selectedSeats,
                       seatsPrice,
                       segments,
+                      selectedBags,
+                      bagsPrice,
                     });
                   }}
                 >
@@ -3167,10 +3508,13 @@ function StepSeatsBags({
                   type="button"
                   disabled={prebookLoading}
                   onClick={async () => {
-                    await attachSeatServices({});
+                    if ((await attachSeatServices({}, selectedBags)) === false)
+                      return;
                     onNext({
                       selectedSeats: {},
                       seatsPrice: 0,
+                      selectedBags,
+                      bagsPrice,
                     });
                   }}
                   style={{
@@ -3195,6 +3539,7 @@ function StepSeatsBags({
             passengers={passengers}
             selectedSeats={selectedSeats}
             seatsPrice={seatsPrice}
+            bagsPrice={bagsPrice}
             basePrice={basePrice}
             onFareExpired={onFareExpired}
             segments={segments}
@@ -3260,6 +3605,8 @@ function StepReviewPay({
   // verify + prebook happen in the parent right after Passengers submits;
   // payment itself is handled by LiteApiPayForm.
   const { selectedSeats, seatsPrice } = extras;
+  const selectedBags = extras?.selectedBags || [];
+  const bagsPrice = Number(extras?.bagsPrice) || 0;
   // The seats being bought, saved on the booking so friends on the same
   // flight can see where you sit and choose a seat next to you.
   const seatsForBooking = (extras?.segments || []).flatMap((seg) =>
@@ -3283,7 +3630,7 @@ function StepReviewPay({
     0
   );
   // Estimate only — LiteApiPayForm reads the exact charge from the payment.
-  const total = fareTotal + seatsPrice;
+  const total = fareTotal + seatsPrice + bagsPrice;
   const myShare = passengers.length ? total / passengers.length : total;
   const [budgetOk, setBudgetOk] = useState(false);
   const lead = passengers[0] || {};
@@ -3330,6 +3677,21 @@ function StepReviewPay({
           : null;
       })
       .filter(Boolean),
+    selectedBags.length > 0 && {
+      label: "Bags",
+      value: [
+        ...new Set(
+          selectedBags.map(
+            (b) =>
+              `${b.name}${
+                b.dir && b.dir !== "Your trip"
+                  ? ` (${b.dir.toLowerCase()})`
+                  : ""
+              }${passengers.length > 1 && b.who ? ` · ${b.who}` : ""}`
+          )
+        ),
+      ].join(", "),
+    },
   ].filter(Boolean);
   return (
     <div className="skc-fade">
@@ -3369,6 +3731,7 @@ function StepReviewPay({
               baggage={baggage}
               airline={flight?.outbound?.airline}
               compact
+              selectedBags={selectedBags}
             />
             {recapRows.map((r) => (
               <div
@@ -3417,9 +3780,32 @@ function StepReviewPay({
               </div>
             ))}
             {onEditDetails && (
-              <div style={{ fontSize: 12, color: G.faint, marginTop: 8 }}>
-                Editing takes you back to Passengers. Your fare is checked again
-                when you continue, so you may need to re-pick seats.
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  marginTop: 12,
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  background: "rgba(20,12,40,0.72)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  color: "rgba(255,255,255,0.88)",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                <span style={{ color: G.orange, flexShrink: 0, marginTop: 1 }}>
+                  <InfoIconSvg />
+                </span>
+                <span>
+                  <strong style={{ color: "#fff" }}>
+                    Need to change something?
+                  </strong>{" "}
+                  Edit takes you back to Passengers. Your fare is checked again
+                  when you continue, so you may need to pick your seats and bags
+                  again.
+                </span>
               </div>
             )}
           </section>
@@ -3427,6 +3813,7 @@ function StepReviewPay({
             base={basePrice}
             passengers={passengers}
             seatsPrice={seatsPrice}
+            bagsPrice={bagsPrice}
           />
           {fareExpired && (
             <FareExpiredBlock onBackToResults={onBackToResults} />
@@ -3512,6 +3899,8 @@ function StepReviewPay({
                   fareExpired={fareExpired}
                   onBack={onBack}
                   seats={seatsForBooking}
+                  hasSeats={seatsPrice > 0}
+                  hasBags={selectedBags.length > 0}
                 />
                 <CancellationBadge
                   departureDateISO={flight?.outbound?.dateISO}
@@ -3525,6 +3914,7 @@ function StepReviewPay({
             passengers={passengers}
             selectedSeats={selectedSeats}
             seatsPrice={seatsPrice}
+            bagsPrice={bagsPrice}
             basePrice={basePrice}
             onFareExpired={onFareExpired}
             segments={extras?.segments || []}
@@ -4091,6 +4481,7 @@ export default function BookingCheckout({
             prebookError={prebookError}
             onRetryPrebook={() => runPrebook(passengers)}
             initialSeats={extras?.selectedSeats}
+            initialBags={extras?.selectedBags}
             baggage={baggage}
             onServicesAttached={(newTransactionId, newSecret) => {
               if (newTransactionId) setTransactionId(newTransactionId);

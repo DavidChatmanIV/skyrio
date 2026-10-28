@@ -301,6 +301,9 @@ export default function LiteApiPayForm({
   fareExpired,
   onBack,
   seats = [],
+  // What's in the price besides the fare, so the payment note names it.
+  hasSeats = false,
+  hasBags = false,
 }) {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
@@ -356,6 +359,15 @@ export default function LiteApiPayForm({
       /* non-fatal */
     }
   };
+  // "fare", "fare and seats", "fare, seats and bags"…
+  const paidFor = (() => {
+    const parts = ["fare", hasSeats && "seats", hasBags && "bags"].filter(
+      Boolean
+    );
+    return parts.length > 1
+      ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`
+      : parts[0];
+  })();
   const priceChanged =
     exactTotal &&
     Math.abs(Number(exactTotal.amount) - Number(total || 0)) >= 0.01;
@@ -686,7 +698,7 @@ export default function LiteApiPayForm({
             </strong>
             {priceChanged ? (
               <div style={{ marginTop: 4 }}>
-                This is the airline's final price for your fare and seats. It's
+                This is the airline's final price for your {paidFor}. It's
                 different from the estimate shown above (
                 {new Intl.NumberFormat(undefined, {
                   style: "currency",
@@ -696,7 +708,8 @@ export default function LiteApiPayForm({
               </div>
             ) : (
               <div style={{ marginTop: 4 }}>
-                Fare and selected seats, including taxes and fees.
+                {paidFor.charAt(0).toUpperCase() + paidFor.slice(1)}, including
+                taxes and fees.
               </div>
             )}
           </div>
