@@ -4,14 +4,15 @@
  *
  * BACKEND ENDPOINTS REQUIRED (add to backend/routes/xp.js):
  *   GET  /api/xp/me              → { xp, plan, streak, tier, nextTier, progress, recentEvents, multiplier }
- *   POST /api/xp/activity        → body: { type: "DAILY_SESSION" | "ACTIVE_INTERVAL" | "PAGE_VISIT" | ... }
+ *   POST /api/xp/activity        → body: { type: "DAILY_SESSION" | "ACTIVE_INTERVAL" | "PAGE_VISIT", path? }
  *                                  → { awarded: bool, xp: <new total>, event?: { label, xp, icon } }
  *
  * PASSIVE TRACKING (handled here automatically):
- *   • DAILY_SESSION   — fires once on mount; backend dedupes to 1/day
+ *   • DAILY_SESSION   — fires once on mount; backend dedupes to 1/day and
+ *                       also handles streak math + milestone bonuses
  *   • ACTIVE_INTERVAL — fires every 5 min while hook is mounted; backend caps at 5/day
  *   • PAGE_VISIT      — call trackPageVisit(path) on every route change; backend caps at 10/day
- *   • STREAK_DAY      — fires on mount; backend handles streak math + milestone bonuses
+ *                       (the path is sent so the backend can check its page whitelist)
  *
  * RANK vs BALANCE:
  *   xp          — spendable balance (drops when rewards are redeemed)
@@ -94,12 +95,13 @@ export default function useXPSystem() {
   }, []);
 
   // ── Post a passive or active activity event ───────────────────────────────
+  // `extra` carries additional fields the backend needs (e.g. { path } for PAGE_VISIT).
   // Returns the XP event object if XP was actually awarded, else null.
-  const awardActivity = useCallback(async (type) => {
+  const awardActivity = useCallback(async (type, extra = {}) => {
     try {
       const res = await apiFetch("/api/xp/activity", {
         method: "POST",
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type, ...extra }),
       });
 
       if (res.awarded) {
@@ -134,8 +136,9 @@ export default function useXPSystem() {
 
     if (!sessionFired.current) {
       sessionFired.current = true;
-      awardActivity("DAILY_SESSION"); // backend: once per calendar day
-      awardActivity("STREAK_DAY"); // backend: increments streak, awards milestones
+      // Backend: once per calendar day. Streak + streak bonuses are handled
+      // inside the daily session, so no separate STREAK_DAY call is needed.
+      awardActivity("DAILY_SESSION");
     }
   }, [refresh, awardActivity]);
 
@@ -156,16 +159,15 @@ export default function useXPSystem() {
     (path) => {
       if (!visitedPages.current.has(path)) {
         visitedPages.current.add(path);
-        awardActivity("PAGE_VISIT"); // backend: dailyLimit 10
+        awardActivity("PAGE_VISIT", { path }); // backend: dailyLimit 10, whitelist-checked
       }
     },
     [awardActivity]
   );
 
   // ── Active action award ───────────────────────────────────────────────────
-  // Call this at explicit event points, e.g. after booking:
-  //   awardXP("BOOKING_CONFIRMED")
-  // Backend maps the type key → xpRules.js amount + applies multiplier.
+  // NOTE: bookings are awarded server-side only (Stripe webhook → awardXpForBooking).
+  // This only reports client activity; the backend decides whether it counts.
   const awardXP = useCallback((type) => awardActivity(type), [awardActivity]);
 
   return {

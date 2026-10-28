@@ -113,10 +113,16 @@ export const XP_LEVELS = [
 
 // ─── Membership XP Multipliers ────────────────────────────────────────────────
 // Keys match User.plan's real enum: free / explorer / legend.
-// (Previously free/pro/elite — a field that never existed on the User model,
-// so this multiplier always silently fell back to 1 for everyone. Fixed
-// alongside routes/xp.js, which now reads user.plan instead of a separate
-// membershipPlan field.)
+//
+// Applied by awardXP() in services/xpService.js to ALL XP (bookings, SkyHub,
+// passive activity, challenges) — so the pricing page says "on everything you
+// earn". Keep these in sync with MembershipPage.jsx (1.5× Explorer, 2.5× Legend).
+//
+// Why not higher: ENGAGEMENT_CAPS are counted on BASE XP before the multiplier,
+// and XP_MAX_SINGLE_AWARD caps any single grant at 500. At 2.5×, a Legend
+// member's max SkyHub week (100 × 2.5 = 250) still earns less than one booking
+// (150 × 2.5 = 375), so "a booking always beats SkyHub" still holds. At 5× it
+// would not (500 vs a booking capped at 500).
 //
 // ⚠️ Naming heads-up: "explorer" and "legend" here are MEMBERSHIP PLAN tiers
 // (paid subscription names), but XP_LEVELS above also has rank tiers
@@ -200,15 +206,6 @@ export const XP_RULES = {
     iconKey: "chat",
     dailyLimit: 1,
   },
-  // Thumbs up/down on an Atlas reply. Pays once per Atlas conversation
-  // (source = conversation id), max 3 a day, and counts toward the shared
-  // ENGAGEMENT_CAPS, so it always earns far less than a booking.
-  ATLAS_FEEDBACK: {
-    xp: 5,
-    label: "Helped improve Atlas",
-    iconKey: "chat",
-    dailyLimit: 3,
-  },
   POST_CREATED: {
     xp: 10,
     label: "Created a post",
@@ -242,12 +239,9 @@ export const XP_RULES = {
   // Only used by the old addXP(userId, amount) shim while callers are migrated.
   LEGACY_ADD: { xp: 0, label: "XP earned", iconKey: "star" },
   ADMIN_GRANT: { xp: 0, label: "Admin grant", iconKey: "wrench" },
-  ELITE_MONTHLY_BONUS: {
-    xp: 150,
-    label: "Elite monthly XP bonus",
-    iconKey: "crown",
-  },
-  PRO_MONTHLY_BONUS: { xp: 50, label: "Pro monthly XP bonus", iconKey: "star" },
+  // (Removed ELITE_MONTHLY_BONUS / PRO_MONTHLY_BONUS — named after old pro/elite
+  //  plans that no longer exist, never granted anywhere, and not promised on
+  //  the pricing page.)
 };
 
 // ─── Guardrails ───────────────────────────────────────────────────────────────
@@ -269,7 +263,6 @@ export const ENGAGEMENT_RULE_KEYS = [
   "SHARE_SKYSTREAM",
   "SAVED_TRIP",
   "FEEDBACK_SUBMITTED",
-  "ATLAS_FEEDBACK",
 ];
 
 // Booking XP stays pending until the trip starts AND this many hours have passed.
