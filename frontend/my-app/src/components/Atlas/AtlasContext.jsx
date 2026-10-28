@@ -14,6 +14,11 @@ export function AtlasProvider({ children }) {
     spent: null,
     flights: [],
     tripType: null,
+    // Sync Together trip the traveler is looking at. SyncGroupPage sets it
+    // with updateAtlasContext({ syncTripId: trip._id }) and clears it with
+    // updateAtlasContext({ syncTripId: null }) when the page closes, so
+    // Atlas can book this traveler's share without asking which trip.
+    syncTripId: null,
   });
 
   const updateAtlasContext = useCallback((patch) => {

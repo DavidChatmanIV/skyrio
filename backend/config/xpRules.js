@@ -200,6 +200,15 @@ export const XP_RULES = {
     iconKey: "chat",
     dailyLimit: 1,
   },
+  // Thumbs up/down on an Atlas reply. Pays once per Atlas conversation
+  // (source = conversation id), max 3 a day, and counts toward the shared
+  // ENGAGEMENT_CAPS, so it always earns far less than a booking.
+  ATLAS_FEEDBACK: {
+    xp: 5,
+    label: "Helped improve Atlas",
+    iconKey: "chat",
+    dailyLimit: 3,
+  },
   POST_CREATED: {
     xp: 10,
     label: "Created a post",
@@ -260,6 +269,7 @@ export const ENGAGEMENT_RULE_KEYS = [
   "SHARE_SKYSTREAM",
   "SAVED_TRIP",
   "FEEDBACK_SUBMITTED",
+  "ATLAS_FEEDBACK",
 ];
 
 // Booking XP stays pending until the trip starts AND this many hours have passed.

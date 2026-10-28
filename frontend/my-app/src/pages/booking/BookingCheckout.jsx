@@ -3788,8 +3788,12 @@ function StepReviewPay({
                   marginTop: 12,
                   padding: "10px 14px",
                   borderRadius: 12,
-                  background: "rgba(20,12,40,0.72)",
-                  border: "1px solid rgba(255,255,255,0.14)",
+                  // Same orange-tinted glass as the price box and other
+                  // checkout cards, so it reads clearly and matches the theme.
+                  background: "rgba(249,115,22,0.07)",
+                  border: "1px solid rgba(249,115,22,0.28)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
                   color: "rgba(255,255,255,0.88)",
                   fontSize: 13,
                   lineHeight: 1.5,

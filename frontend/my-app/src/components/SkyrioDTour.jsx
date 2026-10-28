@@ -15,6 +15,11 @@ import { RANKS, RANK_PERKS, hasAnyRankPerks, XP_EARN } from "@/config/xpGuide";
 
 const STORAGE_KEY = "skyrio_tour_done";
 const START_DELAY_MS = 2500;
+
+// SkyHub is in early access while testers try it out. Flip to false at
+// production launch — and only once the feed has real posts in it.
+const SKYHUB_EARLY_ACCESS = true;
+
 // Pages where a tour popping up would get in the way
 const BLOCKED_PATHS = [
   /^\/login/,
@@ -132,6 +137,27 @@ const Icon = {
   ),
 };
 
+/* ── SkyHub step — early access vs. production copy ───────────────── */
+const SKYHUB_STEP = SKYHUB_EARLY_ACCESS
+  ? {
+      icon: "skyhub",
+      kicker: "SkyHub · Early access",
+      title: "Be one of the first to post",
+      body: "SkyHub is where Skyrio travelers will share tips, photos and questions about places they've been. It's brand new, so you're early. Post from your own trips and help shape what it becomes.",
+      tip: "Tag the place in your post so future travelers headed there can find it.",
+      path: "/skyhub",
+      cta: "Open SkyHub",
+    }
+  : {
+      icon: "skyhub",
+      kicker: "SkyHub",
+      title: "Share your trip with other travelers",
+      body: "SkyHub is where Skyrio travelers post tips, photos and questions about places they've been. Read what others found, follow travelers you like, or post your own.",
+      tip: "Tag the place in your post so travelers headed there can find it.",
+      path: "/skyhub",
+      cta: "Open SkyHub",
+    };
+
 /* ── Steps — only things Skyrio actually does today ───────────────── */
 const STEPS = [
   {
@@ -142,7 +168,12 @@ const STEPS = [
     points: [
       { icon: "discover", text: "Discover: plan a trip with Atlas AI" },
       { icon: "book", text: "Book: search flights and hotels" },
-      { icon: "skyhub", text: "SkyHub: see and share travel tips" },
+      {
+        icon: "skyhub",
+        text: SKYHUB_EARLY_ACCESS
+          ? "SkyHub: share travel tips (early access)"
+          : "SkyHub: see and share travel tips",
+      },
       { icon: "passport", text: "Passport: your XP, rank and trips" },
     ],
   },
@@ -164,15 +195,7 @@ const STEPS = [
     path: "/booking",
     cta: "Open Book",
   },
-  {
-    icon: "skyhub",
-    kicker: "SkyHub",
-    title: "Share your trip as a postcard",
-    body: "SkyHub is where Skyrio travelers post tips, photos and questions about places they've been. Read what others found, follow travelers you like, or post your own.",
-    tip: "Add the place to your post so travelers nearby can find it.",
-    path: "/skyhub",
-    cta: "Open SkyHub",
-  },
+  SKYHUB_STEP,
   {
     icon: "passport",
     kicker: "XP · how you earn it",
@@ -570,7 +593,7 @@ export default function SkyrioDTour() {
                 className="st-btn is-ghost"
                 onClick={() => go("/skyhub")}
               >
-                Explore SkyHub
+                {SKYHUB_EARLY_ACCESS ? "Post on SkyHub" : "Explore SkyHub"}
               </button>
             </div>
           )}
