@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import {
   Typography,
-  Space,
   Button,
   DatePicker,
   Card,
@@ -3541,7 +3540,7 @@ function LastMinuteForm({ onHandoff }) {
           </span>
           <AirportInput
             value={destDisplay}
-            placeholder="Pick an idea below"
+            placeholder="Where to?"
             onChange={(ap) => {
               setDest(ap);
               setDestDisplay(`${ap.city} (${ap.code})`);
@@ -6098,9 +6097,8 @@ export default function BookingPage() {
           <section
             className="sk-bp-ticket"
             aria-label="Your trip boarding pass"
-            // Lift the pass above the buttons below it, so pop-ups that open
-            // from the search bar (Who / travelers & rooms) aren't covered
-            // by "Sort" and "Sync Together".
+            // Lift the pass above the results below it, so pop-ups that open
+            // from the search bar and the filter dropdowns aren't covered.
             style={{ position: "relative", zIndex: 3 }}
           >
             <div className="sk-bp-band">
@@ -6148,6 +6146,113 @@ export default function BookingPage() {
 
                 {/* ── Search form (scroll target for "Search manually") ── */}
                 <div ref={searchFormRef}>{searchForm}</div>
+
+                {/* ── Filters, sort and shortcuts — right under the search bar ── */}
+                <div className="sk-bp-tools">
+                  <SmartFilterBar
+                    filters={smartFilters}
+                    onChange={setSmartFilters}
+                    flightResults={flightResults}
+                    visible={tab === "Flights"}
+                  />
+
+                  <HotelFilterBar
+                    filters={hotelFilters}
+                    onChange={setHotelFilters}
+                    hotelResults={hotelResults}
+                    visible={tab === "Stays"}
+                  />
+
+                  <div className="sk-bp-tools-row">
+                    {tab === "Flights" && (
+                      <Button
+                        className="sk-btn-orange sk-bp-sort"
+                        onClick={() => {
+                          const i = SORT_OPTIONS.findIndex(
+                            (o) => o.key === sortBy
+                          );
+                          setSortBy(
+                            SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length].key
+                          );
+                        }}
+                        title="Click to change sort"
+                      >
+                        Sort:{" "}
+                        {SORT_OPTIONS.find((o) => o.key === sortBy)?.label}
+                      </Button>
+                    )}
+                    {tab === "Stays" && (
+                      <Button
+                        className="sk-btn-orange sk-bp-sort"
+                        onClick={() => {
+                          const i = HOTEL_SORT_OPTIONS.findIndex(
+                            (o) => o.key === hotelSortBy
+                          );
+                          setHotelSortBy(
+                            HOTEL_SORT_OPTIONS[
+                              (i + 1) % HOTEL_SORT_OPTIONS.length
+                            ].key
+                          );
+                        }}
+                        title="Click to change sort"
+                      >
+                        Sort:{" "}
+                        {
+                          HOTEL_SORT_OPTIONS.find((o) => o.key === hotelSortBy)
+                            ?.label
+                        }
+                      </Button>
+                    )}
+
+                    {tab === "Flights" &&
+                      quickFilters.map((qf) => (
+                        <button
+                          key={qf.label}
+                          type="button"
+                          className={`sk-qf${
+                            isQuickActive(qf) ? " is-active" : ""
+                          }`}
+                          aria-pressed={isQuickActive(qf)}
+                          onClick={() => toggleFilter(qf)}
+                        >
+                          {qf.label}
+                        </button>
+                      ))}
+                    {tab === "Flights" && activeFilterCount > 0 && (
+                      <button
+                        type="button"
+                        className="sk-qf sk-qf-clear"
+                        onClick={clearFilters}
+                      >
+                        Clear filters
+                      </button>
+                    )}
+
+                    {/* Pushes the next buttons to the right on desktop */}
+                    <span className="sk-bp-tools-gap" aria-hidden="true" />
+
+                    {!syncGroupId &&
+                      (visibleFlights.length > 0 ||
+                        hotelResults.length > 0) && (
+                        <button
+                          type="button"
+                          className="sk-scroll-budget-btn"
+                          onClick={scrollToBudget}
+                        >
+                          <ChevronsDown
+                            size={13}
+                            style={{ marginRight: 4, verticalAlign: "middle" }}
+                          />
+                          Trip Budget
+                        </button>
+                      )}
+                    <Link to="/sync-together">
+                      <Button className="sk-btn-sync" icon={<SyncOutlined />}>
+                        Sync Together
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
 
                 {/* Package in progress: flight first, then the stay */}
                 {packagePlan && (tab === "Flights" || tab === "Stays") && (
@@ -6381,96 +6486,6 @@ export default function BookingPage() {
               </aside>
             </div>
           </section>
-
-          <SmartFilterBar
-            filters={smartFilters}
-            onChange={setSmartFilters}
-            flightResults={flightResults}
-            visible={tab === "Flights"}
-          />
-
-          <HotelFilterBar
-            filters={hotelFilters}
-            onChange={setHotelFilters}
-            hotelResults={hotelResults}
-            visible={tab === "Stays"}
-          />
-
-          <Space className="sk-action-row" wrap>
-            {tab === "Flights" && (
-              <Button
-                className="sk-btn-orange"
-                onClick={() => {
-                  const i = SORT_OPTIONS.findIndex((o) => o.key === sortBy);
-                  setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length].key);
-                }}
-                title="Click to change sort"
-              >
-                Sort: {SORT_OPTIONS.find((o) => o.key === sortBy)?.label}
-              </Button>
-            )}
-            {tab === "Stays" && (
-              <Button
-                className="sk-btn-orange"
-                onClick={() => {
-                  const i = HOTEL_SORT_OPTIONS.findIndex(
-                    (o) => o.key === hotelSortBy
-                  );
-                  setHotelSortBy(
-                    HOTEL_SORT_OPTIONS[(i + 1) % HOTEL_SORT_OPTIONS.length].key
-                  );
-                }}
-                title="Click to change sort"
-              >
-                Sort:{" "}
-                {HOTEL_SORT_OPTIONS.find((o) => o.key === hotelSortBy)?.label}
-              </Button>
-            )}
-            <Link to="/sync-together">
-              <Button className="sk-btn-sync" icon={<SyncOutlined />}>
-                Sync Together
-              </Button>
-            </Link>
-            {!syncGroupId &&
-              (visibleFlights.length > 0 || hotelResults.length > 0) && (
-                <button
-                  type="button"
-                  className="sk-scroll-budget-btn"
-                  onClick={scrollToBudget}
-                >
-                  <ChevronsDown
-                    size={13}
-                    style={{ marginRight: 4, verticalAlign: "middle" }}
-                  />
-                  Trip Budget
-                </button>
-              )}
-          </Space>
-
-          {tab === "Flights" && (
-            <Space className="sk-filters" wrap>
-              {quickFilters.map((qf) => (
-                <button
-                  key={qf.label}
-                  type="button"
-                  className={`sk-qf${isQuickActive(qf) ? " is-active" : ""}`}
-                  aria-pressed={isQuickActive(qf)}
-                  onClick={() => toggleFilter(qf)}
-                >
-                  {qf.label}
-                </button>
-              ))}
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  className="sk-qf sk-qf-clear"
-                  onClick={clearFilters}
-                >
-                  Clear filters →
-                </button>
-              )}
-            </Space>
-          )}
         </div>
 
         <Row gutter={[24, 24]} className="sk-results-wrap">

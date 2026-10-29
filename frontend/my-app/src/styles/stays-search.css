@@ -1,4 +1,5 @@
 /* ─────────────────────────────────────────────
+   Search bars (the boarding pass) — src/styles/stays-search.css
    Loaded right after BookingPage.css, so equal-strength rules here win.
    Used by every tab: Flights, Stays, Packages, Excursions, Last-Minute.
    ───────────────────────────────────────────── */
@@ -1250,5 +1251,56 @@
   .sk-pass.sk-pass .sk-pass-go {
     min-width: 64px;
     padding: 0 18px;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   Filters, sort and shortcuts — inside the pass, under the search bar
+   (BookingPage.jsx: <div className="sk-bp-tools">)
+   ───────────────────────────────────────────── */
+.sk-bp-tools {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
+}
+
+.sk-bp-tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+/* Pushes Trip Budget + Sync Together to the right end of the row */
+.sk-bp-tools-gap {
+  flex: 1 1 auto;
+}
+
+/* Compact sizes so sort + chips + Sync fit on one row on desktop */
+.sk-bp-tools .sk-qf {
+  padding: 7px 14px;
+  font-size: 12.5px;
+}
+.sk-bp-tools .sk-bp-sort.ant-btn {
+  height: 34px;
+  border-radius: 999px !important;
+  font-size: 13px;
+}
+.sk-bp-tools .sk-btn-sync.ant-btn {
+  height: 34px !important;
+  padding: 0 16px !important;
+  font-size: 13px !important;
+}
+.sk-bp-tools .sk-scroll-budget-btn {
+  padding: 7px 14px;
+}
+
+@media (max-width: 760px) {
+  .sk-bp-tools-gap {
+    display: none;
   }
 }

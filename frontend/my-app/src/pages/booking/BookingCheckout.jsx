@@ -11,6 +11,7 @@ import {
   Trash2,
   Users,
   X,
+  Share2,
 } from "lucide-react";
 import PhoneInput, {
   isValidPhoneNumber,
@@ -1383,7 +1384,10 @@ function FlightLeg({ leg, stops, ownerCode, isReturn }) {
     </div>
   );
 }
-function FlightCard({ flight }) {
+// The flight being booked. `share` adds a "Share this flight" link (like
+// Booking.com); `children` renders under the legs (the fare card on
+// Passengers), so the flight and what the fare includes read as one card.
+function FlightCard({ flight, share = false, children = null }) {
   if (!flight?.outbound) return null;
   return (
     <div
@@ -1395,6 +1399,17 @@ function FlightCard({ flight }) {
         marginBottom: 24,
       }}
     >
+      {share && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginBottom: 10,
+          }}
+        >
+          <ShareFlightButton flight={flight} />
+        </div>
+      )}
       <FlightLeg
         leg={flight.outbound}
         stops={flight.stops}
@@ -1407,7 +1422,297 @@ function FlightCard({ flight }) {
         ownerCode={flight.ownerCode}
         isReturn={true}
       />
+      {children}
     </div>
+  );
+}
+// ---------------------------------------------------------------------
+// Share this flight (Booking.com does this on flight details).
+// Uses the phone's share sheet when there is one, otherwise copies the
+// trip summary to the clipboard. Nothing personal is shared: only the
+// route, dates, airline and the estimated fare.
+// ---------------------------------------------------------------------
+function flightShareText(flight) {
+  const o = flight.outbound || {};
+  const r = flight.return || {};
+  const lines = [
+    `${o.from} → ${o.to} · ${o.date}${
+      o.time && o.time !== "TBD" ? ` ${o.time}` : ""
+    }`,
+  ];
+  if (r.date && r.date !== "Return TBD") {
+    lines.push(
+      `${r.from} → ${r.to} · ${r.date}${
+        r.time && r.time !== "--" ? ` ${r.time}` : ""
+      }`
+    );
+  }
+  if (o.airline && o.airline !== "Unknown") lines.push(o.airline);
+  if (Number(flight.basePrice) > 0) {
+    lines.push(`About $${usd2(flight.basePrice)} per traveler on Skyrio`);
+  }
+  return lines.join("\n");
+}
+function ShareFlightButton({ flight }) {
+  const [state, setState] = useState("idle"); // idle | copied | failed
+  useEffect(() => {
+    if (state === "idle") return undefined;
+    const t = setTimeout(() => setState("idle"), 2500);
+    return () => clearTimeout(t);
+  }, [state]);
+  const onShare = async () => {
+    const title = `Flight ${flight.outbound?.from} → ${flight.outbound?.to}`;
+    const text = flightShareText(flight);
+    const url =
+      typeof window !== "undefined" ? `${window.location.origin}/booking` : "";
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(`${title}\n${text}\n${url}`);
+      setState("copied");
+    } catch (err) {
+      // Closing the share sheet isn't an error worth showing.
+      if (err?.name !== "AbortError") setState("failed");
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={onShare}
+      aria-live="polite"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        background: "none",
+        border: "none",
+        padding: "4px 0",
+        color: state === "failed" ? G.danger : G.orange,
+        fontFamily: "inherit",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        minHeight: 32,
+      }}
+    >
+      {state === "copied" ? <Check size={14} /> : <Share2 size={14} />}
+      {state === "copied"
+        ? "Trip details copied"
+        : state === "failed"
+        ? "Couldn't share, try again"
+        : "Share this flight"}
+    </button>
+  );
+}
+// ---------------------------------------------------------------------
+// "Your fare" card (like Expedia's "Your fare: Basic Economy" and
+// Booking.com's fare cards): what this ticket includes, at a glance,
+// before the traveler types anything.
+//
+// Same rule as the bag section: only show what LiteAPI actually returned.
+// Fare name, refund and change rules are read if the offer carries them;
+// when it doesn't, we say the airline's fare rules apply instead of
+// guessing. No upsell, no "risk it" wording.
+// ---------------------------------------------------------------------
+function deepFind(obj, keys, accept, depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 6) return undefined;
+  for (const k of keys) {
+    if (k in obj && accept(obj[k])) return obj[k];
+  }
+  for (const v of Object.values(obj)) {
+    const found = deepFind(v, keys, accept, depth + 1);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+const isText = (v) => typeof v === "string" && v.trim().length > 0;
+const isBool = (v) => typeof v === "boolean";
+const titleCase = (s) =>
+  String(s)
+    .replace(/[_-]+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+function fareInfo(raw) {
+  const name = deepFind(
+    raw,
+    [
+      "fareBrandName",
+      "brandedFareName",
+      "fareFamilyName",
+      "brandName",
+      "fareName",
+      "fareFamily",
+    ],
+    isText
+  );
+  const cabin = deepFind(raw, ["cabinClass", "cabin"], isText);
+  // Duffel-style conditions: { refundBeforeDeparture: { allowed, penaltyAmount } }
+  const rule = (keys) =>
+    deepFind(raw, keys, (v) => v && typeof v === "object" && isBool(v.allowed));
+  const refundRule = rule(["refundBeforeDeparture", "refund_before_departure"]);
+  const changeRule = rule(["changeBeforeDeparture", "change_before_departure"]);
+  const refundable = refundRule
+    ? refundRule.allowed
+    : deepFind(raw, ["refundable", "isRefundable"], isBool);
+  const changeable = changeRule
+    ? changeRule.allowed
+    : deepFind(raw, ["changeable", "isChangeable"], isBool);
+  const fee = (r) => {
+    const n = Number(r?.penaltyAmount ?? r?.penalty_amount);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  return {
+    name: name ? titleCase(name) : cabin ? titleCase(cabin) : null,
+    refundable,
+    refundFee: fee(refundRule),
+    changeable,
+    changeFee: fee(changeRule),
+  };
+}
+function FareRow({ kind, children }) {
+  const look = {
+    yes: {
+      bg: "rgba(52,211,153,.15)",
+      color: G.success,
+      icon: <Check size={12} />,
+    },
+    fee: {
+      bg: "rgba(249,115,22,.15)",
+      color: G.orange,
+      icon: <span style={{ fontSize: 11, fontWeight: 800 }}>$</span>,
+    },
+    no: { bg: "rgba(255,255,255,.06)", color: G.muted, icon: <X size={12} /> },
+    info: {
+      bg: "rgba(255,255,255,.06)",
+      color: G.muted,
+      icon: <InfoIconSvg />,
+    },
+  }[kind];
+  return (
+    <li
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 10,
+        fontSize: 13,
+        lineHeight: 1.45,
+        listStyle: "none",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: "50%",
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: look.bg,
+          color: look.color,
+        }}
+      >
+        {look.icon}
+      </span>
+      <span style={{ color: kind === "no" ? G.muted : "#fff" }}>
+        {children}
+      </span>
+    </li>
+  );
+}
+function FareIncludes({ flight, baggage }) {
+  const info = fareInfo(flight?.raw);
+  const carrier =
+    flight?.outbound?.airline && flight.outbound.airline !== "Unknown"
+      ? flight.outbound.airline
+      : "the airline";
+  const bags = bagRows(baggage);
+  const cancel = getCancellationEligibility(flight?.outbound?.dateISO);
+  const rows = [];
+  bags.forEach((b) =>
+    rows.push({
+      key: b.key,
+      kind: b.included ? "yes" : "no",
+      text: `${b.label} ${b.included ? "included" : "not included"}${
+        b.included && b.detail ? ` · ${b.detail}` : ""
+      }`,
+    })
+  );
+  if (info.changeable === true) {
+    rows.push({
+      key: "change",
+      kind: info.changeFee ? "fee" : "yes",
+      text: info.changeFee
+        ? `Changes allowed for a $${usd2(
+            info.changeFee
+          )} fee, plus any fare difference`
+        : "Changes allowed, you only pay any fare difference",
+    });
+  } else if (info.changeable === false) {
+    rows.push({ key: "change", kind: "no", text: "Changes not allowed" });
+  }
+  if (info.refundable === true) {
+    rows.push({
+      key: "refund",
+      kind: info.refundFee ? "fee" : "yes",
+      text: info.refundFee
+        ? `Refundable, minus a $${usd2(info.refundFee)} airline fee`
+        : "Refundable if you cancel",
+    });
+  } else if (info.refundable === false) {
+    rows.push({
+      key: "refund",
+      kind: "no",
+      text:
+        cancel.known && cancel.eligible
+          ? "Non-refundable after the first 24 hours"
+          : "Non-refundable",
+    });
+  }
+  if (info.changeable === undefined && info.refundable === undefined) {
+    rows.push({
+      key: "rules",
+      kind: "info",
+      text: `Changes and refunds follow ${carrier}'s rules for this fare`,
+    });
+  }
+  if (cancel.known && cancel.eligible) {
+    rows.push({
+      key: "24h",
+      kind: "yes",
+      text: "Free cancellation within 24 hours of booking",
+    });
+  }
+  return (
+    <section
+      aria-label="What your fare includes"
+      style={{
+        marginTop: 16,
+        paddingTop: 14,
+        borderTop: `1px solid ${G.border}`,
+      }}
+    >
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
+        Your fare{info.name ? `: ${info.name}` : ""}
+      </div>
+      <ul style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {rows.map((r) => (
+          <FareRow key={r.key} kind={r.kind}>
+            {r.text}
+          </FareRow>
+        ))}
+      </ul>
+      <div
+        style={{ fontSize: 12, color: G.muted, marginTop: 10, lineHeight: 1.5 }}
+      >
+        {bags.length
+          ? "Need a bag that isn't included? If the airline sells bags through Skyrio for this fare, you can add them in the Seats step. If not, we'll show you where to add them."
+          : `${carrier} confirms this fare's bag allowance in the next step.`}
+      </div>
+    </section>
   );
 }
 // Estimate shown before payment. The exact amount charged is read from the
@@ -1556,6 +1861,9 @@ function BagAllowance({
   passengers = [],
   segments = [],
   serviceCategories = null,
+  // True once the airline's extras list loaded, so "no bags offered" is a
+  // real answer and not just "still loading" or "couldn't load".
+  servicesLoaded = false,
 }) {
   const carrier = airline && airline !== "Unknown" ? airline : "the airline";
   const carrierPossessive = carrier.endsWith("s")
@@ -1656,6 +1964,53 @@ function BagAllowance({
               </div>
             ))}
           </div>
+          {/* Seats step, airline sells no bags through us for this fare:
+              say so plainly, so nobody goes looking for an "Add bags" list
+              that isn't there. */}
+          {Boolean(onToggleBag) &&
+            servicesLoaded &&
+            !canAdd &&
+            missing.length > 0 && (
+              <div
+                role="note"
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  marginTop: 14,
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  background: "rgba(249,115,22,0.07)",
+                  border: "1px solid rgba(249,115,22,0.28)",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  color: "rgba(255,255,255,0.88)",
+                }}
+              >
+                <span style={{ color: G.orange, flexShrink: 0, marginTop: 1 }}>
+                  <InfoIconSvg />
+                </span>
+                <span>
+                  <strong style={{ color: "#fff" }}>
+                    Bags can't be added here for this fare.
+                  </strong>{" "}
+                  {carrier === "the airline" ? "The airline" : carrier} doesn't
+                  sell extra bags through Skyrio on this ticket. After booking,
+                  add them on {carrierPossessive} website or app with your
+                  confirmation code.{" "}
+                  <a
+                    href={`https://www.google.com/search?q=${encodeURIComponent(
+                      `${carrier === "the airline" ? "" : carrier} baggage fees`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: G.orange, fontWeight: 600 }}
+                  >
+                    See {carrierPossessive} bag fees
+                  </a>
+                </span>
+              </div>
+            )}
           {canAdd ? (
             <BagOptions
               bagOptions={bagOptions}
@@ -1676,6 +2031,8 @@ function BagAllowance({
           >
             {canAdd
               ? `Bags you add here are booked with ${carrier} together with your ticket, at ${carrierPossessive} price. You can also add bags later with ${carrier}.`
+              : onToggleBag && servicesLoaded && missing.length
+              ? "Buying bags online before you fly is usually cheaper than at the airport."
               : missing.length
               ? `Need a ${missing
                   .map((r) => r.label.toLowerCase())
@@ -1971,6 +2328,22 @@ function TripSidebar({
   );
   const total = fareTotal + seatsPrice + bagsPrice;
   const anySeatsChosen = anySeats(selectedSeats);
+  const priceLines = [
+    ...["ADT", "CHD", "INF"]
+      .map((type) => {
+        const n = passengers.filter(
+          (p) => (TYPE_LABEL[p.type] ? p.type : "ADT") === type
+        ).length;
+        if (!n) return null;
+        return {
+          label: `${TYPE_LABEL[type]}${n > 1 ? ` × ${n}` : ""}`,
+          amt: n * basePrice * (FARE_MULTIPLIER[type] ?? 1),
+        };
+      })
+      .filter(Boolean),
+    seatsPrice > 0 && { label: "Seats", amt: seatsPrice, extra: true },
+    bagsPrice > 0 && { label: "Bags", amt: bagsPrice, extra: true },
+  ].filter(Boolean);
   return (
     <div
       style={{
@@ -2029,6 +2402,35 @@ function TripSidebar({
         >
           Your booking
         </div>
+        {/* Route recap, like Expedia's sidebar, so the trip stays in view
+            while the form scrolls. */}
+        {flight?.outbound && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              paddingBottom: 14,
+              marginBottom: 14,
+              borderBottom: `1px solid ${G.border}`,
+            }}
+          >
+            {[flight.outbound, flight.return]
+              .filter((l) => l && l.date && l.date !== "Return TBD")
+              .map((l) => (
+                <div key={`${l.from}-${l.to}`}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    {l.from} → {l.to}
+                  </div>
+                  <div style={{ fontSize: 12, color: G.muted }}>
+                    {[l.date, l.time !== "TBD" && l.time !== "--" && l.time]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: G.faint, marginBottom: 4 }}>
             Passengers
@@ -2092,22 +2494,34 @@ function TripSidebar({
             </div>
           )}
         </div>
-        {bagsPrice > 0 && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: 13,
-              color: G.muted,
-              marginBottom: 12,
-            }}
-          >
-            <span>Bags</span>
-            <span style={{ color: "#fff", fontWeight: 600 }}>
-              +${usd2(bagsPrice)}
-            </span>
-          </div>
-        )}
+        {/* Price details: one line per traveler type, then extras, so the
+            total never looks like a single unexplained number. */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            marginBottom: 12,
+          }}
+        >
+          {priceLines.map((l) => (
+            <div
+              key={l.label}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 8,
+                fontSize: 13,
+                color: G.muted,
+              }}
+            >
+              <span>{l.label}</span>
+              <span style={{ color: "#fff", fontWeight: 600 }}>
+                {l.extra ? "+" : ""}${usd2(l.amt)}
+              </span>
+            </div>
+          ))}
+        </div>
         {/* key: a refreshed fare has a new expiry, so the countdown (and its
             one-shot "expired" flag) starts over cleanly. */}
         <FareCountdown
@@ -2126,6 +2540,10 @@ function TripSidebar({
         >
           <span>Estimated total</span>
           <span style={{ color: "var(--cta, #ff8a2a)" }}>${usd2(total)}</span>
+        </div>
+        <div style={{ fontSize: 12, color: G.muted, marginTop: 6 }}>
+          Prices in {flight?.currency || "USD"}. The airline confirms the final
+          price before you pay.
         </div>
         <CancellationBadge departureDateISO={flight?.outbound?.dateISO} />
       </div>
@@ -3433,6 +3851,7 @@ function StepSeatsBags({
               passengers={passengers}
               segments={segments}
               serviceCategories={serviceCategories}
+              servicesLoaded={!seatMapLoading && !seatMapUnavailable}
             />
           )}
           {fareExpired ? (
@@ -4497,7 +4916,18 @@ export default function BookingCheckout({
             flight is the same.
           </div>
         )}
-        {step < 2 && <FlightCard flight={liveFlight} />}
+        {/* Passengers: the flight plus what the fare includes, before any
+            typing. Seats: the flight only (bags have their own section). */}
+        {step < 2 && (
+          <FlightCard flight={liveFlight} share>
+            {step === 0 && (
+              <FareIncludes
+                flight={liveFlight}
+                baggage={baggage || findBaggage(liveFlight.raw)}
+              />
+            )}
+          </FlightCard>
+        )}
         {step === 0 && (
           <StepPassengers
             startEditing={editLead}
