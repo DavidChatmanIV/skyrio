@@ -1,5 +1,7 @@
 import { Router } from "express";
-import { requireAuth } from "../../../middleware/requireAuth.js";
+import { optionalAuth } from "../../../middleware/requireAuth.js";
+import { verifyAdmin } from "../../../middleware/auth.js";
+import { holdLimiter } from "../../../middleware/rateLimits.js";
 import {
   searchHotels,
   prebookHotel,
@@ -22,17 +24,21 @@ router.get("/places", searchPlaces);
 // GET /api/hotels/search
 router.get("/search", searchHotels);
 
-// POST /api/hotels/prebook — standalone, manual testing
-router.post("/prebook", prebookHotel);
+// POST /api/hotels/prebook — standalone, manual testing. Admin-only.
+router.post("/prebook", verifyAdmin, prebookHotel);
 
-// POST /api/hotels/book — standalone, manual testing (no payment)
-router.post("/book", bookHotel);
+// POST /api/hotels/book — standalone, manual testing (no payment).
+// Admin-only: it books with ACC_CREDIT_CARD, so Skyrio's own card pays.
+// Left open, anyone who found this URL could book rooms on that card.
+router.post("/book", verifyAdmin, bookHotel);
 
-// POST /api/hotels/checkout-intent — prebook + authorize-only Stripe PaymentIntent
-router.post("/checkout-intent", requireAuth, initHotelCheckout);
+// POST /api/hotels/checkout-intent — prebook + authorize-only Stripe
+// PaymentIntent. Guests can book; returns a checkout token.
+router.post("/checkout-intent", holdLimiter, optionalAuth, initHotelCheckout);
 
 // POST /api/hotels/confirm-booking — verify authorization, book with LiteAPI,
-// then charge only for the rooms that were confirmed
-router.post("/confirm-booking", requireAuth, confirmHotelBooking);
+// then charge only for the rooms that were confirmed. Needs the checkout
+// token from /checkout-intent (X-Checkout-Token).
+router.post("/confirm-booking", optionalAuth, confirmHotelBooking);
 
 export default router;

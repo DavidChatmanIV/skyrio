@@ -97,7 +97,14 @@ const corsOptions = {
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-admin-email"],
+  // X-Checkout-Token: proves a guest (or signed-in) traveler owns the
+  // flight/hotel checkout they're finishing.
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-admin-email",
+    "X-Checkout-Token",
+  ],
   optionsSuccessStatus: 204,
 };
 

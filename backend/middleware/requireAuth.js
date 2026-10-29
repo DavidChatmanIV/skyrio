@@ -10,6 +10,20 @@ function extractToken(req) {
   return null;
 }
 
+// Covers the common payload shapes (top-level and nested under
+// `user` / `sub`).
+function userIdFrom(decoded) {
+  return (
+    decoded.userId ||
+    decoded.id ||
+    decoded._id ||
+    decoded.sub ||
+    decoded.user?.id ||
+    decoded.user?._id ||
+    decoded.uid
+  );
+}
+
 export async function requireAuth(req, res, next) {
   try {
     const token = extractToken(req);
@@ -21,18 +35,7 @@ export async function requireAuth(req, res, next) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Broadened to cover more common payload shapes (top-level and nested
-    // under `user` / `sub`), plus a debug log so we can see the real shape
-    // in the server logs if this still 401s.
-    const userId =
-      decoded.userId ||
-      decoded.id ||
-      decoded._id ||
-      decoded.sub ||
-      decoded.user?.id ||
-      decoded.user?._id ||
-      decoded.uid;
+    const userId = userIdFrom(decoded);
 
     if (!userId) {
       console.error(
@@ -72,6 +75,37 @@ export async function requireAuth(req, res, next) {
       .status(401)
       .json({ ok: false, message: "Invalid or expired token" });
   }
+}
+
+// For routes guests can use too (flight and hotel checkout).
+// Signed in → req.user is set, same as requireAuth.
+// No token, or a bad/expired one → continues as a guest (req.user unset).
+// Inactive or suspended accounts are still blocked.
+export async function optionalAuth(req, res, next) {
+  const token = extractToken(req);
+  if (!token) return next();
+
+  let user = null;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = userIdFrom(decoded);
+    if (userId) user = await User.findById(userId);
+  } catch {
+    // Expired/invalid login token shouldn't stop someone booking as a guest.
+    return next();
+  }
+  if (!user) return next();
+
+  if (user.isActive === false) {
+    return res.status(403).json({ ok: false, message: "Account is inactive" });
+  }
+  if (typeof user.isSuspended === "function" && user.isSuspended()) {
+    return res.status(403).json({ ok: false, message: "Account is suspended" });
+  }
+
+  req.user = user;
+  req.auth = { userId: user._id.toString(), role: user.role };
+  return next();
 }
 
 export default requireAuth;

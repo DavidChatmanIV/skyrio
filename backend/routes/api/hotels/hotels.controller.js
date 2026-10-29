@@ -19,8 +19,17 @@ import {
   recordEmailResult,
   onGroupBookingSaved,
 } from "../../../services/bookingConfirmations.js";
+import {
+  signCheckoutToken,
+  readCheckoutToken,
+  ownsCheckout,
+  currentUserId,
+  CHECKOUT_ENDED,
+} from "../../../services/checkoutToken.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/hotels/lookup
@@ -241,6 +250,7 @@ export async function searchHotels(req, res) {
 //
 // Standalone prebook — kept for direct/manual testing. The real
 // checkout flow uses initHotelCheckout() below instead.
+// Admin-only (see hotels.routes.js).
 // ─────────────────────────────────────────────────────────────
 export async function prebookHotel(req, res) {
   try {
@@ -297,7 +307,11 @@ function readPrebookPrice(prebookResult) {
 // Body (multi-room):  { offers: [{ offerId, hotelName }, ...], guestEmail }
 // Body (legacy):      { offerId, hotelName, guestEmail }
 //
-// Returns: { clientSecret, paymentIntentId, prebookIds, totalPrice, currency, rooms }
+// Returns: { clientSecret, paymentIntentId, prebookIds, totalPrice, currency,
+//            rooms, checkoutToken }
+//
+// Works signed in or as a guest. checkoutToken must be sent (as the
+// X-Checkout-Token header) to /confirm-booking to finish this checkout.
 // ─────────────────────────────────────────────────────────────
 export async function initHotelCheckout(req, res) {
   try {
@@ -313,6 +327,18 @@ export async function initHotelCheckout(req, res) {
       return res.status(400).json({
         ok: false,
         message: "'offers' (array) or 'offerId' is required",
+      });
+    }
+
+    // Guests have no account email, so the confirmation (and claiming the
+    // stay later) depends on this one.
+    const email = String(guestEmail || "")
+      .trim()
+      .toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Enter a valid email so we can send your confirmation.",
       });
     }
 
@@ -380,11 +406,12 @@ export async function initHotelCheckout(req, res) {
       currency: currency.toLowerCase(),
       capture_method: "manual",
       payment_method_types: ["card"],
-      receipt_email: guestEmail || undefined,
+      receipt_email: email,
       metadata: {
         kind: "hotel_checkout",
         type: "hotel_booking",
-        userId: String(req.user?._id || req.user?.id || ""),
+        // "" = guest checkout.
+        userId: currentUserId(req) || "",
         // Comma-separated (not JSON) to stay under Stripe's metadata size limit.
         prebookIds: prebooks.map((p) => p.prebookId).join(","),
         // Cents per room, same order as prebookIds — used to charge only
@@ -396,6 +423,14 @@ export async function initHotelCheckout(req, res) {
       },
     });
 
+    // Proves this checkout is the caller's when they confirm it.
+    const checkoutToken = signCheckoutToken({
+      kind: "hotel",
+      refs: [paymentIntent.id],
+      ownerId: currentUserId(req),
+      email,
+    });
+
     return res.json({
       ok: true,
       clientSecret: paymentIntent.client_secret,
@@ -404,6 +439,7 @@ export async function initHotelCheckout(req, res) {
       totalPrice: combinedTotal,
       currency,
       rooms: prebooks,
+      checkoutToken,
     });
   } catch (err) {
     console.error("Hotel checkout init error:", err);
@@ -490,8 +526,8 @@ async function createPendingHotelBooking({
   groupId,
 }) {
   try {
-    if (!userId) throw new Error("no authenticated user on request");
-    const syncGroup = await memberGroupId(groupId, userId);
+    // Sync Together is account-only; guest stays have no group.
+    const syncGroup = userId ? await memberGroupId(groupId, userId) : null;
     const rooms = Array.isArray(trip) ? trip : [];
     const first = rooms[0] || {};
     const holder = bookings[0].holder;
@@ -522,10 +558,12 @@ async function createPendingHotelBooking({
     const total = Math.round(amountCents) / 100;
 
     return await Booking.create({
-      user: userId,
+      user: userId || null, // null = guest booking
       syncGroup,
       name: `${holder.firstName} ${holder.lastName}`,
-      email: holder.email,
+      email: String(holder.email || "")
+        .trim()
+        .toLowerCase(),
       tripDetails,
       type: "Hotel",
       dates: { start: toDate(first.checkin), end: toDate(first.checkout) },
@@ -569,12 +607,19 @@ async function markHotelBookingPaid(booking) {
     );
     if (!flipped) {
       // The webhook confirmed it first. Still make sure XP was granted —
-      // the XP ledger pays each booking once, so this is safe.
-      await awardXpForBooking(booking._id).catch((e) =>
-        console.error("[hotels/confirm] booking XP failed:", e?.message)
-      );
+      // the XP ledger pays each booking once, so this is safe. Guest
+      // bookings get XP when they're claimed instead.
+      if (booking.user) {
+        await awardXpForBooking(booking._id).catch((e) =>
+          console.error("[hotels/confirm] booking XP failed:", e?.message)
+        );
+      }
       return;
     }
+
+    // Guest booking: confirmed, no notification or XP until it's claimed
+    // by an account (services/claimGuestBookings.js).
+    if (!flipped.user) return;
 
     await Notification.create({
       user: flipped.user,
@@ -675,6 +720,11 @@ export async function confirmHotelBooking(req, res) {
       });
     }
 
+    // Only whoever started this checkout can finish it (guests included).
+    if (!ownsCheckout(readCheckoutToken(req, "hotel"), req, paymentIntentId)) {
+      return res.status(403).json(CHECKOUT_ENDED);
+    }
+
     for (const b of bookings) {
       if (!b.prebookId) {
         return res.status(400).json({
@@ -708,12 +758,10 @@ export async function confirmHotelBooking(req, res) {
       });
     }
 
-    const userId = String(req.user?._id || req.user?.id || "");
-    if (
-      intent.metadata?.userId &&
-      userId &&
-      intent.metadata.userId !== userId
-    ) {
+    // "" = guest. A checkout started signed in must be finished by that
+    // same account (the old check skipped this when nobody was signed in).
+    const userId = currentUserId(req) || "";
+    if (intent.metadata?.userId && intent.metadata.userId !== userId) {
       return res.status(403).json({
         ok: false,
         message: "This payment belongs to a different account.",
@@ -767,7 +815,7 @@ export async function confirmHotelBooking(req, res) {
         amountCents: authorized
           ? amountToCapture
           : intent.amount_received || intent.amount,
-        groupId,
+        groupId: userId ? groupId : null,
       });
       if (saved && authorized) {
         // Lets the Stripe webhook find this booking (metadata merges).
@@ -818,7 +866,7 @@ export async function confirmHotelBooking(req, res) {
         return res.status(500).json({
           ok: false,
           message:
-            "Your room is booked and we're finalizing payment. Check My Trips shortly.",
+            "Your room is booked and we're finalizing payment. Your confirmation email is on its way.",
           bookings: results,
           bookingRecordId: saved?._id || null,
         });
@@ -860,7 +908,7 @@ export async function confirmHotelBooking(req, res) {
         currency: String(intent.currency || "usd").toUpperCase(),
         bookingId: saved?._id ? String(saved._id) : null,
         // Sync Together stays don't get the "try Sync Together" line.
-        groupTrip: Boolean(saved?.syncGroup || groupId),
+        groupTrip: Boolean(saved?.syncGroup || (userId && groupId)),
       })
         .then(
           (r) =>
@@ -904,6 +952,8 @@ export async function confirmHotelBooking(req, res) {
 //
 // Direct/manual booking endpoint — kept for testing without the
 // Stripe flow. The real checkout uses confirmHotelBooking() above.
+// Admin-only (see hotels.routes.js): it books with ACC_CREDIT_CARD,
+// meaning Skyrio's own card on file pays, with no customer payment.
 // ─────────────────────────────────────────────────────────────
 export async function bookHotel(req, res) {
   try {

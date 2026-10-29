@@ -11,7 +11,10 @@ import {
   markShareFailed,
 } from "../services/sharedRooms.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { sendRefundIssuedEmail, formatMoney } from "../services/bookingEmails.js";
+import {
+  sendRefundIssuedEmail,
+  formatMoney,
+} from "../services/bookingEmails.js";
 import { awardXpForBooking, reverseBookingXp } from "../services/xpService.js";
 
 const router = Router();
@@ -46,7 +49,10 @@ router.post(
       }
       // Legacy "organizer pays, everyone reimburses" shares — retired.
       if (intent.metadata?.kind === "split_share") {
-        console.warn("[webhook] legacy split_share succeeded — no action", intent.id);
+        console.warn(
+          "[webhook] legacy split_share succeeded — no action",
+          intent.id
+        );
         return res.json({ received: true });
       }
 
@@ -63,9 +69,13 @@ router.post(
         // Idempotency guard — Stripe retries webhook deliveries, and
         // hotels.controller.js may have confirmed the booking first.
         let alreadyConfirmed = false;
+        let bookingUser = null;
         if (bookingId) {
-          const existing = await Booking.findById(bookingId).select("status");
+          const existing = await Booking.findById(bookingId).select(
+            "status user"
+          );
           alreadyConfirmed = existing?.status === "confirmed";
+          bookingUser = existing?.user || null;
         }
 
         // 1. Confirm booking + store BOTH payment ID fields so Atlas can
@@ -102,7 +112,9 @@ router.post(
         //    starts, plan multiplier applied, reversed if cancelled). Runs
         //    even when the booking was already confirmed elsewhere: the
         //    ledger pays each booking exactly once, so retries are safe.
-        if (bookingId) {
+        //    Accounts only: a guest booking earns its XP when it's claimed
+        //    (services/claimGuestBookings.js).
+        if (bookingId && bookingUser) {
           try {
             await awardXpForBooking(bookingId);
           } catch (xpErr) {
@@ -139,7 +151,8 @@ router.post(
           const refundAmount = charge.amount_refunded / 100;
           const isFullRefund = charge.refunded === true;
           const currency =
-            booking.totalCurrency || String(charge.currency || "usd").toUpperCase();
+            booking.totalCurrency ||
+            String(charge.currency || "usd").toUpperCase();
 
           // Idempotency — Stripe retries webhooks. Only notify/email when
           // this refund total is new.
@@ -183,7 +196,9 @@ router.post(
             // Refund email — Stripe has confirmed the money went out.
             let to = booking.email;
             if (!to && booking.user) {
-              const u = await User.findById(booking.user).select("email").lean();
+              const u = await User.findById(booking.user)
+                .select("email")
+                .lean();
               to = u?.email;
             }
             sendRefundIssuedEmail({
@@ -246,13 +261,18 @@ router.post(
     // room is booked and every hold is charged.
     if (event.type === "payment_intent.amount_capturable_updated") {
       const intent = event.data.object;
-      if (intent.metadata?.kind === SHARE_KIND && intent.status === "requires_capture") {
+      if (
+        intent.metadata?.kind === SHARE_KIND &&
+        intent.status === "requires_capture"
+      ) {
         setSyncIo(req.app.get("io"));
         await markShareAuthorized({
           splitId: intent.metadata.splitPaymentId,
           shareId: intent.metadata.shareId,
           paymentIntentId: intent.id,
-        }).catch((err) => console.error("[webhook] shared share hold error:", err));
+        }).catch((err) =>
+          console.error("[webhook] shared share hold error:", err)
+        );
       }
       return res.json({ received: true });
     }
@@ -278,10 +298,13 @@ router.post(
           {
             $set: {
               "shares.$.status": "unpaid",
-              "shares.$.lastError": "Your card hold was released. Please hold your share again.",
+              "shares.$.lastError":
+                "Your card hold was released. Please hold your share again.",
             },
           }
-        ).catch((err) => console.error("[webhook] shared share cancel error:", err));
+        ).catch((err) =>
+          console.error("[webhook] shared share cancel error:", err)
+        );
       }
       return res.json({ received: true });
     }
@@ -298,7 +321,9 @@ router.post(
           splitId: splitPaymentId,
           shareId,
           message: intent.last_payment_error?.message,
-        }).catch((err) => console.error("[webhook] shared share failure error:", err));
+        }).catch((err) =>
+          console.error("[webhook] shared share failure error:", err)
+        );
         return res.json({ received: true });
       }
       if (intent.metadata?.kind === "split_share") {
@@ -404,7 +429,8 @@ router.post("/create-payment-intent", requireAuth, async (req, res) => {
 const retired = (_req, res) =>
   res.status(410).json({
     ok: false,
-    message: "Group payments changed: everyone now books their own part from the trip page.",
+    message:
+      "Group payments changed: everyone now books their own part from the trip page.",
   });
 router.post("/create-group-payment-intents", requireAuth, retired);
 router.get("/split-status/:bookingId", requireAuth, retired);

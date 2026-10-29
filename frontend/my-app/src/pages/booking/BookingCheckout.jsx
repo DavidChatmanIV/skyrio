@@ -24,6 +24,11 @@ import OverBudgetCheck, {
   overBudgetBy,
 } from "@/components/syncTogether/OverBudgetCheck";
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
+import {
+  apiHeaders,
+  getCheckoutToken,
+  saveCheckoutToken,
+} from "@/utils/checkoutToken";
 // Price with cents and thousands commas: 1165.5 → "1,165.50".
 const usd2 = (n) =>
   (Number(n) || 0).toLocaleString("en-US", {
@@ -2321,6 +2326,8 @@ function TripSidebar({
   basePrice,
   onFareExpired,
   segments = [],
+  // True when the fare hold failed: nothing is locked, so no countdown.
+  hideCountdown = false,
 }) {
   const fareTotal = passengers.reduce(
     (sum, p) => sum + basePrice * (FARE_MULTIPLIER[p.type] ?? 1),
@@ -2524,11 +2531,13 @@ function TripSidebar({
         </div>
         {/* key: a refreshed fare has a new expiry, so the countdown (and its
             one-shot "expired" flag) starts over cleanly. */}
-        <FareCountdown
-          key={flight?.fareExpiresAt || "no-expiry"}
-          expiresAt={flight?.fareExpiresAt}
-          onExpired={onFareExpired}
-        />
+        {!hideCountdown && (
+          <FareCountdown
+            key={flight?.fareExpiresAt || "no-expiry"}
+            expiresAt={flight?.fareExpiresAt}
+            onExpired={onFareExpired}
+          />
+        )}
         <div
           style={{
             display: "flex",
@@ -2902,6 +2911,37 @@ function StepPassengers({
           <p style={{ color: G.muted, fontSize: 14, marginBottom: 24 }}>
             Must match each traveler's government-issued ID exactly.
           </p>
+          {/* Signed out: booking works as a guest. Say what that means. */}
+          {!localStorage.getItem("token") && (
+            <div
+              role="note"
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-start",
+                padding: "12px 14px",
+                marginBottom: 20,
+                borderRadius: 12,
+                background: "rgba(249,115,22,0.07)",
+                border: "1px solid rgba(249,115,22,0.28)",
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: "rgba(255,255,255,0.88)",
+              }}
+            >
+              <span style={{ color: G.orange, flexShrink: 0, marginTop: 1 }}>
+                <InfoIconSvg />
+              </span>
+              <span>
+                <strong style={{ color: "#fff" }}>
+                  You're booking as a guest.
+                </strong>{" "}
+                Your confirmation goes to the lead traveler's email. Create a
+                Skyrio account later with that same email to see this trip in My
+                Trips and earn Passport XP for it.
+              </span>
+            </div>
+          )}
           {passengers.map((p, i) => {
             const summary =
               i === 0 &&
@@ -3460,10 +3500,9 @@ function StepSeatsBags({
       setSeatMapLoading(true);
       setSeatMapUnavailable(false);
       try {
-        const token = localStorage.getItem("token");
         const API = import.meta.env?.VITE_API_URL || "";
         const res = await fetch(`${API}/api/flights/prebook/${prebookId}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: apiHeaders(getCheckoutToken("flight", prebookId)),
         });
         if (!res.ok) throw new Error("seatmap request failed");
         const data = await res.json();
@@ -3678,16 +3717,12 @@ function StepSeatsBags({
     const serviceIds = collectServiceIds(seatsMap);
     if (!serviceIds.length && !bagsList.length) return;
     try {
-      const token = localStorage.getItem("token");
       const API = import.meta.env?.VITE_API_URL || "";
       const res = await fetch(
         `${API}/api/flights/prebook/${prebookId}/services`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: apiHeaders(getCheckoutToken("flight", prebookId)),
           body: JSON.stringify({
             selectedServices: [
               ...Object.values(seatsMap || {}).flatMap((seg) =>
@@ -4015,6 +4050,7 @@ function StepSeatsBags({
             basePrice={basePrice}
             onFareExpired={onFareExpired}
             segments={segments}
+            hideCountdown={Boolean(prebookError)}
           />
         </div>
       </div>
@@ -4394,6 +4430,7 @@ function StepReviewPay({
             basePrice={basePrice}
             onFareExpired={onFareExpired}
             segments={extras?.segments || []}
+            hideCountdown={Boolean(prebookError)}
           />
         </div>
       </div>
@@ -4432,13 +4469,8 @@ function findExpiration(obj, depth = 0) {
   }
   return null;
 }
-// Booking needs an account: the finished booking is saved to it, and the
-// backend now requires sign-in from prebook onward (before any payment).
-const SIGN_IN_TO_BOOK =
-  "Please sign in to book this flight. Your trip is saved to your Skyrio account, so you need to be signed in before you pay.";
 // Turns raw LiteAPI errors into something a traveler understands.
 function friendlyFareError(raw = "") {
-  if (raw === SIGN_IN_TO_BOOK) return raw;
   if (/sold out|52010|no longer available|expired/i.test(raw)) {
     return "This fare just sold out with the airline. Let's find you another flight.";
   }
@@ -4522,13 +4554,10 @@ export default function BookingCheckout({
             "This flight is missing its offer reference — please go back and select it again from search results."
           );
         }
-        const token = localStorage.getItem("token");
-        if (!token) throw new Error(SIGN_IN_TO_BOOK);
         const API = import.meta.env?.VITE_API_URL || "";
-        const authHeaders = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
+        // Signed in or not: guests can book too. The login token is only
+        // sent when there is one.
+        const authHeaders = apiHeaders();
         const vRes = await fetch(`${API}/api/flights/verify`, {
           method: "POST",
           headers: authHeaders,
@@ -4607,7 +4636,6 @@ export default function BookingCheckout({
           headers: authHeaders,
           body: JSON.stringify(prebookBody),
         });
-        if (pRes.status === 401) throw new Error(SIGN_IN_TO_BOOK);
         const pData = await pRes.json();
         if (!pRes.ok || !pData.ok) {
           // `detail` (dev only) names the exact field LiteAPI rejected.
@@ -4651,6 +4679,14 @@ export default function BookingCheckout({
             "Fare was reserved but payment setup failed. Please contact support before trying again."
           );
         }
+        // Proves this checkout is ours on every later step (seats, bags,
+        // payment complete), for guests and signed-in travelers alike.
+        if (!pData.checkoutToken) {
+          throw new Error(
+            "Fare was reserved but checkout setup failed. Please go back and try again."
+          );
+        }
+        saveCheckoutToken("flight", newPrebookId, pData.checkoutToken);
         setPrebookId(newPrebookId);
         setTransactionId(newTransactionId);
         setClientSecret(secret);
@@ -4680,9 +4716,8 @@ export default function BookingCheckout({
         setPrebookLoading(true);
         try {
           const API = import.meta.env?.VITE_API_URL || "";
-          const token = localStorage.getItem("token");
           const res = await fetch(`${API}/api/flights/prebook/${prebookId}`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: apiHeaders(getCheckoutToken("flight", prebookId)),
           });
           const data = await res.json();
           if (!res.ok || !data.ok) {

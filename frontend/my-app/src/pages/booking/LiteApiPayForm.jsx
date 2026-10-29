@@ -16,7 +16,8 @@
 //
 // After payment, the traveler goes to /checkout/flight/complete, which
 // finalizes the booking with /api/flights/complete. Everything that page
-// needs is saved to sessionStorage first.
+// needs is saved to sessionStorage first, including the checkout token
+// (sent as X-Checkout-Token) that proves this checkout belongs to them.
 //
 // Env (local .env + Vercel):
 //   VITE_LITEAPI_ENV       = "sandbox" | "live"
@@ -31,6 +32,7 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { Check, AlertTriangle } from "lucide-react";
+import { getCheckoutToken } from "@/utils/checkoutToken";
 
 const SDK_SRC =
   "https://payment-wrapper.liteapi.travel/dist/liteAPIPayment.js?v=a1";
@@ -384,6 +386,9 @@ export default function LiteApiPayForm({
         JSON.stringify({
           prebookId,
           transactionId,
+          // Proves this checkout is ours when the return page finishes the
+          // booking with /api/flights/complete (guests included).
+          checkoutToken: getCheckoutToken("flight", prebookId),
           total,
           currency: flight?.currency || "USD",
           groupId: groupId || null,

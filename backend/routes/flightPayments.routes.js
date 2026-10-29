@@ -16,12 +16,15 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import FlightCheckoutSession from "../models/FlightCheckoutSession.js";
 
 const router = Router();
-router.use(requireAuth);
 
 // ── Payment config ── GET /api/flight-payments/config
 // The flight payment form needs LiteAPI's Stripe PUBLISHABLE key (pk_…, safe
 // to share with browsers). Serving it from here means the live site never
 // depends on Vercel build-time variables. Must stay ABOVE "/:sessionId".
+//
+// PUBLIC on purpose: guests (no account) pay for flights too, and a
+// publishable key is meant to be seen by browsers. It must also stay ABOVE
+// router.use(requireAuth) below, which is what keeps it open.
 // Env (Render): LITEAPI_SANDBOX_STRIPE_PK / LITEAPI_PRODUCTION_STRIPE_PK,
 //               picked by LITEAPI_ENV (LITEAPI_STRIPE_PK = fallback).
 router.get("/config", (_req, res) => {
@@ -43,6 +46,9 @@ router.get("/config", (_req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({ stripePk, env });
 });
+
+// Everything below here needs a signed-in account.
+router.use(requireAuth);
 
 const BASE =
   process.env.LITEAPI_FLIGHTS_BASE || "https://api.liteapi.travel/v3.0";

@@ -1,5 +1,6 @@
 import express from "express";
-import { requireAuth } from "../../../middleware/requireAuth.js";
+import { optionalAuth } from "../../../middleware/requireAuth.js";
+import { holdLimiter } from "../../../middleware/rateLimits.js";
 import {
   searchFlights,
   warmSearch,
@@ -27,16 +28,19 @@ router.post("/warm", warmSearch);
 // Verify stays open: it only checks a fare's price/availability.
 router.post("/verify", verifyOffer);
 
-// requireAuth on everything from prebook onward. /complete saves the
-// booking to the signed-in user's account, so someone who isn't signed in
-// must be stopped HERE — before a fare is reserved and a payment is set
-// up — not after they've already paid. A signed-out request gets a 401,
-// which the checkout turns into "Please sign in to book this flight."
-router.post("/prebook", requireAuth, createPrebook);
+// Guests can book without an account. optionalAuth attaches the user when
+// someone is signed in. /prebook hands back a checkout token, and every
+// later step must send it (X-Checkout-Token); the controller checks it, so
+// only whoever started a checkout can see or finish it.
+router.post("/prebook", holdLimiter, optionalAuth, createPrebook);
 // Fetches available seats/ancillaries + confirmed pricing for an
 // existing prebook.
-router.get("/prebook/:prebookId", requireAuth, getPrebookDetails);
-router.post("/prebook/:prebookId/services", requireAuth, attachPrebookServices);
-router.post("/complete", requireAuth, completeBooking);
+router.get("/prebook/:prebookId", optionalAuth, getPrebookDetails);
+router.post(
+  "/prebook/:prebookId/services",
+  optionalAuth,
+  attachPrebookServices
+);
+router.post("/complete", optionalAuth, completeBooking);
 
 export default router;

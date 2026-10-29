@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
+import { apiHeaders } from "@/utils/checkoutToken";
 
 import "@/styles/BookingPage.css"; // reuses sk-* dark-glass tokens/classes
 import OverBudgetCheck, {
@@ -176,12 +177,10 @@ function PayButton({ busy, disabled, onClick, children, style }) {
   );
 }
 
-function authHeaders() {
-  const token = localStorage.getItem("token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
+// Login token only when signed in; the checkout token (from
+// /api/hotels/checkout-intent) when the request belongs to a checkout.
+function authHeaders(checkoutToken) {
+  return apiHeaders(checkoutToken);
 }
 
 // ─────────────────────────────────────────────
@@ -609,12 +608,6 @@ function PaymentForm({
       onInvalid?.();
       return antdMessage.warning("Enter a valid contact email for the booking");
     }
-    if (!localStorage.getItem("token")) {
-      setError(
-        "Please sign in to book. Your stay is saved to your Skyrio account, so you need to be signed in before you pay."
-      );
-      return;
-    }
     if (!guests.every(guestComplete)) {
       onInvalid?.();
       return antdMessage.warning(
@@ -694,7 +687,8 @@ function PaymentForm({
 
       const confRes = await fetch(`${API}/api/hotels/confirm-booking`, {
         method: "POST",
-        headers: authHeaders(),
+        // Proves this checkout is ours (guests included).
+        headers: authHeaders(init.checkoutToken),
         body: JSON.stringify({
           paymentIntentId: paymentIntent.id,
           bookings,
@@ -1464,7 +1458,7 @@ export default function HotelCheckout({
           >
             {!signedIn && (
               <div
-                role="alert"
+                role="note"
                 style={{
                   display: "flex",
                   gap: 8,
@@ -1474,12 +1468,17 @@ export default function HotelCheckout({
                   border: "1px solid rgba(249,115,22,.3)",
                   color: "#fff",
                   fontSize: 13,
+                  lineHeight: 1.5,
                   marginBottom: 16,
                 }}
               >
-                <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                Please sign in to book. Your stay is saved to your Skyrio
-                account, so you need to be signed in before you pay.
+                <Info size={15} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>
+                  <strong>You're booking as a guest.</strong> Your confirmation
+                  goes to the email below. Create a Skyrio account later with
+                  that same email to see this stay in My Trips and earn Passport
+                  XP for it.
+                </span>
               </div>
             )}
             {autofilled && !leadCollapsed && (

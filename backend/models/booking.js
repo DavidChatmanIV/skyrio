@@ -45,16 +45,22 @@ const datesSchema = new Schema(
 
 const bookingSchema = new Schema(
   {
+    // null = guest booking (booked without an account). Claimed by an
+    // account later through a verified email (services/claimGuestBookings.js).
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
       index: true,
     },
 
-    // Primary contact — pulled from first passenger on creation.
+    // Primary contact — pulled from first passenger on creation. For guest
+    // bookings this is the only way to reach the traveler.
     name: { type: String },
-    email: { type: String },
+    email: { type: String, lowercase: true, trim: true, index: true },
+
+    // Set when a guest booking is moved onto an account.
+    claimedAt: { type: Date, default: null },
 
     tripDetails: { type: String, required: true },
 
@@ -192,6 +198,17 @@ const bookingSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// Every booking needs someone to contact: an account, or an email.
+bookingSchema.pre("validate", function (next) {
+  if (!this.user && !this.email) {
+    this.invalidate(
+      "email",
+      "An email address is required to book as a guest."
+    );
+  }
+  next();
+});
 
 // Avoid OverwriteModelError in dev/hot-reload.
 const Booking =

@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import { liteApiFlights } from "./Liteapiflights.provider.js";
 import {
   extractFlightBookingId,
@@ -24,6 +23,25 @@ import {
   sendConfirmationFor,
   onGroupBookingSaved,
 } from "../../../services/bookingConfirmations.js";
+import {
+  signCheckoutToken,
+  readCheckoutToken,
+  ownsCheckout,
+  currentUserId,
+  CHECKOUT_ENDED,
+} from "../../../services/checkoutToken.js";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Guests can book, so ownership of a checkout comes from the checkout
+// token handed out by createPrebook, not from the login. Stops the request
+// unless the caller owns this prebook; returns the decoded token otherwise.
+function requireCheckoutOwner(req, res, prebookId) {
+  const token = readCheckoutToken(req, "flight");
+  if (ownsCheckout(token, req, prebookId)) return token;
+  res.status(403).json(CHECKOUT_ENDED);
+  return null;
+}
 
 // ---------------------------------------------------------------------
 // Search speed + fare freshness
@@ -796,6 +814,17 @@ export async function createPrebook(req, res) {
         message: "offerId, contact, and passengers are required",
       });
     }
+    // Guests have no account email, so the confirmation (and claiming the
+    // trip later) depends on this one.
+    const contactEmail = String(contact.email || "")
+      .trim()
+      .toLowerCase();
+    if (!EMAIL_RE.test(contactEmail)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Enter a valid email so we can send your confirmation.",
+      });
+    }
 
     const payload = buildPrebookPayload({
       offerId,
@@ -811,9 +840,33 @@ export async function createPrebook(req, res) {
     const { data } = await liteApiFlights.post("/flights/prebooks", payload, {
       _noRetry: true,
     });
-    return res
-      .status(200)
-      .json({ ok: true, ...data, ...paymentRefs(data, "prebook") });
+
+    // The checkout token proves this checkout is the caller's on every
+    // later step (seat map, services, complete).
+    const record = Array.isArray(data?.data)
+      ? data.data[0]
+      : data?.data || data;
+    const prebookId =
+      record?.prebookId ||
+      record?.prebookID ||
+      record?.id ||
+      data?.prebookId ||
+      data?.prebookID;
+    const checkoutToken = prebookId
+      ? signCheckoutToken({
+          kind: "flight",
+          refs: [prebookId],
+          ownerId: currentUserId(req),
+          email: contactEmail,
+        })
+      : null;
+
+    return res.status(200).json({
+      ok: true,
+      ...data,
+      ...paymentRefs(data, "prebook"),
+      ...(checkoutToken && { checkoutToken }),
+    });
   } catch (err) {
     const { status, body } = providerError(err, "prebook");
     if (body.soldOut) removeOfferFromCache(offerId);
@@ -870,6 +923,7 @@ export async function getPrebookDetails(req, res) {
         .status(400)
         .json({ ok: false, message: "prebookId is required" });
     }
+    if (!requireCheckoutOwner(req, res, prebookId)) return;
 
     const { data } = await liteApiFlights.get(`/flights/prebooks/${prebookId}`);
     const seats = parsePrebookSeatOptions(data);
@@ -943,6 +997,7 @@ export async function attachPrebookServices(req, res) {
         .status(400)
         .json({ ok: false, message: "prebookId is required" });
     }
+    if (!requireCheckoutOwner(req, res, prebookId)) return;
     if (!Array.isArray(selectedServices) || !selectedServices.length) {
       return res.status(400).json({
         ok: false,
@@ -996,34 +1051,12 @@ function toDate(v) {
   return d && !Number.isNaN(d.getTime()) ? d : undefined;
 }
 
-function resolveUserId(req) {
-  const attached = req.user?._id || req.user?.id;
-  if (attached) return String(attached);
-  const header = req.headers?.authorization || "";
-  const token =
-    req.cookies?.token ||
-    (header.toLowerCase().startsWith("bearer ")
-      ? header.slice(7).trim()
-      : null);
-  if (!token || !process.env.JWT_SECRET) return "";
+// The checkout token already proved ownership, so a saved booking is found
+// by its prebook alone (signed-in and guest bookings alike).
+async function findSavedFlightBooking(prebookId) {
+  if (!prebookId) return null;
   try {
-    const d = jwt.verify(token, process.env.JWT_SECRET);
-    return String(
-      d.userId || d.id || d._id || d.sub || d.user?.id || d.user?._id || ""
-    );
-  } catch (err) {
-    console.error("[flights/complete] login token invalid:", err.message);
-    return "";
-  }
-}
-
-async function findSavedFlightBooking(userId, prebookId) {
-  if (!userId || !prebookId) return null;
-  try {
-    return await Booking.findOne({
-      user: userId,
-      "flight.prebookId": prebookId,
-    });
+    return await Booking.findOne({ "flight.prebookId": prebookId });
   } catch {
     return null;
   }
@@ -1060,10 +1093,20 @@ async function saveFlightBooking({
   record,
   email,
   groupId,
+  // Email from the checkout token, used when checkout didn't send one.
+  fallbackEmail,
 }) {
   try {
-    if (!userId) throw new Error("no authenticated user on request");
     const e = email || {};
+    const contactEmail =
+      String(e.to || fallbackEmail || "")
+        .trim()
+        .toLowerCase() || undefined;
+    // Guest booking (no account): the email is how they get their
+    // confirmation and how the trip is claimed by an account later.
+    if (!userId && !contactEmail) {
+      throw new Error("guest booking has no email");
+    }
     const pnr = extractFlightPnr(record);
     const bookingId = extractFlightBookingId(record);
     const total = Number(e.totalAmount);
@@ -1079,12 +1122,13 @@ async function saveFlightBooking({
       .filter(Boolean)
       .join(" · ");
 
-    const syncGroup = await memberGroupId(groupId, userId);
+    // Sync Together is account-only.
+    const syncGroup = userId ? await memberGroupId(groupId, userId) : null;
     const saved = await Booking.create({
-      user: userId,
+      user: userId || null, // null = guest booking
       syncGroup,
       name: e.passengerName || undefined,
-      email: e.to || undefined,
+      email: contactEmail,
       tripDetails,
       type: "Flight",
       flight: {
@@ -1125,24 +1169,28 @@ async function saveFlightBooking({
       confirmationCodes: pnr ? [String(pnr)] : [],
     });
 
-    try {
-      await Notification.create({
-        user: userId,
-        type: "booking",
-        title: "Flight Booked ✈️",
-        message: pnr
-          ? `Your flight is confirmed. Airline confirmation: ${pnr}.`
-          : "Your flight is confirmed. Have a great trip!",
-        link: "/saved-trips",
-      });
-      // Booking XP through the XP ledger: pending until the trip starts,
-      // plan multiplier applied, taken back if the trip is cancelled.
-      await awardXpForBooking(saved._id);
-    } catch (err) {
-      console.error(
-        "[flights/complete] XP/notification step failed:",
-        err?.message
-      );
+    // Notifications and XP belong to accounts. A guest booking earns its
+    // XP when it's claimed (services/claimGuestBookings.js).
+    if (userId) {
+      try {
+        await Notification.create({
+          user: userId,
+          type: "booking",
+          title: "Flight Booked ✈️",
+          message: pnr
+            ? `Your flight is confirmed. Airline confirmation: ${pnr}.`
+            : "Your flight is confirmed. Have a great trip!",
+          link: "/saved-trips",
+        });
+        // Booking XP through the XP ledger: pending until the trip starts,
+        // plan multiplier applied, taken back if the trip is cancelled.
+        await awardXpForBooking(saved._id);
+      } catch (err) {
+        console.error(
+          "[flights/complete] XP/notification step failed:",
+          err?.message
+        );
+      }
     }
 
     return saved;
@@ -1187,14 +1235,13 @@ export async function completeBooking(req, res) {
         .json({ ok: false, message: "prebookId is required" });
     }
 
-    const userId = resolveUserId(req);
-    if (!userId) {
-      console.warn(
-        "[flights/complete] no signed-in user on request — booking will not be saved to an account",
-        resolvedPrebookId
-      );
-    }
-    const existing = await findSavedFlightBooking(userId, resolvedPrebookId);
+    // Only whoever started this checkout can finish it.
+    const owner = requireCheckoutOwner(req, res, resolvedPrebookId);
+    if (!owner) return;
+
+    // "" = guest checkout: the booking is saved with the email instead.
+    const userId = currentUserId(req) || "";
+    const existing = await findSavedFlightBooking(resolvedPrebookId);
     if (existing) {
       return res.status(200).json({
         ok: true,
@@ -1250,7 +1297,7 @@ export async function completeBooking(req, res) {
         // For the one-line Sync Together tip: shown only when 2+ people
         // flew on this booking and it isn't already a group trip.
         travelerCount,
-        groupTrip: Boolean(groupId),
+        groupTrip: Boolean(userId && groupId),
       }).catch((emailErr) => {
         console.error(
           "[flights/complete] confirmation email failed:",
@@ -1269,7 +1316,8 @@ export async function completeBooking(req, res) {
       transactionId: rest?.payment?.transactionId,
       record: bookedRecord,
       email: confirmationEmail,
-      groupId,
+      groupId: userId ? groupId : null,
+      fallbackEmail: owner.e,
     });
 
     if (saved) {
