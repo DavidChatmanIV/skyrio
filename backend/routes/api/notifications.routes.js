@@ -93,6 +93,21 @@ router.get("/mine", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/notifications/unread-count  (used by the Passport page badge)
+// Just the number, so the badge doesn't download the whole list.
+// Sent under every key name the frontend might read.
+router.get("/unread-count", requireAuth, async (req, res) => {
+  try {
+    const count = await countUnread(req.user._id);
+    return res.json({ ok: true, count, unread: count, unreadCount: count });
+  } catch (err) {
+    console.error("Notifications unread-count error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Failed to count notifications" });
+  }
+});
+
 // PATCH /api/notifications/read-all  ← must be before /:id
 router.patch("/read-all", requireAuth, async (req, res) => {
   try {
