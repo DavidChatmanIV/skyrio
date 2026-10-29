@@ -1436,6 +1436,30 @@ function findBaggage(obj, depth = 0) {
   }
   return null;
 }
+// Airlines describe bag size two ways:
+//   dimensions        "45*35*20cm", "55x40x20"      → "45 × 35 × 20 cm"
+//   total (linear)    "40LI", "45LI/115LCM"         → "45 in (115 cm) total size"
+// (linear = length + width + height added together). Anything else is shown
+// as sent rather than guessed at.
+function formatBagSize(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  const li = text.match(/(\d+(?:\.\d+)?)\s*LI\b/i);
+  const lcm = text.match(/(\d+(?:\.\d+)?)\s*L\s*CM\b/i);
+  if (li || lcm) {
+    const inches = li ? Number(li[1]) : Math.round(Number(lcm[1]) / 2.54);
+    const cm = lcm ? Number(lcm[1]) : Math.round(Number(li[1]) * 2.54);
+    return `${inches} in (${cm} cm) total size`;
+  }
+  const dims = text
+    .replace(/\s*cm\s*$/i, "")
+    .split(/\s*[x*×]\s*/i)
+    .filter(Boolean);
+  if (dims.length >= 2 && dims.every((d) => /^\d+(\.\d+)?$/.test(d))) {
+    return `${dims.join(" × ")} cm`;
+  }
+  return text;
+}
 function bagDetail(items) {
   const it = items[0];
   if (!it) return "";
@@ -1445,14 +1469,8 @@ function bagDetail(items) {
     const kg = Number(it.weightKg);
     parts.push(`up to ${kg} kg (${Math.round(kg * 2.20462)} lb)`);
   }
-  if (it.size) {
-    const size = String(it.size)
-      .replace(/\s*cm\s*$/i, "")
-      .split(/\s*[x*×]\s*/i)
-      .filter(Boolean)
-      .join(" × ");
-    if (size) parts.push(`${size} cm`);
-  }
+  const size = formatBagSize(it.size);
+  if (size) parts.push(size);
   return parts.join(" · ");
 }
 // Rows for an adult on this fare: { key, label, included, detail }.
@@ -3035,9 +3053,44 @@ function StepSeatsBags({
         if (!data.ok || !Array.isArray(data.seats)) {
           throw new Error("seatmap not available");
         }
+        const bags = Array.isArray(data.bags) ? data.bags : [];
         setSeatServices(data.seats);
-        setBagOptions(Array.isArray(data.bags) ? data.bags : []);
+        setBagOptions(bags);
         setServiceCategories(data.serviceCategories || {});
+        // Picks carried over from an earlier fare hold (e.g. after Edit →
+        // Passengers → Continue) point at that hold's services, which this
+        // one doesn't have. Keep only picks that belong to THIS fare, so
+        // nothing shows as added that isn't, and nothing stale is sent to
+        // the airline.
+        const seatIds = new Set(data.seats.map((x) => String(x.serviceId)));
+        const bagIds = new Set(bags.map((x) => String(x.serviceId)));
+        const hadStale =
+          selectedBags.some((b) => !bagIds.has(String(b.serviceId))) ||
+          Object.values(selectedSeats || {}).some((byPax) =>
+            Object.values(byPax || {}).some(
+              (v) => v?.serviceId && !seatIds.has(String(v.serviceId))
+            )
+          );
+        if (hadStale) {
+          setNotice(
+            "Your fare was checked again with the airline, so please pick your seats and bags again."
+          );
+        }
+        setSelectedBags((prev) =>
+          prev.filter((b) => bagIds.has(String(b.serviceId)))
+        );
+        setSelectedSeats((prev) => {
+          const next = {};
+          Object.entries(prev || {}).forEach(([seg, byPax]) => {
+            const kept = Object.fromEntries(
+              Object.entries(byPax || {}).filter(([, v]) =>
+                seatIds.has(String(v?.serviceId))
+              )
+            );
+            if (Object.keys(kept).length) next[seg] = kept;
+          });
+          return next;
+        });
       } catch {
         // No fake fallback: showing fabricated seats/prices would be worse
         // than saying seat selection isn't available.
