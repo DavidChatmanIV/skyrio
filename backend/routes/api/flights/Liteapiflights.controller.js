@@ -481,7 +481,7 @@ async function postRatesWithRetry(payload) {
 // Runs one search, or joins/reuses an identical one.
 // { fresh: true } skips the cache (used for "Find another flight" and
 // for refreshing an expired fare).
-async function runSearch(params, { fresh = false } = {}) {
+export async function runSearch(params, { fresh = false } = {}) {
   const cacheKey = buildCacheKey(params);
 
   if (fresh) {

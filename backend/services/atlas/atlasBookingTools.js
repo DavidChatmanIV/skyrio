@@ -15,6 +15,7 @@ import AtlasBookingProposal from "../../models/AtlasBookingProposal.js";
 import User from "../../models/user.js";
 import { firstNameOf } from "./userName.js";
 import SyncTrip from "../../models/SyncGroup.js";
+import { isGroupMember } from "../sharedRooms.js";
 import {
   searchFlights,        // your LiteAPI flight search (returns offers with offerId)
   verifyFlightOffer,    // POST /v3.0/flights/verify  { offerID }
@@ -355,28 +356,39 @@ async function runHotelSearch(userId, input) {
   };
 }
 
+// Reads a Sync Together group (models/SyncGroup.js). The group flight is
+// the shortlist item the organizer picked (groupFlightKey); the group
+// hotel is groupHotel. Only the requesting member's own status/budget
+// is returned.
 async function getSyncTripForAtlas(userId, syncTripId) {
   const trip = await SyncTrip.findById(syncTripId).lean();
   if (!trip) return { error: "Group trip not found" };
+  if (!isGroupMember(trip, userId)) return { error: "You're not a member of this trip" };
 
-  const me = trip.members.find((m) => String(m.user) === String(userId));
-  if (!me) return { error: "You're not a member of this trip" };
+  const isOwner = String(trip.owner?._id ?? trip.owner) === String(userId);
+  const me = (trip.members || []).find((m) => m.user && String(m.user) === String(userId)) || null;
 
-  // Re-check friends' flights so Atlas never offers one that's gone
+  // Re-check the group's picked flight so Atlas never offers one that's gone
   const groupFlights = [];
-  for (const f of trip.bookedFlights || []) {
+  const picked = (trip.shortlist || []).find((it) => it.kind === "flight" && it.key === trip.groupFlightKey);
+  const f = picked?.flight;
+  if (f?.origin && f?.destination && f?.departAt) {
     const fresh = await searchFlights({
       origin: f.origin,
       destination: f.destination,
-      departDate: f.departDate,
+      departDate: String(f.departAt).slice(0, 10),
+      returnDate: f.returnDepartAt ? String(f.returnDepartAt).slice(0, 10) : undefined,
       adults: 1,
-      flightNumbers: f.flightNumbers,
     }).catch(() => []);
-    const match = fresh[0];
+    const match = fresh.find(
+      (o) =>
+        (!f.airlineCode || o.airlineCode === f.airlineCode) &&
+        String(o.segments[0]?.departTime || "").slice(0, 16) === String(f.departAt).slice(0, 16)
+    );
     groupFlights.push({
-      bookedBy: f.memberFirstName,
-      flightNumbers: f.flightNumbers.join(", "),
-      depart: f.departTime,
+      airline: f.airline,
+      route: `${f.origin} → ${f.destination}`,
+      depart: f.departAt,
       stillAvailable: Boolean(match),
       ...(match && {
         optionId: cacheOption(userId, "flight", match, {
@@ -397,22 +409,15 @@ async function getSyncTripForAtlas(userId, syncTripId) {
   }
 
   return {
-    name: trip.name,
+    name: trip.title,
     destination: trip.destination,
-    dates: { start: trip.startDate, end: trip.endDate },
-    myStatus: me.paymentStatus, // "unpaid" | "paid" | ...
-    myBudget: me.privateBudget ?? null, // only the requesting user's own budget
+    departureAirport: me?.departureAirport || trip.departureAirport || null,
+    dates: { start: trip.dateRangeStart, end: trip.dateRangeEnd },
+    myStatus: me?.paymentStatus || "unpaid",
+    myBudget: isOwner ? trip.ownerBudget ?? null : me?.budget ?? null, // only the requesting user's own budget
     groupFlights: groupFlights.filter((g) => g.stillAvailable),
-    hotel: trip.hotel
-      ? {
-          name: trip.hotel.name,
-          sharedRooms: (trip.hotel.rooms || []).map((r) => ({
-            sharedRoomId: r.id,
-            roomName: r.name,
-            spotsLeft: r.capacity - r.occupants.length,
-            myShare: r.perPersonShare,
-          })),
-        }
+    hotel: trip.groupHotel?.hotelId
+      ? { name: trip.groupHotel.name, address: trip.groupHotel.address, stars: trip.groupHotel.stars }
       : null,
   };
 }
@@ -432,6 +437,11 @@ function partyFromTravelers(user, travelerIds) {
 async function proposeBooking(userId, { optionId, travelerIds, syncTripId, sharedRoomId }) {
   const opt = getOption(userId, optionId);
   if (!opt) return { error: "That option expired. Search again to get a fresh price." };
+  // Shared-room shares are held and split in services/sharedRooms.js;
+  // Atlas can't book them yet, so send the user to the group page.
+  if (sharedRoomId) {
+    return { error: "Shared rooms are booked from the group trip page for now, not through Atlas." };
+  }
 
   const user = await User.findById(userId).lean();
   if (!user?.defaultPaymentMethodId) {
@@ -444,10 +454,9 @@ async function proposeBooking(userId, { optionId, travelerIds, syncTripId, share
   // Sync Together guardrails: only the user's own share, and only if they're a member
   if (syncTripId) {
     const trip = await SyncTrip.findById(syncTripId).lean();
-    const me = trip?.members.find((m) => String(m.user) === String(userId));
-    if (!me) return { error: "You're not a member of this trip" };
-    if (travelerIds.some((id) => id !== "self" && !me.companionIds?.includes(id))) {
-      return { error: "In a group trip, Atlas can only book your own share (and companions you added to the trip)." };
+    if (!trip || !isGroupMember(trip, userId)) return { error: "You're not a member of this trip" };
+    if (travelerIds.some((id) => id !== "self")) {
+      return { error: "In a group trip, Atlas can only book your own share." };
     }
   }
 

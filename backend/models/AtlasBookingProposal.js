@@ -11,7 +11,7 @@ const AtlasBookingProposalSchema = new mongoose.Schema(
     kind: { type: String, enum: ["flight", "hotel"], required: true },
 
     // Sync Together: when set, this proposal is the user's OWN share of a group trip
-    syncTrip: { type: mongoose.Schema.Types.ObjectId, ref: "SyncTrip", default: null },
+    syncTrip: { type: mongoose.Schema.Types.ObjectId, ref: "SyncGroup", default: null },
     sharedRoomId: { type: String, default: null }, // for shared hotel rooms
 
     // Provider handles (server-side only, never sent to the model)
