@@ -14,7 +14,7 @@
 import AtlasBookingProposal from "../../models/AtlasBookingProposal.js";
 import User from "../../models/user.js";
 import { firstNameOf } from "./userName.js";
-import SyncTrip from "../../models/SyncTrip.js";
+import SyncTrip from "../../models/SyncGroup.js";
 import {
   searchFlights,        // your LiteAPI flight search (returns offers with offerId)
   verifyFlightOffer,    // POST /v3.0/flights/verify  { offerID }
