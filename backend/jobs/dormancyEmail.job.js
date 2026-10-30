@@ -1,5 +1,4 @@
 /**
- * dormancyEmail.job.js — backend/jobs/dormancyEmail.job.js
  *
  * Runs once daily. Finds users with no activity in the last N days
  * who haven't already been sent a dormancy nudge recently, and emails
@@ -14,6 +13,12 @@ import { logEvent } from "../services/eventService.js";
 
 const DORMANCY_THRESHOLD_DAYS = 45;
 const RESEND_COOLDOWN_DAYS = 30; // don't nudge the same user more than once/month
+
+// Skyrio's real site. Atlas opens from the panel on any page, so the
+// button goes to the homepage.
+const SITE_URL = (
+  process.env.FRONTEND_URL || "https://www.myskyrio.com"
+).replace(/\/$/, "");
 
 export async function runDormancyEmailJob() {
   console.log("[dormancyJob] starting run:", new Date().toISOString());
@@ -71,8 +76,18 @@ export async function runDormancyEmailJob() {
   return { sent, failed, totalDormant: dormantUsers.length };
 }
 
+// Names come from user profiles, so escape them before putting them in HTML.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildDormancyEmailHtml(firstName) {
-  const name = firstName || "there";
+  const name = escapeHtml(firstName || "there");
   return `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
       <h2>Hey ${name}, thinking about your next trip?</h2>
@@ -80,8 +95,8 @@ function buildDormancyEmailHtml(firstName) {
         It's been a while since you've been on Skyrio. Atlas can put together
         a destination guide in seconds — just tell it where you're dreaming of going.
       </p>
-      <a href="https://skyrio.com/atlas" 
-         style="display:inline-block; padding:12px 24px; background:#000; color:#fff; 
+      <a href="${SITE_URL}/"
+         style="display:inline-block; padding:12px 24px; background:#000; color:#fff;
                 text-decoration:none; border-radius:6px; margin-top:12px;">
         Ask Atlas
       </a>
