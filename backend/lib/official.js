@@ -1,7 +1,7 @@
 import User from "../models/user.js";
 
 const OFFICIAL_EMAIL = (
-  process.env.OFFICIAL_EMAIL || "official@skyrio.com"
+  process.env.OFFICIAL_EMAIL || "skyrioofficial@gmail.com"
 ).toLowerCase();
 const OFFICIAL_USERNAME = (
   process.env.OFFICIAL_USERNAME || "skyrio"
