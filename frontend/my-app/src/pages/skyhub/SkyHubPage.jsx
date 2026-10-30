@@ -700,7 +700,8 @@ export default function SkyHubPage() {
           authUser.profileImage ||
           null,
         xp: liveXp ?? (authUser.xp || authUser.passport || 0),
-        badge: authUser.badge || "Explorer",
+        // Rank from lifetime XP, computed by the server (User.getXPLevel)
+        badge: authUser.levelLabel || authUser.badge || "Explorer",
       }
     : null;
 

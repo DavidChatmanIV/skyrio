@@ -1,10 +1,7 @@
 import React from "react";
 
 /* ─────────────────────────────────────────────────────────────
-   SkyHubSafetyPolicies — drop into SkyHubGuidelines.jsx:
-     import SkyHubSafetyPolicies from "./SkyHubSafetyPolicies";
-     ...
-     <SkyHubSafetyPolicies />
+   SkyHubSafetyPolicies — rendered inside SkyHubGuidelines.jsx.
    Each section has an id so links like /skyhub/guidelines#meetups work.
    Have a lawyer review the wording before launch.
 ───────────────────────────────────────────────────────────── */
@@ -116,8 +113,8 @@ export default function SkyHubSafetyPolicies() {
 
       <section id="meetups" style={box}>
         <h3 style={h}>Meeting travelers safely</h3>
-        Join Trip posts connect people in real life, so a little care goes a
-        long way:
+        Sometimes travelers you meet on SkyHub want to meet up in person, so a
+        little care goes a long way:
         <ul style={ul}>
           <li>
             Meet somewhere public for the first time, like a café, a tour or a

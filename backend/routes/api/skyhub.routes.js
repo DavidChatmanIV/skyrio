@@ -9,7 +9,9 @@ import SkyHubReport from "../../models/SkyHubReport.js";
 import SkyHubBlock from "../../models/SkyHubBlock.js";
 import SkyHubRestriction from "../../models/SkyHubRestriction.js";
 import User from "../../models/user.js";
-import { getLevel } from "../../lib/xpLevels.js";
+// Official rank ladder — the same one the Digital Passport and
+// User.getXPLevel() use, so badges can never disagree across the site.
+import { getLevel } from "../../config/xpRules.js";
 import { readAdminSession } from "../admin.routes.js";
 import SkyHubStrike from "../../models/SkyHubStrike.js";
 import {
@@ -190,6 +192,7 @@ function mapPost(
   const likeIds = (post.likes || []).map(String);
   const saveIds = (post.saves || []).map(String);
   const authorId = post.author?.toString() || null;
+  // Author's LIFETIME earned XP (see xpMapFor) — never the spendable balance.
   const authorXp = authorId ? xpByAuthorId.get(authorId) ?? 0 : 0;
   return {
     _id: post._id,
@@ -199,7 +202,7 @@ function mapPost(
     username: post.username,
     avatar: post.avatar,
     verified: post.verified,
-    authorBadge: getLevel(authorXp).current,
+    authorBadge: getLevel(authorXp).current.name,
     type: post.type,
     destination: post.destination,
     text: post.text,
@@ -240,15 +243,20 @@ function mapComment(comment, viewerId) {
   };
 }
 
+// Rank XP for each post author. Rank comes from LIFETIME earned XP
+// (xpTotalEarned), the same as User.getXPLevel(), so redeeming rewards
+// never lowers anyone's badge. Falls back to xp for older accounts.
 async function xpMapFor(posts) {
   const ids = [
     ...new Set(posts.map((p) => p.author?.toString()).filter(Boolean)),
   ];
   if (!ids.length) return new Map();
   const authors = await User.find({ _id: { $in: ids } })
-    .select("xp")
+    .select("xpTotalEarned xp")
     .lean();
-  return new Map(authors.map((a) => [a._id.toString(), a.xp || 0]));
+  return new Map(
+    authors.map((a) => [a._id.toString(), a.xpTotalEarned ?? a.xp ?? 0])
+  );
 }
 
 async function visibleComments(postId, viewerId) {

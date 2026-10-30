@@ -4998,12 +4998,46 @@ export default function BookingPage() {
     }
   }, []);
 
-  // Scroll to search form when "Search manually" is clicked from HeroPlanner
-  const handleSearchManually = useCallback(() => {
-    searchFormRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  // "Search manually" / "Search flights to X" from HeroPlanner.
+  // With a destination picked, prefill the Flights form (from/to) without
+  // auto-searching — there are no dates yet. Then scroll to the form.
+  const handleSearchManually = useCallback(
+    (pick) => {
+      if (pick?.dest?.iata) {
+        const next = new URLSearchParams(searchParams);
+        next.set("tab", "Flights");
+        next.set("to", pick.dest.iata);
+        next.set("toName", pick.dest.name);
+        // So Stays / Excursions get the city name, not the airport code.
+        next.set("city", pick.dest.name);
+        if (pick.origin?.code) {
+          next.set("from", pick.origin.code);
+          next.set("fromName", pick.origin.city || pick.origin.code);
+        }
+        next.delete("auto");
+        setSearchParams(next, { replace: true });
+        setTab("Flights");
+      }
+      searchFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    },
+    [searchParams, setSearchParams]
+  );
+
+  // HeroPlanner → boarding pass + Atlas: the slider is the planned budget.
+  // (Before, this stayed null and the Atlas-context effect below overwrote
+  // the budget HeroPlanner had just sent.)
+  const handleHeroBudget = useCallback((b) => {
+    setBudgetState((prev) =>
+      prev.planned === b ? prev : { ...prev, planned: b }
+    );
+  }, []);
+
+  // HeroPlanner's "Flying from" → the pass's FROM.
+  const handleHeroOrigin = useCallback((ap) => {
+    setOriginCity(ap?.city || ap?.code || "");
   }, []);
 
   // ── Room cart helpers ──────────────────────────────────────
@@ -5807,6 +5841,9 @@ export default function BookingPage() {
       case "Flights":
         return (
           <FlightsForm
+            // A new from/to (e.g. "Search flights to Lisbon" in HeroPlanner)
+            // remounts the form so its one-time prefill runs again.
+            key={`${flightInitial?.from || ""}-${flightInitial?.to || ""}`}
             onSearch={(f, searched = {}) => {
               setFlightResults(f);
               // Filters are intentionally NOT reset here — anything the
@@ -6115,10 +6152,10 @@ export default function BookingPage() {
                 <TripTypeSelector />
 
                 <HeroPlanner
-                  onDestinationSelect={(city) => {
-                    if (city) setDestCity(city);
-                    else setDestCity("");
-                  }}
+                  initialBudget={budgetState.planned ?? 1500}
+                  onDestinationSelect={(city) => setDestCity(city || "")}
+                  onOriginSelect={handleHeroOrigin}
+                  onBudgetChange={handleHeroBudget}
                   onSearchManually={handleSearchManually}
                 />
 
@@ -6295,8 +6332,12 @@ export default function BookingPage() {
                       </dd>
                     </div>
                     <div className="sk-bp-field">
-                      <dt>Booking</dt>
-                      <dd>{tab}</dd>
+                      <dt>Budget</dt>
+                      <dd className={budgetState.planned ? "" : "is-empty"}>
+                        {budgetState.planned
+                          ? `$${wholeUsd(budgetState.planned)}`
+                          : "—"}
+                      </dd>
                     </div>
                   </dl>
                   {/* Fixed 2-line height: the text changes after a search,
