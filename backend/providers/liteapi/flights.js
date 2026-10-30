@@ -41,6 +41,9 @@ function toAtlasOffer(f) {
     baggageSummary: null, // not in search results; LiteAPI lists bags at prebook
     price: { total: Number(f.totalAmount), currency: f.totalCurrency || "USD" },
     expiresAt: f.fareExpiresAt,
+    // The exact object the Book page passes to <BookingCheckout flight={...}>,
+    // so an Atlas "Review & pay" link opens the normal checkout on it.
+    frontend: f,
   };
 }
 

@@ -6,7 +6,8 @@ import { loadStripe } from "@stripe/stripe-js";
 import { atlasApi } from "./atlasApi";
 import "@/styles/atlas-booking-card.css";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const STRIPE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = STRIPE_KEY ? loadStripe(STRIPE_KEY) : null;
 
 const money = (cents, currency) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
@@ -71,6 +72,7 @@ export default function AtlasBookingCard({ proposalId }) {
 
       if (body.clientSecret) {
         // Bank asked for 3D Secure
+        if (!stripePromise) throw new Error("Your bank needs an extra check, but card checks aren't set up on this site yet. Nothing was charged.");
         const stripe = await stripePromise;
         const { error: actionErr } = await stripe.handleNextAction({ clientSecret: body.clientSecret });
         if (actionErr) throw new Error(actionErr.message);

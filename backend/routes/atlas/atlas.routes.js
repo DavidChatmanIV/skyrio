@@ -754,7 +754,7 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
         // call get_sync_trip without asking for it.
         const syncTripId = String(context?.syncTripId || "");
         if (/^[a-f0-9]{24}$/i.test(syncTripId)) {
-          finalSystemPrompt += `\n\nThe traveler is looking at their Sync Together trip (syncTripId: ${syncTripId}). Use it with get_sync_trip and propose_booking when they want to book their share.`;
+          finalSystemPrompt += `\n\nThe traveler is looking at their Sync Together trip (syncTripId: ${syncTripId}). Use get_sync_trip to help them choose; they book their share on the trip page.`;
         }
       } else {
         // Guests: Atlas can search and send them to checkout (no account needed).
@@ -782,6 +782,28 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
         }
       }
     }
+
+    // Atlas has no clock of its own. Without today's date it guesses the
+    // year ("Nov 20" -> a past year) and LiteAPI rejects the search.
+    // Uses the traveler's time zone when the browser sends one.
+    const tz =
+      typeof context?.timeZone === "string" && /^[A-Za-z_]+\/[A-Za-z_\/]+$/.test(context.timeZone)
+        ? context.timeZone
+        : "America/New_York";
+    let todayISO;
+    try {
+      todayISO = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+    } catch {
+      todayISO = new Date().toISOString().slice(0, 10);
+    }
+    const todayLong = new Date(`${todayISO}T12:00:00Z`).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    finalSystemPrompt += `\n\nToday is ${todayLong} (${todayISO}). All trip dates must be today or later. When someone gives a date without a year, use the next time that date comes up. Turn "next Friday", "this weekend", etc. into real dates from today, and say the dates back to them.`;
 
     // Signed-in travelers in the chat panel get the support tools (look up
     // their bookings, bring up a cancel card) plus the booking tools (search,

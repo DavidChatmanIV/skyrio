@@ -13,7 +13,10 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 import { atlasApi } from "./atlasApi";
 import "@/styles/atlas-booking-card.css";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// If the key is missing in this build (e.g. not set on Vercel), skip Stripe
+// instead of crashing; the card step shows a message.
+const STRIPE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = STRIPE_KEY ? loadStripe(STRIPE_KEY) : null;
 
 const STEPS = ["self", "travelers", "card"];
 const STEP_LABEL = { self: "You", travelers: "Travelers", card: "Card" };
@@ -154,21 +157,41 @@ export default function AtlasProfileCard({ focus = "full", travelerId = null, re
   const [clientSecret, setClientSecret] = useState(null);
   const [done, setDone] = useState(false);
   const [changes, setChanges] = useState([]);
+  const [loadError, setLoadError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    api("/").then((p) => {
-      setProfile(p);
-      setSelf({ ...p.self, homeAirport: p.preferences.homeAirport, seatPreference: p.preferences.seatPreference });
-      if (travelerId) {
-        const c = p.companions.find((x) => x.id === travelerId);
-        if (c) setCompanion(c);
-      }
-    });
-  }, [travelerId]);
+    let cancelled = false;
+    setLoadError("");
+    // Never spin forever: give up after 12s with a clear message + retry.
+    const timer = setTimeout(() => {
+      if (!cancelled) setLoadError("Your profile is taking too long to load.");
+    }, 12000);
+    api("/")
+      .then((p) => {
+        if (cancelled) return;
+        setProfile(p);
+        setSelf({ ...p.self, homeAirport: p.preferences?.homeAirport, seatPreference: p.preferences?.seatPreference });
+        if (travelerId) {
+          const c = (p.companions || []).find((x) => x.id === travelerId);
+          if (c) setCompanion(c);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(e?.error || e?.message || "Couldn't load your profile.");
+      })
+      .finally(() => clearTimeout(timer));
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [travelerId, attempt]);
 
   useEffect(() => {
-    if (step === "card" && !clientSecret) {
-      api("/card/setup-intent", "POST").then((r) => setClientSecret(r.clientSecret));
+    if (step === "card" && !clientSecret && stripePromise) {
+      api("/card/setup-intent", "POST")
+        .then((r) => setClientSecret(r.clientSecret))
+        .catch(() => setErrors({ form: "Couldn't start card setup. Try again in a moment." }));
     }
   }, [step, clientSecret]);
 
@@ -219,6 +242,18 @@ export default function AtlasProfileCard({ focus = "full", travelerId = null, re
     }
   }
 
+  if (!profile && loadError) {
+    return (
+      <div className="abc-card" role="alert">
+        <p className="abc-msg">{loadError}</p>
+        <div className="abc-actions">
+          <button className="abc-btn abc-primary" onClick={() => setAttempt((n) => n + 1)}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (!profile) return <div className="abc-card abc-loading">Loading your profile…</div>;
 
   if (done) {
@@ -326,7 +361,9 @@ export default function AtlasProfileCard({ focus = "full", travelerId = null, re
             </p>
           )}
           <p className="abc-hold">Saved securely with Stripe. You're only charged when you tap Confirm & Pay on a booking.</p>
-          {clientSecret ? (
+          {!stripePromise ? (
+            <p className="abc-msg">Saving a card isn't available right now. You can still pay on the checkout page.</p>
+          ) : clientSecret ? (
             <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: "night" } }}>
               <CardForm
                 onSaved={(p) => {

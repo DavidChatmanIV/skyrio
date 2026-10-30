@@ -191,6 +191,15 @@ export const ATLAS_BOOKING_TOOLS = [
   },
 ];
 
+// Saved-card "Confirm & Pay" (propose_booking) is switched OFF for now: its
+// booking controller was never finished (no LiteAPI book step). Everyone —
+// signed in or not — books through open_checkout and the normal checkout
+// page. To turn it back on later, remove this filter.
+const DISABLED_TOOLS = new Set(["propose_booking"]);
+for (let i = ATLAS_BOOKING_TOOLS.length - 1; i >= 0; i--) {
+  if (DISABLED_TOOLS.has(ATLAS_BOOKING_TOOLS[i].name)) ATLAS_BOOKING_TOOLS.splice(i, 1);
+}
+
 // Guests (not signed in) can search and get a checkout link — nothing that
 // reads or saves an account.
 const GUEST_TOOL_NAMES = new Set(["search_flights", "search_hotels", "open_checkout"]);
@@ -198,7 +207,8 @@ export const ATLAS_GUEST_BOOKING_TOOLS = ATLAS_BOOKING_TOOLS.filter((t) => GUEST
 
 // Where the checkout pages live on the frontend. Change if your routes differ.
 const FRONTEND_URL = (process.env.FRONTEND_URL || "https://myskyrio.com").replace(/\/$/, "");
-const CHECKOUT_PATH = { flight: "/checkout/flight", hotel: "/checkout/hotel" };
+// One page handles both: it loads the handoff and shows BookingCheckout or HotelCheckout.
+const checkoutUrl = (handoffId) => `${FRONTEND_URL}/checkout/atlas/${handoffId}`;
 
 // Each search is a paid LiteAPI call. Guests get fewer per hour.
 const searchLimit = limiter({ windowMs: 60 * 60 * 1000, guestMax: 15, userMax: 60 });
@@ -330,24 +340,59 @@ async function saveTravelPreferences(userId, input) {
 // Remembers what was shown in each search so a pick can teach Atlas something
 const searchGroups = new Map(); // searchId -> [display, ...]
 
+// Reads the same top-level fields the Book page / BookingCheckout use
+// (owner, departingAt, arrivingAt, totalAmount, stops), with segments only
+// as a fallback — so a missing or differently named segment field can't
+// crash every Atlas search.
+function flightDisplay(o) {
+  const f = o.frontend || {};
+  const segs = Array.isArray(o.segments) ? o.segments : [];
+  const first = segs[0] || {};
+  const last = segs[segs.length - 1] || {};
+  const stops =
+    typeof f.stops === "number"
+      ? f.stops
+      : typeof f.slices?.[0]?.stops === "number"
+      ? f.slices[0].stops
+      : Math.max(0, segs.length - 1);
+  return {
+    airline: o.airlineName || f.owner || f.airline || "Airline",
+    airlineCode: o.airlineCode || f.ownerCode || null,
+    flightNumbers: segs.map((s) => s.flightNumber).filter(Boolean).join(", ") || null,
+    depart: f.departingAt || f.departureTime || first.departTime || null,
+    arrive: f.arrivingAt || f.arrivalTime || last.arriveTime || null,
+    returnDepart: f.returningAt || null,
+    stops,
+    duration: o.durationText || null,
+    price: Number(o.price?.total ?? f.totalAmount),
+    currency: o.price?.currency || f.totalCurrency || "USD",
+    includedBags: o.baggageSummary || "Not listed by airline",
+  };
+}
+
 async function runFlightSearch(owner, userId, input) {
-  const offers = await searchFlights(input);
+  const badDate = checkDates([
+    ["Departure date", input.departDate],
+    ["Return date", input.returnDate, true],
+  ]);
+  if (badDate) return badDate;
+  if (input.returnDate && input.returnDate < input.departDate) {
+    return { error: "Return date is before the departure date. Check the dates with the traveler." };
+  }
+  let offers;
+  try {
+    offers = await searchFlights(input);
+  } catch (err) {
+    console.error("[Atlas search_flights] search failed:", err.message, err.response?.data || "");
+    return { error: "Flight search failed. Try different dates or a nearby airport." };
+  }
   const candidates = offers
-    .filter((o) => !input.maxPrice || o.price.total <= input.maxPrice)
-    .slice(0, 15)
-    .map((o) => ({
-      _raw: o,
-      airline: o.airlineName,
-      airlineCode: o.airlineCode,
-      flightNumbers: o.segments.map((s) => s.flightNumber).join(", "),
-      depart: o.segments[0].departTime,
-      arrive: o.segments.at(-1).arriveTime,
-      stops: o.segments.length - 1,
-      duration: o.durationText,
-      price: o.price.total,
-      currency: o.price.currency,
-      includedBags: o.baggageSummary || "Not listed by airline",
-    }));
+    .map((o) => ({ _raw: o, ...flightDisplay(o) }))
+    .filter((c) => Number.isFinite(c.price) && (!input.maxPrice || c.price <= input.maxPrice))
+    .slice(0, 15);
+  if (!candidates.length) {
+    return { options: [], note: "No flights found for that search. Suggest nearby dates or airports." };
+  }
 
   // Put options this traveler tends to pick first (signed-in only; guests keep provider order)
   const ranked = (userId ? await rankForUser(userId, "flight", candidates) : candidates).slice(0, 5);
@@ -374,6 +419,14 @@ async function runFlightSearch(owner, userId, input) {
 }
 
 async function runHotelSearch(owner, userId, input) {
+  const badDate = checkDates([
+    ["Check-in", input.checkin],
+    ["Check-out", input.checkout],
+  ]);
+  if (badDate) return badDate;
+  if (input.checkout <= input.checkin) {
+    return { error: "Check-out must be after check-in. Check the dates with the traveler." };
+  }
   const rates = await searchHotelRates(input);
   const candidates = rates
     .filter((r) => !input.maxNightly || r.nightly <= input.maxNightly)
@@ -439,7 +492,7 @@ async function getSyncTripForAtlas(userId, syncTripId) {
     const match = fresh.find(
       (o) =>
         (!f.airlineCode || o.airlineCode === f.airlineCode) &&
-        String(o.segments[0]?.departTime || "").slice(0, 16) === String(f.departAt).slice(0, 16)
+        String(flightDisplay(o).depart || "").slice(0, 16) === String(f.departAt).slice(0, 16)
     );
     groupFlights.push({
       airline: f.airline,
@@ -448,14 +501,7 @@ async function getSyncTripForAtlas(userId, syncTripId) {
       stillAvailable: Boolean(match),
       ...(match && {
         optionId: cacheOption(String(userId), "flight", match, {
-          airline: match.airlineName,
-          airlineCode: match.airlineCode,
-          flightNumbers: match.segments.map((s) => s.flightNumber).join(", "),
-          depart: match.segments[0].departTime,
-          stops: match.segments.length - 1,
-          duration: match.durationText,
-          includedBags: match.baggageSummary || "Not listed by airline",
-          price: match.price.total,
+          ...flightDisplay(match),
           fromGroup: true, // joining friends' flight is a group choice, not a personal habit
         }, {
           origin: f.origin,
@@ -465,8 +511,8 @@ async function getSyncTripForAtlas(userId, syncTripId) {
           adults: 1,
           children: 0,
         }),
-        price: match.price.total,
-        currency: match.price.currency,
+        price: flightDisplay(match).price,
+        currency: flightDisplay(match).currency,
       }),
     });
   }
@@ -605,11 +651,42 @@ async function proposeBooking(userId, { optionId, travelerIds, syncTripId, share
   };
 }
 
+// Dates the model sends are checked here so a wrong year never reaches LiteAPI.
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+function todayISO() {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+function checkDates(pairs) {
+  const today = todayISO();
+  for (const [label, value, optional] of pairs) {
+    if (!value && optional) continue;
+    if (!ISO_DAY.test(String(value || ""))) {
+      return { error: `${label} must be a date like ${today}. Today is ${today}.` };
+    }
+    if (value < today) {
+      return {
+        error: `${label} ${value} is in the past. Today is ${today}. Use the next upcoming date and confirm it with the traveler.`,
+      };
+    }
+  }
+  return null;
+}
+
 // Saves the picked option and returns a "Review & pay" link to the checkout page.
 // Nothing is booked or charged here — the checkout page does that as usual.
 async function openCheckout(owner, userId, { optionId }) {
   const opt = getOption(owner, optionId);
   if (!opt) return { error: "That option expired. Search again to get a fresh price." };
+  if (opt.display?.fromGroup) {
+    return { error: "Group trip shares are booked from the Sync Together trip page so friends' payments stay linked. Point the user there." };
+  }
+  if (!opt.raw?.frontend) {
+    return { error: "This option can't open checkout. Search again to get a fresh one." };
+  }
 
   const remainingMs = opt.expiresAt - Date.now();
   if (remainingMs < 2 * 60 * 1000) {
@@ -621,7 +698,7 @@ async function openCheckout(owner, userId, { optionId }) {
     kind: opt.kind,
     user: userId || null,
     offerId: opt.raw.offerId,
-    offer: opt.raw,
+    offer: opt.raw.frontend, // exactly what the checkout page expects
     display: opt.display,
     search: opt.search,
     expiresAt: new Date(opt.expiresAt),
@@ -656,7 +733,7 @@ async function openCheckout(owner, userId, { optionId }) {
     card: {
       type: "checkout_link",
       kind: opt.kind,
-      url: `${FRONTEND_URL}${CHECKOUT_PATH[opt.kind]}?atlas=${handoff.handoffId}`,
+      url: checkoutUrl(handoff.handoffId),
       title,
       lines,
       travelers,

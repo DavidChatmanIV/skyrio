@@ -58,6 +58,7 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
     .map((r) => {
       const hotel = byId.get(r.hotelId) || {};
       const total = Number(r.totalAmount);
+      const { raw: _raw, ...rate } = r;
       return {
         offerId: r.offerId,
         hotelId: r.hotelId,
@@ -70,6 +71,19 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
         currency: r.totalCurrency || "USD",
         refundableTag: r.refundableTag,
         cancellationText: cancellationTextOf(r.raw),
+        // Room object in the shape <HotelCheckout rooms={[...]}> reads, so an
+        // Atlas "Review & pay" link opens the normal hotel checkout on it.
+        frontend: {
+          ...rate,
+          name: hotel.name || "Hotel",
+          address: hotel.address || "",
+          thumbnail: hotel.thumbnail || hotel.main_photo || null,
+          checkin,
+          checkout,
+          adults,
+          totalAmount: total,
+          totalCurrency: r.totalCurrency || "USD",
+        },
       };
     })
     .sort((a, b) => a.total - b.total);

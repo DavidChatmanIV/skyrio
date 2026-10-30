@@ -40,6 +40,11 @@ const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
 const FlightBookingComplete = lazy(() =>
   import("./pages/booking/FlightBookingComplete")
 );
+// Atlas "Review & pay" card opens this: loads the flight/room picked in
+// Atlas and shows the normal BookingCheckout / HotelCheckout. Guests too.
+const AtlasCheckoutPage = lazy(() =>
+  import("./pages/booking/AtlasCheckoutPage")
+);
 // Group split payments — "pay your share" link sent to each member.
 const PayShare = lazy(() => import("./pages/booking/PayShare"));
 
@@ -134,6 +139,9 @@ function TrackedRoutes() {
           path="checkout/flight/complete"
           element={<FlightBookingComplete />}
         />
+
+        {/* Public on purpose: guests book through Atlas too. */}
+        <Route path="checkout/atlas/:id" element={<AtlasCheckoutPage />} />
 
         {/* Public — PayShare handles a logged-out visitor itself. */}
         <Route

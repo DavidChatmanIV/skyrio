@@ -87,3 +87,10 @@
   color: #1a0f2e;
   background: linear-gradient(135deg, #ffb35c, #ff8a3d);
 }
+
+/* /checkout/atlas/:id — loading / expired / invalid link states */
+.atlas-checkout-page {
+  max-width: 720px;
+  margin: 120px auto 48px;
+  padding: 0 16px;
+}

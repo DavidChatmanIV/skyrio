@@ -26,6 +26,11 @@ import profileTravelersRoutes from "./routes/profileTravelers.js";
 import stripeConfigRoutes from "./routes/stripeConfig.js";
 import billingWebhook from "./routes/billingWebhook.js";
 import billingRoutes from "./routes/billing.routes.js";
+// Atlas travel profile (legal name, DOB, saved travelers, saved card) used by
+// the "Set up your profile" card in Atlas chat. Signed-in only.
+import travelProfileRoutes from "./routes/travelProfileRoutes.js";
+// Atlas "Confirm & Pay" card: load / confirm / finalize / cancel a proposal.
+// import atlasBookingRoutes from "./routes/atlasBookingRoutes.js";
 // Where To Next (landing page map): reads cached lowest fares.
 import dealsRoutes from "./routes/deals.js";
 import { startDealScanJob } from "./services/dealScanner.js";
@@ -223,6 +228,8 @@ app.use("/api/sync-progress", syncProgressRoutes);
 app.use("/api/profile", profileTravelersRoutes);
 app.use("/api/stripe-config", stripeConfigRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/travel-profile", travelProfileRoutes);
+// app.use("/api/atlas/proposals", atlasBookingRoutes);
 app.use("/api/deals", dealsRoutes);
 app.use("/api", apiRouter);
 
