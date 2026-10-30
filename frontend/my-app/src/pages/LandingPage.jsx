@@ -23,6 +23,7 @@ import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
 import { trackPassportEvent } from "@/utils/passportEvents";
 import { useAuth } from "@/auth/useAuth";
 import { apiUrl } from "@/lib/api";
+import { readHomeAirport, saveHomeAirport } from "@/lib/homeAirport";
 
 import SavedExcursions from "../components/excursions/SavedExcursions";
 import UpcomingBookings from "../components/dashboard/UpcomingBookings";
@@ -121,27 +122,90 @@ const LANDING_TRIP_TYPES = [
   { key: "group", label: "Group trip" },
 ];
 
+// Optional extras under "Plan my trip". `amount` and `nights` travel to the
+// booking page so the budget slider and pass start where the traveler left off.
+// (Who's traveling lives in the trip-type pills above, so it isn't repeated here.)
+const FILTER_GROUP_LABELS = {
+  budget: "Budget per person",
+  duration: "Trip length",
+  type: "Vibe",
+};
 const FILTER_OPTIONS = {
   budget: [
-    { label: "Under $500", value: "under $500" },
-    { label: "Under $1,500", value: "under $1,500" },
-    { label: "Under $3,000", value: "under $3,000" },
-    { label: "Luxury", value: "luxury no budget limit" },
+    { label: "Under $500", value: "under $500", amount: 500 },
+    { label: "Under $1,500", value: "under $1,500", amount: 1500 },
+    { label: "Under $3,000", value: "under $3,000", amount: 3000 },
+    { label: "No limit", value: "luxury no budget limit", amount: null },
+  ],
+  duration: [
+    { label: "Weekend", value: "2-3 days", nights: 2 },
+    { label: "1 week", value: "7 days", nights: 7 },
+    { label: "2 weeks", value: "14 days", nights: 14 },
+    { label: "3+ weeks", value: "21+ days", nights: 21 },
   ],
   type: [
     { label: "Beach", value: "beach" },
     { label: "City break", value: "city break" },
     { label: "Adventure", value: "adventure" },
-    { label: "Romantic", value: "romantic" },
-    { label: "Family", value: "family friendly" },
-  ],
-  duration: [
-    { label: "Weekend", value: "2-3 days" },
-    { label: "1 week", value: "7 days" },
-    { label: "2 weeks", value: "14 days" },
-    { label: "3+ weeks", value: "21+ days" },
+    { label: "Relax & recharge", value: "relaxing" },
   ],
 };
+// budget / nights / vibe for the booking page, from the picked extras.
+function filterParams(filters = {}) {
+  const out = {};
+  const amount = filterOption("budget", filters.budget)?.amount;
+  if (amount) out.budget = String(amount);
+  const nights = filterOption("duration", filters.duration)?.nights;
+  if (nights) out.nights = String(nights);
+  if (filters.type) out.vibe = filters.type;
+  return out;
+}
+const filterOption = (group, value) =>
+  FILTER_OPTIONS[group]?.find((o) => o.value === value) || null;
+
+// Per trip type: what the box suggests, and three one-tap ideas.
+const TRIP_TYPE_PROMPTS = {
+  solo: {
+    phrase: "solo trip",
+    placeholder: "e.g. a week in Lisbon under $1,500",
+    ideas: ["Lisbon for a week", "Mexico City food trip", "Tokyo in spring"],
+  },
+  romantic: {
+    phrase: "romantic trip for two",
+    placeholder: "e.g. Paris for our anniversary",
+    ideas: ["Paris getaway", "Beach resort in Tulum", "Amalfi Coast"],
+  },
+  family: {
+    phrase: "family trip with kids",
+    placeholder: "e.g. Orlando theme parks in summer",
+    ideas: ["Orlando theme parks", "All-inclusive Punta Cana", "San Diego"],
+  },
+  group: {
+    phrase: "group trip with friends",
+    placeholder: "e.g. Vegas weekend for 6 friends",
+    ideas: ["Vegas weekend", "Cancún beach trip", "New Orleans food & music"],
+  },
+};
+const DEFAULT_IDEAS = [
+  "Beach weekend",
+  "Europe on a budget",
+  "Tokyo in spring",
+];
+
+// One plain-language request built from everything picked. The descriptors
+// stay lowercase so the booking page reads the traveler's own words (e.g.
+// "Lisbon") as the destination, not "Solo".
+function composePrompt(text, tripType, filters = {}) {
+  const parts = [];
+  if (tripType && TRIP_TYPE_PROMPTS[tripType])
+    parts.push(TRIP_TYPE_PROMPTS[tripType].phrase);
+  if (filters.type) parts.push(filters.type);
+  if (filters.budget) parts.push(filters.budget);
+  if (filters.duration) parts.push(filters.duration);
+  const typed = normalizePrompt(text);
+  if (typed) parts.push(typed);
+  return parts.join(", ");
+}
 
 const DESTINATION_IMAGES = {
   japan:
@@ -318,6 +382,16 @@ async function fetchAISuggestion(
 
 const HOME_AIRPORT_KEY = "skyrio_home_airport";
 function readStoredAirport() {
+  // The booking page's saved home airport wins, so both pages agree.
+  try {
+    const shared = readHomeAirport();
+    if (shared?.code) {
+      const known = AIRPORTS.find((a) => a.code === shared.code);
+      return { ...(known || {}), ...shared, city: shared.city || known?.city };
+    }
+  } catch {
+    /* fall back to this page's own copy */
+  }
   try {
     const raw = localStorage.getItem(HOME_AIRPORT_KEY);
     if (!raw) return DEFAULT_AIRPORT;
@@ -342,6 +416,8 @@ function useHomeAirport() {
     } catch {
       /* noop */
     }
+    // Same home airport on the booking page ("Flying from").
+    Promise.resolve(saveHomeAirport(next)).catch(() => {});
   }, []);
   return {
     homeAirport: airport,
@@ -1187,6 +1263,11 @@ const INJECTED_CSS = `
 .sk-suggestion__body { animation: sk-suggFade 0.28s ease forwards; }
 
 .sk-filters { margin-top:14px; text-align:center; }
+.sk-ideas { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:7px; margin:12px 0 2px; }
+.sk-ideas__label { font-size:12px; color:rgba(255,255,255,0.55); margin-right:2px; }
+.sk-ideas__chip { font-size:12px; font-weight:600; color:rgba(255,255,255,0.82); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14); border-radius:999px; padding:5px 12px; cursor:pointer; font-family:inherit; transition:all .15s; }
+.sk-ideas__chip:hover { border-color:rgba(255,138,42,0.55); color:#ff8a2a; background:rgba(255,138,42,0.1); }
+.sk-ideas__chip:focus-visible { outline:2px solid #ff8a2a; outline-offset:2px; }
 .sk-filter-toggle {
   display:inline-flex; align-items:center; gap:6px;
   background:rgba(8,5,20,0.5); border:1px solid rgba(255,255,255,0.18);
@@ -1548,23 +1629,18 @@ export default function LandingPage() {
   );
 
   const triggerSuggestion = useCallback(
-    (prompt, filters = activeFilters) => {
+    (prompt, filters = activeFilters, tripType = landingTripType) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      let trimmed = normalizePrompt(prompt);
+      const hasText = normalizePrompt(prompt).length > 0;
       const hasFilters = Object.values(filters).some(Boolean);
-      if (!trimmed && !hasFilters) {
+      // Trip type alone isn't enough to suggest anything specific yet.
+      if (!hasText && !hasFilters) {
         setShowSuggestion(false);
         setSuggestions([]);
         setSuggError(null);
         return;
       }
-      if (!trimmed && hasFilters) {
-        const parts = [];
-        if (filters.type) parts.push(filters.type + " trip");
-        if (filters.budget) parts.push(filters.budget);
-        if (filters.duration) parts.push(filters.duration);
-        trimmed = parts.join(", ");
-      }
+      const trimmed = composePrompt(prompt, tripType, filters);
       promptHistoryRef.current = [
         ...new Set([...promptHistoryRef.current, trimmed]),
       ].slice(-10);
@@ -1573,7 +1649,27 @@ export default function LandingPage() {
         600
       );
     },
-    [activeFilters, runSuggestion]
+    [activeFilters, landingTripType, runSuggestion]
+  );
+
+  // Changing who's traveling refreshes the suggestions for the same request.
+  const pickTripType = useCallback(
+    (key) => {
+      const next = landingTripType === key ? null : key;
+      setLandingTripType(next);
+      if (normalizePrompt(q) || Object.values(activeFilters).some(Boolean))
+        triggerSuggestion(q, activeFilters, next);
+    },
+    [landingTripType, q, activeFilters, triggerSuggestion]
+  );
+
+  // One-tap idea chip: fill the box and fetch suggestions.
+  const applyIdea = useCallback(
+    (idea) => {
+      setQ(idea);
+      triggerSuggestion(idea);
+    },
+    [triggerSuggestion]
   );
 
   const toggleFilter = useCallback(
@@ -1705,9 +1801,11 @@ export default function LandingPage() {
   );
 
   const goPlan = useCallback(async () => {
-    const prompt = normalizePrompt(q);
+    const prompt = composePrompt(q, landingTripType, activeFilters);
     if (!prompt) {
-      message.info("Add a destination or budget to start planning.");
+      message.info(
+        "Pick who's traveling or type where you'd like to go to start planning."
+      );
       return;
     }
     try {
@@ -1717,16 +1815,18 @@ export default function LandingPage() {
         prompt,
         homeAirport: homeCode,
       });
-      const typeParam = landingTripType ? `&type=${landingTripType}` : "";
-      nav(
-        `/booking?prompt=${encodeURIComponent(
-          prompt
-        )}&from=${homeCode}${typeParam}`
+      // Everything picked here opens the booking page already filled in.
+      const params = new URLSearchParams({ prompt, from: homeCode });
+      if (homeCity) params.set("fromName", homeCity);
+      if (landingTripType) params.set("type", landingTripType);
+      Object.entries(filterParams(activeFilters)).forEach(([k, v]) =>
+        params.set(k, v)
       );
+      nav(`/booking?${params.toString()}`);
     } finally {
       setIsRouting(false);
     }
-  }, [q, nav, homeCode, landingTripType]);
+  }, [q, nav, homeCode, homeCity, landingTripType, activeFilters]);
 
   const viewPlan = useCallback(
     async (sugg = suggestion) => {
@@ -1744,8 +1844,10 @@ export default function LandingPage() {
           buildPlanUrl(sugg, homeCode, {
             prompt: prompt || sugg.trip,
             fromName: homeCity,
+            // Filters first, trip type last: the "vibe" filter used to share
+            // the name `type` and silently replaced the trip type.
+            ...filterParams(activeFilters),
             type: landingTripType,
-            ...activeFilters,
           })
         );
       } finally {
@@ -1756,22 +1858,23 @@ export default function LandingPage() {
   );
 
   const showMoreOptions = useCallback(async () => {
-    const prompt = normalizePrompt(q);
-    const fp = Object.entries(activeFilters)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join("&");
+    const prompt =
+      composePrompt(q, landingTripType, activeFilters) || "recommend me a trip";
     try {
       setIsRouting(true);
-      const typeParam = landingTripType ? `&type=${landingTripType}` : "";
-      const base = `/booking?prompt=${encodeURIComponent(
-        prompt || "recommend me a trip"
-      )}&from=${homeCode}&showAll=true${typeParam}`;
-      nav(fp ? `${base}&${fp}` : base);
+      const params = new URLSearchParams({
+        prompt,
+        from: homeCode,
+        showAll: "true",
+        ...filterParams(activeFilters),
+      });
+      if (homeCity) params.set("fromName", homeCity);
+      if (landingTripType) params.set("type", landingTripType);
+      nav(`/booking?${params.toString()}`);
     } finally {
       setIsRouting(false);
     }
-  }, [q, nav, homeCode, activeFilters, landingTripType]);
+  }, [q, nav, homeCode, homeCity, activeFilters, landingTripType]);
 
   const goSignup = useCallback(() => nav("/register"), [nav]);
 
@@ -1869,9 +1972,6 @@ export default function LandingPage() {
           <section className="sk-disc-map" aria-label="Plan your trip">
             <div className="sk-disc-map__head">
               <span className="sk-disc-map__label">Explorer&rsquo;s map</span>
-              <span className="sk-disc-map__from">
-                <EnvironmentOutlined /> From {homeCode}
-              </span>
             </div>
             <svg
               className="sk-disc-compass"
@@ -1897,11 +1997,8 @@ export default function LandingPage() {
                   className={`sk-landing-tripPill${
                     landingTripType === t.key ? " active" : ""
                   }`}
-                  onClick={() =>
-                    setLandingTripType((prev) =>
-                      prev === t.key ? null : t.key
-                    )
-                  }
+                  aria-pressed={landingTripType === t.key}
+                  onClick={() => pickTripType(t.key)}
                 >
                   {t.label}
                 </button>
@@ -1915,9 +2012,14 @@ export default function LandingPage() {
                 value={q}
                 onChange={handleQueryChange}
                 onPressEnter={goPlan}
-                placeholder={HERO_COPY.placeholder}
+                placeholder={
+                  TRIP_TYPE_PROMPTS[landingTripType]?.placeholder ||
+                  HERO_COPY.placeholder
+                }
                 className="sk-searchInput"
                 disabled={isRouting}
+                allowClear
+                aria-label="Where would you like to go?"
               />
               <Button
                 size="large"
@@ -1929,6 +2031,24 @@ export default function LandingPage() {
                 {HERO_COPY.ctaLabel}
               </Button>
             </div>
+
+            {!normalizePrompt(q) && (
+              <div className="sk-ideas" aria-label="Trip ideas">
+                <span className="sk-ideas__label">Try:</span>
+                {(
+                  TRIP_TYPE_PROMPTS[landingTripType]?.ideas || DEFAULT_IDEAS
+                ).map((idea) => (
+                  <button
+                    key={idea}
+                    type="button"
+                    className="sk-ideas__chip"
+                    onClick={() => applyIdea(idea)}
+                  >
+                    {idea}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="sk-hero__airportRow">
               <span className="sk-home-airport__label">
@@ -1982,9 +2102,12 @@ export default function LandingPage() {
                   <line x1="8" y1="12" x2="16" y2="12" />
                   <line x1="11" y1="18" x2="13" y2="18" />
                 </svg>
-                {Object.values(activeFilters).filter(Boolean).length > 0
-                  ? "Refine filters"
-                  : "Pick your trip type, budget & duration"}
+                {Object.values(activeFilters).some(Boolean)
+                  ? ["budget", "duration", "type"]
+                      .map((g) => filterOption(g, activeFilters[g])?.label)
+                      .filter(Boolean)
+                      .join(" · ")
+                  : "Add budget, trip length & vibe (optional)"}
                 {Object.values(activeFilters).filter(Boolean).length > 0 && (
                   <span className="sk-filter-badge">
                     {Object.values(activeFilters).filter(Boolean).length}
@@ -1995,7 +2118,9 @@ export default function LandingPage() {
                 <div className="sk-filter-groups">
                   {Object.entries(FILTER_OPTIONS).map(([group, opts]) => (
                     <div key={group} className="sk-filter-group">
-                      <div className="sk-filter-group__label">{group}</div>
+                      <div className="sk-filter-group__label">
+                        {FILTER_GROUP_LABELS[group] || group}
+                      </div>
                       <div className="sk-filter-group__pills">
                         {opts.map((opt) => (
                           <button
@@ -2004,6 +2129,7 @@ export default function LandingPage() {
                             className={`sk-filter-pill ${
                               activeFilters[group] === opt.value ? "active" : ""
                             }`}
+                            aria-pressed={activeFilters[group] === opt.value}
                             onClick={() => toggleFilter(group, opt.value)}
                           >
                             {opt.label}

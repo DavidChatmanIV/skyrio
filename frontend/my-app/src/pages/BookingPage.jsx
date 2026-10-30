@@ -4710,11 +4710,18 @@ export default function BookingPage() {
       };
     }
     if (promptParam) {
+      // From the Discover page: exact budget / trip length when picked there.
+      const budgetParam = Number(searchParams.get("budget"));
+      const nightsParam = Number(searchParams.get("nights"));
       return {
         prompt: promptParam,
         destination: extractDestFromPrompt(promptParam),
-        budget: extractBudgetFromPrompt(promptParam),
-        tripDays: null,
+        budget:
+          Number.isFinite(budgetParam) && budgetParam > 0
+            ? budgetParam
+            : extractBudgetFromPrompt(promptParam),
+        tripDays:
+          Number.isFinite(nightsParam) && nightsParam > 0 ? nightsParam : null,
         tab: null,
         iata: null,
         source: "prompt",
