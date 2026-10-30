@@ -3,15 +3,23 @@
 // There is deliberately NO "book" or "pay" tool. Paying only happens from the
 // user's tap on the confirm card -> POST /api/atlas/proposals/:id/confirm.
 //
-// Wire-up (already done in the updated routes/atlas chat file):
-//   tools = [...ATLAS_SUPPORT_TOOLS, ...ATLAS_BOOKING_TOOLS]
-//   isBookingTool(name) ? runBookingTool(name, args, { userId }) : runAtlasTool(...)
+// Wire-up (already done in routes/atlas/atlas.routes.js):
+//   signed in: tools = [...ATLAS_SUPPORT_TOOLS, ...ATLAS_BOOKING_TOOLS]
+//   guest:     tools = ATLAS_GUEST_BOOKING_TOOLS
+//   isBookingTool(name) ? runBookingTool(name, args, { userId, guestKey }) : runAtlasTool(...)
+//
+// Two ways to pay:
+//   - propose_booking: signed in + saved card -> "Confirm & Pay" card in chat
+//   - open_checkout:   anyone (guests too) -> "Review & pay" card that opens the
+//                      normal checkout page, where they enter travelers + pay
 // runBookingTool returns { result, action } just like your services/atlasTools.js,
 // so the chat panel gets a "booking" or "profile_setup" card the same way it gets "cancel".
 //
 // The provider imports below point at the functions your existing checkout
 // already uses. Rename them to match your files.
 import AtlasBookingProposal from "../../models/AtlasBookingProposal.js";
+import AtlasCheckoutHandoff from "../../models/AtlasCheckoutHandoff.js";
+import { limiter } from "../../middleware/draftRateLimit.js";
 import User from "../../models/user.js";
 import { firstNameOf } from "./userName.js";
 import SyncTrip from "../../models/SyncGroup.js";
@@ -169,23 +177,48 @@ export const ATLAS_BOOKING_TOOLS = [
       required: ["optionId", "travelerIds"],
     },
   },
+  {
+    name: "open_checkout",
+    description:
+      "Show a 'Review & pay' card that opens Skyrio's checkout page on the option the user picked. They enter traveler details and pay there. Use this for guests, for signed-in users with no saved card, or when the user would rather pay on the checkout page. Only call it after the user clearly picks an option. It does NOT book or charge anything.",
+    parameters: {
+      type: "object",
+      properties: {
+        optionId: { type: "string", description: "optionId from search_flights or search_hotels" },
+      },
+      required: ["optionId"],
+    },
+  },
 ];
+
+// Guests (not signed in) can search and get a checkout link — nothing that
+// reads or saves an account.
+const GUEST_TOOL_NAMES = new Set(["search_flights", "search_hotels", "open_checkout"]);
+export const ATLAS_GUEST_BOOKING_TOOLS = ATLAS_BOOKING_TOOLS.filter((t) => GUEST_TOOL_NAMES.has(t.name));
+
+// Where the checkout pages live on the frontend. Change if your routes differ.
+const FRONTEND_URL = (process.env.FRONTEND_URL || "https://myskyrio.com").replace(/\/$/, "");
+const CHECKOUT_PATH = { flight: "/checkout/flight", hotel: "/checkout/hotel" };
+
+// Each search is a paid LiteAPI call. Guests get fewer per hour.
+const searchLimit = limiter({ windowMs: 60 * 60 * 1000, guestMax: 15, userMax: 60 });
 
 // ───────────────────────── Option cache ─────────────────────────
 // The model only ever sees short optionIds. Real offerIds/prices stay server-side,
 // so Atlas can't invent a price or swap in an offer the user never saw.
-const optionCache = new Map(); // optionId -> { userId, kind, offerId, display, expiresAt }
+// Options belong to whoever searched: a signed-in user id, or "g:<guest key>".
+const optionCache = new Map(); // optionId -> { owner, kind, raw, display, search, expiresAt }
 const OPTION_TTL_MS = 13 * 60 * 1000;
 
-function cacheOption(userId, kind, raw, display) {
-  const optionId = `${kind[0]}_${Math.random().toString(36).slice(2, 10)}`;
-  optionCache.set(optionId, { userId: String(userId), kind, raw, display, expiresAt: Date.now() + OPTION_TTL_MS });
+function cacheOption(owner, kind, raw, display, search = {}) {
+  const optionId = `${kind[0]}_${crypto.randomBytes(6).toString("base64url")}`;
+  optionCache.set(optionId, { owner: String(owner), kind, raw, display, search, expiresAt: Date.now() + OPTION_TTL_MS });
   return optionId;
 }
 
-function getOption(userId, optionId) {
+function getOption(owner, optionId) {
   const opt = optionCache.get(optionId);
-  if (!opt || opt.userId !== String(userId)) return null;
+  if (!opt || opt.owner !== String(owner)) return null;
   if (Date.now() > opt.expiresAt) {
     optionCache.delete(optionId);
     return null;
@@ -195,7 +228,11 @@ function getOption(userId, optionId) {
 
 // ───────────────────────── Tool handlers ─────────────────────────
 
-async function runBookingToolRaw(name, input, { userId }) {
+async function runBookingToolRaw(name, input, { userId, owner, ip }) {
+  if ((name === "search_flights" || name === "search_hotels") &&
+      !searchLimit.tryConsume({ userId, guestKeyHash: userId ? null : owner, ip })) {
+    return { error: "Too many searches in a short time. Ask the user to try again in a few minutes." };
+  }
   switch (name) {
     case "get_traveler_profile":
       return getTravelerProfile(userId);
@@ -216,9 +253,11 @@ async function runBookingToolRaw(name, input, { userId }) {
     case "forget_preference":
       return forgetStated(userId, input.match);
     case "search_flights":
-      return runFlightSearch(userId, input);
+      return runFlightSearch(owner, userId, input);
     case "search_hotels":
-      return runHotelSearch(userId, input);
+      return runHotelSearch(owner, userId, input);
+    case "open_checkout":
+      return openCheckout(owner, userId, input);
     case "get_sync_trip":
       return getSyncTripForAtlas(userId, input.syncTripId);
     case "propose_booking":
@@ -291,7 +330,7 @@ async function saveTravelPreferences(userId, input) {
 // Remembers what was shown in each search so a pick can teach Atlas something
 const searchGroups = new Map(); // searchId -> [display, ...]
 
-async function runFlightSearch(userId, input) {
+async function runFlightSearch(owner, userId, input) {
   const offers = await searchFlights(input);
   const candidates = offers
     .filter((o) => !input.maxPrice || o.price.total <= input.maxPrice)
@@ -310,22 +349,31 @@ async function runFlightSearch(userId, input) {
       includedBags: o.baggageSummary || "Not listed by airline",
     }));
 
-  // Put options this traveler tends to pick first
-  const ranked = (await rankForUser(userId, "flight", candidates)).slice(0, 5);
+  // Put options this traveler tends to pick first (signed-in only; guests keep provider order)
+  const ranked = (userId ? await rankForUser(userId, "flight", candidates) : candidates).slice(0, 5);
+  const search = {
+    origin: input.origin,
+    destination: input.destination,
+    departDate: input.departDate,
+    returnDate: input.returnDate || null,
+    adults: input.adults,
+    children: input.children || 0,
+    cabin: input.cabin || "economy",
+  };
   const searchId = crypto.randomUUID();
   searchGroups.set(searchId, ranked.map(({ _raw, ...d }) => d));
   setTimeout(() => searchGroups.delete(searchId), OPTION_TTL_MS).unref?.();
 
   return {
     options: ranked.map(({ _raw, ...display }) => ({
-      optionId: cacheOption(userId, "flight", _raw, { ...display, searchId }),
+      optionId: cacheOption(owner, "flight", _raw, { ...display, searchId }, search),
       ...display,
     })),
     note: "Prices are live and expire in about 13 minutes. Options with whyForYou match this traveler's usual picks.",
   };
 }
 
-async function runHotelSearch(userId, input) {
+async function runHotelSearch(owner, userId, input) {
   const rates = await searchHotelRates(input);
   const candidates = rates
     .filter((r) => !input.maxNightly || r.nightly <= input.maxNightly)
@@ -343,14 +391,22 @@ async function runHotelSearch(userId, input) {
       cancellation: r.cancellationText,
     }));
 
-  const ranked = (await rankForUser(userId, "hotel", candidates)).slice(0, 5);
+  const ranked = (userId ? await rankForUser(userId, "hotel", candidates) : candidates).slice(0, 5);
+  const search = {
+    destination: input.destination,
+    checkin: input.checkin,
+    checkout: input.checkout,
+    adults: input.adults,
+    children: input.children || 0,
+    rooms: input.rooms || 1,
+  };
   const searchId = crypto.randomUUID();
   searchGroups.set(searchId, ranked.map(({ _raw, ...d }) => d));
   setTimeout(() => searchGroups.delete(searchId), OPTION_TTL_MS).unref?.();
 
   return {
     options: ranked.map(({ _raw, ...display }) => ({
-      optionId: cacheOption(userId, "hotel", _raw, { ...display, searchId }),
+      optionId: cacheOption(owner, "hotel", _raw, { ...display, searchId }, search),
       ...display,
     })),
   };
@@ -391,7 +447,7 @@ async function getSyncTripForAtlas(userId, syncTripId) {
       depart: f.departAt,
       stillAvailable: Boolean(match),
       ...(match && {
-        optionId: cacheOption(userId, "flight", match, {
+        optionId: cacheOption(String(userId), "flight", match, {
           airline: match.airlineName,
           airlineCode: match.airlineCode,
           flightNumbers: match.segments.map((s) => s.flightNumber).join(", "),
@@ -401,6 +457,13 @@ async function getSyncTripForAtlas(userId, syncTripId) {
           includedBags: match.baggageSummary || "Not listed by airline",
           price: match.price.total,
           fromGroup: true, // joining friends' flight is a group choice, not a personal habit
+        }, {
+          origin: f.origin,
+          destination: f.destination,
+          departDate: String(f.departAt).slice(0, 10),
+          returnDate: f.returnDepartAt ? String(f.returnDepartAt).slice(0, 10) : null,
+          adults: 1,
+          children: 0,
         }),
         price: match.price.total,
         currency: match.price.currency,
@@ -447,7 +510,7 @@ async function proposeBooking(userId, { optionId, travelerIds, syncTripId, share
   if (!user?.defaultPaymentMethodId) {
     return {
       error: "No saved card yet.",
-      fix: "Call start_profile_setup with focus 'card' so the user can add one right here.",
+      fix: "Offer two choices: add a card now (start_profile_setup with focus 'card'), or pay on the checkout page (open_checkout with the same optionId).",
     };
   }
 
@@ -542,16 +605,94 @@ async function proposeBooking(userId, { optionId, travelerIds, syncTripId, share
   };
 }
 
+// Saves the picked option and returns a "Review & pay" link to the checkout page.
+// Nothing is booked or charged here — the checkout page does that as usual.
+async function openCheckout(owner, userId, { optionId }) {
+  const opt = getOption(owner, optionId);
+  if (!opt) return { error: "That option expired. Search again to get a fresh price." };
+
+  const remainingMs = opt.expiresAt - Date.now();
+  if (remainingMs < 2 * 60 * 1000) {
+    return { error: "That price is about to expire. Search again so they have time to pay." };
+  }
+
+  const handoff = await AtlasCheckoutHandoff.create({
+    handoffId: crypto.randomBytes(12).toString("base64url"),
+    kind: opt.kind,
+    user: userId || null,
+    offerId: opt.raw.offerId,
+    offer: opt.raw,
+    display: opt.display,
+    search: opt.search,
+    expiresAt: new Date(opt.expiresAt),
+  });
+
+  if (userId) {
+    const shown = searchGroups.get(opt.display.searchId);
+    if (shown) learnFromChoice(userId, opt.kind, shown, opt.display).catch(() => {});
+  }
+
+  const d = opt.display;
+  const title =
+    opt.kind === "flight"
+      ? `${opt.search.origin} → ${opt.search.destination} · ${d.airline}`
+      : d.hotel;
+  const lines =
+    opt.kind === "flight"
+      ? [
+          `${opt.search.departDate}${opt.search.returnDate ? ` – ${opt.search.returnDate}` : " · one way"}`,
+          `${d.stops === 0 ? "Nonstop" : `${d.stops} stop(s)`}${d.duration ? ` · ${d.duration}` : ""}`,
+          `Bags: ${d.includedBags}`,
+        ]
+      : [
+          `${opt.search.checkin} – ${opt.search.checkout}`,
+          [d.room, d.board].filter(Boolean).join(" · "),
+          d.refundable ? "Refundable" : "Non-refundable",
+        ].filter(Boolean);
+  const travelers = (opt.search.adults || 1) + (opt.search.children || 0);
+
+  return {
+    handoffId: handoff.handoffId,
+    card: {
+      type: "checkout_link",
+      kind: opt.kind,
+      url: `${FRONTEND_URL}${CHECKOUT_PATH[opt.kind]}?atlas=${handoff.handoffId}`,
+      title,
+      lines,
+      travelers,
+      // Search price. The checkout page re-checks it before payment.
+      price: opt.kind === "flight" ? d.price : d.total,
+      currency: d.currency || "USD",
+      expiresAt: handoff.expiresAt,
+    },
+    instruction:
+      "Tell the user a Review & pay card is below. It opens checkout in a new tab where they add traveler details and pay. The price is held for a short time and is re-checked at checkout. Do not paste the link and do not say it's booked.",
+  };
+}
+
 // ───────────────────────── Adapter for your existing Atlas tool loop ─────────────────────────
 
 const BOOKING_TOOL_NAMES = new Set(ATLAS_BOOKING_TOOLS.map((t) => t.name));
 export const isBookingTool = (name) => BOOKING_TOOL_NAMES.has(name);
 
 // Same shape as runAtlasTool in services/atlasTools.js: { result, action? }
-export async function runBookingTool(name, input, { userId }) {
-  if (!userId) return { result: { error: "Sign in to book with Atlas." } };
+export async function runBookingTool(name, input, { userId, guestKey, ip } = {}) {
+  if (!userId) {
+    if (!GUEST_TOOL_NAMES.has(name)) {
+      return { result: { error: "That needs an account. Offer to search and send them to checkout instead." } };
+    }
+    if (!guestKey) {
+      return { result: { error: "Couldn't identify this browser. Ask the user to refresh the page and try again." } };
+    }
+  }
+  const owner = userId ? String(userId) : `g:${guestKey}`;
   try {
-    const result = await runBookingToolRaw(name, input || {}, { userId });
+    const result = await runBookingToolRaw(name, input || {}, { userId, owner, ip });
+
+    if (name === "open_checkout" && result?.card) {
+      const { card, ...forModel } = result;
+      return { result: forModel, action: card };
+    }
 
     if (name === "propose_booking" && result?.proposalId) {
       return { result, action: { type: "booking", proposalId: result.proposalId } };

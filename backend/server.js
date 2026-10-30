@@ -104,6 +104,9 @@ const corsOptions = {
     "Authorization",
     "x-admin-email",
     "X-Checkout-Token",
+    // X-Skyrio-Guest: random per-browser key so a logged-out visitor's
+    // Atlas search results only work for them (middleware/guestKey.js).
+    "X-Skyrio-Guest",
   ],
   optionsSuccessStatus: 204,
 };

@@ -17,10 +17,18 @@ import {
 import Booking from "../../models/booking.js";
 import {
   ATLAS_BOOKING_TOOLS,
+  ATLAS_GUEST_BOOKING_TOOLS,
   isBookingTool,
   runBookingTool,
 } from "../../services/atlas/atlasBookingTools.js";
-import { ATLAS_BOOKING_PROMPT } from "../../services/atlas/atlasBookingPrompt.js";
+import {
+  ATLAS_BOOKING_PROMPT,
+  ATLAS_GUEST_BOOKING_PROMPT,
+} from "../../services/atlas/atlasBookingPrompt.js";
+import AtlasCheckoutHandoff from "../../models/AtlasCheckoutHandoff.js";
+// Identifies a logged-out browser (X-Skyrio-Guest header) so a guest's
+// search results only work for that same guest.
+import { guestKey } from "../../middleware/guestKey.js";
 import { buildLearnedContext } from "../../services/atlas/atlasLearning.js";
 import authRequired from "../../middleware/authRequired.js";
 // Atlas thumbs up/down + founder insights (models/AtlasFeedback.js).
@@ -690,7 +698,7 @@ router.get("/picks", authRequired, async (req, res) => {
 // mode-detection path — instead of the raw, mode-blind default prompt.
 // ─────────────────────────────────────────────────────────────
 
-router.post("/chat", chatLimit, async (req, res) => {
+router.post("/chat", chatLimit, guestKey, async (req, res) => {
   try {
     const { messages, context, source } = req.body ?? {};
 
@@ -748,6 +756,9 @@ router.post("/chat", chatLimit, async (req, res) => {
         if (/^[a-f0-9]{24}$/i.test(syncTripId)) {
           finalSystemPrompt += `\n\nThe traveler is looking at their Sync Together trip (syncTripId: ${syncTripId}). Use it with get_sync_trip and propose_booking when they want to book their share.`;
         }
+      } else {
+        // Guests: Atlas can search and send them to checkout (no account needed).
+        finalSystemPrompt += `\n\n${ATLAS_GUEST_BOOKING_PROMPT}`;
       }
     } else {
       // Other callers (SyncGroupPage) send `context` as key/value facts.
@@ -775,11 +786,13 @@ router.post("/chat", chatLimit, async (req, res) => {
     // Signed-in travelers in the chat panel get the support tools (look up
     // their bookings, bring up a cancel card) plus the booking tools (search,
     // propose a booking, set up their profile, remember preferences).
-    // Guests just chat.
+    // Guests get search + open_checkout ("Review & pay" link to checkout).
     const tools =
-      source === "panel" && userId
+      source !== "panel"
+        ? null
+        : userId
         ? [...ATLAS_SUPPORT_TOOLS, ...ATLAS_BOOKING_TOOLS]
-        : null;
+        : ATLAS_GUEST_BOOKING_TOOLS;
     const actions = [];
     const toolsUsed = new Set();
     let convo = normalizedMessages;
@@ -803,8 +816,14 @@ router.post("/chat", chatLimit, async (req, res) => {
       for (const call of result.toolCalls.slice(0, 4)) {
         toolsUsed.add(call.name);
         const ran = isBookingTool(call.name)
-          ? await runBookingTool(call.name, call.arguments, { userId })
-          : await runAtlasTool(call.name, call.arguments, { userId });
+          ? await runBookingTool(call.name, call.arguments, {
+              userId,
+              guestKey: req.guestKeyHash,
+              ip: req.ip,
+            })
+          : userId
+          ? await runAtlasTool(call.name, call.arguments, { userId })
+          : { result: { error: "That needs an account." } };
         if (ran.action && actions.length < 3) actions.push(ran.action);
         toolResults.push({ id: call.id, name: call.name, result: ran.result });
       }
@@ -818,6 +837,8 @@ router.post("/chat", chatLimit, async (req, res) => {
       result?.text ||
       (actions.some((a) => a.type === "booking")
         ? "Here's your booking. Review the details and tap Confirm & Pay."
+        : actions.some((a) => a.type === "checkout_link")
+        ? "Tap Review & pay to open checkout. You'll add traveler details and pay there."
         : actions.some((a) => a.type === "profile_setup")
         ? "I opened a secure form below. Your details go straight to Skyrio."
         : actions.length
@@ -843,6 +864,56 @@ router.post("/chat", chatLimit, async (req, res) => {
       ok: false,
       error: "Atlas couldn't answer just now. Please try again in a moment.",
     });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/atlas/handoffs/:id
+// The checkout page calls this when opened from an Atlas "Review & pay"
+// card (?atlas=<id>) to load the flight/hotel the traveler picked.
+// Holds no personal details, so no login is needed. The checkout page
+// still re-verifies the price with LiteAPI before anyone pays.
+// ─────────────────────────────────────────────────────────────
+const handoffLimit = rateLimit({
+  name: "handoff",
+  max: 60,
+  windowMs: 5 * 60 * 1000,
+});
+
+router.get("/handoffs/:id", handoffLimit, async (req, res) => {
+  try {
+    const id = String(req.params.id || "");
+    if (!/^[A-Za-z0-9_-]{10,40}$/.test(id)) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+    const h = await AtlasCheckoutHandoff.findOne({ handoffId: id }).lean();
+    if (!h) return res.status(404).json({ ok: false, error: "not_found" });
+    if (new Date(h.expiresAt) <= new Date()) {
+      return res.status(410).json({
+        ok: false,
+        error: "expired",
+        message: "This price expired. Ask Atlas to search again.",
+        kind: h.kind,
+        search: h.search,
+      });
+    }
+    if (!h.openedAt) {
+      AtlasCheckoutHandoff.updateOne({ _id: h._id }, { $set: { openedAt: new Date() } }).catch(() => {});
+    }
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      ok: true,
+      kind: h.kind,
+      offerId: h.offerId,
+      offer: h.offer,
+      display: h.display,
+      search: h.search,
+      expiresAt: h.expiresAt,
+      secondsLeft: Math.max(0, Math.floor((new Date(h.expiresAt) - Date.now()) / 1000)),
+    });
+  } catch (err) {
+    console.error("[Atlas handoff] error:", err.message);
+    res.status(500).json({ ok: false, error: "Couldn't load this checkout." });
   }
 });
 

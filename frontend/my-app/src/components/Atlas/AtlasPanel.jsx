@@ -9,6 +9,8 @@ import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import Compass from "@/components/Atlas/Compass";
 import AtlasBookingCard from "@/components/Atlas/AtlasBookingCard";
 import AtlasProfileCard from "@/components/Atlas/AtlasProfileCard";
+import AtlasCheckoutCard from "@/components/Atlas/AtlasCheckoutCard";
+import { getGuestKey } from "@/lib/guestKey";
 import AtlasFeedbackBar from "@/components/Atlas/AtlasFeedbackBar";
 import {
   X,
@@ -70,7 +72,8 @@ const isSignedIn = () => {
 const KNOWN_ACTION = (a) =>
   (a?.type === "cancel" && a.bookingId) ||
   (a?.type === "booking" && a.proposalId) ||
-  a?.type === "profile_setup";
+  a?.type === "profile_setup" ||
+  (a?.type === "checkout_link" && typeof a.url === "string" && /^https?:\/\//.test(a.url));
 
 const saveChat = (list) => {
   try {
@@ -670,6 +673,8 @@ function Bubble({ msg, onActionResolved, conversationId, onProfileDone }) {
               proposalId={action.proposalId}
             />
           );
+        if (action?.type === "checkout_link")
+          return <AtlasCheckoutCard key={`checkout-${i}`} action={action} />;
         if (action?.type === "profile_setup")
           return action.done ? (
             <div key={`profile-${i}`} className="ap-card__done" role="status">
@@ -878,6 +883,8 @@ export default function AtlasPanel() {
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            // Lets a logged-out visitor's search results work across messages.
+            "X-Skyrio-Guest": getGuestKey(),
           },
           // Trip details only — the server writes Atlas's instructions.
           body: JSON.stringify({
