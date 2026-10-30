@@ -23,6 +23,14 @@ import {
 import { ATLAS_BOOKING_PROMPT } from "../../services/atlas/atlasBookingPrompt.js";
 import { buildLearnedContext } from "../../services/atlas/atlasLearning.js";
 import authRequired from "../../middleware/authRequired.js";
+// Atlas thumbs up/down + founder insights (models/AtlasFeedback.js).
+import {
+  submitFeedback,
+  getInsights,
+  markReviewed,
+} from "../../controllers/atlasFeedbackController.js";
+// Same admin check as the feedback inbox and admin dashboard.
+import { verifyAdmin } from "../admin.routes.js";
 
 const router = Router();
 
@@ -967,5 +975,45 @@ Schema:
     });
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// Atlas feedback (thumbs up/down under each reply)
+//   POST  /api/atlas/feedback               signed-in travelers
+//   GET   /api/atlas/feedback/insights      admin only
+//   PATCH /api/atlas/feedback/:id/reviewed  admin only
+// The work is done in controllers/atlasFeedbackController.js.
+// The insights route is listed before "/:id" so "insights" is never
+// read as an id.
+// ─────────────────────────────────────────────────────────────
+const feedbackLimit = rateLimit({
+  name: "feedback",
+  max: 40,
+  windowMs: 5 * 60 * 1000,
+});
+
+// Express 4 doesn't catch errors thrown in async handlers — without this,
+// a failed save would leave the request hanging instead of answering.
+const safe = (fn, label) => async (req, res, next) => {
+  try {
+    await fn(req, res, next);
+  } catch (err) {
+    console.error(`[Atlas feedback] ${label} error:`, err.message);
+    if (!res.headersSent)
+      res.status(500).json({ ok: false, error: "Couldn't send. Try again." });
+  }
+};
+
+router.get("/feedback/insights", verifyAdmin, safe(getInsights, "insights"));
+router.patch(
+  "/feedback/:id/reviewed",
+  verifyAdmin,
+  safe(markReviewed, "reviewed")
+);
+router.post(
+  "/feedback",
+  feedbackLimit,
+  authRequired,
+  safe(submitFeedback, "submit")
+);
 
 export default router;

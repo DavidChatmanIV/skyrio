@@ -8,28 +8,10 @@ import { Plane, BedDouble, Compass, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
 
-// NOTE: Trim each list to the one route that works once you've confirmed it in the console.
-const BOOKINGS_ENDPOINTS = [
-  "/api/bookings/mine",
-  "/api/bookings/my",
-  "/api/bookings/me",
-  "/api/bookings/user",
-  "/api/bookings",
-  "/api/trips/mine",
-  "/api/trips",
-  "/api/saved-trips",
-];
-
-const SYNC_ENDPOINTS = [
-  "/api/sync-together/mine",
-  "/api/sync-together/trips",
-  "/api/sync-together",
-  "/api/sync/trips",
-  "/api/sync/mine",
-  "/api/sync",
-  "/api/groups/mine",
-  "/api/group-trips",
-];
+// The real routes (see routes/bookings.routes.js and
+// routes/api/syncTogether.routes.js).
+const BOOKINGS_ENDPOINTS = ["/api/bookings?mine=1&limit=100"];
+const SYNC_ENDPOINTS = ["/api/sync-together/my-trips"];
 
 const HIDDEN_STATUSES = [
   "cancelled",
@@ -66,7 +48,7 @@ const stripDates = (t) =>
     .replace(/\s*·\s*\d{4}-\d{2}-\d{2}\s*(→|->|–|-)\s*\d{4}-\d{2}-\d{2}/g, "")
     .trim();
 
-// Tries each path in order; returns the first array found, or null.
+// Loads the list from the route; returns the array, or null.
 async function fetchFirstList(paths, { token, signal, label, keys }) {
   const failures = [];
   for (const path of paths) {
@@ -149,13 +131,16 @@ function normalizeBooking(b) {
     subtitle: isStay
       ? pick(destination !== hotelName ? destination : null, b.providerName)
       : pick(b.airline, flight.airline, b.providerName),
+    // Which Sync Together trip this booking belongs to, so a member's
+    // share shows once (as the group stamp), not twice.
     groupRef: String(
       pick(
+        b.syncTrip?.id,
+        b.syncGroup,
+        b.flight?.groupId,
+        b.sharedRoom?.groupId,
         b.syncTripId,
-        b.syncId,
         b.groupId,
-        b.groupTripId,
-        b.syncTrip?._id,
         ""
       )
     ),
@@ -166,9 +151,13 @@ function normalizeBooking(b) {
 }
 
 function normalizeSync(t) {
-  const members = pick(t.members, t.participants, t.travelers, []);
+  // members[] doesn't include the organizer, so add 1. People who
+  // declined aren't counted.
+  const members = (
+    pick(t.members, t.participants, t.travelers, []) || []
+  ).filter((m) => m?.status !== "declined");
   const memberCount = Array.isArray(members)
-    ? members.length
+    ? members.length + 1
     : Number(t.memberCount || 0);
   const destination = pick(
     t.destination,
@@ -177,10 +166,18 @@ function normalizeSync(t) {
     t.location
   );
   const start = toDate(
-    pick(t.startDate, t.departureDate, t.dates?.start, t.checkIn)
+    pick(
+      t.dateRangeStart,
+      t.startDate,
+      t.departureDate,
+      t.dates?.start,
+      t.checkIn
+    )
   );
   const end =
-    toDate(pick(t.endDate, t.returnDate, t.dates?.end, t.checkOut)) || start;
+    toDate(
+      pick(t.dateRangeEnd, t.endDate, t.returnDate, t.dates?.end, t.checkOut)
+    ) || start;
   const id = String(t._id || t.id);
   return {
     id: `s-${id}`,

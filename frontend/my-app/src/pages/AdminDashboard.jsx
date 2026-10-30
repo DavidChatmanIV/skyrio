@@ -439,6 +439,81 @@ const plural = (n, one, many = `${one}s`) => (n === 1 ? one : many);
 const fmtRange = (start, end) =>
   `${dayjs(start).format("MMM D")} – ${dayjs(end).format("MMM D, YYYY")}`;
 
+/* ─── Booking labels ─────────────────────────────────────────────────────── */
+
+/** Pulls an airport code out of a string or a { code / iataCode / airport } object. */
+function airportCode(v) {
+  if (!v) return null;
+  if (typeof v === "string") return v;
+  return v.code || v.iataCode || v.iata || v.airport || v.airportCode || null;
+}
+
+/** First and last segment of a flight, whatever shape it was saved in. */
+function flightSegments(f = {}) {
+  if (Array.isArray(f.segments) && f.segments.length) return f.segments;
+  if (Array.isArray(f.legs)) {
+    const segs = f.legs.flatMap((l) => l.segments || [l]);
+    if (segs.length) return segs;
+  }
+  if (Array.isArray(f.slices)) {
+    const segs = f.slices.flatMap((s) => s.segments || [s]);
+    if (segs.length) return segs;
+  }
+  return [];
+}
+
+/** "EWR → LAX", "Hotel name", or a plain fallback. Never "? → ?". */
+function bookingTitle(b) {
+  if (!b) return "Booking";
+
+  if (b.hotelStay || b.type === "hotel") {
+    return (
+      b.hotelStay?.hotelName ||
+      b.hotelStay?.hotel?.name ||
+      b.hotelStay?.rooms?.[0]?.name ||
+      "Hotel stay"
+    );
+  }
+
+  const f = b.flight || {};
+  const segs = flightSegments(f);
+  const first = segs[0] || {};
+  const last = segs[segs.length - 1] || {};
+
+  const from =
+    airportCode(f.origin) ||
+    airportCode(f.from) ||
+    airportCode(first.origin) ||
+    airportCode(first.from) ||
+    airportCode(first.departure);
+  const to =
+    airportCode(f.destination) ||
+    airportCode(f.to) ||
+    airportCode(last.destination) ||
+    airportCode(last.to) ||
+    airportCode(last.arrival);
+
+  if (from && to) return `${from} → ${to}`;
+  if (b.flight) return "Flight (route not saved)";
+  return b.type
+    ? `${b.type[0].toUpperCase()}${b.type.slice(1)} booking`
+    : "Booking";
+}
+
+/** Who booked it: account email, traveler email, contact email, or Guest. */
+function bookingWho(b) {
+  return (
+    b?.user?.email ||
+    b?.travelers?.[0]?.email ||
+    b?.contact?.email ||
+    b?.guestEmail ||
+    b?.email ||
+    "Guest"
+  );
+}
+
+const isHotelBooking = (b) => !!(b?.hotelStay || b?.type === "hotel");
+
 /* ═══════════════════════════════════════════════════════════════════════════
    UI PRIMITIVES
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -920,14 +995,13 @@ function RecentBookings({ bookings, loading }) {
         {bookings.map((b) => (
           <div key={b._id} className="sk-row">
             <div className="sk-row__left">
-              <div className="sk-row__icon">✈️</div>
+              <div className="sk-row__icon">
+                {isHotelBooking(b) ? "🏨" : "✈️"}
+              </div>
               <div style={{ minWidth: 0 }}>
-                <div className="sk-name">
-                  {b.flight?.origin || "?"} → {b.flight?.destination || "?"}
-                </div>
+                <div className="sk-name">{bookingTitle(b)}</div>
                 <div className="sk-sub">
-                  {b.travelers?.[0]?.email || "Unknown"} ·{" "}
-                  {timeAgo(b.createdAt)}
+                  {bookingWho(b)} · {timeAgo(b.createdAt)}
                 </div>
               </div>
             </div>
@@ -2295,13 +2369,7 @@ function TestimonialsQueue({ refreshKey, onChange }) {
             const b = t.booking;
             const tripLabel = !b
               ? "General review (no trip)"
-              : b.flight
-              ? `Trip: ${b.flight.origin || "?"} → ${
-                  b.flight.destination || "?"
-                }`
-              : b.hotelStay?.rooms?.[0]?.name
-              ? `Stay: ${b.hotelStay.rooms[0].name}`
-              : `Trip: ${b.type || "booking"}`;
+              : `${isHotelBooking(b) ? "Stay" : "Trip"}: ${bookingTitle(b)}`;
             return (
               <div key={t._id} className="sk-row sk-row--top">
                 <div style={{ minWidth: 0, flex: 1 }}>
