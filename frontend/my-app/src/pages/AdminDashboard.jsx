@@ -466,11 +466,11 @@ function flightSegments(f = {}) {
 function bookingTitle(b) {
   if (!b) return "Booking";
 
-  if (b.hotelStay || b.type === "hotel") {
+  if (isHotelBooking(b)) {
     return (
-      b.hotelStay?.hotelName ||
-      b.hotelStay?.hotel?.name ||
       b.hotelStay?.rooms?.[0]?.name ||
+      b.hotelStay?.hotelName ||
+      b.tripDetails ||
       "Hotel stay"
     );
   }
@@ -494,25 +494,24 @@ function bookingTitle(b) {
     airportCode(last.arrival);
 
   if (from && to) return `${from} → ${to}`;
-  if (b.flight) return "Flight (route not saved)";
-  return b.type
-    ? `${b.type[0].toUpperCase()}${b.type.slice(1)} booking`
-    : "Booking";
+  if (b.tripDetails) return b.tripDetails;
+  return b.type ? `${b.type} booking` : "Booking";
 }
 
-/** Who booked it: account email, traveler email, contact email, or Guest. */
+/**
+ * Who booked it. An account shows its email; a real guest booking
+ * (user is null) shows the contact email with "(guest)".
+ */
 function bookingWho(b) {
-  return (
-    b?.user?.email ||
-    b?.travelers?.[0]?.email ||
-    b?.contact?.email ||
-    b?.guestEmail ||
-    b?.email ||
-    "Guest"
-  );
+  if (!b) return "Unknown";
+  if (b.user) return b.user.email || b.user.name || b.email || "Account";
+  if (b.email) return `${b.email} (guest)`;
+  return "Guest";
 }
 
-const isHotelBooking = (b) => !!(b?.hotelStay || b?.type === "hotel");
+function isHotelBooking(b) {
+  return !!(b?.hotelStay || String(b?.type || "").toLowerCase() === "hotel");
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UI PRIMITIVES
