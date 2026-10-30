@@ -134,8 +134,9 @@ const XP_REASONS = {
   already_awarded: "You already earned XP for this post.",
 };
 
-// Is a post's destination in or around your city? Matches the city name,
-// or its state/region ("Newark, NJ" counts as near "Orange, NJ").
+// Backup for the Nearby tab, used only if the server's map search can't
+// run (e.g. it couldn't find your city). Matches the city name, or its
+// state/region ("Newark, NJ" counts as near "Orange, NJ").
 function isNear(destination, city) {
   const d = ` ${(destination || "").toLowerCase()} `;
   if (!d.trim() || !city?.name) return false;
@@ -148,6 +149,39 @@ function isNear(destination, city) {
     return true;
   const code = (city.regionCode || "").toLowerCase();
   return code.length === 2 && new RegExp(`[ ,]${code}[ ,.]`).test(d);
+}
+
+// How far the Nearby tab looks around your city.
+const NEARBY_MILES = 25;
+
+// null/""/undefined → NaN, so a missing coordinate never becomes 0.
+const num = (v) =>
+  v === null || v === undefined || v === "" ? NaN : Number(v);
+
+// The server request for the Nearby tab: exact coordinates if the city
+// picker saved them, plus the place name so the server can look it up
+// on the map when it has no coordinates.
+function nearbyUrl(city) {
+  if (!city?.name) return null;
+  const params = new URLSearchParams({
+    scope: "nearby",
+    miles: String(NEARBY_MILES),
+  });
+  const lat = num(city.lat ?? city.latitude);
+  const lng = num(city.lng ?? city.lon ?? city.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    params.set("lat", String(lat));
+    params.set("lng", String(lng));
+  }
+  const place = [
+    city.name,
+    city.regionCode || city.region,
+    city.countryCode || city.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  params.set("place", place);
+  return `/api/skyhub/feed?${params.toString()}`;
 }
 
 // Topics you can put on a postcard — the TOPIC filter chips minus "All",
@@ -789,6 +823,44 @@ export default function SkyHubPage() {
     if (activeTab === "following" && authUser) fetchFollowingFeed();
   }, [activeTab, authUser, fetchFollowingFeed]);
 
+  // ── Nearby tab: the server finds posts within NEARBY_MILES of your city ──
+  // If that search can't run (city not found on the map), we fall back to
+  // matching the city/state name in each post's destination.
+  const [nearbyPosts, setNearbyPosts] = useState([]);
+  const [loadingNearby, setLoadingNearby] = useState(false);
+  const [nearbyFailed, setNearbyFailed] = useState(false);
+  const nearbyPath = useMemo(() => nearbyUrl(localCity), [localCity]);
+  const fetchNearbyFeed = useCallback(async () => {
+    if (!nearbyPath) return;
+    try {
+      setLoadingNearby(true);
+      const res = await skyFetch(nearbyPath);
+      const data = await readJson(res);
+      if (!res.ok || data?.needsLocation)
+        throw new Error(data?.message || "Couldn't find that city on the map.");
+      setNearbyPosts(
+        Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : []
+      );
+      setNearbyFailed(false);
+    } catch (err) {
+      console.warn("[skyhub] nearby map search unavailable:", err.message);
+      setNearbyFailed(true);
+    } finally {
+      setLoadingNearby(false);
+    }
+  }, [nearbyPath]);
+  useEffect(() => {
+    if (activeTab === "nearby" && nearbyLocal) fetchNearbyFeed();
+  }, [activeTab, nearbyLocal, fetchNearbyFeed]);
+
+  // Applies the same change to every list a post can be in (main feed,
+  // Following, Nearby), so a like or delete shows up on whichever tab you're on.
+  const updateEverywhere = useCallback((fn) => {
+    setPosts(fn);
+    setFollowingPosts(fn);
+    setNearbyPosts(fn);
+  }, []);
+
   const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
@@ -811,25 +883,39 @@ export default function SkyHubPage() {
   const activeTravelers = useMemo(() => deriveActiveTravelers(posts), [posts]);
   const trendingTags = useMemo(() => deriveTrendingTags(posts), [posts]);
 
+  // Counts what's actually in the feed. "places" is the number of different
+  // destinations people named (not countries — "Orange, NJ" and "Newark"
+  // are two places in one country).
   const liveStats = useMemo(() => {
     if (!posts.length) return null;
     const authors = new Set(
       posts.map((p) => p.authorId || p.username).filter(Boolean)
     );
-    const countries = new Set(posts.map((p) => p.destination).filter(Boolean));
+    const places = new Set(
+      posts.map((p) => p.destination?.trim().toLowerCase()).filter(Boolean)
+    );
     return {
       travelers: authors.size,
       posts: posts.length,
-      countries: countries.size,
+      places: places.size,
     };
   }, [posts]);
 
   const myUsername = currentUser?.username?.toLowerCase();
   const myId = currentUser?.id;
 
+  // Which list the current tab reads from.
+  const useNearbyList = activeTab === "nearby" && nearbyLocal && !nearbyFailed;
+  const sourcePosts =
+    activeTab === "following"
+      ? followingPosts
+      : useNearbyList
+      ? nearbyPosts
+      : posts;
+
   const visiblePosts = useMemo(
     () =>
-      (activeTab === "following" ? followingPosts : posts).filter((post) => {
+      sourcePosts.filter((post) => {
         const s = debouncedSearch.trim().toLowerCase();
         const inText = (post.text || "").toLowerCase().includes(s);
         const inPlace = (post.destination || "").toLowerCase().includes(s);
@@ -870,9 +956,11 @@ export default function SkyHubPage() {
               (post.username || "").replace("@", "").toLowerCase() === "you";
             break;
           case "nearby":
-            mt = nearbyLocal
-              ? isNear(post.destination, localCity)
-              : !!post.destination?.trim();
+            mt = !nearbyLocal
+              ? !!post.destination?.trim()
+              : useNearbyList
+              ? true // already narrowed by the server's map search
+              : isNear(post.destination, localCity);
             break;
           case "questions":
             mt = post.type === "Question";
@@ -888,13 +976,13 @@ export default function SkyHubPage() {
         return ms && mf && mt;
       }),
     [
-      posts,
-      followingPosts,
+      sourcePosts,
       debouncedSearch,
       searchScope,
       activeFilter,
       activeTab,
       nearbyLocal,
+      useNearbyList,
       myUsername,
       myId,
       localCity,
@@ -930,7 +1018,7 @@ export default function SkyHubPage() {
       ? {
           icon: "pin",
           title: `Nothing near ${localCity.name} yet`,
-          sub: `Know a good spot in ${localCity.name}? Post it and add the place so others nearby can find it.`,
+          sub: `Know a good spot in or around ${localCity.name}? Post it and add the place so others nearby can find it.`,
           cta: `Post about ${localCity.name}`,
         }
       : {
@@ -960,7 +1048,9 @@ export default function SkyHubPage() {
     following: "New posts from travelers you follow.",
     mine: "Only the posts you've shared.",
     nearby: nearbyLocal
-      ? `Posts about places in or around ${localCity.name}.`
+      ? useNearbyList
+        ? `Posts about places within ${NEARBY_MILES} miles of ${localCity.name}.`
+        : `Posts about places in or around ${localCity.name}.`
       : localCity
       ? "Posts from places all over the world."
       : "Posts from places all over the world. Pick your city to see what's close to you.",
@@ -1062,6 +1152,9 @@ export default function SkyHubPage() {
         authorId: currentUser?.id || data.post.authorId,
       };
       setPosts((prev) => [mapBackendPost(enriched), ...prev]);
+      // On the Nearby tab, ask the server again so the new post shows up
+      // there only if it's actually near your city.
+      if (activeTab === "nearby" && nearbyLocal) fetchNearbyFeed();
       setComposerText("");
       setDestination("");
       setActivePostType("Tip");
@@ -1099,7 +1192,7 @@ export default function SkyHubPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
-      setPosts((p) =>
+      updateEverywhere((p) =>
         p.map((x) =>
           x.id === id
             ? { ...x, liked: !!data.liked, likes: data.likesCount ?? x.likes }
@@ -1129,6 +1222,7 @@ export default function SkyHubPage() {
             : p
         );
       setPosts(mark);
+      setNearbyPosts(mark);
       setFollowingPosts((list) =>
         nowFollowing
           ? mark(list)
@@ -1152,7 +1246,7 @@ export default function SkyHubPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message);
-      setPosts((p) =>
+      updateEverywhere((p) =>
         p.map((x) =>
           x.id === id
             ? { ...x, saved: !!data.saved, saves: data.savesCount ?? x.saves }
@@ -1184,6 +1278,8 @@ export default function SkyHubPage() {
     }
     setSavingEdit(true);
     try {
+      const placeChanged =
+        editDestination.trim() !== (editingPost.destination || "").trim();
       const res = await skyFetch(`/api/skyhub/posts/${editingPost.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1199,9 +1295,12 @@ export default function SkyHubPage() {
         ...data.post,
         authorName: data.post.authorName || editingPost.author,
       });
-      setPosts((prev) =>
+      updateEverywhere((prev) =>
         prev.map((p) => (p.id === editingPost.id ? { ...p, ...updated } : p))
       );
+      // A new place can move the post in or out of Nearby.
+      if (placeChanged && activeTab === "nearby" && nearbyLocal)
+        fetchNearbyFeed();
       setEditingPost(null);
       message.success("Post updated.");
     } catch (err) {
@@ -1226,7 +1325,7 @@ export default function SkyHubPage() {
           const data = await readJson(res);
           if (!res.ok)
             throw new Error(data?.message || "Couldn't delete the post.");
-          setPosts((prev) => prev.filter((p) => p.id !== id));
+          updateEverywhere((prev) => prev.filter((p) => p.id !== id));
           applyXp(data.xp);
           message.success("Post deleted.");
         } catch (err) {
@@ -1296,7 +1395,7 @@ export default function SkyHubPage() {
           const data = await res.json().catch(() => ({}));
           if (!res.ok)
             throw new Error(data?.message || "Couldn't block this traveler.");
-          setPosts((prev) =>
+          updateEverywhere((prev) =>
             prev.filter((p) => String(p.authorId) !== String(post.authorId))
           );
           message.success(`${post.author} is blocked.`);
@@ -1308,7 +1407,7 @@ export default function SkyHubPage() {
   };
 
   const refreshPostComments = (id, count) =>
-    setPosts((p) =>
+    updateEverywhere((p) =>
       p.map((x) =>
         x.id === id
           ? { ...x, comments: typeof count === "number" ? count : x.comments }
@@ -1336,6 +1435,11 @@ export default function SkyHubPage() {
     : null;
 
   const topTrend = trendingDestinations[0] || null;
+
+  const feedLoading =
+    loadingFeed ||
+    (activeTab === "following" && loadingFollowing) ||
+    (useNearbyList && loadingNearby);
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
@@ -1523,10 +1627,10 @@ export default function SkyHubPage() {
               <strong>{liveStats.posts.toLocaleString()}</strong>
               <span>Posts</span>
             </div>
-            {liveStats.countries > 0 && (
+            {liveStats.places > 0 && (
               <div className="skyhub-statItem">
-                <strong>{liveStats.countries}+</strong>
-                <span>Countries</span>
+                <strong>{liveStats.places.toLocaleString()}</strong>
+                <span>Places</span>
               </div>
             )}
             <div className="skyhub-onlinePill">
@@ -1753,8 +1857,7 @@ export default function SkyHubPage() {
               </div>
 
               <div className="skyhub-feedList">
-                {loadingFeed ||
-                (activeTab === "following" && loadingFollowing) ? (
+                {feedLoading ? (
                   <div className="skyhub-emptyState">
                     <div
                       style={{

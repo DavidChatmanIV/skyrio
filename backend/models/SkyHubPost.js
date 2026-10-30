@@ -27,6 +27,21 @@ const skyHubPostSchema = new mongoose.Schema(
       default: "Story",
     },
     destination: { type: String, default: "", trim: true, maxlength: 120 },
+
+    // Map point for the destination, filled in from OpenWeather geocoding
+    // when the post is created or edited. Used by the Nearby tab.
+    // GeoJSON order is [longitude, latitude].
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+      },
+      coordinates: {
+        type: [Number],
+        default: undefined,
+      },
+    },
+
     // Text is optional when the post has at least one photo (photo-only posts).
     text: {
       type: String,
@@ -87,6 +102,9 @@ const skyHubPostSchema = new mongoose.Schema(
 );
 
 skyHubPostSchema.index({ hidden: 1, createdAt: -1 });
+// Nearby tab: geo search on the destination's map point.
+// Posts without a location are skipped by this index.
+skyHubPostSchema.index({ location: "2dsphere" });
 
 export default mongoose.models.SkyHubPost ||
   mongoose.model("SkyHubPost", skyHubPostSchema);
