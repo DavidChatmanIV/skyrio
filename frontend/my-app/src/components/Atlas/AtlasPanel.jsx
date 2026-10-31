@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   LifeBuoy,
 } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import "@/styles/AtlasPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -716,6 +717,13 @@ export default function AtlasPanel() {
   } = useAtlasContext();
 
   const [open, setOpen] = useState(false);
+  // Opening checkout from a Review & pay card: close the panel so the form
+  // is visible (it covers the page on mobile and the right side on desktop).
+  // The chat is kept; the Atlas button reopens it.
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (pathname.startsWith("/checkout/atlas/")) setOpen(false);
+  }, [pathname]);
   const [mode, setMode] = useState("chat"); // "chat" | "compass"
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState(loadChat);

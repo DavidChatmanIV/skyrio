@@ -25,6 +25,16 @@ const BedIcon = () => (
   </svg>
 );
 
+function checkoutHref(url) {
+  try {
+    const u = new URL(url, window.location.origin);
+    if (!u.pathname.startsWith("/checkout/atlas/")) return null;
+    return window.location.origin + u.pathname;
+  } catch {
+    return null;
+  }
+}
+
 const secondsUntil = (iso) => Math.max(0, Math.floor((new Date(iso) - Date.now()) / 1000));
 
 export default function AtlasCheckoutCard({ action }) {
@@ -36,7 +46,8 @@ export default function AtlasCheckoutCard({ action }) {
     return () => clearInterval(t);
   }, [action.expiresAt, secondsLeft === 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const expired = secondsLeft === 0;
+  const href = checkoutHref(action.url);
+  const expired = secondsLeft === 0 || !href;
   const isFlight = action.kind === "flight";
   const mm = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
   const who = `${action.travelers} ${
@@ -66,7 +77,7 @@ export default function AtlasCheckoutCard({ action }) {
         <div className="atlas-checkout-card__note">This price expired. Ask Atlas to search again.</div>
       ) : (
         <>
-          <a className="atlas-checkout-card__cta" href={action.url} target="_blank" rel="noopener noreferrer">
+          <a className="atlas-checkout-card__cta" href={href} target="_blank" rel="noopener noreferrer">
             Review &amp; pay
           </a>
           <div className="atlas-checkout-card__note">
