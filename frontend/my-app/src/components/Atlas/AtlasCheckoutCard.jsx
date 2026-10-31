@@ -4,6 +4,7 @@
 // flight/hotel ready; travelers and payment are entered there.
 // Rendered by AtlasPanel.jsx for an action of type "checkout_link".
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "@/styles/atlas-checkout.css";
 
 function money(amount, currency = "USD") {
@@ -38,6 +39,7 @@ function checkoutHref(url) {
 const secondsUntil = (iso) => Math.max(0, Math.floor((new Date(iso) - Date.now()) / 1000));
 
 export default function AtlasCheckoutCard({ action }) {
+  const navigate = useNavigate();
   const [secondsLeft, setSecondsLeft] = useState(() => secondsUntil(action.expiresAt));
 
   useEffect(() => {
@@ -77,11 +79,16 @@ export default function AtlasCheckoutCard({ action }) {
         <div className="atlas-checkout-card__note">This price expired. Ask Atlas to search again.</div>
       ) : (
         <>
-          <a className="atlas-checkout-card__cta" href={href} target="_blank" rel="noopener noreferrer">
+          <a className="atlas-checkout-card__cta" href={href}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(new URL(href).pathname);
+            }}
+          >
             Review &amp; pay
           </a>
           <div className="atlas-checkout-card__note">
-            Price held for <strong>{mm}</strong> and re-checked at checkout. Opens in a new tab — you'll add
+            Price held for <strong>{mm}</strong> and re-checked at checkout. You'll add
             traveler details there. Nothing is charged until you pay.
           </div>
         </>
