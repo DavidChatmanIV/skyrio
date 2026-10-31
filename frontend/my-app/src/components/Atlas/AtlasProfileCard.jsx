@@ -10,6 +10,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
 import { atlasApi } from "./atlasApi";
 import "@/styles/atlas-booking-card.css";
 
@@ -17,6 +19,29 @@ import "@/styles/atlas-booking-card.css";
 // instead of crashing; the card step shows a message.
 const STRIPE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = STRIPE_KEY ? loadStripe(STRIPE_KEY) : null;
+
+// Same phone field as checkout, so both show and save the number the same way
+// (E.164, e.g. "+19736874098").
+function toE164(v) {
+  const raw = String(v || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("+")) return "+" + raw.slice(1).replace(/\D/g, "");
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`; // US number without country code
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return digits ? `+${digits}` : "";
+}
+
+const PHONE_CSS = `
+  .apc-phone { display: flex; align-items: center; }
+  .apc-phone .PhoneInputCountry { margin-right: 10px; }
+  .apc-phone .PhoneInputCountrySelectArrow { color: #fff; opacity: .6; }
+  .apc-phone .PhoneInputCountrySelect option { background: #100c22; color: #fff; }
+  .apc-phone .PhoneInputInput {
+    flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+    color: inherit; font: inherit;
+  }
+`;
 
 const STEPS = ["self", "travelers", "card"];
 const STEP_LABEL = { self: "You", travelers: "Travelers", card: "Card" };
@@ -91,7 +116,16 @@ function PersonFields({ value, onChange, errors, withPhone, withRelation }) {
       </div>
       {withPhone && (
         <Field label="Phone" error={errors.phone}>
-          <input type="tel" value={value.phone || ""} onChange={set("phone")} autoComplete="tel" />
+          <style>{PHONE_CSS}</style>
+          <PhoneInput
+            className="apc-phone"
+            international
+            defaultCountry="US"
+            countryCallingCodeEditable={false}
+            value={toE164(value.phone) || undefined}
+            onChange={(v) => onChange({ ...value, phone: v || "" })}
+            autoComplete="tel"
+          />
         </Field>
       )}
       <Field
