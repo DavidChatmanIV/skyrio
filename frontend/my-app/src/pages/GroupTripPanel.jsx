@@ -11,6 +11,10 @@
 //                      Only the organizer can release or cancel one.
 //   • Who's ready    — everyone's progress, with a Remind button for the
 //                      organizer.
+//
+// Coming from the "Hold my share" email (?holdRoom=<id>) — or any time you
+// still owe a hold — the shared room moves to the TOP of the page and shows
+// the hotel, room, dates and who picked it before you enter a card.
 // ─────────────────────────────────────────────────────────────
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -87,6 +91,14 @@ function timeLeft(deadline) {
   return `${m}m left`;
 }
 
+// Hotel photo for a shared room, whichever field the backend sends.
+const roomPhoto = (room) =>
+  room?.room?.thumbnail || room?.room?.image || room?.room?.photo || null;
+
+const fmtDay = (d) => (d ? dayjs(d).format("ddd, MMM D, YYYY") : "");
+
+const ACTIVE_ROOM = ["collecting", "booking", "booked"];
+
 /* ── shared styles (match SyncGroupPage) ── */
 const card = {
   marginTop: 20,
@@ -106,6 +118,13 @@ const title = {
   marginBottom: 14,
 };
 const muted = { color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 1.5 };
+const eyebrow = {
+  ...muted,
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: ".08em",
+  textTransform: "uppercase",
+};
 const row = {
   display: "flex",
   alignItems: "center",
@@ -305,28 +324,36 @@ function HoldShareForm({ groupId, room, share, onDone }) {
   );
 }
 
-/* ═══ One shared room ═══ */
+/* ═══ One shared room ═══
+   openSignal: bump it to open your hold form and scroll here (from the
+   email link or the "Hold my share" button in Your part).
+   highlight: orange ring so it's clear which room the link was about. */
 function SharedRoomCard({
   groupId,
   room,
   isOrganizer,
   onChanged,
-  autoOpen = false,
+  openSignal = 0,
+  highlight = false,
 }) {
-  // Opened from "Set up shared room" at hotel checkout: show your hold form
-  // straight away and scroll to it.
-  const [showForm, setShowForm] = useState(autoOpen);
+  const [showForm, setShowForm] = useState(false);
   const cardRef = React.useRef(null);
   useEffect(() => {
-    if (autoOpen && cardRef.current) {
-      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [autoOpen]);
+    if (!openSignal) return;
+    setShowForm(true);
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [openSignal]);
   const [working, setWorking] = useState(false);
   const [quote, setQuote] = useState(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
 
+  const info = room.room || {};
+  const photo = roomPhoto(room);
   const mine = room.shares.find((s) => s.isYou);
+  const needsMyHold =
+    room.status === "collecting" &&
+    mine &&
+    ["unpaid", "failed"].includes(mine.status);
   const heldCount = room.shares.filter(
     (s) => s.status === "authorized" || s.status === "paid"
   ).length;
@@ -400,7 +427,8 @@ function SharedRoomCard({
       style={{
         ...row,
         display: "block",
-        ...(autoOpen
+        scrollMarginTop: 90,
+        ...(highlight
           ? {
               border: "1px solid rgba(249,115,22,0.5)",
               boxShadow: "0 0 0 3px rgba(249,115,22,0.12)",
@@ -408,72 +436,138 @@ function SharedRoomCard({
           : {}),
       }}
     >
-      {autoOpen &&
-        room.status === "collecting" &&
-        mine &&
-        ["unpaid", "failed"].includes(mine.status) && (
-          <div
-            role="status"
-            style={{
-              marginBottom: 10,
-              padding: "8px 12px",
-              borderRadius: 10,
-              background: "rgba(52,211,153,.08)",
-              border: "1px solid rgba(52,211,153,.25)",
-              color: "#fff",
-              fontSize: 13,
-            }}
-          >
-            Shared room set up. Last step: hold your part below. You're only
-            charged once everyone sharing is in.
-          </div>
-        )}
+      {highlight && needsMyHold && (
+        <div
+          role="status"
+          style={{
+            marginBottom: 12,
+            padding: "8px 12px",
+            borderRadius: 10,
+            background: "rgba(52,211,153,.08)",
+            border: "1px solid rgba(52,211,153,.25)",
+            color: "#fff",
+            fontSize: 13,
+          }}
+        >
+          Last step: hold your share below. You're only charged once everyone
+          sharing the room is in.
+        </div>
+      )}
+
+      {/* The room — same details as the email, so people know what they're
+          paying for before they enter a card. */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 10,
+          gap: 12,
           flexWrap: "wrap",
         }}
       >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
-            {room.room?.name || "Shared room"}
-          </div>
-          <div style={muted}>
-            {room.room?.roomName || "Room"}
-            {room.room?.boardName ? ` · ${room.room.boardName}` : ""}
-          </div>
-          <div style={muted}>
-            {room.room?.checkin
-              ? `${dayjs(room.room.checkin).format("MMM D")} → ${dayjs(
-                  room.room.checkout
-                ).format("MMM D")}`
-              : ""}
-            {` · ${room.people} people`}
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            alignItems: "flex-start",
+            minWidth: 0,
+            flex: "1 1 240px",
+          }}
+        >
+          {photo ? (
+            <img
+              src={photo}
+              alt=""
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 12,
+                objectFit: "cover",
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 12,
+                background: "rgba(255,138,42,0.08)",
+                border: "1px solid rgba(255,138,42,0.2)",
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+              }}
+            >
+              <BedDouble size={24} color="#ff8a2a" />
+            </div>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <div style={eyebrow}>
+              {room.pickedByName && !mine?.isPicker
+                ? `${room.pickedByName} picked this room`
+                : "The room"}
+            </div>
+            <div
+              style={{
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 15,
+                lineHeight: 1.3,
+                marginTop: 2,
+              }}
+            >
+              {info.name || "Shared room"}
+            </div>
+            <div style={muted}>
+              {info.roomName || "Room"}
+              {info.boardName ? ` · ${info.boardName}` : ""}
+            </div>
+            {info.checkin && (
+              <div style={muted}>
+                {fmtDay(info.checkin)} → {fmtDay(info.checkout)}
+              </div>
+            )}
+            <div style={muted}>Shared by {room.people} people</div>
           </div>
         </div>
-        <div style={{ textAlign: "right" }}>
+        <div style={{ textAlign: "right", marginLeft: "auto" }}>
           <Chip tone={tone}>{label}</Chip>
-          <div
-            style={{
-              color: "#ff8a2a",
-              fontWeight: 800,
-              fontSize: 16,
-              marginTop: 6,
-            }}
-          >
-            {money(
-              room.status === "booked" && room.bookedCents != null
-                ? room.bookedCents
-                : room.totalCents,
-              room.currency
-            )}
-          </div>
-          {perPerson != null && (
-            <div style={{ ...muted, fontSize: 12 }}>
-              about {money(perPerson, room.currency)} each
-            </div>
+          {mine && room.status !== "booked" ? (
+            <>
+              <div style={{ ...muted, fontSize: 12, marginTop: 6 }}>
+                Your share
+              </div>
+              <div style={{ color: "#ff8a2a", fontWeight: 800, fontSize: 18 }}>
+                {money(mine.amountOwed, room.currency)}
+              </div>
+              <div style={{ ...muted, fontSize: 12 }}>
+                of {money(room.totalCents, room.currency)} total
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                style={{
+                  color: "#ff8a2a",
+                  fontWeight: 800,
+                  fontSize: 16,
+                  marginTop: 6,
+                }}
+              >
+                {money(
+                  room.status === "booked" && room.bookedCents != null
+                    ? room.bookedCents
+                    : room.totalCents,
+                  room.currency
+                )}
+              </div>
+              {perPerson != null && (
+                <div style={{ ...muted, fontSize: 12 }}>
+                  about {money(perPerson, room.currency)} each
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -482,15 +576,20 @@ function SharedRoomCard({
         <div
           style={{
             ...muted,
-            marginTop: 10,
+            marginTop: 12,
             display: "flex",
             alignItems: "center",
             gap: 6,
+            flexWrap: "wrap",
           }}
         >
           <ClockCircleOutlined />
-          {heldCount} of {room.people} held · {timeLeft(room.deadline)} (until{" "}
-          {dayjs(room.deadline).format("ddd MMM D, h:mm A")})
+          <span>
+            {heldCount} of {room.people} held · {timeLeft(room.deadline)}
+          </span>
+          <span style={{ whiteSpace: "nowrap" }}>
+            (until {dayjs(room.deadline).format("ddd MMM D, h:mm A")})
+          </span>
         </div>
       )}
       {room.closedReason &&
@@ -544,31 +643,29 @@ function SharedRoomCard({
         })}
       </div>
 
-      {room.status === "collecting" &&
-        mine &&
-        ["unpaid", "failed"].includes(mine.status) && (
-          <>
-            {!showForm ? (
-              <Button
-                className="sk-sync-cta-btn"
-                block
-                style={{ marginTop: 12 }}
-                onClick={() => setShowForm(true)}
-              >
-                Hold my share · {money(mine.amountOwed, room.currency)}
-              </Button>
-            ) : (
-              <Elements stripe={stripePromise}>
-                <HoldShareForm
-                  groupId={groupId}
-                  room={room}
-                  share={mine}
-                  onDone={onChanged}
-                />
-              </Elements>
-            )}
-          </>
-        )}
+      {needsMyHold && (
+        <>
+          {!showForm ? (
+            <Button
+              className="sk-sync-cta-btn"
+              block
+              style={{ marginTop: 12 }}
+              onClick={() => setShowForm(true)}
+            >
+              Hold my share · {money(mine.amountOwed, room.currency)}
+            </Button>
+          ) : (
+            <Elements stripe={stripePromise}>
+              <HoldShareForm
+                groupId={groupId}
+                room={room}
+                share={mine}
+                onDone={onChanged}
+              />
+            </Elements>
+          )}
+        </>
+      )}
 
       {isOrganizer && room.status === "collecting" && (
         <Button type="text" danger style={{ marginTop: 8 }} onClick={release}>
@@ -1048,7 +1145,8 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
   const [editingLandBy, setEditingLandBy] = useState(false);
   // Bumped after linking/unlinking so the "Already booked?" list reloads.
   const [linkKey, setLinkKey] = useState(0);
-  // ?holdRoom=<id> — came from hotel checkout's "Set up shared room".
+  // ?holdRoom=<id> — from the "Hold my share" email or hotel checkout's
+  // "Set up shared room".
   const holdRoomId = useMemo(() => {
     try {
       return new URLSearchParams(window.location.search).get("holdRoom");
@@ -1056,6 +1154,14 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
       return null;
     }
   }, []);
+  // Which shared room to open + scroll to. n is bumped on every request so
+  // tapping "Hold my share" twice still re-opens and re-scrolls.
+  const [openReq, setOpenReq] = useState(() =>
+    holdRoomId ? { id: String(holdRoomId), n: 1 } : null
+  );
+  const openHold = (roomId) =>
+    setOpenReq((r) => ({ id: String(roomId), n: (r?.n || 0) + 1 }));
+
   // Live seat check for each friend's flight: "checking" | "available" |
   // "gone" | "unknown". Sold-out ones are hidden everywhere on the page.
   const [seats, setSeats] = useState({});
@@ -1167,11 +1273,45 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
 
   const me = data.travelers.find((t) => t.isYou);
   const activeRooms = data.sharedRooms.filter((r) =>
-    ["collecting", "booking", "booked"].includes(r.status)
+    ACTIVE_ROOM.includes(r.status)
   );
   const pastRooms = data.sharedRooms
-    .filter((r) => !["collecting", "booking", "booked"].includes(r.status))
+    .filter((r) => !ACTIVE_ROOM.includes(r.status))
     .slice(0, 3);
+
+  // The shared room you're part of (the one from the link first).
+  const myRooms = activeRooms.filter((r) => r.shares.some((s) => s.isYou));
+  const myRoom =
+    myRooms.find((r) => String(r.id) === String(openReq?.id || "")) ||
+    myRooms[0] ||
+    null;
+  const myShare = myRoom?.shares.find((s) => s.isYou) || null;
+  const myRoomNeedsHold =
+    myRoom?.status === "collecting" &&
+    ["unpaid", "failed"].includes(myShare?.status);
+  // Anything still waiting on your hold goes to the top of the page.
+  const roomsFirst = activeRooms.some(
+    (r) =>
+      r.status === "collecting" &&
+      r.shares.some((s) => s.isYou && ["unpaid", "failed"].includes(s.status))
+  );
+  // The link pointed at a room that isn't on this trip anymore.
+  const linkedRoomMissing =
+    holdRoomId &&
+    !data.sharedRooms.some((r) => String(r.id) === String(holdRoomId));
+
+  // "Where the group stays" falls back to the shared room's hotel, so it
+  // never says "No hotel picked yet" while you're being asked to pay for one.
+  const stayHotel =
+    data.groupHotel ||
+    (myRoom
+      ? {
+          name: myRoom.room?.name,
+          thumbnail: roomPhoto(myRoom),
+          address: myRoom.room?.address,
+        }
+      : null);
+
   const readyCount = data.travelers.filter((t) => t.done).length;
   const win = data.arrivalWindow || {};
   const hasWindow = Boolean(win.start || win.end);
@@ -1286,6 +1426,48 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
       ? friendFlights.find((o) => o.key === flightKeyOf(t.flight))
       : null;
 
+  /* ═══ SHARED ROOMS ═══ (rendered at the top when you owe a hold) */
+  const sharedRoomsSection =
+    activeRooms.length > 0 || pastRooms.length > 0 || linkedRoomMissing ? (
+      <div style={card}>
+        <div style={title}>
+          <BedDouble size={16} color="#ff8a2a" />{" "}
+          {roomsFirst ? "Your share to hold" : "Shared rooms"}
+        </div>
+        {linkedRoomMissing && (
+          <div style={{ ...muted, marginBottom: 10 }}>
+            We couldn't find the room from your link on this trip. It may have
+            been released — nobody was charged for it.
+          </div>
+        )}
+        {activeRooms.map((r) => (
+          <SharedRoomCard
+            key={r.id}
+            groupId={groupId}
+            room={r}
+            isOrganizer={data.isOrganizer}
+            onChanged={refresh}
+            openSignal={openReq?.id === String(r.id) ? openReq.n : 0}
+            highlight={openReq?.id === String(r.id)}
+          />
+        ))}
+        {pastRooms.length > 0 && (
+          <div style={{ marginTop: activeRooms.length ? 12 : 0 }}>
+            {pastRooms.map((r) => (
+              <SharedRoomCard
+                key={r.id}
+                groupId={groupId}
+                room={r}
+                isOrganizer={data.isOrganizer}
+                onChanged={refresh}
+                highlight={openReq?.id === String(r.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    ) : null;
+
   return (
     <>
       {data.allBookedAt && (
@@ -1313,6 +1495,8 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
         </div>
       )}
 
+      {roomsFirst && sharedRoomsSection}
+
       {/* ═══ YOUR PART ═══ */}
       {me && (
         <div style={card}>
@@ -1325,7 +1509,7 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
             anytime.
           </p>
 
-          {(data.groupHotel || data.isOrganizer) && (
+          {(stayHotel || data.isOrganizer) && (
             <div
               style={{
                 ...row,
@@ -1341,9 +1525,9 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
                   minWidth: 0,
                 }}
               >
-                {data.groupHotel?.thumbnail ? (
+                {stayHotel?.thumbnail ? (
                   <img
-                    src={data.groupHotel.thumbnail}
+                    src={stayHotel.thumbnail}
                     alt=""
                     style={{
                       width: 56,
@@ -1357,25 +1541,16 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
                   <BedDouble size={20} color="#b794f6" />
                 )}
                 <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      ...muted,
-                      fontSize: 11,
-                      letterSpacing: ".06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Where the group stays
-                  </div>
+                  <div style={eyebrow}>Where the group stays</div>
                   <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
-                    {data.groupHotel
-                      ? data.groupHotel.name
-                      : "No hotel picked yet"}
+                    {stayHotel?.name || "No hotel picked yet"}
                   </div>
                   <div style={muted}>
                     {data.groupHotel
                       ? data.groupHotel.address ||
                         "Everyone's room search opens at this hotel."
+                      : stayHotel
+                      ? stayHotel.address || "Your shared room is here."
                       : "Pick one hotel so everyone books rooms in the same place."}
                   </div>
                 </div>
@@ -1465,17 +1640,29 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
           <div style={row}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <BedDouble size={16} color="#ff8a2a" />
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
                   Your room
                 </div>
                 <div style={muted}>
                   {me.stay?.kind === "shared"
-                    ? `Shared room at ${me.stay.hotel || "the hotel"}`
+                    ? `Shared room at ${
+                        me.stay.hotel || myRoom?.room?.name || "the hotel"
+                      }`
                     : me.stay
                     ? me.stay.tripDetails
                     : "Not booked yet"}
                 </div>
+                {me.stay?.kind === "shared" && myRoom?.room?.roomName && (
+                  <div style={{ ...muted, fontSize: 12 }}>
+                    {myRoom.room.roomName}
+                    {myRoom.room.checkin
+                      ? ` · ${dayjs(myRoom.room.checkin).format(
+                          "MMM D"
+                        )} → ${dayjs(myRoom.room.checkout).format("MMM D")}`
+                      : ""}
+                  </div>
+                )}
                 {me.stay &&
                   me.stay.status !== "cancelled" &&
                   (me.stay.kind === "own" ||
@@ -1490,7 +1677,14 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
                 {me.stay?.kind === "own" && unlinkBtn(me.stay, "room")}
               </div>
             </div>
-            {me.stay?.kind === "shared" ? (
+            {me.stay?.kind === "shared" && myRoomNeedsHold ? (
+              <Button
+                className="sk-sync-cta-btn"
+                onClick={() => openHold(myRoom.id)}
+              >
+                Hold my share · {money(myShare.amountOwed, myRoom.currency)}
+              </Button>
+            ) : me.stay?.kind === "shared" ? (
               (() => {
                 const [t, l] =
                   SHARE_LABEL[me.stay.shareStatus] || SHARE_LABEL.unpaid;
@@ -1563,37 +1757,7 @@ export default function GroupTripPanel({ groupId, myAirport, onChanged }) {
         </div>
       )}
 
-      {/* ═══ SHARED ROOMS ═══ */}
-      {(activeRooms.length > 0 || pastRooms.length > 0) && (
-        <div style={card}>
-          <div style={title}>
-            <BedDouble size={16} color="#ff8a2a" /> Shared rooms
-          </div>
-          {activeRooms.map((r) => (
-            <SharedRoomCard
-              key={r.id}
-              groupId={groupId}
-              room={r}
-              isOrganizer={data.isOrganizer}
-              onChanged={refresh}
-              autoOpen={String(r.id) === String(holdRoomId || "")}
-            />
-          ))}
-          {pastRooms.length > 0 && (
-            <div style={{ marginTop: activeRooms.length ? 12 : 0 }}>
-              {pastRooms.map((r) => (
-                <SharedRoomCard
-                  key={r.id}
-                  groupId={groupId}
-                  room={r}
-                  isOrganizer={data.isOrganizer}
-                  onChanged={refresh}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {!roomsFirst && sharedRoomsSection}
 
       {/* ═══ THE GROUP — who's ready and when they land ═══ */}
       <div style={card}>

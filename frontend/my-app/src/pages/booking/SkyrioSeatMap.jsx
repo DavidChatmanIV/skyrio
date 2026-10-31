@@ -1,10 +1,20 @@
 import { useMemo, useRef, useState } from "react";
-import { Baby, PawPrint, Users, Sparkles } from "lucide-react";
+import { Baby, PawPrint, Users, Sparkles, Check } from "lucide-react";
 
 /**
  * SkyrioSeatMap
  * ------------------------------------------------------------------
  * Matches BookingCheckout.jsx's G token palette (purple/orange dark theme).
+ *
+ * How seats read (no seat type relies on colour alone):
+ *   • Your seat    — the ONLY solid bright-orange seat, white ring + ✓ + glow
+ *   • Your party   — softer filled orange with the traveler's initials
+ *   • Your group   — filled purple with the friend's initials
+ *   • Front row    — hollow, dashed orange outline + price
+ *   • Extra legroom— purple tint + outline + price
+ *   • Exit row     — yellow outline + "EXIT" marker beside the row
+ *   • Standard     — plain dark glass + price
+ *   • Taken        — faded with ×
  *
  * Props:
  * - passengers: Passenger[]  { index, firstName, lastName, type: 'ADT'|'CHD'|'INF', hasPet }
@@ -47,8 +57,17 @@ const G = {
   amber: "#F2C200",
 };
 
-// One look per seat type: a tinted fill plus a matching edge. Unavailable
-// seats get neither, so the cabin never reads as "all one colour".
+// "Yours" looks — the only filled orange on the map.
+const SELECTED_FILL = "linear-gradient(135deg, #ff8a3d 0%, #ff5f1f 100%)";
+const SELECTED_GLOW =
+  "0 0 0 3px rgba(249,115,22,0.30), 0 0 14px rgba(249,115,22,0.55)";
+const PARTY_FILL =
+  "linear-gradient(135deg, rgba(255,138,61,0.50) 0%, rgba(255,95,31,0.50) 100%)";
+const PARTY_EDGE = "rgba(255,138,61,0.9)";
+const GROUP_FILL = "rgba(167,139,250,0.55)";
+
+// One look per seat type. Front row stays orange (brand) but is HOLLOW and
+// DASHED, so it can never be mistaken for a seat you picked.
 const TIER = {
   standard: {
     label: "Standard",
@@ -67,8 +86,9 @@ const TIER = {
   },
   premium: {
     label: "Front row",
-    tint: "rgba(249,115,22,0.16)",
-    edge: "rgba(249,115,22,0.6)",
+    tint: "transparent",
+    edge: "rgba(249,115,22,0.8)",
+    dashed: true,
   },
 };
 const TIER_ORDER = ["standard", "extra-legroom", "exit-row", "premium"];
@@ -82,9 +102,9 @@ const CSS = `
   .skm-pick:hover { background: rgba(249,115,22,0.2) !important; border-color: rgba(249,115,22,0.75) !important; color: #fff !important; }
   .skm-pick:focus-visible, .skm-pref:focus-visible { outline: 2px solid ${G.orange}; outline-offset: 2px; }
   .skm-pref:not([aria-pressed="true"]):hover { color: #fff !important; }
-  .skm-seat { transition: transform .12s ease, background .15s ease, border-color .15s ease; }
+  .skm-seat { transition: transform .12s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease; }
   .skm-seat:not(:disabled):hover { transform: translateY(-1px); }
-  .skm-seat:focus-visible { outline: 2px solid ${G.orange}; outline-offset: 2px; }
+  .skm-seat:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   .skm-pop { animation: skm-pop .28s ease; }
   @keyframes skm-pop { 0% { transform: scale(.82); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
   .skm-chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -505,6 +525,9 @@ export default function SkyrioSeatMap({
 
     let bg = tier.tint;
     let border = tier.edge;
+    let borderStyle = tier.dashed ? "dashed" : "solid";
+    let borderWidth = 1.5;
+    let shadow = "none";
     let color = "rgba(255,255,255,0.78)";
     let content = (
       <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: -0.2 }}>
@@ -516,11 +539,14 @@ export default function SkyrioSeatMap({
     if (!isKnown || !isAvailable) {
       bg = "rgba(255,255,255,0.015)";
       border = "rgba(255,255,255,0.04)";
+      borderStyle = "solid";
       content = <span style={{ opacity: 0.25 }}>×</span>;
       disabled = true;
     } else if (isOwnParty) {
-      bg = "rgba(249,115,22,0.16)";
-      border = G.orange;
+      // Someone else in your party — filled orange, but softer than "your seat".
+      bg = PARTY_FILL;
+      border = PARTY_EDGE;
+      borderStyle = "solid";
       color = "#fff";
       content = isChild ? (
         <Baby size={15} />
@@ -531,8 +557,9 @@ export default function SkyrioSeatMap({
       );
       if (ownPassengerIndex !== activePassengerIndex) disabled = true;
     } else if (legFriends[seat]) {
-      bg = "rgba(167,139,250,0.2)";
+      bg = GROUP_FILL;
       border = G.violet;
+      borderStyle = "solid";
       color = "#fff";
       content = (
         <span style={{ fontSize: 11 }}>
@@ -545,6 +572,7 @@ export default function SkyrioSeatMap({
     } else if (known) {
       bg = "rgba(255,255,255,0.015)";
       border = "rgba(255,255,255,0.04)";
+      borderStyle = "solid";
       content = isChild ? (
         <Baby size={14} style={{ opacity: 0.6 }} />
       ) : hasPet ? (
@@ -558,6 +586,7 @@ export default function SkyrioSeatMap({
     if ((isAvoided || isExitBlocked) && !disabled) {
       bg = "rgba(255,255,255,0.015)";
       border = "rgba(255,255,255,0.06)";
+      borderStyle = "solid";
       disabled = true;
       content = <span style={{ opacity: 0.25 }}>—</span>;
     }
@@ -565,14 +594,21 @@ export default function SkyrioSeatMap({
     const canClear = isSelectedForActive && typeof onClearSeat === "function";
     const isHovered = hoveredSeat === seat && !disabled && !isSelectedForActive;
     if (isHovered) {
-      bg = "rgba(249,115,22,0.18)";
-      border = "rgba(249,115,22,0.75)";
+      // Neutral white lift — hover never looks like "picked".
+      bg = "rgba(255,255,255,0.14)";
+      border = "rgba(255,255,255,0.7)";
+      borderStyle = "solid";
       color = "#fff";
     }
     if (isSelectedForActive) {
-      border = G.orange;
-      bg = "#fff";
-      color = "#1b1024";
+      // The one seat that is unmistakably yours.
+      bg = SELECTED_FILL;
+      border = "#fff";
+      borderStyle = "solid";
+      borderWidth = 2;
+      shadow = SELECTED_GLOW;
+      color = "#fff";
+      content = <Check size={18} strokeWidth={3} aria-hidden="true" />;
     }
 
     function handleClick() {
@@ -598,8 +634,8 @@ export default function SkyrioSeatMap({
       : `${describeSeat(seat)}${
           isSelectedForActive
             ? canClear
-              ? ", selected. Press again to remove"
-              : ", selected"
+              ? ", your seat. Press again to remove"
+              : ", your seat"
             : ""
         }`;
 
@@ -625,7 +661,8 @@ export default function SkyrioSeatMap({
           height: SEAT,
           borderRadius: "10px 10px 7px 7px",
           background: bg,
-          border: `1.5px solid ${border}`,
+          border: `${borderWidth}px ${borderStyle} ${border}`,
+          boxShadow: shadow,
           color,
           fontFamily: "inherit",
           fontSize: 12,
@@ -637,6 +674,8 @@ export default function SkyrioSeatMap({
           marginRight: hasAisleAfter(col) ? 18 : 5,
           flexShrink: 0,
           padding: 0,
+          position: "relative",
+          zIndex: isSelectedForActive ? 1 : 0,
         }}
       >
         {content}
@@ -677,7 +716,7 @@ export default function SkyrioSeatMap({
     }));
   }, [segments]);
 
-  // The bar under the map previews the hovered/focused seat, otherwise the
+  // The bar above the map previews the hovered/focused seat, otherwise the
   // active traveler's current pick, otherwise a hint.
   const detailSeat = hoveredSeat ?? activeSeat ?? null;
   const detailText = detailSeat
@@ -1143,8 +1182,8 @@ export default function SkyrioSeatMap({
         </div>
       )}
 
-      {/* Legend: above the map so it's read before choosing; only what's on
-          this flight, with each type's starting price. */}
+      {/* Legend: above the map so it's read before choosing. "Yours" first,
+          then only the seat types on this flight, with starting prices. */}
       <div
         style={{
           display: "flex",
@@ -1152,14 +1191,38 @@ export default function SkyrioSeatMap({
           gap: "8px 14px",
           fontSize: 11.5,
           color: G.soft,
-          marginBottom: 10,
+          marginBottom: 6,
         }}
       >
+        <LegendItem
+          swatch={SELECTED_FILL}
+          border="#fff"
+          glow
+          mark={<Check size={11} strokeWidth={3.5} />}
+          label="Your seat"
+        />
+        {passengers.length > 1 && (
+          <LegendItem
+            swatch={PARTY_FILL}
+            border={PARTY_EDGE}
+            mark={<span style={{ fontSize: 7, fontWeight: 800 }}>AB</span>}
+            label="Your party"
+          />
+        )}
+        {isGroupTrip && (
+          <LegendItem
+            swatch={GROUP_FILL}
+            border={G.violet}
+            mark={<span style={{ fontSize: 7, fontWeight: 800 }}>FR</span>}
+            label="Your group"
+          />
+        )}
         {TIER_ORDER.filter((t) => tierPrices[t] != null).map((t) => (
           <LegendItem
             key={t}
             swatch={TIER[t].tint}
             border={TIER[t].edge}
+            dashed={TIER[t].dashed}
             label={`${TIER[t].label} · ${
               tierPrices[t] > 0
                 ? `from $${formatPrice(tierPrices[t])}`
@@ -1167,18 +1230,6 @@ export default function SkyrioSeatMap({
             }`}
           />
         ))}
-        <LegendItem
-          swatch="rgba(249,115,22,0.16)"
-          border={G.orange}
-          label="Your party"
-        />
-        {isGroupTrip && (
-          <LegendItem
-            swatch="rgba(167,139,250,0.2)"
-            border={G.violet}
-            label="Your group"
-          />
-        )}
         {showKidPetLegend && (
           <>
             <LegendItem icon={<Baby size={12} />} label="Child" />
@@ -1188,8 +1239,13 @@ export default function SkyrioSeatMap({
         <LegendItem
           swatch="rgba(255,255,255,0.015)"
           border="rgba(255,255,255,0.08)"
+          mark={<span style={{ opacity: 0.4, fontSize: 10 }}>×</span>}
           label="Taken"
         />
+      </div>
+      <div style={{ fontSize: 11.5, color: G.muted, marginBottom: 10 }}>
+        Your seat is the bright orange one with a ✓. Outlined seats are open to
+        pick.
       </div>
       {activeRestricted && exitRowsHere && (
         <div style={{ fontSize: 12, color: G.muted, marginBottom: 10 }}>
@@ -1238,7 +1294,14 @@ export default function SkyrioSeatMap({
             </div>
           </div>
           {!noSeatsOffered && activePassenger && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
               <div
                 role="group"
                 aria-label="Seat preference"
@@ -1335,7 +1398,7 @@ export default function SkyrioSeatMap({
               );
               return (
                 <div key={row}>
-                  {showDivider && (
+                  {(showDivider || (i === 0 && tier !== "standard")) && (
                     <div
                       role="separator"
                       style={{
@@ -1396,20 +1459,29 @@ export default function SkyrioSeatMap({
   );
 }
 
-function LegendItem({ swatch, border, icon, label }) {
+function LegendItem({ swatch, border, dashed, glow, mark, icon, label }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       {icon ?? (
         <span
           style={{
-            width: 13,
-            height: 13,
-            borderRadius: "4px 4px 3px 3px",
+            width: 16,
+            height: 16,
+            borderRadius: "5px 5px 4px 4px",
             background: swatch,
-            border: `1.5px solid ${border || "rgba(255,255,255,0.15)"}`,
-            display: "inline-block",
+            border: `1.5px ${dashed ? "dashed" : "solid"} ${
+              border || "rgba(255,255,255,0.15)"
+            }`,
+            boxShadow: glow ? "0 0 6px rgba(249,115,22,0.6)" : "none",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            flexShrink: 0,
           }}
-        />
+        >
+          {mark}
+        </span>
       )}
       {label}
     </div>

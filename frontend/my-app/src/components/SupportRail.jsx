@@ -20,6 +20,45 @@ const API = import.meta.env.VITE_API_URL || "";
 const XP = { FEEDBACK_QUICK: 10, FEEDBACK_DETAILED: 25, TESTIMONIAL: 50 };
 const MIN_CHARS = 20;
 
+/* ─── Launcher discoverability ──────────────────────────────── */
+// Once the user opens the rail, the pulse + tooltip stop for good and the
+// mobile launcher shrinks to icon-only.
+const RAIL_SEEN_KEY = "skyrio_rail_seen";
+const RAIL_TIP_KEY = "skyrio_rail_tip_dismissed";
+const RAIL_VISITS_KEY = "skyrio_rail_visits";
+const RAIL_SESSION_KEY = "skyrio_rail_session_counted";
+// Pulse + tooltip only on the first few visits, so users who never open
+// the rail aren't nagged forever.
+const ATTENTION_VISITS = 3;
+
+const readFlag = (k) => {
+  try {
+    return localStorage.getItem(k) === "1";
+  } catch {
+    return false;
+  }
+};
+const writeFlag = (k) => {
+  try {
+    localStorage.setItem(k, "1");
+  } catch {
+    /* storage blocked: the cue just shows again next visit */
+  }
+};
+// Counts one visit per browser session.
+function countVisit() {
+  try {
+    const prev =
+      parseInt(localStorage.getItem(RAIL_VISITS_KEY) || "0", 10) || 0;
+    if (sessionStorage.getItem(RAIL_SESSION_KEY)) return Math.max(prev, 1);
+    sessionStorage.setItem(RAIL_SESSION_KEY, "1");
+    localStorage.setItem(RAIL_VISITS_KEY, String(prev + 1));
+    return prev + 1;
+  } catch {
+    return 1;
+  }
+}
+
 /* ─── Shared field styles (support form) ────────────────────── */
 const field = { marginBottom: 14 };
 const labelStyle = {
@@ -401,6 +440,15 @@ export default function SupportRail() {
   // so it never covers the footer logo / support email.
   const [footerInView, setFooterInView] = useState(false);
 
+  // ── Launcher discoverability (pulse + first-visit tooltip) ──
+  const [railSeen, setRailSeen] = useState(() => readFlag(RAIL_SEEN_KEY));
+  const [tipDismissed, setTipDismissed] = useState(() =>
+    readFlag(RAIL_TIP_KEY)
+  );
+  const [visits] = useState(countVisit);
+  const [tipReady, setTipReady] = useState(false);
+  const attention = !railSeen && !tipDismissed && visits <= ATTENTION_VISITS;
+
   // ── Feedback state ──
   const [fbType, setFbType] = useState("general");
   const [fbMessage, setFbMessage] = useState("");
@@ -473,6 +521,13 @@ export default function SupportRail() {
     };
   }, []);
 
+  // Show the first-visit tooltip after the page settles.
+  useEffect(() => {
+    if (!attention) return;
+    const t = setTimeout(() => setTipReady(true), 2500);
+    return () => clearTimeout(t);
+  }, [attention]);
+
   // Escape closes the menu
   useEffect(() => {
     if (!menuOpen) return;
@@ -544,6 +599,23 @@ export default function SupportRail() {
       window.removeEventListener("skyrio:feedback", onFeedback);
     };
   }, []);
+
+  function markRailSeen() {
+    if (!railSeen) {
+      writeFlag(RAIL_SEEN_KEY);
+      setRailSeen(true);
+    }
+  }
+
+  function dismissTip() {
+    writeFlag(RAIL_TIP_KEY);
+    setTipDismissed(true);
+  }
+
+  function toggleMenu() {
+    markRailSeen();
+    setMenuOpen((v) => !v);
+  }
 
   function openPanel(panel) {
     setMenuOpen(false);
@@ -683,6 +755,14 @@ export default function SupportRail() {
   const fbChars = fbMessage.trim().length;
   const rvChars = review.text.trim().length;
 
+  const showTip =
+    attention &&
+    tipReady &&
+    !menuOpen &&
+    activePanel === "closed" &&
+    !prompt &&
+    !footerInView;
+
   return createPortal(
     <>
       <style>{`
@@ -691,6 +771,11 @@ export default function SupportRail() {
         @keyframes railPanelIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
         @keyframes railPop { from { opacity:0; transform:scale(0.85); } to { opacity:1; transform:scale(1); } }
         @keyframes railFan { from { opacity:0; transform:translateY(10px) scale(0.9); } to { opacity:1; transform:translateY(0) scale(1); } }
+        @keyframes railPulse {
+          0%   { box-shadow: 0 0 0 0 rgba(255,138,42,0.55); }
+          70%  { box-shadow: 0 0 0 14px rgba(255,138,42,0); }
+          100% { box-shadow: 0 0 0 0 rgba(255,138,42,0); }
+        }
 
         /* Same on desktop and mobile: one launcher that fans out the actions */
         .sr-rail-wrapper {
@@ -771,22 +856,49 @@ export default function SupportRail() {
           opacity: 0.8;
         }
 
+        /* Launcher: a labeled pill ("Help & Feedback"), circle X when open */
         .sr-launcher {
           position: relative;
+          display: inline-flex;
+          align-items: center;
+          align-self: flex-start;
+          height: 48px;
+          min-width: 48px;
+          padding: 0;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.18);
+          cursor: pointer;
+          color: #fff;
+          font-family: 'DM Sans', sans-serif;
+          background: linear-gradient(135deg, #ff8a2a, #7c5cfc);
+          box-shadow: 0 8px 22px rgba(124,92,252,0.42), 0 0 18px rgba(255,138,42,0.25);
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .sr-launcher__icon {
+          width: 46px;
+          height: 46px;
+          flex-shrink: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          border: none;
-          cursor: pointer;
-          color: #fff;
-          background: linear-gradient(135deg, #ff8a2a, #7c5cfc);
-          box-shadow: 0 8px 22px rgba(124,92,252,0.42);
-          transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
-        .sr-launcher:active { transform: scale(0.94); }
+        .sr-launcher__label {
+          white-space: nowrap;
+          font-size: 14px;
+          font-weight: 700;
+          margin-left: -4px;
+          padding-right: 18px;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+        }
+        .sr-launcher.is-pulsing::after {
+          content: "";
+          position: absolute;
+          inset: -1px;
+          border-radius: inherit;
+          pointer-events: none;
+          animation: railPulse 2.2s ease-out infinite;
+        }
+        .sr-launcher:active { transform: scale(0.96); }
         .sr-launcher:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
         .sr-rail-wrapper.is-tucked {
@@ -794,6 +906,42 @@ export default function SupportRail() {
           opacity: 0;
           pointer-events: none;
         }
+
+        /* First-visit tooltip pointing at the launcher */
+        .sr-tip {
+          position: fixed;
+          left: 20px;
+          bottom: 86px;
+          z-index: 2147483631;
+          width: 280px;
+          max-width: calc(100vw - 40px);
+          box-sizing: border-box;
+          background: rgba(12, 9, 28, 0.97);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,138,42,0.45);
+          border-radius: 14px;
+          box-shadow: 0 18px 48px rgba(0,0,0,0.5);
+          padding: 12px 14px;
+          font-family: 'DM Sans', sans-serif;
+          color: #fff;
+          animation: railPanelIn 0.3s cubic-bezier(0.22,1,0.36,1) both;
+        }
+        .sr-tip::after {
+          content: "";
+          position: absolute;
+          left: 18px;
+          bottom: -7px;
+          width: 12px;
+          height: 12px;
+          background: rgba(12, 9, 28, 0.97);
+          border-right: 1px solid rgba(255,138,42,0.45);
+          border-bottom: 1px solid rgba(255,138,42,0.45);
+          transform: rotate(45deg);
+        }
+        .sr-tip__title { font-weight: 800; font-size: 14px; margin-bottom: 4px; }
+        .sr-tip__body { font-size: 12.5px; color: rgba(255,255,255,0.65); line-height: 1.45; }
+        .sr-tip__body strong { color: #ffb347; font-weight: 700; }
 
         /* Post-trip review nudge */
         .sr-nudge {
@@ -845,8 +993,8 @@ export default function SupportRail() {
         /* Desktop: a little hover lift, nothing else changes */
         @media (hover: hover) {
           .sr-launcher:hover {
-            transform: scale(1.06);
-            box-shadow: 0 12px 30px rgba(124,92,252,0.55);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(124,92,252,0.55), 0 0 24px rgba(255,138,42,0.35);
           }
           .sr-action:hover { transform: translateX(3px); }
           .sr-action--tour:hover { color: #fff; }
@@ -854,15 +1002,20 @@ export default function SupportRail() {
 
         @media (max-width: 768px) {
           .sr-rail-wrapper { bottom: 16px; left: 12px; }
-          .sr-launcher { width: 46px; height: 46px; }
+          .sr-launcher { height: 46px; min-width: 46px; }
+          .sr-launcher__icon { width: 44px; height: 44px; }
+          /* After the first open, mobile shrinks to icon-only to save space */
+          .sr-launcher.is-seen .sr-launcher__label { display: none; }
           .sr-nudge { left: 12px; bottom: 74px; }
+          .sr-tip { left: 12px; bottom: 76px; }
         }
         @media (max-width: 480px) {
           .sr-panel { width: calc(100vw - 24px) !important; left: 12px !important; }
         }
         @media (prefers-reduced-motion: reduce) {
           .sr-action, .sr-launcher, .sr-rail-wrapper { transition: none; }
-          .sr-rail-wrapper.is-open .sr-action, .sr-nudge { animation: none; }
+          .sr-rail-wrapper.is-open .sr-action, .sr-nudge, .sr-tip { animation: none; }
+          .sr-launcher.is-pulsing::after { animation: none; display: none; }
         }
       `}</style>
 
@@ -872,6 +1025,41 @@ export default function SupportRail() {
           onClick={() => setMenuOpen(false)}
           style={{ position: "fixed", inset: 0, zIndex: 2147483629 }}
         />
+      )}
+
+      {/* ── First-visit tooltip (first few visits, until opened or dismissed) ── */}
+      {showTip && (
+        <div className="sr-tip" role="status">
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div className="sr-tip__title">Need help or have an idea?</div>
+              <div className="sr-tip__body">
+                Tap <strong>Help &amp; Feedback</strong> anytime to report a
+                bug, share an idea, leave a review or reach a real person.
+                {signedIn && " Feedback can earn you XP."}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissTip}
+              aria-label="Dismiss tip"
+              style={{
+                background: "none",
+                border: "none",
+                color: "rgba(255,255,255,0.45)",
+                cursor: "pointer",
+                padding: 2,
+                minWidth: 28,
+                minHeight: 28,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Post-trip review nudge (once per session, server decides when) ── */}
@@ -990,13 +1178,21 @@ export default function SupportRail() {
 
         <button
           type="button"
-          className="sr-launcher"
-          onClick={() => setMenuOpen((v) => !v)}
+          className={`sr-launcher${railSeen ? " is-seen" : ""}${
+            attention && !menuOpen ? " is-pulsing" : ""
+          }`}
+          onClick={toggleMenu}
           aria-expanded={menuOpen}
           aria-label={menuOpen ? "Close help menu" : "Help and feedback"}
-          title={menuOpen ? "Close" : "Help and feedback"}
         >
-          {menuOpen ? <X size={20} /> : <LifeBuoy size={20} />}
+          <span className="sr-launcher__icon" aria-hidden="true">
+            {menuOpen ? <X size={20} /> : <LifeBuoy size={20} />}
+          </span>
+          {!menuOpen && (
+            <span className="sr-launcher__label" aria-hidden="true">
+              Help &amp; Feedback
+            </span>
+          )}
         </button>
       </div>
 
