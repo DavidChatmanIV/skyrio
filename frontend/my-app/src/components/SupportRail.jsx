@@ -31,6 +31,55 @@ const RAIL_SESSION_KEY = "skyrio_rail_session_counted";
 // the rail aren't nagged forever.
 const ATTENTION_VISITS = 3;
 
+/* ─── Wait our turn ─────────────────────────────────────────────
+   On a first visit the cookie banner, the Skyrio tour, onboarding and
+   other modals can all open at once. The tip and the review nudge only
+   show once none of those are on screen, and the page has been quiet
+   for a moment. Anything can also hold them back on purpose:
+     window.dispatchEvent(new CustomEvent("skyrio:popup", { detail: { id: "x", open: true } }))
+   and send open: false when it closes. */
+const QUIET_MS = 1500;
+const MODAL_SELECTOR = [
+  ".ant-modal-wrap:not([style*='display: none'])",
+  ".ant-drawer-open",
+  "[aria-modal='true']",
+  "[data-skyrio-popup]",
+].join(",");
+// Name-based guesses (cookie banner, onboarding, tour). Only counted when
+// the element floats over the page, so a footer "Cookie policy" link or
+// a page section never blocks the tip.
+const FLOATING_SELECTOR = [
+  "[class*='cookie' i]",
+  "[id*='cookie' i]",
+  "[class*='onboarding' i]",
+  "[class*='dtour' i]",
+  "[class*='skyrio-tour' i]",
+].join(",");
+const OTHER_POPUP_SELECTOR = `${MODAL_SELECTOR},${FLOATING_SELECTOR}`;
+function otherPopupOnScreen() {
+  try {
+    const nodes = document.querySelectorAll(OTHER_POPUP_SELECTOR);
+    for (const el of nodes) {
+      if (el.closest("[data-sr-root]")) continue; // our own pieces
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue; // hidden or collapsed
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      if (Number(cs.opacity) === 0) continue;
+      if (
+        !el.matches(MODAL_SELECTOR) &&
+        cs.position !== "fixed" &&
+        cs.position !== "sticky"
+      )
+        continue;
+      return true;
+    }
+  } catch {
+    /* odd selector support: don't block the rail */
+  }
+  return false;
+}
+
 const readFlag = (k) => {
   try {
     return localStorage.getItem(k) === "1";
@@ -439,6 +488,14 @@ export default function SupportRail() {
   // Tuck the launcher away while the site footer is on screen,
   // so it never covers the footer logo / support email.
   const [footerInView, setFooterInView] = useState(false);
+  // Another popup (cookie banner, tour, a modal) is open — hold the tip
+  // and the review nudge until it's gone.
+  const [othersOpen, setOthersOpen] = useState(false);
+  const [quiet, setQuiet] = useState(false);
+  const claimedRef = useRef(new Set());
+  // Scrolled into the page: the launcher shrinks to a small circle so it
+  // doesn't sit on top of headings and results.
+  const [compact, setCompact] = useState(false);
 
   // ── Launcher discoverability (pulse + first-visit tooltip) ──
   const [railSeen, setRailSeen] = useState(() => readFlag(RAIL_SEEN_KEY));
@@ -487,16 +544,71 @@ export default function SupportRail() {
     message: "",
   });
 
-  // ── Hide rail entirely when a date picker is open ──
+  // ── Hide rail entirely when a date picker is open, and notice other
+  //    popups so the tip/nudge wait their turn ──
   useEffect(() => {
-    const observer = new MutationObserver(() => {
+    let frame = 0;
+    const check = () => {
+      frame = 0;
       const hasOpenPicker = !!document.querySelector(
         ".ant-picker-dropdown:not(.ant-picker-dropdown-hidden)"
       );
       setPickerActive(hasOpenPicker);
+      setOthersOpen(claimedRef.current.size > 0 || otherPopupOnScreen());
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(check);
+    };
+    const observer = new MutationObserver(schedule);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "aria-modal", "hidden"],
     });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    const onClaim = (e) => {
+      const { id, open } = e.detail || {};
+      if (!id) return;
+      if (open) claimedRef.current.add(id);
+      else claimedRef.current.delete(id);
+      schedule();
+    };
+    window.addEventListener("skyrio:popup", onClaim);
+    check();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("skyrio:popup", onClaim);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  // "Quiet" = nothing else has been open for a moment.
+  useEffect(() => {
+    if (othersOpen) {
+      setQuiet(false);
+      return;
+    }
+    const t = setTimeout(() => setQuiet(true), QUIET_MS);
+    return () => clearTimeout(t);
+  }, [othersOpen]);
+
+  // Full "Help & Feedback" pill near the top of a page; a small circle
+  // once you scroll into the content.
+  useEffect(() => {
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      setCompact(window.scrollY > 120);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(check);
+    };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, []);
 
   useEffect(() => {
@@ -521,12 +633,13 @@ export default function SupportRail() {
     };
   }, []);
 
-  // Show the first-visit tooltip after the page settles.
+  // Show the first-visit tooltip after the page settles — and only once
+  // the cookie banner / tour / any modal is out of the way.
   useEffect(() => {
-    if (!attention) return;
+    if (!attention || !quiet) return;
     const t = setTimeout(() => setTipReady(true), 2500);
     return () => clearTimeout(t);
-  }, [attention]);
+  }, [attention, quiet]);
 
   // Escape closes the menu
   useEffect(() => {
@@ -761,7 +874,9 @@ export default function SupportRail() {
     !menuOpen &&
     activePanel === "closed" &&
     !prompt &&
-    !footerInView;
+    !footerInView &&
+    quiet &&
+    !othersOpen;
 
   return createPortal(
     <>
@@ -901,6 +1016,18 @@ export default function SupportRail() {
         .sr-launcher:active { transform: scale(0.96); }
         .sr-launcher:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
+        /* Scrolled into a page: just the round icon, slightly see-through,
+           so it doesn't cover headings like "Flights from New York". */
+        .sr-rail-wrapper.is-compact .sr-launcher__label { display: none; }
+        .sr-rail-wrapper.is-compact .sr-launcher {
+          height: 44px;
+          min-width: 44px;
+          opacity: 0.82;
+        }
+        .sr-rail-wrapper.is-compact .sr-launcher__icon { width: 42px; height: 42px; }
+        .sr-rail-wrapper.is-compact .sr-launcher:hover,
+        .sr-rail-wrapper.is-compact .sr-launcher:focus-visible { opacity: 1; }
+
         .sr-rail-wrapper.is-tucked {
           transform: translateX(-150%);
           opacity: 0;
@@ -1022,6 +1149,7 @@ export default function SupportRail() {
       {/* ── Tap/click outside to close the menu ── */}
       {menuOpen && (
         <div
+          data-sr-root=""
           onClick={() => setMenuOpen(false)}
           style={{ position: "fixed", inset: 0, zIndex: 2147483629 }}
         />
@@ -1029,7 +1157,7 @@ export default function SupportRail() {
 
       {/* ── First-visit tooltip (first few visits, until opened or dismissed) ── */}
       {showTip && (
-        <div className="sr-tip" role="status">
+        <div className="sr-tip" role="status" data-sr-root="">
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
             <div style={{ flex: 1 }}>
               <div className="sr-tip__title">Need help or have an idea?</div>
@@ -1063,78 +1191,90 @@ export default function SupportRail() {
       )}
 
       {/* ── Post-trip review nudge (once per session, server decides when) ── */}
-      {prompt && activePanel === "closed" && !menuOpen && !footerInView && (
-        <div className="sr-nudge" role="dialog" aria-label="Review your trip">
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>
-                {prompt.destination
-                  ? `How was ${prompt.destination}?`
-                  : "How was your trip?"}
+      {prompt &&
+        activePanel === "closed" &&
+        !menuOpen &&
+        !footerInView &&
+        quiet &&
+        !othersOpen && (
+          <div
+            className="sr-nudge"
+            role="dialog"
+            aria-label="Review your trip"
+            data-sr-root=""
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>
+                  {prompt.destination
+                    ? `How was ${prompt.destination}?`
+                    : "How was your trip?"}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    color: "rgba(255,255,255,0.6)",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Tell other travelers how it went. Good or bad, you earn the
+                  same{" "}
+                  <span style={{ color: "#ffb347", fontWeight: 700 }}>
+                    +{prompt.xp || XP.TESTIMONIAL} XP
+                  </span>
+                  .
+                </div>
               </div>
-              <div
+              <button
+                type="button"
+                onClick={dismissPrompt}
+                aria-label="Dismiss"
                 style={{
-                  fontSize: 12.5,
-                  color: "rgba(255,255,255,0.6)",
-                  lineHeight: 1.4,
+                  background: "none",
+                  border: "none",
+                  color: "rgba(255,255,255,0.45)",
+                  cursor: "pointer",
+                  padding: 2,
                 }}
               >
-                Tell other travelers how it went. Good or bad, you earn the same{" "}
-                <span style={{ color: "#ffb347", fontWeight: 700 }}>
-                  +{prompt.xp || XP.TESTIMONIAL} XP
-                </span>
-                .
-              </div>
+                <X size={16} />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={dismissPrompt}
-              aria-label="Dismiss"
-              style={{
-                background: "none",
-                border: "none",
-                color: "rgba(255,255,255,0.45)",
-                cursor: "pointer",
-                padding: 2,
-              }}
-            >
-              <X size={16} />
-            </button>
+            <div className="sr-nudge__btns">
+              <button
+                type="button"
+                className="sr-nudge__btn"
+                onClick={dismissPrompt}
+                style={{
+                  background: "none",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  color: "rgba(255,255,255,0.6)",
+                }}
+              >
+                Not now
+              </button>
+              <button
+                type="button"
+                className="sr-nudge__btn"
+                onClick={() => openReview(prompt)}
+                style={{
+                  border: "none",
+                  background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
+                  color: "#1a0e06",
+                }}
+              >
+                Leave a review
+              </button>
+            </div>
           </div>
-          <div className="sr-nudge__btns">
-            <button
-              type="button"
-              className="sr-nudge__btn"
-              onClick={dismissPrompt}
-              style={{
-                background: "none",
-                border: "1px solid rgba(255,255,255,0.15)",
-                color: "rgba(255,255,255,0.6)",
-              }}
-            >
-              Not now
-            </button>
-            <button
-              type="button"
-              className="sr-nudge__btn"
-              onClick={() => openReview(prompt)}
-              style={{
-                border: "none",
-                background: "linear-gradient(135deg, #ff8a2a, #ffb347)",
-                color: "#1a0e06",
-              }}
-            >
-              Leave a review
-            </button>
-          </div>
-        </div>
-      )}
+        )}
 
       {/* ── Rail: one launcher that fans out the actions ── */}
       <div
+        data-sr-root=""
         className={`sr-rail-wrapper${menuOpen ? " is-open" : ""}${
           footerInView && !menuOpen ? " is-tucked" : ""
-        }`}
+        }${compact && !menuOpen && !showTip ? " is-compact" : ""}`}
       >
         {/* Replays the Skyrio tour (SkyrioDTour listens for this event) */}
         <button
@@ -1199,6 +1339,7 @@ export default function SupportRail() {
       {/* ── Backdrop (all panels share it) ── */}
       {activePanel !== "closed" && (
         <div
+          data-sr-root=""
           onClick={closePanel}
           style={{
             position: "fixed",
@@ -1214,6 +1355,7 @@ export default function SupportRail() {
       {activePanel === "feedback" && (
         <div
           className="sr-panel"
+          data-sr-root=""
           role="dialog"
           aria-label="Send feedback"
           onClick={(e) => e.stopPropagation()}
@@ -1323,6 +1465,7 @@ export default function SupportRail() {
       {activePanel === "review" && (
         <div
           className="sr-panel"
+          data-sr-root=""
           role="dialog"
           aria-label="Leave a review"
           onClick={(e) => e.stopPropagation()}
@@ -1484,6 +1627,7 @@ export default function SupportRail() {
       {activePanel === "help" && (
         <div
           role="dialog"
+          data-sr-root=""
           aria-label="Contact support"
           onClick={(e) => e.stopPropagation()}
           style={{

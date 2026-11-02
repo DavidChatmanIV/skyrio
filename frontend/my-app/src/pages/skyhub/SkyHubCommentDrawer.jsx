@@ -45,10 +45,53 @@ function initials(name = "") {
   return (first + last).toUpperCase();
 }
 
+// Photos saved on our own server come back as "/uploads/..."
+const photoUrl = (u) =>
+  typeof u === "string" && u.startsWith("/") ? apiUrl(u) : u;
+
+// Bottom edge of the site's top bar, so the drawer starts below it.
+// Measured instead of fighting z-index: the nav stacks above the drawer
+// on some pages and was hiding the "Comments" header and close button.
+function topBarBottom() {
+  try {
+    const candidates = document.querySelectorAll(
+      "header, nav, [class*='navbar' i], [class*='topbar' i]"
+    );
+    let bottom = 0;
+    for (const el of candidates) {
+      if (el.closest(".ant-drawer")) continue;
+      const cs = getComputedStyle(el);
+      if (cs.position !== "fixed" && cs.position !== "sticky") continue;
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      const r = el.getBoundingClientRect();
+      // Only bars pinned to the top and spanning most of the width
+      if (r.top > 4 || r.height < 20 || r.height > 160) continue;
+      if (r.width < window.innerWidth * 0.6) continue;
+      bottom = Math.max(bottom, Math.round(r.bottom));
+    }
+    return bottom;
+  } catch {
+    return 0;
+  }
+}
+
 function UserAvatar({ name, src, size = 36 }) {
-  const hasPhoto = typeof src === "string" && /^https?:\/\//.test(src);
+  const url = photoUrl(src);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [url]);
+  const hasPhoto =
+    !broken && typeof url === "string" && /^https?:\/\//.test(url);
   return hasPhoto ? (
-    <Avatar className="skyhubC-avatar" size={size} src={src} alt="" />
+    <Avatar
+      className="skyhubC-avatar"
+      size={size}
+      src={url}
+      alt=""
+      onError={() => {
+        setBroken(true);
+        return false;
+      }}
+    />
   ) : (
     <Avatar className="skyhubC-avatar skyhubC-avatar--initials" size={size}>
       {initials(name)}
@@ -127,6 +170,16 @@ export default function SkyHubCommentDrawer({
   const [reason, setReason] = useState("spam");
 
   const loggedIn = !!localStorage.getItem("token");
+
+  // Keep the drawer below the top bar (re-measured on open and resize).
+  const [navOffset, setNavOffset] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => setNavOffset(topBarBottom());
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open]);
 
   useEffect(() => {
     const onResize = () => setIsPhone(window.innerWidth < 600);
@@ -352,6 +405,7 @@ export default function SkyHubCommentDrawer({
       // Full screen on phones, side panel on desktop.
       width={isPhone ? "100%" : 440}
       zIndex={DRAWER_Z}
+      rootStyle={navOffset ? { top: navOffset } : undefined}
       onClose={onClose}
       open={open}
       className="skyhub-commentDrawer skyhub-drawer skyhubC"
@@ -386,7 +440,7 @@ export default function SkyHubCommentDrawer({
           {previewPhoto && (
             <img
               className="skyhubC-postPhoto"
-              src={previewPhoto}
+              src={photoUrl(previewPhoto)}
               alt=""
               onError={(e) => {
                 e.currentTarget.style.display = "none";

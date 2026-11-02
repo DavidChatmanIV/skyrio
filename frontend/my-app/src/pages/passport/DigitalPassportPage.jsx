@@ -1129,10 +1129,21 @@ export default function DigitalPassportPage() {
   const socketRef = useRef(null);
   const avatarInputRef = useRef(null);
 
+  // The big name on the passport is the person's real name; the @handle
+  // underneath is the username. Testers saw their username twice.
   const displayName = useMemo(() => {
     if (!user) return "Explorer";
+    const fromParts = [user.firstName, user.lastName]
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean)
+      .join(" ");
     return (
-      user.username || user.name || safeEmailPrefix(user.email) || "Explorer"
+      (typeof user.name === "string" && user.name.trim()) ||
+      (typeof user.fullName === "string" && user.fullName.trim()) ||
+      fromParts ||
+      user.username ||
+      safeEmailPrefix(user.email) ||
+      "Explorer"
     );
   }, [user]);
 
@@ -1652,9 +1663,14 @@ export default function DigitalPassportPage() {
                     totalEarned={totalEarned}
                     xp={xp}
                     nextBadgeName={nextBadgeName}
-                    badgePercent={badgePercent}
-                    xpIntoLevel={xpIntoLevel}
-                    xpNeeded={xpNeeded}
+                    /* The bar shows lifetime XP against the next rank
+                       ("100 / 300 XP"), the same numbers as the ring and
+                       the "XP earned" line. The server's per-level values
+                       restart at 0 on each rank, which read as "0 / 200"
+                       right next to "100 XP earned". */
+                    badgePercent={xpPercent}
+                    xpIntoLevel={Number(totalEarned || 0)}
+                    xpNeeded={xpGoal}
                     onSpendXp={() => navigate("/passport/rewards")}
                   />
 

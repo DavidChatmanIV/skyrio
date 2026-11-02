@@ -1509,6 +1509,36 @@ function PackageTray({
 
 // "Las Vegas (LAS)" — or just "LAS" when we only know the code, never
 // "LAS (LAS)".
+// Turns text someone typed without picking a suggestion ("miami", "MIA")
+// into an airport, using the same lookup as the suggestions. null if
+// nothing matches.
+async function findAirport(text) {
+  const q = String(text || "").trim();
+  if (q.length < 2) return null;
+  try {
+    const res = await fetch(`${API}/api/airports?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    const list = Array.isArray(data)
+      ? data
+      : data?.airports || data?.data || data?.results || [];
+    const norm = (a) => {
+      const code = a?.code || a?.iata || a?.iataCode || a?.iata_code;
+      return code
+        ? {
+            ...a,
+            code: String(code).toUpperCase(),
+            city: a.city || a.cityName || a.city_name || a.name || code,
+          }
+        : null;
+    };
+    const airports = list.map(norm).filter(Boolean);
+    const exact = airports.find((a) => a.code === q.toUpperCase());
+    return exact || airports[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 function airportLabel(ap) {
   if (!ap?.code) return "";
   const city = String(ap.city || "").trim();
@@ -1527,6 +1557,9 @@ function FlightsForm({
   onSearchError,
   retryRef,
   initial = null,
+  // Tells the page what's still missing, so the boarding pass never says
+  // "Ready — hit search" while a box is empty.
+  onReadyChange,
 }) {
   // From starts on the traveler's home airport, unless the link says where
   // to fly from. They can always change it.
@@ -1582,11 +1615,57 @@ function FlightsForm({
   const [adults, setAdults] = useState(1);
   const [loading, setLoading] = useState(false);
   const [tripType, setTripType] = useState("roundtrip");
+  // What's typed in From / To right now. Typing without picking a
+  // suggestion used to be ignored, so Search looked like it did nothing.
+  const [originText, setOriginText] = useState(
+    startFromHome ? `${startFromHome.city} (${startFromHome.code})` : ""
+  );
+  const [destText, setDestText] = useState("");
+  // Shown right under the pass (a toast at the top was easy to miss).
+  const [formError, setFormError] = useState("");
+
+  // Typing in a box drops the airport that was picked before, so the
+  // pass and the search use what's actually in the box.
+  const typedIn = (which) => (e) => {
+    const v = e?.target?.value;
+    if (typeof v !== "string") return;
+    setFormError("");
+    if (which === "from") {
+      setOriginText(v);
+      if (originAirport && v !== originDisplay) {
+        setOriginAirport(null);
+        onOriginChange?.("");
+      }
+    } else {
+      setDestText(v);
+      if (destAirport && v !== destDisplay) {
+        setDestAirport(null);
+        onDestChange?.("");
+      }
+    }
+  };
+
+  // What's still missing, in plain words.
+  const missing = [
+    !originAirport && !originText.trim() ? "where you're flying from" : null,
+    !destAirport && !destText.trim() ? "where you're going" : null,
+    !dates[0]
+      ? "your dates"
+      : tripType === "roundtrip" && !dates[1]
+      ? "a return date"
+      : null,
+  ].filter(Boolean);
+  const missingKey = missing.join("|");
+  useEffect(() => {
+    onReadyChange?.(missing);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingKey]);
 
   const handleDatesChange = useCallback(
     (v) => {
       const newDates = v ?? [null, null];
       setDates(newDates);
+      setFormError("");
       if (newDates[0] && newDates[1]) {
         onDatesChange?.({
           dates: newDates,
@@ -1738,7 +1817,9 @@ function FlightsForm({
           "No flights found for this route — try adjusting dates."
         );
       } else {
-        antdMessage.success(`Found ${flights.length} flights`);
+        // No number here: the list below counts departure options, which
+        // is different from the raw fare count (testers saw 297 vs 27).
+        antdMessage.success("Flights found — see the results below");
       }
     } catch (err) {
       onSearch([]);
@@ -1757,18 +1838,67 @@ function FlightsForm({
     };
   });
 
-  const handleSearch = () => {
-    if (!originAirport)
-      return antdMessage.warning("Select a departure airport");
-    if (!destAirport)
-      return antdMessage.warning("Select a destination airport");
-    if (!dates[0]) return antdMessage.warning("Select a departure date");
+  const handleSearch = async () => {
+    const fail = (msg) => {
+      setFormError(msg);
+      antdMessage.warning(msg);
+    };
+    setFormError("");
+    let from = originAirport;
+    let to = destAirport;
+
+    // Typed but not picked from the list? Look it up instead of ignoring it.
+    if ((!from && originText.trim()) || (!to && destText.trim())) {
+      setLoading(true);
+      const [o, d] = await Promise.all([
+        !from && originText.trim() ? findAirport(originText) : null,
+        !to && destText.trim() ? findAirport(destText) : null,
+      ]);
+      setLoading(false);
+      if (o) {
+        from = o;
+        setOriginAirport(o);
+        setOriginDisplay(airportLabel(o));
+        setOriginText(airportLabel(o));
+        onOriginChange?.(o.city);
+      }
+      if (d) {
+        to = d;
+        setDestAirport(d);
+        setDestDisplay(airportLabel(d));
+        setDestText(airportLabel(d));
+        onDestChange?.(d.city);
+      }
+      if (o || d) {
+        antdMessage.info(
+          `Searching ${[o && airportLabel(o), d && airportLabel(d)]
+            .filter(Boolean)
+            .join(" and ")}. Change it if that's not the one you meant.`
+        );
+      }
+    }
+
+    if (!from)
+      return fail(
+        originText.trim()
+          ? `We couldn't find an airport for "${originText.trim()}". Pick one from the list.`
+          : "Add where you're flying from."
+      );
+    if (!to)
+      return fail(
+        destText.trim()
+          ? `We couldn't find an airport for "${destText.trim()}". Pick one from the list.`
+          : "Add where you're going."
+      );
+    if (from.code === to.code)
+      return fail("From and To are the same airport. Pick a different one.");
+    if (!dates[0]) return fail("Pick your travel dates.");
     if (tripType === "roundtrip" && !dates[1])
-      return antdMessage.warning("Select a return date, or switch to One way");
+      return fail("Pick a return date, or switch to One way.");
 
     const params = new URLSearchParams({
-      from: originAirport.code,
-      to: destAirport.code,
+      from: from.code,
+      to: to.code,
       departDate: dayjs(dates[0].toDate()).format("YYYY-MM-DD"),
       adults: String(adults),
       cabin,
@@ -1787,6 +1917,9 @@ function FlightsForm({
     setDestAirport(prevOrigin);
     setOriginDisplay(destDisplay);
     setDestDisplay(originDisplay);
+    setOriginText(destText);
+    setDestText(originText);
+    setFormError("");
     if (prevDest?.city) onOriginChange?.(prevDest.city);
     if (prevOrigin?.city) onDestChange?.(prevOrigin.city);
   };
@@ -1834,15 +1967,19 @@ function FlightsForm({
               </button>
             ) : null}
           </span>
-          <AirportInput
-            value={originDisplay}
-            placeholder="City or airport"
-            onChange={(ap) => {
-              setOriginAirport(ap);
-              setOriginDisplay(`${ap.city} (${ap.code})`);
-              onOriginChange?.(ap.city);
-            }}
-          />
+          <div style={{ display: "contents" }} onInputCapture={typedIn("from")}>
+            <AirportInput
+              value={originDisplay}
+              placeholder="City or airport"
+              onChange={(ap) => {
+                setOriginAirport(ap);
+                setOriginDisplay(`${ap.city} (${ap.code})`);
+                setOriginText(`${ap.city} (${ap.code})`);
+                setFormError("");
+                onOriginChange?.(ap.city);
+              }}
+            />
+          </div>
         </div>
 
         <div className="sk-pass-seg sk-pass-seg--to sk-pass-flat">
@@ -1858,15 +1995,19 @@ function FlightsForm({
           <span className="sk-pass-label">
             <MapPin size={12} aria-hidden="true" /> To
           </span>
-          <AirportInput
-            value={destDisplay}
-            placeholder="City or airport"
-            onChange={(ap) => {
-              setDestAirport(ap);
-              setDestDisplay(`${ap.city} (${ap.code})`);
-              onDestChange?.(ap.city);
-            }}
-          />
+          <div style={{ display: "contents" }} onInputCapture={typedIn("to")}>
+            <AirportInput
+              value={destDisplay}
+              placeholder="City or airport"
+              onChange={(ap) => {
+                setDestAirport(ap);
+                setDestDisplay(`${ap.city} (${ap.code})`);
+                setDestText(`${ap.city} (${ap.code})`);
+                setFormError("");
+                onDestChange?.(ap.city);
+              }}
+            />
+          </div>
         </div>
 
         <div className="sk-pass-seg sk-pass-seg--when sk-pass-flat">
@@ -1932,6 +2073,27 @@ function FlightsForm({
           </span>
         </button>
       </div>
+      {formError && (
+        <div
+          role="alert"
+          className="sk-pass-error"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 10,
+            padding: "10px 14px",
+            borderRadius: 12,
+            background: "rgba(248,113,113,.1)",
+            border: "1px solid rgba(248,113,113,.35)",
+            color: "#fecaca",
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          <IconWarning size={14} /> {formError}
+        </div>
+      )}
     </div>
   );
 }
@@ -4756,6 +4918,8 @@ export default function BookingPage() {
   const flightRetryRef = useRef(null);
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
   const [originCity, setOriginCity] = useState("");
+  // What the Flights form still needs (from FlightsForm).
+  const [flightMissing, setFlightMissing] = useState([]);
   const [manualSearchLoading, setManualSearchLoading] = useState(false);
   const [smartFilters, setSmartFilters] = useState(DEFAULT_FILTERS);
   const [sortBy, setSortBy] = useState("price");
@@ -5644,7 +5808,12 @@ export default function BookingPage() {
   // Boarding pass stub — only real values from the search, never placeholders
   // dressed up as data. (The old destination-weather line was removed: it was
   // backed by a short hardcoded city list, so most destinations showed nothing.)
-  const bpFrom = originCity || fromCode || "";
+  // Flights: only what's actually in From (no made-up "EWR" when it's
+  // empty). Other tabs keep the link / home airport.
+  const bpFrom =
+    tab === "Flights"
+      ? originCity || ""
+      : originCity || searchParams.get("from") || readHomeAirport()?.code || "";
   const bpLowestFare = (() => {
     const prices = flightResults
       .map((f) => parseFloat(f.totalAmount))
@@ -5656,9 +5825,11 @@ export default function BookingPage() {
       ? "Searching live hotel rates…"
       : "Searching live flights…"
     : tab === "Flights" && flightResults.length > 0
-    ? `${flightResults.length} flight${
-        flightResults.length !== 1 ? "s" : ""
+    ? `${flightDisplayCount} ${hasReturnData ? "departing flight" : "flight"}${
+        flightDisplayCount !== 1 ? "s" : ""
       } found${bpLowestFare ? ` · from $${wholeUsd(bpLowestFare)}` : ""}`
+    : tab === "Flights" && flightMissing.length
+    ? `Next: add ${flightMissing.join(", ").replace(/, ([^,]*)$/, " and $1")}`
     : tab === "Stays" && hotelResults.length > 0
     ? `${hotelResults.length} stay${hotelResults.length !== 1 ? "s" : ""} found`
     : destCity
@@ -5877,6 +6048,7 @@ export default function BookingPage() {
             onDestChange={setDestCity}
             onDatesChange={handleDatesChange}
             onOriginChange={setOriginCity}
+            onReadyChange={setFlightMissing}
             onSearchStart={() => setManualSearchLoading(true)}
             onSearchEnd={() => setManualSearchLoading(false)}
             onSearchError={setSearchError}
@@ -6558,15 +6730,15 @@ export default function BookingPage() {
                     ? `Powered by Viator · ${destCity}`
                     : "Search above to find tours & activities."
                   : isSearching
-                  ? `Searching ${fromCode} → ${
+                  ? `Searching ${originCity || fromCode} → ${
                       prefillData?.iata ?? destCity
                     } · live prices`
                   : hasReturnData && selectedGroup
                   ? "Pick a return time to continue"
                   : flightDisplayCount > 0
-                  ? `Sorted by price · ${fromCode} → ${
-                      prefillData?.iata ?? destCity
-                    }${
+                  ? `Sorted by price · ${
+                      flightResults[0]?.origin || originCity || fromCode
+                    } → ${prefillData?.iata ?? destCity}${
                       activeFilterCount > 0
                         ? ` · ${activeFilterCount} filter${
                             activeFilterCount > 1 ? "s" : ""

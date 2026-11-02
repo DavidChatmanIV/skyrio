@@ -4,7 +4,6 @@ import AppLayout from "./layout/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RequireAccount from "./components/RequireAccount";
 import { useAuth } from "./auth/useAuth";
-import CookieBanner from "./components/CookieBanner";
 // Reload-safe React.lazy: survives stale chunks after a deploy.
 import { lazyWithReload as lazy } from "./utils/lazyWithReload";
 
@@ -258,8 +257,9 @@ function TrackedRoutes() {
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function AppRoutes() {
   return (
+    // CookieBanner lives in AppLayout only — rendering it here too showed
+    // two banners stacked on a first visit.
     <Suspense fallback={<PageLoader />}>
-      <CookieBanner />
       <TrackedRoutes />
     </Suspense>
   );

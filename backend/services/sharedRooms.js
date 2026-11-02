@@ -66,6 +66,11 @@ export class SyncError extends Error {
 const idStr = (v) => (v == null ? null : String(v._id || v));
 const sameId = (a, b) => a != null && b != null && idStr(a) === idStr(b);
 
+// Trip page link that opens (and highlights) one shared room's hold.
+// GroupTripPanel reads ?holdRoom=<id> and moves that room to the top.
+const holdLink = (groupId, splitId) =>
+  `/sync-together/${idStr(groupId)}?holdRoom=${idStr(splitId)}`;
+
 // ── Live updates (socket.io room "group:<id>", same as the rest of Sync Together) ──
 let _io = null;
 export function setSyncIo(io) {
@@ -461,7 +466,8 @@ export async function createSharedRoom({
       message: `You're sharing a room at ${
         split.room.name || "the hotel"
       }. Hold your share before the deadline.`,
-      link: `/sync-together/${group._id}`,
+      // Opens the trip with this room at the top and its hold form ready.
+      link: holdLink(group._id, split._id),
     }).catch(() => {});
   }
 
@@ -969,7 +975,11 @@ export async function finalizeSharedRoom(splitId) {
     // Each person who paid their share earns booking XP for their own record.
     if (s.booking) {
       awardXpForBooking(s.booking).catch((e) =>
-        console.error("[shared-room] booking XP failed", String(s.booking), e?.message)
+        console.error(
+          "[shared-room] booking XP failed",
+          String(s.booking),
+          e?.message
+        )
       );
     }
     Notification.create({
@@ -1189,7 +1199,8 @@ export async function sendDeadlineReminders(filter = {}) {
         } have held their share of ${
           room.room?.name || "the room"
         }. It's released if everyone isn't in by the deadline.`,
-        link: `/sync-together/${room.group}`,
+        // Opens the trip with this room at the top and its hold form ready.
+        link: holdLink(room.group, room._id),
       }).catch(() => {});
     }
   }

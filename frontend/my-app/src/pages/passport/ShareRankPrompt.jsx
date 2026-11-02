@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Share2, X, Award, Link2 } from "lucide-react";
 import { XP_TIERS } from "@/config/xpConfig";
 import { TierMedal } from "@/components/passport/TierIcon";
+import { useQuietTurn } from "@/lib/popupQueue";
 
 const BADGE_CONFIG = {
   Explorer: { color: "#7c5cfc", emoji: "🌍" },
@@ -44,6 +45,10 @@ async function copyText(text) {
  */
 export default function ShareRankPrompt({ badge, username, xp = 0 }) {
   const [visible, setVisible] = useState(false);
+  // A new rank is worth sharing — but not stacked on onboarding or the
+  // rewards opt-in. `wanted` = should show; it opens on its turn.
+  const [wanted, setWanted] = useState(false);
+  const myTurn = useQuietTurn(wanted, { quietMs: 2500 });
   const [status, setStatus] = useState(null); // "copied" | "shared" | "failed" | null
 
   // Colors/icons come from the real tier ladder, so every rank gets its own look.
@@ -60,13 +65,18 @@ export default function ShareRankPrompt({ badge, username, xp = 0 }) {
       if (localStorage.getItem(storageKey)) return; // already shared/dismissed
       // Only show for non-Explorer ranks (Explorer is the starting rank)
       if (badge === "Explorer") return;
-      // Small delay so page settles
-      const t = setTimeout(() => setVisible(true), 1500);
-      return () => clearTimeout(t);
+      setWanted(true);
     } catch {
       /* ignore */
     }
   }, [badge, username, storageKey]);
+
+  useEffect(() => {
+    if (myTurn && wanted) {
+      setVisible(true);
+      setWanted(false);
+    }
+  }, [myTurn, wanted]);
 
   const dismiss = () => {
     try {

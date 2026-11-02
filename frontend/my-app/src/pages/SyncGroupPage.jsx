@@ -672,11 +672,18 @@ export default function SyncGroupPage() {
   };
   const allApproved = totalMembers > 0 && approvedCount === totalMembers;
   const myApproval = myMember?.approved || false;
+  // A shared room that's collecting holds, booking or booked needs the trip
+  // panel even before anyone has a confirmed booking — otherwise the
+  // "Hold your share" notification opens a page with nothing to hold.
+  const hasActiveSharedRoom = (myParts?.sharedRooms || []).some((r) =>
+    ["collecting", "booking", "booked"].includes(r.status)
+  );
   // The booking panel (Your part · Shared rooms · The group).
   const showTripPanel =
     isMember &&
     myRsvp !== "declined" &&
     (anyoneBooked ||
+      hasActiveSharedRoom ||
       allApproved ||
       isBooked ||
       group?.status === "confirmed" ||
@@ -2956,8 +2963,9 @@ export default function SyncGroupPage() {
       {/* ═══ BOOKING — plan together, pay separately ═══
           Each traveler books their own seat and room (or holds their share
           of a shared room) and cancels their own part from My Trips.
-          Also shows as soon as anyone has a booking on this trip, even if
-          the plan/approval steps were skipped. */}
+          Also shows as soon as anyone has a booking on this trip, or a
+          shared room is collecting holds, even if the plan/approval steps
+          were skipped. */}
       {showTripPanel && (
         <GroupTripPanel
           groupId={group._id}

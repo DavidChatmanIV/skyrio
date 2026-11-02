@@ -12,6 +12,7 @@ import AtlasProfileCard from "@/components/Atlas/AtlasProfileCard";
 import AtlasCheckoutCard from "@/components/Atlas/AtlasCheckoutCard";
 import { getGuestKey } from "@/lib/guestKey";
 import AtlasFeedbackBar from "@/components/Atlas/AtlasFeedbackBar";
+import { useQuietTurn, announcePopup } from "@/lib/popupQueue";
 import {
   X,
   RotateCcw,
@@ -61,6 +62,30 @@ const loadConvoId = () => {
     return newConvoId();
   }
 };
+// The "I'm Atlas" tip: shown once per browser, not on every page load.
+const NUDGE_KEY = "skyrio_atlas_nudge_seen";
+const nudgeSeen = () => {
+  try {
+    return localStorage.getItem(NUDGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const markNudgeSeen = () => {
+  try {
+    localStorage.setItem(NUDGE_KEY, "1");
+  } catch {
+    /* storage blocked: tip may show again next visit */
+  }
+};
+// On phones the tip sat over the search form and trip options on these
+// pages, so it never shows there.
+const NUDGE_SKIP_ON_PHONE =
+  /^\/(booking|checkout|pay-share|manage-booking|find-booking)/;
+const isPhone = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(max-width: 768px)").matches;
+
 const isSignedIn = () => {
   try {
     return Boolean(localStorage.getItem("token"));
@@ -74,7 +99,9 @@ const KNOWN_ACTION = (a) =>
   (a?.type === "cancel" && a.bookingId) ||
   (a?.type === "booking" && a.proposalId) ||
   a?.type === "profile_setup" ||
-  (a?.type === "checkout_link" && typeof a.url === "string" && /^https?:\/\//.test(a.url));
+  (a?.type === "checkout_link" &&
+    typeof a.url === "string" &&
+    /^https?:\/\//.test(a.url));
 
 const saveChat = (list) => {
   try {
@@ -732,7 +759,16 @@ export default function AtlasPanel() {
   const lastAskRef = useRef("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showNudge, setShowNudge] = useState(true);
+  // Wants to show (first visit, a page where it won't cover anything) →
+  // shows on its turn, after the cookie banner / tour / modals are gone.
+  const nudgeWanted =
+    !nudgeSeen() && !(isPhone() && NUDGE_SKIP_ON_PHONE.test(pathname));
+  const nudgeTurn = useQuietTurn(nudgeWanted, {
+    quietMs: 2000,
+    id: "atlas-nudge",
+  });
+  const [showNudge, setShowNudge] = useState(false);
+  const nudgeShownRef = useRef(false);
   const [pickerActive, setPickerActive] = useState(false);
   // Mobile: step aside while the site footer is on screen
   const [footerInView, setFooterInView] = useState(false);
@@ -841,9 +877,28 @@ export default function AtlasPanel() {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
+    if (nudgeTurn && nudgeWanted && !nudgeShownRef.current && !open) {
+      nudgeShownRef.current = true;
+      markNudgeSeen();
+      setShowNudge(true);
+    }
+  }, [nudgeTurn, nudgeWanted, open]);
+
+  // While the tip is up, other tips (Help & Feedback) wait. It goes away
+  // after 7s, or as soon as you scroll or tap anywhere.
+  useEffect(() => {
     if (!showNudge) return;
-    const t = setTimeout(() => setShowNudge(false), 7000);
-    return () => clearTimeout(t);
+    announcePopup("atlas-nudge", true);
+    const hide = () => setShowNudge(false);
+    const t = setTimeout(hide, 7000);
+    window.addEventListener("scroll", hide, { passive: true, once: true });
+    window.addEventListener("pointerdown", hide, { once: true });
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("scroll", hide);
+      window.removeEventListener("pointerdown", hide);
+      announcePopup("atlas-nudge", false);
+    };
   }, [showNudge]);
 
   useEffect(() => {
@@ -1202,7 +1257,8 @@ export default function AtlasPanel() {
                   </button>
                 </div>
                 <div className="ap-footer">
-                  Atlas can make mistakes. Check the details on the card before you pay.
+                  Atlas can make mistakes. Check the details on the card before
+                  you pay.
                 </div>
               </div>
             </>

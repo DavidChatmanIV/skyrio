@@ -204,7 +204,7 @@ function mapBackendPost(post) {
     underReview: !!post.underReview,
     author: post.authorName || "Traveler",
     username: post.username ? `@${post.username}` : "@traveler",
-    avatar: post.avatar || null,
+    avatar: photoUrl(post.avatar) || null,
     verified: !!post.verified,
     badge: post.authorBadge || "Explorer",
     type: post.type || "Story",
@@ -728,16 +728,24 @@ export default function SkyHubPage() {
           authUser.name || authUser.fullName || authUser.username || "Traveler",
         username:
           authUser.username || authUser.email?.split("@")[0] || "traveler",
+        // Profile photos saved on our server come back as "/uploads/...":
+        // point them at the API, or the post box shows a broken image.
         avatar:
-          authUser.avatar ||
-          authUser.profilePicture ||
-          authUser.profileImage ||
-          null,
+          photoUrl(
+            authUser.avatar ||
+              authUser.profilePicture ||
+              authUser.profileImage ||
+              ""
+          ) || null,
         xp: liveXp ?? (authUser.xp || authUser.passport || 0),
         // Rank from lifetime XP, computed by the server (User.getXPLevel)
         badge: authUser.levelLabel || authUser.badge || "Explorer",
       }
     : null;
+
+  // If the saved photo can't load, show initials instead of a broken image.
+  const [heroAvatarBroken, setHeroAvatarBroken] = useState(false);
+  useEffect(() => setHeroAvatarBroken(false), [currentUser?.avatar]);
 
   // Logged-out visitors can read everything; any action opens a
   // "create a profile" prompt that brings them back to SkyHub.
@@ -1148,7 +1156,7 @@ export default function SkyHubPage() {
         topic: data.post.topic || postTopic,
         authorName: currentUser?.name || data.post.authorName,
         username: currentUser?.username || data.post.username,
-        avatar: currentUser?.avatar || data.post.avatar,
+        avatar: currentUser?.avatar || photoUrl(data.post.avatar),
         authorId: currentUser?.id || data.post.authorId,
       };
       setPosts((prev) => [mapBackendPost(enriched), ...prev]);
@@ -1464,10 +1472,11 @@ export default function SkyHubPage() {
                   backdropFilter: "blur(12px)",
                 }}
               >
-                {currentUser.avatar ? (
+                {currentUser.avatar && !heroAvatarBroken ? (
                   <img
                     src={currentUser.avatar}
                     alt=""
+                    onError={() => setHeroAvatarBroken(true)}
                     style={{
                       width: 26,
                       height: 26,
