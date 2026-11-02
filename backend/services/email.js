@@ -387,6 +387,9 @@ export async function sendBookingConfirmation({
   cabinClass,
   travelerCount = null, // people on this booking (for the Sync Together tip)
   groupTrip = false, // part of a Sync Together trip → no tip
+  // Secure "Manage or cancel" link for this one booking (services/
+  // manageLink.js). Works without an account, so guests can cancel.
+  manageUrl = null,
 }) {
   const isRoundTrip = Boolean(returnDepartureAt);
   const syncTip = !groupTrip && Number(travelerCount) >= 2;
@@ -421,7 +424,12 @@ export async function sendBookingConfirmation({
         (cabinClass ? kvRow("Cabin", esc(cabinClass)) : "") +
         (total ? kvRow("Total paid", esc(total), { highlight: true }) : "")
     ) +
-    (syncTip ? noteLine(esc(SYNC_TIP)) : "");
+    (syncTip ? noteLine(esc(SYNC_TIP)) : "") +
+    (manageUrl
+      ? noteLine(
+          `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see what you get back before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${APP_URL}/saved-trips" style="color:inherit;">My trips</a>.`
+        )
+      : "");
 
   const ics = buildFlightICS({
     confirmationNumber,
@@ -447,7 +455,10 @@ export async function sendBookingConfirmation({
       passengerName ? `, <strong>${esc(passengerName)}</strong>` : ""
     }! Your flight${isRoundTrip ? "s are" : " is"} confirmed.`,
     bodyHtml,
-    cta: { label: "View my trips", url: `${APP_URL}/saved-trips` },
+    // Guests have no My Trips, so the manage link is the main button.
+    cta: manageUrl
+      ? { label: "Manage or cancel", url: manageUrl }
+      : { label: "View my trips", url: `${APP_URL}/saved-trips` },
     footerNote: ics
       ? "Open the attached calendar file to add this trip to your calendar."
       : "",
@@ -474,7 +485,9 @@ ${refLabel}: ${confirmationNumber}
 ${cabinClass ? `Cabin: ${cabinClass}\n` : ""}${
     total ? `Total paid: ${total}\n` : ""
   }
-View your trips: ${APP_URL}/saved-trips${
+${
+  manageUrl ? `Manage or cancel this booking: ${manageUrl}\n` : ""
+}View your trips: ${APP_URL}/saved-trips${
     syncTip ? `\n\n${SYNC_TIP}` : ""
   }${SIGNOFF}`;
 

@@ -450,6 +450,46 @@ export function parsePrebookSeatOptions(data) {
     return [];
   }
 
+  // Which flight a seat belongs to. LiteAPI usually sends segmentKey on the
+  // service, but it can also sit on the group, inside metadata, or as a
+  // list. Without it, a round trip's outbound and return seats land in ONE
+  // map and identical seat numbers (12A out, 12A back) overwrite each other,
+  // which looks like "no seats for the return".
+  const segmentKeyOf = (s, group) =>
+    s.segmentKey ||
+    (Array.isArray(s.segmentKeys) ? s.segmentKeys[0] : null) ||
+    s.metadata?.seat?.segmentKey ||
+    s.metadata?.segmentKey ||
+    s.segment?.key ||
+    s.segmentRef ||
+    group?.segmentKey ||
+    (Array.isArray(group?.segmentKeys) ? group.segmentKeys[0] : null) ||
+    null;
+  const groupOf = new Map();
+  (Array.isArray(groups) ? groups : []).forEach((g) =>
+    (Array.isArray(g?.services) ? g.services : []).forEach((s) =>
+      groupOf.set(s, g)
+    )
+  );
+
+  // Diagnostic: how many seats per flight came back. A round trip with one
+  // stop each way should show 4 keys. Check Render logs for this line.
+  try {
+    const perSegment = {};
+    candidates.forEach((s) => {
+      const k = segmentKeyOf(s, groupOf.get(s)) || "(no segment key)";
+      perSegment[k] = (perSegment[k] || 0) + 1;
+    });
+    console.log(
+      "[flights/prebook] seat maps per flight:",
+      JSON.stringify(perSegment),
+      "| sample seat service keys:",
+      Object.keys(candidates[0] || {}).join(",")
+    );
+  } catch {
+    // logging only
+  }
+
   return candidates
     .map((s) => {
       const meta = s.metadata?.seat;
@@ -492,7 +532,7 @@ export function parsePrebookSeatOptions(data) {
         available: !!available,
         price,
         tier,
-        segmentKey: s.segmentKey || null,
+        segmentKey: segmentKeyOf(s, groupOf.get(s)),
       };
     })
     .filter(Boolean);

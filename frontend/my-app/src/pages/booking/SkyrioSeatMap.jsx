@@ -103,7 +103,7 @@ const CSS = `
   .skm-pick:focus-visible, .skm-pref:focus-visible { outline: 2px solid ${G.orange}; outline-offset: 2px; }
   .skm-pref:not([aria-pressed="true"]):hover { color: #fff !important; }
   .skm-seat { transition: transform .12s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease; }
-  .skm-seat:not(:disabled):hover { transform: translateY(-1px); }
+  @media (hover: hover) { .skm-seat:not(:disabled):hover { transform: translateY(-1px); } }
   .skm-seat:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   .skm-pop { animation: skm-pop .28s ease; }
   @keyframes skm-pop { 0% { transform: scale(.82); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
@@ -197,6 +197,10 @@ export default function SkyrioSeatMap({
   groupSeats = {},
   friendsWithoutSeat = {},
   stickyTop = 80,
+  // Plain-language line when the airline offers seats on only some of the
+  // trip's flights (e.g. outbound but not return), so a missing return
+  // seat map is explained instead of silently absent.
+  coverageNote = "",
 }) {
   const [avoidKidsPets, setAvoidKidsPets] = useState(false);
   const [hoveredSeat, setHoveredSeat] = useState(null);
@@ -613,6 +617,9 @@ export default function SkyrioSeatMap({
 
     function handleClick() {
       if (disabled) return;
+      // After a tap the banner shows the seat actually picked, never a
+      // leftover preview of a seat touched earlier.
+      setHoveredSeat(null);
       if (isSelectedForActive) {
         if (canClear) onClearSeat(segKey, activePassengerIndex);
         return;
@@ -649,9 +656,26 @@ export default function SkyrioSeatMap({
         }`}
         disabled={disabled}
         onClick={handleClick}
-        onMouseEnter={() => !disabled && setHoveredSeat(seat)}
-        onMouseLeave={() => setHoveredSeat((s) => (s === seat ? null : s))}
-        onFocus={() => !disabled && setHoveredSeat(seat)}
+        // Previews are for a real mouse or keyboard only. On phones and
+        // tablets a tap fires "mouseenter" with no "mouseleave", so the
+        // preview stuck to the last seat touched (banner said 35A while
+        // 37A was picked) and iPad needed two taps to choose a seat.
+        onPointerEnter={(e) =>
+          e.pointerType === "mouse" && !disabled && setHoveredSeat(seat)
+        }
+        onPointerLeave={(e) =>
+          e.pointerType === "mouse" &&
+          setHoveredSeat((s) => (s === seat ? null : s))
+        }
+        onFocus={(e) => {
+          let keyboard = false;
+          try {
+            keyboard = e.currentTarget.matches(":focus-visible");
+          } catch {
+            keyboard = false;
+          }
+          if (keyboard && !disabled) setHoveredSeat(seat);
+        }}
         onBlur={() => setHoveredSeat((s) => (s === seat ? null : s))}
         aria-label={accessibleLabel}
         aria-pressed={isSelectedForActive}
@@ -838,6 +862,24 @@ export default function SkyrioSeatMap({
           }}
         >
           {notice}
+        </div>
+      )}
+
+      {coverageNote && (
+        <div
+          role="note"
+          style={{
+            padding: "10px 14px",
+            marginBottom: 12,
+            borderRadius: 10,
+            border: `1px solid ${G.border}`,
+            background: G.bgCard,
+            color: G.soft,
+            fontSize: 12.5,
+            lineHeight: 1.5,
+          }}
+        >
+          {coverageNote}
         </div>
       )}
 

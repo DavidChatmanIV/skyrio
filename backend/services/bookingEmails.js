@@ -18,6 +18,7 @@ import {
   TRIPS_URL,
   SUPPORT_EMAIL,
 } from "./emailLayout.js";
+import { manageUrlFor } from "./manageLink.js";
 
 export { formatMoney };
 
@@ -56,7 +57,15 @@ export async function sendHotelConfirmation({
   currency = "USD",
   bookingId,
   groupTrip = false,
+  // Secure "Manage or cancel" link (works without an account). Built from
+  // bookingId when not passed, so every hotel confirmation has one.
+  manageUrl = null,
 }) {
+  const manageLink =
+    manageUrl ||
+    (/^[a-f0-9]{24}$/i.test(String(bookingId || ""))
+      ? manageUrlFor(bookingId)
+      : null);
   const others = (r) =>
     Array.isArray(r?.alsoStaying)
       ? r.alsoStaying.map((n) => String(n || "").trim()).filter(Boolean)
@@ -117,8 +126,16 @@ export async function sendHotelConfirmation({
         ? noteLine(
             "Traveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share."
           )
+        : "") +
+      (manageLink
+        ? noteLine(
+            `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see what you get back before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${TRIPS_URL}" style="color:inherit;">My trips</a>.`
+          )
         : ""),
-    cta: { label: "View my trips", url: TRIPS_URL },
+    // Guests have no My Trips, so the manage link is the main button.
+    cta: manageLink
+      ? { label: "Manage or cancel", url: manageLink }
+      : { label: "View my trips", url: TRIPS_URL },
   });
 
   const text = `Your stay is booked!${guestName ? ` Thanks, ${guestName}.` : ""}
@@ -142,6 +159,8 @@ ${total ? `Total charged: ${total}\n` : ""}${
     syncTip
       ? "\n\nTraveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share."
       : ""
+  }${
+    manageLink ? `\n\nManage or cancel this booking: ${manageLink}` : ""
   }${textFooter}`;
 
   return sendEmail({

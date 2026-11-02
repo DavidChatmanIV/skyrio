@@ -24,6 +24,8 @@ import {
   extractFlightBookingId,
 } from "../services/liteapiBookings.js";
 import { reverseBookingXp } from "../services/xpService.js";
+import { readManageToken } from "../services/manageLink.js";
+import { sendManageLinkEmail } from "../services/manageEmails.js";
 
 const router = Router();
 
@@ -97,6 +99,30 @@ function ownerOrAdmin(req, res, next) {
     }
     next();
   });
+}
+// Owner, admin, OR someone holding this booking's "Manage or cancel" link
+// (header x-manage-token). Guests book without an account, so the link is
+// the only way they can see or cancel their booking. The link works for
+// THIS booking id only.
+function ownerAdminOrManageLink(req, res, next) {
+  const token = req.headers["x-manage-token"];
+  if (token) {
+    const bookingId = readManageToken(token);
+    if (bookingId && bookingId === String(req.params.id)) {
+      req.user = { id: `guest-link:${bookingId}`, guestLink: true };
+      req.manageBookingId = bookingId;
+      return next();
+    }
+    // A signed-in owner with an old link still gets in the normal way.
+    if (!/^bearer\s+\S+/i.test(req.headers.authorization || "")) {
+      return res.status(401).json({
+        message:
+          "This link has expired or isn't valid anymore. Use Find my booking to get a new one.",
+        linkExpired: true,
+      });
+    }
+  }
+  return ownerOrAdmin(req, res, next);
 }
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
@@ -212,7 +238,13 @@ async function loadOwnedBooking(req, res) {
     res.status(404).json({ message: "Booking not found." });
     return null;
   }
-  if (!isAdminUser(req) && String(booking.user) !== String(req.user.id)) {
+  const viaManageLink =
+    req.manageBookingId && req.manageBookingId === String(booking._id);
+  if (
+    !viaManageLink &&
+    !isAdminUser(req) &&
+    String(booking.user) !== String(req.user.id)
+  ) {
     res
       .status(403)
       .json({ message: "This booking belongs to a different account." });
@@ -285,6 +317,177 @@ function tripDates(b) {
   const end = b.dates?.end || room?.checkout || b.flight?.returnDate;
   return { start: toDate(start), end: toDate(end) };
 }
+
+// ─────────────────────────────────────────────────────────────
+// Manage a booking without an account (guests), or with one.
+// ─────────────────────────────────────────────────────────────
+
+// What the Manage booking page shows. Only this booking's own details —
+// no account data, no supplier internals.
+function manageView(b) {
+  const rooms = (b.hotelStay?.rooms || []).map((r) => ({
+    name: r.name || null,
+    roomName: r.roomName || null,
+    boardName: r.boardName || null,
+    checkin: r.checkin || null,
+    checkout: r.checkout || null,
+    thumbnail: /^https:\/\//.test(String(r.thumbnail || ""))
+      ? r.thumbnail
+      : null,
+  }));
+  const f = b.flight || {};
+  return {
+    _id: String(b._id),
+    type: b.type,
+    status: b.status,
+    tripDetails: b.tripDetails || null,
+    firstName: String(b.name || "").split(" ")[0] || null,
+    dates: { start: b.dates?.start || null, end: b.dates?.end || null },
+    totalAmount: b.totalAmount ?? b.total ?? null,
+    totalCurrency: b.totalCurrency || "USD",
+    confirmationCodes: b.confirmationCodes || [],
+    flight:
+      b.type === "Flight"
+        ? {
+            origin: f.origin || null,
+            destination: f.destination || null,
+            airline: f.airline || null,
+            bookingRef: f.bookingRef || null,
+            departureAt: f.departureAt || null,
+            returnDepartureAt: f.returnDepartureAt || null,
+          }
+        : undefined,
+    hotelStay: b.type === "Hotel" ? { rooms } : undefined,
+    sharedRoom: b.sharedRoom
+      ? { people: b.sharedRoom.people, groupId: b.sharedRoom.groupId || null }
+      : null,
+    cancelRequest: b.cancelRequest?.status
+      ? { status: b.cancelRequest.status }
+      : null,
+    refundAmount: b.refundAmount ?? null,
+    refundStatus: b.refundStatus || null,
+    cancellation: b.cancellation?.airlineCredit
+      ? { airlineCredit: b.cancellation.airlineCredit }
+      : null,
+    hasAccount: Boolean(b.user),
+  };
+}
+
+/**
+ * GET /api/bookings/manage/:id — one booking for the Manage booking page.
+ * Works with the booking's manage link (x-manage-token) or as its owner.
+ */
+router.get("/manage/:id", ownerAdminOrManageLink, async (req, res) => {
+  try {
+    const booking = await loadOwnedBooking(req, res);
+    if (!booking) return;
+    res.json({ ok: true, booking: manageView(booking) });
+  } catch (err) {
+    console.error("GET /api/bookings/manage/:id error:", err);
+    res.status(500).json({ message: "We couldn't load this booking." });
+  }
+});
+
+// Find my booking: max 5 tries per 15 minutes per IP and per email, so
+// nobody can guess codes. Resets on restart, which is fine.
+const FIND_WINDOW_MS = 15 * 60 * 1000;
+const FIND_MAX = 5;
+const findHits = new Map();
+function tooManyFinds(key) {
+  const now = Date.now();
+  const recent = (findHits.get(key) || []).filter(
+    (t) => now - t < FIND_WINDOW_MS
+  );
+  recent.push(now);
+  findHits.set(key, recent);
+  if (findHits.size > 5000) findHits.clear();
+  return recent.length > FIND_MAX;
+}
+
+// Every code a traveler might type for this booking: airline/hotel
+// confirmation, LiteAPI booking id, or the Skyrio booking ID (full, or the
+// last 10 characters shown in confirmation emails).
+function codesFor(b) {
+  const list = [
+    ...(b.confirmationCodes || []),
+    b.flight?.bookingRef,
+    b.flight?.bookingId,
+    ...(b.providerBookingIds || []),
+    ...(b.hotelStay?.confirmation || []).flatMap((c) => [
+      c?.hotelConfirmationCode,
+      c?.bookingId,
+    ]),
+    String(b._id),
+    String(b._id).slice(-10),
+  ];
+  return new Set(
+    list
+      .filter(Boolean)
+      .map((c) => String(c).trim().toUpperCase())
+      .filter((c) => c.length >= 4)
+  );
+}
+
+/**
+ * POST /api/bookings/find  { email, code } — public.
+ * Emails a "Manage or cancel" link for every booking that matches BOTH the
+ * email and the code. Always gives the same answer, so it never reveals
+ * whether an email or code exists.
+ */
+router.post("/find", async (req, res) => {
+  const email = String(req.body?.email || "")
+    .trim()
+    .toLowerCase()
+    .slice(0, 200);
+  const code = String(req.body?.code || "")
+    .trim()
+    .replace(/^#/, "")
+    .toUpperCase()
+    .slice(0, 64);
+  const sameAnswer = {
+    ok: true,
+    message:
+      "If that email and code match a booking, we've emailed you a link to manage it. It can take a minute to arrive, so check spam too.",
+  };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || code.length < 4) {
+    return res.status(400).json({
+      message: "Enter the email you booked with and your confirmation code.",
+    });
+  }
+  const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+  if (tooManyFinds(`ip:${ip}`) || tooManyFinds(`email:${email}`)) {
+    return res.status(429).json({
+      message: "Too many tries. Please wait 15 minutes and try again.",
+    });
+  }
+  try {
+    const emailRe = new RegExp(`^${escapeRegex(email)}$`, "i");
+    const account = await User.findOne({ email: emailRe })
+      .select("_id")
+      .lean()
+      .catch(() => null);
+    const candidates = await Booking.find({
+      $or: [{ email: emailRe }, ...(account ? [{ user: account._id }] : [])],
+      status: { $in: ["confirmed", "cancel_pending", "cancelled", "pending"] },
+    })
+      .sort({ createdAt: -1 })
+      .limit(200);
+    const matches = candidates.filter((b) => codesFor(b).has(code)).slice(0, 5);
+    for (const b of matches) {
+      sendManageLinkEmail({ to: email, booking: b }).catch((e) =>
+        console.error(
+          "[bookings/find] manage email failed",
+          String(b._id),
+          e?.message
+        )
+      );
+    }
+    res.json(sameAnswer);
+  } catch (err) {
+    console.error("POST /api/bookings/find error:", err);
+    res.json(sameAnswer);
+  }
+});
 
 /**
  * GET /api/bookings/upcoming — the signed-in traveler's upcoming trips.
@@ -616,7 +819,7 @@ router.post("/admin/:id/notes", adminOnly, async (req, res) => {
  * For when automatic cancellation terms aren't available. Records the
  * request, alerts support, and tells the traveler. Does NOT cancel anything.
  */
-router.post("/:id/cancel-request", authRequired, async (req, res) => {
+router.post("/:id/cancel-request", ownerAdminOrManageLink, async (req, res) => {
   try {
     const booking = await loadOwnedBooking(req, res);
     if (!booking) return;
@@ -1080,7 +1283,7 @@ router.post("/admin/:id/shared-room/cancel", adminOnly, async (req, res) => {
  * Hotels: from the hotel's policies on LiteAPI's booking record.
  * Flights: LiteAPI's cancellation quote (an estimate — the airline decides).
  */
-router.get("/:id/cancel-quote", ownerOrAdmin, async (req, res) => {
+router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
   try {
     const booking = await loadOwnedBooking(req, res);
     if (!booking) return;
@@ -1264,7 +1467,7 @@ router.get("/:id/cancel-quote", ownerOrAdmin, async (req, res) => {
  *    min(supplier refund, amount paid).
  *  - Flights: LiteAPI collected payment → LiteAPI/airline refunds the card.
  */
-router.post("/:id/cancel", ownerOrAdmin, async (req, res) => {
+router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
   try {
     const booking = await loadOwnedBooking(req, res);
     if (!booking) return;

@@ -22,7 +22,7 @@ import SavedTrips from "../components/SavedTrips";
 const API = import.meta.env.VITE_API_URL || "";
 
 /* ── Styles (single drop-in file; matches the boarding pass / tickets) ── */
-const MT_CSS = `
+export const MT_CSS = `
 .mt { min-height: 100vh; max-width: 980px; margin: 0 auto; padding: 24px 20px 72px; color: #fff; font-family: "DM Sans", system-ui, sans-serif; }
 .mt button { font-family: inherit; }
 .mt :focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
@@ -133,7 +133,7 @@ const MT_CSS = `
 /* ── Helpers — every value shown comes from the saved booking record ── */
 // Trip dates are stored as midnight UTC. Formatting in UTC keeps New York
 // travelers from seeing the day before their real date.
-const fmtDate = (v) => {
+export const fmtDate = (v) => {
   const d = v ? new Date(v) : null;
   return d && !Number.isNaN(d.getTime())
     ? d.toLocaleDateString("en-US", {
@@ -146,7 +146,7 @@ const fmtDate = (v) => {
     : null;
 };
 
-const fmtMoney = (amount, currency) =>
+export const fmtMoney = (amount, currency) =>
   amount != null && Number.isFinite(Number(amount))
     ? new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -155,7 +155,7 @@ const fmtMoney = (amount, currency) =>
     : null;
 
 // "EWR → MIA · 2026-10-23 · round trip" → "EWR → MIA · round trip"
-const stripDates = (t) =>
+export const stripDates = (t) =>
   String(t || "")
     .replace(
       /\s*·\s*\d{4}-\d{2}-\d{2}(\s*(→|->|–|-)\s*\d{4}-\d{2}-\d{2})?/g,
@@ -163,7 +163,7 @@ const stripDates = (t) =>
     )
     .trim();
 
-function confirmationCodeOf(b) {
+export function confirmationCodeOf(b) {
   return (
     b.confirmationCodes?.[0] ||
     b.flight?.bookingRef ||
@@ -201,14 +201,14 @@ const writeHidden = (set) => {
   }
 };
 
-const STATUS = {
+export const STATUS = {
   confirmed: { label: "Confirmed", tone: "green" },
   cancel_pending: { label: "Cancelling", tone: "orange" },
   cancelled: { label: "Cancelled", tone: "red" },
 };
 
 /* ── Airline credit (the airline gave credit instead of money back) ── */
-function AirlineCredit({ credit, airline }) {
+export function AirlineCredit({ credit, airline }) {
   const [copied, setCopied] = useState(null);
   const vouchers = credit.vouchers?.length ? credit.vouchers : [null];
   const who = airline || "the airline";
@@ -400,7 +400,7 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
                 className="mt-btn is-danger"
                 onClick={() => onCancel(b)}
               >
-                Cancel trip
+                Cancel booking
               </button>
             )}
             {cancelled && onRemove && (
@@ -424,7 +424,9 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
    If the airline/hotel can't give terms automatically, the traveler can
    send a cancellation REQUEST that a person handles — nothing is cancelled
    until the terms are confirmed with them. (Logic unchanged.) ── */
-function CancelTripModal({ booking, onClose, onDone }) {
+// authHeaders: optional. The Manage booking page passes the booking's
+// manage-link header so guests (no account) can cancel too.
+export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
   const [quote, setQuote] = useState(null);
   const [error, setError] = useState("");
   const [canRequest, setCanRequest] = useState(false);
@@ -435,7 +437,7 @@ function CancelTripModal({ booking, onClose, onDone }) {
   const token = localStorage.getItem("token");
   const headers = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
+    ...(authHeaders || (token ? { Authorization: `Bearer ${token}` } : {})),
   };
   const cur = booking.totalCurrency || "USD";
   const place = booking.type === "Hotel" ? "hotel" : "airline";
@@ -1071,6 +1073,14 @@ export default function SavedTripsPage() {
           <h1 className="mt-title">My trips</h1>
           <p className="mt-sub">
             Your booked trips, plus everything you&apos;ve saved for later.
+          </p>
+          <p className="mt-sub" style={{ fontSize: 13, marginTop: 6 }}>
+            To cancel, tap <b>Cancel booking</b> on any upcoming trip.
+            You&apos;ll see what you get back before anything is cancelled.
+            Booked without an account?{" "}
+            <a href="/find-booking" style={{ color: "#ffb347" }}>
+              Find my booking
+            </a>
           </p>
         </div>
         <button

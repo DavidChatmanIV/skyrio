@@ -54,10 +54,13 @@ function startDate(b) {
  */
 export async function runAtlasTool(name, args, { userId }) {
   if (!userId) {
+    // Guests book without an account, so never tell them to log in to
+    // cancel. Point them to the link that works without one.
     return {
       result: {
         error:
-          "The traveler isn't signed in. Ask them to log in to manage bookings.",
+          "The traveler isn't signed in, so you can't see their bookings. Do NOT tell them they need an account or to log in to cancel: guests can manage or cancel without one. Tell them to tap 'Manage or cancel' in their booking confirmation email, or go to Find my booking (/find-booking), enter the email they booked with and their confirmation code, and we'll email them a link. If they have a Skyrio account, they can also log in and use My Trips.",
+        findBookingPath: "/find-booking",
       },
     };
   }

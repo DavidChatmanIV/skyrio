@@ -34,6 +34,11 @@ const SyncGroupPage = lazy(() => import("./pages/SyncGroupPage"));
 const JoinTripPage = lazy(() => import("./pages/JoinTripPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
+// Manage or cancel ONE booking — works without an account (guests), from
+// the "Manage or cancel" link in confirmation emails.
+const ManageBookingPage = lazy(() => import("./pages/ManageBookingPage"));
+// Guests (or anyone who lost the email): email + code → we email a link.
+const FindBookingPage = lazy(() => import("./pages/FindBookingPage"));
 
 // Flight checkout return page — Stripe sends the traveler here after
 // paying, and this page finalizes the booking with the airline.
@@ -148,6 +153,16 @@ function TrackedRoutes() {
           path="pay-share/:splitPaymentId/:shareId"
           element={<PayShare />}
         />
+
+        {/* Public on purpose: guests book without an account, so they
+            manage or cancel with the link from their email. */}
+        <Route path="manage-booking/:id" element={<ManageBookingPage />} />
+        <Route path="find-booking" element={<FindBookingPage />} />
+        <Route
+          path="my-trips"
+          element={<Navigate to="/saved-trips" replace />}
+        />
+        <Route path="trips" element={<Navigate to="/saved-trips" replace />} />
 
         {/* SkyHub stays open to browse. Lock posting/liking inside the page. */}
         <Route path="skyhub" element={<SkyHubPage />} />

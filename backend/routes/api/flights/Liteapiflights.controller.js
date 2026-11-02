@@ -17,6 +17,7 @@ import Booking from "../../../models/booking.js";
 import User from "../../../models/user.js";
 import Notification from "../../../models/notification.js";
 import { awardXpForBooking } from "../../../services/xpService.js";
+import { manageUrlFor } from "../../../services/manageLink.js";
 import { memberGroupId } from "../../../services/sharedRooms.js";
 import {
   recordEmailResult,
@@ -320,6 +321,28 @@ function removeOfferFromCache(offerId) {
     console.log(`[flights] removed sold-out offer from cache (${removed})`);
 }
 
+// The airline turned down a traveler's name (placeholder like "Test
+// Traveler", a 1-letter name, characters it doesn't accept). The flight is
+// fine, so checkout must say "fix the name", never "find another flight".
+// The frontend recognizes this exact sentence.
+const NAME_REJECTED_MSG =
+  "The airline didn't accept a traveler's name. Enter each name exactly as it appears on that person's ID, then try again.";
+function isNameProblem(err) {
+  const e = err?.response?.data?.error || {};
+  const text = [
+    e.key,
+    e.field,
+    e.description,
+    e.message,
+    err?.response?.data?.message,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return /first\s?name|last\s?name|given\s?name|sur\s?name|family\s?name|passenger.{0,20}name|name.{0,30}(invalid|not allowed|too short|format|characters|required)/i.test(
+    text
+  );
+}
+
 // One shape for every provider failure the frontend sees:
 // { ok:false, code, soldOut, message }.
 function providerError(err, label) {
@@ -328,6 +351,19 @@ function providerError(err, label) {
     err?.response?.data || err.message
   );
   const code = err?.response?.data?.error?.code ?? null;
+  if (label === "prebook" && isNameProblem(err)) {
+    const { key } = err.response?.data?.error || {};
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        code,
+        nameRejected: true,
+        field: key || null,
+        message: NAME_REJECTED_MSG,
+      },
+    };
+  }
   const upstream =
     err?.response?.data?.error?.message || err?.response?.data?.message;
   const isTimeout =
@@ -374,8 +410,9 @@ function providerError(err, label) {
         ok: false,
         code,
         field: key || null,
+        travelerDetails: true,
         message:
-          "We couldn't send your traveler details to the airline. Please check them and try again.",
+          "The airline didn't accept the traveler details. Please check them and try again.",
         ...(process.env.NODE_ENV !== "production" && {
           detail: [description, key].filter(Boolean).join(" · "),
         }),
@@ -1259,11 +1296,24 @@ export async function completeBooking(req, res) {
       _noRetry: true,
     });
 
+    const bookedRecord = Array.isArray(data?.data)
+      ? data.data[0]
+      : data?.data || data;
+    // Save FIRST, so the confirmation email can carry this booking's
+    // "Manage or cancel" link (guests have no account to cancel from).
+    const saved = await saveFlightBooking({
+      userId,
+      prebookId: resolvedPrebookId,
+      transactionId: rest?.payment?.transactionId,
+      record: bookedRecord,
+      email: confirmationEmail,
+      groupId: userId ? groupId : null,
+      fallbackEmail: owner.e,
+    });
+
     let emailPromise = null;
     if (confirmationEmail?.to) {
-      const record = Array.isArray(data?.data)
-        ? data.data[0]
-        : data?.data || data;
+      const record = bookedRecord;
       const travelerCount = travelerCountOf(confirmationEmail, rest, record);
       const airlineCode = extractFlightPnr(record);
       const confirmationNumber =
@@ -1298,6 +1348,7 @@ export async function completeBooking(req, res) {
         // flew on this booking and it isn't already a group trip.
         travelerCount,
         groupTrip: Boolean(userId && groupId),
+        manageUrl: saved ? manageUrlFor(saved._id) : null,
       }).catch((emailErr) => {
         console.error(
           "[flights/complete] confirmation email failed:",
@@ -1306,19 +1357,6 @@ export async function completeBooking(req, res) {
         return { ok: false, error: emailErr?.message || "send failed" };
       });
     }
-
-    const bookedRecord = Array.isArray(data?.data)
-      ? data.data[0]
-      : data?.data || data;
-    const saved = await saveFlightBooking({
-      userId,
-      prebookId: resolvedPrebookId,
-      transactionId: rest?.payment?.transactionId,
-      record: bookedRecord,
-      email: confirmationEmail,
-      groupId: userId ? groupId : null,
-      fallbackEmail: owner.e,
-    });
 
     if (saved) {
       (emailPromise

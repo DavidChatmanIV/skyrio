@@ -254,6 +254,45 @@ function clearCheckoutProgress(key) {
     // Non-fatal.
   }
 }
+// Traveler details typed in checkout, NOT tied to one flight. Going back
+// to results and picking another flight used to start with a blank form
+// (progress is keyed by offer); this carries the travelers over instead.
+// Same tab only (sessionStorage), cleared once a booking completes.
+const TRAVELER_DRAFT_KEY = "skyrio_checkout_travelers_v1";
+function readTravelerDraft() {
+  if (typeof window === "undefined") return [];
+  try {
+    const list = JSON.parse(
+      window.sessionStorage.getItem(TRAVELER_DRAFT_KEY) || "[]"
+    );
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+function writeTravelerDraft(passengers) {
+  if (typeof window === "undefined") return;
+  const hasDetails = (passengers || []).some(
+    (p) => p.firstName || p.lastName || p.email || p.phone || p.dob
+  );
+  if (!hasDetails) return;
+  try {
+    window.sessionStorage.setItem(
+      TRAVELER_DRAFT_KEY,
+      JSON.stringify(passengers)
+    );
+  } catch {
+    // Non-fatal.
+  }
+}
+function clearTravelerDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(TRAVELER_DRAFT_KEY);
+  } catch {
+    // Non-fatal.
+  }
+}
 // ---- Per-segment seat selection helpers -------------------------------
 // selectedSeats shape: { [segmentKey]: { [passengerIndex]: { seatNumber, serviceId, price } } }
 const anySeats = (selectedSeats) =>
@@ -836,7 +875,7 @@ function FareCountdown({ expiresAt, onExpired }) {
 }
 // Replaces a step's primary action once the fare has expired, with one
 // clear way out: back to results to search fresh.
-function FareExpiredBlock({ onBackToResults }) {
+function FareExpiredBlock({ onBackToResults, onRefresh, refreshing = false }) {
   return (
     <div
       style={{
@@ -860,19 +899,31 @@ function FareExpiredBlock({ onBackToResults }) {
         </span>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: G.danger }}>
-            This fare has expired
+            Your price hold ran out
           </div>
           <div style={{ fontSize: 13, color: G.muted, marginTop: 3 }}>
-            Prices and availability can change. Please go back and search again
-            to get a current price before continuing.
+            {onRefresh
+              ? "We'll check this same flight with the airline again. Your traveler details stay filled in. If you'd picked seats, you'll pick them again."
+              : "Prices and availability can change. Please go back and search again to get a current price before continuing."}
           </div>
         </div>
       </div>
+      {onRefresh && (
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="skc-btn-primary"
+          style={{ background: G.gradBtn, marginBottom: 10 }}
+        >
+          {refreshing ? "Checking the price…" : "Get a fresh price"}
+        </button>
+      )}
       <button
         type="button"
         onClick={onBackToResults}
-        className="skc-btn-primary"
-        style={{ background: G.gradBtn }}
+        className={onRefresh ? "skc-btn-back" : "skc-btn-primary"}
+        style={onRefresh ? { width: "100%" } : { background: G.gradBtn }}
       >
         ← Back to results
       </button>
@@ -2663,6 +2714,8 @@ function StepPassengers({
   fareExpired,
   onFareExpired,
   onBackToResults,
+  onRefreshFare,
+  refreshingFare = false,
   onFormDirty,
   initialPassengers,
   onPassengersChange,
@@ -2816,8 +2869,18 @@ function StepPassengers({
     setTouched((t) => ({ ...t, [`${idx}.${field}`]: true }));
   // Airlines reject 1-letter names ("Fernanda B"), so require at least 2
   // letters. Profile autofill can produce an initial-only last name.
-  const nameOk = (v) => (v || "").replace(/[^\p{L}]/gu, "").length >= 2;
+  // Airlines also reject obvious placeholders ("Test Traveler"), and the
+  // error used to read like the flight was broken. Catch them here.
+  const PLACEHOLDER_NAME =
+    /^(test|tester|testing|traveler|traveller|passenger|firstname|lastname|first|last|name|asdf|qwerty|demo|sample|fake|none|n\/?a|x+)$/i;
+  const isPlaceholderName = (v) => PLACEHOLDER_NAME.test((v || "").trim());
+  const nameOk = (v) =>
+    (v || "").replace(/[^\p{L}]/gu, "").length >= 2 && !isPlaceholderName(v);
   const NAME_HINT = "Enter the full name exactly as it appears on your ID";
+  const nameHintFor = (v) =>
+    isPlaceholderName(v)
+      ? `Airlines won't accept "${v.trim()}" as a name. Use the name on your ID.`
+      : NAME_HINT;
   const dobOk = (v) => {
     if (!v) return false;
     const d = dayjs(v);
@@ -2837,9 +2900,9 @@ function StepPassengers({
     const key = `${idx}.${field}`;
     if (!touched[key]) return null;
     if (field === "firstName" && !nameOk(p.firstName))
-      return p.firstName ? NAME_HINT : "Required";
+      return p.firstName ? nameHintFor(p.firstName) : "Required";
     if (field === "lastName" && !nameOk(p.lastName))
-      return p.lastName ? NAME_HINT : "Required";
+      return p.lastName ? nameHintFor(p.lastName) : "Required";
     if (field === "dob" && !dobOk(p.dob)) return "Enter a valid past date";
     if (field === "gender" && !p.gender) return "Required";
     if (field === "email" && idx === 0 && !emailOk(p.email))
@@ -3397,7 +3460,11 @@ function StepPassengers({
             <UserPlus size={15} /> Add another traveler
           </button>
           {fareExpired ? (
-            <FareExpiredBlock onBackToResults={onBackToResults} />
+            <FareExpiredBlock
+              onBackToResults={onBackToResults}
+              onRefresh={onRefreshFare}
+              refreshing={refreshingFare}
+            />
           ) : (
             <button
               type="button"
@@ -3445,11 +3512,14 @@ function StepSeatsBags({
   fareExpired,
   onFareExpired,
   onBackToResults,
+  onRefreshFare,
+  refreshingFare = false,
   prebookId,
   prebookLoading,
   prebookError,
   onServicesAttached,
   onRetryPrebook,
+  onEditTravelers,
   groupId,
   initialSeats,
   baggage,
@@ -3569,6 +3639,22 @@ function StepSeatsBags({
     () => buildSeatSegments(seatServices, flight),
     [seatServices, flight]
   );
+  // The airline can send seat maps for only some flights (testers saw
+  // outbound seats but nothing for the return). Say so plainly.
+  const seatCoverageNote = useMemo(() => {
+    if (!seatServices.length) return "";
+    const slices = Array.isArray(flight?.raw?.slices) ? flight.raw.slices : [];
+    const totalFlights = slices.reduce(
+      (n, s) => n + (Array.isArray(s?.segments) ? s.segments.length : 0),
+      0
+    );
+    const withSeats = segments.filter((s) => s.key !== "default").length;
+    if (!totalFlights || withSeats >= totalFlights) return "";
+    if (slices.length > 1 && withSeats === 1 && totalFlights === 2) {
+      return "The airline is only offering seat selection on one of your two flights right now. Your seat on the other flight will be assigned at check-in, or you can pick it later with the airline.";
+    }
+    return `The airline is offering seat selection on ${withSeats} of your ${totalFlights} flights right now. Seats on the others will be assigned at check-in, or you can pick them later with the airline.`;
+  }, [seatServices, segments, flight]);
   // ── Sync Together: where friends are sitting ──
   // Only seats friends picked IN SKYRIO are known (saved on their booking).
   // Seats chosen with the airline or at check-in are invisible to us.
@@ -3842,6 +3928,7 @@ function StepSeatsBags({
               </div>
             ) : (
               <SkyrioSeatMap
+                coverageNote={seatCoverageNote}
                 isGroupTrip={Boolean(groupId)}
                 groupSeats={groupSeats}
                 friendsWithoutSeat={friendsWithoutSeat}
@@ -3890,7 +3977,64 @@ function StepSeatsBags({
             />
           )}
           {fareExpired ? (
-            <FareExpiredBlock onBackToResults={onBackToResults} />
+            <FareExpiredBlock
+              onBackToResults={onBackToResults}
+              onRefresh={onRefreshFare}
+              refreshing={refreshingFare}
+            />
+          ) : prebookError && isNameError(prebookError) ? (
+            // The flight is fine; a name was rejected. One clear way out.
+            <div
+              role="alert"
+              style={{
+                padding: "16px 18px",
+                borderRadius: 14,
+                background: "rgba(249,115,22,.08)",
+                border: "1px solid rgba(249,115,22,.35)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  marginBottom: 14,
+                }}
+              >
+                <span style={{ color: G.orange, marginTop: 1 }}>
+                  <AlertTriangle size={16} />
+                </span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>
+                    {/name/i.test(prebookError)
+                      ? "Check the traveler names"
+                      : "Check the traveler details"}
+                  </div>
+                  <div style={{ fontSize: 13, color: G.muted, marginTop: 4 }}>
+                    {prebookError} This flight is still available, and you
+                    haven't been charged.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onEditTravelers || onBack}
+                className="skc-btn-primary"
+                style={{ marginBottom: 10 }}
+              >
+                {/name/i.test(prebookError)
+                  ? "Fix traveler names"
+                  : "Fix traveler details"}
+              </button>
+              <button
+                type="button"
+                onClick={onBackToResults}
+                className="skc-btn-back"
+                style={{ width: "100%" }}
+              >
+                Pick a different flight
+              </button>
+            </div>
           ) : prebookError ? (
             <div
               style={{
@@ -4102,6 +4246,8 @@ function StepReviewPay({
   fareExpired,
   onFareExpired,
   onBackToResults,
+  onRefreshFare,
+  refreshingFare = false,
   onBookingSuccess,
   prebookId,
   transactionId,
@@ -4328,7 +4474,11 @@ function StepReviewPay({
             bagsPrice={bagsPrice}
           />
           {fareExpired && (
-            <FareExpiredBlock onBackToResults={onBackToResults} />
+            <FareExpiredBlock
+              onBackToResults={onBackToResults}
+              onRefresh={onRefreshFare}
+              refreshing={refreshingFare}
+            />
           )}
           {!fareExpired && prebookError && (
             <div
@@ -4356,9 +4506,15 @@ function StepReviewPay({
                     type="button"
                     className="skc-btn-back"
                     style={{ fontSize: 12, padding: "8px 14px" }}
-                    onClick={onBack}
+                    onClick={
+                      isNameError(prebookError) && onEditDetails
+                        ? onEditDetails
+                        : onBack
+                    }
                   >
-                    ← Go back
+                    {isNameError(prebookError)
+                      ? "Fix traveler names"
+                      : "← Go back"}
                   </button>
                 </div>
               </div>
@@ -4469,8 +4625,18 @@ function findExpiration(obj, depth = 0) {
   }
   return null;
 }
+// The airline turned down a traveler's name (e.g. "Test Traveler"). The
+// flight itself is fine, so this must never read as "find another flight".
+const NAME_REJECTED_MSG =
+  "The airline didn't accept a traveler's name. Enter each name exactly as it appears on that person's ID, then try again.";
+const NAME_ERROR_RE =
+  /\b(first|last|given|family|middle|sur)\s?name\b|\bname\b.*\b(invalid|not allowed|rejected|format|too short|required)|\b(invalid|not allowed|rejected)\b.*\bname\b|passenger name|traveller name|traveler name|airline didn't accept a traveler's name|airline didn't accept the traveler details/i;
+function isNameError(msg = "") {
+  return NAME_ERROR_RE.test(msg);
+}
 // Turns raw LiteAPI errors into something a traveler understands.
 function friendlyFareError(raw = "") {
+  if (isNameError(raw)) return NAME_REJECTED_MSG;
   if (/sold out|52010|no longer available|expired/i.test(raw)) {
     return "This fare just sold out with the airline. Let's find you another flight.";
   }
@@ -4497,24 +4663,36 @@ export default function BookingCheckout({
 }) {
   // After verify: the fare's real expiry, and — if the backend had to
   // refresh an expired fare — the new offerId and price.
-  const [fareUpdate, setFareUpdate] = useState(null);
   const baseFlight = buildFlight(flight);
-  const liveFlight = fareUpdate
-    ? {
-        ...baseFlight,
-        offerId: fareUpdate.offerId || baseFlight.offerId,
-        basePrice: fareUpdate.price ?? baseFlight.basePrice,
-        fareExpiresAt: fareUpdate.expiresAt || baseFlight.fareExpiresAt,
-      }
-    : baseFlight;
   // Keyed to the ORIGINAL offer so a refreshed offerId doesn't orphan saved progress.
   const progressKey = getProgressStorageKey(baseFlight);
   // Read once at mount so a refresh restores everything as one snapshot.
   const [restoredProgress] = useState(() => readCheckoutProgress(progressKey));
-  const [step, setStep] = useState(() => restoredProgress?.step ?? 0);
-  const [passengers, setPassengers] = useState(
-    () => restoredProgress?.passengers ?? []
+  const [fareUpdate, setFareUpdate] = useState(
+    () => restoredProgress?.fareUpdate ?? null
   );
+  // The countdown only runs once the airline has actually held the fare
+  // (verify/prebook). The search result's own expiry is NOT a price lock:
+  // it started ticking when the person searched, so it kept running while
+  // they switched flights and timed people out mid-checkout. If that
+  // search offer has gone stale, verify refreshes it automatically.
+  const liveFlight = {
+    ...baseFlight,
+    offerId: fareUpdate?.offerId || baseFlight.offerId,
+    basePrice: fareUpdate?.price ?? baseFlight.basePrice,
+    fareExpiresAt: fareUpdate?.expiresAt || null,
+  };
+  const [step, setStep] = useState(() => restoredProgress?.step ?? 0);
+  // This flight's saved progress first; otherwise the travelers typed for
+  // the last flight in this tab, so switching flights keeps them.
+  const [passengers, setPassengers] = useState(() =>
+    restoredProgress?.passengers?.length
+      ? restoredProgress.passengers
+      : readTravelerDraft()
+  );
+  useEffect(() => {
+    writeTravelerDraft(passengers);
+  }, [passengers]);
   const [extras, setExtras] = useState(() => restoredProgress?.extras ?? null);
   // Prebook happens right after Passengers submits (not at Review & Pay)
   // because real seat/ancillary data only exists once a prebook exists.
@@ -4660,6 +4838,15 @@ export default function BookingCheckout({
             "Fare was reserved but we didn't get a booking reference back. Please contact support."
           );
         }
+        // The hold's own expiry, when the prebook gives one, is the most
+        // accurate end time for the countdown.
+        const prebookExpiry = findExpiration(pData);
+        if (prebookExpiry) {
+          setFareUpdate((prev) => ({
+            ...(prev || {}),
+            expiresAt: prebookExpiry,
+          }));
+        }
         const newTransactionId =
           prebookRecord?.transactionId || pData.transactionId || null;
         if (!newTransactionId) {
@@ -4703,6 +4890,21 @@ export default function BookingCheckout({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [liveFlight.offerId, flight]
   );
+  // "Get a fresh price" after a hold runs out: re-checks the SAME flight
+  // with the airline (the server refreshes a stale offer) and keeps the
+  // traveler details. Seats/bags belong to the old hold, so they're
+  // cleared and picked again on the new one.
+  const refreshFare = useCallback(() => {
+    setFareExpired(false);
+    setPrebookError("");
+    if (!passengers.length) return; // still on the traveler form
+    setPrebookId(null);
+    setTransactionId(null);
+    setClientSecret(null);
+    setExtras((e) => (e ? { ...e, selectedSeats: {}, selectedBags: [] } : e));
+    setStep((s) => Math.min(s, 1));
+    runPrebook(passengers);
+  }, [passengers, runPrebook]);
   // Resume after a refresh mid-checkout. StepSeatsBags refetches its own
   // seat data on mount, so the only thing missing on resume is the Stripe
   // client secret. With no prebookId (e.g. progress saved before this
@@ -4781,6 +4983,7 @@ export default function BookingCheckout({
       groupMemberCount: effectiveGroupMemberCount,
       prebookId,
       transactionId,
+      fareUpdate,
       savedAt: Date.now(),
     });
   }, [
@@ -4793,9 +4996,12 @@ export default function BookingCheckout({
     effectiveGroupMemberCount,
     prebookId,
     transactionId,
+    fareUpdate,
   ]);
   useEffect(() => {
-    if (bookingComplete) clearCheckoutProgress(progressKey);
+    if (!bookingComplete) return;
+    clearCheckoutProgress(progressKey);
+    clearTravelerDraft();
   }, [bookingComplete, progressKey]);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   // Big "no longer available" alert. Shown once per error; Close keeps
@@ -4979,6 +5185,8 @@ export default function BookingCheckout({
             fareExpired={fareExpired}
             onFareExpired={handleFareExpired}
             onBackToResults={exitToResults}
+            onRefreshFare={refreshFare}
+            refreshingFare={prebookLoading}
             onFormDirty={setFormDirty}
             initialPassengers={passengers}
             onPassengersChange={setPassengers}
@@ -4986,6 +5194,7 @@ export default function BookingCheckout({
         )}
         {step === 1 && (
           <StepSeatsBags
+            key={prebookId || "no-hold"}
             groupId={effectiveGroupId}
             onBack={() => setStep(0)}
             onNext={(e) => {
@@ -4998,10 +5207,16 @@ export default function BookingCheckout({
             fareExpired={fareExpired}
             onFareExpired={handleFareExpired}
             onBackToResults={exitToResults}
+            onRefreshFare={refreshFare}
+            refreshingFare={prebookLoading}
             prebookId={prebookId}
             prebookLoading={prebookLoading}
             prebookError={prebookError}
             onRetryPrebook={() => runPrebook(passengers)}
+            onEditTravelers={() => {
+              setEditLead(true);
+              setStep(0);
+            }}
             initialSeats={extras?.selectedSeats}
             initialBags={extras?.selectedBags}
             baggage={baggage}
@@ -5027,6 +5242,8 @@ export default function BookingCheckout({
             fareExpired={fareExpired}
             onFareExpired={handleFareExpired}
             onBackToResults={exitToResults}
+            onRefreshFare={refreshFare}
+            refreshingFare={prebookLoading}
             onBookingSuccess={handleBookingSuccess}
             prebookId={prebookId}
             transactionId={transactionId}

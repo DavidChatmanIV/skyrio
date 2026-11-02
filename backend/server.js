@@ -112,6 +112,9 @@ const corsOptions = {
     // X-Skyrio-Guest: random per-browser key so a logged-out visitor's
     // Atlas search results only work for them (middleware/guestKey.js).
     "X-Skyrio-Guest",
+    // X-Manage-Token: the "Manage or cancel" link for one booking, so
+    // guests (no account) can view and cancel it (services/manageLink.js).
+    "X-Manage-Token",
   ],
   optionsSuccessStatus: 204,
 };
