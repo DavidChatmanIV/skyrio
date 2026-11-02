@@ -906,6 +906,38 @@ export async function createPrebook(req, res) {
     });
   } catch (err) {
     const { status, body } = providerError(err, "prebook");
+    // Why the airline said no. Without this, "didn't accept the traveler's
+    // name / details" left nothing in Render to tell WHICH field was wrong.
+    // Logs field names and lengths only — never names, dates or documents.
+    try {
+      const up = err?.response?.data?.error || {};
+      const sent = Array.isArray(req.body?.passengers)
+        ? req.body.passengers
+        : [];
+      console.warn(
+        "[flights/prebook] rejected:",
+        JSON.stringify({
+          httpStatus: err?.response?.status ?? null,
+          code: up.code ?? body.code ?? null,
+          key: up.key ?? null,
+          field: up.field ?? null,
+          description: up.description ?? null,
+          message: up.message ?? err?.response?.data?.message ?? err?.message,
+          shownToTraveler: body.message,
+          passengers: sent.map((p) => ({
+            type: p?.passengerType ?? p?.type ?? null,
+            fields: Object.keys(p || {}).join(","),
+            firstNameLen: String(p?.firstName || "").length,
+            lastNameLen: String(p?.lastName || "").length,
+            nonLetters: /[^A-Za-z \-']/.test(
+              `${p?.firstName || ""}${p?.lastName || ""}`
+            ),
+          })),
+        })
+      );
+    } catch {
+      // logging only
+    }
     if (body.soldOut) removeOfferFromCache(offerId);
     return res.status(status).json(body);
   }
