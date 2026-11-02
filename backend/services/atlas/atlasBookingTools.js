@@ -954,7 +954,20 @@ async function openCheckout(owner, userId, { optionId }) {
     kind: opt.kind,
     user: userId || null,
     offerId: opt.raw.offerId,
-    offer: opt.raw.frontend, // exactly what the checkout page expects
+    // Exactly what the checkout page expects, plus how many travelers the
+    // fare is priced for. Checkout opened with a different number of
+    // travelers (e.g. 1 typed in, fare for 2) and the airline rejected it,
+    // which showed up as "the airline doesn't accept my name".
+    offer:
+      opt.kind === "flight"
+        ? {
+            ...opt.raw.frontend,
+            pricedFor: {
+              adults: Math.max(1, Number(opt.search?.adults) || 1),
+              children: Math.max(0, Number(opt.search?.children) || 0),
+            },
+          }
+        : opt.raw.frontend,
     display: opt.display,
     search: opt.search,
     expiresAt: new Date(opt.expiresAt),

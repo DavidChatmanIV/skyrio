@@ -1626,8 +1626,9 @@ function FlightsForm({
 
   // Typing in a box drops the airport that was picked before, so the
   // pass and the search use what's actually in the box.
-  const typedIn = (which) => (e) => {
-    const v = e?.target?.value;
+  // (Reported by AirportInput's onTextChange. An onInputCapture wrapper
+  // used to do this and made the boxes drop keystrokes.)
+  const typedIn = (which) => (v) => {
     if (typeof v !== "string") return;
     setFormError("");
     if (which === "from") {
@@ -1799,10 +1800,18 @@ function FlightsForm({
         throw new Error(data.message || "Flight search failed");
       }
 
-      const flights = data.flights ?? [];
+      const searched = Object.fromEntries(new URLSearchParams(query));
+      // Each fare is priced for exactly this many travelers. Checkout uses
+      // it to start with the right number of traveler forms; a different
+      // count made the airline reject the booking.
+      const pricedFor = {
+        adults: Math.max(1, Number(searched.adults) || 1),
+        children: Math.max(0, Number(searched.children) || 0),
+      };
+      const flights = (data.flights ?? []).map((f) => ({ ...f, pricedFor }));
       // Second argument: what was searched (adults, cabin…) so Price Watch
       // re-checks the same kind of search.
-      onSearch(flights, Object.fromEntries(new URLSearchParams(query)));
+      onSearch(flights, searched);
 
       // The airline's system failed, so the server returned this exact
       // search from a few minutes ago. Say so plainly.
@@ -1967,19 +1976,18 @@ function FlightsForm({
               </button>
             ) : null}
           </span>
-          <div style={{ display: "contents" }} onInputCapture={typedIn("from")}>
-            <AirportInput
-              value={originDisplay}
-              placeholder="City or airport"
-              onChange={(ap) => {
-                setOriginAirport(ap);
-                setOriginDisplay(`${ap.city} (${ap.code})`);
-                setOriginText(`${ap.city} (${ap.code})`);
-                setFormError("");
-                onOriginChange?.(ap.city);
-              }}
-            />
-          </div>
+          <AirportInput
+            value={originDisplay}
+            onTextChange={typedIn("from")}
+            placeholder="City or airport"
+            onChange={(ap) => {
+              setOriginAirport(ap);
+              setOriginDisplay(`${ap.city} (${ap.code})`);
+              setOriginText(`${ap.city} (${ap.code})`);
+              setFormError("");
+              onOriginChange?.(ap.city);
+            }}
+          />
         </div>
 
         <div className="sk-pass-seg sk-pass-seg--to sk-pass-flat">
@@ -1995,19 +2003,18 @@ function FlightsForm({
           <span className="sk-pass-label">
             <MapPin size={12} aria-hidden="true" /> To
           </span>
-          <div style={{ display: "contents" }} onInputCapture={typedIn("to")}>
-            <AirportInput
-              value={destDisplay}
-              placeholder="City or airport"
-              onChange={(ap) => {
-                setDestAirport(ap);
-                setDestDisplay(`${ap.city} (${ap.code})`);
-                setDestText(`${ap.city} (${ap.code})`);
-                setFormError("");
-                onDestChange?.(ap.city);
-              }}
-            />
-          </div>
+          <AirportInput
+            value={destDisplay}
+            onTextChange={typedIn("to")}
+            placeholder="City or airport"
+            onChange={(ap) => {
+              setDestAirport(ap);
+              setDestDisplay(`${ap.city} (${ap.code})`);
+              setDestText(`${ap.city} (${ap.code})`);
+              setFormError("");
+              onDestChange?.(ap.city);
+            }}
+          />
         </div>
 
         <div className="sk-pass-seg sk-pass-seg--when sk-pass-flat">

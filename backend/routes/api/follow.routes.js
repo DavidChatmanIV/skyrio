@@ -130,6 +130,125 @@ async function sendFollowList(req, res, field) {
   }
 }
 
+// ─── GET /api/follow/travelers?page=1&limit=30 ──────────────
+// The "Active Travelers → View all" page. Public on purpose, since SkyHub is
+// open to preview; the page adds Follow state itself from /mine/list.
+//
+// "Active" = posted on SkyHub in the last ACTIVE_DAYS days, newest first.
+// The SkyHub post model is looked up by name so a wrong guess can never
+// crash the server. If none is found, it falls back to "recently active"
+// accounts and says so (basis: "recent"), so the page never overclaims.
+const ACTIVE_DAYS = 30;
+const POST_MODEL_NAMES = ["SkyHubPost", "SkyhubPost", "SkyHubPosts", "Post"];
+const AUTHOR_FIELDS = ["author", "authorId", "userId", "user", "createdBy"];
+const TRAVELER_FIELDS = `${LIST_FIELDS} followersCount`;
+
+function findPostModel() {
+  for (const name of POST_MODEL_NAMES) {
+    const M = mongoose.models[name];
+    if (!M) continue;
+    const authorField = AUTHOR_FIELDS.find((f) => {
+      const p = M.schema.path(f);
+      return p && /^ObjectI[dD]$/.test(p.instance);
+    });
+    if (authorField) return { M, authorField };
+  }
+  return null;
+}
+
+router.get("/travelers", async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 60);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const skip = (page - 1) * limit;
+    const found = findPostModel();
+
+    if (found) {
+      const { M, authorField } = found;
+      const since = new Date(Date.now() - ACTIVE_DAYS * 24 * 60 * 60 * 1000);
+      const match = {
+        createdAt: { $gte: since },
+        [authorField]: { $ne: null },
+      };
+      // Leave out removed posts when the schema tracks that.
+      if (M.schema.path("isDeleted")) match.isDeleted = { $ne: true };
+      if (M.schema.path("deletedAt")) match.deletedAt = null;
+      if (M.schema.path("hidden")) match.hidden = { $ne: true };
+
+      const [rows, countRows] = await Promise.all([
+        M.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: `$${authorField}`,
+              lastPostAt: { $max: "$createdAt" },
+              recentPosts: { $sum: 1 },
+            },
+          },
+          { $sort: { lastPostAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ]),
+        M.aggregate([
+          { $match: match },
+          { $group: { _id: `$${authorField}` } },
+          { $count: "n" },
+        ]),
+      ]);
+
+      const users = await User.find({ _id: { $in: rows.map((r) => r._id) } })
+        .select(TRAVELER_FIELDS)
+        .lean();
+      const byId = new Map(users.map((u) => [String(u._id), u]));
+
+      // Keep the "newest poster first" order; skip deleted accounts.
+      const travelers = rows
+        .map((r) => {
+          const u = byId.get(String(r._id));
+          return u
+            ? { ...u, lastPostAt: r.lastPostAt, recentPosts: r.recentPosts }
+            : null;
+        })
+        .filter(Boolean);
+
+      const total = countRows[0]?.n || 0;
+      return res.json({
+        ok: true,
+        basis: "posts",
+        days: ACTIVE_DAYS,
+        travelers,
+        total,
+        page,
+        hasMore: skip + rows.length < total,
+      });
+    }
+
+    // Fallback: no SkyHub post model found.
+    const filter = { username: { $exists: true, $ne: "" } };
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select(TRAVELER_FIELDS)
+        .lean(),
+      User.countDocuments(filter),
+    ]);
+
+    return res.json({
+      ok: true,
+      basis: "recent",
+      travelers: users,
+      total,
+      page,
+      hasMore: skip + users.length < total,
+    });
+  } catch (err) {
+    console.error("travelers list error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
 // ─── GET /api/follow/:userId/followers ───────────────────────
 router.get("/:userId/followers", requireAuth, (req, res) =>
   sendFollowList(req, res, "followers")

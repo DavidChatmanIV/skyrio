@@ -76,6 +76,15 @@ const Icon = {
       <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" />
     </Svg>
   ),
+  // Sync Together — a group of people
+  sync: (p) => (
+    <Svg {...p}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 20a6 6 0 0 1 12 0" />
+      <circle cx="17" cy="9" r="2.6" />
+      <path d="M15.5 14.2A5 5 0 0 1 21 19" />
+    </Svg>
+  ),
   chevron: (p) => (
     <Svg {...p}>
       <path d="m9 18 6-6-6-6" />
@@ -98,6 +107,52 @@ function getActiveKey(pathname) {
   if (pathname.startsWith("/saved-trips")) return "saved";
   return "";
 }
+
+/* Sync Together isn't a main tab, but it's what sets Skyrio apart, so it
+   gets its own standout button in the top bar and at the top of the
+   phone menu. */
+const SYNC_CSS = `
+  .sk-sync-cta {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 36px; padding: 0 14px 0 11px; border-radius: 999px;
+    font-size: 13.5px; font-weight: 700; white-space: nowrap;
+    color: #fff; text-decoration: none;
+    background: linear-gradient(135deg, rgba(255,138,42,0.22), rgba(124,92,252,0.30));
+    border: 1px solid rgba(255,138,42,0.55);
+    box-shadow: 0 0 0 0 rgba(255,138,42,0), 0 6px 18px rgba(124,92,252,0.22);
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    margin-right: 6px;
+  }
+  .sk-sync-cta:hover { color: #fff; border-color: #ff8a2a; transform: translateY(-1px);
+    box-shadow: 0 0 0 3px rgba(255,138,42,0.18), 0 8px 22px rgba(124,92,252,0.32); }
+  .sk-sync-cta:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .sk-sync-cta.is-on { background: linear-gradient(135deg, #ff8a2a, #7c5cfc); border-color: transparent; }
+  .sk-sync-cta__new {
+    font-size: 9.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 999px; background: #ff8a2a; color: #1a0e06;
+  }
+  .sk-sync-cta.is-on .sk-sync-cta__new { background: #fff; }
+  /* Tablet widths: keep the button, drop the badge so the bar fits */
+  @media (max-width: 1180px) { .sk-sync-cta__new { display: none; } }
+  @media (max-width: 1024px) { .sk-sync-cta__label { display: none; } .sk-sync-cta { padding: 0 11px; } }
+
+  .sk-mobile-sync {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; margin: 0 0 12px; border-radius: 16px;
+    color: #fff; text-decoration: none;
+    background: linear-gradient(135deg, rgba(255,138,42,0.20), rgba(124,92,252,0.28));
+    border: 1px solid rgba(255,138,42,0.5);
+  }
+  .sk-mobile-sync.is-on { border-color: #ff8a2a; }
+  .sk-mobile-sync__icon {
+    width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #ff8a2a, #7c5cfc);
+  }
+  .sk-mobile-sync__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sk-mobile-sync__title { font-weight: 800; font-size: 15px; }
+  .sk-mobile-sync__sub { font-size: 12.5px; color: rgba(255,255,255,0.65); }
+`;
 
 // ── Admin email — only this account sees the admin link ──
 // (The admin pages must still check the role on the server.)
@@ -144,6 +199,7 @@ export default function Navbar() {
 
   const isAdmin = isAuthed && user?.email === ADMIN_EMAIL;
   const isSaved = activeKey === "saved";
+  const isSync = location.pathname.startsWith("/sync-together");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -203,6 +259,7 @@ export default function Navbar() {
 
   return (
     <header className={`sk-navbar-wrap ${scrolled ? "is-scrolled" : ""}`}>
+      <style>{SYNC_CSS}</style>
       {mobileOpen && <div className="sk-mobile-backdrop" aria-hidden="true" />}
       <div className="sk-navbar-shell">
         <nav className="sk-navbar" ref={menuRef} aria-label="Main">
@@ -234,6 +291,19 @@ export default function Navbar() {
           {/* ── DESKTOP ACTIONS ── */}
           <div className="sk-nav-actions">
             <div className="sk-nav-actions-desktop">
+              <Link
+                to="/sync-together"
+                className={`sk-sync-cta${isSync ? " is-on" : ""}`}
+                aria-current={isSync ? "page" : undefined}
+                aria-label="Sync Together: plan a group trip"
+                title="Plan a group trip — everyone pays their own share"
+              >
+                <Icon.sync size={17} />
+                <span className="sk-sync-cta__label">Sync Together</span>
+                <span className="sk-sync-cta__new" aria-hidden="true">
+                  Group trips
+                </span>
+              </Link>
               {isAuthed ? (
                 <div className="sk-authed-actions">
                   <Link
@@ -325,6 +395,23 @@ export default function Navbar() {
                   <Icon.chevron size={18} />
                 </Link>
               )}
+
+              <Link
+                to="/sync-together"
+                className={`sk-mobile-sync${isSync ? " is-on" : ""}`}
+                aria-current={isSync ? "page" : undefined}
+              >
+                <span className="sk-mobile-sync__icon">
+                  <Icon.sync size={21} />
+                </span>
+                <span className="sk-mobile-sync__text">
+                  <span className="sk-mobile-sync__title">Sync Together</span>
+                  <span className="sk-mobile-sync__sub">
+                    Plan a group trip · everyone pays their share
+                  </span>
+                </span>
+                <Icon.chevron size={18} />
+              </Link>
 
               <div className="sk-mobile-grid">
                 {NAV_ITEMS.map((item) => {

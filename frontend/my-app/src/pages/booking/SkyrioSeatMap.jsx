@@ -721,9 +721,14 @@ export default function SkyrioSeatMap({
   const layoverCities = [
     ...new Set(segments.map((s) => s.layoverAt).filter(Boolean)),
   ];
+  // No seat data for this flight (the airline sent seat maps for some
+  // flights only — common on return legs and sandbox fares), or every seat
+  // unavailable: say so plainly instead of drawing a made-up cabin full of
+  // "taken" seats, which looked like seat selection was broken.
   const noSeatsOffered =
-    scopedSeatServices.length > 0 &&
-    scopedSeatServices.every((sv) => sv.available === false);
+    !rowsProp &&
+    (scopedSeatServices.length === 0 ||
+      scopedSeatServices.every((sv) => sv.available === false));
   const showKidPetLegend = flaggedSeats.size > 0;
   const exitRowsHere = [...rowTier.values()].includes("exit-row");
 
@@ -1219,284 +1224,294 @@ export default function SkyrioSeatMap({
             fontSize: 12.5,
           }}
         >
-          The airline isn't offering seat selection on this flight right now.
-          You can continue — a seat will be assigned at check-in.
+          {multiFlight
+            ? "The airline isn't offering seat selection on this flight. You can pick seats on your other flights, or continue — the airline assigns a seat here at check-in."
+            : "The airline isn't offering seat selection on this flight. You can continue — the airline assigns your seat at check-in."}
         </div>
       )}
 
-      {/* Legend: above the map so it's read before choosing. "Yours" first,
+      {!noSeatsOffered && (
+        <>
+          {/* Legend: above the map so it's read before choosing. "Yours" first,
           then only the seat types on this flight, with starting prices. */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "8px 14px",
-          fontSize: 11.5,
-          color: G.soft,
-          marginBottom: 6,
-        }}
-      >
-        <LegendItem
-          swatch={SELECTED_FILL}
-          border="#fff"
-          glow
-          mark={<Check size={11} strokeWidth={3.5} />}
-          label="Your seat"
-        />
-        {passengers.length > 1 && (
-          <LegendItem
-            swatch={PARTY_FILL}
-            border={PARTY_EDGE}
-            mark={<span style={{ fontSize: 7, fontWeight: 800 }}>AB</span>}
-            label="Your party"
-          />
-        )}
-        {isGroupTrip && (
-          <LegendItem
-            swatch={GROUP_FILL}
-            border={G.violet}
-            mark={<span style={{ fontSize: 7, fontWeight: 800 }}>FR</span>}
-            label="Your group"
-          />
-        )}
-        {TIER_ORDER.filter((t) => tierPrices[t] != null).map((t) => (
-          <LegendItem
-            key={t}
-            swatch={TIER[t].tint}
-            border={TIER[t].edge}
-            dashed={TIER[t].dashed}
-            label={`${TIER[t].label} · ${
-              tierPrices[t] > 0
-                ? `from $${formatPrice(tierPrices[t])}`
-                : "included"
-            }`}
-          />
-        ))}
-        {showKidPetLegend && (
-          <>
-            <LegendItem icon={<Baby size={12} />} label="Child" />
-            <LegendItem icon={<PawPrint size={12} />} label="Pet in cabin" />
-          </>
-        )}
-        <LegendItem
-          swatch="rgba(255,255,255,0.015)"
-          border="rgba(255,255,255,0.08)"
-          mark={<span style={{ opacity: 0.4, fontSize: 10 }}>×</span>}
-          label="Taken"
-        />
-      </div>
-      <div style={{ fontSize: 11.5, color: G.muted, marginBottom: 10 }}>
-        Your seat is the bright orange one with a ✓. Outlined seats are open to
-        pick.
-      </div>
-      {activeRestricted && exitRowsHere && (
-        <div style={{ fontSize: 12, color: G.muted, marginBottom: 10 }}>
-          Exit rows are greyed out for {firstName(activePassenger)} — airlines
-          don't seat children or travelers with a pet there.
-        </div>
-      )}
-
-      {/* Map + sticky seat bar */}
-      <div>
-        {/* Above the map, and stays pinned under the site header while
-            scrolling a long cabin. */}
-        <div
-          aria-live="polite"
-          style={{
-            position: "sticky",
-            top: stickyTop,
-            zIndex: 2,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 10,
-            marginBottom: 10,
-            padding: "10px 12px 10px 14px",
-            borderRadius: 14,
-            border: `1px solid ${
-              detailSeat ? "rgba(249,115,22,0.4)" : G.border
-            }`,
-            background: "rgba(32,20,52,0.72)",
-            backdropFilter: "blur(16px) saturate(140%)",
-            WebkitBackdropFilter: "blur(16px) saturate(140%)",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: G.soft }}>{detailCaption}</div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: !detailSeat && pickMessage ? G.amber : "#fff",
-              }}
-            >
-              {detailText}
-            </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px 14px",
+              fontSize: 11.5,
+              color: G.soft,
+              marginBottom: 6,
+            }}
+          >
+            <LegendItem
+              swatch={SELECTED_FILL}
+              border="#fff"
+              glow
+              mark={<Check size={11} strokeWidth={3.5} />}
+              label="Your seat"
+            />
+            {passengers.length > 1 && (
+              <LegendItem
+                swatch={PARTY_FILL}
+                border={PARTY_EDGE}
+                mark={<span style={{ fontSize: 7, fontWeight: 800 }}>AB</span>}
+                label="Your party"
+              />
+            )}
+            {isGroupTrip && (
+              <LegendItem
+                swatch={GROUP_FILL}
+                border={G.violet}
+                mark={<span style={{ fontSize: 7, fontWeight: 800 }}>FR</span>}
+                label="Your group"
+              />
+            )}
+            {TIER_ORDER.filter((t) => tierPrices[t] != null).map((t) => (
+              <LegendItem
+                key={t}
+                swatch={TIER[t].tint}
+                border={TIER[t].edge}
+                dashed={TIER[t].dashed}
+                label={`${TIER[t].label} · ${
+                  tierPrices[t] > 0
+                    ? `from $${formatPrice(tierPrices[t])}`
+                    : "included"
+                }`}
+              />
+            ))}
+            {showKidPetLegend && (
+              <>
+                <LegendItem icon={<Baby size={12} />} label="Child" />
+                <LegendItem
+                  icon={<PawPrint size={12} />}
+                  label="Pet in cabin"
+                />
+              </>
+            )}
+            <LegendItem
+              swatch="rgba(255,255,255,0.015)"
+              border="rgba(255,255,255,0.08)"
+              mark={<span style={{ opacity: 0.4, fontSize: 10 }}>×</span>}
+              label="Taken"
+            />
           </div>
-          {!noSeatsOffered && activePassenger && (
+          <div style={{ fontSize: 11.5, color: G.muted, marginBottom: 10 }}>
+            Your seat is the bright orange one with a ✓. Outlined seats are open
+            to pick.
+          </div>
+          {activeRestricted && exitRowsHere && (
+            <div style={{ fontSize: 12, color: G.muted, marginBottom: 10 }}>
+              Exit rows are greyed out for {firstName(activePassenger)} —
+              airlines don't seat children or travelers with a pet there.
+            </div>
+          )}
+
+          {/* Map + sticky seat bar */}
+          <div>
+            {/* Above the map, and stays pinned under the site header while
+            scrolling a long cabin. */}
             <div
+              aria-live="polite"
               style={{
+                position: "sticky",
+                top: stickyTop,
+                zIndex: 2,
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
+                justifyContent: "space-between",
                 flexWrap: "wrap",
+                gap: 10,
+                marginBottom: 10,
+                padding: "10px 12px 10px 14px",
+                borderRadius: 14,
+                border: `1px solid ${
+                  detailSeat ? "rgba(249,115,22,0.4)" : G.border
+                }`,
+                background: "rgba(32,20,52,0.72)",
+                backdropFilter: "blur(16px) saturate(140%)",
+                WebkitBackdropFilter: "blur(16px) saturate(140%)",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: G.soft }}>
+                  {detailCaption}
+                </div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: !detailSeat && pickMessage ? G.amber : "#fff",
+                  }}
+                >
+                  {detailText}
+                </div>
+              </div>
+              {!noSeatsOffered && activePassenger && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div
+                    role="group"
+                    aria-label="Seat preference"
+                    style={{
+                      display: "flex",
+                      padding: 2,
+                      borderRadius: 10,
+                      gap: 2,
+                      background: "rgba(255,255,255,0.04)",
+                      border: `1px solid ${G.border}`,
+                    }}
+                  >
+                    {prefButton("window", "Window")}
+                    {prefButton("aisle", "Aisle")}
+                    {prefButton("any", "Any")}
+                  </div>
+                  <button
+                    type="button"
+                    className="skm-pick"
+                    onClick={pickForMe}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "8px 14px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(249,115,22,0.5)",
+                      background: "rgba(249,115,22,0.1)",
+                      color: "#ff8a2a",
+                      fontFamily: "inherit",
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <Sparkles size={13} /> Pick for me
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div
+              ref={gridRef}
+              role="group"
+              aria-label="Aircraft seat map. Use arrow keys to move between seats."
+              onKeyDown={onGridKeyDown}
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015))",
+                border: `1px solid ${G.border}`,
+                borderRadius: "48px 48px 16px 16px",
+                padding: "22px 14px 18px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                overflowX: "auto",
               }}
             >
               <div
-                role="group"
-                aria-label="Seat preference"
                 style={{
-                  display: "flex",
-                  padding: 2,
-                  borderRadius: 10,
-                  gap: 2,
-                  background: "rgba(255,255,255,0.04)",
-                  border: `1px solid ${G.border}`,
-                }}
-              >
-                {prefButton("window", "Window")}
-                {prefButton("aisle", "Aisle")}
-                {prefButton("any", "Any")}
-              </div>
-              <button
-                type="button"
-                className="skm-pick"
-                onClick={pickForMe}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 14px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(249,115,22,0.5)",
-                  background: "rgba(249,115,22,0.1)",
-                  color: "#ff8a2a",
-                  fontFamily: "inherit",
-                  fontSize: 12.5,
+                  fontSize: 10,
                   fontWeight: 700,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
+                  letterSpacing: 1,
+                  color: "rgba(255,255,255,0.35)",
+                  marginBottom: 12,
                 }}
               >
-                <Sparkles size={13} /> Pick for me
-              </button>
-            </div>
-          )}
-        </div>
+                ▲ FRONT
+              </div>
 
-        <div
-          ref={gridRef}
-          role="group"
-          aria-label="Aircraft seat map. Use arrow keys to move between seats."
-          onKeyDown={onGridKeyDown}
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015))",
-            border: `1px solid ${G.border}`,
-            borderRadius: "48px 48px 16px 16px",
-            padding: "22px 14px 18px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            overflowX: "auto",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 1,
-              color: "rgba(255,255,255,0.35)",
-              marginBottom: 12,
-            }}
-          >
-            ▲ FRONT
-          </div>
+              {columnHeader}
 
-          {columnHeader}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {rows.map((row, i) => {
-              const prevRow = rows[i - 1];
-              const tier = rowTier.get(row);
-              const showDivider = i > 0 && rowTier.get(prevRow) !== tier;
-              const isExit = tier === "exit-row";
-              const exitMark = (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    ...sideCell,
-                    fontSize: 8,
-                    fontWeight: 800,
-                    letterSpacing: 0.3,
-                    color: isExit ? G.amber : "transparent",
-                    textAlign: "center",
-                  }}
-                >
-                  EXIT
-                </span>
-              );
-              return (
-                <div key={row}>
-                  {(showDivider || (i === 0 && tier !== "standard")) && (
-                    <div
-                      role="separator"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        margin: "6px 0",
-                        color: "rgba(255,255,255,0.32)",
-                        fontSize: 9,
-                        fontWeight: 700,
-                        letterSpacing: 0.6,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      <span
-                        style={{ flex: 1, height: 1, background: G.border }}
-                      />
-                      {TIER[tier].label}
-                      <span
-                        style={{ flex: 1, height: 1, background: G.border }}
-                      />
-                    </div>
-                  )}
-                  <div style={{ display: "flex", alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                {rows.map((row, i) => {
+                  const prevRow = rows[i - 1];
+                  const tier = rowTier.get(row);
+                  const showDivider = i > 0 && rowTier.get(prevRow) !== tier;
+                  const isExit = tier === "exit-row";
+                  const exitMark = (
                     <span
+                      aria-hidden="true"
                       style={{
                         ...sideCell,
-                        marginRight: 6,
-                        fontSize: 10,
-                        color: G.muted,
-                        textAlign: "right",
+                        fontSize: 8,
+                        fontWeight: 800,
+                        letterSpacing: 0.3,
+                        color: isExit ? G.amber : "transparent",
+                        textAlign: "center",
                       }}
                     >
-                      {row}
+                      EXIT
                     </span>
-                    {columns.map((col) => renderCell(row, col))}
-                    {exitMark}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                  return (
+                    <div key={row}>
+                      {(showDivider || (i === 0 && tier !== "standard")) && (
+                        <div
+                          role="separator"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            margin: "6px 0",
+                            color: "rgba(255,255,255,0.32)",
+                            fontSize: 9,
+                            fontWeight: 700,
+                            letterSpacing: 0.6,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          <span
+                            style={{ flex: 1, height: 1, background: G.border }}
+                          />
+                          {TIER[tier].label}
+                          <span
+                            style={{ flex: 1, height: 1, background: G.border }}
+                          />
+                        </div>
+                      )}
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        <span
+                          style={{
+                            ...sideCell,
+                            marginRight: 6,
+                            fontSize: 10,
+                            color: G.muted,
+                            textAlign: "right",
+                          }}
+                        >
+                          {row}
+                        </span>
+                        {columns.map((col) => renderCell(row, col))}
+                        {exitMark}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 1,
-              color: "rgba(255,255,255,0.35)",
-              marginTop: 12,
-            }}
-          >
-            REAR ▼
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                  color: "rgba(255,255,255,0.35)",
+                  marginTop: 12,
+                }}
+              >
+                REAR ▼
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

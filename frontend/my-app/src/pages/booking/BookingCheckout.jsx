@@ -285,6 +285,43 @@ function writeTravelerDraft(passengers) {
     // Non-fatal.
   }
 }
+// How many travelers this fare was priced for, when the search said so.
+function pricedForOf(flight) {
+  const p = flight?.pricedFor || flight?.raw?.pricedFor;
+  if (!p) return null;
+  const adults = Math.max(1, Number(p.adults) || 1);
+  const children = Math.max(0, Number(p.children) || 0);
+  return { adults, children, total: adults + children };
+}
+// The airline only books the number of travelers the fare was priced for.
+// Start checkout with exactly that many forms: keep travelers already typed
+// (in order), add blank ones if short, drop extras.
+function fitTravelersToFare(list, priced) {
+  const base = Array.isArray(list) ? list : [];
+  if (!priced) return base;
+  const out = base.slice(0, priced.total).map((p, i) => ({ ...p, index: i }));
+  while (out.length < priced.total) out.push(makePassenger(out.length));
+  return out;
+}
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+function travelerCountProblem(list, priced) {
+  if (!priced) return null;
+  const n = (list || []).length;
+  if (n === priced.total) return null;
+  const forWho =
+    priced.children > 0
+      ? `${plural(priced.adults, "adult")} and ${plural(
+          priced.children,
+          "child"
+        ).replace("childs", "children")}`
+      : plural(priced.adults, "traveler");
+  return `This price is for ${forWho}, and you've entered ${plural(
+    n,
+    "traveler"
+  )}. Go back and ${
+    n < priced.total ? "add" : "remove"
+  } travelers to match, or search again for ${plural(n, "traveler")}.`;
+}
 function clearTravelerDraft() {
   if (typeof window === "undefined") return;
   try {
@@ -4685,10 +4722,11 @@ export default function BookingCheckout({
   const [step, setStep] = useState(() => restoredProgress?.step ?? 0);
   // This flight's saved progress first; otherwise the travelers typed for
   // the last flight in this tab, so switching flights keeps them.
+  const pricedFor = pricedForOf(flight);
   const [passengers, setPassengers] = useState(() =>
     restoredProgress?.passengers?.length
       ? restoredProgress.passengers
-      : readTravelerDraft()
+      : fitTravelersToFare(readTravelerDraft(), pricedFor)
   );
   useEffect(() => {
     writeTravelerDraft(passengers);
@@ -4792,6 +4830,10 @@ export default function BookingCheckout({
               "This fare is no longer available. Please go back and pick a fresh result."
           );
         }
+        // Catch a traveler-count mismatch here, in plain words, instead of
+        // sending it to the airline (which rejects it as "traveler details").
+        const countProblem = travelerCountProblem(passengersList, pricedFor);
+        if (countProblem) throw new Error(countProblem);
         const leadPassenger = passengersList[0];
         // Phone is stored as E.164; LiteAPI takes calling code + national
         // number separately (e.g. "44" + "7911123456").

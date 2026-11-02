@@ -10,6 +10,9 @@ import "@/styles/AirportInput.css";
  * Props:
  *   value       – controlled display string e.g. "New York (JFK)"
  *   onChange    – (airport) => void — called with the full airport object
+ *   onTextChange – (text) => void — OPTIONAL, called on every keystroke with
+ *                  what's typed (so a form can search typed text that
+ *                  wasn't picked from the list)
  *   placeholder – string
  *   className   – extra className on the wrapper
  *
@@ -22,6 +25,7 @@ import "@/styles/AirportInput.css";
 export default function AirportInput({
   value,
   onChange,
+  onTextChange,
   placeholder = "City or airport",
   className = "",
 }) {
@@ -79,15 +83,19 @@ export default function AirportInput({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  const handleChange = useCallback((e) => {
-    const val = e.target.value;
-    setInputVal(val);
-    // ✅ n5/n6: searchAirports now returns { results, nearby }
-    const { results: found, nearby: nearbyAirports } = searchAirports(val);
-    setResults(found);
-    setNearby(nearbyAirports);
-    setOpen(found.length > 0 || !!nearbyAirports);
-  }, []);
+  const handleChange = useCallback(
+    (e) => {
+      const val = e.target.value;
+      setInputVal(val);
+      // ✅ n5/n6: searchAirports now returns { results, nearby }
+      const { results: found, nearby: nearbyAirports } = searchAirports(val);
+      setResults(found);
+      setNearby(nearbyAirports);
+      setOpen(found.length > 0 || !!nearbyAirports);
+      onTextChange?.(val);
+    },
+    [onTextChange]
+  );
 
   const handleSelect = useCallback(
     (airport) => {

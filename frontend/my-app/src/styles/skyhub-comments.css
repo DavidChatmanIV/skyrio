@@ -132,14 +132,14 @@
   outline: none;
 }
 
-/* Phone header: back | title centered | spacer */
-@media (max-width: 599px) {
-  .skyhubC-header .skyhubC-title {
-    text-align: center;
-  }
-  .skyhubC-headerSpacer {
-    width: 92px; /* roughly the back button width, keeps title centered */
-  }
+/* Header (phone + desktop): back | title centered | spacer */
+.skyhubC-header .skyhubC-title {
+  text-align: center;
+}
+
+.skyhubC-headerSpacer {
+  width: 92px; /* roughly the back button width, keeps title centered */
+  flex-shrink: 0;
 }
 
 /* ── Original post (mini postcard) ── */

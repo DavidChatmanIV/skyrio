@@ -1,556 +1,1415 @@
+import { liteApiFlights } from "./Liteapiflights.provider.js";
+import {
+  extractFlightBookingId,
+  extractFlightPnr,
+} from "../../../services/liteapiBookings.js";
+import {
+  buildLiteApiSearchPayload,
+  buildVerifyPayload,
+  buildPrebookPayload,
+  buildCompleteBookingPayload,
+  normalizeFlightSearchResponse,
+  toFrontendFlightShape,
+  parsePrebookSeatOptions,
+} from "./Liteapiflights.utils.js";
+import { sendBookingConfirmation } from "../../../services/email.js";
+import Booking from "../../../models/booking.js";
+import User from "../../../models/user.js";
+import Notification from "../../../models/notification.js";
+import { awardXpForBooking } from "../../../services/xpService.js";
+import { manageUrlFor } from "../../../services/manageLink.js";
+import { memberGroupId } from "../../../services/sharedRooms.js";
+import {
+  recordEmailResult,
+  sendConfirmationFor,
+  onGroupBookingSaved,
+} from "../../../services/bookingConfirmations.js";
+import {
+  signCheckoutToken,
+  readCheckoutToken,
+  ownsCheckout,
+  currentUserId,
+  CHECKOUT_ENDED,
+} from "../../../services/checkoutToken.js";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Guests can book, so ownership of a checkout comes from the checkout
+// token handed out by createPrebook, not from the login. Stops the request
+// unless the caller owns this prebook; returns the decoded token otherwise.
+function requireCheckoutOwner(req, res, prebookId) {
+  const token = readCheckoutToken(req, "flight");
+  if (ownsCheckout(token, req, prebookId)) return token;
+  res.status(403).json(CHECKOUT_ENDED);
+  return null;
+}
+
 // ---------------------------------------------------------------------
-// Search payload
+// Search speed + fare freshness
+//
+// LiteAPI's sandbox can take ~50s to return a round-trip search. What we
+// control:
+//
+//   1. Cache: an identical search is served instantly, but ONLY while its
+//      fares still have enough life left for a traveler to finish checkout
+//      (OFFER_MIN_REMAINING_MS). The cache adapts to each offer's real
+//      expiry instead of a fixed age.
+//   2. In-flight sharing: duplicate searches wait on the one already running.
+//   3. Warm-up: POST /api/flights/warm starts the search early.
+//   4. Fare refresh: if a chosen fare has expired (or LiteAPI calls it sold
+//      out) at verify, we run a fresh search, find the SAME flight again,
+//      verify the new offer and hand it back — the traveler keeps their
+//      flight instead of starting over. This is how the big OTAs behave:
+//      "We refreshed your fare" (+ a price-change notice if it moved).
+//
+// Every flight returned to the frontend carries `searchedAt` and
+// `expiresAt`, so the UI can show an honest timer and refresh on its own.
 // ---------------------------------------------------------------------
+const SEARCH_CACHE = new Map(); // cacheKey -> { ts, flights, params }
+const INFLIGHT_SEARCHES = new Map();
 
-export function buildLiteApiSearchPayload({
-  origin,
-  destination,
-  departureDate,
-  returnDate,
-  adults = 1,
-  children = 0,
-  cabinClass = "economy",
-  currency = "USD",
-}) {
-  // FIX (root cause of the "Return TBD" bug): LiteAPI's own API
-  // playground (Search for flights — legs-based itinerary) shows each
-  // leg requires an explicit "direction": "OUTBOUND" / "INBOUND" field.
-  // We were never sending it. Journeys came back with only a single
-  // OUTBOUND segment and nothing for the return leg — even though the
-  // fare pricing (offerId, per-passenger pricing) clearly reflected a
-  // round trip — because LiteAPI had no way to know a second, inbound
-  // leg was being requested. Adding direction here is what actually
-  // gets LiteAPI to return inbound segments; the frontend/backend
-  // leg-splitting logic below was correct all along, it simply never
-  // had inbound segments to split.
-  const legs = [
-    { origin, destination, date: departureDate, direction: "OUTBOUND" },
-  ];
+// LiteAPI offers live ~13-15 min. Used when an offer has no expiration field.
+const OFFER_LIFETIME_MS = 13 * 60 * 1000;
+// A cached list is reused only if its soonest-expiring fare still has at
+// least this long left — enough to browse, fill passenger details and pay.
+const OFFER_MIN_REMAINING_MS =
+  Number(process.env.FLIGHT_OFFER_MIN_REMAINING_MS) || 10 * 60 * 1000;
+// Hard cap on cache age regardless of offer expiry.
+const CACHE_TTL_MS =
+  Number(process.env.FLIGHT_SEARCH_CACHE_TTL_MS) || 4 * 60 * 1000;
+// If LiteAPI fails, recent results are shown instead of an error — but
+// only if their fares still have this long left.
+const STALE_MIN_REMAINING_MS = 6 * 60 * 1000;
+// A fare this close to expiry is treated as expired at verify.
+const EXPIRY_GRACE_MS = 30 * 1000;
 
-  if (returnDate) {
-    legs.push({
-      origin: destination,
-      destination: origin,
-      date: returnDate,
-      direction: "INBOUND",
-    });
-  }
+// Total time a traveler can wait for one search, including the retry.
+const SEARCH_BUDGET_MS = 80 * 1000;
+const FIRST_ATTEMPT_TIMEOUT_MS = 50 * 1000;
+const MIN_RETRY_WINDOW_MS = 15 * 1000;
+// A search that just failed on BOTH attempts usually fails again.
+const FAILED_SEARCH_TTL_MS = 3 * 60 * 1000;
+const FAILED_SEARCHES = new Map(); // cacheKey -> { ts, err }
+const CACHE_MAX_ENTRIES = 200;
+const RETRY_DELAY_MS = 1500;
 
-  return {
-    legs,
+// LiteAPI error codes we handle specifically.
+const CODE_SOLD_OUT = 52010;
+const CODE_SEARCH_FAILED = 51099;
+const CODE_VERIFY_FAILED = 52099;
+const CODE_PREBOOK_FAILED = 53099;
+const VERIFY_TIMEOUT_MS = 20 * 1000;
+
+const SOLD_OUT_BODY = {
+  ok: false,
+  code: CODE_SOLD_OUT,
+  soldOut: true,
+  message:
+    "This fare just sold out with the airline. Please pick another flight.",
+};
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function buildCacheKey(params) {
+  const {
+    origin,
+    destination,
+    departureDate,
+    returnDate,
     adults,
     children,
     cabinClass,
-    currency,
-  };
+  } = params;
+  return [
+    origin,
+    destination,
+    departureDate,
+    returnDate || "",
+    adults || 1,
+    children || 0,
+    cabinClass || "economy",
+  ]
+    .join("|")
+    .toLowerCase();
 }
 
 // ---------------------------------------------------------------------
-// Response normalization
-//
-// LiteAPI's exact response envelope has changed shape on us before
-// (wrapped in `data: [ { journeys } ]` vs a bare `{ journeys }`), so this
-// is written defensively: try several known shapes, and if none match,
-// log the raw top-level keys so the next debugging session has something
-// concrete to go on instead of a silent empty array.
+// Offer helpers
 // ---------------------------------------------------------------------
-
-function extractJourneys(data) {
-  if (!data || typeof data !== "object") return [];
-
-  // Shape A: { data: [ { journeys: [...] } ] }
-  if (Array.isArray(data.data) && data.data[0]?.journeys) {
-    return data.data[0].journeys;
-  }
-
-  // Shape B: { journeys: [...] }
-  if (Array.isArray(data.journeys)) {
-    return data.journeys;
-  }
-
-  // Shape C: { data: { journeys: [...] } }
-  if (Array.isArray(data?.data?.journeys)) {
-    return data.data.journeys;
-  }
-
-  // Shape D: bare array of journeys
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  console.warn(
-    "[LiteAPI Flights] normalizeFlightSearchResponse: unrecognized response shape. Top-level keys:",
-    Object.keys(data)
-  );
-  return [];
+function offerIdOf(f) {
+  return f?.offerId || f?.raw?.offerId || f?.id || null;
 }
 
-function buildSlice(segments = []) {
-  if (!segments.length) return null;
-  const first = segments[0];
-  const last = segments[segments.length - 1];
-
-  return {
-    origin: first.originCode,
-    originName: first.originName,
-    destination: last.destinationCode,
-    destinationName: last.destinationName,
-    departureTime: first.departureTime,
-    arrivalTime: last.arrivalTime,
-    stops: segments.length - 1,
-    segments: segments.map((s) => ({
-      origin: s.originCode,
-      destination: s.destinationCode,
-      departureTime: s.departureTime,
-      arrivalTime: s.arrivalTime,
-      durationMinutes: s.duration?.minutes,
-      carrier: s.carrier?.marketingName,
-      carrierCode: s.carrier?.marketingCode,
-      carrierLogo: s.carrier?.marketingLogo,
-      flightNumber: s.flight?.marketingNumber,
-    })),
-  };
+// When this offer stops being bookable. Uses LiteAPI's own expiration when
+// present, otherwise searchedAt + OFFER_LIFETIME_MS.
+function offerExpiry(f, searchedAt) {
+  const raw =
+    f?.fareExpiresAt ??
+    f?.expiration ??
+    f?.raw?.expiration ??
+    findField(f, "expiration") ??
+    findField(f, "expiresAt");
+  const parsed = raw != null ? Date.parse(raw) : NaN;
+  const fallback = searchedAt + OFFER_LIFETIME_MS;
+  // Never trust an expiry later than our known lifetime cap.
+  return Number.isFinite(parsed)
+    ? Math.min(parsed, fallback + 5 * 60 * 1000)
+    : fallback;
 }
 
-// Splits a flat segment list into { outboundSegments, inboundSegments }.
-//
-// History of this function, kept here so the next person touching it
-// doesn't reintroduce a bug we already found:
-//
-//   v1 relied on `s.direction === "OUTBOUND"/"INBOUND"`, which silently
-//   returned two empty arrays whenever LiteAPI's segments don't carry
-//   that exact field/casing — which is what was actually happening in
-//   practice. Both slices came back null, a fallback dumped ALL
-//   segments into a single slice, and the return leg's times never
-//   made it into slices[1] — hence "Return TBD" on the frontend even
-//   though the return leg data existed in LiteAPI's raw response.
-//
-//   v2 split on the requested destination/return-date instead — for a
-//   round trip, the first segment whose originCode matches the search
-//   destination marks the start of the return leg. This fixed the
-//   common case but has a gap: open-jaw itineraries (return departs
-//   from a different city than the outbound arrived at) never match
-//   destCode, so splitIndex stays -1 and everything falls back into
-//   outbound again — same symptom, different cause. It's also
-//   vulnerable to LiteAPI using a different code (e.g. metro vs.
-//   airport code) for the same place in different contexts.
-//
-//   v3 checks connection-chain continuity first: within one leg,
-//   segment[i]'s destinationCode always equals segment[i+1]'s
-//   originCode (that's what makes it a connection rather than two
-//   separate flights). The outbound/return boundary is simply the
-//   first place that chain breaks. This works for open-jaw trips too,
-//   since it never depends on matching against the search params. The
-//   v2 destination-match logic is kept as a secondary fallback for the
-//   rare case where continuity checking is inconclusive (e.g. missing
-//   codes on a segment).
-//
-//   ROOT CAUSE FOUND (current): none of v1–v3 were ever the real bug.
-//   LiteAPI's search payload (see buildLiteApiSearchPayload above)
-//   never included the required "direction" field on each leg, so
-//   LiteAPI only ever returned a single OUTBOUND segment per journey —
-//   there was no inbound segment for any of this splitting logic to
-//   find. Confirmed directly via LiteAPI's own API playground, which
-//   documents "direction": "OUTBOUND"/"INBOUND" as part of each leg
-//   object. Now that the payload sends it correctly, Strategy 1 below
-//   (trusting LiteAPI's own per-segment direction field) should handle
-//   the normal case; v2/v3 remain as fallbacks for edge cases.
-function splitSegmentsByLeg(segments, params) {
-  // Strategy 1: trust LiteAPI's own direction field, if it's actually
-  // populated correctly for this response.
-  const outboundByDirection = segments.filter(
-    (s) => s.direction === "OUTBOUND"
+function stampOffers(flights, searchedAt) {
+  return flights.map((f) => ({
+    ...f,
+    searchedAt: new Date(searchedAt).toISOString(),
+    expiresAt: new Date(offerExpiry(f, searchedAt)).toISOString(),
+  }));
+}
+
+function msRemaining(f) {
+  const t = Date.parse(f?.expiresAt);
+  return Number.isFinite(t) ? t - Date.now() : Infinity;
+}
+
+// Time left on the soonest-expiring fare in a list.
+function minRemaining(flights) {
+  if (!flights?.length) return 0;
+  return Math.min(...flights.map(msRemaining));
+}
+
+function earliestExpiry(flights) {
+  const ms = minRemaining(flights);
+  return Number.isFinite(ms) ? new Date(Date.now() + ms).toISOString() : null;
+}
+
+function isExpired(f) {
+  return msRemaining(f) <= EXPIRY_GRACE_MS;
+}
+
+// Identifies the same physical journey across searches (offer IDs change
+// every search; flight numbers and times don't). Returns null if the
+// flight shape doesn't give us enough to match safely — then no auto-
+// refresh is attempted.
+function journeySignature(f) {
+  if (!f) return null;
+  // Skyrio's flight shape keeps segments under slices[].segments
+  // (outbound slice, then return slice).
+  const sliceSegs = (slices) =>
+    Array.isArray(slices) ? slices.map((s) => s?.segments) : [];
+  const segLists = [
+    ...sliceSegs(f.slices),
+    ...sliceSegs(f.raw?.slices),
+    f.segments,
+    f.outbound?.segments,
+    f.return?.segments,
+    f.inbound?.segments,
+    f.legs,
+    f.raw?.segments,
+  ].filter(Array.isArray);
+
+  const segParts = segLists
+    .flat()
+    .map((s) =>
+      [
+        s?.carrierCode || s?.marketingCarrier || s?.airlineCode || s?.airline,
+        s?.flightNumber || s?.number,
+        s?.departureAt || s?.departure?.at || s?.departureTime || s?.departure,
+      ]
+        .filter((v) => v != null && typeof v !== "object")
+        .join(":")
+    )
+    .filter(Boolean);
+
+  if (segParts.length) {
+    return JSON.stringify([segParts, f.cabinClass || f.cabin || ""]);
+  }
+
+  const flat = [
+    f.owner || f.airline,
+    f.flightNumber,
+    f.departingAt || f.departureAt || f.departAt || f.departureTime,
+    f.arrivingAt || f.arrivalAt || f.arriveAt || f.arrivalTime,
+    f.returnFlightNumber,
+    f.returningAt || f.returnDepartureAt,
+    f.returnArrivingAt || f.returnArrivalAt,
+    f.cabinClass || f.cabin,
+  ];
+  const meaningful = flat.filter((v) => v != null && v !== "");
+  // Need at least an airline/flight number AND a time to call it a match.
+  if (meaningful.length < 3) return null;
+  return JSON.stringify(flat.map((v) => (v == null ? "" : String(v))));
+}
+
+function priceOf(f) {
+  const candidates = [
+    f?.price?.total,
+    f?.price?.amount,
+    typeof f?.price === "number" || typeof f?.price === "string"
+      ? f.price
+      : null,
+    f?.totalPrice,
+    f?.total,
+    f?.totalAmount,
+  ];
+  for (const c of candidates) {
+    const n = Number(c);
+    if (c != null && Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------
+// Cache
+// ---------------------------------------------------------------------
+function getCachedFlights(cacheKey) {
+  const cached = SEARCH_CACHE.get(cacheKey);
+  if (!cached) return null;
+  if (Date.now() - cached.ts >= CACHE_TTL_MS) return null;
+  if (minRemaining(cached.flights) < OFFER_MIN_REMAINING_MS) return null;
+  return cached.flights;
+}
+
+// Last good result for this search, only if its fares can still be booked.
+function getStaleFlights(cacheKey) {
+  const cached = SEARCH_CACHE.get(cacheKey);
+  if (!cached) return null;
+  const usable = cached.flights.filter(
+    (f) => msRemaining(f) >= STALE_MIN_REMAINING_MS
   );
-  const inboundByDirection = segments.filter((s) => s.direction === "INBOUND");
-  if (outboundByDirection.length && inboundByDirection.length) {
-    return {
-      outboundSegments: outboundByDirection,
-      inboundSegments: inboundByDirection,
-    };
-  }
+  return usable.length ? usable : null;
+}
 
-  // One-way search — no return leg to split out.
-  if (!params?.returnDate) {
-    return { outboundSegments: segments, inboundSegments: [] };
-  }
-
-  if (segments.length < 2) {
-    return { outboundSegments: segments, inboundSegments: [] };
-  }
-
-  // Strategy 2 (primary): find where the connection chain breaks.
-  // Inside one leg, segment[i].destinationCode always feeds
-  // segment[i+1].originCode. The first index where that continuity
-  // breaks is the outbound/return boundary — works for open-jaw trips
-  // too, since the return doesn't need to depart from the outbound's
-  // arrival city.
-  let splitIndex = -1;
-  for (let i = 0; i < segments.length - 1; i++) {
-    const thisDest = (segments[i].destinationCode || "").toUpperCase();
-    const nextOrigin = (segments[i + 1].originCode || "").toUpperCase();
-    if (thisDest && nextOrigin && thisDest !== nextOrigin) {
-      splitIndex = i + 1;
-      break;
+function setCachedFlights(cacheKey, flights, params) {
+  if (SEARCH_CACHE.size >= CACHE_MAX_ENTRIES) {
+    for (const [key, entry] of SEARCH_CACHE) {
+      if (minRemaining(entry.flights) <= 0) SEARCH_CACHE.delete(key);
+    }
+    while (SEARCH_CACHE.size >= CACHE_MAX_ENTRIES) {
+      SEARCH_CACHE.delete(SEARCH_CACHE.keys().next().value);
     }
   }
-
-  // Strategy 3 (fallback): original destination-match approach, for
-  // the rare case where continuity checking above is inconclusive
-  // (e.g. a segment missing origin/destination codes entirely).
-  if (splitIndex === -1) {
-    const destCode = (params.destination || "").toUpperCase();
-    splitIndex = segments.findIndex(
-      (s) => (s.originCode || "").toUpperCase() === destCode
-    );
-  }
-
-  // Couldn't find where the return leg starts by any method — better
-  // to show a (wrong but visible) single combined slice than silently
-  // drop half the segments.
-  if (splitIndex <= 0) {
-    return { outboundSegments: segments, inboundSegments: [] };
-  }
-
-  return {
-    outboundSegments: segments.slice(0, splitIndex),
-    inboundSegments: segments.slice(splitIndex),
-  };
+  SEARCH_CACHE.set(cacheKey, { ts: Date.now(), flights, params });
 }
 
-export function normalizeFlightOffer(journey = {}, searchParams = {}) {
-  const offer = journey.cheapestOffer || journey.offers?.[0] || {};
-  const display = offer.pricing?.display || offer.pricing || {};
-  const segments = journey.segments || [];
+// Finds the flight + the search that produced it, even if that cache
+// entry is too old to serve. Used to refresh an expired fare.
+function findOfferInCache(offerId) {
+  if (!offerId) return null;
+  for (const entry of SEARCH_CACHE.values()) {
+    const flight = entry.flights.find((f) => offerIdOf(f) === offerId);
+    if (flight) return { flight, params: entry.params };
+  }
+  return null;
+}
 
-  const { outboundSegments, inboundSegments } = splitSegmentsByLeg(
-    segments,
-    searchParams
+// Drops a sold-out offer from every cached result list.
+function removeOfferFromCache(offerId) {
+  if (!offerId) return;
+  let removed = 0;
+  for (const [key, entry] of SEARCH_CACHE) {
+    const kept = entry.flights.filter(
+      (f) =>
+        f?.offerId !== offerId &&
+        f?.id !== offerId &&
+        f?.raw?.offerId !== offerId
+    );
+    if (kept.length !== entry.flights.length) {
+      removed += entry.flights.length - kept.length;
+      SEARCH_CACHE.set(key, { ...entry, flights: kept });
+    }
+  }
+  if (removed)
+    console.log(`[flights] removed sold-out offer from cache (${removed})`);
+}
+
+// The airline turned down a traveler's name (placeholder like "Test
+// Traveler", a 1-letter name, characters it doesn't accept). The flight is
+// fine, so checkout must say "fix the name", never "find another flight".
+// The frontend recognizes this exact sentence.
+const NAME_REJECTED_MSG =
+  "The airline didn't accept a traveler's name. Enter each name exactly as it appears on that person's ID, then try again.";
+function isNameProblem(err) {
+  const e = err?.response?.data?.error || {};
+  const text = [
+    e.key,
+    e.field,
+    e.description,
+    e.message,
+    err?.response?.data?.message,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return /first\s?name|last\s?name|given\s?name|sur\s?name|family\s?name|passenger.{0,20}name|name.{0,30}(invalid|not allowed|too short|format|characters|required)/i.test(
+    text
   );
+}
 
-  const outbound = buildSlice(outboundSegments);
-  const inbound = buildSlice(inboundSegments);
-  const slices = [outbound, inbound].filter(Boolean);
+// One shape for every provider failure the frontend sees:
+// { ok:false, code, soldOut, message }.
+function providerError(err, label) {
+  console.error(
+    `[flights/${label}] failed:`,
+    err?.response?.data || err.message
+  );
+  const code = err?.response?.data?.error?.code ?? null;
+  if (label === "prebook" && isNameProblem(err)) {
+    const { key } = err.response?.data?.error || {};
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        code,
+        nameRejected: true,
+        field: key || null,
+        message: NAME_REJECTED_MSG,
+      },
+    };
+  }
+  const upstream =
+    err?.response?.data?.error?.message || err?.response?.data?.message;
+  const isTimeout =
+    err.code === "ECONNABORTED" || /timeout/i.test(err.message || "");
 
+  if (code === CODE_SOLD_OUT) {
+    return { status: 409, body: { ...SOLD_OUT_BODY } };
+  }
+  if (label === "search" && (code === CODE_SEARCH_FAILED || isTimeout)) {
+    return {
+      status: 502,
+      body: {
+        ok: false,
+        code: code ?? "TIMEOUT",
+        message:
+          "The airline's system couldn't complete this search. Please try again in a few minutes, or try nearby dates.",
+      },
+    };
+  }
+  if (
+    code === CODE_SEARCH_FAILED ||
+    code === CODE_VERIFY_FAILED ||
+    code === CODE_PREBOOK_FAILED ||
+    isTimeout
+  ) {
+    return {
+      status: 502,
+      body: {
+        ok: false,
+        code: code ?? "TIMEOUT",
+        message:
+          "The airline's system didn't respond. Please try again in a moment.",
+      },
+    };
+  }
+  // LiteAPI rejected the request body (e.g. 43001 "required prebook field
+  // is missing"). Retrying won't help. Outside production, `detail` names
+  // the exact field so it shows up in the checkout while developing.
+  if (err?.response?.status === 400) {
+    const { key, description } = err.response.data?.error || {};
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        code,
+        field: key || null,
+        travelerDetails: true,
+        message:
+          "The airline didn't accept the traveler details. Please check them and try again.",
+        ...(process.env.NODE_ENV !== "production" && {
+          detail: [description, key].filter(Boolean).join(" · "),
+        }),
+      },
+    };
+  }
   return {
-    id: journey.journeyKey || journey.id,
-    provider: "liteapi",
-    offerId: offer.offerId || offer.id,
-    isCheapest: !!journey.isCheapest,
-    // Surfaced so the frontend can show a "price locked for N:NN"
-    // countdown — previously captured by LiteAPI but never passed
-    // through, so nobody could see a fare go stale before hitting
-    // /flights/verify at prebook time with no warning.
-    expiresAt: offer.expiration || null,
-    price: {
-      amount: display.total ?? display.amount ?? offer.totalAmount,
-      currency: display.currency ?? offer.currency ?? "USD",
-      base: display.base,
-      taxes: display.taxes,
-      fees: display.fees,
-    },
-    fareFamily: offer.fare?.family,
-    seatsRemaining: offer.fare?.seatsRemaining,
-    totalDurationMinutes: journey.totalDuration?.minutes,
-    slices,
-    raw: journey,
+    status: 502,
+    body: { ok: false, code, message: upstream || err.message },
   };
 }
 
-// ---------------------------------------------------------------------
-// Test-airline filter
-//
-// LiteAPI's sandbox mixes its own fake carrier ("Nuitée Air") into search
-// results. Those fares fail at the reservation step, so a tester picks a
-// flight, fills in their details, and hits "couldn't reserve this fare".
-// Hide any journey where ANY segment is flown by a test carrier.
-//
-// On by default. Set HIDE_TEST_CARRIERS=false on Render to show them again
-// (e.g. if LiteAPI support asks you to test against Nuitée Air on purpose).
-// If a search returns ONLY test fares, they're kept rather than showing an
-// empty result, and a warning is logged.
-// ---------------------------------------------------------------------
-const TEST_CARRIER_RE = /nuit[eé]e/i;
-
-function isTestCarrierJourney(journey = {}) {
-  return (journey.segments || []).some((s) => {
-    const c = s?.carrier || {};
-    return [c.marketingName, c.operatingName, c.name]
-      .filter(Boolean)
-      .some((n) => TEST_CARRIER_RE.test(n));
-  });
+// LiteAPI nests transactionId/secretKey differently across endpoints.
+// (Function declaration: hoisted, so offerExpiry above can use it.)
+function findField(obj, key, depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 6) return undefined;
+  if (obj[key] != null && typeof obj[key] !== "object") return obj[key];
+  for (const v of Object.values(obj)) {
+    const found = findField(v, key, depth + 1);
+    if (found != null) return found;
+  }
+  return undefined;
 }
 
-function hideTestCarriers(journeys) {
-  if (String(process.env.HIDE_TEST_CARRIERS).toLowerCase() === "false") {
-    return journeys;
-  }
-  const real = journeys.filter((j) => !isTestCarrierJourney(j));
-  const hidden = journeys.length - real.length;
-  if (hidden && real.length) {
-    console.info(`[LiteAPI Flights] hid ${hidden} test-airline fare(s)`);
-    return real;
-  }
-  if (hidden && !real.length) {
+function paymentRefs(data, label) {
+  const transactionId = findField(data, "transactionId");
+  const secretKey = findField(data, "secretKey");
+  console.log(
+    `[flights/${label}] transactionId: ${
+      transactionId ? String(transactionId).slice(0, 14) + "…" : "MISSING"
+    }, secretKey: ${
+      secretKey ? String(secretKey).split("_secret")[0] : "MISSING"
+    }`
+  );
+  return {
+    ...(transactionId && { transactionId }),
+    ...(secretKey && { secretKey }),
+  };
+}
+
+function resolveSearchParams(source) {
+  const {
+    from,
+    to,
+    departDate,
+    returnDate,
+    adults,
+    children,
+    cabin,
+    origin,
+    destination,
+    departureDate,
+    cabinClass,
+  } = source || {};
+
+  return {
+    origin: origin || from,
+    destination: destination || to,
+    departureDate: departureDate || departDate,
+    returnDate,
+    adults: adults ? Number(adults) : undefined,
+    children: children ? Number(children) : undefined,
+    cabinClass: cabinClass || cabin,
+  };
+}
+
+function hasRequiredSearchParams(params) {
+  return Boolean(
+    params?.origin && params?.destination && params?.departureDate
+  );
+}
+
+function isRetryableSearchError(err) {
+  const status = err?.response?.status;
+  const code = err?.response?.data?.error?.code;
+  const isTimeout =
+    err?.code === "ECONNABORTED" || /timeout/i.test(err?.message || "");
+  const noResponse = !err?.response;
+  return (
+    code === CODE_SEARCH_FAILED ||
+    isTimeout ||
+    noResponse ||
+    (status >= 500 && status < 600)
+  );
+}
+
+async function postRatesWithRetry(payload) {
+  const startedAt = Date.now();
+  try {
+    return await liteApiFlights.post("/flights/rates", payload, {
+      timeout: FIRST_ATTEMPT_TIMEOUT_MS,
+      _noRetry: true,
+    });
+  } catch (err) {
+    const elapsed = Date.now() - startedAt;
+    const remaining = SEARCH_BUDGET_MS - elapsed;
+    if (!isRetryableSearchError(err) || remaining < MIN_RETRY_WINDOW_MS) {
+      if (isRetryableSearchError(err)) {
+        console.warn(
+          `[flights/search] failed after ${elapsed}ms — no time left to retry`
+        );
+      }
+      throw err;
+    }
     console.warn(
-      "[LiteAPI Flights] search returned only test-airline fares; showing them so results aren't empty"
+      `[flights/search] attempt 1 failed after ${elapsed}ms (${
+        err?.response?.data?.error?.code ||
+        err?.code ||
+        err?.response?.status ||
+        "error"
+      }) — retrying with ${Math.round(remaining / 1000)}s left`
     );
+    await sleep(RETRY_DELAY_MS);
+    return await liteApiFlights.post("/flights/rates", payload, {
+      timeout: Math.max(remaining - RETRY_DELAY_MS, MIN_RETRY_WINDOW_MS),
+      _noRetry: true,
+    });
   }
-  return journeys;
 }
 
-export function normalizeFlightSearchResponse(data = {}, searchParams = {}) {
-  const journeys = hideTestCarriers(extractJourneys(data));
-  return journeys.map((journey) => normalizeFlightOffer(journey, searchParams));
+// Runs one search, or joins/reuses an identical one.
+// { fresh: true } skips the cache (used for "Find another flight" and
+// for refreshing an expired fare).
+export async function runSearch(params, { fresh = false } = {}) {
+  const cacheKey = buildCacheKey(params);
+
+  if (fresh) {
+    FAILED_SEARCHES.delete(cacheKey);
+  } else {
+    const cached = getCachedFlights(cacheKey);
+    if (cached) return { flights: cached, cached: true, shared: false };
+
+    const recentFailure = FAILED_SEARCHES.get(cacheKey);
+    if (recentFailure && Date.now() - recentFailure.ts < FAILED_SEARCH_TTL_MS) {
+      console.warn(
+        "[flights/search] same search failed moments ago — answering instantly"
+      );
+      throw recentFailure.err;
+    }
+    if (recentFailure) FAILED_SEARCHES.delete(cacheKey);
+  }
+
+  const running = INFLIGHT_SEARCHES.get(cacheKey);
+  if (running) {
+    console.log("[flights/search] joining in-flight identical search");
+    const flights = await running;
+    return { flights, cached: false, shared: true };
+  }
+
+  const promise = (async () => {
+    const payload = buildLiteApiSearchPayload(params);
+    console.log("[flights/search] payload:", JSON.stringify(payload));
+
+    const startedAt = Date.now();
+    const { data } = await postRatesWithRetry(payload);
+
+    console.log(
+      `[flights/search] LiteAPI answered in ${
+        Date.now() - startedAt
+      }ms, top-level keys:`,
+      Object.keys(data || {})
+    );
+
+    const results = normalizeFlightSearchResponse(data, params);
+    // Offers' clocks start when LiteAPI creates them, i.e. at request time.
+    const flights = stampOffers(results.map(toFrontendFlightShape), startedAt);
+
+    console.log(
+      `[flights/search] normalized ${
+        flights.length
+      } flight(s), soonest expiry in ${Math.round(
+        minRemaining(flights) / 1000
+      )}s`
+    );
+    setCachedFlights(cacheKey, flights, params);
+    FAILED_SEARCHES.delete(cacheKey);
+    return flights;
+  })();
+
+  INFLIGHT_SEARCHES.set(cacheKey, promise);
+  try {
+    const flights = await promise;
+    return { flights, cached: false, shared: false };
+  } catch (err) {
+    const stale = getStaleFlights(cacheKey);
+    if (stale) {
+      console.warn(
+        `[flights/search] LiteAPI failed — serving recent results (${stale.length} flights)`
+      );
+      return { flights: stale, cached: true, shared: false, stale: true };
+    }
+    const status = err?.response?.status;
+    if (!status || status >= 500) {
+      FAILED_SEARCHES.set(cacheKey, { ts: Date.now(), err });
+      if (FAILED_SEARCHES.size > 500) {
+        FAILED_SEARCHES.delete(FAILED_SEARCHES.keys().next().value);
+      }
+    }
+    throw err;
+  } finally {
+    INFLIGHT_SEARCHES.delete(cacheKey);
+  }
 }
 
 /**
- * Flattens a normalized LiteAPI offer into the flat shape the frontend
- * expects: flight.owner, flight.totalAmount, flight.origin,
- * flight.departingAt, flight.stops, flight.id, etc.
+ * GET/POST /api/flights/search
+ * Pass `fresh: true` to bypass the cache (e.g. "Find another flight").
+ * Every flight includes `searchedAt` and `expiresAt`; the response also
+ * has a top-level `expiresAt` (the soonest fare expiry).
  */
-export function toFrontendFlightShape(offer = {}) {
-  const outbound = offer.slices?.[0] || {};
-  const returnSlice = offer.slices?.[1] || null;
-  const firstSegment = outbound.segments?.[0] || {};
+export async function searchFlights(req, res) {
+  try {
+    const source = req.method === "GET" ? req.query : req.body;
+    const params = resolveSearchParams(source);
+    const fresh = source?.fresh === true || source?.fresh === "true";
 
-  return {
-    id: offer.id,
-    offerId: offer.offerId,
-    provider: offer.provider,
-    owner: firstSegment.carrier || "Unknown",
-    ownerCode: firstSegment.carrierCode || "",
-    ownerLogo: firstSegment.carrierLogo || null,
-    totalAmount: offer.price?.amount ?? 0,
-    totalCurrency: offer.price?.currency ?? "USD",
-    origin: outbound.origin,
-    destination: outbound.destination,
-    departingAt: outbound.departureTime,
-    arrivingAt: outbound.arrivalTime,
-    returningAt: returnSlice?.departureTime || null,
-    returnArrivingAt: returnSlice?.arrivalTime || null,
-    stops: outbound.stops ?? 0,
-    fareFamily: offer.fareFamily,
-    seatsRemaining: offer.seatsRemaining,
-    totalDurationMinutes: offer.totalDurationMinutes,
-    fareExpiresAt: offer.expiresAt || null,
-    slices: offer.slices,
-    raw: offer.raw,
-  };
-}
+    if (!hasRequiredSearchParams(params)) {
+      return res.status(400).json({
+        ok: false,
+        message:
+          "origin/from, destination/to, and departureDate/departDate are required",
+      });
+    }
 
-// ---------------------------------------------------------------------
-// Booking flow payloads — confirmed against LiteAPI's real endpoints
-// ---------------------------------------------------------------------
-
-export function buildVerifyPayload({ offerId }) {
-  return { offerId };
-}
-
-// LiteAPI's numeric passenger codes: 0 = adult, 1 = child, 2 = infant.
-const PASSENGER_TYPE_CODE = {
-  ADT: 0,
-  ADULT: 0,
-  CHD: 1,
-  CHILD: 1,
-  INF: 2,
-  INFANT: 2,
-};
-function toPassengerTypeCode(v) {
-  if (v === 0 || v === 1 || v === 2) return v;
-  if (typeof v === "string") {
-    if (/^[012]$/.test(v)) return Number(v);
-    const code = PASSENGER_TYPE_CODE[v.trim().toUpperCase()];
-    if (code !== undefined) return code;
+    const { flights, cached, shared, stale } = await runSearch(params, {
+      fresh,
+    });
+    return res.status(200).json({
+      ok: true,
+      flights,
+      cached,
+      shared,
+      expiresAt: earliestExpiry(flights),
+      ...(stale && { stale: true }),
+    });
+  } catch (err) {
+    const { status, body } = providerError(err, "search");
+    return res.status(status).json(body);
   }
-  return 0; // default to adult
 }
 
-export function buildPrebookPayload({
-  offerId,
-  contact = {},
-  passengers = [],
-  usePaymentSdk = true,
-  includeCreditBalance = false,
-  payment = { descriptorSuffix: "FLIGHT" },
-}) {
-  return {
-    offerId,
-    usePaymentSdk,
-    includeCreditBalance,
-    payment,
-    contact,
-    // LiteAPI requires passengerType on every traveler as a NUMBER.
-    // A missing value or a string like "ADT" fails with error 43001.
-    passengers: passengers.map((p) => ({
-      ...p,
-      passengerType: toPassengerTypeCode(p.passengerType ?? p.type),
-      // LiteAPI accepts only "passport" or "id"; map common variants.
-      ...(p.documentType && {
-        documentType: /passport/i.test(p.documentType) ? "passport" : "id",
-      }),
-    })),
-  };
+/**
+ * POST /api/flights/warm
+ * Same params as /search. Starts the search in the background.
+ */
+export function warmSearch(req, res) {
+  const source = { ...req.query, ...(req.body || {}) };
+  const params = resolveSearchParams(source);
+
+  if (!hasRequiredSearchParams(params)) {
+    return res.status(400).json({
+      ok: false,
+      message:
+        "origin/from, destination/to, and departureDate/departDate are required",
+    });
+  }
+
+  const cacheKey = buildCacheKey(params);
+  if (getCachedFlights(cacheKey) || INFLIGHT_SEARCHES.has(cacheKey)) {
+    return res.status(202).json({ ok: true, warming: false });
+  }
+
+  runSearch(params).catch((err) =>
+    console.warn("[flights/warm] background search failed:", err.message)
+  );
+  return res.status(202).json({ ok: true, warming: true });
 }
 
-// ---------------------------------------------------------------------
-// Prebook details → seat options
-//
-// Confirmed against LiteAPI's own Flight Seat Map Implementation Guide
-// (docs.liteapi.travel/docs/flight-seat-map-implementation-guide): seat
-// services live at servicesAttachable.groups[].services[], each tagged
-// category: 'seat' (that array also carries other ancillary categories
-// — the filter is what isolates seats). An earlier version of this
-// function guessed at five different flat-array paths (available
-// Services.seats / services.seats / ancillaries.seats / seatMap /
-// seats) — none of which matched this nested shape, so the function
-// was ALWAYS falling through to the warning below and returning [] —
-// seat selection was silently unavailable in production regardless of
-// what LiteAPI actually returned.
-//
-// Per-field mapping is also corrected against the same doc:
-//   seatNumber → metadata.seat.seatNumber, with the documented
-//     fallback of parsing it from the `name` field ("Seat 12C") when
-//     metadata.seat is absent.
-//   available  → metadata.seat.available, defaulting to true when
-//     metadata.seat itself is absent (also documented).
-//   tier       → now prefers LiteAPI's own metadata.seat.seatType
-//     ("standard" / "extra_legroom" / "exit_row") over the old
-//     price-only guess, falling back to the price heuristic only when
-//     seatType is missing entirely. exit_row now maps to its own
-//     "exit-row" tier — SkyrioSeatMap.jsx (verified separately) has
-//     been updated to render it with its own color/legend entry
-//     rather than falling back to generic "Standard" styling.
-//   segmentKey → captured and passed through so SkyrioSeatMap can
-//     scope a round trip's seat map to one flight leg at a time and
-//     avoid seat-number collisions between outbound and return
-//     (verified separately — see SkyrioSeatMap.jsx's
-//     scopedSeatServices).
-//
-// serviceId and the price field were already correct in the earlier
-// version (s.serviceId and s.pricing?.display?.amount both match the
-// real shape) — unchanged here.
-// ---------------------------------------------------------------------
-export function parsePrebookSeatOptions(data) {
-  if (!data || typeof data !== "object") return [];
-
-  const record = Array.isArray(data.data) ? data.data[0] : data.data || data;
-
-  const groups = record?.servicesAttachable?.groups;
-  const candidates = Array.isArray(groups)
-    ? groups
-        .flatMap((g) => (Array.isArray(g?.services) ? g.services : []))
-        .filter((s) => s?.category === "seat")
-    : [];
-
-  if (!candidates.length) {
-    console.warn(
-      "[LiteAPI Flights] parsePrebookSeatOptions: no seat services found under servicesAttachable.groups[].services[]. Top-level keys:",
-      Object.keys(record || {})
+// Re-finds the same journey in a fresh search and verifies the new offer.
+// Returns a 200-ready body, or null if the flight is genuinely gone.
+async function refreshOffer({ params, selected, oldOfferId }) {
+  const sig = journeySignature(selected);
+  if (!sig) return null;
+  const startedAt = Date.now();
+  try {
+    const { flights } = await runSearch(params, { fresh: true });
+    const match = flights.find(
+      (f) =>
+        offerIdOf(f) &&
+        offerIdOf(f) !== oldOfferId &&
+        journeySignature(f) === sig
     );
-    return [];
+    if (!match) {
+      console.warn(
+        "[flights/verify] refresh: same journey not found in fresh search"
+      );
+      return null;
+    }
+
+    const newOfferId = offerIdOf(match);
+    const { data } = await liteApiFlights.post(
+      "/flights/verify",
+      buildVerifyPayload({ offerId: newOfferId }),
+      { timeout: VERIFY_TIMEOUT_MS, _noRetry: true }
+    );
+
+    const previousPrice = priceOf(selected);
+    const newPrice = priceOf(match);
+    const priceChanged =
+      previousPrice != null &&
+      newPrice != null &&
+      Math.abs(newPrice - previousPrice) >= 0.01;
+
+    console.log(
+      `[flights/verify] refreshed expired fare in ${Date.now() - startedAt}ms${
+        priceChanged ? ` (price ${previousPrice} → ${newPrice})` : ""
+      }`
+    );
+
+    return {
+      ok: true,
+      ...data,
+      refreshed: true,
+      offerId: newOfferId,
+      previousOfferId: oldOfferId,
+      flight: match,
+      expiresAt: match.expiresAt,
+      priceChanged,
+      previousPrice,
+      newPrice,
+    };
+  } catch (err) {
+    console.warn(
+      "[flights/verify] refresh failed:",
+      err?.response?.data?.error?.code || err?.message
+    );
+    return null;
+  }
+}
+
+/**
+ * Step 1 of 4 — confirm the offer is still valid and get latest pricing.
+ *
+ * Body: { offerId, flight?, search?, autoRefresh? }
+ *   - flight / search are optional: if omitted, they're looked up from the
+ *     search cache. Sending them makes refresh work even after a restart.
+ *
+ * If the fare has expired or LiteAPI calls it sold out, the same flight is
+ * re-found and re-verified. The response then has `refreshed: true` and a
+ * NEW `offerId` — the frontend must use that offerId for prebook — plus
+ * `priceChanged` / `newPrice` so the traveler can confirm a new price.
+ */
+export async function verifyOffer(req, res) {
+  const {
+    offerId,
+    flight: clientFlight,
+    search,
+    autoRefresh = true,
+  } = req.body || {};
+  if (!offerId) {
+    return res.status(400).json({ ok: false, message: "offerId is required" });
   }
 
-  // Which flight a seat belongs to. LiteAPI usually sends segmentKey on the
-  // service, but it can also sit on the group, inside metadata, or as a
-  // list. Without it, a round trip's outbound and return seats land in ONE
-  // map and identical seat numbers (12A out, 12A back) overwrite each other,
-  // which looks like "no seats for the return".
-  const segmentKeyOf = (s, group) =>
-    s.segmentKey ||
-    (Array.isArray(s.segmentKeys) ? s.segmentKeys[0] : null) ||
-    s.metadata?.seat?.segmentKey ||
-    s.metadata?.segmentKey ||
-    s.segment?.key ||
-    s.segmentRef ||
-    group?.segmentKey ||
-    (Array.isArray(group?.segmentKeys) ? group.segmentKeys[0] : null) ||
-    null;
-  const groupOf = new Map();
-  (Array.isArray(groups) ? groups : []).forEach((g) =>
-    (Array.isArray(g?.services) ? g.services : []).forEach((s) =>
-      groupOf.set(s, g)
-    )
+  // Diagnostic: LiteAPI offerIds are msgpack-encoded and must arrive
+  // byte-for-byte unchanged. A space (from "+" passing through a URL) or a
+  // different length means the frontend altered it on the way here.
+  const knownOffer = findOfferInCache(offerId);
+  console.log(
+    `[flights/verify] offerId len=${String(offerId).length} start=${String(
+      offerId
+    ).slice(0, 25)} end=${String(offerId).slice(-25)} hasSpace=${/\s/.test(
+      String(offerId)
+    )} inSearchCache=${Boolean(knownOffer)}`
   );
 
-  // Diagnostic: how many seats per flight came back. A round trip with one
-  // stop each way should show 4 keys. Check Render logs for this line.
-  try {
-    const perSegment = {};
-    candidates.forEach((s) => {
-      const k = segmentKeyOf(s, groupOf.get(s)) || "(no segment key)";
-      perSegment[k] = (perSegment[k] || 0) + 1;
+  const known = knownOffer;
+  const selected = clientFlight || known?.flight || null;
+  // Prefer the exact params of the search that produced this offer, so a
+  // refresh re-runs the identical search; fall back to what the client sent.
+  const params = known?.params || (search ? resolveSearchParams(search) : null);
+  const canRefresh =
+    autoRefresh !== false &&
+    selected &&
+    hasRequiredSearchParams(params) &&
+    journeySignature(selected) != null;
+
+  // Already expired? Skip the doomed verify call and refresh directly.
+  if (canRefresh && isExpired(selected)) {
+    const refreshed = await refreshOffer({
+      params,
+      selected,
+      oldOfferId: offerId,
     });
-    console.log(
-      "[flights/prebook] seat maps per flight:",
-      JSON.stringify(perSegment),
-      "| sample seat service keys:",
-      Object.keys(candidates[0] || {}).join(",")
-    );
-  } catch {
-    // logging only
+    if (refreshed) return res.status(200).json(refreshed);
+    removeOfferFromCache(offerId);
+    return res.status(409).json({ ...SOLD_OUT_BODY });
   }
 
-  return candidates
-    .map((s) => {
-      const meta = s.metadata?.seat;
-
-      // Documented fallback: if metadata.seat is absent, parse
-      // row/column from the `name` field (e.g. "Seat 12C").
-      let seatNumber = meta?.seatNumber;
-      if (!seatNumber && s.name) {
-        const m = /\b(\d+)([A-Za-z]+)\b/.exec(s.name);
-        if (m) seatNumber = `${m[1]}${m[2]}`;
+  try {
+    const payload = buildVerifyPayload({ offerId });
+    const { data } = await liteApiFlights.post("/flights/verify", payload, {
+      timeout: VERIFY_TIMEOUT_MS,
+      _noRetry: true,
+    });
+    return res.status(200).json({
+      ok: true,
+      offerId,
+      ...data,
+      ...(selected?.expiresAt && { expiresAt: selected.expiresAt }),
+    });
+  } catch (err) {
+    const { status, body } = providerError(err, "verify");
+    if (body.soldOut) {
+      removeOfferFromCache(offerId);
+      if (canRefresh) {
+        const refreshed = await refreshOffer({
+          params,
+          selected,
+          oldOfferId: offerId,
+        });
+        if (refreshed) return res.status(200).json(refreshed);
       }
-      if (!seatNumber) return null;
+    }
+    return res.status(status).json(body);
+  }
+}
 
-      const serviceId = s.serviceId ?? seatNumber;
-      const price = Number(s.pricing?.display?.amount ?? 0) || 0;
+/**
+ * Step 2 of 4 — reserve the offer with the provider, create a payment
+ * intent (when usePaymentSdk is true). Returns a prebookId.
+ */
+export async function createPrebook(req, res) {
+  const { offerId } = req.body || {};
+  try {
+    const {
+      contact,
+      passengers,
+      usePaymentSdk,
+      includeCreditBalance,
+      payment,
+    } = req.body;
 
-      // Documented default when metadata.seat is absent: treat as
-      // available. Otherwise trust the explicit flag.
-      const available = meta ? meta.available !== false : true;
+    if (!offerId || !contact || !passengers) {
+      return res.status(400).json({
+        ok: false,
+        message: "offerId, contact, and passengers are required",
+      });
+    }
+    // Guests have no account email, so the confirmation (and claiming the
+    // trip later) depends on this one.
+    const contactEmail = String(contact.email || "")
+      .trim()
+      .toLowerCase();
+    if (!EMAIL_RE.test(contactEmail)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Enter a valid email so we can send your confirmation.",
+      });
+    }
 
-      // Prefer LiteAPI's own classification over the price guess
-      // where it's present. SkyrioSeatMap.jsx now has real support
-      // for all three tier values below.
-      const tier =
-        meta?.seatType === "extra_legroom"
-          ? "extra-legroom"
-          : meta?.seatType === "exit_row"
-          ? "exit-row"
-          : meta?.seatType === "standard"
-          ? "standard"
-          : price >= 50
-          ? "premium"
-          : price > 0
-          ? "extra-legroom"
-          : "standard";
+    const payload = buildPrebookPayload({
+      offerId,
+      contact,
+      passengers,
+      usePaymentSdk,
+      includeCreditBalance,
+      payment,
+    });
 
+    // _noRetry: a prebook that timed out on our side may still have
+    // reached LiteAPI; retrying could create a second reservation.
+    const { data } = await liteApiFlights.post("/flights/prebooks", payload, {
+      _noRetry: true,
+    });
+
+    // The checkout token proves this checkout is the caller's on every
+    // later step (seat map, services, complete).
+    const record = Array.isArray(data?.data)
+      ? data.data[0]
+      : data?.data || data;
+    const prebookId =
+      record?.prebookId ||
+      record?.prebookID ||
+      record?.id ||
+      data?.prebookId ||
+      data?.prebookID;
+    const checkoutToken = prebookId
+      ? signCheckoutToken({
+          kind: "flight",
+          refs: [prebookId],
+          ownerId: currentUserId(req),
+          email: contactEmail,
+        })
+      : null;
+
+    return res.status(200).json({
+      ok: true,
+      ...data,
+      ...paymentRefs(data, "prebook"),
+      ...(checkoutToken && { checkoutToken }),
+    });
+  } catch (err) {
+    const { status, body } = providerError(err, "prebook");
+    // Why the airline said no. Without this, "didn't accept the traveler's
+    // name / details" left nothing in Render to tell WHICH field was wrong.
+    // Logs field names and lengths only — never names, dates or documents.
+    try {
+      const up = err?.response?.data?.error || {};
+      const sent = Array.isArray(req.body?.passengers)
+        ? req.body.passengers
+        : [];
+      console.warn(
+        "[flights/prebook] rejected:",
+        JSON.stringify({
+          httpStatus: err?.response?.status ?? null,
+          code: up.code ?? body.code ?? null,
+          key: up.key ?? null,
+          field: up.field ?? null,
+          description: up.description ?? null,
+          message: up.message ?? err?.response?.data?.message ?? err?.message,
+          shownToTraveler: body.message,
+          passengers: sent.map((p) => ({
+            type: p?.passengerType ?? p?.type ?? null,
+            fields: Object.keys(p || {}).join(","),
+            firstNameLen: String(p?.firstName || "").length,
+            lastNameLen: String(p?.lastName || "").length,
+            nonLetters: /[^A-Za-z \-']/.test(
+              `${p?.firstName || ""}${p?.lastName || ""}`
+            ),
+          })),
+        })
+      );
+    } catch {
+      // logging only
+    }
+    if (body.soldOut) removeOfferFromCache(offerId);
+    return res.status(status).json(body);
+  }
+}
+
+/**
+ * GET /api/flights/prebook/:prebookId
+ */
+/**
+ * Paid bags LiteAPI lets us add to this prebook (servicesAttachable,
+ * category "baggage"). Only real, attachable services with a serviceId and
+ * a price are returned — nothing is guessed. Also returns how many services
+ * of each category were offered, for the dev-only note in checkout.
+ */
+function parsePrebookBagOptions(data) {
+  const record = Array.isArray(data?.data) ? data.data[0] : data?.data || data;
+  const services = (record?.servicesAttachable?.groups || []).flatMap(
+    (g) => g?.services || []
+  );
+  const serviceCategories = {};
+  services.forEach((sv) => {
+    const c = sv?.category || "unknown";
+    serviceCategories[c] = (serviceCategories[c] || 0) + 1;
+  });
+  const bags = services
+    .filter((sv) => /bag|luggage/i.test(String(sv?.category || "")))
+    .map((sv) => {
+      const meta = sv?.metadata?.baggage || {};
+      const price = Number(sv?.pricing?.display?.amount);
       return {
-        seatNumber: String(seatNumber),
-        serviceId: String(serviceId),
-        available: !!available,
-        price,
-        tier,
-        segmentKey: segmentKeyOf(s, groupOf.get(s)),
+        serviceId: sv?.serviceId ? String(sv.serviceId) : null,
+        segmentKey: sv?.segmentKey || null,
+        passengerType: sv?.passengerType || "ALL",
+        name: sv?.name || null,
+        bagType: meta.bagType || null,
+        pieces: Number(meta.pieces) || 1,
+        weightKg: Number(meta.weightKg) || null,
+        maxQuantity: Number(meta.maxQuantity) || 1,
+        price: Number.isFinite(price) ? price : null,
+        currency: sv?.pricing?.display?.currency || "USD",
       };
     })
-    .filter(Boolean);
+    .filter((b) => b.serviceId && b.price != null && b.price >= 0);
+  return { bags, serviceCategories };
 }
 
-export function buildAttachServicesPayload({
-  selectedServices = [],
-  voucherCode,
+export async function getPrebookDetails(req, res) {
+  try {
+    const { prebookId } = req.params;
+    if (!prebookId) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "prebookId is required" });
+    }
+    if (!requireCheckoutOwner(req, res, prebookId)) return;
+
+    const { data } = await liteApiFlights.get(`/flights/prebooks/${prebookId}`);
+    const seats = parsePrebookSeatOptions(data);
+    const { bags, serviceCategories } = parsePrebookBagOptions(data);
+
+    // Diagnostic (temporary): what can be added to this fare besides seats?
+    // Tells us whether LiteAPI offers bags we could sell inside checkout.
+    try {
+      const record = Array.isArray(data?.data)
+        ? data.data[0]
+        : data?.data || data;
+      const groups = record?.servicesAttachable?.groups || [];
+      const byCategory = {};
+      groups
+        .flatMap((g) => g?.services || [])
+        .forEach((sv) => {
+          const c = sv?.category || "unknown";
+          byCategory[c] = (byCategory[c] || 0) + 1;
+        });
+      const findPaid = (o, d = 0) => {
+        if (!o || typeof o !== "object" || d > 6) return null;
+        if (o.baggage && Array.isArray(o.baggage.paid)) return o.baggage.paid;
+        for (const v of Object.values(o)) {
+          const f = findPaid(v, d + 1);
+          if (f) return f;
+        }
+        return null;
+      };
+      const paidBags = findPaid(record) || [];
+      const bagSamples = groups
+        .flatMap((g) => g?.services || [])
+        .filter((sv) => sv?.category === "baggage")
+        .slice(0, 3)
+        .map((sv) => ({
+          name: sv.name,
+          segmentKey: sv.segmentKey,
+          passengerType: sv.passengerType,
+          price: sv.pricing?.display,
+          baggage: sv.metadata?.baggage,
+        }));
+      console.log(
+        "[flights/prebook] services offered:",
+        JSON.stringify(byCategory),
+        "| paid bag options:",
+        paidBags.length,
+        bagSamples.length ? `| bag examples: ${JSON.stringify(bagSamples)}` : ""
+      );
+    } catch {
+      // logging only
+    }
+
+    return res
+      .status(200)
+      .json({ ok: true, seats, bags, serviceCategories, raw: data });
+  } catch (err) {
+    const { status, body } = providerError(err, "prebook/details");
+    return res.status(status).json(body);
+  }
+}
+
+/**
+ * Step 3 of 4 (optional) — attach seats/bags to an existing prebook.
+ */
+export async function attachPrebookServices(req, res) {
+  try {
+    const { prebookId } = req.params;
+    const { selectedServices, voucherCode } = req.body || {};
+
+    if (!prebookId) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "prebookId is required" });
+    }
+    if (!requireCheckoutOwner(req, res, prebookId)) return;
+    if (!Array.isArray(selectedServices) || !selectedServices.length) {
+      return res.status(400).json({
+        ok: false,
+        message: "selectedServices must be a non-empty array",
+      });
+    }
+
+    const services = selectedServices
+      .map((s) =>
+        typeof s === "string"
+          ? { passengerIndex: 0, serviceId: s, quantity: 1 }
+          : {
+              passengerIndex: Number(s?.passengerIndex ?? 0),
+              serviceId: s?.serviceId,
+              quantity: Number(s?.quantity ?? 1),
+            }
+      )
+      .filter((s) => s.serviceId);
+
+    if (!services.length) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "No valid serviceId in selectedServices" });
+    }
+
+    const payload = {
+      selectedServices: services,
+      ...(voucherCode && { voucherCode }),
+    };
+    console.log("[flights/prebook/services] payload:", JSON.stringify(payload));
+
+    const { data } = await liteApiFlights.post(
+      `/flights/prebooks/${prebookId}/services`,
+      payload,
+      { _noRetry: true }
+    );
+    return res
+      .status(200)
+      .json({ ok: true, ...data, ...paymentRefs(data, "prebook/services") });
+  } catch (err) {
+    const { status, body } = providerError(err, "prebook/services");
+    return res.status(status).json(body);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Saving flight bookings to Skyrio's database
+// ─────────────────────────────────────────────────────────────
+function toDate(v) {
+  const d = v ? new Date(v) : null;
+  return d && !Number.isNaN(d.getTime()) ? d : undefined;
+}
+
+// The checkout token already proved ownership, so a saved booking is found
+// by its prebook alone (signed-in and guest bookings alike).
+async function findSavedFlightBooking(prebookId) {
+  if (!prebookId) return null;
+  try {
+    return await Booking.findOne({ "flight.prebookId": prebookId });
+  } catch {
+    return null;
+  }
+}
+
+// Seats the traveler chose in Skyrio (sent from checkout). Kept small and
+// plain so group members can see where friends sit on the same flight.
+function cleanSeats(list) {
+  if (!Array.isArray(list)) return [];
+  const str = (v, n) => (v == null || v === "" ? null : String(v).slice(0, n));
+  return list
+    .slice(0, 40)
+    .map((x) => ({
+      origin: str(x?.origin, 4),
+      destination: str(x?.destination, 4),
+      departureAt: str(x?.departureAt, 16),
+      flightNumber: str(x?.flightNumber, 12),
+      seatNumber: str(x?.seatNumber, 5),
+      passenger: str(x?.passenger, 80),
+    }))
+    .filter(
+      (x) =>
+        x.origin &&
+        x.destination &&
+        x.departureAt &&
+        /^\d{1,3}[A-Z]{1,2}$/i.test(x.seatNumber || "")
+    );
+}
+
+async function saveFlightBooking({
+  userId,
+  prebookId,
+  transactionId,
+  record,
+  email,
+  groupId,
+  // Email from the checkout token, used when checkout didn't send one.
+  fallbackEmail,
 }) {
-  return {
-    selectedServices,
-    ...(voucherCode ? { voucherCode } : {}),
-  };
+  try {
+    const e = email || {};
+    const contactEmail =
+      String(e.to || fallbackEmail || "")
+        .trim()
+        .toLowerCase() || undefined;
+    // Guest booking (no account): the email is how they get their
+    // confirmation and how the trip is claimed by an account later.
+    if (!userId && !contactEmail) {
+      throw new Error("guest booking has no email");
+    }
+    const pnr = extractFlightPnr(record);
+    const bookingId = extractFlightBookingId(record);
+    const total = Number(e.totalAmount);
+    const departDate = e.departureAt
+      ? String(e.departureAt).slice(0, 10)
+      : null;
+
+    const tripDetails = [
+      e.origin && e.destination ? `${e.origin} → ${e.destination}` : "Flight",
+      departDate,
+      e.returnDepartureAt ? "round trip" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    // Sync Together is account-only.
+    const syncGroup = userId ? await memberGroupId(groupId, userId) : null;
+    const saved = await Booking.create({
+      user: userId || null, // null = guest booking
+      syncGroup,
+      name: e.passengerName || undefined,
+      email: contactEmail,
+      tripDetails,
+      type: "Flight",
+      flight: {
+        prebookId,
+        transactionId: transactionId || null,
+        bookingId,
+        bookingRef: pnr,
+        airline: e.airline || null,
+        origin: e.origin || null,
+        destination: e.destination || null,
+        originName: e.originName || null,
+        destinationName: e.destinationName || null,
+        departureAt: e.departureAt || null,
+        arrivalAt: e.arrivalAt || null,
+        returnDepartureAt: e.returnDepartureAt || null,
+        returnArrivingAt: e.returnArrivingAt || null,
+        // Seats picked in Skyrio checkout (empty if skipped). Seats chosen
+        // later with the airline aren't known to Skyrio.
+        seats: cleanSeats(e.seats),
+        groupId: groupId || null,
+        liteapi: record || null,
+      },
+      dates: {
+        start: toDate(e.departureAt),
+        end: toDate(e.returnArrivingAt || e.returnDepartureAt || e.arrivalAt),
+      },
+      travelers: 1,
+      passengers: e.passengerName
+        ? [{ name: e.passengerName, type: "adult" }]
+        : [],
+      status: "confirmed",
+      paidAt: new Date(),
+      total: Number.isFinite(total) ? total : 0,
+      totalAmount: Number.isFinite(total) ? total : null,
+      totalCurrency: String(e.currency || "USD").toUpperCase(),
+      provider: "liteapi",
+      providerBookingIds: bookingId ? [String(bookingId)] : [],
+      confirmationCodes: pnr ? [String(pnr)] : [],
+    });
+
+    // Notifications and XP belong to accounts. A guest booking earns its
+    // XP when it's claimed (services/claimGuestBookings.js).
+    if (userId) {
+      try {
+        await Notification.create({
+          user: userId,
+          type: "booking",
+          title: "Flight Booked ✈️",
+          message: pnr
+            ? `Your flight is confirmed. Airline confirmation: ${pnr}.`
+            : "Your flight is confirmed. Have a great trip!",
+          link: "/saved-trips",
+        });
+        // Booking XP through the XP ledger: pending until the trip starts,
+        // plan multiplier applied, taken back if the trip is cancelled.
+        await awardXpForBooking(saved._id);
+      } catch (err) {
+        console.error(
+          "[flights/complete] XP/notification step failed:",
+          err?.message
+        );
+      }
+    }
+
+    return saved;
+  } catch (err) {
+    console.error(
+      "[flights/complete] couldn't save Booking (the flight IS booked) —",
+      prebookId,
+      err?.message
+    );
+    return null;
+  }
 }
 
-export function buildCompleteBookingPayload({ prebookId, ...rest }) {
-  return {
-    prebookId,
-    ...rest,
-  };
+// How many people are on this booking. Uses what checkout sent, else
+// counts the passenger list in LiteAPI's booking record. null if unknown.
+function travelerCountOf(confirmationEmail, rest, record) {
+  const sent = Number(confirmationEmail?.travelerCount);
+  if (Number.isInteger(sent) && sent > 0) return sent;
+  for (const list of [
+    rest?.passengers,
+    record?.passengers,
+    record?.travelers,
+    record?.travellers,
+  ]) {
+    if (Array.isArray(list) && list.length) return list.length;
+  }
+  return null;
+}
+
+/**
+ * Step 4 of 4 — finalize the booking.
+ */
+export async function completeBooking(req, res) {
+  try {
+    // eslint-disable-next-line no-unused-vars
+    const { prebookId, prebookID, confirmationEmail, groupId, ...rest } =
+      req.body;
+    const resolvedPrebookId = prebookId || prebookID;
+    if (!resolvedPrebookId) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "prebookId is required" });
+    }
+
+    // Only whoever started this checkout can finish it.
+    const owner = requireCheckoutOwner(req, res, resolvedPrebookId);
+    if (!owner) return;
+
+    // "" = guest checkout: the booking is saved with the email instead.
+    const userId = currentUserId(req) || "";
+    const existing = await findSavedFlightBooking(resolvedPrebookId);
+    if (existing) {
+      return res.status(200).json({
+        ok: true,
+        duplicate: true,
+        booking: { _id: existing._id },
+        data: existing.flight?.liteapi || null,
+      });
+    }
+
+    const payload = buildCompleteBookingPayload({
+      prebookId: resolvedPrebookId,
+      ...rest,
+    });
+    const { data } = await liteApiFlights.post("/flights/bookings", payload, {
+      _noRetry: true,
+    });
+
+    const bookedRecord = Array.isArray(data?.data)
+      ? data.data[0]
+      : data?.data || data;
+    // Save FIRST, so the confirmation email can carry this booking's
+    // "Manage or cancel" link (guests have no account to cancel from).
+    const saved = await saveFlightBooking({
+      userId,
+      prebookId: resolvedPrebookId,
+      transactionId: rest?.payment?.transactionId,
+      record: bookedRecord,
+      email: confirmationEmail,
+      groupId: userId ? groupId : null,
+      fallbackEmail: owner.e,
+    });
+
+    let emailPromise = null;
+    if (confirmationEmail?.to) {
+      const record = bookedRecord;
+      const travelerCount = travelerCountOf(confirmationEmail, rest, record);
+      const airlineCode = extractFlightPnr(record);
+      const confirmationNumber =
+        airlineCode ||
+        extractFlightBookingId(record) ||
+        record?.confirmationNumber ||
+        record?.reference ||
+        resolvedPrebookId;
+
+      emailPromise = sendBookingConfirmation({
+        to: confirmationEmail.to,
+        passengerName: confirmationEmail.passengerName,
+        confirmationNumber,
+        confirmationIsAirline: Boolean(airlineCode),
+        airline: confirmationEmail.airline,
+        flightNumber: confirmationEmail.flightNumber,
+        returnFlightNumber: confirmationEmail.returnFlightNumber,
+        origin: confirmationEmail.origin,
+        destination: confirmationEmail.destination,
+        originName: confirmationEmail.originName,
+        destinationName: confirmationEmail.destinationName,
+        departureAt: confirmationEmail.departureAt,
+        arrivalAt: confirmationEmail.arrivalAt,
+        returnDepartureAt: confirmationEmail.returnDepartureAt,
+        returnArrivalAt:
+          confirmationEmail.returnArrivalAt ||
+          confirmationEmail.returnArrivingAt,
+        totalAmount: confirmationEmail.totalAmount,
+        currency: confirmationEmail.currency,
+        cabinClass: confirmationEmail.cabinClass,
+        // For the one-line Sync Together tip: shown only when 2+ people
+        // flew on this booking and it isn't already a group trip.
+        travelerCount,
+        groupTrip: Boolean(userId && groupId),
+        manageUrl: saved ? manageUrlFor(saved._id) : null,
+      }).catch((emailErr) => {
+        console.error(
+          "[flights/complete] confirmation email failed:",
+          emailErr?.message || emailErr
+        );
+        return { ok: false, error: emailErr?.message || "send failed" };
+      });
+    }
+
+    if (saved) {
+      (emailPromise
+        ? emailPromise.then((r) =>
+            recordEmailResult(saved._id, confirmationEmail.to, r)
+          )
+        : sendConfirmationFor(saved)
+      )
+        .catch(() => {})
+        .finally(() => {
+          if (saved.syncGroup) onGroupBookingSaved(saved);
+        });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      ...data,
+      booking: saved ? { _id: saved._id } : null,
+    });
+  } catch (err) {
+    const { status, body } = providerError(err, "complete");
+    return res.status(status).json(body);
+  }
 }

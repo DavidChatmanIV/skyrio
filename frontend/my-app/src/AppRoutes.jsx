@@ -12,6 +12,10 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
 const SkyHubPage = lazy(() => import("./pages/skyhub/SkyHubPage"));
 const SkyHubGuidelines = lazy(() => import("./pages/skyhub/SkyHubGuidelines"));
+// "Active Travelers → View all" on SkyHub
+const SkyHubTravelersPage = lazy(() =>
+  import("./pages/skyhub/SkyHubTravelersPage")
+);
 const DigitalPassportPage = lazy(() =>
   import("./pages/passport/DigitalPassportPage")
 );
@@ -166,6 +170,7 @@ function TrackedRoutes() {
         {/* SkyHub stays open to browse. Lock posting/liking inside the page. */}
         <Route path="skyhub" element={<SkyHubPage />} />
         <Route path="skyhub/guidelines" element={<SkyHubGuidelines />} />
+        <Route path="skyhub/travelers" element={<SkyHubTravelersPage />} />
         <Route path="skystream" element={<Navigate to="/skyhub" replace />} />
         <Route path="feed" element={<Navigate to="/skyhub" replace />} />
 
