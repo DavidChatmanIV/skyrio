@@ -161,6 +161,12 @@ router.get("/travelers", async (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 60);
     const page = Math.max(Number(req.query.page) || 1, 1);
     const skip = (page - 1) * limit;
+    // recent  = newest poster first (default)
+    // active  = most posts in the last 30 days
+    // popular = most followers
+    const sort = ["recent", "active", "popular"].includes(req.query.sort)
+      ? req.query.sort
+      : "recent";
     const found = findPostModel();
 
     if (found) {
@@ -185,7 +191,30 @@ router.get("/travelers", async (req, res) => {
               recentPosts: { $sum: 1 },
             },
           },
-          { $sort: { lastPostAt: -1 } },
+          ...(sort === "popular"
+            ? [
+                {
+                  $lookup: {
+                    from: User.collection.collectionName,
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "u",
+                    pipeline: [{ $project: { followersCount: 1 } }],
+                  },
+                },
+                {
+                  $addFields: {
+                    followers: {
+                      $ifNull: [{ $first: "$u.followersCount" }, 0],
+                    },
+                  },
+                },
+                { $project: { u: 0 } },
+                { $sort: { followers: -1, lastPostAt: -1, _id: 1 } },
+              ]
+            : sort === "active"
+            ? [{ $sort: { recentPosts: -1, lastPostAt: -1, _id: 1 } }]
+            : [{ $sort: { lastPostAt: -1, _id: 1 } }]),
           { $skip: skip },
           { $limit: limit },
         ]),
@@ -201,7 +230,7 @@ router.get("/travelers", async (req, res) => {
         .lean();
       const byId = new Map(users.map((u) => [String(u._id), u]));
 
-      // Keep the "newest poster first" order; skip deleted accounts.
+      // Keep the sorted order; skip deleted accounts.
       const travelers = rows
         .map((r) => {
           const u = byId.get(String(r._id));
@@ -215,6 +244,7 @@ router.get("/travelers", async (req, res) => {
       return res.json({
         ok: true,
         basis: "posts",
+        sort,
         days: ACTIVE_DAYS,
         travelers,
         total,
@@ -227,7 +257,11 @@ router.get("/travelers", async (req, res) => {
     const filter = { username: { $exists: true, $ne: "" } };
     const [users, total] = await Promise.all([
       User.find(filter)
-        .sort({ updatedAt: -1 })
+        .sort(
+          sort === "popular"
+            ? { followersCount: -1, _id: 1 }
+            : { updatedAt: -1, _id: 1 }
+        )
         .skip(skip)
         .limit(limit)
         .select(TRAVELER_FIELDS)
@@ -238,6 +272,7 @@ router.get("/travelers", async (req, res) => {
     return res.json({
       ok: true,
       basis: "recent",
+      sort,
       travelers: users,
       total,
       page,

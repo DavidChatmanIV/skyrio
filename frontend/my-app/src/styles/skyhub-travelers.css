@@ -126,6 +126,50 @@
   color: var(--st-muted);
 }
 
+/* ── Sort tabs: Recent / Most posts / Most followed ── */
+.skyhubT-tabs {
+  display: flex;
+  gap: 8px;
+  margin: -4px 0 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.skyhubT-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.skyhubT-tab {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--st-faint);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--st-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.skyhubT-tab:hover {
+  color: var(--st-ink);
+  border-color: rgba(255, 138, 61, 0.4);
+}
+
+.skyhubT-tab:focus-visible {
+  outline: 2px solid var(--st-orange);
+  outline-offset: 2px;
+}
+
+.skyhubT-tab.is-active {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--st-orange), var(--st-orange-2));
+  box-shadow: 0 6px 18px rgba(255, 106, 43, 0.3);
+}
+
 /* ── Grid of traveler postcards ── */
 .skyhubT-grid {
   list-style: none;
@@ -154,11 +198,6 @@
   min-width: 0;
   color: inherit;
   text-decoration: none;
-}
-
-a.skyhubT-top:hover .skyhubT-name,
-a.skyhubT-top:focus-visible .skyhubT-name {
-  color: var(--st-orange);
 }
 
 .skyhubT-avatar {
@@ -191,6 +230,11 @@ a.skyhubT-top:focus-visible .skyhubT-name {
   transition: color 0.15s;
 }
 
+a.skyhubT-top:hover .skyhubT-name,
+a.skyhubT-top:focus-visible .skyhubT-name {
+  color: var(--st-orange);
+}
+
 .skyhubT-badge {
   display: inline-flex;
   flex-shrink: 0;
@@ -211,7 +255,6 @@ a.skyhubT-top:focus-visible .skyhubT-name {
   color: rgba(245, 242, 255, 0.85);
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
@@ -331,7 +374,7 @@ a.skyhubT-top:focus-visible .skyhubT-name {
 }
 
 /* ── Phones ── */
-@media (width <= 599px) {
+@media (max-width: 599px) {
   .skyhubT {
     padding: 100px 10px 96px;
   }

@@ -11,6 +11,12 @@ import "@/styles/skyhub-travelers.css";
 
 const PAGE_SIZE = 30;
 
+const SORTS = [
+  { key: "recent", label: "Recent" },
+  { key: "active", label: "Most posts" },
+  { key: "popular", label: "Most followed" },
+];
+
 function skyFetch(path, opts = {}) {
   const token = localStorage.getItem("token");
   return fetch(apiUrl(path), {
@@ -107,16 +113,27 @@ export default function SkyHubTravelersPage() {
   const [following, setFollowing] = useState(() => new Set());
   const [busyId, setBusyId] = useState("");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("recent");
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const loadPage = useCallback(async (p) => {
-    const res = await skyFetch(
-      `/api/follow/travelers?page=${p}&limit=${PAGE_SIZE}`
-    );
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok)
-      throw new Error(data?.error || "Couldn't load travelers.");
-    return data;
-  }, []);
+  const loadPage = useCallback(
+    async (p) => {
+      const res = await skyFetch(
+        `/api/follow/travelers?page=${p}&limit=${PAGE_SIZE}&sort=${sort}`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        // 404 here means the server doesn't have this list yet (not deployed).
+        if (res.status === 404) {
+          console.error("GET /api/follow/travelers returned 404");
+          throw new Error("The travelers list isn't available right now.");
+        }
+        throw new Error("Couldn't load travelers. Please try again.");
+      }
+      return data;
+    },
+    [sort]
+  );
 
   // First page + who I already follow
   useEffect(() => {
@@ -149,7 +166,7 @@ export default function SkyHubTravelersPage() {
     return () => {
       alive = false;
     };
-  }, [loadPage, loggedIn]);
+  }, [loadPage, loggedIn, reloadKey]);
 
   const loadMore = async () => {
     try {
@@ -261,6 +278,25 @@ export default function SkyHubTravelersPage() {
           />
         </label>
 
+        <div
+          className="skyhubT-tabs"
+          role="tablist"
+          aria-label="Sort travelers"
+        >
+          {SORTS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              role="tab"
+              aria-selected={sort === s.key}
+              className={`skyhubT-tab${sort === s.key ? " is-active" : ""}`}
+              onClick={() => setSort(s.key)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="skyhubT-state">
             <Spin />
@@ -271,7 +307,7 @@ export default function SkyHubTravelersPage() {
             <button
               type="button"
               className="skyhubT-btn"
-              onClick={() => window.location.reload()}
+              onClick={() => setReloadKey((k) => k + 1)}
             >
               Try again
             </button>
