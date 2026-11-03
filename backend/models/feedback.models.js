@@ -38,6 +38,10 @@ const FeedbackSchema = new Schema(
     adminNote: String,
     xpAwarded: { type: Number, default: 0 },
     shippedBonusAwarded: { type: Boolean, default: false },
+    // Set when an admin sends a thank-you (admin dashboard), so nobody is
+    // thanked twice for the same submission.
+    thankedAt: Date,
+    thankedBy: String,
   },
   { timestamps: true }
 );
@@ -75,6 +79,9 @@ const TestimonialSchema = new Schema(
     reviewedBy: String,
     reviewedAt: Date,
     xpAwarded: { type: Number, default: 0 },
+    // Set when an admin sends a thank-you (admin dashboard).
+    thankedAt: Date,
+    thankedBy: String,
   },
   { timestamps: true }
 );

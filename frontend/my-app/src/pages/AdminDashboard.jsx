@@ -270,7 +270,7 @@ const INJECTED_CSS = `
   .sk-btn { background: none; border: 1px solid ${C.border}; color: ${C.muted}; padding: 6px 14px; border-radius: 999px; font: inherit; font-size: 12px; cursor: pointer; transition: border-color .2s, color .2s; }
   .sk-btn:hover:not(:disabled) { border-color: ${C.orange}; color: ${C.orange}; }
   .sk-btn:disabled { opacity: .5; cursor: default; }
-  .sk-btn--sm { padding: 4px 10px; font-size: 11px; }
+  .sk-btn--sm { padding: 4px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; }
   .sk-btn--active { border-color: ${C.orange}; color: ${C.orange}; }
   .sk-btn--danger:hover:not(:disabled) { border-color: ${C.red}; color: ${C.red}; }
 
@@ -417,7 +417,20 @@ const INJECTED_CSS = `
   .sk-fb__who b { color: #fff; font-weight: 700; }
   .sk-fb__msg { grid-column: 1 / -1; font-size: 14px; line-height: 1.6; color: #f3f1ff; white-space: pre-wrap; word-break: break-word; background: rgba(255,255,255,0.03); border: 1px solid ${C.border}; border-radius: 12px; padding: 12px 14px; }
   .sk-fb__meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 11.5px; color: ${C.muted}; }
-  .sk-fb__side { display: flex; align-items: center; gap: 8px; }
+  .sk-fb__side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .sk-fb.is-selected, .sk-row.is-selected { background: rgba(255,138,42,0.07); }
+  .sk-fb__pick, .sk-check input { width: 16px; height: 16px; accent-color: ${C.orange}; cursor: pointer; flex-shrink: 0; margin: 0; }
+  .sk-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: ${C.text}; cursor: pointer; user-select: none; }
+  .sk-bulk { position: sticky; top: 96px; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 20px; background: #1d1430; border-bottom: 1px solid rgba(255,138,42,0.35); font-size: 13px; }
+  .sk-bulk b { margin-right: 4px; }
+  /* Thank-you window: always dark, whatever theme the page gets */
+  .sk-thank-modal .ant-modal-content, .sk-thank-modal .ant-modal-header { background: #150f28 !important; color: #fff; }
+  .sk-thank-modal .ant-modal-title { color: #fff !important; }
+  .sk-thank-modal .ant-modal-close { color: rgba(255,255,255,0.6) !important; }
+  .sk-thank-modal textarea, .sk-thank-modal .ant-input-affix-wrapper, .sk-thank-modal .ant-input-textarea-affix-wrapper { background: rgba(255,255,255,0.06) !important; color: #fff !important; border-color: rgba(255,255,255,0.18) !important; }
+  .sk-thank-modal .ant-input-data-count { color: rgba(255,255,255,0.45) !important; }
+  .sk-thank-modal .ant-btn-default { background: transparent !important; color: #fff !important; border-color: rgba(255,255,255,0.25) !important; }
+  .sk-thank-modal .ant-btn-primary { background: linear-gradient(135deg, #ff8a2a, #ffb347) !important; color: #1a0e06 !important; border: 0 !important; font-weight: 700; }
   @media (max-width: 640px) {
     .sk-top__bar { flex-wrap: wrap; padding-bottom: 4px; }
     .sk-top__right { flex-wrap: wrap; }
@@ -762,7 +775,7 @@ function NeedsAttention({ counts, onOpenModeration, onOpenFeedback }) {
   return (
     <div className="sk-tiles">
       <AttentionTile
-        icon="📬"
+        icon={<IconInbox size={18} />}
         title="Support inbox"
         state={openTickets > 0 ? "hot" : undefined}
         badges={
@@ -779,7 +792,7 @@ function NeedsAttention({ counts, onOpenModeration, onOpenFeedback }) {
         onClick={() => navigate("/admin/support")}
       />
       <AttentionTile
-        icon="🧳"
+        icon={<IconSuitcase size={18} />}
         title="Bookings"
         state={cancelRequests > 0 ? "hot" : undefined}
         badges={
@@ -800,7 +813,7 @@ function NeedsAttention({ counts, onOpenModeration, onOpenFeedback }) {
         onClick={() => navigate("/admin/bookings")}
       />
       <AttentionTile
-        icon="🛡️"
+        icon={<IconShield size={18} />}
         title="SkyHub reports"
         state={
           skyhub.critical > 0 ? "urgent" : skyhubOpen > 0 ? "hot" : undefined
@@ -827,7 +840,7 @@ function NeedsAttention({ counts, onOpenModeration, onOpenFeedback }) {
         onClick={() => navigate("/admin/skyhub")}
       />
       <AttentionTile
-        icon="⚖️"
+        icon={<IconScale size={18} />}
         title="Removal requests"
         state={
           skyhub.overdueTakedowns > 0
@@ -857,7 +870,7 @@ function NeedsAttention({ counts, onOpenModeration, onOpenFeedback }) {
         onClick={onOpenModeration}
       />
       <AttentionTile
-        icon="⭐"
+        icon={<IconStar size={18} />}
         title="Feedback & reviews"
         state={fbWaiting > 0 ? "hot" : undefined}
         badges={
@@ -892,21 +905,21 @@ function KeyMetrics({ stats, ready }) {
   return (
     <div className="sk-stats">
       <StatCard
-        icon="👤"
+        icon={<IconUser size={18} />}
         label="Total users"
         tone="purple"
         value={v(stats.totalUsers, fmtNum)}
         hint={ready && `+${fmtNum(stats.newUsersWeek)} this week`}
       />
       <StatCard
-        icon="✈️"
+        icon={<IconPlane size={18} />}
         label="Total bookings"
         tone="orange"
         value={v(stats.totalBookings, fmtNum)}
         hint={ready && `+${fmtNum(stats.newBookingsWeek)} this week`}
       />
       <StatCard
-        icon="💰"
+        icon={<IconDollar size={18} />}
         label="Confirmed revenue"
         tone="green"
         value={v(stats.totalRevenue, fmt$)}
@@ -918,7 +931,7 @@ function KeyMetrics({ stats, ready }) {
         }
       />
       <StatCard
-        icon="🌟"
+        icon={<IconSpark size={18} />}
         label="XP awarded"
         tone="blue"
         value={v(stats.totalXP, fmtNum)}
@@ -932,7 +945,7 @@ function GrowthMetrics({ metrics, ready }) {
   return (
     <div className="sk-stats sk-stats--3">
       <StatCard
-        icon="🔁"
+        icon={<IconRepeat size={18} />}
         label="Second-booking rate"
         tone="green"
         value={pct(metrics?.secondBookingRate)}
@@ -944,14 +957,14 @@ function GrowthMetrics({ metrics, ready }) {
         }
       />
       <StatCard
-        icon="🤝"
+        icon={<IconUsers size={18} />}
         label="Referral share rate"
         tone="purple"
         value={pct(metrics?.referralShareRate)}
         hint={metrics && `Of ${fmtNum(metrics.totalUsers)} total users`}
       />
       <StatCard
-        icon="⚠️"
+        icon={<IconAlert size={18} />}
         label="Cancellation rate"
         tone="red"
         value={pct(metrics?.cancellationRate)}
@@ -1022,7 +1035,11 @@ function RecentBookings({ bookings, loading }) {
           <div key={b._id} className="sk-row">
             <div className="sk-row__left">
               <div className="sk-row__icon">
-                {isHotelBooking(b) ? "🏨" : "✈️"}
+                {isHotelBooking(b) ? (
+                  <IconBed size={15} />
+                ) : (
+                  <IconPlane size={15} />
+                )}
               </div>
               <div style={{ minWidth: 0 }}>
                 <div className="sk-name">{bookingTitle(b)}</div>
@@ -1364,7 +1381,7 @@ function TakedownQueue({ refreshKey, onChange }) {
 
   return (
     <Panel
-      title="⚖️ Removal requests"
+      title={titled(IconScale, "Removal requests")}
       actions={
         <FilterChips
           options={TAKEDOWN_FILTERS}
@@ -1462,7 +1479,7 @@ function ModerationTab({ refreshKey, counts }) {
       <Section title="Community reports">
         <div className="sk-tiles">
           <AttentionTile
-            icon="🛡️"
+            icon={<IconShield size={18} />}
             title="Open SkyHub moderation"
             state={
               skyhub.critical > 0
@@ -2081,7 +2098,7 @@ function FeedbackStats({ refreshKey }) {
     <>
       <div className="sk-stats" style={{ marginBottom: 20 }}>
         <StatCard
-          icon="⭐"
+          icon={<IconStar size={18} />}
           label="Average rating"
           tone="orange"
           value={v(data?.averageRating, (n) => `${n} / 5`)}
@@ -2090,7 +2107,7 @@ function FeedbackStats({ refreshKey }) {
           }
         />
         <StatCard
-          icon="📝"
+          icon={<IconLog size={18} />}
           label="Review response rate"
           tone="purple"
           value={v(data?.responseRate, (n) => `${n}%`)}
@@ -2099,7 +2116,7 @@ function FeedbackStats({ refreshKey }) {
           }
         />
         <StatCard
-          icon="💬"
+          icon={<IconChat size={18} />}
           label="Feedback (30 days)"
           tone="blue"
           value={v(ready ? typeTotal : undefined, fmtNum)}
@@ -2111,7 +2128,7 @@ function FeedbackStats({ refreshKey }) {
           }
         />
         <StatCard
-          icon="🚀"
+          icon={<IconRocket size={18} />}
           label="Feedback shipped"
           tone="green"
           value={v(data?.shippedCount, fmtNum)}
@@ -2181,6 +2198,318 @@ function FeedbackStats({ refreshKey }) {
   );
 }
 
+/* ── Small stroke icons for the Feedback tab (no emoji) ── */
+function TabSvg({ size = 15, children }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "-2px", flexShrink: 0 }}
+    >
+      {children}
+    </svg>
+  );
+}
+// Envelope with a heart: thank-you
+const IconThanks = (p) => (
+  <TabSvg {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3 7 9 6 9-6" />
+    <path
+      d="M12 17.2s-2.6-1.5-2.6-3.2a1.4 1.4 0 0 1 2.6-.7 1.4 1.4 0 0 1 2.6.7c0 1.7-2.6 3.2-2.6 3.2z"
+      fill="currentColor"
+      stroke="none"
+    />
+  </TabSvg>
+);
+const IconChat = (p) => (
+  <TabSvg {...p}>
+    <path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" />
+  </TabSvg>
+);
+const IconStar = (p) => (
+  <TabSvg {...p}>
+    <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z" />
+  </TabSvg>
+);
+const IconSpark = (p) => (
+  <TabSvg {...p}>
+    <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" />
+  </TabSvg>
+);
+const IconLog = (p) => (
+  <TabSvg {...p}>
+    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+    <path d="M14 3v6h6M8 13h8M8 17h5" />
+  </TabSvg>
+);
+const IconInbox = (p) => (
+  <TabSvg {...p}>
+    <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+    <path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z" />
+  </TabSvg>
+);
+const IconSuitcase = (p) => (
+  <TabSvg {...p}>
+    <rect x="3" y="7" width="18" height="13" rx="2" />
+    <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18" />
+  </TabSvg>
+);
+const IconShield = (p) => (
+  <TabSvg {...p}>
+    <path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" />
+  </TabSvg>
+);
+const IconScale = (p) => (
+  <TabSvg {...p}>
+    <path d="M12 3v18M7 21h10M5 7h14M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z" />
+  </TabSvg>
+);
+const IconUser = (p) => (
+  <TabSvg {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21a8 8 0 0 1 16 0" />
+  </TabSvg>
+);
+const IconPlane = (p) => (
+  <TabSvg {...p}>
+    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+  </TabSvg>
+);
+const IconBed = (p) => (
+  <TabSvg {...p}>
+    <path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8M2 16h20M6 10V7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
+  </TabSvg>
+);
+const IconDollar = (p) => (
+  <TabSvg {...p}>
+    <path d="M12 2v20M17 6.5C16 5 14.2 4.5 12 4.5c-3 0-4.5 1.5-4.5 3.5 0 4.5 9.5 2.5 9.5 7.5 0 2-1.8 3.5-5 3.5-2.4 0-4.2-.8-5-2.5" />
+  </TabSvg>
+);
+const IconRepeat = (p) => (
+  <TabSvg {...p}>
+    <path d="m17 2 4 4-4 4" />
+    <path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" />
+    <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+  </TabSvg>
+);
+const IconUsers = (p) => (
+  <TabSvg {...p}>
+    <circle cx="9" cy="8" r="3.2" />
+    <path d="M3 20a6 6 0 0 1 12 0" />
+    <circle cx="17" cy="9" r="2.6" />
+    <path d="M15.5 14.2A5 5 0 0 1 21 19" />
+  </TabSvg>
+);
+const IconAlert = (p) => (
+  <TabSvg {...p}>
+    <path d="M12 3 2 20h20z" />
+    <path d="M12 10v4M12 17h.01" />
+  </TabSvg>
+);
+const IconClock = (p) => (
+  <TabSvg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </TabSvg>
+);
+const IconRocket = (p) => (
+  <TabSvg {...p}>
+    <path d="M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z" />
+    <path d="m12 15-3-3a22 22 0 0 1 2-4A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z" />
+    <path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5" />
+  </TabSvg>
+);
+const titled = (Icon, text) => (
+  <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+    <Icon size={15} />
+    {text}
+  </span>
+);
+
+/* ── Thank-you messages ─────────────────────────────────────────
+   Sends the author an in-app notification and/or email thanking them.
+   Server: POST /api/feedback/admin/thank and
+           POST /api/testimonials/admin/thank
+           { ids: [...], message, notify, email }
+   The server sends ONE message per person (someone with 4 submissions
+   isn't thanked 4 times) and records thankedAt on every item. Works for
+   anything already submitted, old or new. */
+const THANK_TEMPLATES = {
+  feedback:
+    "Thank you for your feedback! It helps us make Skyrio a better website and a better travel experience for everyone. We read every message.",
+  review:
+    "Thank you for your review! Hearing how your trip went helps us make Skyrio a better website and a better experience for every traveler.",
+};
+const firstNameOf = (u) =>
+  String(u?.name || u?.username || "")
+    .trim()
+    .split(/\s+/)[0] || "";
+
+const RATING_FILTERS = [
+  { value: "all", label: "All ratings", test: () => true },
+  { value: "high", label: "4–5 ★", test: (r) => r >= 4 },
+  { value: "mid", label: "3 ★", test: (r) => r === 3 },
+  { value: "low", label: "1–2 ★", test: (r) => r >= 1 && r <= 2 },
+  { value: "none", label: "No rating", test: (r) => !r },
+];
+const SORTS = [
+  { value: "new", label: "Newest first" },
+  { value: "old", label: "Oldest first" },
+];
+const sortByDate = (list, sort) =>
+  [...list].sort((a, b) =>
+    sort === "old"
+      ? new Date(a.createdAt) - new Date(b.createdAt)
+      : new Date(b.createdAt) - new Date(a.createdAt)
+  );
+
+function ThankModal({ kind, items, onClose, onSent }) {
+  const [text, setText] = useState(THANK_TEMPLATES[kind]);
+  const [notify, setNotify] = useState(true);
+  const [email, setEmail] = useState(true);
+  const [sending, setSending] = useState(false);
+  const open = items.length > 0;
+  useEffect(() => {
+    if (open) setText(THANK_TEMPLATES[kind]);
+  }, [open, kind]);
+
+  const reachable = items.filter((it) => it.user);
+  const skipped = items.length - reachable.length;
+  // One message per person, however many things they sent.
+  const people = new Map();
+  reachable.forEach((it) => {
+    const uid = String(it.user?._id || it.user?.id || it.user?.email || it._id);
+    if (!people.has(uid)) people.set(uid, it.user);
+  });
+  const peopleCount = people.size;
+  const first = peopleCount === 1 ? firstNameOf([...people.values()][0]) : "";
+
+  const send = async () => {
+    if (!text.trim()) return message.warning("Write a short message first.");
+    if (!notify && !email)
+      return message.warning("Pick at least one way to send it.");
+    setSending(true);
+    const base =
+      kind === "review" ? "/api/testimonials/admin" : "/api/feedback/admin";
+    try {
+      const j = await adminRequest(`${base}/thank`, {
+        method: "POST",
+        body: {
+          ids: reachable.map((it) => it._id),
+          message: text.trim(),
+          notify,
+          email,
+        },
+      });
+      const sent = Number(j.people ?? peopleCount);
+      message.success(
+        sent === 1
+          ? "Thank-you sent."
+          : `Thank-you sent to ${sent} ${plural(sent, "person", "people")}.`
+      );
+      onSent?.();
+      onClose();
+    } catch (err) {
+      message.error(
+        err.status === 404
+          ? "Thank-you messages aren't set up on the server yet (the /thank route is missing)."
+          : err.message || "Couldn't send the thank-you."
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      title={
+        peopleCount > 1
+          ? `Thank ${peopleCount} people`
+          : `Send a thank-you${first ? ` to ${first}` : ""}`
+      }
+      onCancel={onClose}
+      onOk={send}
+      okText={sending ? "Sending…" : "Send thank-you"}
+      okButtonProps={{ loading: sending, disabled: !reachable.length }}
+      className="sk-challenge-modal sk-thank-modal"
+      destroyOnClose
+    >
+      <p className="sk-modal-hint">
+        They&apos;ll see it with &ldquo;Hi {first || "[first name]"},&rdquo; in
+        front and &ldquo;— The Skyrio team&rdquo; at the end.
+        {reachable.length > peopleCount &&
+          ` ${reachable.length} ${
+            kind === "review" ? "reviews" : "submissions"
+          } from ${peopleCount} ${plural(
+            peopleCount,
+            "person",
+            "people"
+          )}: each person gets one message.`}
+        {skipped > 0 &&
+          ` ${skipped} ${plural(
+            skipped,
+            "was",
+            "were"
+          )} sent signed out, so there's no one to message and ${plural(
+            skipped,
+            "it's",
+            "they're"
+          )} skipped.`}
+      </p>
+      <Input.TextArea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        autoSize={{ minRows: 4, maxRows: 8 }}
+        maxLength={600}
+        showCount
+      />
+      <div
+        style={{ display: "flex", gap: 18, marginTop: 14, flexWrap: "wrap" }}
+      >
+        <label className="sk-check">
+          <input
+            type="checkbox"
+            checked={notify}
+            onChange={(e) => setNotify(e.target.checked)}
+          />
+          In-app notification
+        </label>
+        <label className="sk-check">
+          <input
+            type="checkbox"
+            checked={email}
+            onChange={(e) => setEmail(e.target.checked)}
+          />
+          Email
+        </label>
+      </div>
+    </Modal>
+  );
+}
+
+// "3 selected · Mark reviewing · Close · Thank · Clear"
+function BulkBar({ count, children, onClear }) {
+  if (!count) return null;
+  return (
+    <div className="sk-bulk" role="toolbar" aria-label="Selected items">
+      <b>{count} selected</b>
+      {children}
+      <button type="button" className="sk-btn sk-btn--sm" onClick={onClear}>
+        Clear selection
+      </button>
+    </div>
+  );
+}
+
 function FeedbackInbox({ refreshKey, onChange }) {
   const [status, setStatus] = useState("new");
   const [type, setType] = useState("all");
@@ -2197,22 +2526,87 @@ function FeedbackInbox({ refreshKey, onChange }) {
   const allRows = data?.key === key ? data.rows : [];
   const [busyId, setBusyId] = useState(null);
   const [query, setQuery] = useState("");
+  const [rating, setRating] = useState("all");
+  const [sort, setSort] = useState("new");
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allRows;
-    return allRows.filter((fb) =>
-      [
-        fb.message,
-        fb.page,
-        fb.type,
-        fb.user?.name,
-        fb.user?.username,
-        fb.user?.email,
-      ]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q))
+    const rf =
+      RATING_FILTERS.find((r) => r.value === rating) || RATING_FILTERS[0];
+    const list = allRows.filter(
+      (fb) =>
+        rf.test(Number(fb.rating) || 0) &&
+        (!q ||
+          [
+            fb.message,
+            fb.page,
+            fb.type,
+            fb.user?.name,
+            fb.user?.username,
+            fb.user?.email,
+          ]
+            .filter(Boolean)
+            .some((v) => String(v).toLowerCase().includes(q)))
     );
-  }, [allRows, query]);
+    return sortByDate(list, sort);
+  }, [allRows, query, rating, sort]);
+
+  // Select several, then close / move / thank them in one go.
+  const [selected, setSelected] = useState(() => new Set());
+  useEffect(() => setSelected(new Set()), [key, refreshKey]);
+  const toggle = (id) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const allShownSelected =
+    rows.length > 0 && rows.every((r) => selected.has(r._id));
+  const toggleAll = () =>
+    setSelected(allShownSelected ? new Set() : new Set(rows.map((r) => r._id)));
+  const selectedRows = rows.filter((r) => selected.has(r._id));
+  const [thanking, setThanking] = useState([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // Everyone who ever sent feedback (any status) and hasn't been thanked.
+  const [findingAll, setFindingAll] = useState(false);
+  const thankEveryone = async () => {
+    setFindingAll(true);
+    try {
+      const j = await adminRequest("/api/feedback/admin?status=all&type=all");
+      const list = (j.feedback || []).filter((fb) => fb.user && !fb.thankedAt);
+      if (!list.length) {
+        message.info("Everyone who sent feedback has already been thanked.");
+        return;
+      }
+      setThanking(list);
+    } catch (err) {
+      message.error(err.message || "Couldn't load past feedback.");
+    } finally {
+      setFindingAll(false);
+    }
+  };
+
+  const bulkStatus = async (next) => {
+    setBulkBusy(true);
+    let ok = 0;
+    for (const fb of selectedRows) {
+      try {
+        await adminRequest(`/api/feedback/admin/${fb._id}`, {
+          method: "PATCH",
+          body: { status: next },
+        });
+        ok += 1;
+      } catch {
+        /* keep going; the count says how many moved */
+      }
+    }
+    setBulkBusy(false);
+    message.success(
+      `Moved ${ok} ${plural(ok, "item")} to ${FEEDBACK_STATUS[next].label}.`
+    );
+    setSelected(new Set());
+    reload();
+    onChange?.();
+  };
 
   // Copy as plain text, ready to paste into a chat or a doc.
   const asText = (fb) =>
@@ -2259,7 +2653,7 @@ function FeedbackInbox({ refreshKey, onChange }) {
 
   return (
     <Panel
-      title="💬 Feedback inbox"
+      title={titled(IconChat, "Feedback inbox")}
       actions={
         <>
           <FilterChips
@@ -2288,6 +2682,16 @@ function FeedbackInbox({ refreshKey, onChange }) {
       }
     >
       <div className="sk-fb-tools">
+        <label className="sk-check" title="Select everything shown">
+          <input
+            type="checkbox"
+            checked={allShownSelected}
+            onChange={toggleAll}
+            disabled={!rows.length}
+            aria-label="Select all shown"
+          />
+          All
+        </label>
         <input
           type="search"
           className="sk-fb-search"
@@ -2295,6 +2699,24 @@ function FeedbackInbox({ refreshKey, onChange }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Search feedback"
+        />
+        <Select
+          size="small"
+          value={rating}
+          onChange={setRating}
+          className="sk-select-dark"
+          style={{ width: 118 }}
+          options={RATING_FILTERS.map(({ value, label }) => ({ value, label }))}
+          aria-label="Filter by rating"
+        />
+        <Select
+          size="small"
+          value={sort}
+          onChange={setSort}
+          className="sk-select-dark"
+          style={{ width: 122 }}
+          options={SORTS}
+          aria-label="Sort"
         />
         <span className="sk-fb-count">
           {loading
@@ -2312,7 +2734,60 @@ function FeedbackInbox({ refreshKey, onChange }) {
             Copy all
           </button>
         )}
+        <button
+          type="button"
+          className="sk-btn sk-btn--sm sk-btn--active"
+          onClick={thankEveryone}
+          disabled={findingAll}
+          title="Everyone who has ever sent feedback and hasn't been thanked yet, one message each"
+        >
+          <IconThanks size={13} />
+          {findingAll ? "Finding…" : "Thank everyone not yet thanked"}
+        </button>
       </div>
+      <BulkBar
+        count={selectedRows.length}
+        onClear={() => setSelected(new Set())}
+      >
+        {status !== "reviewing" && (
+          <button
+            type="button"
+            className="sk-btn sk-btn--sm"
+            disabled={bulkBusy}
+            onClick={() => bulkStatus("reviewing")}
+          >
+            Mark reviewing
+          </button>
+        )}
+        {status !== "planned" && (
+          <button
+            type="button"
+            className="sk-btn sk-btn--sm"
+            disabled={bulkBusy}
+            onClick={() => bulkStatus("planned")}
+          >
+            Mark planned
+          </button>
+        )}
+        {status !== "closed" && (
+          <button
+            type="button"
+            className="sk-btn sk-btn--sm"
+            disabled={bulkBusy}
+            onClick={() => bulkStatus("closed")}
+          >
+            Close
+          </button>
+        )}
+        <button
+          type="button"
+          className="sk-btn sk-btn--sm sk-btn--active"
+          disabled={bulkBusy}
+          onClick={() => setThanking(selectedRows)}
+        >
+          <IconThanks size={14} /> Send thank-you
+        </button>
+      </BulkBar>
       {loading ? (
         <div className="sk-empty">
           <Spinner />
@@ -2329,8 +2804,18 @@ function FeedbackInbox({ refreshKey, onChange }) {
           }
         >
           {rows.map((fb) => (
-            <article key={fb._id} className="sk-fb">
+            <article
+              key={fb._id}
+              className={`sk-fb${selected.has(fb._id) ? " is-selected" : ""}`}
+            >
               <div className="sk-fb__who">
+                <input
+                  type="checkbox"
+                  className="sk-fb__pick"
+                  checked={selected.has(fb._id)}
+                  onChange={() => toggle(fb._id)}
+                  aria-label="Select this feedback"
+                />
                 <b>
                   {fb.user?.name || fb.user?.username || "Signed-out visitor"}
                 </b>
@@ -2341,6 +2826,23 @@ function FeedbackInbox({ refreshKey, onChange }) {
                 {fb.rating ? <Stars value={fb.rating} /> : null}
               </div>
               <div className="sk-fb__side">
+                {fb.thankedAt ? (
+                  <Pill tone="green">Thanked</Pill>
+                ) : (
+                  <button
+                    type="button"
+                    className="sk-btn sk-btn--sm"
+                    onClick={() => setThanking([fb])}
+                    disabled={!fb.user}
+                    title={
+                      fb.user
+                        ? "Send a thank-you message"
+                        : "Sent signed out, so there's no one to message"
+                    }
+                  >
+                    <IconThanks size={13} /> Thank
+                  </button>
+                )}
                 <button
                   type="button"
                   className="sk-btn sk-btn--sm"
@@ -2403,6 +2905,15 @@ function FeedbackInbox({ refreshKey, onChange }) {
           ))}
         </PanelContent>
       )}
+      <ThankModal
+        kind="feedback"
+        items={thanking}
+        onClose={() => setThanking([])}
+        onSent={() => {
+          setSelected(new Set());
+          reload();
+        }}
+      />
     </Panel>
   );
 }
@@ -2416,7 +2927,81 @@ function TestimonialsQueue({ refreshKey, onChange }) {
     },
     { key: `${status}:${refreshKey}` }
   );
-  const rows = data?.status === status ? data.rows : [];
+  const allRows = data?.status === status ? data.rows : [];
+  const [query, setQuery] = useState("");
+  const [rating, setRating] = useState("all");
+  const [sort, setSort] = useState("new");
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const rf =
+      RATING_FILTERS.find((r) => r.value === rating) || RATING_FILTERS[0];
+    return sortByDate(
+      allRows.filter(
+        (t) =>
+          rf.test(Number(t.rating) || 0) &&
+          (!q ||
+            [t.text, t.displayName, t.city, t.user?.name, t.user?.email]
+              .filter(Boolean)
+              .some((v) => String(v).toLowerCase().includes(q)))
+      ),
+      sort
+    );
+  }, [allRows, query, rating, sort]);
+  const [selected, setSelected] = useState(() => new Set());
+  useEffect(() => setSelected(new Set()), [status, refreshKey]);
+  const toggle = (id) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const allShownSelected =
+    rows.length > 0 && rows.every((r) => selected.has(r._id));
+  const selectedRows = rows.filter((r) => selected.has(r._id));
+  const [thanking, setThanking] = useState([]);
+  // Everyone who left a review (pending or approved; rejected ones are
+  // spam or abuse) and hasn't been thanked yet.
+  const [findingAll, setFindingAll] = useState(false);
+  const thankEveryone = async () => {
+    setFindingAll(true);
+    try {
+      const lists = await Promise.all(
+        ["pending", "approved"].map((st) =>
+          adminRequest(`/api/testimonials/admin?status=${st}`)
+            .then((j) => j.testimonials || [])
+            .catch(() => [])
+        )
+      );
+      const list = lists.flat().filter((t) => t.user && !t.thankedAt);
+      if (!list.length) {
+        message.info("Everyone who left a review has already been thanked.");
+        return;
+      }
+      setThanking(list);
+    } finally {
+      setFindingAll(false);
+    }
+  };
+  const bulkApprove = async () => {
+    setBusy(true);
+    let ok = 0;
+    for (const t of selectedRows.filter((t) => t.status !== "approved")) {
+      try {
+        await adminRequest(`/api/testimonials/admin/${t._id}`, {
+          method: "PATCH",
+          body: { action: "approve" },
+        });
+        ok += 1;
+      } catch {
+        /* keep going */
+      }
+    }
+    setBusy(false);
+    message.success(`Approved ${ok} ${plural(ok, "review")}.`);
+    setSelected(new Set());
+    reload();
+    onChange?.();
+  };
 
   const [rejecting, setRejecting] = useState(null);
   const [reason, setReason] = useState(null);
@@ -2449,7 +3034,7 @@ function TestimonialsQueue({ refreshKey, onChange }) {
 
   return (
     <Panel
-      title="⭐ Reviews"
+      title={titled(IconStar, "Reviews")}
       actions={
         <FilterChips
           options={REVIEW_FILTERS}
@@ -2458,6 +3043,86 @@ function TestimonialsQueue({ refreshKey, onChange }) {
         />
       }
     >
+      <div className="sk-fb-tools">
+        <label className="sk-check" title="Select everything shown">
+          <input
+            type="checkbox"
+            checked={allShownSelected}
+            onChange={() =>
+              setSelected(
+                allShownSelected ? new Set() : new Set(rows.map((r) => r._id))
+              )
+            }
+            disabled={!rows.length}
+            aria-label="Select all shown"
+          />
+          All
+        </label>
+        <input
+          type="search"
+          className="sk-fb-search"
+          placeholder="Search reviews or names…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search reviews"
+        />
+        <Select
+          size="small"
+          value={rating}
+          onChange={setRating}
+          className="sk-select-dark"
+          style={{ width: 118 }}
+          options={RATING_FILTERS.map(({ value, label }) => ({ value, label }))}
+          aria-label="Filter by rating"
+        />
+        <Select
+          size="small"
+          value={sort}
+          onChange={setSort}
+          className="sk-select-dark"
+          style={{ width: 122 }}
+          options={SORTS}
+          aria-label="Sort"
+        />
+        <span className="sk-fb-count">
+          {loading
+            ? "Loading…"
+            : `${rows.length} ${plural(rows.length, "review")}`}
+        </span>
+        <button
+          type="button"
+          className="sk-btn sk-btn--sm sk-btn--active"
+          onClick={thankEveryone}
+          disabled={findingAll}
+          title="Everyone who has left a review and hasn't been thanked yet, one message each"
+        >
+          <IconThanks size={13} />
+          {findingAll ? "Finding…" : "Thank everyone not yet thanked"}
+        </button>
+      </div>
+      <BulkBar
+        count={selectedRows.length}
+        onClear={() => setSelected(new Set())}
+      >
+        {status !== "approved" && (
+          <button
+            type="button"
+            className="sk-btn sk-btn--sm"
+            disabled={busy}
+            onClick={bulkApprove}
+          >
+            Approve
+          </button>
+        )}
+        <button
+          type="button"
+          className="sk-btn sk-btn--sm sk-btn--active"
+          disabled={busy}
+          onClick={() => setThanking(selectedRows)}
+        >
+          <IconThanks size={14} /> Send thank-you
+        </button>
+      </BulkBar>
       {loading ? (
         <div className="sk-empty">
           <Spinner />
@@ -2466,7 +3131,11 @@ function TestimonialsQueue({ refreshKey, onChange }) {
         <PanelContent
           isEmpty={!rows.length}
           emptyText={
-            status === "pending" ? "No reviews waiting." : "Nothing here yet."
+            query.trim() || rating !== "all"
+              ? "No reviews match those filters."
+              : status === "pending"
+              ? "No reviews waiting."
+              : "Nothing here yet."
           }
         >
           {rows.map((t) => {
@@ -2475,10 +3144,23 @@ function TestimonialsQueue({ refreshKey, onChange }) {
               ? "General review (no trip)"
               : `${isHotelBooking(b) ? "Stay" : "Trip"}: ${bookingTitle(b)}`;
             return (
-              <div key={t._id} className="sk-row sk-row--top">
+              <div
+                key={t._id}
+                className={`sk-row sk-row--top${
+                  selected.has(t._id) ? " is-selected" : ""
+                }`}
+              >
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div className="sk-name">
+                    <input
+                      type="checkbox"
+                      className="sk-fb__pick"
+                      checked={selected.has(t._id)}
+                      onChange={() => toggle(t._id)}
+                      aria-label="Select this review"
+                    />
                     <Stars value={t.rating} />
+                    {t.thankedAt && <Pill tone="green">Thanked</Pill>}
                     {t.featured && <Pill tone="orange">Featured</Pill>}
                     {!t.consent && <Pill tone="muted">Not OK to feature</Pill>}
                     {t.rejectReason && (
@@ -2499,6 +3181,21 @@ function TestimonialsQueue({ refreshKey, onChange }) {
                   </div>
                 </div>
                 <div className="sk-row__right">
+                  {!t.thankedAt && (
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm"
+                      disabled={busy || !t.user}
+                      onClick={() => setThanking([t])}
+                      title={
+                        t.user
+                          ? "Send a thank-you message"
+                          : "No account linked, so there's no one to message"
+                      }
+                    >
+                      <IconThanks size={13} /> Thank
+                    </button>
+                  )}
                   {t.status !== "approved" && (
                     <button
                       type="button"
@@ -2576,6 +3273,15 @@ function TestimonialsQueue({ refreshKey, onChange }) {
           style={{ width: "100%" }}
         />
       </Modal>
+      <ThankModal
+        kind="review"
+        items={thanking}
+        onClose={() => setThanking([])}
+        onSent={() => {
+          setSelected(new Set());
+          reload();
+        }}
+      />
     </Panel>
   );
 }
@@ -2604,7 +3310,7 @@ function XpLog({ refreshKey }) {
 
   return (
     <Panel
-      title="🌟 Feedback XP log"
+      title={titled(IconSpark, "Feedback XP log")}
       meta={
         Number.isFinite(Number(data?.flaggedUsers)) &&
         data?.flaggedUsers != null
@@ -2696,7 +3402,7 @@ function FeedbackAudit({ refreshKey }) {
   const rows = data || [];
   return (
     <Panel
-      title="📜 Decision log"
+      title={titled(IconLog, "Decision log")}
       meta="Every approve, reject, feature, ship and reversal"
     >
       <PanelContent
@@ -2888,7 +3594,8 @@ const AdminDashboard = () => {
         {skyhub.overdueTakedowns > 0 && (
           <div role="alert" className="sk-alert">
             <span>
-              ⏰ {skyhub.overdueTakedowns} intimate-image removal{" "}
+              <IconClock size={15} /> {skyhub.overdueTakedowns} intimate-image
+              removal{" "}
               {plural(skyhub.overdueTakedowns, "request is", "requests are")}{" "}
               past the 48-hour legal deadline.
             </span>
@@ -2905,7 +3612,13 @@ const AdminDashboard = () => {
         )}
 
         {dashboard.error && tab === "overview" && (
-          <div className="sk-alert sk-alert--soft">⚠️ {dashboard.error}</div>
+          <div className="sk-alert sk-alert--soft">
+            <span
+              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
+              <IconAlert size={15} /> {dashboard.error}
+            </span>
+          </div>
         )}
 
         {tab === "overview" && (

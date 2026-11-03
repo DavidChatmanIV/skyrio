@@ -33,6 +33,9 @@ import travelProfileRoutes from "./routes/travelProfileRoutes.js";
 // import atlasBookingRoutes from "./routes/atlasBookingRoutes.js";
 // Where To Next (landing page map): reads cached lowest fares.
 import dealsRoutes from "./routes/deals.js";
+// Admin "thank you for your feedback / review" (POST /api/feedback/admin/thank
+// and /api/testimonials/admin/thank). Must be mounted before apiRouter.
+import thanksRoutes from "./routes/thanks.routes.js";
 import { startDealScanJob } from "./services/dealScanner.js";
 import { startXpConfirmJob } from "./jobs/xpConfirmJob.js";
 import mongooseXp from "mongoose";
@@ -234,6 +237,7 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/travel-profile", travelProfileRoutes);
 // app.use("/api/atlas/proposals", atlasBookingRoutes);
 app.use("/api/deals", dealsRoutes);
+app.use("/api", thanksRoutes);
 app.use("/api", apiRouter);
 
 // Dedicated, tighter limiter for the public contact form — this route
