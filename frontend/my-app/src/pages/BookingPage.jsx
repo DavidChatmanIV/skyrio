@@ -92,6 +92,10 @@ import {
   Check,
   X as XIcon,
   Home as HomeIcon,
+  Search as SearchIcon,
+  Sparkles,
+  Wallet,
+  ArrowLeft,
 } from "lucide-react";
 
 // Whole-dollar price with thousands commas: 1165 → "1,165". "—" if unknown.
@@ -1828,7 +1832,7 @@ function FlightsForm({
       } else {
         // No number here: the list below counts departure options, which
         // is different from the raw fare count (testers saw 297 vs 27).
-        antdMessage.success("Flights found — see the results below");
+        antdMessage.success("Flights found");
       }
     } catch (err) {
       onSearch([]);
@@ -4235,7 +4239,132 @@ function RoomCartBar({
 // and it can't be booked any more. A small toast in the corner was easy to
 // miss, so this takes over the screen with what happened and what's next.
 // ─────────────────────────────────────────────
-function UnavailableNotice({ notice, groupId, onClose }) {
+/* ── "How do you want to plan?" ─────────────────────────────────────
+   Testers found the Book page overwhelming: planner, Atlas, budget, search
+   and results all at once. Each mode shows only what it needs; the rest
+   stays mounted but out of sight, so switching never loses anything. */
+const PLAN_MODE_KEY = "skyrio_plan_mode";
+const PLAN_MODES = [
+  {
+    key: "search",
+    Icon: SearchIcon,
+    title: "Search myself",
+    sub: "Flights, stays & more",
+  },
+  {
+    key: "budget",
+    Icon: Wallet,
+    title: "Plan on a budget",
+    sub: "Set a budget, see what fits",
+  },
+  {
+    key: "atlas",
+    Icon: Sparkles,
+    title: "Let Atlas plan it",
+    sub: "Tell our AI the trip you want",
+  },
+];
+function readPlanMode() {
+  try {
+    const v = localStorage.getItem(PLAN_MODE_KEY);
+    return PLAN_MODES.some((m) => m.key === v) ? v : "search";
+  } catch {
+    return "search";
+  }
+}
+const PLAN_CSS = `
+  .sk-planmode { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; }
+  .sk-planmode__btn {
+    display: flex; align-items: center; gap: 12px; text-align: left;
+    padding: 12px 14px; border-radius: 16px; cursor: pointer; font: inherit; color: #fff;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    transition: border-color .15s, background .15s, transform .15s;
+  }
+  .sk-planmode__btn:hover { border-color: rgba(255,138,42,0.6); transform: translateY(-1px); }
+  .sk-planmode__btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .sk-planmode__btn.is-on {
+    background: linear-gradient(135deg, rgba(255,138,42,0.22), rgba(124,92,252,0.26));
+    border-color: #ff8a2a; box-shadow: 0 0 0 3px rgba(255,138,42,0.15);
+  }
+  .sk-planmode__icon {
+    width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.08); color: #ffb347;
+  }
+  .sk-planmode__btn.is-on .sk-planmode__icon { background: linear-gradient(135deg,#ff8a2a,#7c5cfc); color: #fff; }
+  .sk-planmode__title { font-weight: 800; font-size: 14.5px; line-height: 1.2; }
+  .sk-planmode__sub { font-size: 12px; color: rgba(255,255,255,0.62); margin-top: 2px; }
+  .sk-atlas-hint {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 14px; margin: 0 0 14px; border-radius: 14px;
+    background: rgba(124,92,252,0.12); border: 1px solid rgba(167,139,250,0.4); font-size: 13.5px;
+  }
+  .sk-atlas-hint button {
+    margin-left: auto; padding: 8px 14px; border-radius: 10px; border: none; cursor: pointer;
+    font: inherit; font-weight: 700; color: #fff; background: linear-gradient(135deg,#ff8a2a,#7c5cfc);
+  }
+  @media (max-width: 720px) {
+    .sk-planmode { grid-template-columns: 1fr; gap: 8px; }
+    .sk-planmode__btn { padding: 10px 12px; }
+    .sk-planmode__icon { width: 34px; height: 34px; }
+  }
+
+  /* Results view: the planner folds away and the results get the screen. */
+  .sk-resultsbar {
+    position: sticky; top: 84px; z-index: 20;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    max-width: 1200px; margin: 12px auto 18px; padding: 12px 16px; border-radius: 16px;
+    background: rgba(20,14,40,0.92); border: 1px solid rgba(255,138,42,0.35);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+  .sk-resultsbar__back {
+    display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06);
+    color: #fff; font: inherit; font-weight: 700; font-size: 13.5px; cursor: pointer;
+  }
+  .sk-resultsbar__back:hover { border-color: #ff8a2a; }
+  .sk-resultsbar__title { font-weight: 800; font-size: 15px; min-width: 0; }
+  .sk-resultsbar__sub { font-size: 12.5px; color: rgba(255,255,255,0.6); }
+  @media (max-width: 720px) {
+    .sk-resultsbar { top: 72px; margin: 8px 12px 14px; padding: 10px 12px; }
+    .sk-resultsbar__title { font-size: 14px; }
+  }
+`;
+
+// The closest bookable flight to one that just sold out: same day first,
+// nearest departure time, then same number of stops, then price.
+function closestFlight(gone, list) {
+  const t0 = gone?.departingAt ? dayjs(gone.departingAt) : null;
+  const day0 = t0 ? t0.format("YYYY-MM-DD") : null;
+  const stops0 = Number(gone?.stops ?? 0);
+  const scored = (list || [])
+    .filter((f) => f && f !== gone && (f.offerId || f.id))
+    .map((f) => {
+      const t = f.departingAt ? dayjs(f.departingAt) : null;
+      return {
+        f,
+        otherDay: day0 && t ? Number(t.format("YYYY-MM-DD") !== day0) : 1,
+        minutes: t0 && t ? Math.abs(t.diff(t0, "minute")) : 1e6,
+        stopsDiff: Math.abs(Number(f.stops ?? 0) - stops0),
+        price: parseFloat(f.totalAmount) || 1e9,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.otherDay - b.otherDay ||
+        a.minutes - b.minutes ||
+        a.stopsDiff - b.stopsDiff ||
+        a.price - b.price
+    );
+  return scored[0]?.f || null;
+}
+
+// Set VITE_FLIGHTS_TEST_MODE=true on Vercel while using LiteAPI's sandbox:
+// its test fares often "sell out" seconds after a search.
+const FLIGHTS_TEST_MODE =
+  String(import.meta.env.VITE_FLIGHTS_TEST_MODE || "").toLowerCase() === "true";
+
+function UnavailableNotice({ notice, groupId, onClose, onTryAlternative }) {
   const primaryRef = useRef(null);
   useEffect(() => {
     if (!notice) return;
@@ -4334,7 +4463,65 @@ function UnavailableNotice({ notice, groupId, onClose }) {
           }}
         >
           {notice.body}
+          {notice.kind === "flight" && FLIGHTS_TEST_MODE && (
+            <div style={{ marginTop: 8, fontSize: 12.5, color: "#fbbf24" }}>
+              Test mode: our airline test system often marks fares sold out
+              right after a search. Real fares at launch won't do this.
+            </div>
+          )}
         </div>
+        {notice.alternative && onTryAlternative && (
+          <div
+            style={{
+              textAlign: "left",
+              padding: "12px 14px",
+              borderRadius: 14,
+              border: "1px solid rgba(52,211,153,.35)",
+              background: "rgba(52,211,153,.07)",
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 0.5,
+                textTransform: "uppercase",
+                color: "#34d399",
+                marginBottom: 4,
+              }}
+            >
+              Closest flight still available
+            </div>
+            <div style={{ fontSize: 14.5, fontWeight: 700 }}>
+              {notice.alternative.label}
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
+              {notice.alternative.detail}
+            </div>
+          </div>
+        )}
+        {notice.alternative && onTryAlternative && (
+          <button
+            type="button"
+            onClick={() => onTryAlternative(notice.alternative.flight)}
+            style={{
+              width: "100%",
+              padding: 15,
+              borderRadius: 14,
+              border: "none",
+              background: "linear-gradient(135deg, #f97316 0%, #ec4899 100%)",
+              color: "#fff",
+              fontSize: 16,
+              fontWeight: 700,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              marginBottom: 10,
+            }}
+          >
+            Book this flight instead
+          </button>
+        )}
         {notice.removed && (
           <div
             role="status"
@@ -4355,21 +4542,40 @@ function UnavailableNotice({ notice, groupId, onClose }) {
           ref={primaryRef}
           type="button"
           onClick={onClose}
-          style={{
-            width: "100%",
-            padding: 15,
-            borderRadius: 14,
-            border: "none",
-            background: "linear-gradient(135deg, #f97316 0%, #ec4899 100%)",
-            color: "#fff",
-            fontSize: 16,
-            fontWeight: 700,
-            fontFamily: "inherit",
-            cursor: "pointer",
-            marginBottom: groupId ? 10 : 0,
-          }}
+          style={
+            notice.alternative && onTryAlternative
+              ? {
+                  width: "100%",
+                  padding: 13,
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "transparent",
+                  color: "rgba(255,255,255,0.85)",
+                  fontSize: 14.5,
+                  fontWeight: 600,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  marginBottom: groupId ? 10 : 0,
+                }
+              : {
+                  width: "100%",
+                  padding: 15,
+                  borderRadius: 14,
+                  border: "none",
+                  background:
+                    "linear-gradient(135deg, #f97316 0%, #ec4899 100%)",
+                  color: "#fff",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  marginBottom: groupId ? 10 : 0,
+                }
+          }
         >
-          {seeOthers}
+          {notice.alternative && onTryAlternative
+            ? "See all other flights"
+            : seeOthers}
         </button>
         {groupId && (
           <Link
@@ -4572,6 +4778,61 @@ export default function BookingPage() {
     [pickId, syncInfo]
   );
   const pickHandledRef = useRef(null);
+
+  // How this person wants to plan (see PLAN_MODES). Remembered per browser.
+  const [planMode, setPlanModeState] = useState(readPlanMode);
+  const setPlanMode = useCallback((m) => {
+    setPlanModeState(m);
+    try {
+      localStorage.setItem(PLAN_MODE_KEY, m);
+    } catch {
+      /* storage blocked: just this visit */
+    }
+    if (m === "atlas") {
+      window.dispatchEvent(
+        new CustomEvent("skyrio:open-atlas", { detail: { mode: "chat" } })
+      );
+    }
+  }, []);
+  // After a search, the results take over the page (like a separate
+  // results page) with a "Change search" bar on top. The planner stays
+  // mounted underneath, so nothing typed is lost going back.
+  const [resultsFocus, setResultsFocusState] = useState(false);
+  const resultsFocusRef = useRef(false);
+  const setResultsFocus = useCallback((on) => {
+    if (on === resultsFocusRef.current) return;
+    resultsFocusRef.current = on;
+    setResultsFocusState(on);
+    if (on) {
+      // Phone/browser Back returns to the search instead of leaving.
+      try {
+        window.history.pushState(
+          { ...(window.history.state || {}), skResults: true },
+          ""
+        );
+      } catch {
+        /* history blocked */
+      }
+      window.scrollTo({ top: 0, behavior: "auto" });
+    } else if (window.history.state?.skResults) {
+      // Closed with the button: drop our extra history entry.
+      try {
+        window.history.back();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+  useEffect(() => {
+    const onPop = () => {
+      if (resultsFocusRef.current && !window.history.state?.skResults) {
+        resultsFocusRef.current = false;
+        setResultsFocusState(false);
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // The big "not available anymore" notice (see UnavailableNotice).
   const [unavailableNotice, setUnavailableNotice] = useState(null);
@@ -6031,6 +6292,7 @@ export default function BookingPage() {
             key={`${flightInitial?.from || ""}-${flightInitial?.to || ""}`}
             onSearch={(f, searched = {}) => {
               setFlightResults(f);
+              if (f.length > 0) setResultsFocus(true);
               // Filters are intentionally NOT reset here — anything the
               // traveler picked before searching (price, stops, time,
               // airline, XP) should apply to the results that come back.
@@ -6069,6 +6331,7 @@ export default function BookingPage() {
             onSearch={(hotels) => {
               setHotelResults(hotels);
               setVisibleCount(RESULTS_PER_PAGE);
+              if (hotels?.length > 0) setResultsFocus(true);
             }}
             onDestChange={setDestCity}
             onDatesChange={handleDatesChange}
@@ -6174,9 +6437,63 @@ export default function BookingPage() {
               p?.flight ? { ...p, flight: { ...p.flight, booked: true } } : p
             )
           }
-          onBack={() => {
+          // Key: switching to the suggested flight starts a fresh checkout.
+          key={selectedFlight?.offerId || selectedFlight?.id || "flight"}
+          onBack={(info) => {
+            const gone = selectedFlight;
             setShowCheckout(false);
             setSelectedFlight(null);
+            if (!info?.unavailable || !gone) return;
+            // Sold out: take it off the list (it can't be booked) and offer
+            // the closest flight in one tap, instead of trial and error.
+            const isGone = (f) =>
+              f === gone ||
+              (info.offerId && f?.offerId === info.offerId) ||
+              (gone.id && f?.id === gone.id);
+            const remaining = flightResults.filter((f) => !isGone(f));
+            setFlightResults(remaining);
+            const alt = closestFlight(gone, remaining);
+            const fmtWhen = (f) =>
+              f?.departingAt
+                ? dayjs(f.departingAt).format("ddd, MMM D · h:mm A")
+                : "";
+            setUnavailableNotice({
+              kind: "flight",
+              title: "That flight just sold out",
+              item: [
+                gone.owner,
+                gone.origin && gone.destination
+                  ? `${gone.origin} → ${gone.destination}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · "),
+              when: fmtWhen(gone),
+              body: "The airline stopped selling this fare after you picked it, so we took it off your list. Your traveler details are saved for the next flight.",
+              alternative: alt
+                ? {
+                    flight: alt,
+                    label: [
+                      alt.owner,
+                      alt.stops === 0
+                        ? "Nonstop"
+                        : alt.stops
+                        ? `${alt.stops} stop${alt.stops > 1 ? "s" : ""}`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                    detail: [
+                      fmtWhen(alt),
+                      Number.isFinite(parseFloat(alt.totalAmount))
+                        ? `$${Math.round(parseFloat(alt.totalAmount))}`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                  }
+                : null,
+            });
           }}
         />
       </div>
@@ -6228,6 +6545,11 @@ export default function BookingPage() {
         notice={unavailableNotice}
         groupId={syncGroupId}
         onClose={closeUnavailableNotice}
+        onTryAlternative={(f) => {
+          setUnavailableNotice(null);
+          setSelectedFlight(f);
+          setShowCheckout(true);
+        }}
       />
       {checkoutOverlay}
       {/* Rooms in your trip — pinned to the bottom while on Stays */}
@@ -6303,7 +6625,37 @@ export default function BookingPage() {
           display: checkoutOverlay ? "none" : undefined,
         }}
       >
-        <div className="sk-booking-hero sk-bp">
+        <style>{PLAN_CSS}</style>
+        {resultsFocus && (
+          <div className="sk-resultsbar" role="region" aria-label="Your search">
+            <button
+              type="button"
+              className="sk-resultsbar__back"
+              onClick={() => setResultsFocus(false)}
+            >
+              <ArrowLeft size={15} aria-hidden="true" /> Change search
+            </button>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="sk-resultsbar__title">{resultsTitle}</div>
+              <div className="sk-resultsbar__sub">
+                {[
+                  tab,
+                  tab === "Stays"
+                    ? destCity
+                    : [originCity, destCity].filter(Boolean).join(" → "),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+            </div>
+          </div>
+        )}
+        <div
+          className="sk-booking-hero sk-bp"
+          // Folded away (not unmounted) while results are showing, so the
+          // search form keeps everything that was typed.
+          style={resultsFocus ? { display: "none" } : undefined}
+        >
           {/* ── Boarding pass intro ── */}
           <div className="sk-bp-intro">
             <span className="sk-bp-eyebrow">Now boarding</span>
@@ -6315,6 +6667,41 @@ export default function BookingPage() {
               Smart Plan AI helps balance budget, comfort, and XP.
             </Text>
           </div>
+
+          {/* ── How do you want to plan? (one path at a time) ── */}
+          {!syncGroupId && (
+            <div
+              className="sk-planmode"
+              role="radiogroup"
+              aria-label="How do you want to plan?"
+            >
+              {PLAN_MODES.map(({ key, Icon, title, sub }) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={planMode === key}
+                  className={`sk-planmode__btn${
+                    planMode === key ? " is-on" : ""
+                  }`}
+                  onClick={() => setPlanMode(key)}
+                >
+                  <span className="sk-planmode__icon">
+                    <Icon size={19} aria-hidden="true" />
+                  </span>
+                  <span>
+                    <span className="sk-planmode__title">{title}</span>
+                    <span
+                      className="sk-planmode__sub"
+                      style={{ display: "block" }}
+                    >
+                      {sub}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* ── The boarding pass ── */}
           <section
@@ -6334,16 +6721,56 @@ export default function BookingPage() {
             <div className="sk-bp-body">
               {/* Main side of the pass: who, what, where, when */}
               <div className="sk-bp-main">
-                {/* ── Who's traveling + HeroPlanner ── */}
-                <TripTypeSelector />
+                {/* ── Atlas mode: point to the chat ── */}
+                {!syncGroupId && planMode === "atlas" && (
+                  <div className="sk-atlas-hint">
+                    <Sparkles size={16} aria-hidden="true" />
+                    <span>
+                      Tell Atlas where, when and your budget. It finds flights
+                      and hotels and opens checkout for you.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent("skyrio:open-atlas", {
+                            detail: { mode: "chat" },
+                          })
+                        )
+                      }
+                    >
+                      Open Atlas
+                    </button>
+                  </div>
+                )}
 
-                <HeroPlanner
-                  initialBudget={budgetState.planned ?? 1500}
-                  onDestinationSelect={(city) => setDestCity(city || "")}
-                  onOriginSelect={handleHeroOrigin}
-                  onBudgetChange={handleHeroBudget}
-                  onSearchManually={handleSearchManually}
-                />
+                {/* ── Who's traveling (Atlas) + HeroPlanner (budget) ──
+                    Kept mounted in every mode; only shown where they help. */}
+                <div
+                  style={
+                    !syncGroupId && planMode !== "atlas"
+                      ? { display: "none" }
+                      : undefined
+                  }
+                >
+                  <TripTypeSelector />
+                </div>
+
+                <div
+                  style={
+                    !syncGroupId && planMode !== "budget"
+                      ? { display: "none" }
+                      : undefined
+                  }
+                >
+                  <HeroPlanner
+                    initialBudget={budgetState.planned ?? 1500}
+                    onDestinationSelect={(city) => setDestCity(city || "")}
+                    onOriginSelect={handleHeroOrigin}
+                    onBudgetChange={handleHeroBudget}
+                    onSearchManually={handleSearchManually}
+                  />
+                </div>
 
                 <BookingTabBar
                   value={tab}
@@ -6455,6 +6882,7 @@ export default function BookingPage() {
                     <span className="sk-bp-tools-gap" aria-hidden="true" />
 
                     {!syncGroupId &&
+                      planMode === "budget" &&
                       (visibleFlights.length > 0 ||
                         hotelResults.length > 0) && (
                         <button
@@ -6716,7 +7144,9 @@ export default function BookingPage() {
         </div>
 
         <Row gutter={[24, 24]} className="sk-results-wrap">
-          <Col xs={24} lg={16}>
+          {/* The budget column only shows when planning on a budget;
+              otherwise results get the full width. */}
+          <Col xs={24} lg={!syncGroupId && planMode === "budget" ? 16 : 24}>
             <div className="sk-resultsHeader">
               <Title level={4} className="sk-section-title">
                 {resultsTitle}
@@ -7990,11 +8420,16 @@ export default function BookingPage() {
             )}
           </Col>
 
-          <Col xs={24} lg={8}>
-            <div
-              ref={budgetRef}
-              style={syncGroupId ? { display: "none" } : undefined}
-            >
+          <Col
+            xs={24}
+            lg={8}
+            style={
+              syncGroupId || planMode !== "budget"
+                ? { display: "none" }
+                : undefined
+            }
+          >
+            <div ref={budgetRef}>
               <TripBudgetCard
                 initialBookingTotal={selectedResult?.total ?? 0}
                 initialTripDays={selectedNights}

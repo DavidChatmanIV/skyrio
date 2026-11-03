@@ -162,7 +162,9 @@ const panelStyle = {
   bottom: 24,
   width: 340,
   maxWidth: "calc(100vw - 40px)",
-  maxHeight: "calc(100vh - 48px)",
+  // dvh = the screen actually visible, so the panel fits when a phone's
+  // address bar or keyboard is showing (100vh doesn't shrink for those).
+  maxHeight: "min(calc(100vh - 48px), calc(100dvh - 48px))",
   overflowY: "auto",
   background: "rgba(12, 9, 28, 0.97)",
   backdropFilter: "blur(24px)",
@@ -192,7 +194,12 @@ const textareaStyle = {
   fontFamily: "inherit",
   fontSize: 16,
   padding: 12,
-  resize: "vertical",
+  // Never shorter than ~4 lines. On phones the drag handle let it get
+  // squashed to one line, cutting off what people had typed.
+  minHeight: 112,
+  maxHeight: 260,
+  resize: "none",
+  lineHeight: 1.45,
   outline: "none",
   boxSizing: "border-box",
   marginBottom: 6,
@@ -229,7 +236,45 @@ async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 
+/* Grows a textarea with its text (between its min and max height), so
+   longer feedback is readable without a tiny scroll box. */
+function autoGrow(e) {
+  const el = e?.target;
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight + 2, 260)}px`;
+}
+
 /* ─── Small pieces ──────────────────────────────────────────── */
+
+// Grows with what's typed (between the min and max height in
+// textareaStyle) and scrolls into view once the phone keyboard opens.
+function AutoGrowTextarea(props) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 112), 260)}px`;
+  }, [props.value]);
+  return (
+    <textarea
+      {...props}
+      ref={ref}
+      onFocus={(e) => {
+        props.onFocus?.(e);
+        const el = e.currentTarget;
+        setTimeout(() => {
+          try {
+            el.scrollIntoView({ block: "center", behavior: "smooth" });
+          } catch {
+            /* older browser */
+          }
+        }, 300);
+      }}
+    />
+  );
+}
 
 function StarPicker({ value, onChange, size = 20, label = "Rate" }) {
   const [hover, setHover] = useState(0);
@@ -1412,9 +1457,12 @@ export default function SupportRail() {
 
               <StarPicker value={fbRating} onChange={setFbRating} />
 
-              <textarea
+              <AutoGrowTextarea
                 value={fbMessage}
-                onChange={(e) => setFbMessage(e.target.value)}
+                onChange={(e) => {
+                  setFbMessage(e.target.value);
+                  autoGrow(e);
+                }}
                 placeholder={
                   fbType === "bug"
                     ? "What happened, and what did you expect?"
@@ -1530,11 +1578,12 @@ export default function SupportRail() {
                 size={24}
               />
 
-              <textarea
+              <AutoGrowTextarea
                 value={review.text}
-                onChange={(e) =>
-                  setReview((r) => ({ ...r, text: e.target.value }))
-                }
+                onChange={(e) => {
+                  setReview((r) => ({ ...r, text: e.target.value }));
+                  autoGrow(e);
+                }}
                 placeholder="What stood out about booking with Skyrio?"
                 aria-label="Your review"
                 rows={4}

@@ -253,7 +253,9 @@ const INJECTED_CSS = `
   .sk-admin { min-height: 100vh; background: ${C.bg}; color: ${C.white}; font-family: "DM Sans", sans-serif; }
 
   /* Top bar + tabs */
-  .sk-top { position: sticky; top: 0; z-index: 50; background: rgba(7,6,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid ${C.border}; }
+  /* Solid, no blur: a full-width blur behind a sticky bar made Chrome on
+     Mac skip drawing parts of this page (blank areas, empty pills). */
+  .sk-top { position: sticky; top: 0; z-index: 50; background: #07060f; border-bottom: 1px solid ${C.border}; }
   .sk-top__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 32px 0; max-width: 1300px; margin: 0 auto; }
   .sk-top__logo { font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
   .sk-top__badge { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; background: ${TONES.orange.bg}; border: 1px solid rgba(255,138,42,0.3); color: ${C.orange}; border-radius: 999px; padding: 3px 10px; }
@@ -401,6 +403,31 @@ const INJECTED_CSS = `
   .sk-trend__label { font-size: 10px; color: ${C.muted}; padding: 0 20px 14px; display: flex; gap: 10px; }
   .sk-trend__label span { flex: 1; text-align: center; }
   .sk-quote { border-left: 2px solid rgba(255,138,42,0.4); padding-left: 10px; }
+
+  /* Feedback inbox: easy to read and act on */
+  .sk-fb-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 20px; border-bottom: 1px solid ${C.border}; }
+  .sk-fb-search { flex: 1; min-width: 180px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid ${C.border}; background: rgba(255,255,255,0.05); color: #fff; font: inherit; font-size: 13px; outline: none; }
+  .sk-fb-search:focus { border-color: ${C.orange}; }
+  .sk-fb-search::placeholder { color: ${C.muted}; }
+  .sk-fb-count { font-size: 12px; color: ${C.muted}; white-space: nowrap; }
+  .sk-fb { padding: 16px 20px; border-bottom: 1px solid ${C.border}; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; }
+  .sk-fb:last-child { border-bottom: none; }
+  .sk-fb:hover { background: rgba(255,255,255,0.02); }
+  .sk-fb__who { font-size: 12.5px; color: ${C.text}; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+  .sk-fb__who b { color: #fff; font-weight: 700; }
+  .sk-fb__msg { grid-column: 1 / -1; font-size: 14px; line-height: 1.6; color: #f3f1ff; white-space: pre-wrap; word-break: break-word; background: rgba(255,255,255,0.03); border: 1px solid ${C.border}; border-radius: 12px; padding: 12px 14px; }
+  .sk-fb__meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 11.5px; color: ${C.muted}; }
+  .sk-fb__side { display: flex; align-items: center; gap: 8px; }
+  @media (max-width: 640px) {
+    .sk-top__bar { flex-wrap: wrap; padding-bottom: 4px; }
+    .sk-top__right { flex-wrap: wrap; }
+    .sk-panel__head { padding: 12px 14px; }
+    .sk-fb, .sk-fb-tools { padding-left: 14px; padding-right: 14px; }
+    .sk-fb { grid-template-columns: 1fr; }
+    .sk-fb__side { justify-content: space-between; }
+    .sk-row { flex-wrap: wrap; padding: 12px 14px; }
+    .sk-row__right { width: 100%; justify-content: flex-end; }
+  }
 `;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2167,8 +2194,47 @@ function FeedbackInbox({ refreshKey, onChange }) {
     },
     { key: `${key}:${refreshKey}` }
   );
-  const rows = data?.key === key ? data.rows : [];
+  const allRows = data?.key === key ? data.rows : [];
   const [busyId, setBusyId] = useState(null);
+  const [query, setQuery] = useState("");
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allRows;
+    return allRows.filter((fb) =>
+      [
+        fb.message,
+        fb.page,
+        fb.type,
+        fb.user?.name,
+        fb.user?.username,
+        fb.user?.email,
+      ]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q))
+    );
+  }, [allRows, query]);
+
+  // Copy as plain text, ready to paste into a chat or a doc.
+  const asText = (fb) =>
+    [
+      fb.message || "(rating only, no comment)",
+      [
+        userLabel(fb.user),
+        fb.page || "unknown page",
+        fb.rating ? `${fb.rating}/5` : null,
+        dayjs(fb.createdAt).format("MMM D, h:mm A"),
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    ].join("\n");
+  const copy = async (text, what) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success(`${what} copied`);
+    } catch {
+      message.error("Couldn't copy. Select the text and copy it instead.");
+    }
+  };
 
   const setItemStatus = async (fb, next) => {
     setBusyId(fb._id);
@@ -2221,6 +2287,32 @@ function FeedbackInbox({ refreshKey, onChange }) {
         </>
       }
     >
+      <div className="sk-fb-tools">
+        <input
+          type="search"
+          className="sk-fb-search"
+          placeholder="Search feedback, people or pages…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search feedback"
+        />
+        <span className="sk-fb-count">
+          {loading
+            ? "Loading…"
+            : `${rows.length} ${plural(rows.length, "item")}`}
+        </span>
+        {rows.length > 0 && (
+          <button
+            type="button"
+            className="sk-btn sk-btn--sm"
+            onClick={() =>
+              copy(rows.map(asText).join("\n\n---\n\n"), "All shown feedback")
+            }
+          >
+            Copy all
+          </button>
+        )}
+      </div>
       {loading ? (
         <div className="sk-empty">
           <Spinner />
@@ -2229,39 +2321,34 @@ function FeedbackInbox({ refreshKey, onChange }) {
         <PanelContent
           isEmpty={!rows.length}
           emptyText={
-            status === "new"
+            query.trim()
+              ? "No feedback matches that search."
+              : status === "new"
               ? "No new feedback. You're caught up."
               : "Nothing here."
           }
         >
           {rows.map((fb) => (
-            <div key={fb._id} className="sk-row sk-row--top">
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div className="sk-name">
-                  <Pill tone={FEEDBACK_TYPE_TONES[fb.type] || "muted"}>
-                    {FEEDBACK_TYPE_LABELS[fb.type] || fb.type}
-                  </Pill>
-                  {fb.rating ? <Stars value={fb.rating} /> : null}
-                  {fb.xpAwarded > 0 && (
-                    <Pill tone="amber">+{fb.xpAwarded} XP</Pill>
-                  )}
-                  {fb.shippedBonusAwarded && (
-                    <Pill tone="green">Bonus sent</Pill>
-                  )}
-                </div>
-                <div className="sk-text">
-                  {fb.message || (
-                    <span style={{ color: C.muted, fontStyle: "italic" }}>
-                      Rating only, no comment
-                    </span>
-                  )}
-                </div>
-                <div className="sk-sub" style={{ marginTop: 6 }}>
-                  {userLabel(fb.user)} · {fb.page || "unknown page"} ·{" "}
-                  {timeAgo(fb.createdAt)}
-                </div>
+            <article key={fb._id} className="sk-fb">
+              <div className="sk-fb__who">
+                <b>
+                  {fb.user?.name || fb.user?.username || "Signed-out visitor"}
+                </b>
+                {fb.user?.email && <span>{fb.user.email}</span>}
+                <Pill tone={FEEDBACK_TYPE_TONES[fb.type] || "muted"}>
+                  {FEEDBACK_TYPE_LABELS[fb.type] || fb.type}
+                </Pill>
+                {fb.rating ? <Stars value={fb.rating} /> : null}
               </div>
-              <div className="sk-row__right">
+              <div className="sk-fb__side">
+                <button
+                  type="button"
+                  className="sk-btn sk-btn--sm"
+                  onClick={() => copy(asText(fb), "Feedback")}
+                  aria-label="Copy this feedback"
+                >
+                  Copy
+                </button>
                 {busyId === fb._id ? (
                   <Spinner />
                 ) : (
@@ -2294,7 +2381,25 @@ function FeedbackInbox({ refreshKey, onChange }) {
                   />
                 )}
               </div>
-            </div>
+              <div className="sk-fb__msg">
+                {fb.message || (
+                  <span style={{ color: C.muted, fontStyle: "italic" }}>
+                    Rating only, no comment
+                  </span>
+                )}
+              </div>
+              <div className="sk-fb__meta">
+                <span>{fb.page || "unknown page"}</span>
+                <span title={dayjs(fb.createdAt).format("MMM D, YYYY h:mm A")}>
+                  {timeAgo(fb.createdAt)} ·{" "}
+                  {dayjs(fb.createdAt).format("MMM D, h:mm A")}
+                </span>
+                {fb.xpAwarded > 0 && (
+                  <Pill tone="amber">+{fb.xpAwarded} XP</Pill>
+                )}
+                {fb.shippedBonusAwarded && <Pill tone="green">Bonus sent</Pill>}
+              </div>
+            </article>
           ))}
         </PanelContent>
       )}
@@ -2501,7 +2606,8 @@ function XpLog({ refreshKey }) {
     <Panel
       title="🌟 Feedback XP log"
       meta={
-        data
+        Number.isFinite(Number(data?.flaggedUsers)) &&
+        data?.flaggedUsers != null
           ? `${data.flaggedUsers} flagged ${plural(data.flaggedUsers, "user")}`
           : undefined
       }
@@ -2626,14 +2732,15 @@ function FeedbackTab({ refreshKey, onCountsChange }) {
   };
   return (
     <>
-      <Section title="At a glance">
-        <FeedbackStats refreshKey={key} />
+      {/* What testers said comes first; numbers and logs below. */}
+      <Section title="Feedback">
+        <FeedbackInbox refreshKey={refreshKey} onChange={changed} />
       </Section>
       <Section title="Reviews">
         <TestimonialsQueue refreshKey={refreshKey} onChange={changed} />
       </Section>
-      <Section title="Feedback">
-        <FeedbackInbox refreshKey={refreshKey} onChange={changed} />
+      <Section title="At a glance">
+        <FeedbackStats refreshKey={key} />
       </Section>
       <Section title="XP & records">
         <div className="sk-grid-2">

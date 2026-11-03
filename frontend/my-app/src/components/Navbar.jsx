@@ -85,6 +85,13 @@ const Icon = {
       <path d="M15.5 14.2A5 5 0 0 1 21 19" />
     </Svg>
   ),
+  // My trips — suitcase
+  trips: (p) => (
+    <Svg {...p}>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18" />
+    </Svg>
+  ),
   chevron: (p) => (
     <Svg {...p}>
       <path d="m9 18 6-6-6-6" />
@@ -135,6 +142,35 @@ const SYNC_CSS = `
   /* Tablet widths: keep the button, drop the badge so the bar fits */
   @media (max-width: 1180px) { .sk-sync-cta__new { display: none; } }
   @media (max-width: 1024px) { .sk-sync-cta__label { display: none; } .sk-sync-cta { padding: 0 11px; } }
+
+  /* Phone menu: My trips is where you view and cancel bookings. Testers
+     couldn't find it under the small heart at the bottom of the menu. */
+  .sk-mobile-trips {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; margin: 0 0 12px; border-radius: 14px;
+    color: #fff; text-decoration: none;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  }
+  .sk-mobile-trips.is-on { border-color: #ff8a2a; }
+  .sk-mobile-trips__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sk-mobile-trips__title { font-weight: 700; font-size: 14.5px; }
+  .sk-mobile-trips__sub { font-size: 12px; color: rgba(255,255,255,0.6); }
+  /* Desktop: a labeled "My trips" button, so finding where to view or
+     cancel a flight or hotel doesn't depend on spotting the heart icon. */
+  .sk-trips-btn {
+    display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 13px;
+    border-radius: 999px; font-size: 13.5px; font-weight: 700; white-space: nowrap;
+    color: #fff; text-decoration: none;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16);
+    transition: border-color .15s, background .15s;
+  }
+  .sk-trips-btn:hover { color: #fff; border-color: #ff8a2a; background: rgba(255,138,42,0.10); }
+  .sk-trips-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .sk-trips-btn.is-on { border-color: #ff8a2a; background: rgba(255,138,42,0.16); }
+  @media (max-width: 1100px) { .sk-trips-btn__label { display: none; } .sk-trips-btn { padding: 0 10px; } }
+  .sk-guest-trips { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.75); text-decoration: none; padding: 0 6px; white-space: nowrap; }
+  .sk-guest-trips:hover { color: #fff; }
+  @media (max-width: 1100px) { .sk-guest-trips { display: none; } }
 
   .sk-mobile-sync {
     display: flex; align-items: center; gap: 12px;
@@ -308,12 +344,13 @@ export default function Navbar() {
                 <div className="sk-authed-actions">
                   <Link
                     to="/saved-trips"
-                    className={`sk-icon-btn ${isSaved ? "is-on" : ""}`}
-                    aria-label="Saved trips"
+                    className={`sk-trips-btn${isSaved ? " is-on" : ""}`}
+                    aria-label="My trips: view, change or cancel a booking"
                     aria-current={isSaved ? "page" : undefined}
-                    title="Saved trips"
+                    title="View, change or cancel your flights and hotels"
                   >
-                    <Icon.heart size={19} filled={isSaved} />
+                    <Icon.trips size={17} />
+                    <span className="sk-trips-btn__label">My trips</span>
                   </Link>
 
                   <Notifications />
@@ -352,6 +389,14 @@ export default function Navbar() {
                 </div>
               ) : (
                 <div className="sk-guest-actions">
+                  <Link
+                    to="/find-booking"
+                    className="sk-trips-btn"
+                    title="Booked without an account? Find, change or cancel it here."
+                  >
+                    <Icon.trips size={17} />
+                    <span className="sk-trips-btn__label">My booking</span>
+                  </Link>
                   <Link to="/login" className="sk-nav-cta is-ghost">
                     Log in
                   </Link>
@@ -408,6 +453,23 @@ export default function Navbar() {
                   <span className="sk-mobile-sync__title">Sync Together</span>
                   <span className="sk-mobile-sync__sub">
                     Plan a group trip · everyone pays their share
+                  </span>
+                </span>
+                <Icon.chevron size={18} />
+              </Link>
+
+              <Link
+                to={isAuthed ? "/saved-trips" : "/find-booking"}
+                className={`sk-mobile-trips${isSaved ? " is-on" : ""}`}
+                aria-current={isSaved ? "page" : undefined}
+              >
+                <Icon.trips size={20} />
+                <span className="sk-mobile-trips__text">
+                  <span className="sk-mobile-trips__title">
+                    {isAuthed ? "My trips" : "Find my booking"}
+                  </span>
+                  <span className="sk-mobile-trips__sub">
+                    View, change or cancel a booking
                   </span>
                 </span>
                 <Icon.chevron size={18} />

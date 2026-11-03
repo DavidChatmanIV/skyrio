@@ -85,7 +85,12 @@ export const MT_CSS = `
 .mt-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; }
 .mt-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: rgba(255,255,255,0.88); font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .mt-btn:hover { border-color: rgba(255,138,42,.55); color: #ffb347; }
-.mt-btn.is-danger:hover { border-color: rgba(255,107,133,.6); color: #ff8fa3; }
+/* Cancel is easy to spot without hovering (testers couldn't find it). */
+.mt-btn.is-danger { border-color: rgba(255,107,133,.45); color: #ff9db0; background: rgba(255,107,133,.06); }
+.mt-btn.is-danger:hover { border-color: rgba(255,107,133,.8); color: #fff; background: rgba(255,107,133,.16); }
+.mt-howto { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(255,138,42,.08); border: 1px solid rgba(255,138,42,.3); font-size: 13.5px; line-height: 1.55; color: rgba(255,255,255,.88); max-width: 620px; }
+.mt-howto svg { flex-shrink: 0; margin-top: 2px; color: #ffb347; }
+.mt-howto a { color: #ffb347; font-weight: 700; }
 
 .mt-more { width: 100%; min-height: 40px; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.2); background: transparent; color: rgba(255,255,255,0.82); font-size: 13.5px; font-weight: 700; cursor: pointer; }
 .mt-more:hover { border-color: rgba(255,138,42,.55); color: #ffb347; }
@@ -399,8 +404,9 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
                 type="button"
                 className="mt-btn is-danger"
                 onClick={() => onCancel(b)}
+                aria-label={`Cancel ${title || "this booking"}`}
               >
-                Cancel booking
+                <X size={14} aria-hidden="true" /> Cancel booking
               </button>
             )}
             {cancelled && onRemove && (
@@ -1074,14 +1080,16 @@ export default function SavedTripsPage() {
           <p className="mt-sub">
             Your booked trips, plus everything you&apos;ve saved for later.
           </p>
-          <p className="mt-sub" style={{ fontSize: 13, marginTop: 6 }}>
-            To cancel, tap <b>Cancel booking</b> on any upcoming trip.
-            You&apos;ll see what you get back before anything is cancelled.
-            Booked without an account?{" "}
-            <a href="/find-booking" style={{ color: "#ffb347" }}>
-              Find my booking
-            </a>
-          </p>
+          <div className="mt-howto" role="note">
+            <X size={16} aria-hidden="true" />
+            <span>
+              <b>Need to cancel a flight or hotel?</b> Find it under{" "}
+              <b>Booked trips</b> below and tap <b>Cancel booking</b>.
+              You&apos;ll see what you get back before anything is cancelled.
+              Booked without an account?{" "}
+              <a href="/find-booking">Find my booking</a>
+            </span>
+          </div>
         </div>
         <button
           type="button"

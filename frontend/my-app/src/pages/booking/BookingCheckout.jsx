@@ -5056,10 +5056,17 @@ export default function BookingCheckout({
     if (!prebookError) setUnavailableDismissed(false);
   }, [prebookError]);
   // Every real exit clears the stored snapshot so nothing stale is resumed later.
+  // Tells the Book page when the flight sold out, so it can drop it from
+  // the results and offer the closest flight instead of a dead end.
   const exitToResults = useCallback(() => {
     clearCheckoutProgress(progressKey);
-    onBack?.();
-  }, [progressKey, onBack]);
+    onBack?.(
+      flightUnavailable
+        ? { unavailable: true, offerId: baseFlight.offerId, id: baseFlight.id }
+        : undefined
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progressKey, onBack, flightUnavailable]);
   const requestExit = useCallback(() => {
     if (hasProgress) {
       setShowDiscardConfirm(true);
