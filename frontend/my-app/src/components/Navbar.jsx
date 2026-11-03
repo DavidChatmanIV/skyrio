@@ -147,11 +147,18 @@ const SYNC_CSS = `
      couldn't find it under the small heart at the bottom of the menu. */
   .sk-mobile-trips {
     display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px; margin: 0 0 12px; border-radius: 14px;
+    padding: 12px 16px; margin: 0; border-radius: 14px;
     color: #fff; text-decoration: none;
     background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
   }
   .sk-mobile-trips.is-on { border-color: #ff8a2a; }
+  /* Lifted above neighbors (tiles, menu decorations) so a tap always lands. */
+  .sk-mobile-trips, .sk-mobile-sync {
+    position: relative; z-index: 5; cursor: pointer;
+    touch-action: manipulation; -webkit-tap-highlight-color: rgba(255,138,42,0.2);
+  }
+  .sk-mobile-trips:active, .sk-mobile-sync:active { transform: scale(0.99); }
+  .sk-mobile-trips *, .sk-mobile-sync * { pointer-events: none; }
   .sk-mobile-trips__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .sk-mobile-trips__title { font-weight: 700; font-size: 14.5px; }
   .sk-mobile-trips__sub { font-size: 12px; color: rgba(255,255,255,0.6); }
@@ -174,7 +181,7 @@ const SYNC_CSS = `
 
   .sk-mobile-sync {
     display: flex; align-items: center; gap: 12px;
-    padding: 14px 16px; margin: 0 0 12px; border-radius: 16px;
+    padding: 14px 16px; margin: 0; border-radius: 16px;
     color: #fff; text-decoration: none;
     background: linear-gradient(135deg, rgba(255,138,42,0.20), rgba(124,92,252,0.28));
     border: 1px solid rgba(255,138,42,0.5);
@@ -275,6 +282,16 @@ export default function Navbar() {
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  // Phone menu cards: always close the menu and go. (Tapping My trips while
+  // already on My trips used to leave the menu open, so nothing seemed to
+  // happen.)
+  const goFromMenu = (e, to) => {
+    e.preventDefault();
+    setMobileOpen(false);
+    if (location.pathname !== to) navigate(to);
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleLogout = () => {
     logout();
@@ -445,6 +462,7 @@ export default function Navbar() {
                 to="/sync-together"
                 className={`sk-mobile-sync${isSync ? " is-on" : ""}`}
                 aria-current={isSync ? "page" : undefined}
+                onClick={(e) => goFromMenu(e, "/sync-together")}
               >
                 <span className="sk-mobile-sync__icon">
                   <Icon.sync size={21} />
@@ -462,6 +480,9 @@ export default function Navbar() {
                 to={isAuthed ? "/saved-trips" : "/find-booking"}
                 className={`sk-mobile-trips${isSaved ? " is-on" : ""}`}
                 aria-current={isSaved ? "page" : undefined}
+                onClick={(e) =>
+                  goFromMenu(e, isAuthed ? "/saved-trips" : "/find-booking")
+                }
               >
                 <Icon.trips size={20} />
                 <span className="sk-mobile-trips__text">
@@ -496,14 +517,7 @@ export default function Navbar() {
 
               {isAuthed && (
                 <div className="sk-mobile-list">
-                  <Link
-                    to="/saved-trips"
-                    className={`sk-mobile-link ${isSaved ? "active" : ""}`}
-                    aria-current={isSaved ? "page" : undefined}
-                  >
-                    <Icon.heart size={19} filled={isSaved} />
-                    <span>Saved trips</span>
-                  </Link>
+                  {/* "Saved trips" lives inside My trips now (card above). */}
 
                   {/* Opens the same notifications sheet as the desktop bell */}
                   <Notifications variant="menu" />
