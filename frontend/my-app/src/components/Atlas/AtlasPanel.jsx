@@ -777,12 +777,21 @@ export default function AtlasPanel() {
   // e.g. the landing page's "Open Compass" button:
   //   window.dispatchEvent(new CustomEvent("skyrio:open-atlas",
   //     { detail: { mode: "compass" } }))
+  // Add `message` to also ask Atlas something right away (used when an
+  // Atlas checkout's flight sells out: "show me the next options").
+  const queuedAskRef = useRef(null);
+  const [queuedTick, setQueuedTick] = useState(0);
   useEffect(() => {
     const onOpen = (e) => {
       if (e.detail) e.detail.handled = true; // tells the sender it worked
       const next = e.detail?.mode;
       setMode(next === "compass" ? "compass" : "chat");
       setOpen(true);
+      const ask = e.detail?.message;
+      if (typeof ask === "string" && ask.trim() && next !== "compass") {
+        queuedAskRef.current = ask.trim();
+        setQueuedTick((n) => n + 1);
+      }
     };
     window.addEventListener("skyrio:open-atlas", onOpen);
     return () => window.removeEventListener("skyrio:open-atlas", onOpen);
@@ -1048,6 +1057,16 @@ export default function AtlasPanel() {
     },
     [input, loading, messages, atlasContext]
   );
+
+  // Send a message queued by "skyrio:open-atlas" once Atlas isn't busy.
+  useEffect(() => {
+    if (!queuedAskRef.current || loading) return;
+    const ask = queuedAskRef.current;
+    queuedAskRef.current = null;
+    const t = setTimeout(() => sendMessage(ask), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedTick, loading]);
 
   const handleKeyDown = useCallback(
     (e) => {

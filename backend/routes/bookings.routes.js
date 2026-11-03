@@ -24,7 +24,7 @@ import {
   extractFlightBookingId,
 } from "../services/liteapiBookings.js";
 import { reverseBookingXp } from "../services/xpService.js";
-import { readManageToken } from "../services/manageLink.js";
+import { readManageToken, mintManageToken } from "../services/manageLink.js";
 import { sendManageLinkEmail } from "../services/manageEmails.js";
 
 const router = Router();
@@ -430,9 +430,11 @@ function codesFor(b) {
 
 /**
  * POST /api/bookings/find  { email, code } — public.
- * Emails a "Manage or cancel" link for every booking that matches BOTH the
- * email and the code. Always gives the same answer, so it never reveals
- * whether an email or code exists.
+ * Email + confirmation code together open the booking right away (the way
+ * airline "manage booking" pages work), so the traveler can view or cancel
+ * it on the spot. The same "Manage or cancel" link is also emailed.
+ * Needs BOTH to match, and is rate-limited (5 tries / 15 min per IP and
+ * per email), so codes can't be guessed.
  */
 router.post("/find", async (req, res) => {
   const email = String(req.body?.email || "")
@@ -444,11 +446,6 @@ router.post("/find", async (req, res) => {
     .replace(/^#/, "")
     .toUpperCase()
     .slice(0, 64);
-  const sameAnswer = {
-    ok: true,
-    message:
-      "If that email and code match a booking, we've emailed you a link to manage it. It can take a minute to arrive, so check spam too.",
-  };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || code.length < 4) {
     return res.status(400).json({
       message: "Enter the email you booked with and your confirmation code.",
@@ -473,6 +470,14 @@ router.post("/find", async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(200);
     const matches = candidates.filter((b) => codesFor(b).has(code)).slice(0, 5);
+    if (!matches.length) {
+      return res.status(404).json({
+        ok: false,
+        notFound: true,
+        message:
+          "We couldn't find a booking with that email and code. Check both against your confirmation email and try again.",
+      });
+    }
     for (const b of matches) {
       sendManageLinkEmail({ to: email, booking: b }).catch((e) =>
         console.error(
@@ -482,10 +487,25 @@ router.post("/find", async (req, res) => {
         )
       );
     }
-    res.json(sameAnswer);
+    res.json({
+      ok: true,
+      found: true,
+      message:
+        "Found it. We also emailed you a link so you can come back to it later.",
+      bookings: matches.map((b) => ({
+        id: String(b._id),
+        token: mintManageToken(b._id),
+        type: b.type || null,
+        status: b.status,
+        title: b.tripDetails || (b.type === "Hotel" ? "Hotel stay" : "Flight"),
+      })),
+    });
   } catch (err) {
     console.error("POST /api/bookings/find error:", err);
-    res.json(sameAnswer);
+    res.status(500).json({
+      ok: false,
+      message: "We couldn't look that up just now. Please try again.",
+    });
   }
 });
 

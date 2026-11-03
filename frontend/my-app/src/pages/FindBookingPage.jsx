@@ -2,13 +2,20 @@
 // Find my booking — /find-booking
 //
 // For anyone who booked as a guest (no account) or lost their email.
-// They enter the email they booked with and a confirmation code, and we
-// email a "Manage or cancel" link. The page always gives the same answer,
-// so it never reveals whether an email or code exists.
+// Email + confirmation code (airline/hotel code or Skyrio booking ID) opens
+// the booking right here, where it can be viewed or cancelled. A "Manage or
+// cancel" link is also emailed so they can come back later.
 // ─────────────────────────────────────────────────────────────
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { Mail, Hash, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Mail,
+  Hash,
+  CheckCircle2,
+  AlertTriangle,
+  Plane,
+  BedDouble,
+} from "lucide-react";
 import { MT_CSS } from "./SavedTripsPage";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -28,6 +35,9 @@ const PAGE_CSS = `
 .fb-done svg { color: #6ee7a8; flex-shrink: 0; margin-top: 2px; }
 .fb-alt { margin-top: 20px; font-size: 13px; color: rgba(255,255,255,0.72); line-height: 1.6; }
 .fb-alt a { color: #ffb347; font-weight: 700; }
+.fb-pick { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05); color: #fff; font: inherit; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer; }
+.fb-pick:hover { border-color: #ff8a2a; }
+.fb-pick svg { color: #ffb347; flex-shrink: 0; }
 `;
 
 export default function FindBookingPage() {
@@ -36,6 +46,10 @@ export default function FindBookingPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sentMessage, setSentMessage] = useState("");
+  const [found, setFound] = useState([]); // more than one match: pick one
+  const navigate = useNavigate();
+  const open = (b) =>
+    navigate(`/manage-booking/${b.id}?t=${encodeURIComponent(b.token)}`);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -59,6 +73,17 @@ export default function FindBookingPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Something went wrong.");
+      const list = Array.isArray(data.bookings) ? data.bookings : [];
+      if (list.length === 1) {
+        // Straight to the booking, where Cancel booking is.
+        open(list[0]);
+        return;
+      }
+      if (list.length > 1) {
+        setFound(list);
+        setSentMessage(data.message);
+        return;
+      }
       setSentMessage(data.message);
     } catch (err) {
       setError(err.message || "We couldn't reach Skyrio. Try again.");
@@ -76,20 +101,45 @@ export default function FindBookingPage() {
       </h1>
       <p className="mt-sub">
         View or cancel a flight or hotel, with or without a Skyrio account.
-        We&apos;ll email you a secure link.
+        Enter your email and confirmation code to open your booking.
       </p>
 
       {sentMessage ? (
         <div className="fb-done" role="status">
           <CheckCircle2 size={18} aria-hidden="true" />
           <div>
-            <b>Check your email.</b> {sentMessage}
+            {found.length > 1 ? (
+              <>
+                <b>We found {found.length} bookings.</b> Pick one to view or
+                cancel it.
+                {found.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className="fb-pick"
+                    onClick={() => open(b)}
+                  >
+                    {b.type === "Hotel" ? (
+                      <BedDouble size={18} aria-hidden="true" />
+                    ) : (
+                      <Plane size={18} aria-hidden="true" />
+                    )}
+                    <span>{b.title}</span>
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <b>Check your email.</b> {sentMessage}
+              </>
+            )}
             <div style={{ marginTop: 10 }}>
               <button
                 type="button"
                 className="mt-link"
                 onClick={() => {
                   setSentMessage("");
+                  setFound([]);
                   setCode("");
                 }}
               >
@@ -150,7 +200,7 @@ export default function FindBookingPage() {
           )}
 
           <button type="submit" className="mt-cta fb-submit" disabled={busy}>
-            {busy ? "Sending…" : "Email me a link"}
+            {busy ? "Looking it up…" : "Find my booking"}
           </button>
         </form>
       )}

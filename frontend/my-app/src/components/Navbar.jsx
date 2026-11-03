@@ -195,6 +195,27 @@ const SYNC_CSS = `
   .sk-mobile-sync__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .sk-mobile-sync__title { font-weight: 800; font-size: 15px; }
   .sk-mobile-sync__sub { font-size: 12.5px; color: rgba(255,255,255,0.65); }
+
+  /* The menu rows are width:100% plus padding; without border-box the
+     user card and rows stuck out past the menu's right edge on phones. */
+  .sk-mobile-menu, .sk-mobile-menu * { box-sizing: border-box; }
+  .sk-mobile-menu > * { max-width: 100%; min-width: 0; }
+
+  /* Narrow phones (Galaxy Fold cover screen ~280–344px, iPhone SE 320px) */
+  @media (max-width: 360px) {
+    .sk-navbar-wrap { padding-left: 8px !important; padding-right: 8px !important; }
+    .sk-mobile-menu { padding: 10px; gap: 8px; }
+    .sk-mobile-user { padding: 8px 10px 8px 8px; min-height: 52px; gap: 10px; }
+    .sk-mobile-sync, .sk-mobile-trips { padding: 10px 12px; gap: 10px; }
+    .sk-mobile-sync__icon { width: 34px; height: 34px; border-radius: 10px; }
+    .sk-mobile-sync__title, .sk-mobile-trips__title { font-size: 14px; }
+    .sk-mobile-sync__sub, .sk-mobile-trips__sub { font-size: 11.5px; }
+    .sk-mobile-grid { gap: 6px; }
+    .sk-mobile-tile { min-height: 64px; padding: 10px 12px; }
+    .sk-mobile-tile svg { margin-bottom: 4px; }
+    .sk-mobile-tileLabel { font-size: 14px; }
+    .sk-brand-wordmark { font-size: 1rem; }
+  }
 `;
 
 // ── Admin email — only this account sees the admin link ──
