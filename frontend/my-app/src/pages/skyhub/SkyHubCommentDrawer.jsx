@@ -20,36 +20,12 @@ const { TextArea } = Input;
 // The Skyrio top bar and the Atlas AI button sit above z-index 2000, which hid
 // the drawer header and covered the comments. Keep the drawer above both.
 const DRAWER_Z = 10000;
-const MODAL_Z = DRAWER_Z + 100;
+// Phones: the drawer is full screen and has its own "← SkyHub" back
+// button, so it sits ABOVE the site's top bar (z-index 99999). Below it,
+// the top bar covered the drawer's header and the back button was gone.
+const PHONE_DRAWER_Z = 100001;
+const MODAL_Z = 100101; // above the drawer on every screen size
 const MAX_LEN = 600;
-
-// Hides floating buttons (Atlas AI, Help & Feedback) while comments are open so
-// they don't cover the Post button. Finds any fixed-position element near the
-// bottom of the screen that isn't part of the drawer or a popup, and returns a
-// function that puts them back exactly as they were.
-function hideFloatingButtons() {
-  const hidden = [];
-  const vh = window.innerHeight;
-  const skip =
-    ".skyhubC-root, .ant-drawer, .ant-modal-root, .ant-modal-wrap, .ant-message, .ant-dropdown, .ant-notification";
-  document.body.querySelectorAll("*").forEach((el) => {
-    if (el.closest(skip)) return;
-    const cs = window.getComputedStyle(el);
-    if (cs.position !== "fixed" || cs.visibility === "hidden") return;
-    const r = el.getBoundingClientRect();
-    const isSmall = r.height > 0 && r.height < 200 && r.width < 400;
-    const isNearBottom = r.top > vh * 0.55;
-    if (!isSmall || !isNearBottom) return;
-    hidden.push([el, el.style.visibility, el.style.pointerEvents]);
-    el.style.visibility = "hidden";
-    el.style.pointerEvents = "none";
-  });
-  return () =>
-    hidden.forEach(([el, vis, pe]) => {
-      el.style.visibility = vis;
-      el.style.pointerEvents = pe;
-    });
-}
 
 // Sends your login with every SkyHub request (comments need it).
 function skyFetch(path, opts = {}) {
@@ -73,10 +49,53 @@ function initials(name = "") {
   return (first + last).toUpperCase();
 }
 
+// Photos saved on our own server come back as "/uploads/..."
+const photoUrl = (u) =>
+  typeof u === "string" && u.startsWith("/") ? apiUrl(u) : u;
+
+// Bottom edge of the site's top bar, so the drawer starts below it.
+// Measured instead of fighting z-index: the nav stacks above the drawer
+// on some pages and was hiding the "Comments" header and close button.
+function topBarBottom() {
+  try {
+    const candidates = document.querySelectorAll(
+      "header, nav, [class*='navbar' i], [class*='topbar' i]"
+    );
+    let bottom = 0;
+    for (const el of candidates) {
+      if (el.closest(".ant-drawer")) continue;
+      const cs = getComputedStyle(el);
+      if (cs.position !== "fixed" && cs.position !== "sticky") continue;
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      const r = el.getBoundingClientRect();
+      // Only bars pinned to the top and spanning most of the width
+      if (r.top > 4 || r.height < 20 || r.height > 160) continue;
+      if (r.width < window.innerWidth * 0.6) continue;
+      bottom = Math.max(bottom, Math.round(r.bottom));
+    }
+    return bottom;
+  } catch {
+    return 0;
+  }
+}
+
 function UserAvatar({ name, src, size = 36 }) {
-  const hasPhoto = typeof src === "string" && /^https?:\/\//.test(src);
+  const url = photoUrl(src);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [url]);
+  const hasPhoto =
+    !broken && typeof url === "string" && /^https?:\/\//.test(url);
   return hasPhoto ? (
-    <Avatar className="skyhubC-avatar" size={size} src={src} alt="" />
+    <Avatar
+      className="skyhubC-avatar"
+      size={size}
+      src={url}
+      alt=""
+      onError={() => {
+        setBroken(true);
+        return false;
+      }}
+    />
   ) : (
     <Avatar className="skyhubC-avatar skyhubC-avatar--initials" size={size}>
       {initials(name)}
@@ -124,6 +143,12 @@ const BackIcon = () => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg width="18" height="18" strokeWidth="2.2" {...svgProps}>
+    <path d="M18 6L6 18M6 6l12 12" />
+  </svg>
+);
+
 const SendIcon = () => (
   <svg width="16" height="16" strokeWidth="2.2" {...svgProps}>
     <path d="M22 2L11 13" />
@@ -149,6 +174,20 @@ export default function SkyHubCommentDrawer({
   const [reason, setReason] = useState("spam");
 
   const loggedIn = !!localStorage.getItem("token");
+
+  // Desktop: keep the side panel below the top bar (re-measured on open
+  // and resize). Phones cover the whole screen instead (see PHONE_DRAWER_Z).
+  const [navOffset, setNavOffset] = useState(0);
+  useEffect(() => {
+    if (!open || isPhone) {
+      setNavOffset(0);
+      return;
+    }
+    const measure = () => setNavOffset(topBarBottom());
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open, isPhone]);
 
   useEffect(() => {
     const onResize = () => setIsPhone(window.innerWidth < 600);
@@ -182,12 +221,10 @@ export default function SkyHubCommentDrawer({
     };
     window.addEventListener("popstate", onPop);
     document.body.classList.add("skyhub-commentsOpen");
-    const restoreFloating = hideFloatingButtons();
     return () => {
       clearTimeout(t);
       window.removeEventListener("popstate", onPop);
       document.body.classList.remove("skyhub-commentsOpen");
-      restoreFloating();
       // Only step back if we're still on our own entry (not if the user
       // navigated somewhere else, like a traveler's profile).
       if (pushed && window.history.state?.skyhubComments) {
@@ -291,8 +328,7 @@ export default function SkyHubCommentDrawer({
   const commentCount = comments.length;
   const canSend = !!commentText.trim() && !postingComment;
 
-  // Same header on phone and desktop: back to SkyHub | centered title.
-  const header = (
+  const header = isPhone ? (
     <div className="skyhubC-header">
       <button
         type="button"
@@ -307,6 +343,20 @@ export default function SkyHubCommentDrawer({
         Comments{commentCount ? <em> · {commentCount}</em> : null}
       </span>
       <span className="skyhubC-headerSpacer" aria-hidden="true" />
+    </div>
+  ) : (
+    <div className="skyhubC-header">
+      <span className="skyhubC-title">
+        Comments{commentCount ? <em> · {commentCount}</em> : null}
+      </span>
+      <button
+        type="button"
+        className="skyhubC-close"
+        onClick={onClose}
+        aria-label="Close comments"
+      >
+        <CloseIcon />
+      </button>
     </div>
   );
 
@@ -362,7 +412,8 @@ export default function SkyHubCommentDrawer({
       placement="right"
       // Full screen on phones, side panel on desktop.
       width={isPhone ? "100%" : 440}
-      zIndex={DRAWER_Z}
+      zIndex={isPhone ? PHONE_DRAWER_Z : DRAWER_Z}
+      rootStyle={!isPhone && navOffset ? { top: navOffset } : undefined}
       onClose={onClose}
       open={open}
       className="skyhub-commentDrawer skyhub-drawer skyhubC"
@@ -397,7 +448,7 @@ export default function SkyHubCommentDrawer({
           {previewPhoto && (
             <img
               className="skyhubC-postPhoto"
-              src={previewPhoto}
+              src={photoUrl(previewPhoto)}
               alt=""
               onError={(e) => {
                 e.currentTarget.style.display = "none";

@@ -237,6 +237,13 @@ const TJ_CSS = `
 .tj-more:hover { border-color:rgba(255,138,42,0.5); color:#ffb347; }
 .tj-more:focus-visible { outline:2px solid #ff8a2a; outline-offset:2px; }
 
+/* Narrow phones: the Group / Upcoming tags move under the trip name
+   instead of squeezing it into a thin column. */
+@media (max-width: 420px) {
+  .tj-row { flex-direction:column; }
+  .tj-row__name { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .tj-row__stub { flex-direction:row !important; align-items:center !important; justify-content:flex-start !important; flex-wrap:wrap; border-left:0; padding:0 10px 9px 45px !important; }
+}
 @media (max-width: 600px) {
   .tj-filter select { height:32px; font-size:12.5px; }
   .tj-row__main { padding:8px 10px; gap:9px; }

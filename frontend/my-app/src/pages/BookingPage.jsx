@@ -4309,6 +4309,17 @@ const PLAN_CSS = `
     .sk-planmode__icon { width: 34px; height: 34px; }
   }
 
+  /* Narrow phones (Galaxy Fold cover ~280px, iPhone SE): the tab bar
+     scrolls sideways instead of clipping "Saved", and Round trip / One way /
+     Multi-city wraps instead of spilling past the boarding pass. */
+  @media (max-width: 360px) {
+    .sk-tab-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .sk-tab-bar::-webkit-scrollbar { display: none; }
+    .sk-trip-type-row { max-width: 100%; }
+    .sk-trip-type { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 100%; box-sizing: border-box; }
+    .sk-trip-type-btn { padding-left: 10px !important; padding-right: 10px !important; font-size: 12px !important; }
+  }
+
   /* Results view: the planner folds away and the results get the screen. */
   .sk-resultsbar {
     position: sticky; top: 84px; z-index: 20;

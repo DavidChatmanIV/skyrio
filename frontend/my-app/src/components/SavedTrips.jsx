@@ -95,7 +95,8 @@ export default function SavedTrips() {
   const handleDelete = async (id) => {
     setConfirmId(null);
     const before = trips;
-    setTrips((prev) => prev.filter((t) => t._id !== id));
+    if (!id) return;
+    setTrips((prev) => prev.filter((t) => (t._id || t.id) !== id));
     try {
       const res = await fetch(apiUrl(`/api/saved-trips/${id}`), {
         method: "DELETE",
@@ -143,13 +144,19 @@ export default function SavedTrips() {
         </div>
       ) : (
         <div className="svt-grid">
-          {trips.map((trip) => {
+          {trips.map((trip, i) => {
+            // Some saved trips come back with `id` instead of `_id` (or
+            // neither), which gave every card the same React key.
+            const tripId = trip._id || trip.id || null;
             const price = fmtMoney(trip.price, trip.currency);
             const start = fmtDate(trip.startDate);
             const end = fmtDate(trip.endDate);
-            const confirming = confirmId === trip._id;
+            const confirming = tripId != null && confirmId === tripId;
             return (
-              <article key={trip._id} className="svt-card">
+              <article
+                key={tripId || `${trip.title || "trip"}-${i}`}
+                className="svt-card"
+              >
                 <div
                   className="svt-media"
                   style={
@@ -189,7 +196,7 @@ export default function SavedTrips() {
                         <button
                           type="button"
                           className="is-danger"
-                          onClick={() => handleDelete(trip._id)}
+                          onClick={() => handleDelete(tripId)}
                         >
                           Remove
                         </button>
@@ -214,7 +221,8 @@ export default function SavedTrips() {
                       <button
                         type="button"
                         className="svt-del"
-                        onClick={() => setConfirmId(trip._id)}
+                        onClick={() => setConfirmId(tripId)}
+                        disabled={!tripId}
                         aria-label={`Remove ${trip.title || "saved trip"}`}
                         title="Remove"
                       >

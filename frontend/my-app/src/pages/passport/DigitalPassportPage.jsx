@@ -80,6 +80,7 @@ import TravelerSearch from "./TravelerSearch";
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import TravelJourneys from "./TravelJourneys";
 import PassportDataPage from "./PassportDataPage";
+import PassportUpcomingTrips from "./PassportUpcomingTrips";
 import { readHomeAirport, rememberHomeAirportLocally } from "@/lib/homeAirport";
 
 const { Title, Text } = Typography;
@@ -1083,11 +1084,33 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
   );
 }
 
+// The sidebar drops below everything on tablets and phones (≤1100px, the
+// same breakpoint profile-passport.css uses), which put Upcoming trips at
+// the very bottom. There it's shown at the top of the page instead.
+const STACKED_QUERY = "(max-width: 1100px)";
+function useStackedLayout() {
+  const [stacked, setStacked] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      !!window.matchMedia?.(STACKED_QUERY).matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.(STACKED_QUERY);
+    if (!mq) return undefined;
+    const on = () => setStacked(mq.matches);
+    on();
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
+  return stacked;
+}
+
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, token, isAuthed, loading, setUser, logout } = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
+  const stackedLayout = useStackedLayout();
   const { message } = App.useApp();
 
   const myId = useMemo(() => user?._id || user?.id || null, [user]);
@@ -1674,6 +1697,18 @@ export default function DigitalPassportPage() {
                     onSpendXp={() => navigate("/passport/rewards")}
                   />
 
+                  {/* Tablets/phones: right under the passport, not at the
+                      bottom of the page. */}
+                  {stackedLayout && (
+                    <Card
+                      variant="borderless"
+                      className="pp-card"
+                      style={{ margin: "12px 0" }}
+                    >
+                      <PassportUpcomingTrips token={token} />
+                    </Card>
+                  )}
+
                   {profileMusic && (
                     <Card
                       variant="borderless"
@@ -1710,11 +1745,89 @@ export default function DigitalPassportPage() {
 
                 {/* ── Sidebar ── */}
                 <div className="pp-mockSide">
+                  {/* Upcoming trips with a Cancel button on each, so
+                      cancelling a flight or hotel is one tap from here.
+                      (On tablets/phones it's at the top of the page.) */}
+                  {!stackedLayout && (
+                    <Card
+                      variant="borderless"
+                      className="pp-card"
+                      style={{ marginBottom: 12 }}
+                    >
+                      <PassportUpcomingTrips token={token} />
+                    </Card>
+                  )}
+
+                  <Card variant="borderless" className="pp-card pp-actionsCard">
+                    <Title
+                      level={3}
+                      className="pp-title"
+                      style={{ marginBottom: 4 }}
+                    >
+                      Digital Passport
+                    </Title>
+                    <div className="pp-actionsStack">
+                      {/* Order: what you can DO with your Passport first
+                          (spend XP, show it off), then profile settings. */}
+                      <Button
+                        className="pp-actionBtn"
+                        icon={<GiftOutlined />}
+                        onClick={() => navigate("/passport/rewards")}
+                      >
+                        Passport Rewards
+                      </Button>
+                      <Button
+                        className="pp-actionBtn"
+                        icon={<ShareAltOutlined />}
+                        onClick={() => setShowShare(true)}
+                      >
+                        Share Passport
+                      </Button>
+                      <Button
+                        className="pp-actionBtn"
+                        icon={<EditOutlined />}
+                        onClick={() => setEditOpen(true)}
+                      >
+                        Edit Profile
+                      </Button>
+                      <Button
+                        className="pp-actionBtn"
+                        icon={
+                          profileMusic ? (
+                            <SoundOutlined />
+                          ) : (
+                            <PlayCircleOutlined />
+                          )
+                        }
+                        onClick={() => setMusicOpen(true)}
+                      >
+                        {profileMusic ? "Profile Music" : "Add Profile Music"}
+                      </Button>
+                      <Button
+                        className="pp-actionBtn"
+                        icon={<TeamOutlined />}
+                        onClick={() => navigate("/sync-together")}
+                      >
+                        Sync Together
+                      </Button>
+                    </div>
+                    <Text className="pp-credentialHint">
+                      This passport unlocks stamps, borders, and rewards.
+                    </Text>
+                    <Button
+                      className="pp-upgradeBtn"
+                      onClick={() => navigate("/membership")}
+                    >
+                      Upgrade your Passport
+                    </Button>
+                  </Card>
+
+                  {/* Social: find and follow other travelers */}
                   <Card
                     variant="borderless"
                     className="pp-card"
                     style={{
-                      marginBottom: 12,
+                      marginTop: 12,
                       overflow: "visible",
                       position: "relative",
                       zIndex: 100,
@@ -1739,80 +1852,27 @@ export default function DigitalPassportPage() {
                     />
                   </Card>
 
-                  <Card variant="borderless" className="pp-card pp-actionsCard">
-                    <Title
-                      level={3}
-                      className="pp-title"
-                      style={{ marginBottom: 4 }}
-                    >
-                      Digital Passport
-                    </Title>
-                    <div className="pp-actionsStack">
-                      <Button
-                        className="pp-actionBtn"
-                        icon={<EditOutlined />}
-                        onClick={() => setEditOpen(true)}
-                      >
-                        Edit Profile
-                      </Button>
-                      <Button
-                        className="pp-actionBtn"
-                        icon={
-                          profileMusic ? (
-                            <SoundOutlined />
-                          ) : (
-                            <PlayCircleOutlined />
-                          )
-                        }
-                        onClick={() => setMusicOpen(true)}
-                      >
-                        {profileMusic ? "Profile Music" : "Add Profile Music"}
-                      </Button>
-
-                      <Button
-                        className="pp-actionBtn"
-                        icon={<ShareAltOutlined />}
-                        onClick={() => setShowShare(true)}
-                      >
-                        Share Passport
-                      </Button>
-
-                      {/* NEW: Passport Rewards entry point — same row style as
-                          Edit Profile / Profile Music / Share Passport above.
-                          TODO: confirm real route path with David, currently
-                          guessing /passport/rewards. */}
-                      <Button
-                        className="pp-actionBtn"
-                        icon={<GiftOutlined />}
-                        onClick={() => navigate("/passport/rewards")}
-                      >
-                        Passport Rewards
-                      </Button>
-
-                      {/* Sync Together shortcut — group trip planning.
-                          TODO: confirm route matches App.jsx (guessing /sync-together). */}
-                      <Button
-                        className="pp-actionBtn"
-                        icon={<TeamOutlined />}
-                        onClick={() => navigate("/sync-together")}
-                      >
-                        Sync Together
-                      </Button>
-                    </div>
-                    <Text className="pp-credentialHint">
-                      This passport unlocks stamps, borders, and rewards.
-                    </Text>
-                    <Button
-                      className="pp-upgradeBtn"
-                      onClick={() => navigate("/membership")}
-                    >
-                      Upgrade your Passport
-                    </Button>
+                  {/* Account settings last, away from everyday actions,
+                      so Delete Account is never a mis-tap. */}
+                  <Card
+                    variant="borderless"
+                    className="pp-card"
+                    style={{ marginTop: 12 }}
+                  >
                     <div
                       style={{
-                        marginTop: 24,
-                        paddingTop: 16,
-                        borderTop: "1px solid rgba(255,255,255,0.07)",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: "rgba(255,255,255,0.35)",
+                      }}
+                    >
+                      Account
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 10,
                       }}
                     >
                       <Button

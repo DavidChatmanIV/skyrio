@@ -201,6 +201,18 @@ const SYNC_CSS = `
   .sk-mobile-menu, .sk-mobile-menu * { box-sizing: border-box; }
   .sk-mobile-menu > * { max-width: 100%; min-width: 0; }
 
+  /* Never wider than the screen: on the Galaxy Fold cover screen the bar
+     ran past the right edge and the menu button was cut off. The logo
+     side may shrink (wordmark trims with "…"); the menu button never does. */
+  .sk-navbar-shell { max-width: min(var(--sk-nav-max, 1240px), 100%); }
+  .sk-navbar { max-width: 100%; min-width: 0; box-sizing: border-box; }
+  .sk-brand { min-width: 0; overflow: hidden; }
+  .sk-brand-wordmark { overflow: hidden; text-overflow: ellipsis; }
+  .sk-mobile-trigger { flex-shrink: 0; }
+  @media (max-width: 991px) {
+    .sk-navbar { grid-template-columns: minmax(0, 1fr) auto !important; }
+  }
+
   /* Narrow phones (Galaxy Fold cover screen ~280–344px, iPhone SE 320px) */
   @media (max-width: 360px) {
     .sk-navbar-wrap { padding-left: 8px !important; padding-right: 8px !important; }
