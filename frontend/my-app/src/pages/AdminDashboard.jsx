@@ -169,7 +169,7 @@ const TAKEDOWN_FILTERS = [
   ["restored", "Restored"],
 ];
 
-const TABS = ["overview", "moderation", "feedback", "engagement"];
+const TABS = ["overview", "moderation", "feedback", "reviews", "engagement"];
 
 const FEEDBACK_STATUSES = [
   { value: "new", label: "New", tone: "orange" },
@@ -423,6 +423,9 @@ const INJECTED_CSS = `
   .sk-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: ${C.text}; cursor: pointer; user-select: none; }
   .sk-bulk { position: sticky; top: 96px; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 20px; background: #1d1430; border-bottom: 1px solid rgba(255,138,42,0.35); font-size: 13px; }
   .sk-bulk b { margin-right: 4px; }
+  .sk-clearbar { flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 4px; border-radius: 12px; background: rgba(255,138,42,0.08); border: 1px solid rgba(255,138,42,0.3); font-size: 13px; color: ${C.text}; }
+  .sk-clearbar span { margin-right: auto; }
+  .sk-clearbar b { color: #fff; }
   /* Thank-you window: always dark, whatever theme the page gets */
   .sk-thank-modal .ant-modal-content, .sk-thank-modal .ant-modal-header { background: #150f28 !important; color: #fff; }
   .sk-thank-modal .ant-modal-title { color: #fff !important; }
@@ -765,7 +768,12 @@ function useAttentionCounts(refreshKey) {
    OVERVIEW TAB
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function NeedsAttention({ counts, onOpenModeration, onOpenFeedback }) {
+function NeedsAttention({
+  counts,
+  onOpenModeration,
+  onOpenFeedback,
+  onOpenReviews,
+}) {
   const navigate = useNavigate();
   const { openTickets, cancelRequests, skyhub, feedback } = counts;
   const fbWaiting =
@@ -870,28 +878,36 @@ function NeedsAttention({ counts, onOpenModeration, onOpenFeedback }) {
         onClick={onOpenModeration}
       />
       <AttentionTile
-        icon={<IconStar size={18} />}
-        title="Feedback & reviews"
-        state={fbWaiting > 0 ? "hot" : undefined}
+        icon={<IconChat size={18} />}
+        title="Feedback"
+        state={feedback?.newFeedback > 0 ? "hot" : undefined}
         badges={
-          <>
-            {feedback?.pendingReviews > 0 && (
-              <Pill tone="orange">
-                {feedback.pendingReviews}{" "}
-                {plural(feedback.pendingReviews, "review")}
-              </Pill>
-            )}
-            {feedback?.newFeedback > 0 && (
-              <Pill tone="blue">{feedback.newFeedback} new</Pill>
-            )}
-          </>
+          feedback?.newFeedback > 0 ? (
+            <Pill tone="blue">{feedback.newFeedback} new</Pill>
+          ) : null
         }
         sub={
-          fbWaiting > 0
-            ? "Approve reviews, triage feedback, ship fixes"
-            : "No reviews or feedback waiting"
+          feedback?.newFeedback > 0
+            ? "Read, triage and thank people for their feedback"
+            : "No new feedback"
         }
         onClick={onOpenFeedback}
+      />
+      <AttentionTile
+        icon={<IconStar size={18} />}
+        title="Reviews"
+        state={feedback?.pendingReviews > 0 ? "hot" : undefined}
+        badges={
+          feedback?.pendingReviews > 0 ? (
+            <Pill tone="orange">{feedback.pendingReviews} to approve</Pill>
+          ) : null
+        }
+        sub={
+          feedback?.pendingReviews > 0
+            ? "Approve or reject reviews before they go public"
+            : "No reviews waiting"
+        }
+        onClick={onOpenReviews || onOpenFeedback}
       />
     </div>
   );
@@ -1158,6 +1174,7 @@ function OverviewTab({
   counts,
   onOpenModeration,
   onOpenFeedback,
+  onOpenReviews,
 }) {
   const data = dashboard.data;
   const ready = !!data || (!dashboard.loading && !!dashboard.error);
@@ -1170,6 +1187,7 @@ function OverviewTab({
           counts={counts}
           onOpenModeration={onOpenModeration}
           onOpenFeedback={onOpenFeedback}
+          onOpenReviews={onOpenReviews}
         />
       </Section>
 
@@ -2585,10 +2603,11 @@ function FeedbackInbox({ refreshKey, onChange }) {
     }
   };
 
-  const bulkStatus = async (next) => {
+  const bulkStatus = (next) => moveMany(selectedRows, next);
+  const moveMany = async (list, next) => {
     setBulkBusy(true);
     let ok = 0;
-    for (const fb of selectedRows) {
+    for (const fb of list) {
       try {
         await adminRequest(`/api/feedback/admin/${fb._id}`, {
           method: "PATCH",
@@ -2606,6 +2625,27 @@ function FeedbackInbox({ refreshKey, onChange }) {
     setSelected(new Set());
     reload();
     onChange?.();
+  };
+  // Clear the "New" badge in one go: everything shown in New moves out.
+  const clearNew = (next) => {
+    const list = rows;
+    if (!list.length) return;
+    Modal.confirm({
+      title:
+        next === "closed"
+          ? `Close all ${list.length} new ${plural(list.length, "item")}?`
+          : `Mark all ${list.length} new ${plural(
+              list.length,
+              "item"
+            )} as read?`,
+      content:
+        next === "closed"
+          ? "They move to Closed. Nothing is deleted, and you can still find them under Closed or All."
+          : "They move to Reviewing, so the New badge clears. Nothing is deleted.",
+      okText: next === "closed" ? "Close all" : "Mark as read",
+      className: "sk-thank-modal",
+      onOk: () => moveMany(list, next),
+    });
   };
 
   // Copy as plain text, ready to paste into a chat or a doc.
@@ -2682,6 +2722,29 @@ function FeedbackInbox({ refreshKey, onChange }) {
       }
     >
       <div className="sk-fb-tools">
+        {status === "new" && rows.length > 0 && (
+          <div className="sk-clearbar">
+            <span>
+              <b>{rows.length}</b> new {plural(rows.length, "item")}
+            </span>
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm sk-btn--active"
+              disabled={bulkBusy}
+              onClick={() => clearNew("reviewing")}
+            >
+              Mark all as read
+            </button>
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              disabled={bulkBusy}
+              onClick={() => clearNew("closed")}
+            >
+              Close all
+            </button>
+          </div>
+        )}
         <label className="sk-check" title="Select everything shown">
           <input
             type="checkbox"
@@ -2982,10 +3045,23 @@ function TestimonialsQueue({ refreshKey, onChange }) {
       setFindingAll(false);
     }
   };
-  const bulkApprove = async () => {
+  const bulkApprove = () => approveMany(selectedRows);
+  const approveAll = () => {
+    const list = rows.filter((t) => t.status !== "approved");
+    if (!list.length) return;
+    Modal.confirm({
+      title: `Approve all ${list.length} ${plural(list.length, "review")}?`,
+      content:
+        "They go live on Skyrio. Skim them first: anything with spam, profanity or personal info should be rejected one by one instead.",
+      okText: "Approve all",
+      className: "sk-thank-modal",
+      onOk: () => approveMany(list),
+    });
+  };
+  const approveMany = async (list) => {
     setBusy(true);
     let ok = 0;
-    for (const t of selectedRows.filter((t) => t.status !== "approved")) {
+    for (const t of list.filter((t) => t.status !== "approved")) {
       try {
         await adminRequest(`/api/testimonials/admin/${t._id}`, {
           method: "PATCH",
@@ -3044,6 +3120,21 @@ function TestimonialsQueue({ refreshKey, onChange }) {
       }
     >
       <div className="sk-fb-tools">
+        {status === "pending" && rows.length > 0 && (
+          <div className="sk-clearbar">
+            <span>
+              <b>{rows.length}</b> waiting for approval
+            </span>
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm sk-btn--active"
+              disabled={busy}
+              onClick={approveAll}
+            >
+              Approve all
+            </button>
+          </div>
+        )}
         <label className="sk-check" title="Select everything shown">
           <input
             type="checkbox"
@@ -3442,9 +3533,6 @@ function FeedbackTab({ refreshKey, onCountsChange }) {
       <Section title="Feedback">
         <FeedbackInbox refreshKey={refreshKey} onChange={changed} />
       </Section>
-      <Section title="Reviews">
-        <TestimonialsQueue refreshKey={refreshKey} onChange={changed} />
-      </Section>
       <Section title="At a glance">
         <FeedbackStats refreshKey={key} />
       </Section>
@@ -3455,6 +3543,14 @@ function FeedbackTab({ refreshKey, onCountsChange }) {
         </div>
       </Section>
     </>
+  );
+}
+
+function ReviewsTab({ refreshKey, onCountsChange }) {
+  return (
+    <Section title="Reviews">
+      <TestimonialsQueue refreshKey={refreshKey} onChange={onCountsChange} />
+    </Section>
   );
 }
 
@@ -3528,11 +3624,9 @@ const AdminDashboard = () => {
       label: "Moderation",
       count: skyhub.takedowns + skyhub.critical,
     },
-    {
-      key: "feedback",
-      label: "Feedback & reviews",
-      count: feedbackCounts.newFeedback + feedbackCounts.pendingReviews,
-    },
+    // Separate tabs, each with its own badge, so each can be cleared out.
+    { key: "feedback", label: "Feedback", count: feedbackCounts.newFeedback },
+    { key: "reviews", label: "Reviews", count: feedbackCounts.pendingReviews },
     { key: "engagement", label: "Challenges & rewards" },
   ];
 
@@ -3628,6 +3722,7 @@ const AdminDashboard = () => {
             counts={counts}
             onOpenModeration={() => setTab("moderation")}
             onOpenFeedback={() => setTab("feedback")}
+            onOpenReviews={() => setTab("reviews")}
           />
         )}
         {tab === "moderation" && (
@@ -3635,6 +3730,12 @@ const AdminDashboard = () => {
         )}
         {tab === "feedback" && (
           <FeedbackTab
+            refreshKey={refreshKey}
+            onCountsChange={feedbackCounts.reload}
+          />
+        )}
+        {tab === "reviews" && (
+          <ReviewsTab
             refreshKey={refreshKey}
             onCountsChange={feedbackCounts.reload}
           />
