@@ -79,6 +79,7 @@ import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
 import TravelerSearch from "./TravelerSearch";
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import TravelJourneys from "./TravelJourneys";
+import ReferralCard from "./ReferralCard";
 import PassportDataPage from "./PassportDataPage";
 import { readHomeAirport, rememberHomeAirportLocally } from "@/lib/homeAirport";
 
@@ -1803,6 +1804,11 @@ export default function DigitalPassportPage() {
                       onFollowChange={handleSearchFollowChange}
                     />
                   </Card>
+
+                  {/* Refer a friend: link, progress, friends. Below Find
+                      Travelers so the search keeps its place in the flow
+                      (and its results list opens over this card). */}
+                  <ReferralCard token={token} />
 
                   {/* Account settings last, away from everyday actions,
                       so Delete Account is never a mis-tap. */}

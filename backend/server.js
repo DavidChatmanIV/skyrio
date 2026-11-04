@@ -38,6 +38,8 @@ import dealsRoutes from "./routes/deals.js";
 import thanksRoutes from "./routes/thanks.routes.js";
 import { startDealScanJob } from "./services/dealScanner.js";
 import { startXpConfirmJob } from "./jobs/xpConfirmJob.js";
+// Refer a friend: pays referrers when a friend's first booking settles.
+import { startReferralJob } from "./routes/api/referral.routes.js";
 import mongooseXp from "mongoose";
 import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
@@ -405,3 +407,5 @@ export { app, io, httpServer };
 // Unlock pending booking XP hourly (trip started + 24h hold is over).
 if (mongooseXp.connection.readyState === 1) startXpConfirmJob();
 else mongooseXp.connection.once("open", () => startXpConfirmJob());
+if (mongooseXp.connection.readyState === 1) startReferralJob();
+else mongooseXp.connection.once("open", () => startReferralJob());

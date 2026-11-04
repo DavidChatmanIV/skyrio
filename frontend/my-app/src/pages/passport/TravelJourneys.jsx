@@ -2,12 +2,13 @@
 // Combines the user's own bookings with their Sync Together group trips,
 // hides cancelled ones.
 //
-// Three sections, one card:
-//   - Upcoming bookings: your next flights and hotels, each with a Cancel
-//     button (same cancel flow as My trips: the refund estimate is shown
+// Four tabs, one list each, so each list does one job:
+//   - Bookings: upcoming flights and hotels
+//   - Group trips: Sync Together trips being planned (tap to open)
+//   - Past trips: trips already taken (each earns a passport stamp)
+//   - Cancel a trip: the bookings that can be cancelled, each with a
+//     Cancel button (same flow as My trips: the refund estimate shows
 //     before anything is cancelled)
-//   - Group trips in the works: Sync Together trips still being planned
-//   - Stamped: trips already taken (the passport stamps)
 
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -230,12 +231,20 @@ function normalizeSync(t) {
 // ── Styles (single drop-in file; matches the Upcoming trips list) ──
 const TJ_CSS = `
 .tj-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 12px; margin-bottom:12px; }
-.tj-filter { position:relative; display:inline-flex; align-items:center; }
-.tj-filter select { appearance:none; -webkit-appearance:none; height:34px; padding:0 32px 0 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:#fff; font-family:"DM Sans",sans-serif; font-size:13px; font-weight:600; cursor:pointer; }
-.tj-filter select:hover { border-color:rgba(255,138,42,0.5); }
-.tj-filter select:focus-visible { outline:2px solid #ff8a2a; outline-offset:2px; }
-.tj-filter select option { background:#1a1233; color:#fff; }
-.tj-filter svg { position:absolute; right:11px; pointer-events:none; color:rgba(255,255,255,0.7); }
+.tj-tabs { display:flex; gap:4px; width:100%; padding:3px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); overflow-x:auto; scrollbar-width:none; }
+.tj-tabs::-webkit-scrollbar { display:none; }
+.tj-tab--cancel { color:#ff9db0 !important; }
+.tj-tab--cancel[aria-selected="true"] { color:#fff !important; background:linear-gradient(135deg,#e5484d,#ff6b85) !important; }
+.tj-tab { all:unset; cursor:pointer; padding:6px 14px; border-radius:999px; font-size:13px; font-weight:700; color:rgba(255,255,255,0.65); white-space:nowrap; }
+.tj-tab { flex:1 0 auto; text-align:center; display:inline-flex !important; align-items:center; justify-content:center; gap:4px; }
+.tj-tab[aria-selected="true"] { color:#1a0e06; background:linear-gradient(135deg,#ff8a2a,#ffb347); }
+.tj-tab:focus-visible { outline:2px solid #ffb347; outline-offset:2px; }
+.tj-tab b { font-weight:800; opacity:.75; margin-left:4px; }
+.tj-action { flex-shrink:0; display:flex; align-items:center; padding:0 12px; }
+.tj-go { color:rgba(255,255,255,0.5); }
+.tj-row.is-link:hover .tj-go { color:#ffb347; }
+.tj-help { margin:-4px 0 12px; font-size:13px; line-height:1.5; color:rgba(255,255,255,0.68); }
+.tj-foot { margin-top:12px; display:flex; justify-content:center; }
 .tj-section + .tj-section { margin-top:16px; }
 .tj-cancel { display:inline-flex; align-items:center; gap:4px; min-height:30px; padding:0 11px; border-radius:999px; border:1px solid rgba(255,107,133,.5); background:rgba(255,107,133,.08); color:#ff9db0; font:inherit; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
 .tj-cancel:hover { border-color:rgba(255,107,133,.85); background:rgba(255,107,133,.18); color:#fff; }
@@ -243,9 +252,6 @@ const TJ_CSS = `
 .tj-pending { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700; color:#ffc27a; white-space:nowrap; }
 .tj-all { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:2px; font-size:12.5px; font-weight:700; color:#ffb347; }
 .tj-all:hover { color:#fff; }
-.tj-labelRow { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 8px; }
-.tj-labelRow .tj-label { margin:0; }
-.tj-sub { margin:-6px 0 14px; font-size:13px; line-height:1.5; color:rgba(255,255,255,0.62); }
 .tj-label { font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size:11px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:rgba(255,255,255,0.6); margin:0 0 8px; }
 .tj-list { display:flex; flex-direction:column; gap:8px; }
 
@@ -261,11 +267,9 @@ const TJ_CSS = `
 .tj-row__name { color:#fff; font-size:13.5px; font-weight:700; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tj-row__meta { margin-top:3px; display:flex; flex-wrap:wrap; align-items:center; gap:3px 10px; font-size:12px; color:rgba(255,255,255,0.68); }
 .tj-row__meta > span { display:inline-flex; align-items:center; gap:4px; }
-.tj-row__stub { flex-shrink:0; display:flex; align-items:center; gap:6px; padding:8px 12px; border-left:2px dashed rgba(255,255,255,0.14); }
 
 .tj-tag { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 8px; border-radius:999px; font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.72); white-space:nowrap; }
 .tj-tag--stamped { color:#ffb347; border-color:rgba(255,138,42,0.45); background:rgba(255,138,42,0.1); }
-.tj-tag--group { color:#c4b5fd; border-color:rgba(139,92,255,0.45); background:rgba(139,92,255,0.12); }
 
 .tj-more { all:unset; box-sizing:border-box; margin-top:8px; width:100%; min-height:38px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:10px; border:1px dashed rgba(255,255,255,0.18); color:rgba(255,255,255,0.8); font-size:13px; font-weight:700; cursor:pointer; }
 .tj-more:hover { border-color:rgba(255,138,42,0.5); color:#ffb347; }
@@ -273,19 +277,25 @@ const TJ_CSS = `
 
 /* Narrow phones: the Group / Upcoming tags move under the trip name
    instead of squeezing it into a thin column. */
+/* Phones: the 4 tabs sit in a 2 x 2 grid so all of them, including
+   Cancel a trip, are visible without sideways scrolling. */
+@media (max-width: 520px) {
+  .tj-tabs { display:grid; grid-template-columns:1fr 1fr; border-radius:14px; overflow:visible; }
+  .tj-tab { border-radius:10px !important; padding:8px 6px !important; }
+}
 @media (max-width: 420px) {
-  .tj-row { flex-direction:column; }
+  .tj-tab { padding:6px 11px; font-size:12.5px; }
+  /* Keep the action on the right; the name may wrap to 2 lines. */
   .tj-row__name { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
-  .tj-row__stub { flex-direction:row !important; align-items:center !important; justify-content:flex-start !important; flex-wrap:wrap; border-left:0; padding:0 10px 9px 45px !important; }
+  .tj-action { padding:0 10px 0 4px; }
+  .tj-cancel { padding:0 9px; }
 }
 @media (max-width: 600px) {
-  .tj-filter select { height:32px; font-size:12.5px; }
-  .tj-row__main { padding:8px 10px; gap:9px; }
+    .tj-row__main { padding:8px 10px; gap:9px; }
   .tj-row__icon { width:26px; height:26px; }
   .tj-row__name { font-size:13px; }
   .tj-row__meta { font-size:11.5px; }
-  .tj-row__stub { flex-direction:column; align-items:flex-end; justify-content:center; gap:4px; padding:8px 10px; }
-}
+  }
 `;
 
 function Chevron({ flip }) {
@@ -307,7 +317,6 @@ function Chevron({ flip }) {
   );
 }
 
-const isGroupJourney = (j) => j.kind === "sync" || !!j.groupRef;
 const isStayType = (t) => t.includes("hotel") || t.includes("stay");
 const isActivityType = (t) => t.includes("excursion") || t.includes("activity");
 
@@ -319,12 +328,21 @@ function TypeIcon({ type }) {
   return <Plane {...props} />;
 }
 
-function JourneyStamp({ j, onOpen, onCancel }) {
+// One trip: icon, name, a short details line, and one action on the right.
+function JourneyRow({ j, onOpen, onCancel }) {
   const completed = j.stage === "completed";
-  const group = isGroupJourney(j);
   const dates =
     j.start &&
     `${fmt(j.start)}${j.end && j.end > j.start ? ` → ${fmt(j.end)}` : ""}`;
+  const meta = [j.kind === "sync" ? "Group trip" : null, j.subtitle, dates]
+    .filter(Boolean)
+    .join(" · ");
+  const canCancel =
+    onCancel &&
+    !completed &&
+    j.kind !== "sync" &&
+    j.status === "confirmed" &&
+    !j.booking?.sharedRoom;
   const Tag = onOpen ? "button" : "div";
   return (
     <Tag
@@ -341,100 +359,32 @@ function JourneyStamp({ j, onOpen, onCancel }) {
           <div className="tj-row__name" title={j.title}>
             {j.title}
           </div>
-          {(j.subtitle || dates) && (
-            <div className="tj-row__meta">
-              {j.subtitle && <span>{j.subtitle}</span>}
-              {dates && <span>{dates}</span>}
-            </div>
-          )}
+          {meta && <div className="tj-row__meta">{meta}</div>}
         </div>
       </div>
-      <div className="tj-row__stub">
-        {group && <span className="tj-tag tj-tag--group">Group</span>}
-        {onCancel && !completed ? (
-          j.status === "cancel_pending" ? (
-            <span className="tj-pending">
-              <Clock size={12} aria-hidden="true" /> Cancelling
-            </span>
-          ) : j.status === "confirmed" && !j.booking?.sharedRoom ? (
-            <button
-              type="button"
-              className="tj-cancel"
-              onClick={() => onCancel(j)}
-              aria-label={`Cancel ${j.title}`}
-            >
-              <X size={13} aria-hidden="true" /> Cancel
-            </button>
-          ) : (
-            <span className="tj-tag">Upcoming</span>
-          )
-        ) : (
-          <span className={`tj-tag${completed ? " tj-tag--stamped" : ""}`}>
-            {completed ? "Stamped" : "Upcoming"}
+      <div className="tj-action">
+        {completed ? (
+          <span className="tj-tag tj-tag--stamped">Stamped</span>
+        ) : j.status === "cancel_pending" ? (
+          <span className="tj-pending">
+            <Clock size={12} aria-hidden="true" /> Cancelling
           </span>
-        )}
+        ) : canCancel ? (
+          <button
+            type="button"
+            className="tj-cancel"
+            onClick={() => onCancel(j)}
+            aria-label={`Cancel ${j.title}`}
+          >
+            <X size={13} aria-hidden="true" /> Cancel
+          </button>
+        ) : onOpen ? (
+          <ChevronRight className="tj-go" size={18} aria-hidden="true" />
+        ) : null}
       </div>
     </Tag>
   );
 }
-
-// One section (Upcoming / Stamped) that shows 3 and expands
-function JourneySection({ label, items, openJourney, onCancel, link }) {
-  const [showAll, setShowAll] = useState(false);
-  const PREVIEW = 3;
-  if (!items.length) return null;
-  const visible = showAll ? items : items.slice(0, PREVIEW);
-  const hidden = items.length - visible.length;
-  return (
-    <div className="tj-section">
-      <div className="tj-labelRow">
-        <div className="tj-label">
-          {label} · {items.length}
-        </div>
-        {link}
-      </div>
-      <div className="tj-list">
-        {visible.map((j) => (
-          <JourneyStamp
-            key={j.id}
-            j={j}
-            onOpen={openJourney(j)}
-            onCancel={onCancel}
-          />
-        ))}
-      </div>
-      {items.length > PREVIEW && (
-        <button
-          type="button"
-          className="tj-more"
-          onClick={() => setShowAll((v) => !v)}
-          aria-expanded={showAll}
-        >
-          {showAll ? "Show fewer" : `Show ${hidden} more`}
-          <Chevron flip={showAll} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-const FILTERS = [
-  { value: "all", label: "All journeys", test: () => true },
-  { value: "solo", label: "Solo", test: (j) => !isGroupJourney(j) },
-  { value: "group", label: "Group trips", test: isGroupJourney },
-  {
-    value: "flights",
-    label: "Flights",
-    test: (j) =>
-      j.kind === "booking" && !isStayType(j.type) && !isActivityType(j.type),
-  },
-  { value: "stays", label: "Hotels", test: (j) => isStayType(j.type) },
-  {
-    value: "activities",
-    label: "Excursions",
-    test: (j) => isActivityType(j.type),
-  },
-];
 
 // ── Main ──
 export default function TravelJourneys({ token }) {
@@ -501,28 +451,57 @@ export default function TravelJourneys({ token }) {
       );
   }, [bookings, syncTrips]);
 
-  // Filter options only list what you actually have, with counts
-  const [filter, setFilter] = useState("all");
-  const filterOptions = useMemo(
-    () =>
-      FILTERS.map((f) => ({
-        ...f,
-        count: journeys.filter(f.test).length,
-      })).filter((f) => f.value === "all" || f.count > 0),
-    [journeys]
-  );
-  const active =
-    filterOptions.find((f) => f.value === filter) || filterOptions[0];
-  const shown = active ? journeys.filter(active.test) : journeys;
-
-  // Upcoming group trips (still being planned) stay here. Upcoming solo
-  // flights/hotels are in Manage bookings, so they're only counted.
-  const inTheWorks = shown.filter(
-    (j) => j.stage === "upcoming" && j.kind === "sync"
-  );
-  const upcomingBookings = shown.filter(
+  const upcomingBookings = journeys.filter(
     (j) => j.stage === "upcoming" && j.kind !== "sync"
   );
+  const groupTrips = journeys.filter(
+    (j) => j.stage === "upcoming" && j.kind === "sync"
+  );
+  const completed = journeys.filter((j) => j.stage === "completed").reverse();
+  // Bookings that can be cancelled (or are being cancelled) online.
+  const cancellable = upcomingBookings.filter(
+    (j) =>
+      !j.booking?.sharedRoom &&
+      (j.status === "confirmed" || j.status === "cancel_pending")
+  );
+  const TABS = [
+    {
+      key: "bookings",
+      label: "Bookings",
+      items: upcomingBookings,
+      help: "Your upcoming flights and hotels.",
+      empty: "No upcoming flights or hotels yet.",
+    },
+    {
+      key: "group",
+      label: "Group trips",
+      items: groupTrips,
+      help: "Trips you're planning with friends. Tap one to open it.",
+      empty: "No group trips yet. Start one from Sync Together.",
+    },
+    {
+      key: "past",
+      label: "Past trips",
+      items: completed,
+      help: "Trips you've already taken. Each one earns a stamp on your passport.",
+      empty: "No past trips yet. After each trip, it shows here.",
+    },
+    {
+      key: "cancel",
+      label: "Cancel a trip",
+      items: cancellable,
+      help: "Pick a booking to cancel. You'll see your refund estimate before anything is cancelled.",
+      empty: "Nothing to cancel right now.",
+    },
+  ];
+  const [tab, setTab] = useState(null);
+  const firstWithItems = TABS.find((t) => t.items.length && t.key !== "cancel");
+  const activeTab = tab || firstWithItems?.key || "bookings";
+  const current = TABS.find((t) => t.key === activeTab) || TABS[0];
+  const list = current.items;
+  const [showAll, setShowAll] = useState(false);
+  const PREVIEW = 4;
+  const visible = showAll ? list : list.slice(0, PREVIEW);
 
   // Cancel right here (same modal as My trips). Once done, update the row.
   const [cancelling, setCancelling] = useState(null);
@@ -536,9 +515,7 @@ export default function TravelJourneys({ token }) {
       )
     );
   };
-  const completed = shown.filter((j) => j.stage === "completed").reverse();
 
-  // NOTE: Adjust if your Sync Together detail route differs
   const openJourney = (j) =>
     j.kind === "sync" ? () => navigate(`/sync-together/${j.rawId}`) : undefined;
 
@@ -563,79 +540,82 @@ export default function TravelJourneys({ token }) {
       <div className="pp-journeysHeader tj-head">
         <div className="pp-journeysTitle">Travel Journeys</div>
         {!loading && !error && journeys.length > 0 && (
-          <label className="tj-filter">
-            <span
-              style={{
-                position: "absolute",
-                width: 1,
-                height: 1,
-                overflow: "hidden",
-                clip: "rect(0 0 0 0)",
-              }}
-            >
-              Filter journeys
-            </span>
-            <select
-              value={active?.value || "all"}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              {filterOptions.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.label} ({f.count})
-                </option>
-              ))}
-            </select>
-            <Chevron />
-          </label>
+          <div className="tj-tabs" role="tablist" aria-label="Travel Journeys">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                className={`tj-tab${
+                  t.key === "cancel" ? " tj-tab--cancel" : ""
+                }`}
+                aria-selected={activeTab === t.key}
+                onClick={() => {
+                  setTab(t.key);
+                  setShowAll(false);
+                }}
+              >
+                {t.key === "cancel" && <X size={13} aria-hidden="true" />}
+                {t.label}
+                {t.key !== "cancel" && <b>{t.items.length}</b>}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
-      <p className="tj-sub">
-        Your upcoming bookings, group trips and passport stamps, all in one
-        place.
-      </p>
+      {!loading && !error && journeys.length > 0 && (
+        <p className="tj-help">{current.help}</p>
+      )}
 
       {loading ? (
         <Skeleton active paragraph={{ rows: 3 }} />
       ) : error ? (
         emptyBox("Couldn't load your journeys right now.")
       ) : journeys.length === 0 ? (
-        emptyBox("Your journeys will appear here after your first booking")
-      ) : !upcomingBookings.length &&
-        !inTheWorks.length &&
-        !completed.length ? (
-        emptyBox("Nothing here for this filter yet.")
+        emptyBox("Your journeys will appear here after your first booking.")
+      ) : list.length === 0 ? (
+        emptyBox(current.empty)
       ) : (
-        <div>
-          <JourneySection
-            key={`bk-${active?.value}`}
-            label="Upcoming bookings"
-            items={upcomingBookings}
-            openJourney={openJourney}
-            onCancel={(j) => setCancelling(j.booking)}
-            link={
+        <>
+          <div className="tj-list" role="tabpanel">
+            {visible.map((j) => (
+              <JourneyRow
+                key={j.id}
+                j={j}
+                onOpen={openJourney(j)}
+                onCancel={
+                  activeTab === "cancel"
+                    ? (x) => setCancelling(x.booking)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+          {list.length > PREVIEW && (
+            <button
+              type="button"
+              className="tj-more"
+              onClick={() => setShowAll((v) => !v)}
+              aria-expanded={showAll}
+            >
+              {showAll ? "Show fewer" : `Show ${list.length - PREVIEW} more`}
+              <Chevron flip={showAll} />
+            </button>
+          )}
+          {(activeTab === "bookings" || activeTab === "cancel") && (
+            <div className="tj-foot">
               <button
                 type="button"
                 className="tj-all"
                 onClick={() => navigate("/saved-trips")}
               >
-                My trips <ChevronRight size={14} aria-hidden="true" />
+                All bookings in My trips{" "}
+                <ChevronRight size={14} aria-hidden="true" />
               </button>
-            }
-          />
-          <JourneySection
-            key={`up-${active?.value}`}
-            label="Group trips in the works"
-            items={inTheWorks}
-            openJourney={openJourney}
-          />
-          <JourneySection
-            key={`done-${active?.value}`}
-            label="Stamped"
-            items={completed}
-            openJourney={openJourney}
-          />
-        </div>
+            </div>
+          )}
+        </>
       )}
       {/* Rendered on <body> so the card's blur/transform can't trap the
           full-screen sheet inside the card. */}
