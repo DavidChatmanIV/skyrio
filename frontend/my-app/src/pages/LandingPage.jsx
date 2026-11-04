@@ -1,493 +1,475 @@
-import React, { useState, useRef, useMemo, useEffect } from "react";
-import { Input, Button, Typography, notification } from "antd";
+// ─────────────────────────────────────────────────────────────
+// Discover — the home page ("/").
+//
+// One clear message, then three separate ways to plan (testers said one
+// page with everything at once was overwhelming):
+//   1. Search myself      → /booking (search mode)
+//   2. Plan on a budget   → /booking (budget mode)
+//   3. Let Atlas plan it  → opens the Atlas panel
+// Then the features that set Skyrio apart: Sync Together, Passport & XP,
+// SkyHub, and easy manage/cancel.
+//
+// Self-contained: its own styles (lp- prefix), lucide icons only (no
+// emoji), works signed in or as a guest. The cosmic background comes from
+// AppLayout (osq-shell--landing).
+// ─────────────────────────────────────────────────────────────
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
-  UserOutlined,
-  LockOutlined,
-  EyeInvisibleOutlined,
-  EyeOutlined,
-  ExclamationCircleOutlined,
-} from "@ant-design/icons";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+  Search,
+  Wallet,
+  Sparkles,
+  Users,
+  Award,
+  Globe2,
+  CalendarX2,
+  ArrowRight,
+  Plane,
+  BedDouble,
+  Compass,
+  ShieldCheck,
+  Send,
+} from "lucide-react";
+import { useAuth } from "@/auth/useAuth";
 
-import BoardingPassToast from "../components/BoardingPassToast";
-import AuthLayout from "../layout/AuthLayout";
-import { useAuth } from "../auth/useAuth";
-import { useAuthModal } from "../auth/useAuthModal";
+// Same key BookingPage reads, so the chosen path opens ready to go.
+const PLAN_MODE_KEY = "skyrio_plan_mode";
 
-import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
-import gateBg from "../assets/LoginBoardingpass/gate.png";
-import "../styles/login.css";
-import "../styles/auth-errors.css";
+const CSS = `
+.lp { color: #fff; font-family: "DM Sans", system-ui, sans-serif; width: 100%; box-sizing: border-box; }
+.lp *, .lp *::before, .lp *::after { box-sizing: border-box; }
+.lp-wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-const { Title, Text } = Typography;
-const API = import.meta.env.VITE_API_URL || "";
+/* Hero */
+.lp-hero { padding: clamp(48px, 9vw, 110px) 0 clamp(36px, 6vw, 64px); text-align: center; }
+.lp-kicker { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #ffc27a; background: rgba(255,138,42,.12); border: 1px solid rgba(255,138,42,.32); }
+.lp-title { margin: 18px auto 0; max-width: 860px; font-family: "Playfair Display", "Syne", Georgia, serif; font-size: clamp(36px, 6.4vw, 72px); line-height: 1.04; font-weight: 800; letter-spacing: -.02em; }
+.lp-title em { font-style: normal; background: linear-gradient(135deg, #ff8a2a, #ffb347 55%, #c4b5fd); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lp-sub { margin: 18px auto 0; max-width: 620px; font-size: clamp(15px, 1.8vw, 18px); line-height: 1.6; color: rgba(255,255,255,.78); }
 
-/* Friendly names for the "TO" field instead of raw paths like /passport */
-const ROUTE_LABELS = {
-  "/passport": "Passport",
-  "/dashboard": "Dashboard",
-  "/booking": "Book",
-  "/skyhub": "SkyHub",
-  "/discover": "Discover",
-};
+.lp-ask { margin: 30px auto 0; max-width: 620px; display: flex; gap: 8px; padding: 8px; border-radius: 18px; background: rgba(16,11,34,.82); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.lp-ask__field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+.lp-ask__field svg { color: #ffb347; flex-shrink: 0; }
+.lp-ask input { flex: 1; min-width: 0; height: 48px; border: 0; outline: none; background: transparent; color: #fff; font: inherit; font-size: 16px; }
+.lp-ask input::placeholder { color: rgba(255,255,255,.45); }
+.lp-ask__btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 20px; border: 0; border-radius: 12px; cursor: pointer; font: inherit; font-weight: 800; font-size: 15px; color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); white-space: nowrap; }
+.lp-ask__btn:focus-visible, .lp-btn:focus-visible, .lp-path:focus-visible { outline: 3px solid #ffb347; outline-offset: 3px; }
+.lp-hint { margin-top: 12px; font-size: 13px; color: rgba(255,255,255,.55); }
 
-function labelForRoute(path) {
-  if (ROUTE_LABELS[path]) return ROUTE_LABELS[path];
-  const first = (path || "").split(/[/?#]/).filter(Boolean)[0];
-  if (!first) return "Home";
-  return first
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+.lp-trust { margin-top: 26px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; font-size: 13px; color: rgba(255,255,255,.7); }
+.lp-trust span { display: inline-flex; align-items: center; gap: 6px; }
+.lp-trust svg { color: #6ee7a8; }
+
+/* Section heads */
+.lp-section { padding: clamp(40px, 6vw, 72px) 0; }
+.lp-label { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #ffb347; }
+.lp-h2 { margin: 10px 0 0; font-family: "Playfair Display", "Syne", Georgia, serif; font-size: clamp(26px, 3.6vw, 40px); line-height: 1.12; font-weight: 800; }
+.lp-lead { margin: 12px 0 0; max-width: 620px; font-size: 15.5px; line-height: 1.6; color: rgba(255,255,255,.72); }
+
+/* Three ways to plan */
+.lp-paths { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.lp-path { position: relative; display: flex; flex-direction: column; gap: 12px; text-align: left; padding: 24px; border-radius: 20px; cursor: pointer; font: inherit; color: #fff; background: rgba(16,11,34,.78); border: 1px solid rgba(255,255,255,.12); transition: transform .18s, border-color .18s, background .18s; }
+.lp-path:hover { transform: translateY(-3px); border-color: rgba(255,138,42,.6); background: rgba(24,16,48,.9); }
+.lp-path__icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #ffb347; background: rgba(255,138,42,.14); border: 1px solid rgba(255,138,42,.3); }
+.lp-path--atlas .lp-path__icon { color: #c4b5fd; background: rgba(124,92,252,.16); border-color: rgba(124,92,252,.4); }
+.lp-path__title { font-size: 19px; font-weight: 800; }
+.lp-path__text { font-size: 14.5px; line-height: 1.55; color: rgba(255,255,255,.72); flex: 1; }
+.lp-path__go { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: #ffb347; }
+.lp-path--atlas .lp-path__go { color: #c4b5fd; }
+
+/* Sync Together band */
+.lp-sync { margin-top: 8px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; align-items: center; padding: clamp(24px, 4vw, 44px); border-radius: 26px; background: linear-gradient(135deg, rgba(255,138,42,.16), rgba(124,92,252,.18)); border: 1px solid rgba(255,179,71,.3); }
+.lp-sync__badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); }
+.lp-sync__list { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.lp-sync__list li { display: flex; gap: 10px; font-size: 15px; line-height: 1.5; color: rgba(255,255,255,.85); }
+.lp-sync__list svg { color: #ffb347; flex-shrink: 0; margin-top: 3px; }
+.lp-sync__card { padding: 20px; border-radius: 18px; background: rgba(10,6,23,.72); border: 1px solid rgba(255,255,255,.12); }
+.lp-sync__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.08); font-size: 14px; }
+.lp-sync__row:first-of-type { border-top: 0; }
+.lp-sync__who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lp-sync__dot { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #1a0e06; flex-shrink: 0; }
+.lp-sync__paid { font-size: 12px; font-weight: 800; color: #6ee7a8; }
+.lp-sync__due { font-size: 12px; font-weight: 800; color: #ffc27a; }
+
+/* Feature grid */
+.lp-feats { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.lp-feat { padding: 22px; border-radius: 18px; background: rgba(16,11,34,.7); border: 1px solid rgba(255,255,255,.1); }
+.lp-feat svg { color: #ffb347; }
+.lp-feat h3 { margin: 12px 0 6px; font-size: 17px; font-weight: 800; }
+.lp-feat p { margin: 0; font-size: 14.5px; line-height: 1.55; color: rgba(255,255,255,.7); }
+.lp-feat a { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; font-size: 14px; font-weight: 800; color: #ffb347; text-decoration: none; }
+.lp-feat a:hover { color: #fff; }
+
+/* Steps */
+.lp-steps { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: step; }
+.lp-step { padding: 22px; border-radius: 18px; border: 1px dashed rgba(255,255,255,.18); }
+.lp-step__n { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); }
+.lp-step h3 { margin: 12px 0 6px; font-size: 16.5px; font-weight: 800; }
+.lp-step p { margin: 0; font-size: 14.5px; line-height: 1.55; color: rgba(255,255,255,.7); }
+
+/* Final call to action */
+.lp-cta { margin: 8px 0 clamp(48px, 7vw, 88px); text-align: center; padding: clamp(28px, 5vw, 52px) 24px; border-radius: 26px; background: rgba(16,11,34,.82); border: 1px solid rgba(255,255,255,.12); }
+.lp-cta__btns { margin-top: 22px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.lp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 999px; font: inherit; font-weight: 800; font-size: 15px; text-decoration: none; cursor: pointer; border: 1px solid transparent; }
+.lp-btn--primary { color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); }
+.lp-btn--ghost { color: #fff; background: transparent; border-color: rgba(255,255,255,.3); }
+.lp-btn--ghost:hover { border-color: #ffb347; color: #ffb347; }
+
+@media (max-width: 900px) {
+  .lp-paths, .lp-feats, .lp-steps { grid-template-columns: 1fr; }
+  .lp-sync { grid-template-columns: 1fr; }
 }
+@media (max-width: 560px) {
+  .lp-wrap { padding: 0 16px; }
+  .lp-ask { flex-direction: column; padding: 10px; }
+  .lp-ask__btn { width: 100%; }
+  .lp-path, .lp-feat, .lp-step { padding: 18px; }
+}
+@media (max-width: 360px) {
+  .lp-title { font-size: 32px; }
+  .lp-kicker { font-size: 11px; letter-spacing: .06em; }
+  .lp-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-path { transition: none; }
+  .lp-path:hover { transform: none; }
+}
+`;
 
-/* ── SVG icons (no emoji) ── */
-const PlaneIcon = ({ size = 16 }) => (
-  <svg
-    viewBox="0 0 24 24"
-    width={size}
-    height={size}
-    fill="currentColor"
-    aria-hidden="true"
-    style={{ transform: "rotate(90deg)" }}
-  >
-    <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-  </svg>
-);
+const PATHS = [
+  {
+    key: "search",
+    Icon: Search,
+    title: "Search myself",
+    text: "Pick your dates and compare flights and hotels side by side.",
+    go: "Search flights & stays",
+  },
+  {
+    key: "budget",
+    Icon: Wallet,
+    title: "Plan on a budget",
+    text: "Set what you want to spend and see only the trips that fit.",
+    go: "Set my budget",
+  },
+  {
+    key: "atlas",
+    Icon: Sparkles,
+    title: "Let Atlas plan it",
+    text: "Tell our AI the trip you want in your own words. It finds the options and books them with you.",
+    go: "Ask Atlas",
+  },
+];
 
-const CheckIcon = () => (
-  <svg
-    viewBox="0 0 24 24"
-    width="14"
-    height="14"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M20 6 9 17l-5-5" />
-  </svg>
-);
-
-/* Right-hand stub: real account benefits instead of a fake QR code */
-function LoginStub() {
-  return (
-    <aside
-      className="sk-passStub"
-      aria-label="What you get with a Skyrio account"
-    >
-      <div className="sk-stubTop">
-        <span className="sk-stubGate">Boarding</span>
-      </div>
-
-      <div className="sk-stubPerks">
-        <div className="sk-label">WITH YOUR ACCOUNT</div>
-        <ul className="sk-perkList">
-          <li>
-            <span className="sk-perkIcon">
-              <CheckIcon />
-            </span>
-            Book flights, stays and excursions
-          </li>
-          <li>
-            <span className="sk-perkIcon">
-              <CheckIcon />
-            </span>
-            Earn XP toward your Passport rank
-          </li>
-          <li>
-            <span className="sk-perkIcon">
-              <CheckIcon />
-            </span>
-            Plan group trips with Sync Together
-          </li>
-          <li>
-            <span className="sk-perkIcon">
-              <CheckIcon />
-            </span>
-            Share trips on SkyHub
-          </li>
-        </ul>
-      </div>
-
-      <div className="sk-stubBarcode" aria-hidden="true">
-        {Array.from({ length: 28 }).map((_, i) => (
-          <span key={i} className="sk-bar" />
-        ))}
-      </div>
-    </aside>
+function openAtlas(message) {
+  window.dispatchEvent(
+    new CustomEvent("skyrio:open-atlas", {
+      detail: message ? { mode: "chat", message } : { mode: "chat" },
+    })
   );
 }
 
-export default function LoginPage() {
-  const auth = useAuth();
-  const authModal = useAuthModal();
-  const nav = useNavigate();
-  const location = useLocation();
+export default function LandingPage() {
+  const navigate = useNavigate();
+  const { user, isAuthed } = useAuth();
+  const [where, setWhere] = useState("");
+  const firstName = String(user?.name || user?.username || "")
+    .trim()
+    .split(/\s+/)[0];
 
-  const [formData, setFormData] = useState({
-    emailOrUsername: "",
-    password: "",
-  });
-  const [loading, setLoading] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [capsLockOn, setCapsLockOn] = useState(false);
-  // Shown in a visible box above the button (not just a toast)
-  const [loginError, setLoginError] = useState("");
-  // Which inputs get the red outline: "both" | "email" | "password" | ""
-  const [errorFields, setErrorFields] = useState("");
-  const successHandledRef = useRef(false);
-
-  const clearError = () => {
-    if (loginError) setLoginError("");
-    if (errorFields) setErrorFields("");
-  };
-
-  const redirectTo = useMemo(() => {
-    const rt = location.state?.redirectTo || location.state?.from;
-    // Only allow internal paths ("/x"), never "//evil.com"
-    if (typeof rt === "string" && /^\/(?!\/)/.test(rt.trim())) return rt.trim();
-    return "/passport";
-  }, [location.state]);
-
-  const routeLabel = labelForRoute(redirectTo);
-
-  const passenger = useMemo(() => {
-    const raw = (formData.emailOrUsername || "").trim();
-    if (!raw) return "Explorer";
-    const cleaned = raw.includes("@") ? raw.split("@")[0] : raw;
-    return cleaned.length > 18 ? cleaned.slice(0, 18) + "…" : cleaned;
-  }, [formData.emailOrUsername]);
-
-  // The shimmer only runs while actually checking in
-  useEffect(() => {
-    if (!loading) setIsScanning(false);
-  }, [loading]);
-
-  const checkCapsLock = (e) => {
-    if (typeof e.getModifierState === "function") {
-      setCapsLockOn(e.getModifierState("CapsLock"));
-    }
-  };
-
-  const handleLogin = async () => {
-    if (loading || successHandledRef.current) return;
-    const emailOrUsername = (formData.emailOrUsername || "").trim();
-    const password = formData.password || "";
-    if (!emailOrUsername || !password) {
-      setLoginError("Enter your email or username and your password.");
-      setErrorFields(
-        !emailOrUsername && !password
-          ? "both"
-          : !emailOrUsername
-          ? "email"
-          : "password"
-      );
+  const choosePath = (key) => {
+    if (key === "atlas") {
+      openAtlas();
       return;
     }
-
-    setLoginError("");
-    setErrorFields("");
-    setLoading(true);
-    setIsScanning(true);
-
-    let res;
     try {
-      res = await fetch(`${API}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          identifier: emailOrUsername,
-          emailOrUsername,
-          password,
-        }),
-      });
+      localStorage.setItem(PLAN_MODE_KEY, key);
     } catch {
-      setLoginError(
-        "Can't reach Skyrio right now. Check your connection and try again."
-      );
-      setLoading(false);
-      return;
+      /* private mode: the booking page just opens on search */
     }
-
-    try {
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 404) {
-          // Same message either way, so the page never reveals which accounts exist.
-          setLoginError("Wrong email/username or password. Please try again.");
-          setErrorFields("both");
-          setFormData((f) => ({ ...f, password: "" }));
-        } else if (res.status === 429) {
-          setLoginError(
-            "Too many login attempts. Wait a few minutes and try again."
-          );
-        } else {
-          setLoginError(
-            data?.message || data?.error || "Login failed. Please try again."
-          );
-        }
-        successHandledRef.current = false;
-        return;
-      }
-
-      if (auth?.setSession)
-        auth.setSession({ token: data?.token, user: data?.user });
-      else {
-        if (data?.token) localStorage.setItem("token", data.token);
-        if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
-      }
-
-      const displayName =
-        data.user?.name ||
-        data.user?.username ||
-        (data.user?.email ? data.user.email.split("@")[0] : passenger);
-
-      successHandledRef.current = true;
-
-      // One confirmation only (the boarding pass toast)
-      notification.open({
-        message: null,
-        description: (
-          <BoardingPassToast
-            name={displayName}
-            routeFrom="Login"
-            routeTo={routeLabel}
-          />
-        ),
-        placement: "topRight",
-        duration: 3,
-        style: { background: "transparent", boxShadow: "none", padding: 0 },
-      });
-
-      authModal?.closeAuthModal?.();
-      nav(redirectTo, { replace: true, state: { fromAuth: true } });
-    } catch (err) {
-      successHandledRef.current = false;
-      setLoginError(err?.message || "Login failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    navigate("/booking");
   };
 
-  const onSubmit = (e) => {
+  const ask = (e) => {
     e.preventDefault();
-    handleLogin();
+    const place = where.trim();
+    openAtlas(
+      place
+        ? `Help me plan a trip to ${place}. Show me flights and places to stay.`
+        : undefined
+    );
   };
-
-  const emailHasError = errorFields === "both" || errorFields === "email";
-  const passwordHasError = errorFields === "both" || errorFields === "password";
 
   return (
-    <AuthLayout>
-      <div className="auth-scene login">
-        <div className="sk-loginPage">
-          <div
-            className="sk-loginBg"
-            style={{ backgroundImage: `url(${gateBg})` }}
-            aria-hidden="true"
-          />
+    <div className="lp">
+      <style>{CSS}</style>
 
-          <div className="sk-loginWrap">
-            <div className="sk-loginInner">
-              <div className="sk-authHero">
-                <Title level={1} className="sk-authTitle">
-                  Welcome back, {passenger}
-                </Title>
-                <Text className="sk-authSubtitle">
-                  Check in fast. Earn XP. Keep it moving.
-                </Text>
-              </div>
-            </div>
+      {/* ── Hero ── */}
+      <section className="lp-hero">
+        <div className="lp-wrap">
+          <span className="lp-kicker">
+            <Compass size={14} aria-hidden="true" />
+            {isAuthed && firstName
+              ? `Welcome back, ${firstName}`
+              : "AI-native travel booking"}
+          </span>
+          <h1 className="lp-title">
+            Plan smarter. <em>Travel better.</em>
+          </h1>
+          <p className="lp-sub">
+            Book flights and hotels, plan group trips where everyone pays their
+            own share, and earn XP on every trip, all in one place.
+          </p>
 
-            <form
-              className={`sk-passCard sk-passWide ${
-                isScanning ? "isScanning" : ""
-              }`}
-              style={{
-                "--sk-pass-bg": `url(${galaxyLogin})`,
-                "--sk-gateImg": `url(${gateBg})`,
-              }}
-              onSubmit={onSubmit}
-              noValidate
-              aria-label="Log in to Skyrio"
-              aria-busy={loading ? "true" : "false"}
-            >
-              <div className="sk-passGlow" aria-hidden="true" />
-              <div className="sk-passScan" aria-hidden="true" />
+          <form className="lp-ask" onSubmit={ask} role="search">
+            <label className="lp-ask__field">
+              <Plane size={18} aria-hidden="true" />
+              <span
+                style={{
+                  position: "absolute",
+                  width: 1,
+                  height: 1,
+                  overflow: "hidden",
+                  clip: "rect(0 0 0 0)",
+                }}
+              >
+                Where do you want to go?
+              </span>
+              <input
+                value={where}
+                onChange={(e) => setWhere(e.target.value)}
+                placeholder="Where do you want to go?"
+                autoComplete="off"
+                maxLength={80}
+              />
+            </label>
+            <button type="submit" className="lp-ask__btn">
+              <Sparkles size={16} aria-hidden="true" /> Plan with Atlas
+            </button>
+          </form>
+          <div className="lp-hint">
+            Or{" "}
+            <Link to="/booking" style={{ color: "#ffb347", fontWeight: 700 }}>
+              search flights and hotels yourself
+            </Link>
+            .
+          </div>
 
-              <div className="sk-passGrid">
-                <div className="sk-passMain">
-                  <div className="sk-passHeader">
-                    <div className="sk-brandRow">
-                      <span className="sk-dot" aria-hidden="true" />
-                      <span className="sk-brand">Skyrio</span>
-                    </div>
-                    <div className="sk-chipRow" aria-hidden="true">
-                      <span className="sk-chip">SKY</span>
-                      <span className="sk-chip">Gate A3</span>
-                    </div>
-                  </div>
-
-                  <div className="sk-passTitle">
-                    <div className="sk-kicker">SKYRIO ACCESS</div>
-                  </div>
-
-                  <div className="sk-idGrid">
-                    <div className="sk-idBlock">
-                      <div className="sk-label">PASSENGER</div>
-                      <div className="sk-value">{passenger}</div>
-                    </div>
-                    <div className="sk-idBlock sk-right">
-                      <div className="sk-label">STATUS</div>
-                      <div className="sk-statusPill" aria-live="polite">
-                        {loading ? "Checking in…" : "Ready"}
-                      </div>
-                    </div>
-                    <div className="sk-idBlock">
-                      <div className="sk-label">FROM</div>
-                      <div className="sk-smallValue">Login</div>
-                    </div>
-                    <div className="sk-idBlock sk-right">
-                      <div className="sk-label">TO</div>
-                      <div className="sk-smallValue">{routeLabel}</div>
-                    </div>
-                  </div>
-
-                  <div className="sk-flightLine" aria-hidden="true">
-                    <div className="sk-lineDot" />
-                    <div className="sk-line" />
-                    <div className="sk-plane">
-                      <PlaneIcon />
-                    </div>
-                    <div className="sk-line" />
-                    <div className="sk-lineDot" />
-                  </div>
-
-                  <div className="sk-form">
-                    <div className="sk-field">
-                      <label className="sk-fieldLabel" htmlFor="sk-login-id">
-                        EMAIL OR USERNAME
-                      </label>
-                      <Input
-                        id="sk-login-id"
-                        name="username"
-                        value={formData.emailOrUsername}
-                        onChange={(e) => {
-                          clearError();
-                          setFormData((f) => ({
-                            ...f,
-                            emailOrUsername: e.target.value,
-                          }));
-                        }}
-                        placeholder="Email or username"
-                        prefix={<UserOutlined />}
-                        className="sk-input"
-                        status={emailHasError ? "error" : undefined}
-                        aria-invalid={emailHasError}
-                        aria-describedby={
-                          loginError ? "sk-login-error" : undefined
-                        }
-                        autoComplete="username"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        autoFocus
-                        size="large"
-                      />
-                    </div>
-
-                    <div className="sk-field">
-                      <div className="sk-fieldLabelRow">
-                        <label className="sk-fieldLabel" htmlFor="sk-login-pw">
-                          PASSWORD
-                        </label>
-                        <Link className="sk-linkSmall" to="/reset">
-                          Forgot password?
-                        </Link>
-                      </div>
-                      <Input.Password
-                        id="sk-login-pw"
-                        name="password"
-                        value={formData.password}
-                        onChange={(e) => {
-                          clearError();
-                          setFormData((f) => ({
-                            ...f,
-                            password: e.target.value,
-                          }));
-                        }}
-                        onKeyDown={checkCapsLock}
-                        onKeyUp={checkCapsLock}
-                        onBlur={() => setCapsLockOn(false)}
-                        placeholder="Password"
-                        prefix={<LockOutlined />}
-                        className="sk-input"
-                        status={passwordHasError ? "error" : undefined}
-                        aria-invalid={passwordHasError}
-                        aria-describedby={
-                          loginError ? "sk-login-error" : undefined
-                        }
-                        autoComplete="current-password"
-                        size="large"
-                        iconRender={(visible) =>
-                          visible ? <EyeOutlined /> : <EyeInvisibleOutlined />
-                        }
-                      />
-                      {capsLockOn && (
-                        <div className="sk-capsHint" role="status">
-                          Caps Lock is on
-                        </div>
-                      )}
-                    </div>
-
-                    {loginError && (
-                      <div
-                        id="sk-login-error"
-                        className="sk-loginError"
-                        role="alert"
-                        aria-live="assertive"
-                      >
-                        <ExclamationCircleOutlined className="sk-loginErrorIcon" />
-                        <div>{loginError}</div>
-                      </div>
-                    )}
-
-                    <Button
-                      className="sk-ctaBtn"
-                      type="primary"
-                      htmlType="submit"
-                      block
-                      size="large"
-                      loading={loading}
-                    >
-                      {loading ? "Checking in…" : "Confirm Boarding"}
-                    </Button>
-
-                    <div className="sk-secondary">
-                      <Text className="sk-muted sk-signupLine">
-                        New to Skyrio?{" "}
-                        <Link className="sk-inlineBtnLink" to="/register">
-                          Create your account
-                        </Link>
-                      </Text>
-                    </div>
-                  </div>
-
-                  <div className="sk-cardFooter">
-                    © {new Date().getFullYear()} Skyrio
-                  </div>
-                </div>
-
-                <LoginStub />
-              </div>
-            </form>
+          <div className="lp-trust">
+            <span>
+              <ShieldCheck size={15} aria-hidden="true" /> Secure checkout
+            </span>
+            <span>
+              <CalendarX2 size={15} aria-hidden="true" /> See your refund before
+              you cancel
+            </span>
+            <span>
+              <Users size={15} aria-hidden="true" /> Book with or without an
+              account
+            </span>
           </div>
         </div>
-      </div>
-    </AuthLayout>
+      </section>
+
+      {/* ── Three ways to plan ── */}
+      <section className="lp-section" aria-labelledby="lp-paths-title">
+        <div className="lp-wrap">
+          <div className="lp-label">Start your trip</div>
+          <h2 className="lp-h2" id="lp-paths-title">
+            Three ways to plan. Pick yours.
+          </h2>
+          <div className="lp-paths">
+            {PATHS.map(({ key, Icon, title, text, go }) => (
+              <button
+                key={key}
+                type="button"
+                className={`lp-path${key === "atlas" ? " lp-path--atlas" : ""}`}
+                onClick={() => choosePath(key)}
+              >
+                <span className="lp-path__icon" aria-hidden="true">
+                  <Icon size={22} />
+                </span>
+                <span className="lp-path__title">{title}</span>
+                <span className="lp-path__text">{text}</span>
+                <span className="lp-path__go">
+                  {go} <ArrowRight size={15} aria-hidden="true" />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Sync Together ── */}
+      <section className="lp-section" aria-labelledby="lp-sync-title">
+        <div className="lp-wrap">
+          <div className="lp-sync">
+            <div>
+              <span className="lp-sync__badge">
+                <Users size={13} aria-hidden="true" /> Group trips
+              </span>
+              <h2 className="lp-h2" id="lp-sync-title">
+                Sync Together: plan with friends, pay your own share.
+              </h2>
+              <ul className="lp-sync__list">
+                <li>
+                  <ArrowRight size={16} aria-hidden="true" />
+                  Invite friends with one link. They can join from any phone.
+                </li>
+                <li>
+                  <ArrowRight size={16} aria-hidden="true" />
+                  Pick flights and a place to stay together.
+                </li>
+                <li>
+                  <ArrowRight size={16} aria-hidden="true" />
+                  Everyone pays their own part. No chasing people for money.
+                </li>
+              </ul>
+              <div
+                className="lp-cta__btns"
+                style={{ justifyContent: "flex-start" }}
+              >
+                <Link to="/sync-together" className="lp-btn lp-btn--primary">
+                  Start a group trip <ArrowRight size={16} aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+            <div className="lp-sync__card" aria-hidden="true">
+              <div className="lp-label" style={{ marginBottom: 8 }}>
+                Weekend in Miami · 4 travelers
+              </div>
+              {[
+                ["A", "#ffb347", "Alex", true],
+                ["J", "#c4b5fd", "Jordan", true],
+                ["S", "#6ee7a8", "Sam", false],
+                ["R", "#ff9db0", "Riley", true],
+              ].map(([i, bg, name, paid]) => (
+                <div key={name} className="lp-sync__row">
+                  <span className="lp-sync__who">
+                    <span className="lp-sync__dot" style={{ background: bg }}>
+                      {i}
+                    </span>
+                    {name}
+                  </span>
+                  {paid ? (
+                    <span className="lp-sync__paid">Paid</span>
+                  ) : (
+                    <span className="lp-sync__due">Share pending</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Why Skyrio ── */}
+      <section className="lp-section" aria-labelledby="lp-feats-title">
+        <div className="lp-wrap">
+          <div className="lp-label">Why Skyrio</div>
+          <h2 className="lp-h2" id="lp-feats-title">
+            More than a booking site.
+          </h2>
+          <div className="lp-feats">
+            <div className="lp-feat">
+              <Award size={24} aria-hidden="true" />
+              <h3>Digital Passport &amp; XP</h3>
+              <p>
+                Every trip earns XP and stamps. Climb the ranks and spend XP on
+                rewards.
+              </p>
+              <Link to="/passport">
+                {isAuthed ? "Open my Passport" : "See the Passport"}{" "}
+                <ArrowRight size={14} aria-hidden="true" />
+              </Link>
+            </div>
+            <div className="lp-feat">
+              <Globe2 size={24} aria-hidden="true" />
+              <h3>SkyHub</h3>
+              <p>
+                Real trips from real travelers. Get ideas, share your own and
+                find people going where you are.
+              </p>
+              <Link to="/skyhub">
+                Explore SkyHub <ArrowRight size={14} aria-hidden="true" />
+              </Link>
+            </div>
+            <div className="lp-feat">
+              <CalendarX2 size={24} aria-hidden="true" />
+              <h3>Change of plans? Easy.</h3>
+              <p>
+                Cancel a flight or hotel in a few taps. You see exactly what you
+                get back before anything is cancelled.
+              </p>
+              <Link to={isAuthed ? "/saved-trips" : "/find-booking"}>
+                {isAuthed ? "Go to My trips" : "Find my booking"}{" "}
+                <ArrowRight size={14} aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── How it works ── */}
+      <section className="lp-section" aria-labelledby="lp-steps-title">
+        <div className="lp-wrap">
+          <div className="lp-label">How it works</div>
+          <h2 className="lp-h2" id="lp-steps-title">
+            From idea to boarding pass.
+          </h2>
+          <div className="lp-steps">
+            <div className="lp-step">
+              <span className="lp-step__n">1</span>
+              <h3>Find your trip</h3>
+              <p>
+                Search, set a budget or just tell Atlas where you want to go.
+              </p>
+            </div>
+            <div className="lp-step">
+              <span className="lp-step__n">2</span>
+              <h3>Book in minutes</h3>
+              <p>
+                Choose your seat and room, then pay securely. Your confirmation
+                arrives by email.
+              </p>
+            </div>
+            <div className="lp-step">
+              <span className="lp-step__n">3</span>
+              <h3>Travel and earn</h3>
+              <p>
+                Manage everything in My trips and earn XP toward your next
+                adventure.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Final call to action ── */}
+      <section className="lp-wrap">
+        <div className="lp-cta">
+          <h2 className="lp-h2">
+            {isAuthed ? "Where to next?" : "Your next trip starts here."}
+          </h2>
+          <p className="lp-lead" style={{ margin: "12px auto 0" }}>
+            {isAuthed
+              ? "Book your next flight or hotel, or let Atlas plan it for you."
+              : "Create a free account to earn XP and plan group trips, or book as a guest. No account needed."}
+          </p>
+          <div className="lp-cta__btns">
+            <Link to="/booking" className="lp-btn lp-btn--primary">
+              <Plane size={16} aria-hidden="true" /> Book a flight
+            </Link>
+            <Link to="/booking" className="lp-btn lp-btn--ghost">
+              <BedDouble size={16} aria-hidden="true" /> Find a hotel
+            </Link>
+            {!isAuthed && (
+              <Link to="/register" className="lp-btn lp-btn--ghost">
+                <Send size={16} aria-hidden="true" /> Create free account
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
