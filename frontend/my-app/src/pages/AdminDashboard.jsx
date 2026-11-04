@@ -434,6 +434,22 @@ const INJECTED_CSS = `
   .sk-thank-modal .ant-input-data-count { color: rgba(255,255,255,0.45) !important; }
   .sk-thank-modal .ant-btn-default { background: transparent !important; color: #fff !important; border-color: rgba(255,255,255,0.25) !important; }
   .sk-thank-modal .ant-btn-primary { background: linear-gradient(135deg, #ff8a2a, #ffb347) !important; color: #1a0e06 !important; border: 0 !important; font-weight: 700; }
+
+  /* Confirm dialogs (Modal.confirm) — readable on the dark admin theme */
+  .sk-thank-modal .ant-modal-confirm-title { color: #fff !important; font-weight: 700; }
+  .sk-thank-modal .ant-modal-confirm-content,
+  .sk-thank-modal .ant-modal-confirm-paragraph { color: rgba(255,255,255,0.78) !important; }
+  .sk-thank-modal .ant-modal-confirm-body > .anticon { color: #ffb347 !important; }
+  .sk-thank-modal .ant-modal-content { border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 20px 60px rgba(0,0,0,0.6) !important; }
+
+  /* Small "are you sure?" popups (Popconfirm) */
+  .sk-pop .ant-popover-inner { background: #150f28 !important; border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 14px 40px rgba(0,0,0,0.55) !important; }
+  .sk-pop .ant-popover-arrow::before, .sk-pop .ant-popover-arrow::after { background: #150f28 !important; }
+  .sk-pop .ant-popconfirm-title { color: #fff !important; font-weight: 700; }
+  .sk-pop .ant-popconfirm-description { color: rgba(255,255,255,0.75) !important; max-width: 280px; }
+  .sk-pop .ant-popconfirm-message-icon .anticon { color: #ffb347 !important; }
+  .sk-pop .ant-btn-default { background: transparent !important; color: #fff !important; border-color: rgba(255,255,255,0.25) !important; }
+  .sk-pop .ant-btn-dangerous.ant-btn-primary { background: #e5484d !important; color: #fff !important; border: 0 !important; }
   @media (max-width: 640px) {
     .sk-top__bar { flex-wrap: wrap; padding-bottom: 4px; }
     .sk-top__right { flex-wrap: wrap; }
@@ -1696,6 +1712,7 @@ function ChallengesPanel({ refreshKey }) {
                 </button>
                 {c.active && (
                   <Popconfirm
+                    overlayClassName="sk-pop"
                     title="End this challenge early?"
                     description="Already-earned bonuses and progress are kept. This just stops it from running."
                     okText="End it"
@@ -1939,6 +1956,7 @@ function RewardsPanel({ refreshKey }) {
               </button>
               {item.active && (
                 <Popconfirm
+                  overlayClassName="sk-pop"
                   title="Remove this item?"
                   description="Anyone who already redeemed it keeps that history. This just hides it from the live catalog."
                   okText="Remove"
@@ -2936,6 +2954,7 @@ function FeedbackInbox({ refreshKey, onChange }) {
                         return;
                       }
                       Modal.confirm({
+                        className: "sk-thank-modal",
                         title: "Mark as shipped?",
                         content:
                           "This sends the user a +100 XP bonus and a notification. It can only happen once per item.",
@@ -3463,6 +3482,7 @@ function XpLog({ refreshKey }) {
               </span>
               {!a.reversed && (
                 <Popconfirm
+                  overlayClassName="sk-pop"
                   title="Reverse this XP?"
                   description={`Takes ${a.amount} XP back from this user. This is logged.`}
                   okText="Reverse"
