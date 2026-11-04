@@ -428,6 +428,27 @@ function codesFor(b) {
   );
 }
 
+// Manage-link email after a Find my booking lookup, sent after a short
+// delay (MANAGE_EMAIL_DELAY_MIN, default 20 minutes). One pending email per
+// booking: looking it up again doesn't queue another. If the server restarts
+// before it goes out, that email is skipped; the traveler already opened the
+// booking and can always look it up again.
+const MANAGE_EMAIL_DELAY_MS =
+  Math.max(0, Number(process.env.MANAGE_EMAIL_DELAY_MIN ?? 20)) * 60 * 1000;
+const pendingManageEmails = new Map(); // bookingId -> timer
+function queueManageLinkEmail(to, booking) {
+  const key = String(booking._id);
+  if (pendingManageEmails.has(key)) return;
+  const timer = setTimeout(() => {
+    pendingManageEmails.delete(key);
+    sendManageLinkEmail({ to, booking }).catch((e) =>
+      console.error("[bookings/find] manage email failed", key, e?.message)
+    );
+  }, MANAGE_EMAIL_DELAY_MS);
+  timer.unref?.();
+  pendingManageEmails.set(key, timer);
+}
+
 /**
  * POST /api/bookings/find  { email, code } — public.
  * Email + confirmation code together open the booking right away (the way
@@ -478,20 +499,15 @@ router.post("/find", async (req, res) => {
           "We couldn't find a booking with that email and code. Check both against your confirmation email and try again.",
       });
     }
-    for (const b of matches) {
-      sendManageLinkEmail({ to: email, booking: b }).catch((e) =>
-        console.error(
-          "[bookings/find] manage email failed",
-          String(b._id),
-          e?.message
-        )
-      );
-    }
+    // They're already looking at the booking, so the "come back later"
+    // link isn't needed right now. Send it a little later instead, and
+    // only once even if they look it up several times.
+    for (const b of matches) queueManageLinkEmail(email, b);
     res.json({
       ok: true,
       found: true,
       message:
-        "Found it. We also emailed you a link so you can come back to it later.",
+        "Found it. We'll also email you a link so you can come back to it later.",
       bookings: matches.map((b) => ({
         id: String(b._id),
         token: mintManageToken(b._id),
@@ -1309,9 +1325,16 @@ router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
     if (!booking) return;
     if (blockSharedRoom(req, res, booking)) return;
     if (booking.status === "cancelled" || booking.status === "cancel_pending") {
+      // Say which one, and send the status back so the page can update
+      // (it may have been opened before the cancellation started).
       return res.json({
         cancellable: false,
-        reason: "This booking is already cancelled or being cancelled.",
+        status: booking.status,
+        inProgress: booking.status === "cancel_pending",
+        reason:
+          booking.status === "cancelled"
+            ? "This booking is already cancelled."
+            : "Your cancellation is already in progress. The airline usually confirms within a few hours to a couple of days, and we'll email you when it's final.",
       });
     }
     if (booking.status !== "confirmed") {
@@ -1375,6 +1398,7 @@ router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
         return res.json({
           cancellable: false,
           inProgress: true,
+          status: booking.status,
           reason:
             "The airline is already processing your cancellation. We'll let you know as soon as it's final.",
         });

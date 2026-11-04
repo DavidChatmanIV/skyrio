@@ -42,6 +42,8 @@ const FeedbackSchema = new Schema(
     // thanked twice for the same submission.
     thankedAt: Date,
     thankedBy: String,
+    thankEmailed: Boolean, // false = the thank-you email didn't go out
+    thankEmailedAt: Date,
   },
   { timestamps: true }
 );
@@ -82,6 +84,8 @@ const TestimonialSchema = new Schema(
     // Set when an admin sends a thank-you (admin dashboard).
     thankedAt: Date,
     thankedBy: String,
+    thankEmailed: Boolean, // false = the thank-you email didn't go out
+    thankEmailedAt: Date,
   },
   { timestamps: true }
 );

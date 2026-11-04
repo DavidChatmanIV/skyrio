@@ -1,8 +1,12 @@
 // backend/routes/thanks.routes.js
 // "Thank you for your feedback / review" from the admin dashboard.
 //
-//   POST /api/feedback/admin/thank      { ids: [...], message, notify, email }
-//   POST /api/testimonials/admin/thank  { ids: [...], message, notify, email }
+//   POST /api/feedback/admin/thank      { ids, message, notify, email, resend }
+//   POST /api/testimonials/admin/thank  { ids, message, notify, email, resend }
+//
+// resend: true also includes items that were already thanked (to resend
+// an email that didn't arrive). Without it, already-thanked items are
+// skipped.
 //
 // Works on anything already submitted, old or new. Sends ONE message per
 // person (someone with 4 submissions isn't thanked 4 times), then stamps
@@ -52,6 +56,7 @@ function handler(modelName, kind) {
       .slice(0, 600);
     const notify = req.body?.notify !== false;
     const email = req.body?.email !== false;
+    const resend = req.body?.resend === true;
     if (!ids.length)
       return res.status(400).json({ ok: false, message: "Nothing selected." });
     if (!message)
@@ -68,7 +73,7 @@ function handler(modelName, kind) {
       const items = await Model.find({
         _id: { $in: ids },
         user: { $ne: null },
-        thankedAt: { $exists: false },
+        ...(resend ? {} : { thankedAt: { $exists: false } }),
       })
         .select("_id user")
         .lean();
@@ -83,6 +88,8 @@ function handler(modelName, kind) {
 
       let people = 0;
       const thankedIds = [];
+      const emailFailed = []; // people whose email didn't go out
+      const now = new Date();
       for (const [uid, itemIds] of byUser) {
         try {
           const r = await sendThankYou({
@@ -92,9 +99,32 @@ function handler(modelName, kind) {
             notify,
             email,
           });
+          if (email && !r.emailed) {
+            emailFailed.push({
+              name: r.name || null,
+              email: r.to || null,
+              reason: r.emailError || "No email on file",
+            });
+          }
           if (r.notified || r.emailed) {
             people += 1;
             thankedIds.push(...itemIds);
+            // strict:false so this works even before these fields are in
+            // the schema. thankEmailed shows in the dashboard so a missed
+            // email is easy to spot and resend.
+            const set = {
+              thankedAt: now,
+              thankedBy: req.adminEmail || "admin",
+            };
+            if (email) {
+              set.thankEmailed = Boolean(r.emailed);
+              if (r.emailed) set.thankEmailedAt = now;
+            }
+            await Model.updateMany(
+              { _id: { $in: itemIds } },
+              { $set: set },
+              { strict: false }
+            );
           }
         } catch (err) {
           console.warn(`[thanks] ${kind} → user ${uid} failed:`, err?.message);
@@ -102,23 +132,12 @@ function handler(modelName, kind) {
       }
 
       if (thankedIds.length) {
-        // strict:false so this works even before thankedAt is in the schema.
-        await Model.updateMany(
-          { _id: { $in: thankedIds } },
-          {
-            $set: {
-              thankedAt: new Date(),
-              thankedBy: req.adminEmail || "admin",
-            },
-          },
-          { strict: false }
-        );
         try {
           await M("AdminAudit").create({
             admin: req.adminEmail || "admin",
             action: "thank",
             target: { kind },
-            detail: `Thanked ${people} ${
+            detail: `${resend ? "Re-sent thanks to" : "Thanked"} ${people} ${
               people === 1 ? "person" : "people"
             } for ${thankedIds.length} ${
               kind === "review" ? "review" : "feedback"
@@ -134,6 +153,7 @@ function handler(modelName, kind) {
         people,
         items: thankedIds.length,
         skipped: ids.length - thankedIds.length,
+        emailFailed,
       });
     } catch (err) {
       console.error(`POST /${kind} thank error:`, err);

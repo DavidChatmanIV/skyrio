@@ -4273,6 +4273,17 @@ function readPlanMode() {
   }
 }
 const PLAN_CSS = `
+  /* Flight "Select" buttons light up once picked, like a chosen seat. */
+  .sk-pick-btn { display: inline-flex !important; align-items: center; gap: 5px; transition: background .15s, box-shadow .15s, transform .1s; }
+  .sk-pick-btn:active { transform: scale(0.97); }
+  .sk-pick-btn.is-picked,
+  .sk-pick-btn.is-picked:hover,
+  .sk-pick-btn.is-picked:focus {
+    background: linear-gradient(135deg, #ff8a2a, #ffb347) !important;
+    color: #1a0e06 !important; border-color: transparent !important; font-weight: 800 !important;
+    box-shadow: 0 0 0 3px rgba(255,138,42,0.35), 0 6px 18px rgba(255,138,42,0.35) !important;
+  }
+  .sk-result-card.is-selected { box-shadow: 0 0 0 2px #ff8a2a, 0 10px 30px rgba(255,138,42,0.18) !important; }
   .sk-planmode { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; }
   .sk-planmode__btn {
     display: flex; align-items: center; gap: 12px; text-align: left;
@@ -7431,14 +7442,28 @@ export default function BookingPage() {
                             )}
                           </button>
                           <Button
-                            className="sk-btn-orange"
+                            className={`sk-btn-orange sk-pick-btn${
+                              selectedResult.id === flight.id
+                                ? " is-picked"
+                                : ""
+                            }`}
                             size="small"
+                            aria-pressed={selectedResult.id === flight.id}
                             onClick={(e) => {
                               e.stopPropagation();
                               selectFlightForCheckout(flight);
                             }}
                           >
-                            {packagePlan ? "Add to trip" : "Book Now"}
+                            {selectedResult.id === flight.id ? (
+                              <>
+                                <Check size={14} aria-hidden="true" />
+                                {packagePlan ? "Added" : "Selected"}
+                              </>
+                            ) : packagePlan ? (
+                              "Add to trip"
+                            ) : (
+                              "Book Now"
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -7650,10 +7675,20 @@ export default function BookingPage() {
                               )}
                             </button>
                             <Button
-                              className="sk-btn-orange"
+                              className={`sk-btn-orange sk-pick-btn${
+                                selectedResult.id === cheapest.id ||
+                                selectedOutboundGroupKey === group.key
+                                  ? " is-picked"
+                                  : ""
+                              }`}
                               size="small"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                handleSelectResult({
+                                  id: cheapest.id,
+                                  title: `${outbound.owner} · ${outbound.origin} → ${outbound.destination}`,
+                                  total: parseFloat(cheapest.totalAmount),
+                                });
                                 // FIX: previously skipped straight to
                                 // checkout when a group had only one
                                 // return option — inconsistent with
@@ -7669,7 +7704,15 @@ export default function BookingPage() {
                                 setSelectedOutboundGroupKey(group.key);
                               }}
                             >
-                              Select Flight
+                              {selectedResult.id === cheapest.id ||
+                              selectedOutboundGroupKey === group.key ? (
+                                <>
+                                  <Check size={14} aria-hidden="true" />
+                                  Selected
+                                </>
+                              ) : (
+                                "Select Flight"
+                              )}
                             </Button>
                           </div>
                         </div>
@@ -7932,14 +7975,28 @@ export default function BookingPage() {
                                     </span>
                                   </div>
                                   <Button
-                                    className="sk-btn-orange"
+                                    className={`sk-btn-orange sk-pick-btn${
+                                      selectedResult.id === opt.id
+                                        ? " is-picked"
+                                        : ""
+                                    }`}
                                     size="small"
+                                    aria-pressed={selectedResult.id === opt.id}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       selectFlightForCheckout(opt);
                                     }}
                                   >
-                                    {packagePlan ? "Add to trip" : "Select"}
+                                    {selectedResult.id === opt.id ? (
+                                      <>
+                                        <Check size={14} aria-hidden="true" />
+                                        {packagePlan ? "Added" : "Selected"}
+                                      </>
+                                    ) : packagePlan ? (
+                                      "Add to trip"
+                                    ) : (
+                                      "Select"
+                                    )}
                                   </Button>
                                 </div>
                               </div>

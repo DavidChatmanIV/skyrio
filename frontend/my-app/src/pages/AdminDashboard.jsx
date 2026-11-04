@@ -2413,11 +2413,19 @@ function ThankModal({ kind, items, onClose, onSent }) {
   const [email, setEmail] = useState(true);
   const [sending, setSending] = useState(false);
   const open = items.length > 0;
+  const reachable = items.filter((it) => it.user);
+  const already = reachable.filter((it) => it.thankedAt).length;
+  // Resending to people who were already thanked: usually the email
+  // didn't arrive, so default to email only (no second notification).
+  const isResend = reachable.length > 0 && already === reachable.length;
   useEffect(() => {
-    if (open) setText(THANK_TEMPLATES[kind]);
+    if (!open) return;
+    setText(THANK_TEMPLATES[kind]);
+    setNotify(!isResend);
+    setEmail(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, kind]);
 
-  const reachable = items.filter((it) => it.user);
   const skipped = items.length - reachable.length;
   // One message per person, however many things they sent.
   const people = new Map();
@@ -2443,14 +2451,48 @@ function ThankModal({ kind, items, onClose, onSent }) {
           message: text.trim(),
           notify,
           email,
+          resend: true, // the admin picked these, so include already-thanked
         },
       });
       const sent = Number(j.people ?? peopleCount);
-      message.success(
-        sent === 1
-          ? "Thank-you sent."
-          : `Thank-you sent to ${sent} ${plural(sent, "person", "people")}.`
-      );
+      const failed = Array.isArray(j.emailFailed) ? j.emailFailed : [];
+      if (failed.length) {
+        Modal.warning({
+          className: "sk-thank-modal",
+          title:
+            failed.length === 1
+              ? "The email didn't go out"
+              : `${failed.length} emails didn't go out`,
+          content: (
+            <div>
+              {failed.map((f, i) => (
+                <div key={i} style={{ marginBottom: 6 }}>
+                  <b>{f.name || f.email || "Someone"}</b>
+                  {f.email && f.name ? ` (${f.email})` : ""}: {f.reason}
+                </div>
+              ))}
+              <div style={{ marginTop: 8, opacity: 0.75 }}>
+                They&apos;re marked &ldquo;Email failed&rdquo;. Use Resend to
+                try again.
+              </div>
+            </div>
+          ),
+        });
+      } else {
+        message.success(
+          isResend
+            ? sent === 1
+              ? "Thank-you sent again."
+              : `Thank-you sent again to ${sent} ${plural(
+                  sent,
+                  "person",
+                  "people"
+                )}.`
+            : sent === 1
+            ? "Thank-you sent."
+            : `Thank-you sent to ${sent} ${plural(sent, "person", "people")}.`
+        );
+      }
       onSent?.();
       onClose();
     } catch (err) {
@@ -2468,13 +2510,19 @@ function ThankModal({ kind, items, onClose, onSent }) {
     <Modal
       open={open}
       title={
-        peopleCount > 1
+        isResend
+          ? peopleCount > 1
+            ? `Resend thank-you to ${peopleCount} people`
+            : `Resend thank-you${first ? ` to ${first}` : ""}`
+          : peopleCount > 1
           ? `Thank ${peopleCount} people`
           : `Send a thank-you${first ? ` to ${first}` : ""}`
       }
       onCancel={onClose}
       onOk={send}
-      okText={sending ? "Sending…" : "Send thank-you"}
+      okText={
+        sending ? "Sending…" : isResend ? "Resend thank-you" : "Send thank-you"
+      }
       okButtonProps={{ loading: sending, disabled: !reachable.length }}
       className="sk-challenge-modal sk-thank-modal"
       destroyOnClose
@@ -2490,6 +2538,15 @@ function ThankModal({ kind, items, onClose, onSent }) {
             "person",
             "people"
           )}: each person gets one message.`}
+        {isResend &&
+          ` Already thanked — this sends it again. Notification is off so they don't get a second one; turn it on if you want.`}
+        {!isResend &&
+          already > 0 &&
+          ` ${already} of these ${plural(
+            already,
+            "was",
+            "were"
+          )} already thanked and will get it again.`}
         {skipped > 0 &&
           ` ${skipped} ${plural(
             skipped,
@@ -2529,6 +2586,22 @@ function ThankModal({ kind, items, onClose, onSent }) {
         </label>
       </div>
     </Modal>
+  );
+}
+
+// "Thanked" pill, or "Email failed" when the email didn't go out.
+function ThankStatus({ item }) {
+  if (item.thankEmailed === false)
+    return (
+      <span title="The thank-you email didn't go out. Use Resend.">
+        <Pill tone="red">Email failed</Pill>
+      </span>
+    );
+  const when = item.thankEmailedAt || item.thankedAt;
+  return (
+    <span title={when ? `Thanked ${timeAgo(when)}` : "Thanked"}>
+      <Pill tone="green">Thanked</Pill>
+    </span>
   );
 }
 
@@ -2908,7 +2981,17 @@ function FeedbackInbox({ refreshKey, onChange }) {
               </div>
               <div className="sk-fb__side">
                 {fb.thankedAt ? (
-                  <Pill tone="green">Thanked</Pill>
+                  <>
+                    <ThankStatus item={fb} />
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm"
+                      onClick={() => setThanking([fb])}
+                      title="Send the thank-you again"
+                    >
+                      <IconRepeat size={13} /> Resend
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
@@ -3270,7 +3353,7 @@ function TestimonialsQueue({ refreshKey, onChange }) {
                       aria-label="Select this review"
                     />
                     <Stars value={t.rating} />
-                    {t.thankedAt && <Pill tone="green">Thanked</Pill>}
+                    {t.thankedAt && <ThankStatus item={t} />}
                     {t.featured && <Pill tone="orange">Featured</Pill>}
                     {!t.consent && <Pill tone="muted">Not OK to feature</Pill>}
                     {t.rejectReason && (
@@ -3291,6 +3374,17 @@ function TestimonialsQueue({ refreshKey, onChange }) {
                   </div>
                 </div>
                 <div className="sk-row__right">
+                  {t.thankedAt && t.user && (
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm"
+                      disabled={busy}
+                      onClick={() => setThanking([t])}
+                      title="Send the thank-you again"
+                    >
+                      <IconRepeat size={13} /> Resend
+                    </button>
+                  )}
                   {!t.thankedAt && (
                     <button
                       type="button"

@@ -1,0 +1,109 @@
+/* ─────────────────────────────────────────────────────────────
+   Readable error messages on the login and create-account pages.
+   The pages sit on a dark galaxy background, where plain red text
+   disappears. Errors are now a light card with dark red text and an
+   icon (high contrast), and the field under an error gets a bright
+   outline. Import AFTER login.css / register styles so these win.
+   ───────────────────────────────────────────────────────────── */
+
+/* The main error box ("Wrong email or password", "Passwords don't match") */
+.auth-scene .sk-loginError,
+.auth-scene .sk-authError,
+.auth-scene .sk-formError {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff1f2 !important;
+  border: 1px solid #ff8fa3 !important;
+  border-left: 4px solid #e11d48 !important;
+  color: #7f1028 !important;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  box-shadow: 0 6px 20px rgba(225, 29, 72, 0.25);
+  text-shadow: none !important;
+  animation: sk-err-in 0.25s ease-out;
+}
+.auth-scene .sk-loginError *,
+.auth-scene .sk-authError *,
+.auth-scene .sk-formError * {
+  color: inherit !important;
+}
+.auth-scene .sk-loginErrorIcon,
+.auth-scene .sk-loginError .anticon,
+.auth-scene .sk-authError .anticon,
+.auth-scene .sk-formError .anticon {
+  color: #e11d48 !important;
+  font-size: 17px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+/* Small messages right under a field (antd Form, or our own) */
+.auth-scene .ant-form-item-explain-error,
+.auth-scene .sk-fieldError {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #fff1f2 !important;
+  color: #9f1239 !important;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.auth-scene .sk-fieldError .anticon,
+.auth-scene .sk-fieldError svg {
+  color: #e11d48 !important;
+  flex-shrink: 0;
+}
+
+/* Inputs with an error: bright, thick outline that stands out on dark */
+.auth-scene .ant-input-status-error,
+.auth-scene .ant-input-affix-wrapper-status-error,
+.auth-scene .ant-input-affix-wrapper-status-error:hover,
+.auth-scene .ant-input-status-error:hover {
+  border-color: #ff4d6d !important;
+  box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.35) !important;
+}
+.auth-scene .ant-input-affix-wrapper-status-error .ant-input-prefix,
+.auth-scene .ant-input-affix-wrapper-status-error .anticon {
+  color: #ff8fa3 !important;
+}
+
+/* "Caps Lock is on" — same idea, in amber */
+.auth-scene .sk-capsHint {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: #fff7e6 !important;
+  color: #7a4a00 !important;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+@keyframes sk-err-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-scene .sk-loginError,
+  .auth-scene .sk-authError,
+  .auth-scene .sk-formError {
+    animation: none;
+  }
+}

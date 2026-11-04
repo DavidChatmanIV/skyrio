@@ -49,7 +49,13 @@ export async function sendThankYou({
 
   const what = kind === "review" ? "review" : "feedback";
   const name = firstName(doc);
-  const result = { notified: false, emailed: false };
+  const result = {
+    notified: false,
+    emailed: false,
+    name: doc.name || doc.username || null,
+    to: doc.email || null,
+    emailError: null,
+  };
 
   if (notify) {
     try {
@@ -76,7 +82,7 @@ export async function sendThankYou({
 
   if (email && doc.email) {
     try {
-      await sendEmail({
+      const sent = await sendEmail({
         to: doc.email,
         tag: `thank-you-${what}`,
         subject: `Thank you for your ${what}, ${name}`,
@@ -90,9 +96,27 @@ export async function sendThankYou({
           cta: { label: "Back to Skyrio", url: APP_URL },
         }),
       });
+      // Some mailers report failure in the return value instead of
+      // throwing, so check that too.
+      if (
+        sent === false ||
+        sent?.ok === false ||
+        sent?.success === false ||
+        sent?.error
+      ) {
+        throw new Error(
+          String(
+            sent?.error?.message ||
+              sent?.error ||
+              sent?.message ||
+              "Email provider rejected it"
+          )
+        );
+      }
       result.emailed = true;
     } catch (err) {
-      console.error("[thankYou] email failed:", err?.message);
+      result.emailError = String(err?.message || "Email failed").slice(0, 160);
+      console.error("[thankYou] email failed:", doc.email, err?.message);
     }
   }
 

@@ -432,6 +432,11 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
    until the terms are confirmed with them. (Logic unchanged.) ── */
 // authHeaders: optional. The Manage booking page passes the booking's
 // manage-link header so guests (no account) can cancel too.
+const SHEET_CSS = `
+  html.sk-sheet-open .ap-fab-wrapper,
+  html.sk-sheet-open [data-sr-root] { display: none !important; }
+`;
+
 export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
   const [quote, setQuote] = useState(null);
   const [error, setError] = useState("");
@@ -461,7 +466,18 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
           if (!cancelled) setCanRequest(Boolean(data.canRequest));
           throw new Error(data.message || "Couldn't load cancellation terms.");
         }
-        if (!cancelled) setQuote(data);
+        if (!cancelled) {
+          setQuote(data);
+          // The booking changed since the page loaded (a cancellation is
+          // already under way, or done): refresh the page behind the sheet
+          // so it stops showing "Confirmed".
+          if (
+            data.cancellable === false &&
+            data.status &&
+            data.status !== booking.status
+          )
+            onDone?.({ _id: booking._id, status: data.status });
+        }
       } catch (e) {
         if (!cancelled) setError(e.message);
       }
@@ -471,6 +487,14 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booking._id]);
+
+  // While this sheet is open, hide the Atlas and Help buttons so they
+  // don't sit on top of "Cancel trip" on phones.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("sk-sheet-open");
+    return () => root.classList.remove("sk-sheet-open");
+  }, []);
 
   // Esc closes (unless something is in flight)
   useEffect(() => {
@@ -531,6 +555,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
         if (e.target === e.currentTarget && !busy) onClose();
       }}
     >
+      <style>{SHEET_CSS}</style>
       <div
         className="mt-modal"
         role="dialog"
@@ -589,8 +614,12 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
               </p>
             )}
             {quote && quote.cancellable === false && (
-              <p style={{ color: "#ffc27a", fontSize: 14, margin: "0 0 16px" }}>
-                {quote.reason}
+              <p
+                className="mt-note is-warn"
+                role="status"
+                style={{ fontSize: 14, lineHeight: 1.55, margin: "0 0 16px" }}
+              >
+                <Clock size={15} aria-hidden="true" /> {quote.reason}
               </p>
             )}
 
@@ -697,6 +726,12 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                   </button>
                 </div>
               </>
+            ) : quote && quote.cancellable === false ? (
+              // Nothing to cancel here (already cancelled or in progress):
+              // one clear button instead of a greyed-out "Cancel trip".
+              <button type="button" className="mt-done" onClick={onClose}>
+                Got it
+              </button>
             ) : (
               <div className="mt-modalBtns">
                 <button
