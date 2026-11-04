@@ -232,15 +232,16 @@ async function api(path, { method = "GET", body } = {}) {
   if (!res.ok || data.ok === false) {
     const detail = data.message || data.error;
     console.warn(`[SupportRail] ${method} ${path} → ${res.status}`, data);
+    // Plain messages only: no status codes like "(409)" on screen.
+    let msg;
     if (res.status === 401)
-      throw new Error("Your session expired. Sign in again and retry.");
-    if (res.status === 429)
-      throw new Error("Too many requests. Wait a minute and try again.");
-    throw new Error(
-      detail
-        ? `${detail} (${res.status})`
-        : `Something went wrong (${res.status}). Please try again.`
-    );
+      msg = token
+        ? "Your session expired. Sign in again and retry."
+        : "Please sign in to send this for now. We're switching on posting without an account.";
+    else if (res.status === 429)
+      msg = "Too many requests. Wait a minute and try again.";
+    else msg = detail || "Something went wrong. Please try again.";
+    throw Object.assign(new Error(msg), { status: res.status });
   }
   return data;
 }
@@ -906,7 +907,10 @@ export default function SupportRail() {
           new CustomEvent("skyrio:xp", { detail: { amount: data.xpAwarded } })
         );
     } catch (err) {
-      setRvError(err.message);
+      // Already reviewed (one general review per person): show a thank-you
+      // instead of an error.
+      if (err.status === 409) setRvResult({ xpAwarded: 0, already: true });
+      else setRvError(err.message);
     } finally {
       setRvSubmitting(false);
     }
@@ -1628,8 +1632,9 @@ export default function SupportRail() {
 
           {rvResult ? (
             <Done xp={rvResult.xpAwarded} onClose={closePanel}>
-              Your review goes live once we've checked it for spam and personal
-              info. We never hide a review for being negative.
+              {rvResult.already
+                ? "You've already left a review of Skyrio, so we kept your first one. Thank you! Got more to say? Open Help & Feedback anytime and choose Feedback."
+                : "Your review goes live once we've checked it for spam and personal info. We never hide a review for being negative."}
             </Done>
           ) : (
             <>

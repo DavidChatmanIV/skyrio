@@ -58,6 +58,10 @@ await mount("/rewards", "./rewards.routes.js");
 //  NEW: Challenges — fully data-driven, controllable live via the admin
 // endpoints in challenges.routes.js with no deploys needed.
 await mount("/challenges", "./challenges.routes.js");
+// Guests (no account): POST /api/feedback and POST /api/testimonials.
+// Must come BEFORE feedback.routes.js. Signed-in requests pass straight
+// through to it, so account holders work exactly as before.
+await mount("/", "../guestFeedback.routes.js");
 // Feedback + testimonials + feedback XP.
 // Mounted at "/" because it serves both /api/feedback/* and /api/testimonials/*.
 await mount("/", "./feedback/feedback.routes.js");
