@@ -70,36 +70,52 @@ function handler(modelName, kind) {
 
     try {
       const Model = M(modelName);
+      // Account holders, plus guests who left an email.
       const items = await Model.find({
         _id: { $in: ids },
-        user: { $ne: null },
+        $or: [
+          { user: { $ne: null } },
+          { guestEmail: { $type: "string", $ne: "" } },
+        ],
         ...(resend ? {} : { thankedAt: { $exists: false } }),
       })
-        .select("_id user")
+        .select("_id user guestEmail guestName displayName")
         .lean();
 
-      // One message per person.
+      // One message per person (an account, or a guest's email).
       const byUser = new Map();
       for (const it of items) {
-        const uid = String(it.user);
-        if (!byUser.has(uid)) byUser.set(uid, []);
-        byUser.get(uid).push(it._id);
+        const key = it.user
+          ? String(it.user)
+          : `guest:${String(it.guestEmail).toLowerCase()}`;
+        if (!byUser.has(key))
+          byUser.set(key, {
+            ids: [],
+            guest: it.user
+              ? null
+              : {
+                  email: String(it.guestEmail).toLowerCase(),
+                  name: it.guestName || it.displayName || "",
+                },
+          });
+        byUser.get(key).ids.push(it._id);
       }
 
       let people = 0;
       const thankedIds = [];
       const emailFailed = []; // people whose email didn't go out
       const now = new Date();
-      for (const [uid, itemIds] of byUser) {
+      for (const [uid, { ids: itemIds, guest }] of byUser) {
         try {
           const r = await sendThankYou({
-            user: uid,
+            ...(guest ? { guest } : { user: uid }),
             kind,
             message,
             notify,
-            email,
+            // Guests can only be emailed (no in-app inbox).
+            email: guest ? true : email,
           });
-          if (email && !r.emailed) {
+          if ((email || guest) && !r.emailed) {
             emailFailed.push({
               name: r.name || null,
               email: r.to || null,
@@ -116,7 +132,7 @@ function handler(modelName, kind) {
               thankedAt: now,
               thankedBy: req.adminEmail || "admin",
             };
-            if (email) {
+            if (email || guest) {
               set.thankEmailed = Boolean(r.emailed);
               if (r.emailed) set.thankEmailedAt = now;
             }

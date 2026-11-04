@@ -18,6 +18,9 @@ const ref = (name, extra = {}) => ({
 const FeedbackSchema = new Schema(
   {
     user: ref("User", { index: true }), // empty when sent while signed out
+    // Guests (no account) can leave a name/email so we can reply or thank them.
+    guestName: { type: String, trim: true, maxlength: 40 },
+    guestEmail: { type: String, trim: true, lowercase: true, maxlength: 200 },
     booking: ref("Booking"), // set for "checkout" ratings
     type: {
       type: String,
@@ -59,7 +62,17 @@ FeedbackSchema.index(
 /* ─── Testimonial ─────────────────────────────────────────────────────── */
 const TestimonialSchema = new Schema(
   {
-    user: ref("User", { required: true }),
+    // Empty for a guest review (no account): guestEmail is required then.
+    user: ref("User"),
+    guestEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      maxlength: 200,
+      required: function () {
+        return !this.user;
+      },
+    },
     booking: ref("Booking"), // empty = a general review, not tied to a trip
     rating: { type: Number, min: 1, max: 5, required: true },
     text: { type: String, required: true, maxlength: 1000 },
@@ -89,8 +102,27 @@ const TestimonialSchema = new Schema(
   },
   { timestamps: true }
 );
-// One review per trip, and one general review per person.
-TestimonialSchema.index({ user: 1, booking: 1 }, { unique: true });
+// One review per trip, and one general review per person (account holders).
+// Partial, so guest reviews (no user) don't all collide on "no user".
+// IMPORTANT: the old version of this index (without the partial filter)
+// must be dropped once in MongoDB, or guest reviews after the first fail:
+//   db.testimonials.dropIndex("user_1_booking_1")
+// Then restart the server and it's rebuilt the new way.
+TestimonialSchema.index(
+  { user: 1, booking: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { user: { $type: "objectId" } },
+  }
+);
+// One general review per guest email.
+TestimonialSchema.index(
+  { guestEmail: 1, booking: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { guestEmail: { $type: "string" } },
+  }
+);
 
 /* ─── XP awards (one row per award, so any of them can be reversed) ───── */
 const XpAwardSchema = new Schema(

@@ -19,7 +19,9 @@ const firstName = (u) =>
 
 /**
  * @param {object} p
- * @param {string|object} p.user    user id or a user document
+ * @param {string|object} [p.user] user id or a user document
+ * @param {{name?:string,email:string}} [p.guest] someone with no account
+ *        (email only: there's no in-app inbox to notify)
  * @param {"feedback"|"review"} p.kind
  * @param {string} p.message        the admin's message (plain text)
  * @param {boolean} [p.notify=true] in-app notification
@@ -28,17 +30,19 @@ const firstName = (u) =>
  */
 export async function sendThankYou({
   user,
+  guest,
   kind,
   message,
   notify = true,
   email = true,
 }) {
-  const doc =
-    user && typeof user === "object" && user.email
-      ? user
-      : await User.findById(user?._id || user)
-          .select("name username email")
-          .lean();
+  const doc = guest?.email
+    ? { _id: null, name: guest.name || "", email: guest.email, isGuest: true }
+    : user && typeof user === "object" && user.email
+    ? user
+    : await User.findById(user?._id || user)
+        .select("name username email")
+        .lean();
   if (!doc) throw Object.assign(new Error("User not found"), { status: 404 });
 
   const text = String(message || "")
@@ -57,7 +61,7 @@ export async function sendThankYou({
     emailError: null,
   };
 
-  if (notify) {
+  if (notify && !doc.isGuest) {
     try {
       const note = {
         user: doc._id,

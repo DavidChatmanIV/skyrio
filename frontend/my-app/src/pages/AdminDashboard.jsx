@@ -2412,6 +2412,20 @@ const THANK_TEMPLATES = {
   review:
     "Thank you for your review! Hearing how your trip went helps us make Skyrio a better website and a better experience for every traveler.",
 };
+// Someone we can thank: an account, or a guest who left an email.
+const canThank = (it) => Boolean(it.user || it.guestEmail);
+// Name/email for an item, account or guest.
+const whoOf = (it) =>
+  it.user
+    ? {
+        name: it.user.name || it.user.username || "",
+        email: it.user.email || "",
+      }
+    : {
+        name: it.guestName || it.displayName || "",
+        email: it.guestEmail || "",
+        guest: true,
+      };
 const firstNameOf = (u) =>
   String(u?.name || u?.username || "")
     .trim()
@@ -2441,7 +2455,7 @@ function ThankModal({ kind, items, onClose, onSent }) {
   const [email, setEmail] = useState(true);
   const [sending, setSending] = useState(false);
   const open = items.length > 0;
-  const reachable = items.filter((it) => it.user);
+  const reachable = items.filter(canThank);
   const already = reachable.filter((it) => it.thankedAt).length;
   // Resending to people who were already thanked: usually the email
   // didn't arrive, so default to email only (no second notification).
@@ -2458,8 +2472,10 @@ function ThankModal({ kind, items, onClose, onSent }) {
   // One message per person, however many things they sent.
   const people = new Map();
   reachable.forEach((it) => {
-    const uid = String(it.user?._id || it.user?.id || it.user?.email || it._id);
-    if (!people.has(uid)) people.set(uid, it.user);
+    const uid = it.user
+      ? String(it.user?._id || it.user?.id || it.user?.email || it._id)
+      : `guest:${String(it.guestEmail).toLowerCase()}`;
+    if (!people.has(uid)) people.set(uid, it.user || { name: whoOf(it).name });
   });
   const peopleCount = people.size;
   const first = peopleCount === 1 ? firstNameOf([...people.values()][0]) : "";
@@ -2566,6 +2582,8 @@ function ThankModal({ kind, items, onClose, onSent }) {
             "person",
             "people"
           )}: each person gets one message.`}
+        {reachable.some((it) => !it.user) &&
+          ` Guests (no account) get it by email only.`}
         {isResend &&
           ` Already thanked — this sends it again. Notification is off so they don't get a second one; turn it on if you want.`}
         {!isResend &&
@@ -2680,6 +2698,8 @@ function FeedbackInbox({ refreshKey, onChange }) {
             fb.user?.name,
             fb.user?.username,
             fb.user?.email,
+            fb.guestName,
+            fb.guestEmail,
           ]
             .filter(Boolean)
             .some((v) => String(v).toLowerCase().includes(q)))
@@ -2709,7 +2729,9 @@ function FeedbackInbox({ refreshKey, onChange }) {
     setFindingAll(true);
     try {
       const j = await adminRequest("/api/feedback/admin?status=all&type=all");
-      const list = (j.feedback || []).filter((fb) => fb.user && !fb.thankedAt);
+      const list = (j.feedback || []).filter(
+        (fb) => canThank(fb) && !fb.thankedAt
+      );
       if (!list.length) {
         message.info("Everyone who sent feedback has already been thanked.");
         return;
@@ -2772,7 +2794,11 @@ function FeedbackInbox({ refreshKey, onChange }) {
     [
       fb.message || "(rating only, no comment)",
       [
-        userLabel(fb.user),
+        fb.user
+          ? userLabel(fb.user)
+          : fb.guestEmail
+          ? `Guest ${[fb.guestName, fb.guestEmail].filter(Boolean).join(" ")}`
+          : "Signed-out visitor",
         fb.page || "unknown page",
         fb.rating ? `${fb.rating}/5` : null,
         dayjs(fb.createdAt).format("MMM D, h:mm A"),
@@ -2999,9 +3025,15 @@ function FeedbackInbox({ refreshKey, onChange }) {
                   aria-label="Select this feedback"
                 />
                 <b>
-                  {fb.user?.name || fb.user?.username || "Signed-out visitor"}
+                  {fb.user?.name ||
+                    fb.user?.username ||
+                    fb.guestName ||
+                    (fb.guestEmail ? "Guest" : "Signed-out visitor")}
                 </b>
-                {fb.user?.email && <span>{fb.user.email}</span>}
+                {(fb.user?.email || fb.guestEmail) && (
+                  <span>{fb.user?.email || fb.guestEmail}</span>
+                )}
+                {!fb.user && fb.guestEmail && <Pill tone="blue">Guest</Pill>}
                 <Pill tone={FEEDBACK_TYPE_TONES[fb.type] || "muted"}>
                   {FEEDBACK_TYPE_LABELS[fb.type] || fb.type}
                 </Pill>
@@ -3025,9 +3057,9 @@ function FeedbackInbox({ refreshKey, onChange }) {
                     type="button"
                     className="sk-btn sk-btn--sm"
                     onClick={() => setThanking([fb])}
-                    disabled={!fb.user}
+                    disabled={!canThank(fb)}
                     title={
-                      fb.user
+                      canThank(fb)
                         ? "Send a thank-you message"
                         : "Sent signed out, so there's no one to message"
                     }
@@ -3133,7 +3165,14 @@ function TestimonialsQueue({ refreshKey, onChange }) {
         (t) =>
           rf.test(Number(t.rating) || 0) &&
           (!q ||
-            [t.text, t.displayName, t.city, t.user?.name, t.user?.email]
+            [
+              t.text,
+              t.displayName,
+              t.city,
+              t.user?.name,
+              t.user?.email,
+              t.guestEmail,
+            ]
               .filter(Boolean)
               .some((v) => String(v).toLowerCase().includes(q)))
       ),
@@ -3165,7 +3204,7 @@ function TestimonialsQueue({ refreshKey, onChange }) {
             .catch(() => [])
         )
       );
-      const list = lists.flat().filter((t) => t.user && !t.thankedAt);
+      const list = lists.flat().filter((t) => canThank(t) && !t.thankedAt);
       if (!list.length) {
         message.info("Everyone who left a review has already been thanked.");
         return;
@@ -3391,7 +3430,10 @@ function TestimonialsQueue({ refreshKey, onChange }) {
                   <div className="sk-text sk-quote">{t.text}</div>
                   <div className="sk-sub" style={{ marginTop: 6 }}>
                     Shown as “{t.displayName || "Skyrio traveler"}”
-                    {t.city ? `, ${t.city}` : ""} · {userLabel(t.user)}
+                    {t.city ? `, ${t.city}` : ""} ·{" "}
+                    {t.user
+                      ? userLabel(t.user)
+                      : `Guest · ${t.guestEmail || "no email"}`}
                   </div>
                   <div className="sk-sub">
                     {tripLabel} · {timeAgo(t.createdAt)}
@@ -3402,7 +3444,7 @@ function TestimonialsQueue({ refreshKey, onChange }) {
                   </div>
                 </div>
                 <div className="sk-row__right">
-                  {t.thankedAt && t.user && (
+                  {t.thankedAt && canThank(t) && (
                     <button
                       type="button"
                       className="sk-btn sk-btn--sm"
@@ -3417,10 +3459,10 @@ function TestimonialsQueue({ refreshKey, onChange }) {
                     <button
                       type="button"
                       className="sk-btn sk-btn--sm"
-                      disabled={busy || !t.user}
+                      disabled={busy || !canThank(t)}
                       onClick={() => setThanking([t])}
                       title={
-                        t.user
+                        canThank(t)
                           ? "Send a thank-you message"
                           : "No account linked, so there's no one to message"
                       }

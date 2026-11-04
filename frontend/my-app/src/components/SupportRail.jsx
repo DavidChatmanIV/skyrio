@@ -206,6 +206,15 @@ const textareaStyle = {
 };
 
 const isSignedIn = () => !!localStorage.getItem("token");
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Hidden from people (and screen readers); only bots fill it in.
+const honeypotStyle = {
+  position: "absolute",
+  left: "-9999px",
+  width: 1,
+  height: 1,
+  opacity: 0,
+};
 
 async function api(path, { method = "GET", body } = {}) {
   const token = localStorage.getItem("token");
@@ -558,6 +567,10 @@ export default function SupportRail() {
   const [fbSubmitting, setFbSubmitting] = useState(false);
   const [fbResult, setFbResult] = useState(null); // { xpAwarded, xpNote }
   const [fbError, setFbError] = useState("");
+  // Guests (signed out) can leave their name/email so we can thank them.
+  const [fbGuestName, setFbGuestName] = useState("");
+  const [fbGuestEmail, setFbGuestEmail] = useState("");
+  const [fbWebsite, setFbWebsite] = useState(""); // honeypot
 
   // ── Review (testimonial) state ──
   const emptyReview = {
@@ -568,6 +581,8 @@ export default function SupportRail() {
     consent: true,
     bookingId: null,
     destination: null,
+    email: "", // guests only: so we can thank them
+    website: "", // honeypot: people never see this field; bots fill it
   };
   const [review, setReview] = useState(emptyReview);
   const [rvSubmitting, setRvSubmitting] = useState(false);
@@ -815,6 +830,11 @@ export default function SupportRail() {
       setFbError("Please enter some feedback before submitting.");
       return;
     }
+    const guestEmail = fbGuestEmail.trim();
+    if (!isSignedIn() && guestEmail && !EMAIL_RE.test(guestEmail)) {
+      setFbError("That email doesn't look right. Fix it or leave it empty.");
+      return;
+    }
     setFbSubmitting(true);
     setFbError("");
     try {
@@ -825,6 +845,13 @@ export default function SupportRail() {
           message: fbMessage.trim(),
           rating: fbRating || undefined,
           page: window.location.pathname,
+          ...(!isSignedIn()
+            ? {
+                guestName: fbGuestName.trim() || undefined,
+                guestEmail: guestEmail || undefined,
+                website: fbWebsite || undefined,
+              }
+            : {}),
         },
       });
       setFbResult({ xpAwarded: data.xpAwarded || 0, xpNote: data.xpNote });
@@ -846,6 +873,13 @@ export default function SupportRail() {
     if (!review.rating) return setRvError("Pick a star rating.");
     if (review.text.trim().length < MIN_CHARS)
       return setRvError(`Write at least ${MIN_CHARS} characters.`);
+    const guest = !isSignedIn();
+    if (guest && !review.displayName.trim())
+      return setRvError("Add your name so other travelers know who wrote it.");
+    if (guest && !EMAIL_RE.test(review.email.trim()))
+      return setRvError(
+        "Add your email. It's never shown; we only use it to confirm your review is real."
+      );
     setRvSubmitting(true);
     setRvError("");
     try {
@@ -858,6 +892,12 @@ export default function SupportRail() {
           city: review.city.trim(),
           consent: review.consent,
           bookingId: review.bookingId || undefined,
+          ...(guest
+            ? {
+                guestEmail: review.email.trim(),
+                website: review.website || undefined,
+              }
+            : {}),
         },
       });
       setRvResult({ xpAwarded: data.xpAwarded || 0 });
@@ -1481,11 +1521,57 @@ export default function SupportRail() {
                 }}
               >
                 {!signedIn
-                  ? "Sign in to earn XP for feedback."
+                  ? "Sign in to earn XP for feedback. No account needed to send it."
                   : fbChars < MIN_CHARS
                   ? `${MIN_CHARS - fbChars} more characters to earn XP`
                   : "XP is the same whatever you rate us."}
               </div>
+
+              {!signedIn && (
+                <>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                    <input
+                      style={{ ...inputStyle, fontSize: 16 }}
+                      value={fbGuestName}
+                      onChange={(e) => setFbGuestName(e.target.value)}
+                      placeholder="Name (optional)"
+                      aria-label="Your name (optional)"
+                      autoComplete="name"
+                      maxLength={40}
+                    />
+                    <input
+                      style={{ ...inputStyle, fontSize: 16 }}
+                      type="email"
+                      inputMode="email"
+                      value={fbGuestEmail}
+                      onChange={(e) => setFbGuestEmail(e.target.value)}
+                      placeholder="Email (optional)"
+                      aria-label="Your email (optional)"
+                      autoComplete="email"
+                      maxLength={200}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: "rgba(255,255,255,0.4)",
+                      marginBottom: 10,
+                    }}
+                  >
+                    Leave your email if you&apos;d like a reply or a thank-you.
+                  </div>
+                  <input
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    value={fbWebsite}
+                    onChange={(e) => setFbWebsite(e.target.value)}
+                    style={honeypotStyle}
+                  />
+                </>
+              )}
 
               {fbError && (
                 <div
@@ -1540,32 +1626,7 @@ export default function SupportRail() {
             />
           )}
 
-          {!signedIn ? (
-            <div
-              style={{
-                fontSize: 13.5,
-                color: "rgba(255,255,255,0.7)",
-                lineHeight: 1.5,
-              }}
-            >
-              Sign in to leave a review. Reviews are tied to your account so
-              other travelers know they're real.
-              <a
-                href="/login"
-                style={{
-                  ...btnPrimary(false),
-                  display: "block",
-                  marginTop: 14,
-                  textAlign: "center",
-                  textDecoration: "none",
-                  lineHeight: "22px",
-                  boxSizing: "border-box",
-                }}
-              >
-                Sign in
-              </a>
-            </div>
-          ) : rvResult ? (
+          {rvResult ? (
             <Done xp={rvResult.xpAwarded} onClose={closePanel}>
               Your review goes live once we've checked it for spam and personal
               info. We never hide a review for being negative.
@@ -1611,8 +1672,11 @@ export default function SupportRail() {
                   onChange={(e) =>
                     setReview((r) => ({ ...r, displayName: e.target.value }))
                   }
-                  placeholder="Name (optional)"
-                  aria-label="Display name (optional)"
+                  placeholder={signedIn ? "Name (optional)" : "Your name"}
+                  aria-label={
+                    signedIn ? "Display name (optional)" : "Your name"
+                  }
+                  autoComplete="name"
                   maxLength={40}
                 />
                 <input
@@ -1649,6 +1713,51 @@ export default function SupportRail() {
                 />
                 OK to show this review on Skyrio
               </label>
+
+              {!signedIn && (
+                <>
+                  <input
+                    style={{ ...inputStyle, fontSize: 16, marginBottom: 6 }}
+                    type="email"
+                    inputMode="email"
+                    value={review.email}
+                    onChange={(e) =>
+                      setReview((r) => ({ ...r, email: e.target.value }))
+                    }
+                    placeholder="Your email (never shown)"
+                    aria-label="Your email (never shown)"
+                    autoComplete="email"
+                    maxLength={200}
+                  />
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: "rgba(255,255,255,0.45)",
+                      marginBottom: 12,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    No account needed. We only use your email to confirm the
+                    review is real and to say thanks.{" "}
+                    <a href="/register" style={{ color: "#ffb347" }}>
+                      Create an account
+                    </a>{" "}
+                    to earn +{XP.TESTIMONIAL} XP for reviews.
+                  </div>
+                  <input
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    value={review.website}
+                    onChange={(e) =>
+                      setReview((r) => ({ ...r, website: e.target.value }))
+                    }
+                    style={honeypotStyle}
+                  />
+                </>
+              )}
 
               {rvError && (
                 <div
