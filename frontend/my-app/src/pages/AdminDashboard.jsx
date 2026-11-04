@@ -248,6 +248,34 @@ const TONES = {
    STYLES
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Chrome on Mac (desktop only; phones are fine) sometimes stops drawing
+   parts of a long page: black blocks, missing text, empty pills. It
+   happens when the graphics card runs out of room, and the main drivers
+   are see-through blurred layers (backdrop-filter), big glows and
+   floating animated pieces from the rest of the site sitting over a very
+   tall page. The dashboard doesn't need any of that, so while it's open:
+   no blur anywhere, no floating Atlas/Help buttons, a plain solid
+   background, and long sections are only drawn when on screen. */
+const ADMIN_PAGE_CSS = `
+  html.sk-admin-page, html.sk-admin-page body { background: #07060f !important; }
+  html.sk-admin-page *,
+  html.sk-admin-page *::before,
+  html.sk-admin-page *::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  html.sk-admin-page .ap-fab-wrapper,
+  html.sk-admin-page [data-sr-root] { display: none !important; }
+  /* Glows on buttons (e.g. Logout) are drawn as extra layers. */
+  html.sk-admin-page .sk-admin .ant-btn { box-shadow: none !important; }
+  /* Draw each section only when it's near the screen. */
+  html.sk-admin-page .sk-admin .sk-section {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 800px;
+  }
+  html.sk-admin-page .sk-admin .sk-top { transform: translateZ(0); }
+`;
+
 const INJECTED_CSS = `
   .sk-admin * { box-sizing: border-box; }
   .sk-admin { min-height: 100vh; background: ${C.bg}; color: ${C.white}; font-family: "DM Sans", sans-serif; }
@@ -3720,6 +3748,13 @@ const AdminDashboard = () => {
     if (dashboard.data) setLastRefresh(new Date());
   }, [dashboard.data]);
 
+  // Lighter page while the dashboard is open (see ADMIN_PAGE_CSS).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("sk-admin-page");
+    return () => root.classList.remove("sk-admin-page");
+  }, []);
+
   const handleLogout = async () => {
     try {
       await adminFetch("/api/admin/logout", { method: "POST" });
@@ -3746,7 +3781,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="sk-admin">
-      <style>{INJECTED_CSS}</style>
+      <style>{INJECTED_CSS + ADMIN_PAGE_CSS}</style>
 
       <header className="sk-top">
         <div className="sk-top__bar">
