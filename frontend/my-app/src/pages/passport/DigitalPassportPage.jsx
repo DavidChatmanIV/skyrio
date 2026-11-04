@@ -80,7 +80,6 @@ import TravelerSearch from "./TravelerSearch";
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import TravelJourneys from "./TravelJourneys";
 import PassportDataPage from "./PassportDataPage";
-import PassportUpcomingTrips from "./PassportUpcomingTrips";
 import { readHomeAirport, rememberHomeAirportLocally } from "@/lib/homeAirport";
 
 const { Title, Text } = Typography;
@@ -1084,33 +1083,11 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
   );
 }
 
-// The sidebar drops below everything on tablets and phones (≤1100px, the
-// same breakpoint profile-passport.css uses), which put Upcoming trips at
-// the very bottom. There it's shown at the top of the page instead.
-const STACKED_QUERY = "(max-width: 1100px)";
-function useStackedLayout() {
-  const [stacked, setStacked] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      !!window.matchMedia?.(STACKED_QUERY).matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia?.(STACKED_QUERY);
-    if (!mq) return undefined;
-    const on = () => setStacked(mq.matches);
-    on();
-    mq.addEventListener?.("change", on);
-    return () => mq.removeEventListener?.("change", on);
-  }, []);
-  return stacked;
-}
-
 export default function DigitalPassportPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, token, isAuthed, loading, setUser, logout } = useAuth();
   const rewardsOptIn = useRewardsOptInPrompt();
-  const stackedLayout = useStackedLayout();
   const { message } = App.useApp();
 
   const myId = useMemo(() => user?._id || user?.id || null, [user]);
@@ -1697,18 +1674,6 @@ export default function DigitalPassportPage() {
                     onSpendXp={() => navigate("/passport/rewards")}
                   />
 
-                  {/* Tablets/phones: right under the passport, not at the
-                      bottom of the page. */}
-                  {stackedLayout && (
-                    <Card
-                      variant="borderless"
-                      className="pp-card"
-                      style={{ margin: "12px 0" }}
-                    >
-                      <PassportUpcomingTrips token={token} />
-                    </Card>
-                  )}
-
                   {profileMusic && (
                     <Card
                       variant="borderless"
@@ -1745,19 +1710,6 @@ export default function DigitalPassportPage() {
 
                 {/* ── Sidebar ── */}
                 <div className="pp-mockSide">
-                  {/* Upcoming trips with a Cancel button on each, so
-                      cancelling a flight or hotel is one tap from here.
-                      (On tablets/phones it's at the top of the page.) */}
-                  {!stackedLayout && (
-                    <Card
-                      variant="borderless"
-                      className="pp-card"
-                      style={{ marginBottom: 12 }}
-                    >
-                      <PassportUpcomingTrips token={token} />
-                    </Card>
-                  )}
-
                   <Card variant="borderless" className="pp-card pp-actionsCard">
                     <Title
                       level={3}

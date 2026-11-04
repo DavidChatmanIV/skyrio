@@ -1,10 +1,27 @@
 // Renders the "Travel Journeys" card on the Digital Passport.
 // Combines the user's own bookings with their Sync Together group trips,
-// hides cancelled ones, and splits them into Upcoming / Stamped.
+// hides cancelled ones.
+//
+// Three sections, one card:
+//   - Upcoming bookings: your next flights and hotels, each with a Cancel
+//     button (same cancel flow as My trips: the refund estimate is shown
+//     before anything is cancelled)
+//   - Group trips in the works: Sync Together trips still being planned
+//   - Stamped: trips already taken (the passport stamps)
 
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Card, Skeleton } from "antd";
-import { Plane, BedDouble, Compass, Users } from "lucide-react";
+import {
+  Plane,
+  BedDouble,
+  Compass,
+  Users,
+  ChevronRight,
+  X,
+  Clock,
+} from "lucide-react";
+import { CancelTripModal, MT_CSS } from "@/pages/SavedTripsPage";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
 
@@ -140,13 +157,21 @@ function normalizeBooking(b) {
         b.flight?.groupId,
         b.sharedRoom?.groupId,
         b.syncTripId,
-        b.groupId,
-        ""
-      )
+        b.groupId
+      ) ?? ""
     ),
     start,
     end,
     status: String(pick(b.status, "confirmed")).toLowerCase(),
+    // What the cancel flow needs (same as My trips).
+    booking: {
+      _id: b._id || b.id,
+      type: b.type,
+      tripDetails: b.tripDetails,
+      totalCurrency: b.totalCurrency,
+      status: b.status,
+      sharedRoom: b.sharedRoom,
+    },
   };
 }
 
@@ -212,6 +237,15 @@ const TJ_CSS = `
 .tj-filter select option { background:#1a1233; color:#fff; }
 .tj-filter svg { position:absolute; right:11px; pointer-events:none; color:rgba(255,255,255,0.7); }
 .tj-section + .tj-section { margin-top:16px; }
+.tj-cancel { display:inline-flex; align-items:center; gap:4px; min-height:30px; padding:0 11px; border-radius:999px; border:1px solid rgba(255,107,133,.5); background:rgba(255,107,133,.08); color:#ff9db0; font:inherit; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.tj-cancel:hover { border-color:rgba(255,107,133,.85); background:rgba(255,107,133,.18); color:#fff; }
+.tj-cancel:focus-visible { outline:2px solid #ff9db0; outline-offset:2px; }
+.tj-pending { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700; color:#ffc27a; white-space:nowrap; }
+.tj-all { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:2px; font-size:12.5px; font-weight:700; color:#ffb347; }
+.tj-all:hover { color:#fff; }
+.tj-labelRow { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 8px; }
+.tj-labelRow .tj-label { margin:0; }
+.tj-sub { margin:-6px 0 14px; font-size:13px; line-height:1.5; color:rgba(255,255,255,0.62); }
 .tj-label { font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size:11px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:rgba(255,255,255,0.6); margin:0 0 8px; }
 .tj-list { display:flex; flex-direction:column; gap:8px; }
 
@@ -285,7 +319,7 @@ function TypeIcon({ type }) {
   return <Plane {...props} />;
 }
 
-function JourneyStamp({ j, onOpen }) {
+function JourneyStamp({ j, onOpen, onCancel }) {
   const completed = j.stage === "completed";
   const group = isGroupJourney(j);
   const dates =
@@ -317,16 +351,35 @@ function JourneyStamp({ j, onOpen }) {
       </div>
       <div className="tj-row__stub">
         {group && <span className="tj-tag tj-tag--group">Group</span>}
-        <span className={`tj-tag${completed ? " tj-tag--stamped" : ""}`}>
-          {completed ? "Stamped" : "Upcoming"}
-        </span>
+        {onCancel && !completed ? (
+          j.status === "cancel_pending" ? (
+            <span className="tj-pending">
+              <Clock size={12} aria-hidden="true" /> Cancelling
+            </span>
+          ) : j.status === "confirmed" && !j.booking?.sharedRoom ? (
+            <button
+              type="button"
+              className="tj-cancel"
+              onClick={() => onCancel(j)}
+              aria-label={`Cancel ${j.title}`}
+            >
+              <X size={13} aria-hidden="true" /> Cancel
+            </button>
+          ) : (
+            <span className="tj-tag">Upcoming</span>
+          )
+        ) : (
+          <span className={`tj-tag${completed ? " tj-tag--stamped" : ""}`}>
+            {completed ? "Stamped" : "Upcoming"}
+          </span>
+        )}
       </div>
     </Tag>
   );
 }
 
 // One section (Upcoming / Stamped) that shows 3 and expands
-function JourneySection({ label, items, openJourney }) {
+function JourneySection({ label, items, openJourney, onCancel, link }) {
   const [showAll, setShowAll] = useState(false);
   const PREVIEW = 3;
   if (!items.length) return null;
@@ -334,12 +387,20 @@ function JourneySection({ label, items, openJourney }) {
   const hidden = items.length - visible.length;
   return (
     <div className="tj-section">
-      <div className="tj-label">
-        {label} · {items.length}
+      <div className="tj-labelRow">
+        <div className="tj-label">
+          {label} · {items.length}
+        </div>
+        {link}
       </div>
       <div className="tj-list">
         {visible.map((j) => (
-          <JourneyStamp key={j.id} j={j} onOpen={openJourney(j)} />
+          <JourneyStamp
+            key={j.id}
+            j={j}
+            onOpen={openJourney(j)}
+            onCancel={onCancel}
+          />
         ))}
       </div>
       {items.length > PREVIEW && (
@@ -454,7 +515,27 @@ export default function TravelJourneys({ token }) {
     filterOptions.find((f) => f.value === filter) || filterOptions[0];
   const shown = active ? journeys.filter(active.test) : journeys;
 
-  const upcoming = shown.filter((j) => j.stage === "upcoming");
+  // Upcoming group trips (still being planned) stay here. Upcoming solo
+  // flights/hotels are in Manage bookings, so they're only counted.
+  const inTheWorks = shown.filter(
+    (j) => j.stage === "upcoming" && j.kind === "sync"
+  );
+  const upcomingBookings = shown.filter(
+    (j) => j.stage === "upcoming" && j.kind !== "sync"
+  );
+
+  // Cancel right here (same modal as My trips). Once done, update the row.
+  const [cancelling, setCancelling] = useState(null);
+  const onCancelDone = (updated) => {
+    if (!updated?._id) return;
+    setBookings((list) =>
+      list.map((b) =>
+        String(b._id || b.id) === String(updated._id)
+          ? { ...b, status: updated.status || b.status }
+          : b
+      )
+    );
+  };
   const completed = shown.filter((j) => j.stage === "completed").reverse();
 
   // NOTE: Adjust if your Sync Together detail route differs
@@ -509,18 +590,43 @@ export default function TravelJourneys({ token }) {
         )}
       </div>
 
+      <p className="tj-sub">
+        Your upcoming bookings, group trips and passport stamps, all in one
+        place.
+      </p>
+
       {loading ? (
         <Skeleton active paragraph={{ rows: 3 }} />
       ) : error ? (
         emptyBox("Couldn't load your journeys right now.")
       ) : journeys.length === 0 ? (
         emptyBox("Your journeys will appear here after your first booking")
+      ) : !upcomingBookings.length &&
+        !inTheWorks.length &&
+        !completed.length ? (
+        emptyBox("Nothing here for this filter yet.")
       ) : (
         <div>
           <JourneySection
+            key={`bk-${active?.value}`}
+            label="Upcoming bookings"
+            items={upcomingBookings}
+            openJourney={openJourney}
+            onCancel={(j) => setCancelling(j.booking)}
+            link={
+              <button
+                type="button"
+                className="tj-all"
+                onClick={() => navigate("/saved-trips")}
+              >
+                My trips <ChevronRight size={14} aria-hidden="true" />
+              </button>
+            }
+          />
+          <JourneySection
             key={`up-${active?.value}`}
-            label="Upcoming"
-            items={upcoming}
+            label="Group trips in the works"
+            items={inTheWorks}
             openJourney={openJourney}
           />
           <JourneySection
@@ -531,6 +637,20 @@ export default function TravelJourneys({ token }) {
           />
         </div>
       )}
+      {/* Rendered on <body> so the card's blur/transform can't trap the
+          full-screen sheet inside the card. */}
+      {cancelling &&
+        createPortal(
+          <>
+            <style>{MT_CSS}</style>
+            <CancelTripModal
+              booking={cancelling}
+              onClose={() => setCancelling(null)}
+              onDone={onCancelDone}
+            />
+          </>,
+          document.body
+        )}
     </Card>
   );
 }
