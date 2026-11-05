@@ -659,6 +659,11 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                   </div>
                 )}
                 {quote.note && <div className="mt-fine">{quote.note}</div>}
+                <div className="mt-fine">
+                  The refund amount and timing are set by the {place}, not
+                  Skyrio. This is the {place}&rsquo;s current estimate; their
+                  final answer applies.
+                </div>
               </div>
             )}
             {error && (

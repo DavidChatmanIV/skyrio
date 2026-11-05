@@ -6705,7 +6705,7 @@ export default function BookingPage() {
                   ? isSearching
                     ? `Searching hotels in ${destCity || "your destination"}…`
                     : hotelResults.length > 0
-                    ? `Sorted by price · ${destCity}`
+                    ? `Sorted by price · ${destCity} · Refund terms are set by each hotel`
                     : "Search above to find hotels."
                   : tab === "Excursions"
                   ? isSearching
@@ -7757,13 +7757,19 @@ export default function BookingPage() {
                         <div className="sk-tagRow">
                           <BudgetTag price={hotel.totalAmount} />
                           {hotel.refundableTag === "RFN" && (
-                            <span className="sk-tag sk-tag-good">
-                              Refundable
+                            <span
+                              className="sk-tag sk-tag-good"
+                              title="The hotel's policy for this rate, not Skyrio's"
+                            >
+                              Refundable (hotel policy)
                             </span>
                           )}
                           {hotel.refundableTag === "NRFN" && (
-                            <span className="sk-tag sk-tag-orange">
-                              Non-refundable
+                            <span
+                              className="sk-tag sk-tag-orange"
+                              title="The hotel's policy for this rate, not Skyrio's"
+                            >
+                              Non-refundable (hotel policy)
                             </span>
                           )}
                           {hotel.roomCount > 1 && (

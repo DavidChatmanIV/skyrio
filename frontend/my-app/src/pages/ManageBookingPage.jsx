@@ -33,6 +33,7 @@ import {
   stripDates,
   confirmationCodeOf,
 } from "./SavedTripsPage";
+import PolicyNote from "@/components/PolicyNote";
 
 const API = import.meta.env.VITE_API_URL || "";
 const SUPPORT_EMAIL = "skyrioofficial@gmail.com";
@@ -332,13 +333,23 @@ function BookingDetails({ b, onCancel }) {
         </div>
       </article>
 
+      {/* Refunds, bags and changes are the airline's / hotel's rules. */}
+      {b.status !== "cancelled" && (
+        <PolicyNote
+          kind={isHotel ? "hotel" : "flight"}
+          provider={isHotel ? room?.name : f.airline}
+          style={{ marginTop: 14 }}
+        />
+      )}
+
       {canCancel && (
         <div className="mb-actions">
           <button type="button" className="mb-primary" onClick={onCancel}>
             Cancel booking
           </button>
           <p className="mt-sub" style={{ fontSize: 13, textAlign: "center" }}>
-            You&apos;ll see what you get back before anything is cancelled.
+            You&apos;ll see the {isHotel ? "hotel" : "airline"}&apos;s refund
+            estimate before anything is cancelled.
           </p>
         </div>
       )}

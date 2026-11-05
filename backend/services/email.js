@@ -25,6 +25,15 @@ const SYNC_TIP =
 
 const SIGNOFF = "\n\nSent by Skyrio - Plan smarter. Travel better.";
 
+// Bags, changes and refunds are the airline's rules, not Skyrio's — said
+// plainly in every flight confirmation (same wording as checkout).
+const airlinePolicy = (airline) => {
+  const who = airline && airline !== "Unknown" ? airline : "the airline";
+  return `Bags (carry-on and checked), seat rules, changes and refunds are set by ${who}, not Skyrio. ${
+    who === "the airline" ? "Their" : `${who}'s`
+  } fare rules for this ticket apply.`;
+};
+
 /**
  * Trip invitation
  */
@@ -224,7 +233,7 @@ If you didn't request this, you can safely ignore this email.${SIGNOFF}`;
 export async function sendVerificationEmail({ to, verifyUrl }) {
   const html = renderEmail({
     preheader: "Verify your Skyrio email (link expires in 24 hours)",
-    title: "Verify your email ✈️",
+    title: "Verify your email",
     introHtml:
       "Click below to verify your Skyrio account. This link expires in <strong>24 hours</strong>.",
     cta: { label: "Verify Email", url: verifyUrl },
@@ -424,10 +433,11 @@ export async function sendBookingConfirmation({
         (cabinClass ? kvRow("Cabin", esc(cabinClass)) : "") +
         (total ? kvRow("Total paid", esc(total), { highlight: true }) : "")
     ) +
+    noteLine(esc(airlinePolicy(airline))) +
     (syncTip ? noteLine(esc(SYNC_TIP)) : "") +
     (manageUrl
       ? noteLine(
-          `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see what you get back before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${APP_URL}/saved-trips" style="color:inherit;">My trips</a>.`
+          `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see the airline's refund estimate before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${APP_URL}/saved-trips" style="color:inherit;">My trips</a>.`
         )
       : "");
 
@@ -450,7 +460,7 @@ export async function sendBookingConfirmation({
     preheader: `${origin} → ${destination}${
       isRoundTrip ? " round trip" : ""
     } is confirmed`,
-    title: "You're booked! ✈️",
+    title: "You're booked!",
     introHtml: `Thanks${
       passengerName ? `, <strong>${esc(passengerName)}</strong>` : ""
     }! Your flight${isRoundTrip ? "s are" : " is"} confirmed.`,
@@ -485,6 +495,8 @@ ${refLabel}: ${confirmationNumber}
 ${cabinClass ? `Cabin: ${cabinClass}\n` : ""}${
     total ? `Total paid: ${total}\n` : ""
   }
+${airlinePolicy(airline)}
+
 ${
   manageUrl ? `Manage or cancel this booking: ${manageUrl}\n` : ""
 }View your trips: ${APP_URL}/saved-trips${

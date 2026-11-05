@@ -184,7 +184,7 @@ export async function onGroupBookingSaved(booking) {
         Notification.create({
           user: id,
           type: "booking",
-          title: `${who} booked ${what} ✈️`,
+          title: `${who} booked ${what}`,
           message: `${who} booked ${what} for ${group.title || "your trip"}.`,
           link: `/sync-together/${group._id}`,
         }).catch(() => {})
@@ -278,7 +278,7 @@ export async function onGroupBookingSaved(booking) {
               Notification.create({
                 user: t.id,
                 type: "booking",
-                title: "Everyone's booked 🎉",
+                title: "Everyone's booked!",
                 message: `Every traveler on ${
                   group.title || "your trip"
                 } has booked their flight and room.`,

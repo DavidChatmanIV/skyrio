@@ -24,6 +24,7 @@ import OverBudgetCheck, {
   overBudgetBy,
 } from "@/components/syncTogether/OverBudgetCheck";
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
+import PolicyNote from "@/components/PolicyNote";
 import {
   apiHeaders,
   getCheckoutToken,
@@ -1235,11 +1236,16 @@ function CancellationBadge({ departureDateISO }) {
           <CalendarCheckIcon />
         </span>
         <div>
+          {/* Not a Skyrio promise: the DOT 24-hour rule is an AIRLINE rule,
+              and whether a refund applies is the airline's decision. */}
           <div style={{ fontSize: 13, fontWeight: 600, color: G.success }}>
-            Book with confidence
+            24-hour cancellation may apply
           </div>
           <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-            Free cancellation within 24 hours of booking, per DOT rule.
+            Many airlines let you cancel within 24 hours of booking for a refund
+            on U.S. flights booked a week or more ahead. The airline decides if
+            this fare qualifies, and you&rsquo;ll see the real refund before you
+            cancel.
           </div>
         </div>
       </div>
@@ -1266,8 +1272,9 @@ function CancellationBadge({ departureDateISO }) {
           Departing soon
         </div>
         <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-          This flight departs in under 7 days, so standard fare cancellation
-          rules apply instead of the 24-hour grace period.
+          This flight departs in under 7 days, so the airline&rsquo;s own fare
+          rules apply. The 24-hour cancellation window usually doesn&rsquo;t
+          cover flights this close.
         </div>
       </div>
     </div>
@@ -1760,7 +1767,7 @@ function FareIncludes({ flight, baggage }) {
       kind: "no",
       text:
         cancel.known && cancel.eligible
-          ? "Non-refundable after the first 24 hours"
+          ? "Non-refundable (the airline may allow a refund within 24 hours of booking)"
           : "Non-refundable",
     });
   }
@@ -1774,8 +1781,8 @@ function FareIncludes({ flight, baggage }) {
   if (cancel.known && cancel.eligible) {
     rows.push({
       key: "24h",
-      kind: "yes",
-      text: "Free cancellation within 24 hours of booking",
+      kind: "info",
+      text: "The airline may allow a refund if you cancel within 24 hours of booking",
     });
   }
   return (
@@ -1804,6 +1811,12 @@ function FareIncludes({ flight, baggage }) {
           ? "Need a bag that isn't included? If the airline sells bags through Skyrio for this fare, you can add them in the Seats step. If not, we'll show you where to add them."
           : `${carrier} confirms this fare's bag allowance in the next step.`}
       </div>
+      {/* Bags, changes and refunds are the airline's rules, not Skyrio's. */}
+      <PolicyNote
+        kind="flight"
+        provider={carrier === "the airline" ? "" : carrier}
+        style={{ marginTop: 12 }}
+      />
     </section>
   );
 }
@@ -4591,6 +4604,12 @@ function StepReviewPay({
             clientSecret &&
             (budgetOk || !overBudgetBy(myShare, tripBudget)) && (
               <>
+                <PolicyNote
+                  kind="flight"
+                  variant="agree"
+                  provider={flight?.outbound?.airline}
+                  style={{ marginBottom: 10 }}
+                />
                 <LiteApiPayForm
                   clientSecret={clientSecret}
                   prebookId={prebookId}

@@ -40,6 +40,14 @@ const nightsBetween = (a, b) => {
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 
+// Refunds and cancellation terms are the hotel's rules, not Skyrio's —
+// said plainly in every hotel confirmation (same wording as checkout).
+const hotelPolicy = (rooms) => {
+  const names = [...new Set(rooms.map((r) => r?.name).filter(Boolean))];
+  const who = names.length === 1 ? names[0] : "the hotel";
+  return `Refunds and cancellation terms are set by ${who}, not Skyrio. The hotel's policy for this rate applies.`;
+};
+
 const textFooter = `\n\nView your trips: ${TRIPS_URL}\nQuestions? ${SUPPORT_EMAIL}\n\nSent by Skyrio - Plan smarter. Travel better.`;
 
 /**
@@ -106,7 +114,7 @@ export async function sendHotelConfirmation({
     preheader: `${first.name || "Your hotel"} is confirmed${
       formatDate(first.checkin) ? ` for ${formatDate(first.checkin)}` : ""
     }`,
-    title: "Your stay is booked! 🏨",
+    title: "Your stay is booked!",
     introHtml: `Thanks${
       guestName ? `, <strong>${esc(guestName)}</strong>` : ""
     }! Your hotel ${rooms.length > 1 ? "rooms are" : "room is"} confirmed${
@@ -122,6 +130,7 @@ export async function sendHotelConfirmation({
             "Show your hotel confirmation code at check-in. Hotels may ask for a photo ID and a card for incidentals."
           )
       ) +
+      noteLine(esc(hotelPolicy(rooms))) +
       (syncTip
         ? noteLine(
             "Traveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share."
@@ -129,7 +138,7 @@ export async function sendHotelConfirmation({
         : "") +
       (manageLink
         ? noteLine(
-            `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see what you get back before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${TRIPS_URL}" style="color:inherit;">My trips</a>.`
+            `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see the hotel's refund estimate before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${TRIPS_URL}" style="color:inherit;">My trips</a>.`
           )
         : ""),
     // Guests have no My Trips, so the manage link is the main button.
@@ -155,7 +164,9 @@ ${r.guestName ? `Guest: ${r.guestName}\n` : ""}${
   .join("\n")}
 ${total ? `Total charged: ${total}\n` : ""}${
     bookingId ? `Skyrio booking ID: ${bookingId}` : ""
-  }${
+  }
+
+${hotelPolicy(rooms)}${
     syncTip
       ? "\n\nTraveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share."
       : ""
@@ -320,7 +331,7 @@ export async function sendRefundIssuedEmail({
   const refund = formatMoney(amount, currency);
   const html = renderEmail({
     preheader: `Your refund of ${refund || ""} is on its way`,
-    title: "Your refund is on its way 💸",
+    title: "Your refund is on its way",
     introHtml: `${name ? `Hi ${esc(name)}, ` : ""}we've issued your refund${
       tripDetails ? ` for <strong>${esc(tripDetails)}</strong>` : ""
     }.`,

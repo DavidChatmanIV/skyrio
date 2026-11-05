@@ -1,17 +1,32 @@
-/* ─── Footer ─────────────────────────────────────────────────────────────────── */
+/* ─── Footer ───────────────────────────────────────────────────────────────────
+   Skyrio purple (no near-black), the orange→purple line on top like the
+   navbar, and text bright enough to read. Layout: brand + 3 link columns
+   (Product, Passport, Support); legal links live once in the bottom bar. */
 
 .sk-footer {
-  background: #07060f;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  position: relative;
+  background: linear-gradient(180deg, #2c1748 0%, #211139 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   font-family: "DM Sans", sans-serif;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.72);
   margin-top: auto;
+}
+
+.sk-footer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347 40%, #7c5cfc);
+  opacity: 0.85;
 }
 
 .sk-footer__inner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 56px 32px 40px;
+  padding: 56px 32px 36px;
   display: grid;
   grid-template-columns: 1.8fr 1fr 1fr 1fr;
   gap: 40px;
@@ -31,23 +46,23 @@
 
 .sk-footer__tagline {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.7);
   line-height: 1.6;
   margin-bottom: 14px;
-  max-width: 220px;
+  max-width: 240px;
 }
 
 .sk-footer__email {
   display: inline-block;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.75);
   text-decoration: none;
   margin-bottom: 16px;
   transition: color 0.2s;
 }
 
 .sk-footer__email:hover {
-  color: #ff8a2a;
+  color: #ffb347;
 }
 
 .sk-footer__badge {
@@ -57,9 +72,9 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   padding: 4px 12px;
 }
@@ -75,15 +90,17 @@
 /* ── Nav columns ── */
 .sk-footer__col-heading {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.3);
+  color: #ffb347;
   margin-bottom: 16px;
 }
 
 .sk-footer__links {
   list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -91,7 +108,7 @@
 
 .sk-footer__link {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.75);
   text-decoration: none;
   transition: color 0.2s;
   line-height: 1.4;
@@ -101,9 +118,18 @@
   color: #fff;
 }
 
+.sk-footer__link:focus-visible,
+.sk-footer__legal-link:focus-visible,
+.sk-footer__email:focus-visible {
+  outline: 2px solid #ffb347;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ── Bottom bar ── */
 .sk-footer__bottom {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .sk-footer__bottom-inner {
@@ -119,7 +145,7 @@
 
 .sk-footer__copy {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .sk-footer__legal {
@@ -131,26 +157,26 @@
 
 .sk-footer__legal-link {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .sk-footer__legal-link:hover {
-  color: #ff8a2a;
+  color: #ffb347;
 }
 
 .sk-footer__legal-sep {
-  color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.3);
   font-size: 13px;
 }
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .sk-footer__inner {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 32px;
-    padding: 40px 24px 32px;
+    padding: 40px 24px 28px;
   }
 
   .sk-footer__brand {
@@ -162,7 +188,7 @@
   .sk-footer__inner {
     grid-template-columns: 1fr 1fr;
     gap: 28px 20px;
-    padding: 32px 16px 24px;
+    padding: 32px 16px 20px;
   }
 
   .sk-footer__brand {

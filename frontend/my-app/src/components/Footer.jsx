@@ -24,7 +24,7 @@ function navCols(isAuthed) {
       heading: "Passport",
       links: [
         { label: "XP & Levels", to: "/passport" },
-        { label: "Badges & Rewards", to: "/passport" },
+        { label: "Badges & Rewards", to: "/passport/rewards" },
         { label: "Upgrade Passport", to: "/membership" },
       ],
     },
@@ -45,15 +45,8 @@ function navCols(isAuthed) {
         { label: "Report an Issue", href: `mailto:${SUPPORT_EMAIL}` },
       ],
     },
-    // Legal column — required for GDPR/CCPA compliance
-    {
-      heading: "Legal",
-      links: [
-        { label: "Privacy Policy", to: "/privacy" },
-        { label: "Terms of Service", to: "/terms" },
-        { label: "Cookie Policy", to: "/cookies" },
-      ],
-    },
+    // Privacy, Terms and Cookies live once, in the bottom bar (they were
+    // also a 4th "Legal" column, so each showed up twice).
   ];
 }
 
@@ -98,8 +91,30 @@ export default function Footer() {
         ))}
       </div>
 
+      {/* ── Who sets the rules ──
+          Skyrio sells, but each airline and hotel sets its own policies.
+          Same message as the notes in checkout and the confirmation emails. */}
+      <p
+        className="sk-footer__disclaimer"
+        style={{
+          maxWidth: 900,
+          margin: "0 auto",
+          padding: "0 24px 18px",
+          fontSize: 12.5,
+          lineHeight: 1.6,
+          textAlign: "center",
+          color: "rgba(255,255,255,0.62)",
+        }}
+      >
+        Skyrio helps you search and book flights and hotels. Fares, carry-on and
+        checked bags, seat rules, changes, refunds and hotel cancellation
+        policies are set by each airline and hotel, not by Skyrio.
+      </p>
+
       {/* ── Bottom bar ── */}
-      <div className="sk-footer__bottom">
+      {/* Extra room at the bottom so the floating Atlas / Help buttons
+          don't sit on top of these links. */}
+      <div className="sk-footer__bottom" style={{ paddingBottom: 88 }}>
         <div className="sk-footer__bottom-inner">
           <span className="sk-footer__copy">
             © {YEAR} Skyrio. All rights reserved.

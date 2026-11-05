@@ -1,14 +1,15 @@
 import { useNavigate } from "react-router-dom";
 
-const LAST_UPDATED = "May 14, 2026";
-const CONTACT_EMAIL = "support@skyrioofficial.com";
+const LAST_UPDATED = "November 5, 2026";
+// Same inbox as the footer, emails and Manage Booking page.
+const CONTACT_EMAIL = "skyrioofficial@gmail.com";
 const COMPANY = "Skyrio";
 
 const css = `
-  .sk-legal { min-height: 100vh; background: #07060f; color: #fff; font-family: "DM Sans", sans-serif; }
+  .sk-legal { min-height: 100vh; background: linear-gradient(180deg, #2a1640 0%, #1e1034 100%); color: #fff; font-family: "DM Sans", sans-serif; }
   .sk-legal__topbar {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 32px; background: rgba(255,255,255,0.02);
+    padding: 18px 32px; background: rgba(58,30,98,0.72);
     border-bottom: 1px solid rgba(255,255,255,0.08);
     position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px);
   }
@@ -70,6 +71,7 @@ const css = `
     background: rgba(255,138,42,0.06); border: 1px solid rgba(255,138,42,0.2);
     border-radius: 14px; padding: 20px 24px; margin-top: 48px;
   }
+  .sk-legal__h3 { font-size: 16px; font-weight: 700; color: #fff; margin: 18px 0 8px; }
   .sk-legal__contact-title { font-weight: 700; font-size: 16px; margin-bottom: 8px; color: #ff8a2a; }
   @media (max-width: 640px) {
     .sk-legal__topbar { padding: 14px 16px; }
@@ -86,7 +88,7 @@ export default function TermsOfServicePage() {
       <div className="sk-legal__topbar">
         <div className="sk-legal__logo">Skyrio</div>
         <button className="sk-legal__back" onClick={() => navigate(-1)}>
-          ← Back
+          Back
         </button>
       </div>
       <div className="sk-legal__body">
@@ -160,9 +162,11 @@ export default function TermsOfServicePage() {
         <div className="sk-legal__section">
           <h2 className="sk-legal__h2">4. Bookings and Payments</h2>
           <p className="sk-legal__p">
-            When you make a booking through {COMPANY}, you authorize us to
-            charge the payment method you provide. All payments are processed
-            securely through Stripe. By completing a booking, you agree to:
+            When you make a booking through {COMPANY}, you authorize {COMPANY}{" "}
+            and its booking and payment partners to charge the payment method
+            you provide. Payments are processed by secure third-party payment
+            processors (such as Stripe); {COMPANY} does not store your full card
+            number. By completing a booking, you agree to:
           </p>
           <ul className="sk-legal__ul">
             <li>Pay all fees and charges associated with your booking</li>
@@ -176,11 +180,8 @@ export default function TermsOfServicePage() {
             </li>
           </ul>
           <p className="sk-legal__p">
-            <strong>Cancellations and refunds</strong> are subject to the
-            individual fare rules of your booking. {COMPANY} offers free
-            cancellation within 24 hours of booking for eligible fares. After 24
-            hours, cancellation terms are determined by the airline or travel
-            provider.
+            <strong>Cancellations and refunds</strong> are set by the airline or
+            hotel, not by {COMPANY}. See section 5 for details.
           </p>
           <p className="sk-legal__p">
             Prices are displayed in USD and are subject to change until your
@@ -190,7 +191,66 @@ export default function TermsOfServicePage() {
         </div>
 
         <div className="sk-legal__section">
-          <h2 className="sk-legal__h2">5. XP, Passport, and Rewards</h2>
+          <h2 className="sk-legal__h2">5. Airline and Hotel Policies</h2>
+          <div className="sk-legal__highlight">
+            {COMPANY} does not set or control airline or hotel policies. Each
+            airline and hotel sets its own rules, and those rules apply to your
+            booking.
+          </div>
+          <p className="sk-legal__p">
+            The following are set by the airline or hotel for the specific fare
+            or rate you book, not by {COMPANY}:
+          </p>
+          <ul className="sk-legal__ul">
+            <li>Fares, fare classes and what each fare includes</li>
+            <li>
+              Carry-on and checked bag allowances, sizes, weights and bag fees
+            </li>
+            <li>Seat selection, seat fees and seat assignments</li>
+            <li>Changes, change fees and fare differences</li>
+            <li>
+              Whether a booking is refundable, the refund amount, any
+              cancellation fee, and whether you receive money back or airline
+              credit
+            </li>
+            <li>
+              Hotel cancellation deadlines and policies, and fees the hotel
+              collects at check-in (such as resort fees or local taxes)
+            </li>
+            <li>
+              Schedule changes, delays, cancellations, overbooking and check-in
+              rules
+            </li>
+          </ul>
+          <p className="sk-legal__p">
+            {COMPANY} shows the policy information the airline, hotel or our
+            booking partners provide for your fare or rate. If that information
+            is incomplete or changes, the airline&rsquo;s or hotel&rsquo;s own
+            policy applies.
+          </p>
+          <h3 className="sk-legal__h3">24-hour cancellation</h3>
+          <p className="sk-legal__p">
+            U.S. Department of Transportation rules require airlines, in some
+            cases, to allow free cancellation within 24 hours of booking for
+            certain flights booked at least seven days before departure. This is
+            an airline obligation. Whether your booking qualifies, and whether a
+            refund applies, is decided by the airline and its rules. {COMPANY}{" "}
+            does not guarantee free cancellation.
+          </p>
+          <h3 className="sk-legal__h3">Cancelling through {COMPANY}</h3>
+          <p className="sk-legal__p">
+            When you cancel through {COMPANY}, we send your request to the
+            airline or hotel and show you the refund estimate they provide
+            before anything is cancelled. The final refund amount, any fees, and
+            whether you receive a refund or airline credit are decided by the
+            airline or hotel. Refunds usually take 5&ndash;10 business days to
+            appear, depending on your bank. Airline credit is used directly with
+            the airline under its terms.
+          </p>
+        </div>
+
+        <div className="sk-legal__section">
+          <h2 className="sk-legal__h2">6. XP, Passport, and Rewards</h2>
           <p className="sk-legal__p">
             The Skyrio Passport program awards XP points for activity on the
             platform. XP and rewards are provided at our sole discretion and
@@ -211,7 +271,7 @@ export default function TermsOfServicePage() {
         </div>
 
         <div className="sk-legal__section">
-          <h2 className="sk-legal__h2">6. SkyHub Community</h2>
+          <h2 className="sk-legal__h2">7. SkyHub Community</h2>
           <p className="sk-legal__p">
             SkyHub is a community platform for travelers. By posting content on
             SkyHub, you grant {COMPANY} a non-exclusive, royalty-free license to
@@ -234,7 +294,7 @@ export default function TermsOfServicePage() {
         </div>
 
         <div className="sk-legal__section">
-          <h2 className="sk-legal__h2">7. Intellectual Property</h2>
+          <h2 className="sk-legal__h2">8. Intellectual Property</h2>
           <p className="sk-legal__p">
             The {COMPANY} name, logo, platform design, Atlas AI, and all related
             software are the intellectual property of {COMPANY} and are
@@ -245,7 +305,7 @@ export default function TermsOfServicePage() {
         </div>
 
         <div className="sk-legal__section">
-          <h2 className="sk-legal__h2">8. Disclaimer of Warranties</h2>
+          <h2 className="sk-legal__h2">9. Disclaimer of Warranties</h2>
           <p className="sk-legal__p">
             THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT
             WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED. WE DO NOT WARRANT
@@ -256,7 +316,7 @@ export default function TermsOfServicePage() {
         </div>
 
         <div className="sk-legal__section">
-          <h2 className="sk-legal__h2">9. Limitation of Liability</h2>
+          <h2 className="sk-legal__h2">10. Limitation of Liability</h2>
           <p className="sk-legal__p">
             TO THE MAXIMUM EXTENT PERMITTED BY LAW, {COMPANY.toUpperCase()}{" "}
             SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
@@ -272,7 +332,7 @@ export default function TermsOfServicePage() {
         </div>
 
         <div className="sk-legal__section">
-          <h2 className="sk-legal__h2">10. Governing Law</h2>
+          <h2 className="sk-legal__h2">11. Governing Law</h2>
           <p className="sk-legal__p">
             These Terms shall be governed by and construed in accordance with
             the laws of the State of New Jersey, United States, without regard
@@ -283,7 +343,7 @@ export default function TermsOfServicePage() {
         </div>
 
         <div className="sk-legal__section">
-          <h2 className="sk-legal__h2">11. Changes to Terms</h2>
+          <h2 className="sk-legal__h2">12. Changes to Terms</h2>
           <p className="sk-legal__p">
             We reserve the right to modify these Terms at any time. We will
             provide at least 14 days' notice before significant changes take
@@ -294,7 +354,7 @@ export default function TermsOfServicePage() {
         </div>
 
         <div className="sk-legal__section">
-          <h2 className="sk-legal__h2">12. Termination</h2>
+          <h2 className="sk-legal__h2">13. Termination</h2>
           <p className="sk-legal__p">
             We may suspend or terminate your access to the Service at any time,
             with or without cause, with or without notice. Upon termination,

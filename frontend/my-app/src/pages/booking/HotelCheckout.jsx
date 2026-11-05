@@ -31,6 +31,7 @@ import {
 import { createPortal } from "react-dom";
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
 import { apiHeaders } from "@/utils/checkoutToken";
+import PolicyNote from "@/components/PolicyNote";
 
 import "@/styles/BookingPage.css"; // reuses sk-* purple-glass tokens/classes
 import OverBudgetCheck, {
@@ -290,6 +291,10 @@ function RoomLineItem({ room, index, total }) {
                     )}`
                   : "Refundable rate"
                 : "Non-refundable — can't be cancelled for a refund"}
+              <span style={{ color: "rgba(255,255,255,0.55)" }}>
+                {" "}
+                · set by the hotel
+              </span>
             </span>
           </div>
         )}
@@ -837,6 +842,12 @@ function PaymentForm({
           {error}
         </div>
       )}
+      <PolicyNote
+        kind="hotel"
+        variant="agree"
+        provider={rooms.length === 1 ? rooms[0]?.name : ""}
+        style={{ marginBottom: 10 }}
+      />
       <PayButton
         onClick={handlePay}
         disabled={submitting || !stripe || !cardReady}
@@ -1449,6 +1460,11 @@ export default function HotelCheckout({
                   .
                 </div>
               )}
+              <PolicyNote
+                kind="hotel"
+                provider={rooms.length === 1 ? rooms[0]?.name : ""}
+                style={{ marginTop: 12 }}
+              />
             </div>
           </Card>
 
