@@ -97,6 +97,17 @@ const Icon = {
       <path d="m9 18 6-6-6-6" />
     </Svg>
   ),
+  chevronDown: (p) => (
+    <Svg {...p}>
+      <path d="m6 9 6 6 6-6" />
+    </Svg>
+  ),
+  gift: (p) => (
+    <Svg {...p}>
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5" />
+    </Svg>
+  ),
 };
 
 const NAV_ITEMS = [
@@ -105,6 +116,10 @@ const NAV_ITEMS = [
   { key: "skyhub", label: "SkyHub", path: "/skyhub", hint: "Traveler posts" },
   { key: "passport", label: "Passport", path: "/passport", hint: "XP & trips" },
 ];
+
+// Desktop bar: the 4 main pages, Passport included so it's one click away.
+// My trips, Rewards, Admin and Log out live in the profile menu.
+const DESKTOP_NAV = NAV_ITEMS;
 
 function getActiveKey(pathname) {
   if (pathname === "/" || pathname === "/home") return "discover";
@@ -179,6 +194,43 @@ const SYNC_CSS = `
   .sk-guest-trips:hover { color: #fff; }
   @media (max-width: 1100px) { .sk-guest-trips { display: none; } }
 
+  /* Profile menu: photo button → Passport, My trips, Rewards, Admin, Log out */
+  .sk-profile { position: relative; }
+  .sk-profile-btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 8px 0 4px;
+    border-radius: 999px; cursor: pointer; color: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+    transition: border-color .15s, background .15s;
+  }
+  .sk-profile-btn:hover, .sk-profile-btn[aria-expanded="true"], .sk-profile-btn.is-on {
+    border-color: #ff8a2a; background: rgba(255,138,42,0.12); color: #fff;
+  }
+  .sk-profile-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  /* First name beside the photo so it reads as the account button.
+     Smaller laptops: photo + arrow only, to keep the bar on one line. */
+  .sk-profile-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 700; color: #fff; }
+  @media (max-width: 1240px) { .sk-profile-name { display: none; } }
+  .sk-profile-menu {
+    position: absolute; right: 0; top: calc(100% + 10px); z-index: 1200; width: 260px;
+    padding: 8px; border-radius: 16px; box-sizing: border-box;
+    background: rgba(22,14,44,0.97); border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .sk-profile-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 6px; }
+  .sk-profile-head b { display: block; color: #fff; font-size: 14px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sk-profile-head span { display: block; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #ffb347; }
+  .sk-profile-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; border-radius: 10px;
+    color: rgba(255,255,255,0.88); text-decoration: none; font: inherit; font-size: 14px; font-weight: 600;
+    background: none; border: 0; cursor: pointer; text-align: left; box-sizing: border-box;
+  }
+  .sk-profile-item:hover, .sk-profile-item:focus-visible { background: rgba(255,255,255,0.07); color: #fff; outline: none; }
+  .sk-profile-item svg { color: #ffb347; flex-shrink: 0; }
+  .sk-profile-item small { display: block; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.5); }
+  .sk-profile-item.is-out svg { color: rgba(255,255,255,0.6); }
+  .sk-profile-sep { height: 1px; margin: 6px 4px; background: rgba(255,255,255,0.08); }
+
   .sk-mobile-sync {
     display: flex; align-items: center; gap: 12px;
     padding: 14px 16px; margin: 0; border-radius: 16px;
@@ -240,6 +292,8 @@ export default function Navbar() {
   const { user, isAuthed, logout } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef(null);
   const triggerRef = useRef(null);
@@ -255,6 +309,8 @@ export default function Navbar() {
       user.name || user.username || user.email?.split("@")[0] || "Explorer"
     );
   }, [user]);
+
+  const firstName = (displayName || "").trim().split(/\s+/)[0] || "Account";
 
   const initials = useMemo(() => {
     if (!displayName) return "?";
@@ -314,7 +370,24 @@ export default function Navbar() {
 
   useEffect(() => {
     setMobileOpen(false);
+    setProfileOpen(false);
   }, [location.pathname]);
+
+  // Profile menu: close on outside click or Escape
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    const onDown = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target))
+        setProfileOpen(false);
+    };
+    const onKey = (e) => e.key === "Escape" && setProfileOpen(false);
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [profileOpen]);
 
   // Phone menu cards: always close the menu and go. (Tapping My trips while
   // already on My trips used to leave the menu open, so nothing seemed to
@@ -330,6 +403,7 @@ export default function Navbar() {
     logout();
     navigate("/");
     setMobileOpen(false);
+    setProfileOpen(false);
   };
 
   const userAvatar = (size) => (
@@ -357,7 +431,7 @@ export default function Navbar() {
 
           {/* ── DESKTOP NAV LINKS ── */}
           <div className="sk-nav-links">
-            {NAV_ITEMS.map((item) => {
+            {DESKTOP_NAV.map((item) => {
               const NavIcon = Icon[item.key];
               const active = activeKey === item.key;
               return (
@@ -386,66 +460,97 @@ export default function Navbar() {
               >
                 <Icon.sync size={17} />
                 <span className="sk-sync-cta__label">Sync Together</span>
-                <span className="sk-sync-cta__new" aria-hidden="true">
-                  Group trips
-                </span>
               </Link>
               {isAuthed ? (
                 <div className="sk-authed-actions">
-                  <Link
-                    to="/saved-trips"
-                    className={`sk-trips-btn${isSaved ? " is-on" : ""}`}
-                    aria-label="My trips: view, change or cancel a booking"
-                    aria-current={isSaved ? "page" : undefined}
-                    title="View, change or cancel your flights and hotels"
-                  >
-                    <Icon.trips size={17} />
-                    <span className="sk-trips-btn__label">My trips</span>
-                  </Link>
-
                   <Notifications />
 
-                  <Link
-                    to="/passport"
-                    className="sk-nav-user"
-                    title="My Passport"
-                  >
-                    {userAvatar(30)}
-                    <span className="sk-nav-userText">
-                      <span className="sk-nav-username">{displayName}</span>
-                      {rank && <span className="sk-nav-rank">{rank}</span>}
-                    </span>
-                  </Link>
-
-                  <button
-                    type="button"
-                    className="sk-icon-btn sk-logout-icon"
-                    onClick={handleLogout}
-                    aria-label="Log out"
-                    title="Log out"
-                  >
-                    <Icon.logout size={18} />
-                  </button>
-
-                  {isAdmin && (
-                    <Link
-                      to="/admin/login"
-                      className="sk-admin-btn"
-                      title="Admin dashboard"
+                  {/* Profile menu: personal pages + log out */}
+                  <div className="sk-profile" ref={profileRef}>
+                    <button
+                      type="button"
+                      className={`sk-profile-btn${isSaved ? " is-on" : ""}`}
+                      onClick={() => setProfileOpen((v) => !v)}
+                      aria-haspopup="menu"
+                      aria-expanded={profileOpen}
+                      aria-label={`Account menu for ${displayName}: trips, rewards and log out`}
+                      title="Your account, trips and log out"
                     >
-                      <Icon.settings size={13} /> Admin
-                    </Link>
-                  )}
+                      {userAvatar(32)}
+                      <span className="sk-profile-name">{firstName}</span>
+                      <Icon.chevronDown size={15} />
+                    </button>
+                    {profileOpen && (
+                      <div className="sk-profile-menu" role="menu">
+                        <div className="sk-profile-head">
+                          {userAvatar(36)}
+                          <div style={{ minWidth: 0 }}>
+                            <b>{displayName}</b>
+                            {rank && <span>{rank}</span>}
+                          </div>
+                        </div>
+                        <Link
+                          to="/passport"
+                          className="sk-profile-item"
+                          role="menuitem"
+                        >
+                          <Icon.passport size={18} />
+                          <span>
+                            Passport
+                            <small>XP, stamps and your profile</small>
+                          </span>
+                        </Link>
+                        <Link
+                          to="/saved-trips"
+                          className="sk-profile-item"
+                          role="menuitem"
+                        >
+                          <Icon.trips size={18} />
+                          <span>
+                            My trips
+                            <small>View or cancel a booking</small>
+                          </span>
+                        </Link>
+                        <Link
+                          to="/passport/rewards"
+                          className="sk-profile-item"
+                          role="menuitem"
+                        >
+                          <Icon.gift size={18} />
+                          <span>Passport Rewards</span>
+                        </Link>
+                        {isAdmin && (
+                          <Link
+                            to="/admin/login"
+                            className="sk-profile-item"
+                            role="menuitem"
+                          >
+                            <Icon.settings size={18} />
+                            <span>Admin dashboard</span>
+                          </Link>
+                        )}
+                        <div className="sk-profile-sep" />
+                        <button
+                          type="button"
+                          className="sk-profile-item is-out"
+                          role="menuitem"
+                          onClick={handleLogout}
+                        >
+                          <Icon.logout size={18} />
+                          <span>Log out</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="sk-guest-actions">
                   <Link
                     to="/find-booking"
-                    className="sk-trips-btn"
-                    title="Booked without an account? Find, change or cancel it here."
+                    className="sk-guest-trips"
+                    title="Booked without an account? View or cancel it here."
                   >
-                    <Icon.trips size={17} />
-                    <span className="sk-trips-btn__label">My booking</span>
+                    My booking
                   </Link>
                   <Link to="/login" className="sk-nav-cta is-ghost">
                     Log in
