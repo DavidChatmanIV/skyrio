@@ -345,12 +345,13 @@ export function FilterDropdown({
             zIndex: 1000,
             minWidth: 200,
             maxWidth: "calc(100vw - 32px)",
-            // Solid, not translucent — nothing behind it should show through.
-            background: "#160e24",
-            border: "1px solid rgba(255,255,255,0.12)",
+            // Solid Skyrio purple, not translucent — nothing behind it
+            // should show through.
+            background: "linear-gradient(160deg, #3d2168 0%, #2a1650 100%)",
+            border: "1px solid rgba(255,255,255,0.16)",
             borderRadius: 14,
             boxShadow:
-              "0 12px 40px rgba(0,0,0,0.65), 0 1px 0 rgba(255,255,255,0.06) inset",
+              "0 18px 44px rgba(12,4,28,0.55), 0 1px 0 rgba(255,255,255,0.1) inset",
             overflow: "hidden",
             padding: "16px",
           }}
@@ -377,7 +378,7 @@ export function ApplyBtn({ onClick }) {
         borderRadius: 999,
         border: "none",
         background: "linear-gradient(90deg, #ff8a2a, #FFB347)",
-        color: "#fff",
+        color: "#1a0e06",
         fontWeight: 700,
         fontSize: 14,
         cursor: "pointer",
@@ -399,7 +400,7 @@ export function PanelLabel({ children }) {
         fontSize: 10,
         fontWeight: 700,
         letterSpacing: "0.12em",
-        color: "rgba(255,255,255,0.35)",
+        color: "rgba(255,255,255,0.55)",
         textTransform: "uppercase",
         marginBottom: 12,
       }}
@@ -594,7 +595,7 @@ function TimePanel({ value, onChange, close }) {
               <span
                 style={{
                   fontSize: 10,
-                  color: "rgba(255,255,255,0.38)",
+                  color: "rgba(255,255,255,0.55)",
                   lineHeight: 1.3,
                   textAlign: "center",
                 }}
@@ -854,7 +855,13 @@ export default function SmartFilterBar({
     );
   }, [filters.xp]);
 
-  if (!visible) return null;
+  // Before a search there's nothing to filter, so no filter row (same as
+  // Stays). A filter already set — e.g. an airline — still shows so it can
+  // be changed or cleared.
+  const anySet = ["price", "stops", "time", "airline", "xp"].some(
+    (k) => filters[k] !== undefined && filters[k] !== "any"
+  );
+  if (!visible || (isPreSearch && !anySet)) return null;
 
   return (
     <div
@@ -872,7 +879,7 @@ export default function SmartFilterBar({
           fontSize: 10,
           fontWeight: 700,
           letterSpacing: "0.1em",
-          color: "rgba(255,255,255,0.3)",
+          color: "rgba(255,255,255,0.55)",
           textTransform: "uppercase",
           alignSelf: "center",
           marginRight: 4,

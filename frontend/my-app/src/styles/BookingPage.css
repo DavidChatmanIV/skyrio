@@ -4638,3 +4638,200 @@ body.sk-roombar-on .sk-results-wrap {
   outline: 2px solid #ff8a2a;
   outline-offset: 2px;
 }
+
+/* ═════════════════════════════════════════════════════════════════
+   SKYRIO GLASS PASS — Booking page
+   Same purple glass as Sync Together, SkyHub and the Passport:
+   no near-black cards. Everything below only changes colors/surfaces;
+   layout is untouched. Keep this block at the end of the file.
+   ═════════════════════════════════════════════════════════════════ */
+.sk-booking {
+  --sk-glass: linear-gradient(
+    160deg,
+    rgba(74, 40, 112, 0.6) 0%,
+    rgba(34, 18, 62, 0.7) 100%
+  );
+  --sk-glass-solid: rgba(46, 24, 82, 0.97);
+  --sk-glass-edge: rgba(255, 255, 255, 0.16);
+  --sk-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 18px 44px rgba(12, 4, 28, 0.38);
+  --sk-topline: linear-gradient(90deg, #ff8a2a, #ffb347 40%, #7c5cfc);
+}
+/* The pass sets its own colors on the hero, so override them there too */
+.sk-booking .sk-booking-hero.sk-bp {
+  --bp-paper: linear-gradient(
+    160deg,
+    rgba(74, 40, 112, 0.62) 0%,
+    rgba(34, 18, 62, 0.74) 100%
+  );
+  --bp-stub: rgba(255, 255, 255, 0.05);
+  --bp-edge: rgba(255, 255, 255, 0.16);
+}
+
+/* Outer hero box: let the pass be the card, not a box in a box */
+.sk-booking-hero,
+.sk-booking-hero.sk-bp {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.sk-booking-hero::before {
+  display: none;
+}
+
+/* The boarding pass */
+.sk-bp-ticket {
+  background: var(--bp-paper);
+  border-color: var(--sk-glass-edge);
+  box-shadow: var(--sk-glass-shadow);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+/* Punched notches take the page color instead of a black dot */
+.sk-bp-perf::before,
+.sk-bp-perf::after {
+  background: #2a1640;
+}
+
+/* Tabs + plan-mode chips */
+.sk-tab-bar {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* "Your pass" + XP / Price Watch on the stub */
+.sk-bp-stub .sk-tripState {
+  background: rgba(255, 255, 255, 0.06);
+}
+.sk-bp-stub .sk-price-watch-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 138, 42, 0.12),
+    rgba(124, 92, 252, 0.14)
+  );
+  border-color: rgba(255, 179, 71, 0.32);
+}
+
+/* Sync Together: a quiet purple link, not a second orange button */
+.sk-btn-sync.ant-btn {
+  background: rgba(124, 92, 252, 0.18) !important;
+  border: 1px solid rgba(167, 139, 250, 0.45) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+.sk-btn-sync.ant-btn:hover {
+  background: rgba(124, 92, 252, 0.3) !important;
+  box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.18) !important;
+}
+
+/* Result cards + loading skeletons */
+.sk-result-card {
+  position: relative;
+  background: var(--sk-glass) !important;
+  border-color: var(--sk-glass-edge) !important;
+  box-shadow: var(--sk-glass-shadow) !important;
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+.sk-result-card:hover {
+  border-color: rgba(255, 179, 71, 0.4) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 22px 52px rgba(12, 4, 28, 0.46) !important;
+}
+.sk-skeleton-card {
+  background: var(--sk-glass);
+  border-color: var(--sk-glass-edge);
+}
+
+/* Results sit centered under the pass (the grid's gutter was pulling
+   them to the left edge on wide screens) */
+.sk-results-wrap.ant-row {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Small surfaces that were near-black */
+.sk-save-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+.skf-pill {
+  background: rgba(255, 255, 255, 0.07);
+}
+.sk-roomhow {
+  background: var(--sk-glass);
+  border-color: var(--sk-glass-edge);
+}
+.sk-roombar {
+  background: var(--sk-glass-solid);
+}
+.sk-orange-picker .ant-picker-clear,
+.sk-booking .ant-picker .ant-picker-clear {
+  background: rgba(46, 24, 82, 0.95) !important;
+}
+
+/* Menus and pop-ups: solid purple so text stays easy to read */
+.sk-tab-more-menu,
+.skf-dropdown,
+.sk-city-suggest-menu {
+  background: var(--sk-glass-solid);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 20px 50px rgba(12, 4, 28, 0.6);
+}
+.sk-select-popup,
+.ant-picker-panel-container {
+  background: rgba(46, 24, 82, 0.97) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Checkout (flights + hotels) sits on the same purple, not near-black */
+.sk-checkout-overlay {
+  background-image: linear-gradient(
+      180deg,
+      rgba(58, 28, 96, 0.7),
+      rgba(30, 14, 54, 0.86)
+    ),
+    var(--sk-bg-image, none);
+  background-color: #2a1640;
+}
+
+/* Phones: keep the page short */
+@media (max-width: 720px) {
+  /* Three plan choices sit side by side as compact tiles */
+  .sk-planmode {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+  .sk-planmode__btn {
+    flex-direction: column;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 6px !important;
+    padding: 10px 6px !important;
+  }
+  .sk-planmode__sub {
+    display: none !important;
+  }
+  .sk-planmode__title {
+    font-size: 12.5px !important;
+  }
+}
+@media (max-width: 992px) {
+  /* The decorative barcode only adds scrolling on smaller screens */
+  .sk-bp-barcode {
+    display: none;
+  }
+}
+
+/* Browsers without blur: solid purple fallback */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .sk-bp-ticket,
+  .sk-result-card,
+  .sk-skeleton-card,
+  .sk-roomhow {
+    background: rgba(52, 28, 90, 0.96) !important;
+  }
+}

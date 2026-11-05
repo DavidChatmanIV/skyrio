@@ -32,7 +32,7 @@ import { createPortal } from "react-dom";
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
 import { apiHeaders } from "@/utils/checkoutToken";
 
-import "@/styles/BookingPage.css"; // reuses sk-* dark-glass tokens/classes
+import "@/styles/BookingPage.css"; // reuses sk-* purple-glass tokens/classes
 import OverBudgetCheck, {
   overBudgetBy,
 } from "@/components/syncTogether/OverBudgetCheck";
@@ -143,7 +143,7 @@ const PAY_BTN_CSS = `
   .sk-hc-pay {
     width: 100% !important; min-height: 52px !important; padding: 15px 17px !important;
     border: none !important; border-radius: 14px !important;
-    background: linear-gradient(135deg, #f97316 0%, #ec4899 100%) !important;
+    background: linear-gradient(135deg, #ff8a2a 0%, #7c5cfc 100%) !important;
     color: #fff !important; font-size: 16px !important; font-weight: 700 !important;
     font-family: inherit !important; cursor: pointer;
     display: flex !important; align-items: center; justify-content: center; gap: 8px;
@@ -1083,7 +1083,7 @@ function RoomUnavailableNotice({ rooms, onFindAnother, onClose }) {
         position: "fixed",
         inset: 0,
         zIndex: 2000000,
-        background: "rgba(8,6,18,0.82)",
+        background: "rgba(20,8,40,0.72)",
         backdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "center",
@@ -1095,7 +1095,7 @@ function RoomUnavailableNotice({ rooms, onFindAnother, onClose }) {
         style={{
           width: "100%",
           maxWidth: 420,
-          background: "#150f28",
+          background: "linear-gradient(160deg, #3d2168 0%, #2a1650 100%)",
           border: "1px solid rgba(248,113,113,.35)",
           borderRadius: 20,
           padding: "28px 24px 24px",

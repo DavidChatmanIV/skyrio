@@ -22,7 +22,6 @@ import {
   Gift,
   Flame,
   Flag,
-  LayoutGrid,
   Check,
   Lock,
   Loader2,
@@ -78,12 +77,11 @@ const TYPE_META = {
   LIMITED: { label: "Limited", Icon: Flame },
 };
 
+// Two tabs: things to spend XP on, and challenges that earn XP. (The
+// catalog is small, so type sub-tabs only split it into near-empty lists;
+// each reward still shows its type on the card.)
 const TABS = [
-  { key: "all", label: "All", Icon: LayoutGrid },
-  { key: "boosts", label: "Boosts", Icon: Zap, type: "BOOST" },
-  { key: "badges", label: "Badges", Icon: Award, type: "BADGE" },
-  { key: "perks", label: "Perks", Icon: Gift, type: "PERK" },
-  { key: "limited", label: "Limited", Icon: Flame, type: "LIMITED" },
+  { key: "all", label: "Rewards", Icon: Gift },
   // Challenges have a different shape (progress + end date, not a cost),
   // so they get their own render branch below.
   { key: "challenges", label: "Challenges", Icon: Flag },
@@ -142,6 +140,32 @@ const DEFAULT_ITEMS = [
 ];
 
 const HOW_KEY = "skyrio_rewards_how_closed";
+
+// Same purple glass + orange→purple top line as the rest of Skyrio.
+const PR_GLASS_CSS = `
+.pr-page { --pr-glass: linear-gradient(160deg, rgba(74,40,112,0.62) 0%, rgba(34,18,62,0.72) 100%); }
+.pr-pass, .pr-how, .pr-ticket, .pr-empty, .pr-tabs {
+  background: var(--pr-glass) !important;
+  border: 1px solid rgba(255,255,255,0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 18px 44px rgba(12,4,28,0.38) !important;
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+.pr-pass, .pr-ticket { position: relative; overflow: hidden; }
+.pr-pass::after, .pr-ticket::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; pointer-events: none;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347 40%, #7c5cfc); opacity: .85;
+}
+.pr-ticket--featured { border-color: rgba(255,179,71,0.5) !important; }
+.pr-pass-stub, .pr-ticket-stub { background: rgba(20,10,40,0.35) !important; }
+.pr-modal .ant-modal-content {
+  background: linear-gradient(160deg, rgba(74,40,112,0.97), rgba(30,16,56,0.98)) !important;
+  border: 1px solid rgba(255,255,255,0.16); border-radius: 22px !important;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .pr-page { --pr-glass: linear-gradient(160deg, rgba(56,30,88,0.96), rgba(28,14,52,0.97)); }
+}
+`;
 const fmt = (n) => Number(n || 0).toLocaleString();
 
 function getStatus(item, { xp, redeemedIds, profileLoading }) {
@@ -184,9 +208,10 @@ export default function PassportRewards({
 
   const [howOpen, setHowOpen] = useState(() => {
     try {
-      return localStorage.getItem(HOW_KEY) !== "1";
+      // Closed unless you opened it before: the page leads with rewards.
+      return localStorage.getItem(HOW_KEY) === "0";
     } catch {
-      return true;
+      return false;
     }
   });
   const toggleHow = () => {
@@ -441,6 +466,7 @@ export default function PassportRewards({
 
   return (
     <div className={`pr-page ${embedded ? "is-embedded" : ""}`}>
+      <style>{PR_GLASS_CSS}</style>
       {!embedded && <div className="pr-overlay" />}
 
       <div className="pr-shell">
@@ -473,9 +499,6 @@ export default function PassportRewards({
                 <span className="pr-seg-value">
                   {profileLoading ? "—" : fmt(lifetime)}
                 </span>
-                <span className="pr-seg-hint">
-                  Sets your rank · never goes down
-                </span>
               </div>
               <div className="pr-seg">
                 <span className="pr-seg-label">Next stop</span>
@@ -498,27 +521,9 @@ export default function PassportRewards({
               <i style={{ width: `${profileLoading ? 0 : tierPct}%` }} />
             </div>
 
-            {!profileLoading && (
-              <div
-                className="pr-ledger"
-                aria-label="How your spendable XP is calculated"
-              >
-                <span className="pr-ledger-item">
-                  <Trophy size={13} /> <b>{fmt(lifetime)}</b> earned
-                </span>
-                <span className="pr-ledger-op">−</span>
-                <span className="pr-ledger-item">
-                  <b>{fmt(Math.max(0, lifetime - balance))}</b> spent on rewards
-                </span>
-                <span className="pr-ledger-op">=</span>
-                <span className="pr-ledger-item pr-ledger-total">
-                  <Wallet size={13} /> <b>{fmt(balance)}</b> to spend
-                </span>
-              </div>
-            )}
-
             <p className="pr-pass-note">
-              <ShieldCheck size={14} /> Spending XP never lowers your rank.
+              <ShieldCheck size={14} /> Spending XP never lowers your rank. XP
+              isn&apos;t cash.
             </p>
           </div>
 
@@ -534,9 +539,7 @@ export default function PassportRewards({
               )}
               <small>XP</small>
             </span>
-            <span className="pr-wallet-sub">
-              Use on rewards · goes down when you redeem
-            </span>
+            <span className="pr-wallet-sub">To spend on rewards below</span>
             <button
               type="button"
               className="pr-btn pr-btn--primary"

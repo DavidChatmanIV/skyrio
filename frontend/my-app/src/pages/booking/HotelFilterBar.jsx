@@ -374,7 +374,7 @@ export default function HotelFilterBar({
           fontSize: 10,
           fontWeight: 700,
           letterSpacing: "0.1em",
-          color: "rgba(255,255,255,0.3)",
+          color: "rgba(255,255,255,0.55)",
           textTransform: "uppercase",
           alignSelf: "center",
           marginRight: 4,

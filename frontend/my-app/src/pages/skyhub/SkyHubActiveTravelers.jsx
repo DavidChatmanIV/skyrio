@@ -96,18 +96,29 @@ function Avatar({ name, avatar, size = 36, idx = 0 }) {
   );
 }
 
+// travelers: who to show now. total: how many in all. onPick(traveler):
+// tapping a row opens their public Passport.
 export default function SkyHubActiveTravelers({
   travelers = [],
+  total = travelers.length,
+  expanded = false,
   loading,
   onViewAll,
+  onPick,
 }) {
+  const canExpand = onViewAll && (expanded || total > travelers.length);
   return (
     <div
       style={{
-        background: "rgba(20,12,42,0.85)",
-        border: "1px solid rgba(255,255,255,0.1)",
+        position: "relative",
+        background:
+          "linear-gradient(160deg, rgba(74,40,112,0.6) 0%, rgba(34,18,62,0.7) 100%)",
+        border: "1px solid rgba(255,255,255,0.16)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.1), 0 18px 44px rgba(12,4,28,0.38)",
         borderRadius: 16,
-        backdropFilter: "blur(16px)",
+        backdropFilter: "blur(16px) saturate(150%)",
+        WebkitBackdropFilter: "blur(16px) saturate(150%)",
         overflow: "hidden",
       }}
     >
@@ -126,38 +137,50 @@ export default function SkyHubActiveTravelers({
             <UsersIcon />
           </span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#f0ecff" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
               Active Travelers
             </div>
             <div
               style={{
                 fontSize: 11,
-                color: "rgba(240,236,255,0.4)",
+                color: "rgba(255,255,255,0.6)",
                 marginTop: 1,
               }}
             >
-              {travelers.length > 0
-                ? `${travelers.length} online now`
-                : "Join the community"}
+              {/* They've posted recently; we don't know who's online. */}
+              {total > 0 ? "Posted recently" : "Join the community"}
             </div>
           </div>
         </div>
-        {onViewAll && travelers.length > 0 && (
+        {canExpand && (
           <button
+            type="button"
             onClick={onViewAll}
+            aria-expanded={expanded}
             style={{
               background: "none",
               border: "none",
               cursor: "pointer",
               fontSize: 12,
-              fontWeight: 600,
-              color: "#ff7a35",
+              fontWeight: 700,
+              color: "#ffb347",
               display: "flex",
               alignItems: "center",
               gap: 3,
+              padding: "4px 0",
+              fontFamily: "inherit",
             }}
           >
-            View all <ChevronRight />
+            {expanded ? "Show less" : `See all ${total}`}
+            <span
+              style={{
+                display: "inline-flex",
+                transform: expanded ? "rotate(-90deg)" : "rotate(90deg)",
+                transition: "transform .15s",
+              }}
+            >
+              <ChevronRight />
+            </span>
           </button>
         )}
       </div>
@@ -169,7 +192,7 @@ export default function SkyHubActiveTravelers({
             padding: "20px 16px",
             textAlign: "center",
             fontSize: 13,
-            color: "rgba(240,236,255,0.35)",
+            color: "rgba(255,255,255,0.55)",
           }}
         >
           Loading...
@@ -177,7 +200,7 @@ export default function SkyHubActiveTravelers({
       ) : travelers.length === 0 ? (
         /* Clean empty state — no fake traveler names */
         <div style={{ padding: "24px 16px", textAlign: "center" }}>
-          <div style={{ marginBottom: 8, color: "rgba(240,236,255,0.18)" }}>
+          <div style={{ marginBottom: 8, color: "rgba(255,255,255,0.3)" }}>
             <svg
               width="28"
               height="28"
@@ -195,7 +218,7 @@ export default function SkyHubActiveTravelers({
           <div
             style={{
               fontSize: 12,
-              color: "rgba(240,236,255,0.35)",
+              color: "rgba(255,255,255,0.55)",
               lineHeight: 1.5,
             }}
           >
@@ -209,23 +232,34 @@ export default function SkyHubActiveTravelers({
           const name = t.name || t.authorName || "Traveler";
           const location = t.location || t.destination || "";
           const badge = t.badge || "Explorer";
+          const canOpen = Boolean(onPick && t.username);
           return (
-            <div
+            <button
+              type="button"
               key={i}
+              disabled={!canOpen}
+              onClick={() => canOpen && onPick(t)}
+              aria-label={canOpen ? `Open ${name}'s Passport` : name}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
+                width: "100%",
                 padding: "11px 16px",
+                background: "transparent",
+                border: "none",
                 borderBottom:
                   i < travelers.length - 1
-                    ? "1px solid rgba(255,255,255,0.05)"
+                    ? "1px solid rgba(255,255,255,0.07)"
                     : "none",
-                cursor: "pointer",
+                cursor: canOpen ? "pointer" : "default",
                 transition: "background 0.12s",
+                textAlign: "left",
+                fontFamily: "inherit",
+                color: "inherit",
               }}
               onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "rgba(255,255,255,0.04)")
+                (e.currentTarget.style.background = "rgba(255,255,255,0.07)")
               }
               onMouseLeave={(e) =>
                 (e.currentTarget.style.background = "transparent")
@@ -233,25 +267,13 @@ export default function SkyHubActiveTravelers({
             >
               <div style={{ position: "relative", flexShrink: 0 }}>
                 <Avatar name={name} avatar={t.avatar} size={36} idx={i} />
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    right: 0,
-                    width: 9,
-                    height: 9,
-                    borderRadius: "50%",
-                    background: "#22c55e",
-                    border: "1.5px solid rgba(20,12,42,0.9)",
-                  }}
-                />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
                     fontSize: 13,
                     fontWeight: 600,
-                    color: "#f0ecff",
+                    color: "#fff",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -263,14 +285,14 @@ export default function SkyHubActiveTravelers({
                   <div
                     style={{
                       fontSize: 11,
-                      color: "rgba(240,236,255,0.4)",
+                      color: "rgba(255,255,255,0.6)",
                       marginTop: 1,
                       display: "flex",
                       alignItems: "center",
                       gap: 3,
                     }}
                   >
-                    <span style={{ color: "rgba(240,236,255,0.3)" }}>
+                    <span style={{ color: "rgba(255,255,255,0.5)" }}>
                       <PinIcon />
                     </span>
                     {location}
@@ -292,7 +314,7 @@ export default function SkyHubActiveTravelers({
               >
                 {badge}
               </span>
-            </div>
+            </button>
           );
         })
       )}

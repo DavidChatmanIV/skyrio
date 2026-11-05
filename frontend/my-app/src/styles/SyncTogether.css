@@ -748,8 +748,47 @@
 .sk-sync-section {
   --sync-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas,
     monospace;
-  --sync-glass: rgba(16, 11, 34, 0.78);
+  /* Same purple glass as the landing page cards (not flat black). */
+  --sync-glass: linear-gradient(
+    160deg,
+    rgba(74, 40, 112, 0.58) 0%,
+    rgba(34, 18, 62, 0.66) 100%
+  );
+  --sync-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 18px 44px rgba(12, 4, 28, 0.38);
   color: #fff;
+}
+.sk-sync-flowStep,
+.sk-sync-trip,
+.sk-sync-panel,
+.sk-sync-progress {
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: var(--sync-glass-shadow);
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+/* Orange-to-purple line along the top, like the navbar and landing cards */
+.sk-sync-flowStep::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(90deg, #ff8a2a, #ffb347 40%, #7c5cfc);
+  opacity: 0.85;
+}
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .sk-sync-section {
+    --sync-glass: linear-gradient(
+      160deg,
+      rgba(56, 30, 88, 0.95),
+      rgba(28, 14, 52, 0.96)
+    );
+  }
 }
 
 /* ── Hero ── */
@@ -1388,5 +1427,82 @@
 @media (prefers-reduced-motion: reduce) {
   .sk-sync-skel {
     animation: none;
+  }
+}
+
+/* ── Trip page tabs: Plan · Book · Group ── */
+/* Trip page: tighter spacing so the tabs sit right under the progress */
+.sk-sync-section:has(.sk-gp-tabs) {
+  gap: 14px;
+}
+.sk-gp-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--sync-glass);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: var(--sync-glass-shadow);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+.sk-gp-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font: 700 14.5px "DM Sans", sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.sk-gp-tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+.sk-gp-tab.is-on {
+  color: #1a0e06;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+}
+.sk-gp-tab:focus-visible,
+.sk-gp-go:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.sk-gp-help {
+  margin: -4px 2px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.68);
+}
+.sk-gp-panel > :first-child {
+  margin-top: 0 !important;
+}
+.sk-gp-go {
+  flex-shrink: 0;
+  align-self: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  font: 800 12.5px "DM Sans", sans-serif;
+  color: #1a0e06;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  white-space: nowrap;
+}
+@media (max-width: 400px) {
+  .sk-gp-tab {
+    font-size: 13.5px;
+    gap: 5px;
+  }
+  .sk-sync-nextStep {
+    flex-wrap: wrap;
   }
 }

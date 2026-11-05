@@ -243,7 +243,6 @@ function deriveTrending(posts) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
     .map(([name, cnt]) => ({
       name,
       posts: cnt,
@@ -260,7 +259,6 @@ function deriveActiveTravelers(posts) {
       seen.add(key);
       return true;
     })
-    .slice(0, 6)
     .map((p) => ({
       name: p.author,
       username: p.username?.replace("@", ""),
@@ -408,276 +406,6 @@ function EmptyIcon({ type }) {
   return icons[type] || icons.globe;
 }
 
-/* ── Featured Destination card ─────────────────────────────── */
-function FeaturedCard({ destination, postCount, onExplore }) {
-  if (!destination) return null;
-  return (
-    <div
-      style={{
-        background:
-          "linear-gradient(135deg,rgba(255,107,43,0.16),rgba(147,51,234,0.12))",
-        border: "1px solid rgba(255,107,43,0.22)",
-        borderRadius: 20,
-        padding: "16px 20px",
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        cursor: "pointer",
-        transition: "all 0.18s",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 10px 32px rgba(255,107,43,0.2)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "none";
-      }}
-      onClick={onExplore}
-    >
-      <div
-        style={{
-          width: 46,
-          height: 46,
-          borderRadius: 14,
-          flexShrink: 0,
-          background: "linear-gradient(135deg,#ff6b2b,#9333ea)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#ff9555",
-        }}
-      >
-        <FireSvg />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 800,
-            color: "rgba(255,149,85,0.85)",
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            marginBottom: 2,
-          }}
-        >
-          Trending Now
-        </div>
-        <div
-          style={{
-            fontSize: 16,
-            fontWeight: 800,
-            color: "#fff",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontFamily: "'Sora',sans-serif",
-          }}
-        >
-          {destination}
-        </div>
-        <div
-          style={{ fontSize: 12, color: "rgba(240,236,255,0.5)", marginTop: 1 }}
-        >
-          {postCount} post{postCount !== 1 ? "s" : ""} · Active community
-        </div>
-      </div>
-      <div
-        style={{
-          padding: "7px 14px",
-          borderRadius: 99,
-          flexShrink: 0,
-          background: "rgba(255,107,43,0.18)",
-          border: "1px solid rgba(255,107,43,0.32)",
-          fontSize: 12,
-          fontWeight: 700,
-          color: "#ff9555",
-        }}
-      >
-        Explore →
-      </div>
-    </div>
-  );
-}
-
-/* ── Today's Hotspots ────────────────────────────────────────── */
-function HotspotsWidget({ trending }) {
-  if (!trending?.length) return null;
-  return (
-    <div
-      style={{
-        background: "rgba(13,10,30,0.75)",
-        border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: 16,
-        overflow: "hidden",
-        backdropFilter: "blur(24px)",
-      }}
-    >
-      <div
-        style={{
-          padding: "13px 16px 10px",
-          borderBottom: "1px solid rgba(255,255,255,0.07)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <span style={{ color: "var(--sh-orange2)" }}>
-          <TrendUpIcon />
-        </span>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 700,
-            color: "var(--sh-text)",
-            fontFamily: "'Sora',sans-serif",
-          }}
-        >
-          Today's Hotspots
-        </span>
-      </div>
-      {trending.map((d, i) => (
-        <div
-          key={i}
-          style={{
-            padding: "10px 16px",
-            borderBottom:
-              i < trending.length - 1
-                ? "1px solid rgba(255,255,255,0.05)"
-                : "none",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 5,
-            }}
-          >
-            <span
-              style={{ fontSize: 13, fontWeight: 600, color: "var(--sh-text)" }}
-            >
-              {d.name}
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--sh-orange2)",
-                background: "var(--sh-odim)",
-                padding: "1px 8px",
-                borderRadius: 99,
-              }}
-            >
-              +{d.pct}%
-            </span>
-          </div>
-          <div
-            style={{
-              height: 4,
-              background: "rgba(255,255,255,0.06)",
-              borderRadius: 99,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${d.pct}%`,
-                background: "linear-gradient(90deg,var(--sh-orange),#9333ea)",
-                borderRadius: 99,
-                transition: "width 0.8s ease",
-              }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── Trending Tags ────────────────────────────────────────────── */
-function TrendingTagsWidget({ tags }) {
-  if (!tags?.length) return null;
-  return (
-    <div
-      style={{
-        background: "rgba(13,10,30,0.75)",
-        border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: 16,
-        padding: "13px 16px",
-        backdropFilter: "blur(24px)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 7,
-          marginBottom: 12,
-        }}
-      >
-        <span style={{ color: "var(--sh-orange)" }}>
-          <FireSvg />
-        </span>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 700,
-            color: "var(--sh-text)",
-            fontFamily: "'Sora',sans-serif",
-          }}
-        >
-          Trending
-        </span>
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-        {tags.map(({ tag, cnt }) => (
-          <span
-            key={tag}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "5px 12px",
-              borderRadius: 99,
-              cursor: "pointer",
-              background: "rgba(147,51,234,0.12)",
-              border: "1px solid rgba(147,51,234,0.22)",
-              transition: "all 0.14s",
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "rgba(147,51,234,0.22)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "rgba(147,51,234,0.12)")
-            }
-          >
-            <span style={{ color: "#a78bfa" }}>
-              <HashIcon />
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#c084fc" }}>
-              {tag.replace("#", "")}
-            </span>
-            <span
-              style={{
-                fontSize: 10,
-                color: "rgba(240,236,255,0.35)",
-                background: "rgba(255,255,255,0.05)",
-                padding: "0 5px",
-                borderRadius: 99,
-              }}
-            >
-              {cnt}
-            </span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ── Main ─────────────────────────────────────────────────────── */
 export default function SkyHubPage() {
   const navigate = useNavigate();
@@ -742,10 +470,6 @@ export default function SkyHubPage() {
         badge: authUser.levelLabel || authUser.badge || "Explorer",
       }
     : null;
-
-  // If the saved photo can't load, show initials instead of a broken image.
-  const [heroAvatarBroken, setHeroAvatarBroken] = useState(false);
-  useEffect(() => setHeroAvatarBroken(false), [currentUser?.avatar]);
 
   // Logged-out visitors can read everything; any action opens a
   // "create a profile" prompt that brings them back to SkyHub.
@@ -887,8 +611,12 @@ export default function SkyHubPage() {
     fetchFeed();
   }, [fetchFeed]);
 
+  // Full lists; the sidebar shows the top few and "See all" opens the rest
+  // right there (there's no separate destinations/travelers page).
   const trendingDestinations = useMemo(() => deriveTrending(posts), [posts]);
   const activeTravelers = useMemo(() => deriveActiveTravelers(posts), [posts]);
+  const [showAllDest, setShowAllDest] = useState(false);
+  const [showAllTravelers, setShowAllTravelers] = useState(false);
   const trendingTags = useMemo(() => deriveTrendingTags(posts), [posts]);
 
   // Counts what's actually in the feed. "places" is the number of different
@@ -1442,8 +1170,6 @@ export default function SkyHubPage() {
     ? `${currentUser.id || ""}|${currentUser.username || ""}`
     : null;
 
-  const topTrend = trendingDestinations[0] || null;
-
   const feedLoading =
     loadingFeed ||
     (activeTab === "following" && loadingFollowing) ||
@@ -1457,101 +1183,6 @@ export default function SkyHubPage() {
         <div className="skyhub-topHeaderOverlay" />
         <div className="skyhub-topHeaderInner">
           <div className="skyhub-heroCopy">
-            {/* Logged-in user pill */}
-            {currentUser && (
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: 12,
-                  padding: "6px 12px 6px 6px",
-                  background: "rgba(255,255,255,0.07)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: 99,
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                {currentUser.avatar && !heroAvatarBroken ? (
-                  <img
-                    src={currentUser.avatar}
-                    alt=""
-                    onError={() => setHeroAvatarBroken(true)}
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      background:
-                        "linear-gradient(135deg,var(--sh-orange),#9333ea)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 800,
-                      fontSize: 11,
-                      color: "#fff",
-                    }}
-                  >
-                    {currentUser.name.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: "#fff",
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {currentUser.name.split(" ")[0]}
-                  </div>
-                  <div
-                    style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}
-                  >
-                    @{currentUser.username} · {currentUser.xp.toLocaleString()}{" "}
-                    XP
-                  </div>
-                </div>
-                {/* Live badge */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "2px 8px",
-                    borderRadius: 99,
-                    background: "rgba(52,211,153,0.15)",
-                    border: "1px solid rgba(52,211,153,0.3)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "#34d399",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 5,
-                      height: 5,
-                      borderRadius: "50%",
-                      background: "#34d399",
-                      display: "inline-block",
-                    }}
-                  />
-                  LIVE
-                </div>
-              </div>
-            )}
-
             <div className="skyhub-eyebrow">
               SkyHub · Postcards from the road
             </div>
@@ -1560,30 +1191,9 @@ export default function SkyHubPage() {
               <span className="shPC-accent">postcard.</span>
             </h1>
             <p className="skyhub-pageSubtitle">
-              SkyHub is where Skyrio travelers share tips, photos, and questions
-              about places they&rsquo;ve been. Read what others found, or post
-              your own. We call each post a postcard.
+              Tips, photos and questions from Skyrio travelers. Read what others
+              found, or share your own.
             </p>
-            <ol className="shPC-steps" aria-label="How SkyHub works">
-              <li>
-                <span className="shPC-stepNum">1</span>
-                <span>
-                  <b>Write</b> a tip, story, or question
-                </span>
-              </li>
-              <li>
-                <span className="shPC-stepNum">2</span>
-                <span>
-                  <b>Add the place</b> and a photo if you have one
-                </span>
-              </li>
-              <li>
-                <span className="shPC-stepNum">3</span>
-                <span>
-                  <b>Send it.</b> Other travelers see it, and posts can earn XP
-                </span>
-              </li>
-            </ol>
             <button type="button" className="shPC-cta" onClick={startPost}>
               <svg
                 width="17"
@@ -1601,9 +1211,6 @@ export default function SkyHubPage() {
               </svg>
               {posts.length ? "Send a postcard" : "Send the first postcard"}
             </button>
-            {/* Bullet list (Trending conversations / Destination discovery /
-                Real traveler questions) removed — decorative, added height
-                without helping a first-time visitor act. */}
           </div>
 
           <div className="skyhub-headerActions">
@@ -1624,33 +1231,6 @@ export default function SkyHubPage() {
             />
           </div>
         </div>
-
-        {/* Live stats */}
-        {liveStats && (
-          <div className="skyhub-topStats">
-            <div className="skyhub-statItem">
-              <strong>{liveStats.travelers.toLocaleString()}</strong>
-              <span>Travelers</span>
-            </div>
-            <div className="skyhub-statItem">
-              <strong>{liveStats.posts.toLocaleString()}</strong>
-              <span>Posts</span>
-            </div>
-            {liveStats.places > 0 && (
-              <div className="skyhub-statItem">
-                <strong>{liveStats.places.toLocaleString()}</strong>
-                <span>Places</span>
-              </div>
-            )}
-            <div className="skyhub-onlinePill">
-              {liveStats.travelers > 0
-                ? `${liveStats.travelers} traveler${
-                    liveStats.travelers !== 1 ? "s" : ""
-                  } here`
-                : "Be the first to post"}
-            </div>
-          </div>
-        )}
       </header>
 
       {/* ══ MAIN ══ */}
@@ -1697,19 +1277,6 @@ export default function SkyHubPage() {
         {/* Content */}
         <section className="skyhub-contentGrid">
           <div className="skyhub-leftRail">
-            {/* Featured trending destination */}
-            {topTrend && (
-              <FeaturedCard
-                destination={topTrend.name}
-                postCount={topTrend.posts}
-                onExplore={() => {
-                  setActiveTab("nearby");
-                  setActiveFilter("All");
-                  scrollToFeed();
-                }}
-              />
-            )}
-
             <SkyHubLocalBanner
               city={localCity}
               onCityChange={(c) => {
@@ -1926,26 +1493,43 @@ export default function SkyHubPage() {
 
           {/* Sidebar */}
           <aside className="skyhub-rightRail">
-            <SkyHubPassportCard currentUser={currentUser} />
-
-            {trendingTags.length > 0 && (
-              <TrendingTagsWidget tags={trendingTags} />
-            )}
+            {/* Kept short: trending places + who's active. (Your Passport
+                is in the navbar; guests still see the sign-up card.) */}
+            {!currentUser && <SkyHubPassportCard currentUser={currentUser} />}
 
             <SkyHubTrendingDestinations
-              items={trendingDestinations}
+              items={
+                showAllDest
+                  ? trendingDestinations
+                  : trendingDestinations.slice(0, 5)
+              }
+              total={trendingDestinations.length}
+              expanded={showAllDest}
               loading={loadingFeed}
-              onSeeAll={() => navigate("/skyhub/destinations")}
+              onSeeAll={() => setShowAllDest((v) => !v)}
+              onPick={(place) => {
+                // Show that place's posts in the feed.
+                setSearchScope("places");
+                setSearchValue(place);
+                setDebouncedSearch(place);
+                setTimeout(scrollToFeed, 60);
+              }}
             />
 
-            {trendingDestinations.length > 0 && (
-              <HotspotsWidget trending={trendingDestinations} />
-            )}
-
             <SkyHubActiveTravelers
-              travelers={activeTravelers}
+              travelers={
+                showAllTravelers ? activeTravelers : activeTravelers.slice(0, 6)
+              }
+              total={activeTravelers.length}
+              expanded={showAllTravelers}
               loading={loadingFeed}
-              onViewAll={() => navigate("/skyhub/travelers")}
+              onViewAll={() => setShowAllTravelers((v) => !v)}
+              onPick={(t) =>
+                navigate(`/u/${encodeURIComponent(t.username)}`, {
+                  // Lets the Passport page offer "Back to SkyHub".
+                  state: { from: "/skyhub", fromLabel: "SkyHub" },
+                })
+              }
             />
           </aside>
         </section>

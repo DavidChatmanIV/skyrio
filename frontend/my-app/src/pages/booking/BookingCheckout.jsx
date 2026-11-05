@@ -36,7 +36,7 @@ const usd2 = (n) =>
     maximumFractionDigits: 2,
   });
 const G = {
-  bg: "#0d0b1a",
+  bg: "#2a1640",
   bgCard: "rgba(255,255,255,0.04)",
   bgCardHover: "rgba(255,255,255,0.07)",
   bgInput: "rgba(255,255,255,0.06)",
@@ -45,13 +45,13 @@ const G = {
   purpleLight: "#a78bfa",
   orange: "#f97316",
   orangeGlow: "rgba(249,115,22,0.35)",
-  // 0.42/0.62 clear WCAG AA (4.5:1) on this near-black background.
+  // 0.42/0.62 clear WCAG AA (4.5:1) on the dark purple background.
   faint: "rgba(255,255,255,0.42)",
   muted: "rgba(255,255,255,0.62)",
   white: "#ffffff",
   danger: "#f87171",
   success: "#34d399",
-  gradBtn: "linear-gradient(135deg, #f97316 0%, #ec4899 100%)",
+  gradBtn: "linear-gradient(135deg, #ff8a2a 0%, #7c5cfc 100%)",
 };
 const css = `
   .skc * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -68,7 +68,7 @@ const css = `
   .skc-input:-webkit-autofill,
   .skc-input:-webkit-autofill:hover,
   .skc-input:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0 30px #100c22 inset !important;
+    -webkit-box-shadow: 0 0 0 30px #2e1852 inset !important;
     -webkit-text-fill-color: #fff !important;
     border-color: var(--cta, ${G.orange}) !important;
     caret-color: #fff;
@@ -92,7 +92,7 @@ const css = `
   .skc-phone:focus-within { border-color: var(--cta, ${G.orange}); box-shadow: 0 0 0 3px var(--cta-glow, ${G.orangeGlow}); }
   .skc-phone .PhoneInputCountry { margin-right: 12px; }
   .skc-phone .PhoneInputCountrySelectArrow { color: #fff; opacity: .6; }
-  .skc-phone .PhoneInputCountrySelect option { background: #100c22; color: #fff; }
+  .skc-phone .PhoneInputCountrySelect option { background: #2e1852; color: #fff; }
   .skc-phone .PhoneInputInput {
     flex: 1; min-width: 0; background: transparent; border: none; outline: none;
     color: #fff; font-size: 16px; font-family: inherit; caret-color: #ff8a2a;
@@ -148,20 +148,19 @@ const css = `
   @keyframes skc-fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
   .skc-pop { animation: skc-pop .5s cubic-bezier(.34,1.56,.64,1) both; }
   @keyframes skc-pop { from { opacity:0; transform:scale(.88); } to { opacity:1; transform:scale(1); } }
-  select.skc-input option { background: #100c22; color: white; }
+  select.skc-input option { background: #2e1852; color: white; }
   .skc-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  .skc-bg__img {
-    position: absolute; inset: 0;
-    background-image: url('/src/assets/BookingCheckout/skyrio-checkout-bg.png');
-    background-size: cover; background-position: center 30%; opacity: 0.35;
-  }
+  /* The photo comes from the page behind checkout now (a /src/ path
+     doesn't exist after the site is built). */
+  .skc-bg__img { display: none; }
   .skc-bg__fade {
     position: absolute; inset: 0;
-    background: linear-gradient(to bottom, #0b0b18 0%, rgba(11,11,24,0.40) 20%, rgba(11,11,24,0.10) 45%, rgba(11,11,24,0.50) 75%, #0b0b18 100%);
+    /* Skyrio purple, not black */
+    background: linear-gradient(to bottom, rgba(42,22,64,0.35) 0%, rgba(42,22,64,0.12) 40%, rgba(30,14,54,0.45) 100%);
   }
   .skc-bg__vignette {
     position: absolute; inset: 0;
-    background: radial-gradient(ellipse 85% 100% at 50% 40%, transparent 30%, #0b0b18 100%);
+    background: radial-gradient(ellipse 85% 100% at 50% 40%, transparent 45%, rgba(30,14,54,0.45) 100%);
   }
   .skc-step-layout { display: flex; gap: 28px; align-items: flex-start; }
   .skc-step-form { flex: 1; min-width: 0; padding-bottom: 24px; }
@@ -995,7 +994,7 @@ function FlightUnavailableModal({ flight, onFindAnother, onClose }) {
         position: "fixed",
         inset: 0,
         zIndex: 2000000,
-        background: "rgba(8,6,18,0.82)",
+        background: "rgba(20,8,40,0.72)",
         backdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "center",
@@ -1008,7 +1007,7 @@ function FlightUnavailableModal({ flight, onFindAnother, onClose }) {
         style={{
           width: "100%",
           maxWidth: 420,
-          background: "#150f28",
+          background: "linear-gradient(160deg, #3d2168 0%, #2a1650 100%)",
           border: "1px solid rgba(248,113,113,.35)",
           borderRadius: 20,
           padding: "28px 24px 24px",
@@ -1105,7 +1104,7 @@ function DiscardProgressModal({ onKeepEditing, onDiscard }) {
         position: "fixed",
         inset: 0,
         zIndex: 2000000,
-        background: "rgba(8,6,18,0.72)",
+        background: "rgba(20,8,40,0.66)",
         backdropFilter: "blur(3px)",
         display: "flex",
         alignItems: "center",
@@ -1120,7 +1119,7 @@ function DiscardProgressModal({ onKeepEditing, onDiscard }) {
         style={{
           width: "100%",
           maxWidth: 380,
-          background: "#150f28",
+          background: "linear-gradient(160deg, #3d2168 0%, #2a1650 100%)",
           border: `1px solid ${G.border}`,
           borderRadius: 18,
           padding: 24,

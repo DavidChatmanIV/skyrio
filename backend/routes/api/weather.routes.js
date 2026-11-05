@@ -4,6 +4,22 @@ const router = Router();
 const OWM_KEY = process.env.WEATHER_API_KEY;
 const OWM_BASE = "https://api.openweathermap.org";
 
+// Same city asked again within 20 minutes → answer from memory. Weather
+// doesn't change that fast, and it keeps us far under OpenWeather's free
+// limits as more people search.
+const CACHE_MS = 20 * 60 * 1000;
+const cache = new Map(); // key → { at, body }
+function cached(key) {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.body;
+  if (hit) cache.delete(key);
+  return null;
+}
+function remember(key, body) {
+  if (cache.size > 500) cache.delete(cache.keys().next().value);
+  cache.set(key, { at: Date.now(), body });
+}
+
 // OpenWeather condition codes -> simple label (grouped by first digit)
 function codeToLabel(code) {
   if (code === 800) return "Clear";
@@ -18,7 +34,13 @@ function codeToLabel(code) {
 
 /**
  * GET /api/weather?city=Miami&days=5
- * Full day-by-day forecast (for booking checkout / destination pages).
+ * Day-by-day forecast + what it's like right now (the WeatherStrip on the
+ * booking page and the Sync Together trip page).
+ *
+ * Response also has:
+ *   current:         { temp, condition, code }  (right now at the destination)
+ *   forecastThrough: "YYYY-MM-DD"  last day covered, so the page can say
+ *                    "your trip's forecast shows up closer to the date"
  *
  * Uses OpenWeather Geocoding (free) + the 5-day/3-hour Forecast API
  * (/data/2.5/forecast — also free, no card or separate subscription
@@ -48,6 +70,9 @@ router.get("/", async (req, res) => {
     }
 
     const { city = "Newark", days = 5 } = req.query;
+    const cacheKey = `${String(city).trim().toLowerCase()}|${days}`;
+    const hit = cached(cacheKey);
+    if (hit) return res.json(hit);
 
     // Step 1: Geocode city name to lat/lon (free tier, unchanged)
     const geoRes = await fetch(
@@ -69,10 +94,17 @@ router.get("/", async (req, res) => {
 
     // Step 2: 5 day / 3 hour forecast — free tier, no card or separate
     // subscription needed (unlike One Call 3.0).
-    const fcRes = await fetch(
-      `${OWM_BASE}/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${OWM_KEY}`
-    );
+    // Plus current conditions (also free), fetched at the same time.
+    const [fcRes, nowRes] = await Promise.all([
+      fetch(
+        `${OWM_BASE}/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${OWM_KEY}`
+      ),
+      fetch(
+        `${OWM_BASE}/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${OWM_KEY}`
+      ).catch(() => null),
+    ]);
     const fcData = await fcRes.json();
+    const nowData = nowRes ? await nowRes.json().catch(() => null) : null;
 
     if (fcData.cod && Number(fcData.cod) !== 200) {
       return res.status(502).json({
@@ -126,15 +158,29 @@ router.get("/", async (req, res) => {
         };
       });
 
-    res.json({
+    const nowCode = nowData?.weather?.[0]?.id;
+    const body = {
       success: true,
       city: name,
       country,
       latitude: lat,
       longitude: lon,
       timezoneOffsetSec: tzOffsetSec,
+      current:
+        nowData && Number(nowData.cod) === 200 && nowData.main
+          ? {
+              temp: Math.round(nowData.main.temp),
+              condition: codeToLabel(nowCode),
+              code: nowCode,
+            }
+          : null,
+      forecastThrough: forecast.length
+        ? forecast[forecast.length - 1].date
+        : null,
       forecast,
-    });
+    };
+    remember(cacheKey, body);
+    res.json(body);
   } catch (err) {
     console.error("[weather] Error:", err.message);
     res.status(500).json({

@@ -2,9 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Avatar, message as antdMessage } from "antd";
 import {
   Users,
-  CalendarDays,
-  Sparkles,
-  Ticket,
   Lock,
   ThumbsUp,
   Wallet,
@@ -56,50 +53,28 @@ function tripTitle(trip) {
 }
 
 /* ── Copy — only what Sync Together does today ─────────────────────── */
-// Same four stages as the progress bar on a trip page.
+// One short list instead of separate "how it works" + "features" sections:
+// each step says what you do and why it's better.
 const HOW_IT_WORKS = [
   {
     Icon: Users,
-    title: "Invite",
+    title: "Invite your crew",
     desc: "Add friends by name or email. They tap “I'm in.”",
   },
   {
-    Icon: CalendarDays,
-    title: "Details",
-    desc: "Pick the place and dates. Everyone sets a private budget.",
-  },
-  {
-    Icon: Sparkles,
-    title: "Plan & vote",
-    desc: "Atlas suggests a plan. The group votes on flights and hotels.",
-  },
-  {
-    Icon: Ticket,
-    title: "Book",
-    desc: "Each person books and pays for their own part.",
-  },
-];
-
-const FEATURES = [
-  {
     Icon: Lock,
-    title: "Budgets stay private",
-    body: "Everyone sets their own budget and only they can see it. Atlas plans around what the whole group is comfortable spending.",
+    title: "Set dates & budgets",
+    desc: "Pick the place and dates. Everyone's budget stays private.",
   },
   {
     Icon: ThumbsUp,
-    title: "Suggest and vote",
-    body: "Anyone can suggest a flight or hotel to the group. Vote on the shortlist so nobody has to decide alone.",
-  },
-  {
-    Icon: Sparkles,
-    title: "A plan for the whole group",
-    body: "Atlas pulls together flights, places to stay, a day-by-day itinerary and the weather for your dates.",
+    title: "Plan & vote",
+    desc: "Atlas suggests flights, hotels and a day-by-day plan. The group votes.",
   },
   {
     Icon: Wallet,
-    title: "Everyone pays their own way",
-    body: "Each traveler books and pays for their own flight and room, including shared rooms. Nobody has to front the whole trip.",
+    title: "Book your part",
+    desc: "Everyone books and pays for their own flight and room.",
   },
 ];
 
@@ -316,9 +291,8 @@ export default function SyncTogether() {
           <span className="sk-sync-highlight">Plan it together.</span>
         </h1>
         <p className="sk-sync-sub">
-          Invite your crew, vote on flights and hotels, and keep the whole plan
-          in one place. Each person books and pays for their own part, so nobody
-          has to front the whole trip.
+          Invite your crew, vote on flights and hotels, and everyone pays their
+          own part. Nobody fronts the whole trip.
         </p>
         <ul className="sk-sync-trust">
           {TRUST.map(({ Icon, text }) => (
@@ -329,20 +303,6 @@ export default function SyncTogether() {
           ))}
         </ul>
       </header>
-
-      {/* ── How it works (same stages as a trip's progress bar) ── */}
-      <ol className="sk-sync-flow" aria-label="How Sync Together works">
-        {HOW_IT_WORKS.map(({ Icon, title, desc }, i) => (
-          <li key={title} className="sk-sync-flowStep">
-            <span className="sk-sync-flowIcon">
-              <Icon size={20} aria-hidden="true" />
-            </span>
-            <span className="sk-sync-flowNum">Step {i + 1}</span>
-            <span className="sk-sync-flowTitle">{title}</span>
-            <span className="sk-sync-flowDesc">{desc}</span>
-          </li>
-        ))}
-      </ol>
 
       {/* Boarding pass first, then your trips */}
       {/* ── Start a trip: group boarding pass ── */}
@@ -546,20 +506,21 @@ export default function SyncTogether() {
         )}
       </div>
 
-      {/* ── What you get ── */}
+      {/* ── How it works: 4 steps (same stages as a trip's progress bar) ── */}
       <div>
-        <h2 className="sk-sync-sectionLabel">Why plan with Sync Together</h2>
-        <div className="sk-sync-grid">
-          {FEATURES.map(({ Icon, title, body }) => (
-            <div key={title} className="sk-sync-card">
-              <div className="sk-sync-card-icon">
-                <Icon size={21} aria-hidden="true" />
-              </div>
-              <div className="sk-sync-card-title">{title}</div>
-              <div className="sk-sync-card-body">{body}</div>
-            </div>
+        <h2 className="sk-sync-sectionLabel">How it works</h2>
+        <ol className="sk-sync-flow" aria-label="How Sync Together works">
+          {HOW_IT_WORKS.map(({ Icon, title, desc }, i) => (
+            <li key={title} className="sk-sync-flowStep">
+              <span className="sk-sync-flowIcon">
+                <Icon size={20} aria-hidden="true" />
+              </span>
+              <span className="sk-sync-flowNum">Step {i + 1}</span>
+              <span className="sk-sync-flowTitle">{title}</span>
+              <span className="sk-sync-flowDesc">{desc}</span>
+            </li>
           ))}
-        </div>
+        </ol>
         {tripCount > 0 && (
           <p className="sk-sync-count">
             {tripCount.toLocaleString()} group trip{tripCount !== 1 ? "s" : ""}{" "}

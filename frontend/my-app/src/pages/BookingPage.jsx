@@ -60,6 +60,7 @@ import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import { useExcursionSearch } from "@/hooks/useExcursionSearch";
 import ExcursionResults from "@/pages/booking/ExcursionResults";
 import TripBudgetBar from "@/components/syncTogether/TripBudgetBar";
+import WeatherStrip from "@/components/WeatherStrip";
 import {
   readHomeAirport,
   fetchHomeAirport,
@@ -108,286 +109,6 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const API = import.meta.env.VITE_API_URL || "";
-
-// ─────────────────────────────────────────────
-// SVG Weather Icons
-// ─────────────────────────────────────────────
-
-function WeatherSunny({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="12" cy="12" r="5" fill="#FFB347" />
-      <g stroke="#FFB347" strokeWidth="2" strokeLinecap="round">
-        <line x1="12" y1="1" x2="12" y2="3" />
-        <line x1="12" y1="21" x2="12" y2="23" />
-        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-        <line x1="1" y1="12" x2="3" y2="12" />
-        <line x1="21" y1="12" x2="23" y2="12" />
-        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-      </g>
-    </svg>
-  );
-}
-
-function WeatherPartlyCloudy({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="10" cy="8" r="3.5" fill="#FFB347" />
-      <g stroke="#FFB347" strokeWidth="1.5" strokeLinecap="round">
-        <line x1="10" y1="2" x2="10" y2="3.2" />
-        <line x1="5.2" y1="4.8" x2="6" y2="5.6" />
-        <line x1="14.8" y1="4.8" x2="14" y2="5.6" />
-        <line x1="3.5" y1="8" x2="4.7" y2="8" />
-      </g>
-      <path
-        d="M8 17H6.5A3.5 3.5 0 1 1 8.3 11.1a5 5 0 0 1 9.4 1.4h.3A3 3 0 1 1 18 17H8z"
-        fill="rgba(255,255,255,0.7)"
-        stroke="rgba(255,255,255,0.3)"
-        strokeWidth="0.5"
-      />
-    </svg>
-  );
-}
-
-function WeatherMostlySunny({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="11" cy="9" r="4" fill="#FFB347" />
-      <g stroke="#FFB347" strokeWidth="1.5" strokeLinecap="round">
-        <line x1="11" y1="2.5" x2="11" y2="3.8" />
-        <line x1="5.5" y1="5" x2="6.4" y2="5.9" />
-        <line x1="16.5" y1="5" x2="15.6" y2="5.9" />
-        <line x1="4" y1="9" x2="5.3" y2="9" />
-        <line x1="18" y1="9" x2="16.7" y2="9" />
-      </g>
-      <path
-        d="M10 19H8A2.5 2.5 0 1 1 9.5 14.5a3.5 3.5 0 0 1 6.5 1h.5A2 2 0 1 1 16 19H10z"
-        fill="rgba(255,255,255,0.55)"
-        stroke="rgba(255,255,255,0.2)"
-        strokeWidth="0.5"
-      />
-    </svg>
-  );
-}
-
-function WeatherRainSun({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="10" cy="6" r="3" fill="#FFB347" opacity="0.7" />
-      <path
-        d="M7 14H5.5A3.5 3.5 0 1 1 7.3 8.1a5 5 0 0 1 9.4 1.4h.3A3 3 0 1 1 17 14H7z"
-        fill="rgba(255,255,255,0.6)"
-        stroke="rgba(255,255,255,0.25)"
-        strokeWidth="0.5"
-      />
-      <g stroke="#64B5F6" strokeWidth="1.5" strokeLinecap="round">
-        <line x1="9" y1="16" x2="8" y2="19" />
-        <line x1="13" y1="16" x2="12" y2="19" />
-        <line x1="17" y1="16" x2="16" y2="19" />
-      </g>
-    </svg>
-  );
-}
-
-function WeatherRainy({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <path
-        d="M7 13H5.5A3.5 3.5 0 1 1 7.3 7.1a5 5 0 0 1 9.4 1.4h.3A3 3 0 1 1 17 13H7z"
-        fill="rgba(255,255,255,0.5)"
-        stroke="rgba(255,255,255,0.2)"
-        strokeWidth="0.5"
-      />
-      <g stroke="#64B5F6" strokeWidth="1.5" strokeLinecap="round">
-        <line x1="8" y1="15" x2="7" y2="18.5" />
-        <line x1="12" y1="15" x2="11" y2="18.5" />
-        <line x1="16" y1="15" x2="15" y2="18.5" />
-        <line x1="10" y1="19" x2="9.5" y2="21" />
-        <line x1="14" y1="19" x2="13.5" y2="21" />
-      </g>
-    </svg>
-  );
-}
-
-function WeatherCherryBlossom({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="12" cy="12" r="3" fill="#F48FB1" opacity="0.5" />
-      {[0, 72, 144, 216, 288].map((angle) => (
-        <ellipse
-          key={angle}
-          cx="12"
-          cy="6.5"
-          rx="2.8"
-          ry="4"
-          fill="#F48FB1"
-          opacity="0.75"
-          transform={`rotate(${angle} 12 12)`}
-        />
-      ))}
-      <circle cx="12" cy="12" r="2.2" fill="#FFD54F" />
-    </svg>
-  );
-}
-
-function WeatherTropical({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <line
-        x1="12"
-        y1="22"
-        x2="12"
-        y2="10"
-        stroke="#8D6E63"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-      <path d="M12 10C12 10 6 4 4 6C2 8 8 12 12 10Z" fill="#66BB6A" />
-      <path d="M12 10C12 10 18 4 20 6C22 8 16 12 12 10Z" fill="#81C784" />
-      <path d="M12 12C12 12 5 8 3.5 10.5C2 13 9 14 12 12Z" fill="#4CAF50" />
-      <path d="M12 12C12 12 19 8 20.5 10.5C22 13 15 14 12 12Z" fill="#66BB6A" />
-    </svg>
-  );
-}
-
-function WeatherWindy({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="rgba(255,255,255,0.7)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <path d="M3 8H16a3 3 0 0 0 0-6 3 3 0 0 0-3 3" />
-      <path d="M3 12h13a3 3 0 1 1-3 3" />
-      <path d="M3 16h7a3 3 0 1 1-3 3" />
-    </svg>
-  );
-}
-
-function WeatherWaves({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#4FC3F7"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <path d="M2 10c2-2 4-2 6 0s4 2 6 0 4-2 6 0" />
-      <path d="M2 14c2-2 4-2 6 0s4 2 6 0 4-2 6 0" />
-      <path d="M2 18c2-2 4-2 6 0s4 2 6 0 4-2 6 0" opacity="0.5" />
-    </svg>
-  );
-}
-
-function WeatherHibiscus({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      {[0, 60, 120, 180, 240, 300].map((angle) => (
-        <ellipse
-          key={angle}
-          cx="12"
-          cy="6.5"
-          rx="3"
-          ry="4.5"
-          fill="#EF5350"
-          opacity="0.7"
-          transform={`rotate(${angle} 12 12)`}
-        />
-      ))}
-      <circle cx="12" cy="12" r="3" fill="#FFEE58" />
-    </svg>
-  );
-}
-
-function WeatherGlobe({ size = 22 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="rgba(255,255,255,0.5)"
-      strokeWidth="1.8"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <ellipse cx="12" cy="12" rx="4" ry="10" />
-      <path d="M2 12h20" />
-      <path d="M4.5 6.5h15" opacity="0.6" />
-      <path d="M4.5 17.5h15" opacity="0.6" />
-    </svg>
-  );
-}
 
 function IconHotel({ size = 14 }) {
   return (
@@ -704,216 +425,6 @@ function getAutoSearchDates(tripDays = 10) {
       .add(14 + tripDays, "day")
       .format("YYYY-MM-DD"),
   };
-}
-
-// ─────────────────────────────────────────────
-// Weather data
-// ─────────────────────────────────────────────
-const CITY_WEATHER = {
-  "new york": {
-    label: "New York",
-    Icon: WeatherPartlyCloudy,
-    temp: "Avg 62° / 48°",
-    sub: "Partly cloudy · Light wind",
-  },
-  newark: {
-    label: "Newark",
-    Icon: WeatherPartlyCloudy,
-    temp: "Avg 58° / 44°",
-    sub: "Partly cloudy · Cool winds",
-  },
-  ewr: {
-    label: "Newark",
-    Icon: WeatherPartlyCloudy,
-    temp: "Avg 58° / 44°",
-    sub: "Partly cloudy · Cool winds",
-  },
-  jfk: {
-    label: "New York",
-    Icon: WeatherPartlyCloudy,
-    temp: "Avg 62° / 48°",
-    sub: "Partly cloudy · Light wind",
-  },
-  lga: {
-    label: "New York",
-    Icon: WeatherPartlyCloudy,
-    temp: "Avg 62° / 48°",
-    sub: "Partly cloudy · Light wind",
-  },
-  lax: {
-    label: "Los Angeles",
-    Icon: WeatherSunny,
-    temp: "Avg 75° / 60°",
-    sub: "Sunny all week · Low rain risk",
-  },
-  ord: {
-    label: "Chicago",
-    Icon: WeatherWindy,
-    temp: "Avg 55° / 42°",
-    sub: "Windy with clear skies · Cool evenings",
-  },
-  miami: {
-    label: "Miami",
-    Icon: WeatherMostlySunny,
-    temp: "Avg 78° / 65°",
-    sub: "Mostly sunny · Low rain risk",
-  },
-  mia: {
-    label: "Miami",
-    Icon: WeatherMostlySunny,
-    temp: "Avg 78° / 65°",
-    sub: "Mostly sunny · Low rain risk",
-  },
-  paris: {
-    label: "Paris",
-    Icon: WeatherRainSun,
-    temp: "Avg 59° / 46°",
-    sub: "Occasional showers · Mild temps",
-  },
-  cdg: {
-    label: "Paris",
-    Icon: WeatherRainSun,
-    temp: "Avg 59° / 46°",
-    sub: "Occasional showers · Mild temps",
-  },
-  london: {
-    label: "London",
-    Icon: WeatherRainy,
-    temp: "Avg 54° / 44°",
-    sub: "Overcast · Bring an umbrella",
-  },
-  lhr: {
-    label: "London",
-    Icon: WeatherRainy,
-    temp: "Avg 54° / 44°",
-    sub: "Overcast · Bring an umbrella",
-  },
-  barcelona: {
-    label: "Barcelona",
-    Icon: WeatherPartlyCloudy,
-    temp: "Avg 70° / 58°",
-    sub: "Warm & breezy · Great for exploring",
-  },
-  rome: {
-    label: "Rome",
-    Icon: WeatherSunny,
-    temp: "Avg 72° / 56°",
-    sub: "Warm & sunny · Low humidity",
-  },
-  tokyo: {
-    label: "Tokyo",
-    Icon: WeatherCherryBlossom,
-    temp: "Avg 68° / 55°",
-    sub: "Mild & clear · Cherry blossom season",
-  },
-  nrt: {
-    label: "Tokyo",
-    Icon: WeatherCherryBlossom,
-    temp: "Avg 68° / 55°",
-    sub: "Mild & clear · Cherry blossom season",
-  },
-  japan: {
-    label: "Japan",
-    Icon: WeatherCherryBlossom,
-    temp: "Avg 68° / 55°",
-    sub: "Mild & clear · Cherry blossom season",
-  },
-  kyoto: {
-    label: "Kyoto",
-    Icon: WeatherCherryBlossom,
-    temp: "Avg 67° / 54°",
-    sub: "Cherry blossoms peak · Stunning season",
-  },
-  osaka: {
-    label: "Osaka",
-    Icon: WeatherCherryBlossom,
-    temp: "Avg 66° / 53°",
-    sub: "Mild & pleasant · Spring conditions",
-  },
-  seoul: {
-    label: "Seoul",
-    Icon: WeatherMostlySunny,
-    temp: "Avg 60° / 46°",
-    sub: "Clear & cool · Low humidity",
-  },
-  dubai: {
-    label: "Dubai",
-    Icon: WeatherSunny,
-    temp: "Avg 95° / 78°",
-    sub: "Hot & dry · Low humidity at night",
-  },
-  bali: {
-    label: "Bali",
-    Icon: WeatherTropical,
-    temp: "Avg 84° / 72°",
-    sub: "Tropical · Some afternoon showers",
-  },
-  bangkok: {
-    label: "Bangkok",
-    Icon: WeatherMostlySunny,
-    temp: "Avg 92° / 78°",
-    sub: "Very hot · Sunny with some clouds",
-  },
-  singapore: {
-    label: "Singapore",
-    Icon: WeatherRainSun,
-    temp: "Avg 88° / 76°",
-    sub: "Hot & humid · Daily showers",
-  },
-  "los angeles": {
-    label: "Los Angeles",
-    Icon: WeatherSunny,
-    temp: "Avg 75° / 60°",
-    sub: "Sunny all week · Low rain risk",
-  },
-  chicago: {
-    label: "Chicago",
-    Icon: WeatherWindy,
-    temp: "Avg 55° / 42°",
-    sub: "Windy with clear skies · Cool evenings",
-  },
-  "las vegas": {
-    label: "Las Vegas",
-    Icon: WeatherSunny,
-    temp: "Avg 85° / 64°",
-    sub: "Hot & dry · Clear skies",
-  },
-  cancun: {
-    label: "Cancún",
-    Icon: WeatherWaves,
-    temp: "Avg 88° / 74°",
-    sub: "Hot & humid · Perfect beach weather",
-  },
-  hawaii: {
-    label: "Hawaii",
-    Icon: WeatherHibiscus,
-    temp: "Avg 82° / 70°",
-    sub: "Sunny with trade winds · Ideal conditions",
-  },
-  sydney: {
-    label: "Sydney",
-    Icon: WeatherMostlySunny,
-    temp: "Avg 72° / 60°",
-    sub: "Mostly sunny · Comfortable",
-  },
-};
-
-const DEFAULT_WEATHER = {
-  label: null,
-  Icon: WeatherGlobe,
-  temp: "",
-  sub: "Select a destination to see weather",
-};
-
-function getWeatherForCity(cityStr) {
-  if (!cityStr) return DEFAULT_WEATHER;
-  const key = cityStr.toLowerCase().trim();
-  if (CITY_WEATHER[key]) return CITY_WEATHER[key];
-  const partial = Object.keys(CITY_WEATHER).find((k) => key.includes(k));
-  if (partial) return CITY_WEATHER[partial];
-  const reverse = Object.keys(CITY_WEATHER).find((k) => k.includes(key));
-  if (reverse) return CITY_WEATHER[reverse];
-  return DEFAULT_WEATHER;
 }
 
 // ─────────────────────────────────────────────
@@ -5452,7 +4963,10 @@ export default function BookingPage() {
     [watchingId, watchIds, priceWatchRoute]
   );
 
-  const handleDatesChange = useCallback(({ nights }) => {
+  // Trip dates from the search form, for the weather on the pass.
+  const [tripDates, setTripDates] = useState([null, null]);
+  const handleDatesChange = useCallback(({ dates, nights }) => {
+    setTripDates(Array.isArray(dates) ? dates : [null, null]);
     if (nights !== null && nights > 0) {
       setSelectedNights(nights);
       setBudgetState((prev) => ({ ...prev, tripDays: nights }));
@@ -6686,7 +6200,8 @@ export default function BookingPage() {
               <span className="sk-hero-title-accent">dream vacation.</span>
             </Title>
             <Text className="sk-hero-sub">
-              Smart Plan AI helps balance budget, comfort, and XP.
+              Search it yourself, plan on a budget, or let Atlas plan it for
+              you.
             </Text>
           </div>
 
@@ -6735,7 +6250,7 @@ export default function BookingPage() {
           >
             <div className="sk-bp-band">
               <span className="sk-bp-airline">
-                <IconFlight size={16} /> Skyrio Airways
+                <IconFlight size={16} /> Skyrio
               </span>
               <span className="sk-bp-band-label">Boarding pass</span>
             </div>
@@ -6836,7 +6351,9 @@ export default function BookingPage() {
                   />
 
                   <div className="sk-bp-tools-row">
-                    {tab === "Flights" && (
+                    {/* Sort + quick filters only once there are results —
+                        before a search they do nothing. */}
+                    {tab === "Flights" && flightResults.length > 0 && (
                       <Button
                         className="sk-btn-orange sk-bp-sort"
                         onClick={() => {
@@ -6853,7 +6370,7 @@ export default function BookingPage() {
                         {SORT_OPTIONS.find((o) => o.key === sortBy)?.label}
                       </Button>
                     )}
-                    {tab === "Stays" && (
+                    {tab === "Stays" && hotelResults.length > 0 && (
                       <Button
                         className="sk-btn-orange sk-bp-sort"
                         onClick={() => {
@@ -6877,6 +6394,7 @@ export default function BookingPage() {
                     )}
 
                     {tab === "Flights" &&
+                      flightResults.length > 0 &&
                       quickFilters.map((qf) => (
                         <button
                           key={qf.label}
@@ -7113,6 +6631,15 @@ export default function BookingPage() {
                     </div>
                   )}
                 </div>
+
+                {/* ── Weather at the destination (real forecast) ── */}
+                {destCity && (
+                  <WeatherStrip
+                    city={destCity}
+                    start={tripDates[0]}
+                    end={tripDates[1]}
+                  />
+                )}
 
                 {/* ── Price Watch Card ── */}
                 <div className="sk-price-watch-card">

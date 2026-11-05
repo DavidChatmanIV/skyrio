@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Baby, PawPrint, Users, Sparkles } from "lucide-react";
+import { Baby, PawPrint, Users, Sparkles, Check } from "lucide-react";
 
 /**
  * SkyrioSeatMap
@@ -859,7 +859,9 @@ export default function SkyrioSeatMap({
                             ?.seatNumber
                         : null;
                     const status = allSeated
-                      ? mySeat || "✓"
+                      ? mySeat || (
+                          <Check size={12} strokeWidth={3} aria-hidden="true" />
+                        )
                       : seatedCount > 0
                       ? `${seatedCount}/${passengers.length}`
                       : "—";
@@ -896,6 +898,8 @@ export default function SkyrioSeatMap({
                           style={{
                             fontSize: 12,
                             fontWeight: 700,
+                            display: "inline-flex",
+                            alignItems: "center",
                             padding: "2px 7px",
                             borderRadius: 6,
                             color: allSeated ? "#0d0b1a" : G.soft,
@@ -1103,7 +1107,7 @@ export default function SkyrioSeatMap({
               border: "none",
               padding: 0,
               background: avoidKidsPets
-                ? `linear-gradient(135deg, ${G.orange} 0%, #ec4899 100%)`
+                ? `linear-gradient(135deg, ${G.orange} 0%, #7c5cfc 100%)`
                 : "rgba(255,255,255,0.1)",
               position: "relative",
               flexShrink: 0,
@@ -1221,7 +1225,7 @@ export default function SkyrioSeatMap({
             border: `1px solid ${
               detailSeat ? "rgba(249,115,22,0.4)" : G.border
             }`,
-            background: "rgba(32,20,52,0.72)",
+            background: "rgba(58,30,98,0.85)",
             backdropFilter: "blur(16px) saturate(140%)",
             WebkitBackdropFilter: "blur(16px) saturate(140%)",
             boxShadow: "0 8px 24px rgba(0,0,0,0.25)",

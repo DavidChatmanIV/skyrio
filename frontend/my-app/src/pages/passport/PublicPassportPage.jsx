@@ -5,7 +5,12 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useParams,
+  useNavigate,
+  useSearchParams,
+  useLocation,
+} from "react-router-dom";
 import {
   Plane,
   MapPin,
@@ -23,6 +28,7 @@ import {
   X,
   Link,
   Users,
+  ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
 import FollowButton from "./FollowButton";
@@ -32,6 +38,31 @@ import passportBg from "../../assets/DigitalPassport/worldmap.png";
 import "../../styles/profile-passport.css";
 
 const API = import.meta.env.VITE_API_URL || "";
+
+// Top bar: purple glass like the rest of Skyrio, with a way back.
+const TOPBAR_CSS = `
+.pp-pub-topbar {
+  background: linear-gradient(160deg, rgba(74,40,112,.72) 0%, rgba(34,18,62,.8) 100%) !important;
+  border-bottom: 1px solid rgba(255,255,255,.14) !important;
+  box-shadow: 0 8px 24px rgba(12,4,28,.3);
+  gap: 12px;
+}
+.pp-pub-topbar-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.pp-pub-back {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px;
+  border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08);
+  color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.pp-pub-back:hover { background: rgba(255,255,255,.14); }
+.pp-pub-back:focus-visible, .pp-pub-logo-btn:focus-visible { outline: 2px solid #ffb347; outline-offset: 2px; }
+@media (max-width: 480px) {
+  .pp-pub-topbar { padding: 12px 14px !important; }
+  .pp-pub-topbar .pp-pub-logo-text { display: none; }
+  /* Share drops under the name instead of covering it */
+  .pp-pub-hero-top { flex-wrap: wrap; }
+  .pp-pub-hero-top .pp-pub-share-btn { margin-left: auto; }
+}
+`;
 
 // ─── Capture ?ref= param and store in sessionStorage ─────────────────────────
 function useReferral() {
@@ -238,7 +269,7 @@ function JourneyCard({ journey, badgeColor }) {
           fontSize: 20,
         }}
       >
-        {journey.emoji || "✈️"}
+        <Plane size={18} color={badgeColor} aria-hidden="true" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
@@ -367,7 +398,7 @@ function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
       await navigator.share({
         title: `${profile?.name || profile?.username}'s Skyrio Passport`,
         text: isOwnProfile
-          ? "Join me on Skyrio and earn bonus XP! ✈️"
+          ? "Join me on Skyrio and get a welcome bonus."
           : undefined,
         url: referralUrl,
       });
@@ -393,8 +424,8 @@ function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
           left: 0,
           right: 0,
           zIndex: 9999,
-          background: "#16103a",
-          border: "1px solid rgba(255,255,255,0.1)",
+          background: "linear-gradient(160deg, #3d2168 0%, #2a1650 100%)",
+          border: "1px solid rgba(255,255,255,0.16)",
           borderRadius: "20px 20px 0 0",
           padding: "24px 20px 36px",
           fontFamily: "'DM Sans', sans-serif",
@@ -437,7 +468,7 @@ function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
                   marginTop: 2,
                 }}
               >
-                Earn XP every time someone joins through your link
+                Earn XP when a friend books their first trip
               </div>
             )}
           </div>
@@ -471,16 +502,21 @@ function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
             }}
           >
             {[
-              { Icon: RewardPlane, label: "You share your link", xp: "+10 XP" },
-              {
-                Icon: RewardGlobe,
-                label: "Friend signs up",
-                xp: "+50 XP to you",
-              },
+              // Same numbers as backend/routes/api/referral.routes.js
               {
                 Icon: RewardGift,
-                label: "Friend's welcome bonus",
-                xp: "+25 XP to them",
+                label: "Friend joins with your link",
+                xp: "+50 XP to them",
+              },
+              {
+                Icon: RewardPlane,
+                label: "Friend books their first trip",
+                xp: "+150 XP to you",
+              },
+              {
+                Icon: RewardGlobe,
+                label: "More friends, bigger level bonuses",
+                xp: "Up to +1,000",
               },
             ].map((r, i) => (
               <div
@@ -978,8 +1014,8 @@ function ReferralBanner({ referrerUsername, onSignup }) {
             }}
           >
             Sign up and earn{" "}
-            <span style={{ color: "#ffb066", fontWeight: 700 }}>+25 XP</span>{" "}
-            welcome bonus ✦
+            <span style={{ color: "#ffb066", fontWeight: 700 }}>+50 XP</span>{" "}
+            welcome bonus
           </div>
         </div>
       </div>
@@ -1093,7 +1129,33 @@ export default function PublicPassportPage() {
     );
   }, []);
 
-  const goSignup = () => navigate(`/register?ref=passport&from=${username}`);
+  // Sign-up keeps the real referrer (from a ?ref= link) so they get credit.
+  // The old "?ref=passport" was treated as a username and credited nobody.
+  const goSignup = () => {
+    let ref = refParam;
+    try {
+      ref = ref || sessionStorage.getItem("skyrio_ref");
+    } catch {
+      /* storage blocked */
+    }
+    navigate(
+      ref
+        ? `/register?ref=${encodeURIComponent(ref)}&from=${encodeURIComponent(
+            username
+          )}`
+        : `/register?from=${encodeURIComponent(username)}`
+    );
+  };
+
+  // Where "Back" goes: the page that sent them here (SkyHub passes a label),
+  // otherwise the previous page; a link opened fresh has nothing to go back to.
+  const location = useLocation();
+  const from = location.state?.from || null;
+  const fromLabel = location.state?.fromLabel || null;
+  const canGoBack =
+    Boolean(from) ||
+    (typeof window !== "undefined" && (window.history.state?.idx ?? 0) > 0);
+  const goBack = () => (from ? navigate(from) : navigate(-1));
   const journeys = profile?.journeys || profile?.trips || [];
   const destinations = profile?.destinations || profile?.visitedCities || [];
 
@@ -1106,16 +1168,30 @@ export default function PublicPassportPage() {
       />
       <div className="passport-content">
         {/* Top bar */}
+        <style>{TOPBAR_CSS}</style>
         <div className="pp-pub-topbar">
-          <button className="pp-pub-logo-btn" onClick={() => navigate("/")}>
-            <div className="pp-pub-logo-icon">
-              <Plane size={13} color="#1b1024" />
-            </div>
-            <span className="pp-pub-logo-text">Skyrio</span>
-          </button>
+          <div className="pp-pub-topbar-left">
+            {canGoBack && (
+              <button type="button" className="pp-pub-back" onClick={goBack}>
+                <ArrowLeft size={15} aria-hidden="true" />
+                {fromLabel ? `Back to ${fromLabel}` : "Back"}
+              </button>
+            )}
+            <button
+              type="button"
+              className="pp-pub-logo-btn"
+              onClick={() => navigate("/")}
+              aria-label="Skyrio home"
+            >
+              <div className="pp-pub-logo-icon">
+                <Plane size={13} color="#1b1024" />
+              </div>
+              <span className="pp-pub-logo-text">Skyrio</span>
+            </button>
+          </div>
           {!isAuthed ? (
             <button className="pp-pub-btn-primary" onClick={goSignup}>
-              Get your passport →
+              Join Skyrio
             </button>
           ) : (
             <button
@@ -1197,6 +1273,7 @@ export default function PublicPassportPage() {
 
                 {/* Top row */}
                 <div
+                  className="pp-pub-hero-top"
                   style={{
                     display: "flex",
                     alignItems: "flex-start",
@@ -1447,7 +1524,7 @@ export default function PublicPassportPage() {
                   </div>
                   <div className="pp-pub-progress-labels">
                     <span>{profile.badge || "Explorer"}</span>
-                    {badge.next && <span>{badge.next} ✦</span>}
+                    {badge.next && <span>Next: {badge.next}</span>}
                   </div>
                   <div className="pp-pub-progress-track">
                     <div
@@ -1603,7 +1680,7 @@ export default function PublicPassportPage() {
                       marginBottom: 12,
                     }}
                   >
-                    ✦ Skyrio Passport
+                    Skyrio Passport
                   </div>
                   <h3
                     style={{
@@ -1695,7 +1772,14 @@ export default function PublicPassportPage() {
           onSwitchTab={setFollowListTab}
           onNavigate={(path) => {
             setFollowListTab(null);
-            navigate(path);
+            navigate(path, {
+              state: {
+                from: `/u/${profile.username}`,
+                fromLabel: `${
+                  (profile.name || profile.username).split(" ")[0]
+                }'s Passport`,
+              },
+            });
           }}
         />
       )}

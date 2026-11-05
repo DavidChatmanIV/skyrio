@@ -28,7 +28,6 @@ import {
   DeleteOutlined,
   WarningOutlined,
   GiftOutlined,
-  TeamOutlined,
 } from "@ant-design/icons";
 import {
   Star,
@@ -83,7 +82,7 @@ import ReferralCard from "./ReferralCard";
 import PassportDataPage from "./PassportDataPage";
 import { readHomeAirport, rememberHomeAirportLocally } from "@/lib/homeAirport";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -1712,14 +1711,8 @@ export default function DigitalPassportPage() {
                 {/* ── Sidebar ── */}
                 <div className="pp-mockSide">
                   <Card variant="borderless" className="pp-card pp-actionsCard">
-                    <Title
-                      level={3}
-                      className="pp-title"
-                      style={{ marginBottom: 4 }}
-                    >
-                      Digital Passport
-                    </Title>
-                    <div className="pp-actionsStack">
+                    <div className="pp-sideLabel">Your passport</div>
+                    <div className="pp-actionsStack pp-actionsGrid">
                       {/* Order: what you can DO with your Passport first
                           (spend XP, show it off), then profile settings. */}
                       <Button
@@ -1727,14 +1720,14 @@ export default function DigitalPassportPage() {
                         icon={<GiftOutlined />}
                         onClick={() => navigate("/passport/rewards")}
                       >
-                        Passport Rewards
+                        Rewards
                       </Button>
                       <Button
                         className="pp-actionBtn"
                         icon={<ShareAltOutlined />}
                         onClick={() => setShowShare(true)}
                       >
-                        Share Passport
+                        Share
                       </Button>
                       <Button
                         className="pp-actionBtn"
@@ -1754,15 +1747,10 @@ export default function DigitalPassportPage() {
                         }
                         onClick={() => setMusicOpen(true)}
                       >
-                        {profileMusic ? "Profile Music" : "Add Profile Music"}
+                        {profileMusic ? "Music" : "Add music"}
                       </Button>
-                      <Button
-                        className="pp-actionBtn"
-                        icon={<TeamOutlined />}
-                        onClick={() => navigate("/sync-together")}
-                      >
-                        Sync Together
-                      </Button>
+                      {/* Sync Together lives in the navbar, so it's not
+                          repeated here. */}
                     </div>
                     <Text className="pp-credentialHint">
                       This passport unlocks stamps, borders, and rewards.
@@ -1786,18 +1774,7 @@ export default function DigitalPassportPage() {
                       zIndex: 100,
                     }}
                   >
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.35)",
-                        marginBottom: 12,
-                      }}
-                    >
-                      Find Travelers
-                    </div>
+                    <div className="pp-sideLabel">Find travelers</div>
                     <TravelerSearch
                       token={token}
                       myId={myId}
@@ -1810,60 +1787,16 @@ export default function DigitalPassportPage() {
                       (and its results list opens over this card). */}
                   <ReferralCard token={token} />
 
-                  {/* Account settings last, away from everyday actions,
-                      so Delete Account is never a mis-tap. */}
-                  <Card
-                    variant="borderless"
-                    className="pp-card"
-                    style={{ marginTop: 12 }}
+                  {/* Account: a quiet link at the very end, away from
+                      everyday actions so it's never a mis-tap. It still
+                      opens the same step-by-step confirmation. */}
+                  <button
+                    type="button"
+                    className="pp-deleteLink"
+                    onClick={() => setDeleteStep(1)}
                   >
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.35)",
-                      }}
-                    >
-                      Account
-                    </div>
-                    <div
-                      style={{
-                        marginTop: 10,
-                      }}
-                    >
-                      <Button
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => setDeleteStep(1)}
-                        style={{
-                          width: "100%",
-                          background: "transparent",
-                          borderColor: "rgba(255,77,79,0.3)",
-                          color: "rgba(255,100,100,0.7)",
-                          borderRadius: 10,
-                          height: 40,
-                          fontSize: 13,
-                          transition: "all 0.2s",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = "#ff4d4f";
-                          e.currentTarget.style.color = "#ff4d4f";
-                          e.currentTarget.style.background =
-                            "rgba(255,77,79,0.08)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor =
-                            "rgba(255,77,79,0.3)";
-                          e.currentTarget.style.color = "rgba(255,100,100,0.7)";
-                          e.currentTarget.style.background = "transparent";
-                        }}
-                      >
-                        Delete Account
-                      </Button>
-                    </div>
-                  </Card>
+                    <DeleteOutlined aria-hidden="true" /> Delete account
+                  </button>
                 </div>
               </div>
             </div>

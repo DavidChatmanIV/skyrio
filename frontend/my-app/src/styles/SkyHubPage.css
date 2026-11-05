@@ -2655,3 +2655,112 @@
   outline: 2px solid #ff8a2a;
   outline-offset: 2px;
 }
+
+/* =====================================================================
+   SKYRIO GLASS PASS — same purple glass as Discover, Passport and
+   Sync Together, instead of near-black panels and heavy striped
+   borders. The postcard idea stays as a thin airmail stripe on top.
+===================================================================== */
+.skyhub-page {
+  --sk-glass: linear-gradient(
+    160deg,
+    rgba(74, 40, 112, 0.62) 0%,
+    rgba(34, 18, 62, 0.72) 100%
+  );
+  --sk-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 18px 44px rgba(12, 4, 28, 0.38);
+  --sk-airmail: repeating-linear-gradient(
+    -45deg,
+    #ff8a2a 0 10px,
+    #f6efe6 10px 15px,
+    #8b6cff 15px 25px,
+    #f6efe6 25px 30px
+  );
+}
+
+/* Feed: one glass panel, each post a glass card with a thin airmail top */
+.sh-postcards .skyhub-feedSection {
+  background: var(--sk-glass) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: var(--sk-glass-shadow) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+.sh-postcards .skyhub-feedList {
+  gap: 12px;
+  padding: 14px;
+}
+.sh-postcards .skyhub-feedCard,
+.sh-postcards .skyhub-feedCard:last-child,
+.sh-postcards .skyhub-feedCard:hover {
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 18px !important;
+  background: var(--sk-airmail) top / 100% 4px no-repeat, rgba(28, 16, 52, 0.78) !important;
+  box-shadow: 0 10px 28px rgba(8, 2, 20, 0.35) !important;
+  padding: 18px 18px 14px !important;
+}
+.sh-postcards .skyhub-feedCard:hover {
+  border-color: rgba(255, 138, 42, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+/* Composer: glass card with the same thin airmail top (was a 6px striped frame) */
+.shPC-postcard {
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 20px !important;
+  background: var(--sk-airmail) top / 100% 4px no-repeat, var(--sk-glass) !important;
+  box-shadow: var(--sk-glass-shadow) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+/* Search card + sidebar widgets + sticky tabs: purple glass */
+.sh-postcards .shRadar {
+  background: var(--sk-glass) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+.skyhub-rightRail > * {
+  border-radius: 18px;
+}
+.skyhub-rightRail [class*="card"],
+.skyhub-rightRail [class*="Card"],
+.skyhub-rightRail [class*="widget"],
+.skyhub-rightRail [class*="Widget"] {
+  background: var(--sk-glass) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+.skyhub-navbar {
+  background: rgba(44, 24, 80, 0.82) !important;
+}
+.sh-postcards .skyhub-vibe-chip:not(.is-on) {
+  background: rgba(74, 40, 112, 0.45);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(240, 236, 255, 0.82);
+}
+
+/* Hero: tighter now that the steps and stats are gone */
+.skyhub-topHeaderInner {
+  padding-bottom: 22px;
+}
+.sh-postcards .skyhub-pageSubtitle {
+  margin-bottom: 14px;
+}
+
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .skyhub-page {
+    --sk-glass: linear-gradient(
+      160deg,
+      rgba(56, 30, 88, 0.96),
+      rgba(28, 14, 52, 0.97)
+    );
+  }
+}
+
+/* While the comments panel is open, hide the floating Atlas and Help
+   buttons so they don't sit on top of the reply box and Post button. */
+html:has(.skyhub-drawer.ant-drawer-open) .ap-fab-wrapper,
+html:has(.skyhub-drawer.ant-drawer-open) [data-sr-root] {
+  display: none !important;
+}
