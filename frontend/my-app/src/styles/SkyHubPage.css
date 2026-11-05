@@ -2764,3 +2764,22 @@ html:has(.skyhub-drawer.ant-drawer-open) .ap-fab-wrapper,
 html:has(.skyhub-drawer.ant-drawer-open) [data-sr-root] {
   display: none !important;
 }
+
+/* ── Post photos: show the whole photo, never cut off ──────────────
+   Laptops cropped tall photos (fixed height + cover). Now the full photo
+   shows, up to a sensible height, letterboxed instead of cropped.
+   Click it to open the full-size viewer (SkyHubPhotoViewer.jsx). */
+.skyhub-feedCard__media {
+  height: auto !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  background: rgba(0, 0, 0, 0.25);
+}
+.skyhub-feedCard__media img {
+  width: 100% !important;
+  height: auto !important;
+  max-height: min(640px, 75vh);
+  aspect-ratio: auto !important;
+  object-fit: contain !important;
+  margin: 0 auto;
+}

@@ -26,6 +26,7 @@ import SkyHubCommentDrawer from "./SkyHubCommentDrawer";
 import SkyHubPassportCard from "./SkyHubPassportCard";
 import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
+import SkyHubPhotoViewer from "./SkyHubPhotoViewer";
 import SkyHubStanding from "./SkyHubStanding";
 import { SkyHubJoinModal, SkyHubJoinCard } from "./SkyHubJoinPrompt";
 import { apiUrl } from "@/lib/api";
@@ -1194,6 +1195,72 @@ export default function SkyHubPage() {
               Tips, photos and questions from Skyrio travelers. Read what others
               found, or share your own.
             </p>
+            {/* Guests: say plainly what they can and can't do here. */}
+            {!currentUser && (
+              <div
+                role="note"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  maxWidth: 560,
+                  margin: "0 0 16px",
+                  padding: "12px 14px",
+                  borderRadius: 14,
+                  textAlign: "left",
+                  background: "rgba(124,92,252,0.18)",
+                  border: "1px solid rgba(167,139,250,0.45)",
+                  color: "rgba(255,255,255,0.9)",
+                  fontSize: 13.5,
+                  lineHeight: 1.5,
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#c4b5fd"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  style={{ flexShrink: 0, marginTop: 2 }}
+                >
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span>
+                  <b style={{ color: "#fff" }}>
+                    You&rsquo;re viewing as a guest.
+                  </b>{" "}
+                  You can read every post. To post, comment, like or follow, you
+                  need a free Skyrio account.{" "}
+                  <a
+                    href="/register?from=skyhub"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate("/register?from=skyhub");
+                    }}
+                    style={{ color: "#ffb347", fontWeight: 700 }}
+                  >
+                    Sign up free
+                  </a>{" "}
+                  or{" "}
+                  <a
+                    href="/login"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate("/login");
+                    }}
+                    style={{ color: "#ffb347", fontWeight: 700 }}
+                  >
+                    log in
+                  </a>
+                  .
+                </span>
+              </div>
+            )}
             <button type="button" className="shPC-cta" onClick={startPost}>
               <svg
                 width="17"
@@ -1209,7 +1276,11 @@ export default function SkyHubPage() {
                 <path d="M22 2 11 13" />
                 <path d="m22 2-7 20-4-9-9-4z" />
               </svg>
-              {posts.length ? "Send a postcard" : "Send the first postcard"}
+              {!currentUser
+                ? "Sign up to post"
+                : posts.length
+                ? "Send a postcard"
+                : "Send the first postcard"}
             </button>
           </div>
 
@@ -1534,6 +1605,9 @@ export default function SkyHubPage() {
           </aside>
         </section>
       </main>
+
+      {/* Click any post photo to see it full-size (desktop and phone). */}
+      <SkyHubPhotoViewer />
 
       <Modal
         open={!!editingPost}

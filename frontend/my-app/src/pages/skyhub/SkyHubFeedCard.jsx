@@ -163,7 +163,10 @@ function Avatar({ name, avatarUrl, size = 44 }) {
   );
 }
 
-// ── Twitter-style image grid ───────────────────────────────
+// ── Image grid ────────────────────────────────────────────
+// One photo: shown WHOLE (never cropped), up to a sensible height.
+// 2–4 photos: neat cropped tiles. Click any photo to see it full-size
+// (SkyHubPhotoViewer, mounted on SkyHubPage).
 function ImageGrid({ images }) {
   const [failed, setFailed] = useState({});
   if (!images?.length) return null;
@@ -176,6 +179,8 @@ function ImageGrid({ images }) {
       src={src}
       alt=""
       loading="lazy"
+      className="sh-zoomable"
+      title="Click to see the full photo"
       onError={() => fail(i)}
       style={{
         width: "100%",
@@ -199,7 +204,15 @@ function ImageGrid({ images }) {
     </div>
   );
   if (vis.length === 1)
-    return wrap(img(vis[0], 0, { height: 280, borderRadius: 12 }));
+    return wrap(
+      img(vis[0], 0, {
+        height: "auto",
+        maxHeight: "min(560px, 70vh)",
+        objectFit: "contain",
+        margin: "0 auto",
+      }),
+      { background: "rgba(0,0,0,0.25)" }
+    );
   if (vis.length === 2)
     return wrap(
       vis.map((s, i) => img(s, i)),
@@ -490,6 +503,7 @@ export default function SkyHubFeedCard({
             <img
               src={post.image}
               alt="post"
+              className="sh-zoomable"
               onError={(e) => {
                 e.target.parentElement.style.display = "none";
               }}

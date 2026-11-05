@@ -117,6 +117,12 @@ export const MT_CSS = `
 .mt-keep { border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; }
 .mt-danger { border: 1px solid rgba(255,107,133,.55); background: rgba(255,107,133,.12); color: #ff8fa3; }
 .mt-danger:disabled, .mt-keep:disabled { opacity: .5; cursor: default; }
+.mt-final { margin: 0 0 14px; padding: 14px; border-radius: 14px; background: rgba(255,107,133,.08); border: 1px solid rgba(255,107,133,.35); }
+.mt-final h3 { margin: 0 0 8px; font-size: 15px; font-weight: 800; color: #fff; }
+.mt-final ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.88); }
+.mt-final b { color: #fff; }
+.mt-understand { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; font-size: 13.5px; line-height: 1.45; color: #fff; cursor: pointer; }
+.mt-understand input { width: 18px; height: 18px; margin-top: 1px; flex-shrink: 0; accent-color: #ff6b85; }
 .mt-done { width: 100%; min-height: 46px; border: 0; border-radius: 999px; background: linear-gradient(135deg,#ff8a2a,#ffb347); color: #1a0e06; font-weight: 800; cursor: pointer; }
 
 @media (max-width: 640px) {
@@ -446,6 +452,10 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
   const [requested, setRequested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  // Two steps: "Cancel trip" opens a final check (what happens + a box to
+  // tick); only "Yes, cancel" there actually cancels.
+  const [finalCheck, setFinalCheck] = useState(false);
+  const [understood, setUnderstood] = useState(false);
   const token = localStorage.getItem("token");
   const headers = {
     "Content-Type": "application/json",
@@ -503,6 +513,25 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [busy, onClose]);
+
+  // One plain line for the final check: what comes back, per the airline/hotel.
+  const getBack = (() => {
+    if (!quote) return null;
+    if (quote.refundTo === "airline_credit")
+      return quote.airlineCredit?.amount
+        ? `${fmtMoney(
+            quote.airlineCredit.amount,
+            quote.airlineCredit.currency || quote.currency
+          )} in airline credit (not money back to your card)`
+        : "Airline credit (not money back to your card)";
+    if (quote.estimatedRefund == null)
+      return `A refund decided by the ${place} when it cancels`;
+    if (Number(quote.estimatedRefund) <= 0) return "No refund";
+    return `About ${fmtMoney(
+      quote.estimatedRefund,
+      quote.currency
+    )} back to your card, usually in 5–10 business days`;
+  })();
 
   const confirmCancel = async () => {
     setBusy(true);
@@ -738,6 +767,77 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
               <button type="button" className="mt-done" onClick={onClose}>
                 Got it
               </button>
+            ) : finalCheck ? (
+              <>
+                <div className="mt-final" role="alert">
+                  <h3>Before you cancel</h3>
+                  <ul>
+                    <li>
+                      <b>This can&rsquo;t be undone.</b>{" "}
+                      {booking.type === "Hotel"
+                        ? "Your room is released and may not be available again at this price."
+                        : "Your seats are released and the fare may not be available again at this price."}
+                    </li>
+                    {booking.type !== "Hotel" && (
+                      <li>
+                        It cancels <b>every flight and every traveler</b> on
+                        this booking, including the return if you booked a round
+                        trip.
+                      </li>
+                    )}
+                    {getBack && (
+                      <li>
+                        You get back: <b>{getBack}</b>. The {place} decides the
+                        final amount, not Skyrio.
+                      </li>
+                    )}
+                    {booking.type !== "Hotel" && (
+                      <li>
+                        Seats or bags you paid for usually aren&rsquo;t refunded
+                        separately. The airline decides.
+                      </li>
+                    )}
+                    {booking.syncGroup && (
+                      <li>
+                        Your Sync Together group will see that you cancelled.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+                <label className="mt-understand">
+                  <input
+                    type="checkbox"
+                    checked={understood}
+                    onChange={(e) => setUnderstood(e.target.checked)}
+                  />
+                  <span>
+                    I understand this cancels my{" "}
+                    {booking.type === "Hotel" ? "stay" : "flight"} and
+                    can&rsquo;t be undone.
+                  </span>
+                </label>
+                <div className="mt-modalBtns">
+                  <button
+                    type="button"
+                    className="mt-keep"
+                    onClick={() => {
+                      setFinalCheck(false);
+                      setUnderstood(false);
+                    }}
+                    disabled={busy}
+                  >
+                    Go back
+                  </button>
+                  <button
+                    type="button"
+                    className="mt-danger"
+                    onClick={confirmCancel}
+                    disabled={busy || !understood}
+                  >
+                    {busy ? "Cancelling…" : "Yes, cancel"}
+                  </button>
+                </div>
+              </>
             ) : (
               <div className="mt-modalBtns">
                 <button
@@ -751,10 +851,10 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                 <button
                   type="button"
                   className="mt-danger"
-                  onClick={confirmCancel}
+                  onClick={() => setFinalCheck(true)}
                   disabled={busy || !quote || quote.cancellable === false}
                 >
-                  {busy ? "Cancelling…" : "Cancel trip"}
+                  Continue to cancel
                 </button>
               </div>
             )}
