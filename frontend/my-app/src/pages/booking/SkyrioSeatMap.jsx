@@ -1,20 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import { Baby, PawPrint, Users, Sparkles, Check } from "lucide-react";
+import { Baby, PawPrint, Users, Sparkles } from "lucide-react";
 
 /**
  * SkyrioSeatMap
  * ------------------------------------------------------------------
  * Matches BookingCheckout.jsx's G token palette (purple/orange dark theme).
- *
- * How seats read (no seat type relies on colour alone):
- *   • Your seat    — the ONLY solid bright-orange seat, white ring + ✓ + glow
- *   • Your party   — softer filled orange with the traveler's initials
- *   • Your group   — filled purple with the friend's initials
- *   • Front row    — hollow, dashed orange outline + price
- *   • Extra legroom— purple tint + outline + price
- *   • Exit row     — yellow outline + "EXIT" marker beside the row
- *   • Standard     — plain dark glass + price
- *   • Taken        — faded with ×
  *
  * Props:
  * - passengers: Passenger[]  { index, firstName, lastName, type: 'ADT'|'CHD'|'INF', hasPet }
@@ -57,17 +47,8 @@ const G = {
   amber: "#F2C200",
 };
 
-// "Yours" looks — the only filled orange on the map.
-const SELECTED_FILL = "linear-gradient(135deg, #ff8a3d 0%, #ff5f1f 100%)";
-const SELECTED_GLOW =
-  "0 0 0 3px rgba(249,115,22,0.30), 0 0 14px rgba(249,115,22,0.55)";
-const PARTY_FILL =
-  "linear-gradient(135deg, rgba(255,138,61,0.50) 0%, rgba(255,95,31,0.50) 100%)";
-const PARTY_EDGE = "rgba(255,138,61,0.9)";
-const GROUP_FILL = "rgba(167,139,250,0.55)";
-
-// One look per seat type. Front row stays orange (brand) but is HOLLOW and
-// DASHED, so it can never be mistaken for a seat you picked.
+// One look per seat type: a tinted fill plus a matching edge. Unavailable
+// seats get neither, so the cabin never reads as "all one colour".
 const TIER = {
   standard: {
     label: "Standard",
@@ -86,9 +67,8 @@ const TIER = {
   },
   premium: {
     label: "Front row",
-    tint: "transparent",
-    edge: "rgba(249,115,22,0.8)",
-    dashed: true,
+    tint: "rgba(249,115,22,0.16)",
+    edge: "rgba(249,115,22,0.6)",
   },
 };
 const TIER_ORDER = ["standard", "extra-legroom", "exit-row", "premium"];
@@ -102,9 +82,11 @@ const CSS = `
   .skm-pick:hover { background: rgba(249,115,22,0.2) !important; border-color: rgba(249,115,22,0.75) !important; color: #fff !important; }
   .skm-pick:focus-visible, .skm-pref:focus-visible { outline: 2px solid ${G.orange}; outline-offset: 2px; }
   .skm-pref:not([aria-pressed="true"]):hover { color: #fff !important; }
-  .skm-seat { transition: transform .12s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease; }
-  @media (hover: hover) { .skm-seat:not(:disabled):hover { transform: translateY(-1px); } }
-  .skm-seat:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .skm-seat { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
+  /* No lift on hover: moving the seat under the cursor made it flicker
+     in and out of hover at its edge. A glow instead. */
+  .skm-seat:not(:disabled):hover { box-shadow: 0 0 0 2px rgba(249,115,22,0.35); }
+  .skm-seat:focus-visible { outline: 2px solid ${G.orange}; outline-offset: 2px; }
   .skm-pop { animation: skm-pop .28s ease; }
   @keyframes skm-pop { 0% { transform: scale(.82); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
   .skm-chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -197,10 +179,6 @@ export default function SkyrioSeatMap({
   groupSeats = {},
   friendsWithoutSeat = {},
   stickyTop = 80,
-  // Plain-language line when the airline offers seats on only some of the
-  // trip's flights (e.g. outbound but not return), so a missing return
-  // seat map is explained instead of silently absent.
-  coverageNote = "",
 }) {
   const [avoidKidsPets, setAvoidKidsPets] = useState(false);
   const [hoveredSeat, setHoveredSeat] = useState(null);
@@ -529,9 +507,6 @@ export default function SkyrioSeatMap({
 
     let bg = tier.tint;
     let border = tier.edge;
-    let borderStyle = tier.dashed ? "dashed" : "solid";
-    let borderWidth = 1.5;
-    let shadow = "none";
     let color = "rgba(255,255,255,0.78)";
     let content = (
       <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: -0.2 }}>
@@ -543,14 +518,11 @@ export default function SkyrioSeatMap({
     if (!isKnown || !isAvailable) {
       bg = "rgba(255,255,255,0.015)";
       border = "rgba(255,255,255,0.04)";
-      borderStyle = "solid";
       content = <span style={{ opacity: 0.25 }}>×</span>;
       disabled = true;
     } else if (isOwnParty) {
-      // Someone else in your party — filled orange, but softer than "your seat".
-      bg = PARTY_FILL;
-      border = PARTY_EDGE;
-      borderStyle = "solid";
+      bg = "rgba(249,115,22,0.16)";
+      border = G.orange;
       color = "#fff";
       content = isChild ? (
         <Baby size={15} />
@@ -561,9 +533,8 @@ export default function SkyrioSeatMap({
       );
       if (ownPassengerIndex !== activePassengerIndex) disabled = true;
     } else if (legFriends[seat]) {
-      bg = GROUP_FILL;
+      bg = "rgba(167,139,250,0.2)";
       border = G.violet;
-      borderStyle = "solid";
       color = "#fff";
       content = (
         <span style={{ fontSize: 11 }}>
@@ -576,7 +547,6 @@ export default function SkyrioSeatMap({
     } else if (known) {
       bg = "rgba(255,255,255,0.015)";
       border = "rgba(255,255,255,0.04)";
-      borderStyle = "solid";
       content = isChild ? (
         <Baby size={14} style={{ opacity: 0.6 }} />
       ) : hasPet ? (
@@ -590,7 +560,6 @@ export default function SkyrioSeatMap({
     if ((isAvoided || isExitBlocked) && !disabled) {
       bg = "rgba(255,255,255,0.015)";
       border = "rgba(255,255,255,0.06)";
-      borderStyle = "solid";
       disabled = true;
       content = <span style={{ opacity: 0.25 }}>—</span>;
     }
@@ -598,28 +567,18 @@ export default function SkyrioSeatMap({
     const canClear = isSelectedForActive && typeof onClearSeat === "function";
     const isHovered = hoveredSeat === seat && !disabled && !isSelectedForActive;
     if (isHovered) {
-      // Neutral white lift — hover never looks like "picked".
-      bg = "rgba(255,255,255,0.14)";
-      border = "rgba(255,255,255,0.7)";
-      borderStyle = "solid";
+      bg = "rgba(249,115,22,0.18)";
+      border = "rgba(249,115,22,0.75)";
       color = "#fff";
     }
     if (isSelectedForActive) {
-      // The one seat that is unmistakably yours.
-      bg = SELECTED_FILL;
-      border = "#fff";
-      borderStyle = "solid";
-      borderWidth = 2;
-      shadow = SELECTED_GLOW;
-      color = "#fff";
-      content = <Check size={18} strokeWidth={3} aria-hidden="true" />;
+      border = G.orange;
+      bg = "#fff";
+      color = "#1b1024";
     }
 
     function handleClick() {
       if (disabled) return;
-      // After a tap the banner shows the seat actually picked, never a
-      // leftover preview of a seat touched earlier.
-      setHoveredSeat(null);
       if (isSelectedForActive) {
         if (canClear) onClearSeat(segKey, activePassengerIndex);
         return;
@@ -641,8 +600,8 @@ export default function SkyrioSeatMap({
       : `${describeSeat(seat)}${
           isSelectedForActive
             ? canClear
-              ? ", your seat. Press again to remove"
-              : ", your seat"
+              ? ", selected. Press again to remove"
+              : ", selected"
             : ""
         }`;
 
@@ -656,26 +615,9 @@ export default function SkyrioSeatMap({
         }`}
         disabled={disabled}
         onClick={handleClick}
-        // Previews are for a real mouse or keyboard only. On phones and
-        // tablets a tap fires "mouseenter" with no "mouseleave", so the
-        // preview stuck to the last seat touched (banner said 35A while
-        // 37A was picked) and iPad needed two taps to choose a seat.
-        onPointerEnter={(e) =>
-          e.pointerType === "mouse" && !disabled && setHoveredSeat(seat)
-        }
-        onPointerLeave={(e) =>
-          e.pointerType === "mouse" &&
-          setHoveredSeat((s) => (s === seat ? null : s))
-        }
-        onFocus={(e) => {
-          let keyboard = false;
-          try {
-            keyboard = e.currentTarget.matches(":focus-visible");
-          } catch {
-            keyboard = false;
-          }
-          if (keyboard && !disabled) setHoveredSeat(seat);
-        }}
+        onMouseEnter={() => !disabled && setHoveredSeat(seat)}
+        onMouseLeave={() => setHoveredSeat((s) => (s === seat ? null : s))}
+        onFocus={() => !disabled && setHoveredSeat(seat)}
         onBlur={() => setHoveredSeat((s) => (s === seat ? null : s))}
         aria-label={accessibleLabel}
         aria-pressed={isSelectedForActive}
@@ -685,8 +627,7 @@ export default function SkyrioSeatMap({
           height: SEAT,
           borderRadius: "10px 10px 7px 7px",
           background: bg,
-          border: `${borderWidth}px ${borderStyle} ${border}`,
-          boxShadow: shadow,
+          border: `1.5px solid ${border}`,
           color,
           fontFamily: "inherit",
           fontSize: 12,
@@ -698,8 +639,6 @@ export default function SkyrioSeatMap({
           marginRight: hasAisleAfter(col) ? 18 : 5,
           flexShrink: 0,
           padding: 0,
-          position: "relative",
-          zIndex: isSelectedForActive ? 1 : 0,
         }}
       >
         {content}
@@ -721,14 +660,9 @@ export default function SkyrioSeatMap({
   const layoverCities = [
     ...new Set(segments.map((s) => s.layoverAt).filter(Boolean)),
   ];
-  // No seat data for this flight (the airline sent seat maps for some
-  // flights only — common on return legs and sandbox fares), or every seat
-  // unavailable: say so plainly instead of drawing a made-up cabin full of
-  // "taken" seats, which looked like seat selection was broken.
   const noSeatsOffered =
-    !rowsProp &&
-    (scopedSeatServices.length === 0 ||
-      scopedSeatServices.every((sv) => sv.available === false));
+    scopedSeatServices.length > 0 &&
+    scopedSeatServices.every((sv) => sv.available === false);
   const showKidPetLegend = flaggedSeats.size > 0;
   const exitRowsHere = [...rowTier.values()].includes("exit-row");
 
@@ -745,7 +679,7 @@ export default function SkyrioSeatMap({
     }));
   }, [segments]);
 
-  // The bar above the map previews the hovered/focused seat, otherwise the
+  // The bar under the map previews the hovered/focused seat, otherwise the
   // active traveler's current pick, otherwise a hint.
   const detailSeat = hoveredSeat ?? activeSeat ?? null;
   const detailText = detailSeat
@@ -867,24 +801,6 @@ export default function SkyrioSeatMap({
           }}
         >
           {notice}
-        </div>
-      )}
-
-      {coverageNote && (
-        <div
-          role="note"
-          style={{
-            padding: "10px 14px",
-            marginBottom: 12,
-            borderRadius: 10,
-            border: `1px solid ${G.border}`,
-            background: G.bgCard,
-            color: G.soft,
-            fontSize: 12.5,
-            lineHeight: 1.5,
-          }}
-        >
-          {coverageNote}
         </div>
       )}
 
@@ -1224,321 +1140,303 @@ export default function SkyrioSeatMap({
             fontSize: 12.5,
           }}
         >
-          {multiFlight
-            ? "The airline isn't offering seat selection on this flight. You can pick seats on your other flights, or continue — the airline assigns a seat here at check-in."
-            : "The airline isn't offering seat selection on this flight. You can continue — the airline assigns your seat at check-in."}
+          The airline isn't offering seat selection on this flight right now.
+          You can continue — a seat will be assigned at check-in.
         </div>
       )}
 
-      {!noSeatsOffered && (
-        <>
-          {/* Legend: above the map so it's read before choosing. "Yours" first,
-          then only the seat types on this flight, with starting prices. */}
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "8px 14px",
-              fontSize: 11.5,
-              color: G.soft,
-              marginBottom: 6,
-            }}
-          >
-            <LegendItem
-              swatch={SELECTED_FILL}
-              border="#fff"
-              glow
-              mark={<Check size={11} strokeWidth={3.5} />}
-              label="Your seat"
-            />
-            {passengers.length > 1 && (
-              <LegendItem
-                swatch={PARTY_FILL}
-                border={PARTY_EDGE}
-                mark={<span style={{ fontSize: 7, fontWeight: 800 }}>AB</span>}
-                label="Your party"
-              />
-            )}
-            {isGroupTrip && (
-              <LegendItem
-                swatch={GROUP_FILL}
-                border={G.violet}
-                mark={<span style={{ fontSize: 7, fontWeight: 800 }}>FR</span>}
-                label="Your group"
-              />
-            )}
-            {TIER_ORDER.filter((t) => tierPrices[t] != null).map((t) => (
-              <LegendItem
-                key={t}
-                swatch={TIER[t].tint}
-                border={TIER[t].edge}
-                dashed={TIER[t].dashed}
-                label={`${TIER[t].label} · ${
-                  tierPrices[t] > 0
-                    ? `from $${formatPrice(tierPrices[t])}`
-                    : "included"
-                }`}
-              />
-            ))}
-            {showKidPetLegend && (
-              <>
-                <LegendItem icon={<Baby size={12} />} label="Child" />
-                <LegendItem
-                  icon={<PawPrint size={12} />}
-                  label="Pet in cabin"
-                />
-              </>
-            )}
-            <LegendItem
-              swatch="rgba(255,255,255,0.015)"
-              border="rgba(255,255,255,0.08)"
-              mark={<span style={{ opacity: 0.4, fontSize: 10 }}>×</span>}
-              label="Taken"
-            />
+      {/* Legend: above the map so it's read before choosing; only what's on
+          this flight, with each type's starting price. */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "8px 14px",
+          fontSize: 11.5,
+          color: G.soft,
+          marginBottom: 10,
+        }}
+      >
+        {TIER_ORDER.filter((t) => tierPrices[t] != null).map((t) => (
+          <LegendItem
+            key={t}
+            swatch={TIER[t].tint}
+            border={TIER[t].edge}
+            label={`${TIER[t].label} · ${
+              tierPrices[t] > 0
+                ? `from $${formatPrice(tierPrices[t])}`
+                : "included"
+            }`}
+          />
+        ))}
+        <LegendItem
+          swatch="rgba(249,115,22,0.16)"
+          border={G.orange}
+          label="Your party"
+        />
+        {isGroupTrip && (
+          <LegendItem
+            swatch="rgba(167,139,250,0.2)"
+            border={G.violet}
+            label="Your group"
+          />
+        )}
+        {showKidPetLegend && (
+          <>
+            <LegendItem icon={<Baby size={12} />} label="Child" />
+            <LegendItem icon={<PawPrint size={12} />} label="Pet in cabin" />
+          </>
+        )}
+        <LegendItem
+          swatch="rgba(255,255,255,0.015)"
+          border="rgba(255,255,255,0.08)"
+          label="Taken"
+        />
+      </div>
+      {activeRestricted && exitRowsHere && (
+        <div style={{ fontSize: 12, color: G.muted, marginBottom: 10 }}>
+          Exit rows are greyed out for {firstName(activePassenger)} — airlines
+          don't seat children or travelers with a pet there.
+        </div>
+      )}
+
+      {/* Map + sticky seat bar */}
+      <div>
+        {/* Above the map, and stays pinned under the site header while
+            scrolling a long cabin. */}
+        <div
+          aria-live="polite"
+          style={{
+            position: "sticky",
+            top: stickyTop,
+            zIndex: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 10,
+            marginBottom: 10,
+            padding: "10px 12px 10px 14px",
+            borderRadius: 14,
+            border: `1px solid ${
+              detailSeat ? "rgba(249,115,22,0.4)" : G.border
+            }`,
+            background: "rgba(32,20,52,0.72)",
+            backdropFilter: "blur(16px) saturate(140%)",
+            WebkitBackdropFilter: "blur(16px) saturate(140%)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+          }}
+        >
+          {/* One line each, cut with "…", so this bar keeps the same height
+              while the mouse moves over seats. (When it grew to two lines,
+              the map below jumped under the cursor and the seats flickered.) */}
+          <div style={{ flex: "1 1 0", minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: G.soft,
+                minHeight: 15,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {detailCaption || "\u00a0"}
+            </div>
+            <div
+              title={detailText}
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: !detailSeat && pickMessage ? G.amber : "#fff",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {detailText}
+            </div>
           </div>
-          <div style={{ fontSize: 11.5, color: G.muted, marginBottom: 10 }}>
-            Your seat is the bright orange one with a ✓. Outlined seats are open
-            to pick.
-          </div>
-          {activeRestricted && exitRowsHere && (
-            <div style={{ fontSize: 12, color: G.muted, marginBottom: 10 }}>
-              Exit rows are greyed out for {firstName(activePassenger)} —
-              airlines don't seat children or travelers with a pet there.
+          {!noSeatsOffered && activePassenger && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexShrink: 0,
+              }}
+            >
+              <div
+                role="group"
+                aria-label="Seat preference"
+                style={{
+                  display: "flex",
+                  padding: 2,
+                  borderRadius: 10,
+                  gap: 2,
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${G.border}`,
+                }}
+              >
+                {prefButton("window", "Window")}
+                {prefButton("aisle", "Aisle")}
+                {prefButton("any", "Any")}
+              </div>
+              <button
+                type="button"
+                className="skm-pick"
+                onClick={pickForMe}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(249,115,22,0.5)",
+                  background: "rgba(249,115,22,0.1)",
+                  color: "#ff8a2a",
+                  fontFamily: "inherit",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Sparkles size={13} /> Pick for me
+              </button>
             </div>
           )}
+        </div>
 
-          {/* Map + sticky seat bar */}
-          <div>
-            {/* Above the map, and stays pinned under the site header while
-            scrolling a long cabin. */}
-            <div
-              aria-live="polite"
-              style={{
-                position: "sticky",
-                top: stickyTop,
-                zIndex: 2,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 10,
-                marginBottom: 10,
-                padding: "10px 12px 10px 14px",
-                borderRadius: 14,
-                border: `1px solid ${
-                  detailSeat ? "rgba(249,115,22,0.4)" : G.border
-                }`,
-                background: "rgba(32,20,52,0.72)",
-                backdropFilter: "blur(16px) saturate(140%)",
-                WebkitBackdropFilter: "blur(16px) saturate(140%)",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: G.soft }}>
-                  {detailCaption}
-                </div>
-                <div
+        <div
+          ref={gridRef}
+          role="group"
+          aria-label="Aircraft seat map. Use arrow keys to move between seats."
+          onKeyDown={onGridKeyDown}
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015))",
+            border: `1px solid ${G.border}`,
+            borderRadius: "48px 48px 16px 16px",
+            padding: "22px 14px 18px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            overflowX: "auto",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 1,
+              color: "rgba(255,255,255,0.35)",
+              marginBottom: 12,
+            }}
+          >
+            ▲ FRONT
+          </div>
+
+          {columnHeader}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {rows.map((row, i) => {
+              const prevRow = rows[i - 1];
+              const tier = rowTier.get(row);
+              const showDivider = i > 0 && rowTier.get(prevRow) !== tier;
+              const isExit = tier === "exit-row";
+              const exitMark = (
+                <span
+                  aria-hidden="true"
                   style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: !detailSeat && pickMessage ? G.amber : "#fff",
+                    ...sideCell,
+                    fontSize: 8,
+                    fontWeight: 800,
+                    letterSpacing: 0.3,
+                    color: isExit ? G.amber : "transparent",
+                    textAlign: "center",
                   }}
                 >
-                  {detailText}
-                </div>
-              </div>
-              {!noSeatsOffered && activePassenger && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div
-                    role="group"
-                    aria-label="Seat preference"
-                    style={{
-                      display: "flex",
-                      padding: 2,
-                      borderRadius: 10,
-                      gap: 2,
-                      background: "rgba(255,255,255,0.04)",
-                      border: `1px solid ${G.border}`,
-                    }}
-                  >
-                    {prefButton("window", "Window")}
-                    {prefButton("aisle", "Aisle")}
-                    {prefButton("any", "Any")}
-                  </div>
-                  <button
-                    type="button"
-                    className="skm-pick"
-                    onClick={pickForMe}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "8px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(249,115,22,0.5)",
-                      background: "rgba(249,115,22,0.1)",
-                      color: "#ff8a2a",
-                      fontFamily: "inherit",
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <Sparkles size={13} /> Pick for me
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div
-              ref={gridRef}
-              role="group"
-              aria-label="Aircraft seat map. Use arrow keys to move between seats."
-              onKeyDown={onGridKeyDown}
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015))",
-                border: `1px solid ${G.border}`,
-                borderRadius: "48px 48px 16px 16px",
-                padding: "22px 14px 18px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                overflowX: "auto",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: 1,
-                  color: "rgba(255,255,255,0.35)",
-                  marginBottom: 12,
-                }}
-              >
-                ▲ FRONT
-              </div>
-
-              {columnHeader}
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                {rows.map((row, i) => {
-                  const prevRow = rows[i - 1];
-                  const tier = rowTier.get(row);
-                  const showDivider = i > 0 && rowTier.get(prevRow) !== tier;
-                  const isExit = tier === "exit-row";
-                  const exitMark = (
-                    <span
-                      aria-hidden="true"
+                  EXIT
+                </span>
+              );
+              return (
+                <div key={row}>
+                  {showDivider && (
+                    <div
+                      role="separator"
                       style={{
-                        ...sideCell,
-                        fontSize: 8,
-                        fontWeight: 800,
-                        letterSpacing: 0.3,
-                        color: isExit ? G.amber : "transparent",
-                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        margin: "6px 0",
+                        color: "rgba(255,255,255,0.32)",
+                        fontSize: 9,
+                        fontWeight: 700,
+                        letterSpacing: 0.6,
+                        textTransform: "uppercase",
                       }}
                     >
-                      EXIT
-                    </span>
-                  );
-                  return (
-                    <div key={row}>
-                      {(showDivider || (i === 0 && tier !== "standard")) && (
-                        <div
-                          role="separator"
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            margin: "6px 0",
-                            color: "rgba(255,255,255,0.32)",
-                            fontSize: 9,
-                            fontWeight: 700,
-                            letterSpacing: 0.6,
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          <span
-                            style={{ flex: 1, height: 1, background: G.border }}
-                          />
-                          {TIER[tier].label}
-                          <span
-                            style={{ flex: 1, height: 1, background: G.border }}
-                          />
-                        </div>
-                      )}
-                      <div style={{ display: "flex", alignItems: "center" }}>
-                        <span
-                          style={{
-                            ...sideCell,
-                            marginRight: 6,
-                            fontSize: 10,
-                            color: G.muted,
-                            textAlign: "right",
-                          }}
-                        >
-                          {row}
-                        </span>
-                        {columns.map((col) => renderCell(row, col))}
-                        {exitMark}
-                      </div>
+                      <span
+                        style={{ flex: 1, height: 1, background: G.border }}
+                      />
+                      {TIER[tier].label}
+                      <span
+                        style={{ flex: 1, height: 1, background: G.border }}
+                      />
                     </div>
-                  );
-                })}
-              </div>
-
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: 1,
-                  color: "rgba(255,255,255,0.35)",
-                  marginTop: 12,
-                }}
-              >
-                REAR ▼
-              </div>
-            </div>
+                  )}
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <span
+                      style={{
+                        ...sideCell,
+                        marginRight: 6,
+                        fontSize: 10,
+                        color: G.muted,
+                        textAlign: "right",
+                      }}
+                    >
+                      {row}
+                    </span>
+                    {columns.map((col) => renderCell(row, col))}
+                    {exitMark}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </>
-      )}
+
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 1,
+              color: "rgba(255,255,255,0.35)",
+              marginTop: 12,
+            }}
+          >
+            REAR ▼
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function LegendItem({ swatch, border, dashed, glow, mark, icon, label }) {
+function LegendItem({ swatch, border, icon, label }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       {icon ?? (
         <span
           style={{
-            width: 16,
-            height: 16,
-            borderRadius: "5px 5px 4px 4px",
+            width: 13,
+            height: 13,
+            borderRadius: "4px 4px 3px 3px",
             background: swatch,
-            border: `1.5px ${dashed ? "dashed" : "solid"} ${
-              border || "rgba(255,255,255,0.15)"
-            }`,
-            boxShadow: glow ? "0 0 6px rgba(249,115,22,0.6)" : "none",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            flexShrink: 0,
+            border: `1.5px solid ${border || "rgba(255,255,255,0.15)"}`,
+            display: "inline-block",
           }}
-        >
-          {mark}
-        </span>
+        />
       )}
       {label}
     </div>
