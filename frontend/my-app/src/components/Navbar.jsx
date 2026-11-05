@@ -248,6 +248,42 @@ const SYNC_CSS = `
   .sk-mobile-sync__title { font-weight: 800; font-size: 15px; }
   .sk-mobile-sync__sub { font-size: 12.5px; color: rgba(255,255,255,0.65); }
 
+  /* ── Phone menu (clean list) ── */
+  .sk-m { gap: 8px !important; }
+  .sk-m-user, .sk-m-sync {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px;
+    color: #fff; text-decoration: none; touch-action: manipulation;
+  }
+  .sk-m-user { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10); }
+  .sk-m-sync { background: linear-gradient(135deg, rgba(255,138,42,0.18), rgba(124,92,252,0.24)); border: 1px solid rgba(255,138,42,0.45); }
+  .sk-m-sync.is-on { border-color: #ff8a2a; }
+  .sk-m-user > svg, .sk-m-sync > svg { color: rgba(255,255,255,0.55); flex-shrink: 0; }
+  .sk-m-syncIcon { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #ff8a2a, #7c5cfc); }
+  .sk-m-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sk-m-title { font-size: 15px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sk-m-sub { font-size: 12.5px; color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sk-m-list { display: flex; flex-direction: column; padding: 4px; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }
+  .sk-m-row, .sk-m-list .nf-root .nf-menuRow {
+    display: flex !important; align-items: center; gap: 12px; min-height: 46px !important; padding: 0 12px !important;
+    border-radius: 10px !important; border: 0 !important; background: none !important;
+    color: rgba(255,255,255,0.88) !important; text-decoration: none; font-size: 15px; font-weight: 600;
+    touch-action: manipulation; width: 100%; box-sizing: border-box;
+  }
+  .sk-m-row svg, .sk-m-list .nf-root .nf-menuRow svg { color: #ffb347; flex-shrink: 0; }
+  .sk-m-row:active { background: rgba(255,255,255,0.08) !important; }
+  .sk-m-row.is-on { color: #fff !important; background: rgba(255,138,42,0.16) !important; box-shadow: inset 3px 0 0 #ff8a2a; }
+  .sk-m-actions { padding-top: 4px; display: flex; flex-direction: column; gap: 8px; }
+  .sk-m-logout {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px;
+    border-radius: 12px; cursor: pointer; font: inherit; font-size: 15px; font-weight: 700;
+    color: rgba(255,255,255,0.85); background: transparent; border: 1px solid rgba(255,255,255,0.18);
+  }
+  .sk-m-logout:active { background: rgba(255,255,255,0.06); }
+  @media (max-width: 360px) {
+    .sk-m-row, .sk-m-list .nf-root .nf-menuRow { min-height: 42px !important; font-size: 14px; }
+    .sk-m-title { font-size: 14px; }
+  }
+
   /* The menu rows are width:100% plus padding; without border-box the
      user card and rows stuck out past the menu's right edge on phones. */
   .sk-mobile-menu, .sk-mobile-menu * { box-sizing: border-box; }
@@ -580,15 +616,21 @@ export default function Navbar() {
             </button>
           </div>
 
-          {/* ── MOBILE MENU ── */}
+          {/* ── MOBILE MENU ──
+              One clean list: you, Sync Together, the pages, then
+              notifications/admin, then log out. Same row style throughout. */}
           {mobileOpen && (
-            <div className="sk-mobile-menu" id="sk-mobile-menu">
+            <div className="sk-mobile-menu sk-m" id="sk-mobile-menu">
               {isAuthed && (
-                <Link to="/passport" className="sk-mobile-user">
+                <Link
+                  to="/passport"
+                  className="sk-m-user"
+                  onClick={(e) => goFromMenu(e, "/passport")}
+                >
                   {userAvatar(40)}
-                  <span className="sk-mobile-userText">
-                    <span className="sk-mobile-userName">{displayName}</span>
-                    <span className="sk-mobile-userSub">
+                  <span className="sk-m-text">
+                    <span className="sk-m-title">{displayName}</span>
+                    <span className="sk-m-sub">
                       {rank ? `${rank} · ` : ""}View your Passport
                     </span>
                   </span>
@@ -598,86 +640,72 @@ export default function Navbar() {
 
               <Link
                 to="/sync-together"
-                className={`sk-mobile-sync${isSync ? " is-on" : ""}`}
+                className={`sk-m-sync${isSync ? " is-on" : ""}`}
                 aria-current={isSync ? "page" : undefined}
                 onClick={(e) => goFromMenu(e, "/sync-together")}
               >
-                <span className="sk-mobile-sync__icon">
-                  <Icon.sync size={21} />
+                <span className="sk-m-syncIcon">
+                  <Icon.sync size={19} />
                 </span>
-                <span className="sk-mobile-sync__text">
-                  <span className="sk-mobile-sync__title">Sync Together</span>
-                  <span className="sk-mobile-sync__sub">
-                    Plan a group trip · everyone pays their share
-                  </span>
+                <span className="sk-m-text">
+                  <span className="sk-m-title">Sync Together</span>
+                  <span className="sk-m-sub">Plan a group trip</span>
                 </span>
                 <Icon.chevron size={18} />
               </Link>
 
-              <Link
-                to={isAuthed ? "/saved-trips" : "/find-booking"}
-                className={`sk-mobile-trips${isSaved ? " is-on" : ""}`}
-                aria-current={isSaved ? "page" : undefined}
-                onClick={(e) =>
-                  goFromMenu(e, isAuthed ? "/saved-trips" : "/find-booking")
-                }
-              >
-                <Icon.trips size={20} />
-                <span className="sk-mobile-trips__text">
-                  <span className="sk-mobile-trips__title">
-                    {isAuthed ? "My trips" : "Find my booking"}
-                  </span>
-                  <span className="sk-mobile-trips__sub">
-                    View, change or cancel a booking
-                  </span>
-                </span>
-                <Icon.chevron size={18} />
-              </Link>
-
-              <div className="sk-mobile-grid">
-                {NAV_ITEMS.map((item) => {
-                  const NavIcon = Icon[item.key];
-                  const active = activeKey === item.key;
-                  return (
-                    <Link
-                      key={item.key}
-                      to={item.path}
-                      className={`sk-mobile-tile ${active ? "active" : ""}`}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      <NavIcon size={20} />
-                      <span className="sk-mobile-tileLabel">{item.label}</span>
-                      <span className="sk-mobile-tileHint">{item.hint}</span>
-                    </Link>
-                  );
-                })}
+              <div className="sk-m-list">
+                {[
+                  ...NAV_ITEMS.map((item) => ({
+                    key: item.key,
+                    to: item.path,
+                    label: item.label,
+                    NavIcon: Icon[item.key],
+                    active: activeKey === item.key,
+                  })),
+                  {
+                    key: "trips",
+                    to: isAuthed ? "/saved-trips" : "/find-booking",
+                    label: isAuthed ? "My trips" : "Find my booking",
+                    NavIcon: Icon.trips,
+                    active: isSaved,
+                  },
+                ].map(({ key, to, label, NavIcon, active }) => (
+                  <Link
+                    key={key}
+                    to={to}
+                    className={`sk-m-row${active ? " is-on" : ""}`}
+                    aria-current={active ? "page" : undefined}
+                    onClick={(e) => goFromMenu(e, to)}
+                  >
+                    <NavIcon size={19} />
+                    <span>{label}</span>
+                  </Link>
+                ))}
               </div>
 
               {isAuthed && (
-                <div className="sk-mobile-list">
-                  {/* "Saved trips" lives inside My trips now (card above). */}
-
+                <div className="sk-m-list sk-m-list--minor">
                   {/* Opens the same notifications sheet as the desktop bell */}
                   <Notifications variant="menu" />
-
                   {isAdmin && (
                     <Link
                       to="/admin/login"
-                      className="sk-mobile-link"
-                      data-admin="true"
+                      className="sk-m-row"
+                      onClick={(e) => goFromMenu(e, "/admin/login")}
                     >
-                      <Icon.settings size={18} />
+                      <Icon.settings size={19} />
                       <span>Admin dashboard</span>
                     </Link>
                   )}
                 </div>
               )}
 
-              <div className="sk-mobile-actions">
+              <div className="sk-m-actions">
                 {isAuthed ? (
                   <button
                     type="button"
-                    className="sk-nav-cta is-ghost is-block"
+                    className="sk-m-logout"
                     onClick={handleLogout}
                   >
                     <Icon.logout size={17} /> Log out

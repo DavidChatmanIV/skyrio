@@ -355,9 +355,10 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
           {b.status === "cancel_pending" && (
             <div className="mt-note is-warn">
               <Clock size={13} aria-hidden="true" />
-              The {isHotel ? "hotel" : "airline"} is processing your
-              cancellation. This usually takes a few hours to a couple of days —
-              we&apos;ll notify you when it&apos;s final.
+              Cancellation sent. The {isHotel ? "hotel" : "airline"} has to
+              confirm it on their end, which usually takes a few hours to a
+              couple of days. It&apos;ll switch to Cancelled when it&apos;s
+              done, and we&apos;ll notify you.
             </div>
           )}
           {b.status === "confirmed" && hasOpenCancelRequest(b) && (
@@ -583,7 +584,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
           <>
             <p style={{ fontSize: 14, lineHeight: 1.6, margin: "0 0 18px" }}>
               {result.pending
-                ? "Your cancellation request was sent. The airline usually confirms within a few hours to a couple of days, and we'll notify you."
+                ? "Cancellation sent. The airline has to confirm it on their end, which usually takes a few hours to a couple of days. It'll switch to Cancelled when it's done, and we'll notify you."
                 : result.airlineCredit
                 ? `Cancelled. The airline gave you ${
                     result.airlineCredit.amount

@@ -244,6 +244,7 @@ const TJ_CSS = `
 .tj-go { color:rgba(255,255,255,0.5); }
 .tj-row.is-link:hover .tj-go { color:#ffb347; }
 .tj-help { margin:-4px 0 12px; font-size:13px; line-height:1.5; color:rgba(255,255,255,0.68); }
+.tj-note { margin-top:5px; font-size:12px; line-height:1.45; color:#ffc27a; }
 .tj-foot { margin-top:12px; display:flex; justify-content:center; }
 .tj-section + .tj-section { margin-top:16px; }
 .tj-cancel { display:inline-flex; align-items:center; gap:4px; min-height:30px; padding:0 11px; border-radius:999px; border:1px solid rgba(255,107,133,.5); background:rgba(255,107,133,.08); color:#ff9db0; font:inherit; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
@@ -360,6 +361,13 @@ function JourneyRow({ j, onOpen, onCancel }) {
             {j.title}
           </div>
           {meta && <div className="tj-row__meta">{meta}</div>}
+          {j.status === "cancel_pending" && !completed && (
+            <div className="tj-note">
+              Cancellation sent. The {isStayType(j.type) ? "hotel" : "airline"}{" "}
+              is confirming it, usually within a few hours to a couple of days.
+              We&apos;ll notify you when it&apos;s done.
+            </div>
+          )}
         </div>
       </div>
       <div className="tj-action">
