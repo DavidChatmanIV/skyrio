@@ -232,8 +232,8 @@ function SectionLabel({ icon: Icon, label }) {
 }
 
 // ─── Music card ───────────────────────────────────────────────────────────────
-// Autoplays for visitors (falls back to muted + "Tap for sound" when the
-// browser blocks sound). Never autoplays on your own public page.
+// Autoplays for everyone, including you on your own page (falls back to
+// muted + "Tap for sound" when the browser blocks sound).
 function MusicCard({ profileMusic, embedUrl, isOwnProfile }) {
   if (!embedUrl) return null;
   const name = String(profileMusic?.title || profileMusic?.name || "")
@@ -245,7 +245,7 @@ function MusicCard({ profileMusic, embedUrl, isOwnProfile }) {
         url={profileMusic.url}
         name={name || undefined}
         artworkUrl={profileMusic?.artworkUrl}
-        autoPlay={!isOwnProfile}
+        autoPlay
       />
     </div>
   );

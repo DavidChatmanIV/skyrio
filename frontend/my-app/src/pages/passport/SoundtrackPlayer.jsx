@@ -179,6 +179,20 @@ export default function SoundtrackPlayer({
     const removeUnlock = () =>
       unlockEvents.forEach((e) => window.removeEventListener(e, unlock, true));
 
+    // Sound was blocked: play muted and turn sound on at the first tap.
+    let fellBack = false;
+    const fallBackToMuted = (player) => {
+      if (cancelled || fellBack || !player) return;
+      fellBack = true;
+      player.mute?.();
+      player.playVideo?.();
+      setMuted(true);
+      setNeedsTap(true);
+      unlockEvents.forEach((ev) =>
+        window.addEventListener(ev, unlock, { capture: true, once: true })
+      );
+    };
+
     setStatus("loading");
     setNeedsTap(false);
 
@@ -210,27 +224,21 @@ export default function SoundtrackPlayer({
               e.target.unMute();
               e.target.playVideo();
 
-              // 2) if the browser blocked it, play muted + wait for a tap
+              // 2) if it hasn't started in 3s, the browser blocked sound
+              //    (1.2s was too short: slow loads fell back to muted even
+              //    when sound was allowed, e.g. coming back to a profile).
               checkTimer = setTimeout(() => {
                 if (cancelled) return;
                 const st = e.target.getPlayerState?.();
                 if (
                   st !== YT.PlayerState.PLAYING &&
                   st !== YT.PlayerState.BUFFERING
-                ) {
-                  e.target.mute();
-                  e.target.playVideo();
-                  setMuted(true);
-                  setNeedsTap(true);
-                  unlockEvents.forEach((ev) =>
-                    window.addEventListener(ev, unlock, {
-                      capture: true,
-                      once: true,
-                    })
-                  );
-                }
-              }, 1200);
+                )
+                  fallBackToMuted(e.target);
+              }, 3000);
             },
+            // YouTube tells us directly when the browser blocks sound.
+            onAutoplayBlocked: (e) => fallBackToMuted(e.target),
             onStateChange: (e) => {
               if (cancelled) return;
               if (e.data === YT.PlayerState.PLAYING) setStatus("playing");
@@ -274,6 +282,16 @@ export default function SoundtrackPlayer({
       p.playVideo();
       writePref(true);
     }
+  };
+
+  const soundOn = () => {
+    const p = playerRef.current;
+    if (!p) return;
+    p.unMute?.();
+    p.setVolume?.(VOLUME);
+    p.playVideo?.();
+    setMuted(false);
+    setNeedsTap(false);
   };
 
   const toggleMute = () => {
@@ -363,7 +381,7 @@ export default function SoundtrackPlayer({
           </div>
 
           {needsTap && (
-            <button type="button" className="sp-pill" onClick={toggleMute}>
+            <button type="button" className="sp-pill" onClick={soundOn}>
               <Volume2 size={15} aria-hidden="true" />
               Tap for sound
             </button>

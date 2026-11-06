@@ -1684,7 +1684,10 @@ export default function DigitalPassportPage() {
                           url={profileMusic.url}
                           name={profileMusic?.name?.replace(/^▶️\s*/, "")}
                           artworkUrl={profileMusic?.artworkUrl}
-                          autoPlay={false}
+                          // Your own soundtrack plays when you open your
+                          // Passport too (pause it and it stays off for
+                          // the rest of the visit).
+                          autoPlay
                         />
                       ) : (
                         <div
