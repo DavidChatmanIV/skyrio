@@ -875,7 +875,7 @@ function PackageTray({
           <span
             className={tab === "Flights" ? "is-now" : flight ? "is-done" : ""}
           >
-            1 · Flight{flight ? " ✓" : ""}
+            1 · Flight
           </span>
           <span className="sk-pkg-step-line" aria-hidden="true" />
           <span
@@ -887,7 +887,7 @@ function PackageTray({
                 : ""
             }
           >
-            2 · Stay{roomsPicked ? " ✓" : ""}
+            2 · Stay
           </span>
           <span className="sk-pkg-step-line" aria-hidden="true" />
           <span className={flight && roomsPicked ? "is-now" : ""}>3 · Pay</span>
@@ -1032,7 +1032,7 @@ function PackageTray({
           ? "You're all set. Your flight and hotel are two separate bookings — each has its own confirmation email and cancellation rules, in My Trips."
           : flight && !flight.booked
           ? "Your flight and hotel are two separate bookings, each paid on its own. Flight prices can change; we recheck the fare with the airline right before you pay."
-          : "Your flight and hotel are two separate bookings, each with its own confirmation and cancellation rules."}
+          : "Flight + hotel is paid in 2 steps: first the flight (charged by the airline), then the stay (charged by Skyrio for the hotel). Each gets its own confirmation and cancellation rules."}
       </p>
     </div>
   );

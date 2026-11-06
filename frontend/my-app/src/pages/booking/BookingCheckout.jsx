@@ -314,7 +314,12 @@ function fitTravelersToFare(list, priced) {
   if (!priced) return base;
   const out = base.slice(0, priced.total).map((p, i) => ({ ...p, index: i }));
   while (out.length < priced.total) out.push(makePassenger(out.length));
-  return out;
+  // A search for 2 adults + 1 child starts with 2 adult forms and 1 child
+  // form (it used to start all 3 as adults). A date of birth, once typed,
+  // still decides the final type.
+  return out.map((p, i) =>
+    p.dob ? p : { ...p, type: i >= priced.adults ? "CHD" : "ADT" }
+  );
 }
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 function travelerCountProblem(list, priced) {
@@ -4757,16 +4762,24 @@ export default function BookingCheckout({
   // it started ticking when the person searched, so it kept running while
   // they switched flights and timed people out mid-checkout. If that
   // search offer has gone stale, verify refreshes it automatically.
+  // The airline's fare is the TOTAL for everyone it was priced for (2
+  // adults + 1 child = one price). Checkout adds the fare up per traveler,
+  // so it needs the per-traveler share; using the total as each person's
+  // price showed 3× the real fare for 3 travelers.
+  const pricedFor = pricedForOf(flight);
+  const perTraveler = (amount) =>
+    amount != null && pricedFor?.total > 1
+      ? Number(amount) / pricedFor.total
+      : amount;
   const liveFlight = {
     ...baseFlight,
     offerId: fareUpdate?.offerId || baseFlight.offerId,
-    basePrice: fareUpdate?.price ?? baseFlight.basePrice,
+    basePrice: perTraveler(fareUpdate?.price ?? baseFlight.basePrice),
     fareExpiresAt: fareUpdate?.expiresAt || null,
   };
   const [step, setStep] = useState(() => restoredProgress?.step ?? 0);
   // This flight's saved progress first; otherwise the travelers typed for
   // the last flight in this tab, so switching flights keeps them.
-  const pricedFor = pricedForOf(flight);
   const [passengers, setPassengers] = useState(() =>
     restoredProgress?.passengers?.length
       ? restoredProgress.passengers
