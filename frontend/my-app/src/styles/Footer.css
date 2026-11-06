@@ -120,10 +120,47 @@
 
 .sk-footer__link:focus-visible,
 .sk-footer__legal-link:focus-visible,
-.sk-footer__email:focus-visible {
+.sk-footer__email:focus-visible,
+.sk-footer__disclaimer a:focus-visible {
   outline: 2px solid #ffb347;
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* ── Tap feedback (phones have no hover) ──
+   Swap the browser's gray flash for a Skyrio orange "pressed" pill. The
+   negative margin keeps text aligned while the padding gives the pill room. */
+.sk-footer__link,
+.sk-footer__legal-link,
+.sk-footer__email,
+.sk-footer__disclaimer a {
+  -webkit-tap-highlight-color: transparent;
+  border-radius: 8px;
+  padding: 3px 6px;
+  margin: -3px -6px;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.sk-footer__link:active,
+.sk-footer__legal-link:active,
+.sk-footer__email:active,
+.sk-footer__disclaimer a:active {
+  color: #ff8a2a;
+  background: rgba(255, 138, 42, 0.14);
+}
+
+/* Keep the email's original space below it (the rule above resets margin) */
+.sk-footer__email {
+  margin-bottom: 13px;
+}
+
+.sk-footer__disclaimer a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sk-footer__disclaimer a:hover {
+  text-decoration: underline;
 }
 
 /* ── Bottom bar ── */
@@ -204,5 +241,33 @@
 
   .sk-footer__logo {
     font-size: 18px;
+  }
+
+  /* Bigger, easier tap targets in the column lists */
+  .sk-footer__links {
+    gap: 6px;
+  }
+
+  .sk-footer__link {
+    display: inline-block;
+    padding: 7px 8px;
+    margin: 0 -8px;
+    font-size: 15px;
+  }
+
+  /* Bottom bar: the "·" separators wrapped onto their own lines on phones,
+     so hide them and space the links with gap instead. */
+  .sk-footer__legal {
+    gap: 6px 16px;
+  }
+
+  .sk-footer__legal-sep {
+    display: none;
+  }
+
+  .sk-footer__legal-link {
+    display: inline-block;
+    padding: 6px 8px;
+    margin: 0 -8px;
   }
 }
