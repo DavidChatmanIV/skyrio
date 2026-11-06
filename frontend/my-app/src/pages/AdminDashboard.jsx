@@ -169,7 +169,60 @@ const TAKEDOWN_FILTERS = [
   ["restored", "Restored"],
 ];
 
-const TABS = ["overview", "moderation", "feedback", "reviews", "engagement"];
+// Tabs, in the order they're shown. Grouped by what needs doing.
+const TABS = [
+  "today",
+  "support",
+  "customers",
+  "inbox",
+  "safety",
+  "rewards",
+  "settings",
+];
+// Old ?tab= links (bookmarks, other pages) still land in the right place.
+const LEGACY_TABS = {
+  overview: { tab: "today" },
+  moderation: { tab: "safety" },
+  feedback: { tab: "inbox", view: "feedback" },
+  reviews: { tab: "inbox", view: "reviews" },
+  engagement: { tab: "rewards" },
+};
+
+// What a phone on the alert list can be texted about.
+const ALERT_TYPES = [
+  {
+    key: "supportUrgent",
+    label: "Urgent support",
+    help: "Atlas hands off a ticket marked urgent (e.g. someone stuck at the airport)",
+  },
+  {
+    key: "supportAll",
+    label: "Every new support ticket",
+    help: "Any ticket Atlas couldn't solve",
+  },
+  {
+    key: "cancellations",
+    label: "Cancellation requests",
+    help: "A traveler asks to cancel a booking",
+  },
+  {
+    key: "takedowns",
+    label: "SkyHub takedown requests",
+    help: "Intimate-image removal requests (48-hour legal deadline)",
+  },
+];
+const DEFAULT_ALERTS = {
+  supportUrgent: true,
+  supportAll: false,
+  cancellations: true,
+  takedowns: true,
+};
+
+/** Show +12015551234 as (201) 555-1234; leave other formats alone. */
+function fmtPhone(p = "") {
+  const m = p.match(/^\+1(\d{3})(\d{3})(\d{4})$/);
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : p;
+}
 
 const FEEDBACK_STATUSES = [
   { value: "new", label: "New", tone: "orange" },
@@ -438,6 +491,28 @@ const INJECTED_CSS = `
   .sk-fb-search:focus { border-color: ${C.orange}; }
   .sk-fb-search::placeholder { color: ${C.muted}; }
   .sk-fb-count { font-size: 12px; color: ${C.muted}; white-space: nowrap; }
+  .sk-subnav { margin: 0 0 16px; }
+  .sk-row--btn { width: 100%; background: none; border: none; border-bottom: 1px solid ${C.border}; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .sk-row__btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .sk-row__btns a.sk-btn, .sk-panel__actions a.sk-btn { text-decoration: none; display: inline-flex; align-items: center; }
+  .sk-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px 24px; padding: 16px 20px; }
+  .sk-info--stats { border-top: 1px solid ${C.border}; }
+  .sk-info__label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: ${C.muted}; margin-bottom: 4px; }
+  .sk-info__value { font-size: 13.5px; color: #fff; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; word-break: break-word; }
+  .sk-link { color: ${C.orange}; text-decoration: none; }
+  .sk-link:hover { text-decoration: underline; }
+  .sk-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .sk-subnav .sk-panel__actions { justify-content: flex-start; }
+  .sk-ticket--urgent { box-shadow: inset 3px 0 0 ${C.red}; }
+  .sk-thread { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; padding-left: 14px; border-left: 2px solid rgba(255,138,42,0.35); }
+  .sk-thread__head { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: ${C.muted}; margin-bottom: 4px; }
+  .sk-thread__body { font-size: 13.5px; line-height: 1.55; color: ${C.text}; white-space: pre-wrap; word-break: break-word; }
+  .sk-reply { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; }
+  .sk-reply__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sk-reply__box.ant-input, .sk-reply__box textarea { background: rgba(255,255,255,0.05) !important; border-color: ${C.border} !important; color: #fff !important; border-radius: 10px !important; font-size: 13.5px; }
+  .sk-reply__box textarea::placeholder, .sk-reply__box.ant-input::placeholder { color: ${C.muted} !important; }
+  .sk-reply-quote { font-size: 13px; line-height: 1.55; color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.04); border-left: 3px solid ${C.orange}; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow-y: auto; }
+  .sk-reply-quote__label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${C.muted}; margin-bottom: 4px; }
   .sk-fb { padding: 16px 20px; border-bottom: 1px solid ${C.border}; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; }
   .sk-fb:last-child { border-bottom: none; }
   .sk-fb:hover { background: rgba(255,255,255,0.02); }
@@ -802,6 +877,7 @@ function useAttentionCounts(refreshKey) {
 
   return {
     openTickets: support.data ?? 0,
+    reloadSupport: support.reload,
     cancelRequests: cancels.data ?? 0,
     skyhub: skyhub.data ?? EMPTY_SKYHUB,
     reloadSkyhub: skyhub.reload,
@@ -814,6 +890,7 @@ function useAttentionCounts(refreshKey) {
 
 function NeedsAttention({
   counts,
+  onOpenSupport,
   onOpenModeration,
   onOpenFeedback,
   onOpenReviews,
@@ -841,7 +918,7 @@ function NeedsAttention({
               )} waiting for a reply`
             : "No open tickets"
         }
-        onClick={() => navigate("/admin/support")}
+        onClick={onOpenSupport}
       />
       <AttentionTile
         icon={<IconSuitcase size={18} />}
@@ -1216,6 +1293,7 @@ function OverviewTab({
   dashboard,
   growth,
   counts,
+  onOpenSupport,
   onOpenModeration,
   onOpenFeedback,
   onOpenReviews,
@@ -1229,6 +1307,7 @@ function OverviewTab({
       <Section title="Needs attention">
         <NeedsAttention
           counts={counts}
+          onOpenSupport={onOpenSupport}
           onOpenModeration={onOpenModeration}
           onOpenFeedback={onOpenFeedback}
           onOpenReviews={onOpenReviews}
@@ -2449,8 +2528,10 @@ const sortByDate = (list, sort) =>
       : new Date(b.createdAt) - new Date(a.createdAt)
   );
 
-function ThankModal({ kind, items, onClose, onSent }) {
-  const [text, setText] = useState(THANK_TEMPLATES[kind]);
+function ThankModal({ kind, items, onClose, onSent, mode = "thank" }) {
+  const isReply = mode === "reply";
+  const startText = isReply ? "" : THANK_TEMPLATES[kind];
+  const [text, setText] = useState(startText);
   const [notify, setNotify] = useState(true);
   const [email, setEmail] = useState(true);
   const [sending, setSending] = useState(false);
@@ -2459,10 +2540,11 @@ function ThankModal({ kind, items, onClose, onSent }) {
   const already = reachable.filter((it) => it.thankedAt).length;
   // Resending to people who were already thanked: usually the email
   // didn't arrive, so default to email only (no second notification).
-  const isResend = reachable.length > 0 && already === reachable.length;
+  const isResend =
+    !isReply && reachable.length > 0 && already === reachable.length;
   useEffect(() => {
     if (!open) return;
-    setText(THANK_TEMPLATES[kind]);
+    setText(startText);
     setNotify(!isResend);
     setEmail(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2496,6 +2578,7 @@ function ThankModal({ kind, items, onClose, onSent }) {
           notify,
           email,
           resend: true, // the admin picked these, so include already-thanked
+          kind: isReply ? "reply" : "thank",
         },
       });
       const sent = Number(j.people ?? peopleCount);
@@ -2524,7 +2607,11 @@ function ThankModal({ kind, items, onClose, onSent }) {
         });
       } else {
         message.success(
-          isResend
+          isReply
+            ? sent === 1
+              ? "Reply sent."
+              : `Reply sent to ${sent} ${plural(sent, "person", "people")}.`
+            : isResend
             ? sent === 1
               ? "Thank-you sent again."
               : `Thank-you sent again to ${sent} ${plural(
@@ -2554,7 +2641,9 @@ function ThankModal({ kind, items, onClose, onSent }) {
     <Modal
       open={open}
       title={
-        isResend
+        isReply
+          ? `Reply${first ? ` to ${first}` : ""}`
+          : isResend
           ? peopleCount > 1
             ? `Resend thank-you to ${peopleCount} people`
             : `Resend thank-you${first ? ` to ${first}` : ""}`
@@ -2565,12 +2654,24 @@ function ThankModal({ kind, items, onClose, onSent }) {
       onCancel={onClose}
       onOk={send}
       okText={
-        sending ? "Sending…" : isResend ? "Resend thank-you" : "Send thank-you"
+        sending
+          ? "Sending…"
+          : isReply
+          ? "Send reply"
+          : isResend
+          ? "Resend thank-you"
+          : "Send thank-you"
       }
       okButtonProps={{ loading: sending, disabled: !reachable.length }}
       className="sk-challenge-modal sk-thank-modal"
       destroyOnClose
     >
+      {isReply && items.length === 1 && items[0].message && (
+        <div className="sk-reply-quote">
+          <div className="sk-reply-quote__label">They wrote</div>
+          {items[0].message}
+        </div>
+      )}
       <p className="sk-modal-hint">
         They&apos;ll see it with &ldquo;Hi {first || "[first name]"},&rdquo; in
         front and &ldquo;— The Skyrio team&rdquo; at the end.
@@ -2607,6 +2708,8 @@ function ThankModal({ kind, items, onClose, onSent }) {
       <Input.TextArea
         value={text}
         onChange={(e) => setText(e.target.value)}
+        placeholder={isReply ? "Write your reply…" : undefined}
+        autoFocus={isReply}
         autoSize={{ minRows: 4, maxRows: 8 }}
         maxLength={600}
         showCount
@@ -2722,6 +2825,7 @@ function FeedbackInbox({ refreshKey, onChange }) {
     setSelected(allShownSelected ? new Set() : new Set(rows.map((r) => r._id)));
   const selectedRows = rows.filter((r) => selected.has(r._id));
   const [thanking, setThanking] = useState([]);
+  const [replying, setReplying] = useState([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   // Everyone who ever sent feedback (any status) and hasn't been thanked.
   const [findingAll, setFindingAll] = useState(false);
@@ -3040,6 +3144,19 @@ function FeedbackInbox({ refreshKey, onChange }) {
                 {fb.rating ? <Stars value={fb.rating} /> : null}
               </div>
               <div className="sk-fb__side">
+                <button
+                  type="button"
+                  className="sk-btn sk-btn--sm sk-btn--active"
+                  onClick={() => setReplying([fb])}
+                  disabled={!canThank(fb)}
+                  title={
+                    canThank(fb)
+                      ? "Write back to this person"
+                      : "Sent signed out, so there's no one to reply to"
+                  }
+                >
+                  <IconChat size={13} /> Reply
+                </button>
                 {fb.thankedAt ? (
                   <>
                     <ThankStatus item={fb} />
@@ -3116,7 +3233,9 @@ function FeedbackInbox({ refreshKey, onChange }) {
                 )}
               </div>
               <div className="sk-fb__meta">
-                <span>{fb.page || "unknown page"}</span>
+                <span>
+                  {fb.page === "/" ? "Home page" : fb.page || "Unknown page"}
+                </span>
                 <span title={dayjs(fb.createdAt).format("MMM D, YYYY h:mm A")}>
                   {timeAgo(fb.createdAt)} ·{" "}
                   {dayjs(fb.createdAt).format("MMM D, h:mm A")}
@@ -3138,6 +3257,13 @@ function FeedbackInbox({ refreshKey, onChange }) {
           setSelected(new Set());
           reload();
         }}
+      />
+      <ThankModal
+        kind="feedback"
+        mode="reply"
+        items={replying}
+        onClose={() => setReplying([])}
+        onSent={reload}
       />
     </Panel>
   );
@@ -3742,16 +3868,1226 @@ function ReviewsTab({ refreshKey, onCountsChange }) {
    PAGE
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUPPORT TAB: tickets from the "Need help?" panel and Atlas hand-offs.
+   Server: GET /api/support, PATCH /api/support/:id/status,
+           PATCH /api/support/:id/reply  { reply, notes, status, send }
+   A reply is emailed to the customer and kept in the ticket's history.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const TICKET_STATUSES = [
+  { value: "open", label: "Open", tone: "orange" },
+  { value: "in_progress", label: "In progress", tone: "blue" },
+  { value: "resolved", label: "Resolved", tone: "green" },
+  { value: "closed", label: "Closed", tone: "muted" },
+];
+const TICKET_STATUS = Object.fromEntries(
+  TICKET_STATUSES.map((s) => [s.value, s])
+);
+const TICKET_CATEGORY_LABELS = {
+  billing: "Billing",
+  technical: "Technical",
+  account: "Account",
+  booking: "Booking",
+  feature: "Feature idea",
+  other: "Other",
+};
+
+function TicketCard({ t, onChanged }) {
+  const [draft, setDraft] = useState("");
+  const [notes, setNotes] = useState(t.notes || "");
+  const [showNotes, setShowNotes] = useState(Boolean(t.notes));
+  const [busy, setBusy] = useState("");
+  const st = TICKET_STATUS[t.status] || TICKET_STATUS.open;
+  const isAccount = Boolean(t.userId);
+  // Older tickets only have the single `reply` field.
+  const history =
+    t.replies?.length > 0
+      ? t.replies
+      : t.reply
+      ? [{ body: t.reply, createdAt: t.updatedAt, emailed: null }]
+      : [];
+
+  const sendReply = async (resolve) => {
+    if (!draft.trim()) return message.warning("Write a reply first.");
+    setBusy(resolve ? "resolve" : "send");
+    try {
+      const j = await adminRequest(`/api/support/${t._id}/reply`, {
+        method: "PATCH",
+        body: {
+          reply: draft.trim(),
+          ...(resolve && { status: "resolved" }),
+        },
+      });
+      if (j.emailError) {
+        message.warning(
+          `Saved, but the email didn't go out: ${j.emailError}`,
+          6
+        );
+      } else {
+        message.success(
+          resolve ? "Reply sent and ticket resolved." : "Reply sent."
+        );
+      }
+      setDraft("");
+      onChanged();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const saveNotes = async () => {
+    setBusy("notes");
+    try {
+      await adminRequest(`/api/support/${t._id}/reply`, {
+        method: "PATCH",
+        body: { notes },
+      });
+      message.success("Note saved.");
+      onChanged();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const setStatus = async (status) => {
+    setBusy("status");
+    try {
+      await adminRequest(`/api/support/${t._id}/status`, {
+        method: "PATCH",
+        body: { status },
+      });
+      onChanged();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <article className={`sk-fb${t.urgent ? " sk-ticket--urgent" : ""}`}>
+      <div className="sk-fb__who">
+        <b>{t.name}</b>
+        <span>{t.email}</span>
+        <Pill tone={isAccount ? "purple" : "blue"}>
+          {isAccount ? "Account" : "Guest"}
+        </Pill>
+        <Pill>{TICKET_CATEGORY_LABELS[t.category] || t.category}</Pill>
+        {t.urgent && <Pill tone="red">Urgent</Pill>}
+        {t.source === "atlas" && <Pill tone="amber">From Atlas</Pill>}
+      </div>
+      <div className="sk-fb__side">
+        <Pill tone={st.tone}>{st.label}</Pill>
+        {busy === "status" ? (
+          <Spinner />
+        ) : (
+          <Select
+            size="small"
+            value={t.status}
+            className="sk-select-dark"
+            style={{ width: 130 }}
+            options={TICKET_STATUSES.map(({ value, label }) => ({
+              value,
+              label,
+            }))}
+            onChange={setStatus}
+            aria-label="Ticket status"
+          />
+        )}
+      </div>
+
+      <div className="sk-fb__msg">{t.message}</div>
+
+      {history.length > 0 && (
+        <div className="sk-thread">
+          {history.map((r, i) => (
+            <div key={r._id || i} className="sk-thread__item">
+              <div className="sk-thread__head">
+                <span>You replied</span>
+                {r.createdAt && <span>· {timeAgo(r.createdAt)}</span>}
+                {r.emailed === true && <Pill tone="green">Emailed</Pill>}
+                {r.emailed === false && (
+                  <span title={r.emailError || ""}>
+                    <Pill tone="red">Email failed</Pill>
+                  </span>
+                )}
+              </div>
+              <div className="sk-thread__body">{r.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {t.status !== "closed" && (
+        <div className="sk-reply">
+          <Input.TextArea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`Reply to ${
+              t.name.split(" ")[0] || "them"
+            }… (sent by email)`}
+            autoSize={{ minRows: 2, maxRows: 8 }}
+            maxLength={4000}
+            className="sk-reply__box"
+          />
+          <div className="sk-reply__actions">
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              onClick={() => setShowNotes((v) => !v)}
+            >
+              {showNotes
+                ? "Hide note"
+                : t.notes
+                ? "Internal note ✓"
+                : "+ Internal note"}
+            </button>
+            <span style={{ flex: 1 }} />
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              disabled={!!busy || !draft.trim()}
+              onClick={() => sendReply(true)}
+            >
+              {busy === "resolve" ? "Sending…" : "Send & resolve"}
+            </button>
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm sk-btn--active"
+              disabled={!!busy || !draft.trim()}
+              onClick={() => sendReply(false)}
+            >
+              <IconChat size={13} />{" "}
+              {busy === "send" ? "Sending…" : "Send reply"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showNotes && (
+        <div className="sk-reply">
+          <div className="sk-reply-quote__label">
+            Internal note (only you see this)
+          </div>
+          <Input.TextArea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. Refunded $120 on Stripe, waiting on hotel"
+            autoSize={{ minRows: 2, maxRows: 6 }}
+            maxLength={4000}
+            className="sk-reply__box"
+          />
+          <div className="sk-reply__actions">
+            <span style={{ flex: 1 }} />
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              disabled={!!busy || notes === (t.notes || "")}
+              onClick={saveNotes}
+            >
+              {busy === "notes" ? "Saving…" : "Save note"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="sk-fb__meta">
+        <span title={dayjs(t.createdAt).format("MMM D, YYYY h:mm A")}>
+          {timeAgo(t.createdAt)} · {dayjs(t.createdAt).format("MMM D, h:mm A")}
+        </span>
+        {t.page && <span>{t.page === "/" ? "Home page" : t.page}</span>}
+        {t.bookingId && <span className="sk-mono">Booking {t.bookingId}</span>}
+      </div>
+    </article>
+  );
+}
+
+function SupportTab({ refreshKey, onCountsChange, initialQuery = "" }) {
+  // Opened from a customer's page: show all of their tickets.
+  const [status, setStatus] = useState(initialQuery ? "all" : "open");
+  const [query, setQuery] = useState(initialQuery);
+  const [q, setQ] = useState(initialQuery);
+  useTick(30_000);
+
+  // Wait until typing pauses before searching.
+  useEffect(() => {
+    const t = setTimeout(() => setQ(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const list = useLoader(
+    async () => {
+      const params = new URLSearchParams({ limit: "100" });
+      if (status !== "all") params.set("status", status);
+      if (q) params.set("q", q);
+      return adminRequest(`/api/support?${params}`);
+    },
+    { key: `${refreshKey}|${status}|${q}`, intervalMs: 60_000 }
+  );
+
+  const tickets = list.data?.tickets || [];
+  const counts = list.data?.counts || {};
+  const reload = () => {
+    list.reload({ silent: true });
+    onCountsChange?.();
+  };
+
+  const filters = [
+    ...TICKET_STATUSES.map((s) => [
+      s.value,
+      counts[s.value] ? `${s.label} (${counts[s.value]})` : s.label,
+    ]),
+    ["all", "All"],
+  ];
+
+  return (
+    <Section>
+      <Panel
+        title="Support tickets"
+        actions={
+          <FilterChips options={filters} value={status} onChange={setStatus} />
+        }
+      >
+        <div className="sk-fb-tools">
+          <input
+            type="search"
+            className="sk-fb-search"
+            placeholder="Search by name, email or message…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search tickets"
+          />
+          <span className="sk-fb-count">
+            {list.loading && !list.data
+              ? "Loading…"
+              : `${tickets.length} ${plural(tickets.length, "ticket")}`}
+          </span>
+        </div>
+        <PanelContent
+          loading={list.loading}
+          isEmpty={!tickets.length}
+          emptyText={
+            list.error ||
+            (q
+              ? "No tickets match that search."
+              : status === "open"
+              ? "No open tickets. You're caught up."
+              : "Nothing here.")
+          }
+        >
+          {tickets.map((t) => (
+            <TicketCard key={t._id} t={t} onChanged={reload} />
+          ))}
+        </PanelContent>
+      </Panel>
+    </Section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CUSTOMERS TAB: find anyone (account or guest) and see everything about
+   them. Server: GET /api/admin/customers/search?q=
+                 GET /api/admin/customers/profile?userId= | ?email=
+                 POST /api/admin/customers/bookings/:id/manage-link
+   Cancel / refund / live status / notes stay on the Bookings page, which
+   each booking here links to.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const PLAN_TONES = { free: "muted", explorer: "blue", legend: "orange" };
+const BOOKING_STATUS_LABELS = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  cancel_pending: "Cancelling",
+  cancelled: "Cancelled",
+};
+const BOOKING_STATUS_TONES = {
+  pending: "orange",
+  confirmed: "green",
+  cancel_pending: "amber",
+  cancelled: "red",
+};
+
+function bookingDates(b) {
+  const room = b.hotelStay?.rooms?.[0];
+  const start = b.dates?.start || room?.checkin;
+  const end = b.dates?.end || room?.checkout;
+  if (start && end) return fmtRange(start, end);
+  if (start) return dayjs(start).format("MMM D, YYYY");
+  return null;
+}
+
+async function copyText(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+    message.success(`${label} copied`);
+  } catch {
+    message.error("Couldn't copy. Select it and copy by hand.");
+  }
+}
+
+function CustomerResults({ results, loading, error, query, onPick }) {
+  if (query.trim().length < 2) {
+    return (
+      <div className="sk-empty">
+        Search by name, email, phone, username, booking ID or confirmation code.
+        Guests (no account) show up too.
+      </div>
+    );
+  }
+  return (
+    <PanelContent
+      loading={loading}
+      isEmpty={!results.length}
+      emptyText={error || "No one matches that search."}
+    >
+      {results.map((r) => (
+        <button
+          key={r.kind === "account" ? r.id : `g:${r.email}`}
+          type="button"
+          className="sk-row sk-row--btn"
+          onClick={() => onPick(r)}
+        >
+          <div className="sk-row__left">
+            <div className="sk-avatar">
+              {r.kind === "account" &&
+              r.avatar &&
+              !r.avatar.includes("default") ? (
+                <img src={r.avatar} alt="" />
+              ) : (
+                initials(r.name || r.email)
+              )}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div className="sk-name">
+                {r.name || r.email}
+                <Pill tone={r.kind === "account" ? "purple" : "blue"}>
+                  {r.kind === "account" ? "Account" : "Guest"}
+                </Pill>
+                {r.kind === "account" && r.plan !== "free" && (
+                  <Pill tone={PLAN_TONES[r.plan]}>{r.plan}</Pill>
+                )}
+              </div>
+              <div className="sk-sub">
+                {r.email}
+                {r.username ? ` · @${r.username}` : ""}
+              </div>
+            </div>
+          </div>
+          <div className="sk-row__right sk-row__right--col">
+            <span className="sk-sub">
+              {r.bookings} {plural(r.bookings, "booking")}
+              {r.kind === "guest" && r.tickets
+                ? ` · ${r.tickets} ${plural(r.tickets, "ticket")}`
+                : ""}
+            </span>
+            <span className="sk-tile__arrow" aria-hidden>
+              →
+            </span>
+          </div>
+        </button>
+      ))}
+    </PanelContent>
+  );
+}
+
+function InfoItem({ label, children }) {
+  if (children == null || children === "" || children === false) return null;
+  return (
+    <div className="sk-info__item">
+      <div className="sk-info__label">{label}</div>
+      <div className="sk-info__value">{children}</div>
+    </div>
+  );
+}
+
+function CustomerProfile({ pick, onBack, onOpenSupport }) {
+  const navigate = useNavigate();
+  const [busyId, setBusyId] = useState(null);
+  const profile = useLoader(
+    async () => {
+      const params = new URLSearchParams(
+        pick.kind === "account" ? { userId: pick.id } : { email: pick.email }
+      );
+      return adminRequest(`/api/admin/customers/profile?${params}`);
+    },
+    { key: pick.kind === "account" ? pick.id : pick.email }
+  );
+
+  const d = profile.data;
+  const a = d?.account;
+  const name =
+    a?.name || a?.username || d?.guest?.name || pick.name || pick.email;
+  const email = a?.email || d?.guest?.email || pick.email;
+  const stats = d?.stats || {};
+  const bookings = d?.bookings || [];
+  const tickets = d?.tickets || [];
+
+  const sendManageLink = async (b) => {
+    setBusyId(b._id);
+    try {
+      const j = await adminRequest(
+        `/api/admin/customers/bookings/${b._id}/manage-link`,
+        { method: "POST", body: { email: true } }
+      );
+      message.success(`Manage link emailed to ${j.to}`);
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const copyManageLink = async (b) => {
+    setBusyId(b._id);
+    try {
+      const j = await adminRequest(
+        `/api/admin/customers/bookings/${b._id}/manage-link`,
+        { method: "POST", body: { email: false } }
+      );
+      await copyText(j.url, "Manage link");
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <>
+      <div className="sk-subnav">
+        <button type="button" className="sk-btn sk-btn--sm" onClick={onBack}>
+          ← Back to search
+        </button>
+      </div>
+
+      {/* Who they are */}
+      <Panel
+        title={
+          <span className="sk-name" style={{ fontSize: 16 }}>
+            {name}
+            <Pill
+              tone={
+                d?.kind === "account" || pick.kind === "account"
+                  ? "purple"
+                  : "blue"
+              }
+            >
+              {d?.kind === "account" || pick.kind === "account"
+                ? "Account"
+                : "Guest"}
+            </Pill>
+            {a && a.plan !== "free" && (
+              <Pill tone={PLAN_TONES[a.plan]}>{a.plan}</Pill>
+            )}
+            {a && !a.isActive && <Pill tone="red">Deactivated</Pill>}
+            {a && a.moderationStatus !== "ok" && (
+              <Pill tone="red">{a.moderationStatus}</Pill>
+            )}
+          </span>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              onClick={() => copyText(email, "Email")}
+            >
+              Copy email
+            </button>
+            <a className="sk-btn sk-btn--sm" href={`mailto:${email}`}>
+              Email them
+            </a>
+          </>
+        }
+      >
+        {profile.loading && !d ? (
+          <div className="sk-empty">
+            <Spinner />
+          </div>
+        ) : profile.error ? (
+          <div className="sk-empty">{profile.error}</div>
+        ) : (
+          <>
+            <div className="sk-info">
+              <InfoItem label="Email">
+                {email}
+                {a &&
+                  (a.emailVerified ? (
+                    <Pill tone="green">Verified</Pill>
+                  ) : (
+                    <Pill tone="amber">Not verified</Pill>
+                  ))}
+              </InfoItem>
+              {a && <InfoItem label="Username">@{a.username}</InfoItem>}
+              {a && <InfoItem label="Phone">{a.phone}</InfoItem>}
+              {a && (
+                <InfoItem label="Legal name (for bookings)">
+                  {a.legalName}
+                </InfoItem>
+              )}
+              {a && (
+                <InfoItem label="Home airport">
+                  {a.homeAirport &&
+                    `${a.homeAirport.code}${
+                      a.homeAirport.city ? ` · ${a.homeAirport.city}` : ""
+                    }`}
+                </InfoItem>
+              )}
+              {a && (
+                <InfoItem label="Joined">
+                  {dayjs(a.createdAt).format("MMM D, YYYY")}
+                </InfoItem>
+              )}
+              {a && (
+                <InfoItem label="Membership">
+                  {a.plan === "free"
+                    ? "Free"
+                    : `${a.plan[0].toUpperCase()}${a.plan.slice(1)}${
+                        a.subscription.interval
+                          ? ` (${a.subscription.interval})`
+                          : ""
+                      }${
+                        a.subscription.cancelAtPeriodEnd
+                          ? ` · ends ${dayjs(
+                              a.subscription.currentPeriodEnd
+                            ).format("MMM D")}`
+                          : a.subscription.status &&
+                            a.subscription.status !== "active"
+                          ? ` · ${a.subscription.status}`
+                          : ""
+                      }`}
+                </InfoItem>
+              )}
+              {a && (
+                <InfoItem label="XP">
+                  {fmtNum(a.xp)} to spend · {fmtNum(a.xpTotalEarned)} lifetime
+                  {a.pendingXp ? ` · ${fmtNum(a.pendingXp)} pending` : ""}
+                  {a.rank && <Pill tone="orange">{a.rank}</Pill>}
+                </InfoItem>
+              )}
+              {a && (
+                <InfoItem label="Card on file">
+                  {a.card && `${a.card.brand || "Card"} ending ${a.card.last4}`}
+                </InfoItem>
+              )}
+              {a && (
+                <InfoItem label="Saved travelers">
+                  {a.companionsCount > 0 && a.companionsCount}
+                </InfoItem>
+              )}
+              {a?.stripeCustomerId && (
+                <InfoItem label="Stripe">
+                  <a
+                    href={`https://dashboard.stripe.com/customers/${a.stripeCustomerId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="sk-link"
+                  >
+                    Open customer ↗
+                  </a>
+                </InfoItem>
+              )}
+            </div>
+            <div className="sk-info sk-info--stats">
+              <InfoItem label="Bookings">
+                {String(stats.bookings ?? 0)}
+              </InfoItem>
+              <InfoItem label="Upcoming">
+                {String(stats.upcoming ?? 0)}
+              </InfoItem>
+              <InfoItem label="Spent (confirmed)">
+                {fmt$(stats.spent || 0)}
+              </InfoItem>
+              <InfoItem label="Open tickets">
+                {String(stats.openTickets ?? 0)}
+              </InfoItem>
+              {stats.cancelRequests > 0 && (
+                <InfoItem label="Cancel requests">
+                  <Pill tone="amber">{stats.cancelRequests} waiting</Pill>
+                </InfoItem>
+              )}
+            </div>
+          </>
+        )}
+      </Panel>
+
+      {/* Bookings */}
+      <div style={{ height: 20 }} />
+      <Panel title="Bookings" meta={d ? `${bookings.length}` : undefined}>
+        <PanelContent
+          loading={profile.loading}
+          isEmpty={!bookings.length}
+          emptyText="No bookings."
+        >
+          {bookings.map((b) => {
+            const dates = bookingDates(b);
+            const code = b.confirmationCodes?.[0] || b.providerBookingIds?.[0];
+            return (
+              <div key={b._id} className="sk-row sk-row--top">
+                <div className="sk-row__left">
+                  <div className="sk-row__icon">
+                    {isHotelBooking(b) ? (
+                      <IconBed size={15} />
+                    ) : (
+                      <IconPlane size={15} />
+                    )}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="sk-name">
+                      {bookingTitle(b)}
+                      <Pill tone={BOOKING_STATUS_TONES[b.status]}>
+                        {BOOKING_STATUS_LABELS[b.status] || b.status}
+                      </Pill>
+                      {b.cancelRequest?.status === "open" && (
+                        <Pill tone="amber">Wants to cancel</Pill>
+                      )}
+                      {b.refundStatus && b.refundStatus !== "none" && (
+                        <Pill
+                          tone={
+                            b.refundStatus === "succeeded"
+                              ? "green"
+                              : b.refundStatus === "failed"
+                              ? "red"
+                              : "amber"
+                          }
+                        >
+                          Refund {b.refundStatus}
+                        </Pill>
+                      )}
+                      {b.syncGroup && <Pill tone="purple">Sync Together</Pill>}
+                      {b.unclaimedGuest && (
+                        <Pill tone="blue">Booked as guest</Pill>
+                      )}
+                      {b.confirmationEmail?.status === "failed" && (
+                        <Pill tone="red">Confirmation email failed</Pill>
+                      )}
+                    </div>
+                    <div className="sk-sub">
+                      {[
+                        dates,
+                        b.travelers > 1 ? `${b.travelers} travelers` : null,
+                        code ? `Conf. ${code}` : null,
+                        `Booked ${dayjs(b.createdAt).format("MMM D, YYYY")}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                    {b.passengers?.length > 0 && (
+                      <div className="sk-sub">
+                        {b.passengers
+                          .map((p) => p.name)
+                          .filter(Boolean)
+                          .join(", ")}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="sk-row__right sk-row__right--col">
+                  {b.total != null && (
+                    <span className="sk-amount" style={{ color: C.green }}>
+                      {fmt$(b.total)}
+                    </span>
+                  )}
+                  <div className="sk-row__btns">
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm sk-btn--active"
+                      onClick={() =>
+                        navigate(
+                          `/admin/bookings?q=${encodeURIComponent(b._id)}`
+                        )
+                      }
+                      title="Cancel, refund, live supplier status and notes"
+                    >
+                      Open booking
+                    </button>
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm"
+                      disabled={busyId === b._id}
+                      onClick={() => sendManageLink(b)}
+                      title="Email them the Manage or cancel link"
+                    >
+                      Email manage link
+                    </button>
+                    <button
+                      type="button"
+                      className="sk-btn sk-btn--sm"
+                      disabled={busyId === b._id}
+                      onClick={() => copyManageLink(b)}
+                    >
+                      Copy link
+                    </button>
+                    {b.stripePaymentIntentId && (
+                      <a
+                        className="sk-btn sk-btn--sm"
+                        href={`https://dashboard.stripe.com/payments/${b.stripePaymentIntentId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Stripe ↗
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </PanelContent>
+      </Panel>
+
+      {/* Support tickets */}
+      <div style={{ height: 20 }} />
+      <Panel
+        title="Support tickets"
+        meta={d ? `${tickets.length}` : undefined}
+        actions={
+          tickets.length > 0 && (
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              onClick={() => onOpenSupport(email)}
+            >
+              Open in Support →
+            </button>
+          )
+        }
+      >
+        <PanelContent
+          loading={profile.loading}
+          isEmpty={!tickets.length}
+          emptyText="No support tickets."
+        >
+          {tickets.map((t) => (
+            <div key={t._id} className="sk-row sk-row--top">
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="sk-name">
+                  <Pill tone={TICKET_STATUS[t.status]?.tone}>
+                    {TICKET_STATUS[t.status]?.label || t.status}
+                  </Pill>
+                  <Pill>
+                    {TICKET_CATEGORY_LABELS[t.category] || t.category}
+                  </Pill>
+                  {t.urgent && <Pill tone="red">Urgent</Pill>}
+                  {t.source === "atlas" && <Pill tone="amber">From Atlas</Pill>}
+                  <span className="sk-sub" style={{ margin: 0 }}>
+                    {timeAgo(t.createdAt)}
+                    {t.replies > 0 &&
+                      ` · ${t.replies} ${plural(
+                        t.replies,
+                        "reply",
+                        "replies"
+                      )}`}
+                  </span>
+                </div>
+                <div className="sk-text sk-clamp">{t.message}</div>
+              </div>
+            </div>
+          ))}
+        </PanelContent>
+      </Panel>
+    </>
+  );
+}
+
+function CustomersTab({ onOpenSupport }) {
+  const [query, setQuery] = useState("");
+  const [q, setQ] = useState("");
+  const [pick, setPick] = useState(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const search = useLoader(
+    async () =>
+      q.length < 2
+        ? []
+        : (
+            await adminRequest(
+              `/api/admin/customers/search?q=${encodeURIComponent(q)}`
+            )
+          ).results || [],
+    { key: q }
+  );
+
+  if (pick) {
+    return (
+      <Section>
+        <CustomerProfile
+          pick={pick}
+          onBack={() => setPick(null)}
+          onOpenSupport={onOpenSupport}
+        />
+      </Section>
+    );
+  }
+
+  return (
+    <Section>
+      <Panel title="Find a customer">
+        <div className="sk-fb-tools">
+          <input
+            type="search"
+            className="sk-fb-search"
+            placeholder="Name, email, phone, booking ID or confirmation code…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search customers"
+            autoFocus
+          />
+          {q.length >= 2 && (
+            <span className="sk-fb-count">
+              {search.loading
+                ? "Searching…"
+                : `${(search.data || []).length} found`}
+            </span>
+          )}
+        </div>
+        <CustomerResults
+          results={search.data || []}
+          loading={search.loading}
+          error={search.error}
+          query={query}
+          onPick={setPick}
+        />
+      </Panel>
+    </Section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INBOX TAB: feedback and reviews in one place, with a toggle
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function InboxTab({ view, onViewChange, refreshKey, counts, onCountsChange }) {
+  const options = [
+    [
+      "feedback",
+      counts.newFeedback ? `Feedback (${counts.newFeedback} new)` : "Feedback",
+    ],
+    [
+      "reviews",
+      counts.pendingReviews
+        ? `Reviews (${counts.pendingReviews} to approve)`
+        : "Reviews",
+    ],
+  ];
+  return (
+    <>
+      <div className="sk-subnav">
+        <FilterChips options={options} value={view} onChange={onViewChange} />
+      </div>
+      {view === "reviews" ? (
+        <ReviewsTab refreshKey={refreshKey} onCountsChange={onCountsChange} />
+      ) : (
+        <FeedbackTab refreshKey={refreshKey} onCountsChange={onCountsChange} />
+      )}
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ALERTS TAB: phone numbers that get texted when something needs a person
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function AlertContactsPanel({ refreshKey }) {
+  const contacts = useLoader(
+    async () => (await adminRequest("/api/admin/alert-contacts")).data || [],
+    { key: refreshKey }
+  );
+  const [editing, setEditing] = useState(null); // null | {} (new) | contact
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [form] = Form.useForm();
+
+  const list = contacts.data || [];
+
+  const openModal = (contact = {}) => {
+    setEditing(contact);
+    form.setFieldsValue({
+      label: contact.label || "",
+      phone: contact.phone || "",
+      enabled: contact.enabled ?? true,
+      alerts: { ...DEFAULT_ALERTS, ...(contact.alerts || {}) },
+    });
+  };
+
+  const save = async () => {
+    let values;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return; // antd already shows the field errors
+    }
+    setSaving(true);
+    try {
+      if (editing?._id) {
+        await adminRequest(`/api/admin/alert-contacts/${editing._id}`, {
+          method: "PATCH",
+          body: values,
+        });
+        message.success("Phone updated");
+      } else {
+        await adminRequest("/api/admin/alert-contacts", {
+          method: "POST",
+          body: values,
+        });
+        message.success("Phone added. Send a test text to make sure it works.");
+      }
+      setEditing(null);
+      contacts.reload({ silent: true });
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggle = async (c, enabled) => {
+    setBusyId(c._id);
+    try {
+      await adminRequest(`/api/admin/alert-contacts/${c._id}`, {
+        method: "PATCH",
+        body: { enabled },
+      });
+      contacts.reload({ silent: true });
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (c) => {
+    setBusyId(c._id);
+    try {
+      await adminRequest(`/api/admin/alert-contacts/${c._id}`, {
+        method: "DELETE",
+      });
+      message.success("Phone removed");
+      contacts.reload({ silent: true });
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const sendTest = async (c) => {
+    setBusyId(c._id);
+    try {
+      await adminRequest(`/api/admin/alert-contacts/${c._id}/test`, {
+        method: "POST",
+      });
+      message.success(`Test text sent to ${fmtPhone(c.phone)}`);
+      contacts.reload({ silent: true });
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <Panel
+      title="Text alerts"
+      meta={`${list.filter((c) => c.enabled).length} on`}
+      actions={
+        <button
+          type="button"
+          className="sk-btn sk-btn--sm"
+          onClick={() => openModal()}
+        >
+          + Add phone
+        </button>
+      }
+    >
+      <div className="sk-text" style={{ padding: "4px 20px 12px", margin: 0 }}>
+        When Atlas can't solve something, these numbers get a text so a real
+        person can step in. Add a second number any time.
+      </div>
+
+      <PanelContent
+        loading={contacts.loading}
+        isEmpty={!list.length}
+        emptyText={
+          contacts.error ||
+          "No phones yet. Add yours so you hear about urgent tickets."
+        }
+      >
+        {list.map((c) => {
+          const on = ALERT_TYPES.filter((t) => c.alerts?.[t.key]);
+          return (
+            <div key={c._id} className="sk-row sk-row--top">
+              <div className="sk-row__left">
+                <div className="sk-row__icon">
+                  <IconUser size={15} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="sk-name">
+                    {c.label || "Phone"}
+                    {!c.enabled && <Pill>Paused</Pill>}
+                  </div>
+                  <div className="sk-sub sk-mono">{fmtPhone(c.phone)}</div>
+                  <div className="sk-sub">
+                    {on.length
+                      ? on.map((t) => t.label).join(" · ")
+                      : "No alerts picked"}
+                  </div>
+                  <div className="sk-sub">
+                    {c.lastTestAt
+                      ? `Last test ${timeAgo(c.lastTestAt)}`
+                      : "Not tested yet"}
+                  </div>
+                </div>
+              </div>
+              <div className="sk-row__right">
+                <Switch
+                  size="small"
+                  checked={c.enabled}
+                  loading={busyId === c._id}
+                  onChange={(v) => toggle(c, v)}
+                  aria-label={`Texts on for ${c.label || c.phone}`}
+                />
+                <button
+                  type="button"
+                  className="sk-btn sk-btn--sm"
+                  disabled={busyId === c._id || !c.enabled}
+                  onClick={() => sendTest(c)}
+                >
+                  Send test
+                </button>
+                <button
+                  type="button"
+                  className="sk-btn sk-btn--sm"
+                  onClick={() => openModal(c)}
+                >
+                  Edit
+                </button>
+                <Popconfirm
+                  overlayClassName="sk-pop"
+                  title="Remove this phone?"
+                  description="It will stop getting alert texts."
+                  okText="Remove"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => remove(c)}
+                >
+                  <button
+                    type="button"
+                    className="sk-btn sk-btn--sm sk-btn--danger"
+                    disabled={busyId === c._id}
+                  >
+                    Remove
+                  </button>
+                </Popconfirm>
+              </div>
+            </div>
+          );
+        })}
+      </PanelContent>
+
+      <Modal
+        className="sk-challenge-modal"
+        open={editing !== null}
+        title={editing?._id ? "Edit phone" : "Add a phone"}
+        okText={editing?._id ? "Save" : "Add phone"}
+        confirmLoading={saving}
+        onOk={save}
+        onCancel={() => setEditing(null)}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical" requiredMark={false}>
+          <Form.Item
+            name="label"
+            label="Name"
+            extra={
+              <span className="sk-field-help">
+                e.g. "David" or "Support line"
+              </span>
+            }
+          >
+            <Input maxLength={40} placeholder="David" />
+          </Form.Item>
+          <Form.Item
+            name="phone"
+            label="Mobile number"
+            rules={[
+              { required: true, message: "Add a phone number" },
+              {
+                validator: (_, v = "") => {
+                  const digits = v.replace(/\D/g, "");
+                  return digits.length === 10 ||
+                    (digits.length === 11 && digits.startsWith("1")) ||
+                    (v.trim().startsWith("+") && digits.length >= 8)
+                    ? Promise.resolve()
+                    : Promise.reject(
+                        new Error("Use a 10-digit US number like 201-555-1234")
+                      );
+                },
+              },
+            ]}
+          >
+            <Input inputMode="tel" placeholder="201-555-1234" />
+          </Form.Item>
+          <Form.Item name="enabled" label="Texts on" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <div className="sk-modal-label">Text me about</div>
+          {ALERT_TYPES.map((t) => (
+            <Form.Item
+              key={t.key}
+              name={["alerts", t.key]}
+              label={t.label}
+              valuePropName="checked"
+              extra={<span className="sk-field-help">{t.help}</span>}
+              style={{ marginBottom: 10 }}
+            >
+              <Switch size="small" />
+            </Form.Item>
+          ))}
+          <div className="sk-modal-hint" style={{ marginTop: 8 }}>
+            Message and data rates may apply. Reply STOP to a text to stop them.
+          </div>
+        </Form>
+      </Modal>
+    </Panel>
+  );
+}
+
+function SettingsTab({ refreshKey }) {
+  return (
+    <Section title="Alerts">
+      <AlertContactsPanel refreshKey={refreshKey} />
+    </Section>
+  );
+}
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = TABS.includes(searchParams.get("tab"))
-    ? searchParams.get("tab")
-    : "overview";
-  const setTab = (next) =>
-    setSearchParams(next === "overview" ? {} : { tab: next }, {
+  const rawTab = searchParams.get("tab");
+  const legacy = LEGACY_TABS[rawTab];
+  const tab = legacy ? legacy.tab : TABS.includes(rawTab) ? rawTab : "today";
+  const inboxView =
+    (legacy?.view || searchParams.get("view")) === "reviews"
+      ? "reviews"
+      : "feedback";
+  // setTab("inbox", { view: "reviews" }), setTab("support", { q: email })
+  const setTab = (next, params = {}) => {
+    const clean = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v)
+    );
+    setSearchParams(next === "today" ? {} : { tab: next, ...clean }, {
       replace: true,
     });
+  };
 
   // Bumping this reloads every section on the page.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -3809,16 +5145,21 @@ const AdminDashboard = () => {
 
   const { skyhub } = counts;
   const tabs = [
-    { key: "overview", label: "Overview" },
+    { key: "today", label: "Today" },
+    { key: "support", label: "Support", count: attention.openTickets },
+    { key: "customers", label: "Customers" },
     {
-      key: "moderation",
-      label: "Moderation",
+      key: "inbox",
+      label: "Feedback & reviews",
+      count: feedbackCounts.newFeedback + feedbackCounts.pendingReviews,
+    },
+    {
+      key: "safety",
+      label: "SkyHub safety",
       count: skyhub.takedowns + skyhub.critical,
     },
-    // Separate tabs, each with its own badge, so each can be cleared out.
-    { key: "feedback", label: "Feedback", count: feedbackCounts.newFeedback },
-    { key: "reviews", label: "Reviews", count: feedbackCounts.pendingReviews },
-    { key: "engagement", label: "Challenges & rewards" },
+    { key: "rewards", label: "Challenges & rewards" },
+    { key: "settings", label: "Settings" },
   ];
 
   return (
@@ -3884,11 +5225,11 @@ const AdminDashboard = () => {
               {plural(skyhub.overdueTakedowns, "request is", "requests are")}{" "}
               past the 48-hour legal deadline.
             </span>
-            {tab !== "moderation" && (
+            {tab !== "safety" && (
               <button
                 type="button"
                 className="sk-btn sk-btn--sm sk-btn--danger"
-                onClick={() => setTab("moderation")}
+                onClick={() => setTab("safety")}
               >
                 Handle now →
               </button>
@@ -3896,7 +5237,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {dashboard.error && tab === "overview" && (
+        {dashboard.error && tab === "today" && (
           <div className="sk-alert sk-alert--soft">
             <span
               style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
@@ -3906,32 +5247,42 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {tab === "overview" && (
+        {tab === "today" && (
           <OverviewTab
             dashboard={dashboard}
             growth={growth}
             counts={counts}
-            onOpenModeration={() => setTab("moderation")}
-            onOpenFeedback={() => setTab("feedback")}
-            onOpenReviews={() => setTab("reviews")}
+            onOpenSupport={() => setTab("support")}
+            onOpenModeration={() => setTab("safety")}
+            onOpenFeedback={() => setTab("inbox", { view: "feedback" })}
+            onOpenReviews={() => setTab("inbox", { view: "reviews" })}
           />
         )}
-        {tab === "moderation" && (
+        {tab === "support" && (
+          <SupportTab
+            key={searchParams.get("q") || ""}
+            refreshKey={refreshKey}
+            initialQuery={searchParams.get("q") || ""}
+            onCountsChange={attention.reloadSupport}
+          />
+        )}
+        {tab === "customers" && (
+          <CustomersTab onOpenSupport={(q) => setTab("support", { q })} />
+        )}
+        {tab === "inbox" && (
+          <InboxTab
+            view={inboxView}
+            onViewChange={(v) => setTab("inbox", { view: v })}
+            refreshKey={refreshKey}
+            counts={feedbackCounts}
+            onCountsChange={feedbackCounts.reload}
+          />
+        )}
+        {tab === "safety" && (
           <ModerationTab refreshKey={refreshKey} counts={counts} />
         )}
-        {tab === "feedback" && (
-          <FeedbackTab
-            refreshKey={refreshKey}
-            onCountsChange={feedbackCounts.reload}
-          />
-        )}
-        {tab === "reviews" && (
-          <ReviewsTab
-            refreshKey={refreshKey}
-            onCountsChange={feedbackCounts.reload}
-          />
-        )}
-        {tab === "engagement" && <EngagementTab refreshKey={refreshKey} />}
+        {tab === "rewards" && <EngagementTab refreshKey={refreshKey} />}
+        {tab === "settings" && <SettingsTab refreshKey={refreshKey} />}
       </main>
     </div>
   );

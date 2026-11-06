@@ -77,6 +77,11 @@ await mount("/feed", "../feed.js");
 await mount("/message", "../message.routes.js");
 await mount("/bookings", "../bookings.routes.js");
 await mount("/dm", "../dm.js");
+// Admin text alerts — phones that get texted when a ticket needs a person.
+// Must come BEFORE the "/admin" mount below.
+await mount("/admin/alert-contacts", "../adminAlerts.js");
+// Admin Customers lookup — accounts + guests, bookings, tickets.
+await mount("/admin/customers", "../adminCustomers.js");
 await mount("/admin", "../admin.routes.js");
 
 /* ======================================================
