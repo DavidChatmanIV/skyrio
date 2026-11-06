@@ -40,7 +40,8 @@ function navCols(isAuthed) {
           label: "Cancel a booking",
           to: isAuthed ? "/saved-trips" : "/find-booking",
         },
-        { label: "Help Center", href: `mailto:${SUPPORT_EMAIL}` },
+        { label: "Booking Guarantee", to: "/guarantee" },
+        { label: "Help Center", to: "/support" },
         { label: "Contact Us", href: `mailto:${SUPPORT_EMAIL}` },
         { label: "Report an Issue", href: `mailto:${SUPPORT_EMAIL}` },
       ],
@@ -108,7 +109,12 @@ export default function Footer() {
       >
         Skyrio helps you search and book flights and hotels. Fares, carry-on and
         checked bags, seat rules, changes, refunds and hotel cancellation
-        policies are set by each airline and hotel, not by Skyrio.
+        policies are set by each airline and hotel, not by Skyrio. If something
+        goes wrong on Skyrio's end, you're covered by our{" "}
+        <Link to="/guarantee" style={{ color: "#ff8a2a" }}>
+          Booking Guarantee
+        </Link>
+        .
       </p>
 
       {/* ── Bottom bar ── */}
@@ -127,6 +133,10 @@ export default function Footer() {
               Manage a booking
             </Link>
             <span className="sk-footer__legal-sep">·</span>
+            <Link to="/about" className="sk-footer__legal-link">
+              About Skyrio
+            </Link>
+            <span className="sk-footer__legal-sep">·</span>
             <Link to="/privacy" className="sk-footer__legal-link">
               Privacy Policy
             </Link>
@@ -139,12 +149,9 @@ export default function Footer() {
               Cookie Policy
             </Link>
             <span className="sk-footer__legal-sep">·</span>
-            <a
-              href={`mailto:${SUPPORT_EMAIL}`}
-              className="sk-footer__legal-link"
-            >
+            <Link to="/support" className="sk-footer__legal-link">
               Support
-            </a>
+            </Link>
           </div>
         </div>
       </div>

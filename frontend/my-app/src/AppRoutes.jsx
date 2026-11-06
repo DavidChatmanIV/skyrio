@@ -73,6 +73,11 @@ const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
 const CookiePolicyPage = lazy(() => import("./pages/CookiePolicyPage"));
 
+// ── Trust pages (booking guarantee, support, about) ──
+const GuaranteePage = lazy(() => import("./pages/trust/GuaranteePage"));
+const SupportPage = lazy(() => import("./pages/trust/SupportPage"));
+const AboutPage = lazy(() => import("./pages/trust/AboutPage"));
+
 // ─── Page loader ──────────────────────────────────────────────────────────────
 function PageLoader() {
   return (
@@ -248,6 +253,12 @@ function TrackedRoutes() {
         <Route path="privacy" element={<PrivacyPolicyPage />} />
         <Route path="terms" element={<TermsOfServicePage />} />
         <Route path="cookies" element={<CookiePolicyPage />} />
+
+        {/* ── Trust — public so anyone can check before booking ── */}
+        <Route path="guarantee" element={<GuaranteePage />} />
+        <Route path="support" element={<SupportPage />} />
+        <Route path="help" element={<Navigate to="/support" replace />} />
+        <Route path="about" element={<AboutPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="dashboard" element={<Dashboard />} />
