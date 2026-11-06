@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Plane, AlertTriangle, RefreshCw } from "lucide-react";
 import { apiHeaders, getCheckoutToken } from "@/utils/checkoutToken";
+import BookingProgress from "./BookingProgress";
 
 const PENDING_KEY = "skyrio_pending_flight_payment";
 const API = import.meta.env?.VITE_API_URL || "";
@@ -32,8 +33,11 @@ const card = {
   margin: "60px auto",
   padding: 28,
   borderRadius: 18,
-  background: "rgba(16,12,34,0.85)",
-  border: "1px solid rgba(255,255,255,0.10)",
+  background:
+    "linear-gradient(160deg, rgba(74,40,112,0.7) 0%, rgba(34,18,62,0.8) 100%)",
+  border: "1px solid rgba(255,255,255,0.16)",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.1), 0 18px 44px rgba(12,4,28,0.38)",
   color: "#fff",
   textAlign: "center",
 };
@@ -142,15 +146,10 @@ export default function FlightBookingComplete() {
     })();
   }, [redirectStatus, attempt]);
 
+  // The airline can take 30–60 seconds: show what's happening and ask
+  // people to keep the page open (a lone spinner looked stuck).
   if (state.phase === "booking") {
-    return (
-      <div style={card}>
-        <span className="skc-spinner" />
-        <p style={{ marginTop: 14, color: "rgba(255,255,255,0.62)" }}>
-          Confirming your seats with the airline…
-        </p>
-      </div>
-    );
+    return <BookingProgress kind="flight" />;
   }
 
   if (state.phase === "error") {

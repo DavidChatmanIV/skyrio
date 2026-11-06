@@ -99,6 +99,22 @@ import {
   ArrowLeft,
 } from "lucide-react";
 
+// Airline logos: ask the logo service for a bigger image than the tile
+// shows, so it stays sharp on retina screens and when zoomed in (JetBlue's
+// looked blurry). Unknown URLs are left exactly as they are.
+function crispLogo(url) {
+  const u = String(url || "");
+  // pics.avs.io/64/64/B6.png → /200/200/B6@2x.png
+  if (/pics\.avs\.io\/\d+\/\d+\//.test(u))
+    return u
+      .replace(/pics\.avs\.io\/\d+\/\d+\//, "pics.avs.io/200/200/")
+      .replace(/(\/[A-Z0-9]{2})(?:@2x)?\.png/i, "$1@2x.png");
+  // images.kiwi.com/airlines/64/B6.png → /128/
+  if (/images\.kiwi\.com\/airlines\/\d+\//.test(u))
+    return u.replace(/airlines\/\d+\//, "airlines/128/");
+  return u;
+}
+
 // Whole-dollar price with thousands commas: 1165 → "1,165". "—" if unknown.
 const wholeUsd = (n) => {
   const v = Number(n);
@@ -5386,6 +5402,12 @@ export default function BookingPage() {
     setSelectedResult(result);
     setBudgetState((prev) => ({ ...prev, bookingTotal: result.total ?? 0 }));
   }, []);
+  // "Plan on a budget" amount, carried into checkout (solo trips only;
+  // Sync Together trips use the group budget instead).
+  const soloBudget =
+    !syncGroupId && planMode === "budget" && Number(budgetState.planned) > 0
+      ? Number(budgetState.planned)
+      : null;
   const handleBudgetChange = useCallback((state) => {
     setBudgetState(state);
   }, []);
@@ -5967,6 +5989,7 @@ export default function BookingPage() {
           groupId={syncGroupId}
           tripBudget={budgetOn ? tripBudget : null}
           onBudgetSaved={handleBudgetSaved}
+          planBudget={soloBudget}
           // Package: mark the trip's flight as booked once it's paid.
           onBooked={() =>
             setPackagePlan((p) =>
@@ -6047,6 +6070,7 @@ export default function BookingPage() {
           groupId={syncGroupId}
           tripBudget={budgetOn ? tripBudget : null}
           onBudgetSaved={handleBudgetSaved}
+          planBudget={soloBudget}
           onBack={handleHotelCheckoutBack}
           onBookingComplete={handleHotelBookingComplete}
           // Package: remember the booked stay (the cart is cleared after).
@@ -6862,7 +6886,9 @@ export default function BookingPage() {
                       style={
                         flight.ownerLogo
                           ? {
-                              backgroundImage: `url(${flight.ownerLogo})`,
+                              backgroundImage: `url(${crispLogo(
+                                flight.ownerLogo
+                              )})`,
                               backgroundSize: "60%",
                               backgroundRepeat: "no-repeat",
                               backgroundPosition: "center",
@@ -7072,7 +7098,9 @@ export default function BookingPage() {
                         style={
                           outbound.ownerLogo
                             ? {
-                                backgroundImage: `url(${outbound.ownerLogo})`,
+                                backgroundImage: `url(${crispLogo(
+                                  outbound.ownerLogo
+                                )})`,
                                 backgroundSize: "60%",
                                 backgroundRepeat: "no-repeat",
                                 backgroundPosition: "center",
@@ -7449,7 +7477,9 @@ export default function BookingPage() {
                               style={
                                 outbound.ownerLogo
                                   ? {
-                                      backgroundImage: `url(${outbound.ownerLogo})`,
+                                      backgroundImage: `url(${crispLogo(
+                                        outbound.ownerLogo
+                                      )})`,
                                       backgroundSize: "60%",
                                       backgroundRepeat: "no-repeat",
                                       backgroundPosition: "center",

@@ -10,8 +10,9 @@ import { Play, Pause, Volume2, VolumeX } from "lucide-react";
 //   2. If the browser blocks sound (fresh visit from a shared link),
 //      it plays muted and shows "Tap for sound". The first tap/click/key
 //      anywhere on the page turns the sound on.
-//   3. If a visitor pauses a soundtrack, Skyrio remembers it and stops
-//      autoplaying on other profiles until they press play again.
+//   3. If a visitor pauses a soundtrack, Skyrio stops autoplaying on other
+//      profiles for the rest of that visit only (it used to be forever,
+//      so one pause meant music never autoplayed again for that person).
 //
 // Leaving the page stops the music (the player is destroyed on unmount).
 // ─────────────────────────────────────────────────────────────
@@ -110,17 +111,19 @@ function loadYouTubeApi() {
   return ytApiPromise;
 }
 
+// Opt-out lasts for this browser tab/visit (sessionStorage), not forever.
 const readPref = () => {
   try {
-    return localStorage.getItem(PREF_KEY) !== "off";
+    localStorage.removeItem(PREF_KEY); // clear the old permanent opt-out
+    return sessionStorage.getItem(PREF_KEY) !== "off";
   } catch {
     return true;
   }
 };
 const writePref = (on) => {
   try {
-    if (on) localStorage.removeItem(PREF_KEY);
-    else localStorage.setItem(PREF_KEY, "off");
+    if (on) sessionStorage.removeItem(PREF_KEY);
+    else sessionStorage.setItem(PREF_KEY, "off");
   } catch {}
 };
 
@@ -152,7 +155,17 @@ export default function SoundtrackPlayer({
     let checkTimer;
     const shouldAutoplay = autoPlay && readPref();
 
-    const unlockEvents = ["pointerdown", "keydown", "touchstart"];
+    // Any of these counts as the visitor "interacting", which browsers
+    // require before a page may play sound. The first one turns it on.
+    const unlockEvents = [
+      "pointerdown",
+      "pointerup",
+      "mousedown",
+      "click",
+      "keydown",
+      "touchstart",
+      "touchend",
+    ];
     const unlock = () => {
       const p = playerRef.current;
       if (!p) return;

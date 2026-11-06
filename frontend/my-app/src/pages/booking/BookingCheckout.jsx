@@ -1,4 +1,12 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+  createContext,
+  useContext,
+} from "react";
 import dayjs from "dayjs";
 import {
   Check,
@@ -25,6 +33,11 @@ import OverBudgetCheck, {
 } from "@/components/syncTogether/OverBudgetCheck";
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
 import PolicyNote from "@/components/PolicyNote";
+import BudgetMeter from "@/components/BudgetMeter";
+
+// "Plan on a budget" amount from the booking page, shared with the
+// sidebar on every step (Passengers → Seats → Review & Pay).
+const PlanBudgetCtx = createContext(null);
 import {
   apiHeaders,
   getCheckoutToken,
@@ -2434,6 +2447,7 @@ function TripSidebar({
     0
   );
   const total = fareTotal + seatsPrice + bagsPrice;
+  const planBudget = useContext(PlanBudgetCtx);
   const anySeatsChosen = anySeats(selectedSeats);
   const priceLines = [
     ...["ADT", "CHD", "INF"]
@@ -2462,6 +2476,15 @@ function TripSidebar({
         top: 24,
       }}
     >
+      {/* Budget "speedometer": goes amber near the limit, red when over. */}
+      {planBudget > 0 && (
+        <BudgetMeter
+          budget={planBudget}
+          total={total}
+          what="This flight"
+          style={{ marginBottom: 14 }}
+        />
+      )}
       <div
         className="skc-sidebar-compact"
         style={{
@@ -4712,6 +4735,9 @@ export default function BookingCheckout({
   onGroupBookingComplete,
   tripBudget = null,
   onBudgetSaved,
+  // Budget set with "Plan on a budget" (solo trips). Shown as a meter in
+  // the sidebar on every step, red if this flight goes over it.
+  planBudget = null,
   // Runs once the flight is actually booked (used by the package tray to
   // mark the flight "Booked").
   onBooked,
@@ -5108,235 +5134,240 @@ export default function BookingCheckout({
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [step]);
   return (
-    <div
-      className="skc"
-      style={{ position: "relative", minHeight: "calc(var(--vh, 1vh) * 100)" }}
-    >
-      <style>{css}</style>
-      <div className="skc-bg">
-        <div className="skc-bg__img" />
-        <div className="skc-bg__fade" />
-        <div className="skc-bg__vignette" />
-      </div>
+    <PlanBudgetCtx.Provider value={groupId ? null : planBudget}>
       <div
+        className="skc"
         style={{
           position: "relative",
-          zIndex: 1,
-          maxWidth: 900,
-          margin: "0 auto",
-          padding: "0 20px 72px",
+          minHeight: "calc(var(--vh, 1vh) * 100)",
         }}
       >
+        <style>{css}</style>
+        <div className="skc-bg">
+          <div className="skc-bg__img" />
+          <div className="skc-bg__fade" />
+          <div className="skc-bg__vignette" />
+        </div>
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            padding: "22px 0 26px",
-            borderBottom: `1px solid ${G.border}`,
-            marginBottom: 32,
+            position: "relative",
+            zIndex: 1,
+            maxWidth: 900,
+            margin: "0 auto",
+            padding: "0 20px 72px",
           }}
         >
-          {onBack && (
-            <>
-              <button
-                type="button"
-                onClick={requestExit}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              padding: "22px 0 26px",
+              borderBottom: `1px solid ${G.border}`,
+              marginBottom: 32,
+            }}
+          >
+            {onBack && (
+              <>
+                <button
+                  type="button"
+                  onClick={requestExit}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "none",
+                    border: "none",
+                    color: "var(--cta, #ff8a2a)",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    fontFamily: "inherit",
+                    padding: 0,
+                    minHeight: 44,
+                    touchAction: "manipulation",
+                  }}
+                >
+                  ← Back to results
+                </button>
+                <div style={{ width: 1, height: 18, background: G.border }} />
+              </>
+            )}
+            <span
+              style={{
+                fontFamily: "inherit",
+                fontWeight: 800,
+                fontSize: 21,
+                color: "#fff",
+              }}
+            >
+              Booking
+            </span>
+            <span
+              style={{
+                fontFamily: "inherit",
+                fontWeight: 800,
+                fontSize: 21,
+                color: "var(--cta, #ff8a2a)",
+              }}
+            >
+              Checkout
+            </span>
+            {effectiveGroupId && (
+              <span
                 style={{
+                  marginLeft: "auto",
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
-                  background: "none",
-                  border: "none",
-                  color: "var(--cta, #ff8a2a)",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  fontFamily: "inherit",
-                  padding: 0,
-                  minHeight: 44,
-                  touchAction: "manipulation",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: G.purpleLight,
+                  background: "rgba(124,58,237,.12)",
+                  border: "1px solid rgba(124,58,237,.3)",
+                  borderRadius: 20,
+                  padding: "5px 12px",
                 }}
               >
-                ← Back to results
-              </button>
-              <div style={{ width: 1, height: 18, background: G.border }} />
-            </>
-          )}
-          <span
-            style={{
-              fontFamily: "inherit",
-              fontWeight: 800,
-              fontSize: 21,
-              color: "#fff",
-            }}
-          >
-            Booking
-          </span>
-          <span
-            style={{
-              fontFamily: "inherit",
-              fontWeight: 800,
-              fontSize: 21,
-              color: "var(--cta, #ff8a2a)",
-            }}
-          >
-            Checkout
-          </span>
-          {effectiveGroupId && (
-            <span
+                <Users size={12} /> Group booking
+              </span>
+            )}
+          </div>
+          <ProgressBar
+            step={step}
+            onStepClick={(i) => !bookingComplete && setStep(i)}
+          />
+          {fareUpdate?.previousPrice != null && fareUpdate?.price != null && (
+            <div
+              role="status"
               style={{
-                marginLeft: "auto",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                color: G.purpleLight,
-                background: "rgba(124,58,237,.12)",
-                border: "1px solid rgba(124,58,237,.3)",
-                borderRadius: 20,
-                padding: "5px 12px",
+                marginBottom: 20,
+                padding: "12px 16px",
+                borderRadius: 12,
+                background: "rgba(249,115,22,.08)",
+                border: "1px solid rgba(249,115,22,.3)",
+                fontSize: 13,
+                color: "#fff",
               }}
             >
-              <Users size={12} /> Group booking
-            </span>
+              We refreshed your fare with the airline. The price changed from $
+              {usd2(fareUpdate.previousPrice)} to ${usd2(fareUpdate.price)}.
+              Your flight is the same.
+            </div>
+          )}
+          {/* Passengers: the flight plus what the fare includes, before any
+            typing. Seats: the flight only (bags have their own section). */}
+          {step < 2 && (
+            <FlightCard flight={liveFlight} share>
+              {step === 0 && (
+                <FareIncludes
+                  flight={liveFlight}
+                  baggage={baggage || findBaggage(liveFlight.raw)}
+                />
+              )}
+            </FlightCard>
+          )}
+          {step === 0 && (
+            <StepPassengers
+              startEditing={editLead}
+              onNext={(p) => {
+                setEditLead(false);
+                setPassengers(p);
+                setStep(1);
+                // Start the real reservation as Passengers is submitted so a
+                // prebookId (and real seat data) exists for the Seats step.
+                runPrebook(p);
+              }}
+              flight={liveFlight}
+              basePrice={liveFlight.basePrice}
+              fareExpired={fareExpired}
+              onFareExpired={handleFareExpired}
+              onBackToResults={exitToResults}
+              onRefreshFare={refreshFare}
+              refreshingFare={prebookLoading}
+              onFormDirty={setFormDirty}
+              initialPassengers={passengers}
+              onPassengersChange={setPassengers}
+            />
+          )}
+          {step === 1 && (
+            <StepSeatsBags
+              key={prebookId || "no-hold"}
+              groupId={effectiveGroupId}
+              onBack={() => setStep(0)}
+              onNext={(e) => {
+                setExtras(e);
+                setStep(2);
+              }}
+              basePrice={liveFlight.basePrice}
+              flight={liveFlight}
+              passengers={passengers}
+              fareExpired={fareExpired}
+              onFareExpired={handleFareExpired}
+              onBackToResults={exitToResults}
+              onRefreshFare={refreshFare}
+              refreshingFare={prebookLoading}
+              prebookId={prebookId}
+              prebookLoading={prebookLoading}
+              prebookError={prebookError}
+              onRetryPrebook={() => runPrebook(passengers)}
+              onEditTravelers={() => {
+                setEditLead(true);
+                setStep(0);
+              }}
+              initialSeats={extras?.selectedSeats}
+              initialBags={extras?.selectedBags}
+              baggage={baggage}
+              onServicesAttached={(newTransactionId, newSecret) => {
+                if (newTransactionId) setTransactionId(newTransactionId);
+                if (newSecret) setClientSecret(newSecret);
+              }}
+            />
+          )}
+          {step === 2 && (
+            <StepReviewPay
+              tripBudget={tripBudget}
+              onBudgetSaved={onBudgetSaved}
+              progressKey={progressKey}
+              onBack={() => setStep(1)}
+              passengers={passengers}
+              extras={extras}
+              basePrice={liveFlight.basePrice}
+              flight={liveFlight}
+              groupId={effectiveGroupId}
+              groupMemberCount={effectiveGroupMemberCount}
+              onGroupBookingComplete={onGroupBookingComplete}
+              fareExpired={fareExpired}
+              onFareExpired={handleFareExpired}
+              onBackToResults={exitToResults}
+              onRefreshFare={refreshFare}
+              refreshingFare={prebookLoading}
+              onBookingSuccess={handleBookingSuccess}
+              prebookId={prebookId}
+              transactionId={transactionId}
+              clientSecret={clientSecret}
+              prebookError={prebookError}
+              baggage={baggage}
+              onEditDetails={() => {
+                setEditLead(true);
+                setStep(0);
+              }}
+            />
           )}
         </div>
-        <ProgressBar
-          step={step}
-          onStepClick={(i) => !bookingComplete && setStep(i)}
-        />
-        {fareUpdate?.previousPrice != null && fareUpdate?.price != null && (
-          <div
-            role="status"
-            style={{
-              marginBottom: 20,
-              padding: "12px 16px",
-              borderRadius: 12,
-              background: "rgba(249,115,22,.08)",
-              border: "1px solid rgba(249,115,22,.3)",
-              fontSize: 13,
-              color: "#fff",
-            }}
-          >
-            We refreshed your fare with the airline. The price changed from $
-            {usd2(fareUpdate.previousPrice)} to ${usd2(fareUpdate.price)}. Your
-            flight is the same.
-          </div>
-        )}
-        {/* Passengers: the flight plus what the fare includes, before any
-            typing. Seats: the flight only (bags have their own section). */}
-        {step < 2 && (
-          <FlightCard flight={liveFlight} share>
-            {step === 0 && (
-              <FareIncludes
-                flight={liveFlight}
-                baggage={baggage || findBaggage(liveFlight.raw)}
-              />
-            )}
-          </FlightCard>
-        )}
-        {step === 0 && (
-          <StepPassengers
-            startEditing={editLead}
-            onNext={(p) => {
-              setEditLead(false);
-              setPassengers(p);
-              setStep(1);
-              // Start the real reservation as Passengers is submitted so a
-              // prebookId (and real seat data) exists for the Seats step.
-              runPrebook(p);
-            }}
+        {flightUnavailable && !unavailableDismissed && (
+          <FlightUnavailableModal
             flight={liveFlight}
-            basePrice={liveFlight.basePrice}
-            fareExpired={fareExpired}
-            onFareExpired={handleFareExpired}
-            onBackToResults={exitToResults}
-            onRefreshFare={refreshFare}
-            refreshingFare={prebookLoading}
-            onFormDirty={setFormDirty}
-            initialPassengers={passengers}
-            onPassengersChange={setPassengers}
+            onFindAnother={exitToResults}
+            onClose={() => setUnavailableDismissed(true)}
           />
         )}
-        {step === 1 && (
-          <StepSeatsBags
-            key={prebookId || "no-hold"}
-            groupId={effectiveGroupId}
-            onBack={() => setStep(0)}
-            onNext={(e) => {
-              setExtras(e);
-              setStep(2);
-            }}
-            basePrice={liveFlight.basePrice}
-            flight={liveFlight}
-            passengers={passengers}
-            fareExpired={fareExpired}
-            onFareExpired={handleFareExpired}
-            onBackToResults={exitToResults}
-            onRefreshFare={refreshFare}
-            refreshingFare={prebookLoading}
-            prebookId={prebookId}
-            prebookLoading={prebookLoading}
-            prebookError={prebookError}
-            onRetryPrebook={() => runPrebook(passengers)}
-            onEditTravelers={() => {
-              setEditLead(true);
-              setStep(0);
-            }}
-            initialSeats={extras?.selectedSeats}
-            initialBags={extras?.selectedBags}
-            baggage={baggage}
-            onServicesAttached={(newTransactionId, newSecret) => {
-              if (newTransactionId) setTransactionId(newTransactionId);
-              if (newSecret) setClientSecret(newSecret);
-            }}
-          />
-        )}
-        {step === 2 && (
-          <StepReviewPay
-            tripBudget={tripBudget}
-            onBudgetSaved={onBudgetSaved}
-            progressKey={progressKey}
-            onBack={() => setStep(1)}
-            passengers={passengers}
-            extras={extras}
-            basePrice={liveFlight.basePrice}
-            flight={liveFlight}
-            groupId={effectiveGroupId}
-            groupMemberCount={effectiveGroupMemberCount}
-            onGroupBookingComplete={onGroupBookingComplete}
-            fareExpired={fareExpired}
-            onFareExpired={handleFareExpired}
-            onBackToResults={exitToResults}
-            onRefreshFare={refreshFare}
-            refreshingFare={prebookLoading}
-            onBookingSuccess={handleBookingSuccess}
-            prebookId={prebookId}
-            transactionId={transactionId}
-            clientSecret={clientSecret}
-            prebookError={prebookError}
-            baggage={baggage}
-            onEditDetails={() => {
-              setEditLead(true);
-              setStep(0);
-            }}
+        {showDiscardConfirm && (
+          <DiscardProgressModal
+            onKeepEditing={cancelDiscard}
+            onDiscard={confirmDiscard}
           />
         )}
       </div>
-      {flightUnavailable && !unavailableDismissed && (
-        <FlightUnavailableModal
-          flight={liveFlight}
-          onFindAnother={exitToResults}
-          onClose={() => setUnavailableDismissed(true)}
-        />
-      )}
-      {showDiscardConfirm && (
-        <DiscardProgressModal
-          onKeepEditing={cancelDiscard}
-          onDiscard={confirmDiscard}
-        />
-      )}
-    </div>
+    </PlanBudgetCtx.Provider>
   );
 }

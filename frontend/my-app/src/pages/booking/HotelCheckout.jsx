@@ -32,6 +32,7 @@ import { createPortal } from "react-dom";
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
 import { apiHeaders } from "@/utils/checkoutToken";
 import PolicyNote from "@/components/PolicyNote";
+import BudgetMeter from "@/components/BudgetMeter";
 
 import "@/styles/BookingPage.css"; // reuses sk-* purple-glass tokens/classes
 import OverBudgetCheck, {
@@ -1236,6 +1237,8 @@ export default function HotelCheckout({
   groupId = null,
   tripBudget = null,
   onBudgetSaved,
+  // Budget set with "Plan on a budget" (solo trips): a meter by the total.
+  planBudget = null,
   // Runs the moment the hotel confirms (the confirmation screen stays up).
   onBooked,
   // "Back to Stays" from the confirmation screen: clears the booked rooms
@@ -1459,6 +1462,14 @@ export default function HotelCheckout({
                     : ""}
                   .
                 </div>
+              )}
+              {!groupId && planBudget > 0 && (
+                <BudgetMeter
+                  budget={planBudget}
+                  total={grandTotal}
+                  what={rooms.length > 1 ? "These rooms" : "This stay"}
+                  style={{ marginTop: 12 }}
+                />
               )}
               <PolicyNote
                 kind="hotel"
