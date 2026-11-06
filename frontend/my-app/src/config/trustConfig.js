@@ -8,7 +8,8 @@ export const TRUST = {
   supportEmail: "skyrioofficial@gmail.com",
 
   // How fast a real person replies to a support email/case.
-  responseTime: "within 24 hours",
+  // "Business day" means weekends don't count against you.
+  responseTime: "within 1 business day",
 
   // How fast Skyrio starts a refund once it's approved.
   refundStartDays: 2, // business days

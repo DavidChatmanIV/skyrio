@@ -23,6 +23,56 @@ const MAX_ORIGINS = Number(process.env.DEAL_SCAN_MAX_ORIGINS || 6);
 // Hotel prices for "Flight + hotel". One search per destination per trip
 // type (~40 per run). Set DEAL_SCAN_HOTELS=false to skip them.
 const SCAN_HOTELS = process.env.DEAL_SCAN_HOTELS !== "false";
+// Hotels hit LiteAPI's rate limit (429) at 3 at a time, so they run slower.
+const HOTEL_CONCURRENCY = Number(process.env.DEAL_SCAN_HOTEL_CONCURRENCY || 2);
+// Pause each worker takes between searches, so DealScan never bursts
+// LiteAPI and eats the request limit real customers' searches need.
+const GAP_MS = Number(process.env.DEAL_SCAN_GAP_MS || 500);
+// How many times to retry a search that came back 429 (rate limited).
+const MAX_RETRIES = Number(process.env.DEAL_SCAN_MAX_RETRIES || 2);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ── Rate-limit handling ───────────────────────────────────────
+// Flights errors carry the status on err.response.status (axios);
+// hotels errors carry it on err.status.
+function statusOf(err) {
+  return err?.response?.status ?? err?.status;
+}
+
+function isRateLimited(err) {
+  return statusOf(err) === 429;
+}
+
+// Honor LiteAPI's Retry-After header when it sends one; otherwise back off
+// 3s, then 6s, plus a little jitter so workers don't retry in lockstep.
+function retryDelayMs(err, attempt) {
+  const header =
+    err?.response?.headers?.["retry-after"] ?? err?.headers?.["retry-after"];
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+  return 3000 * 2 ** attempt + Math.floor(Math.random() * 500);
+}
+
+// Runs fn(); if LiteAPI says 429, waits and tries again (up to MAX_RETRIES).
+// Timeouts and other errors are NOT retried — a slow search already cost
+// up to 60s, and retrying it would just stall the run.
+async function withRetry(fn, label) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isRateLimited(err) || attempt >= MAX_RETRIES) throw err;
+      const wait = retryDelayMs(err, attempt);
+      console.warn(
+        `[DealScan] ${label} rate limited — retry ${
+          attempt + 1
+        }/${MAX_RETRIES} in ${Math.round(wait / 1000)}s`
+      );
+      await sleep(wait);
+    }
+  }
+}
 
 // ── Dates ─────────────────────────────────────────────────────
 const iso = (d) => d.toISOString().slice(0, 10);
@@ -59,6 +109,7 @@ async function originsToScan() {
 }
 
 // ── Tiny concurrency pool (no extra dependency) ───────────────
+// Each worker pauses GAP_MS between searches to keep the pace steady.
 async function runPool(tasks, limit) {
   let i = 0;
   const workers = Array.from(
@@ -67,6 +118,7 @@ async function runPool(tasks, limit) {
       while (i < tasks.length) {
         const task = tasks[i++];
         await task();
+        if (GAP_MS > 0 && i < tasks.length) await sleep(GAP_MS);
       }
     }
   );
@@ -91,12 +143,16 @@ export async function scanHotels() {
   await runPool(
     jobs.map(({ dest, tripType, checkin, checkout }) => async () => {
       try {
-        const best = await searchCheapestStay({
-          cityName: dest.hotelCity,
-          countryCode: dest.country,
-          checkin,
-          checkout,
-        });
+        const best = await withRetry(
+          () =>
+            searchCheapestStay({
+              cityName: dest.hotelCity,
+              countryCode: dest.country,
+              checkin,
+              checkout,
+            }),
+          `hotels ${dest.code} (${tripType})`
+        );
         if (!best) {
           empty++;
           return;
@@ -123,7 +179,7 @@ export async function scanHotels() {
         );
       }
     }),
-    CONCURRENCY
+    HOTEL_CONCURRENCY
   );
   console.log(
     `[DealScan] hotels · saved ${saved} · no stays ${empty} · failed ${failed}`
@@ -177,7 +233,10 @@ export async function runDealScan() {
     await runPool(
       batch.map((job) => async () => {
         try {
-          const best = await searchCheapestFare(job);
+          const best = await withRetry(
+            () => searchCheapestFare(job),
+            `${job.origin}→${job.destination} (${job.tripType})`
+          );
           if (!best) {
             empty++;
             return;
