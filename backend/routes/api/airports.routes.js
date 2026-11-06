@@ -9,8 +9,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const airportsPath = path.resolve(__dirname, "../../airports.json");
 
-// Same env/key pattern as Liteapiflights.provider.js - one shared LiteAPI
-// account, switched between sandbox and production via LITEAPI_ENV.
+// ─────────────────────────────────────────────────────────────
+// Airport search for every "From / To" box.
+//
+// Main source: backend/airports.json — every airport worldwide with an
+// IATA code and scheduled passenger flights (~4,000, from the open
+// OurAirports dataset). Searching it is instant and never depends on an
+// outside API, so airports like Kingston (KIN) always show up.
+//
+// LiteAPI's airport search is only asked when the local list finds fewer
+// than 5 matches, and anything new it returns is added to the results.
+//
+// Ranking, best first: exact code ("KIN") → city starts with → code starts
+// with → airport name starts with → anything else that matches. Bigger
+// airports win ties. Every word typed must match ("kingston jamaica"
+// finds KIN, not Kingston, Ontario).
+// ─────────────────────────────────────────────────────────────
+
 const LITEAPI_ENV = process.env.LITEAPI_ENV || "sandbox";
 const LITEAPI_KEY =
   LITEAPI_ENV === "production"
@@ -18,164 +33,296 @@ const LITEAPI_KEY =
     : process.env.LITEAPI_SANDBOX_KEY;
 const LITEAPI_BASE = "https://api.liteapi.travel/v3.0";
 
-console.log(`[airports.routes] Using ${LITEAPI_ENV} key`);
-
-// NOTE: LiteAPI's /data/flights/airports/iatas endpoint requires a `q`
-// param - despite the docs saying "call with no parameters to get all,"
-// the actual param table marks q as required, and an empty call 400s.
-// So this isn't a one-time full-list download like we first assumed -
-// it's meant to be queried live per search term, same as Expedia's
-// typeahead only searches once you start typing. We query LiteAPI on
-// each request (with a short in-memory cache per search term) instead
-// of trying to cache the whole database up front.
-
+const MAX_RESULTS = 25;
+const MIN_QUERY_LENGTH = 2;
+const LITEAPI_WHEN_FEWER_THAN = 5;
 const SEARCH_CACHE = new Map(); // query -> { ts, results }
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour per search term
-const MIN_QUERY_LENGTH = 2; // don't call LiteAPI on 0-1 char queries
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_MAX = 2000;
+const SIZE_RANK = { large: 0, medium: 1, small: 2 };
 
-// Logs the raw shape of the first LiteAPI item exactly once per process
-// so we can see the ACTUAL field names instead of guessing at them —
-// same debugging approach already used to nail down LiteAPI's real
-// passenger/document field names in the booking checkout flow. Once
-// you've seen the real keys in your server log, update the mapping
-// below and this flag stops it from logging again.
-let hasLoggedRawShape = false;
+// Busy hubs win ties ("lon" → London before Long Beach) and fill the list
+// before anything is typed.
+const HUBS = [
+  "ATL",
+  "DFW",
+  "DEN",
+  "ORD",
+  "LAX",
+  "JFK",
+  "LAS",
+  "MCO",
+  "MIA",
+  "CLT",
+  "SEA",
+  "PHX",
+  "EWR",
+  "SFO",
+  "IAH",
+  "BOS",
+  "FLL",
+  "MSP",
+  "LGA",
+  "DTW",
+  "PHL",
+  "SLC",
+  "BWI",
+  "DCA",
+  "IAD",
+  "SAN",
+  "TPA",
+  "AUS",
+  "BNA",
+  "MDW",
+  "HNL",
+  "YYZ",
+  "YVR",
+  "YUL",
+  "MEX",
+  "CUN",
+  "SJU",
+  "KIN",
+  "MBJ",
+  "NAS",
+  "PUJ",
+  "SDQ",
+  "MBJ",
+  "BGI",
+  "POS",
+  "LHR",
+  "LGW",
+  "CDG",
+  "AMS",
+  "FRA",
+  "MAD",
+  "BCN",
+  "FCO",
+  "MUC",
+  "IST",
+  "DXB",
+  "DOH",
+  "HND",
+  "NRT",
+  "ICN",
+  "SIN",
+  "HKG",
+  "BKK",
+  "SYD",
+  "GRU",
+  "BOG",
+  "LIM",
+  "SCL",
+  "EZE",
+  "JNB",
+  "LOS",
+  "ACC",
+  "NBO",
+  "CAI",
+  "DUB",
+  "LIS",
+  "ZRH",
+  "CPH",
+  "DEL",
+  "BOM",
+];
+const HUB_RANK = new Map(HUBS.map((c, i) => [c, i]));
 
-let fallbackAirports = null;
-function loadFallbackFile() {
-  if (fallbackAirports) return fallbackAirports;
+// Cities with more than one airport, and nicknames people type.
+const METRO = {
+  "new york": ["JFK", "LGA", "EWR"],
+  nyc: ["JFK", "LGA", "EWR"],
+  london: ["LHR", "LGW", "STN", "LTN", "LCY", "SEN"],
+  paris: ["CDG", "ORY"],
+  tokyo: ["HND", "NRT"],
+  chicago: ["ORD", "MDW"],
+  washington: ["IAD", "DCA", "BWI"],
+  dc: ["IAD", "DCA", "BWI"],
+  miami: ["MIA", "FLL"],
+  "san francisco": ["SFO", "OAK", "SJC"],
+  "bay area": ["SFO", "OAK", "SJC"],
+  "los angeles": ["LAX", "BUR", "LGB", "SNA", "ONT"],
+  la: ["LAX", "BUR", "LGB", "SNA", "ONT"],
+  houston: ["IAH", "HOU"],
+  dallas: ["DFW", "DAL"],
+  rome: ["FCO", "CIA"],
+  milan: ["MXP", "LIN", "BGY"],
+  toronto: ["YYZ", "YTZ"],
+  "sao paulo": ["GRU", "CGH", "VCP"],
+  "buenos aires": ["EZE", "AEP"],
+  seoul: ["ICN", "GMP"],
+  orlando: ["MCO", "SFB"],
+};
+
+/* ── local list ─────────────────────────────────────────────── */
+
+const fold = (s = "") =>
+  String(s)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // "Bogotá" matches "bogota"
+    .toLowerCase()
+    .trim();
+
+let airports = null;
+function loadAirports() {
+  if (airports) return airports;
   try {
-    const raw = fs.readFileSync(airportsPath, "utf-8");
-    const parsed = JSON.parse(raw);
-    fallbackAirports = Array.isArray(parsed)
-      ? parsed
-      : Object.values(parsed || {});
+    const parsed = JSON.parse(fs.readFileSync(airportsPath, "utf-8"));
+    const list = Array.isArray(parsed) ? parsed : Object.values(parsed || {});
+    airports = list
+      .map((a) => {
+        const code = String(
+          a.code || a.iata || a.iata_code || ""
+        ).toUpperCase();
+        const item = {
+          code,
+          name: a.name || "",
+          city: a.city || a.municipality || "",
+          country: a.country || a.country_name || "",
+          countryCode: a.countryCode || "",
+          size: a.size || "medium",
+        };
+        // Pre-folded text so each search doesn't redo it.
+        item._code = fold(code);
+        item._city = fold(item.city);
+        item._name = fold(item.name);
+        item._country = fold(item.country);
+        item._all = `${item._code} ${item._city} ${item._name} ${
+          item._country
+        } ${fold(item.countryCode)}`;
+        return item;
+      })
+      .filter((a) => a.code.length === 3);
+    console.log(`[airports.routes] Loaded ${airports.length} airports`);
   } catch (err) {
     console.error(
       "[airports.routes] Failed to load airports.json:",
       err.message
     );
-    fallbackAirports = [];
+    airports = [];
   }
-  return fallbackAirports;
+  return airports;
 }
 
-function searchFallback(query) {
-  const q = query.toLowerCase();
-  return loadFallbackFile().filter((airport) => {
-    const code = String(
-      airport.code || airport.iata || airport.iata_code || ""
-    ).toLowerCase();
-    const name = String(airport.name || "").toLowerCase();
-    const city = String(
-      airport.city || airport.municipality || ""
-    ).toLowerCase();
-    const country = String(
-      airport.country || airport.country_name || ""
-    ).toLowerCase();
-    return (
-      !q ||
-      code.includes(q) ||
-      name.includes(q) ||
-      city.includes(q) ||
-      country.includes(q)
-    );
-  });
+/** Lower is better; null = not a match. */
+function score(a, q, words) {
+  const metro = METRO[q];
+  if (metro?.includes(a.code)) return 1 + metro.indexOf(a.code) * 0.01;
+  if (!words.every((w) => a._all.includes(w))) return null;
+  // Tie-breakers inside a tier: busy hubs first, then bigger airports.
+  const hub = HUB_RANK.get(a.code);
+  const sizeBonus =
+    hub !== undefined ? hub * 0.0005 : 0.05 + (SIZE_RANK[a.size] ?? 1) * 0.1;
+  if (a._code === q) return 0;
+  if (a._city === q) return 1 + sizeBonus;
+  if (a._city.startsWith(q)) return 2 + sizeBonus;
+  if (a._code.startsWith(q)) return 3 + sizeBonus;
+  if (a._name.startsWith(q)) return 4 + sizeBonus;
+  // First word typed matches the start of the city ("kingston jam…")
+  if (a._city.startsWith(words[0])) return 5 + sizeBonus;
+  if (a._name.split(/\s+/).some((w) => w.startsWith(words[0])))
+    return 6 + sizeBonus;
+  return 7 + sizeBonus;
 }
+
+function searchLocal(query) {
+  const q = fold(query);
+  const words = q.split(/[\s,()]+/).filter(Boolean);
+  if (!words.length) return [];
+  const hits = [];
+  for (const a of loadAirports()) {
+    const s = score(a, q, words);
+    if (s !== null) hits.push({ a, s });
+  }
+  hits.sort((x, y) => x.s - y.s || x.a.code.localeCompare(y.a.code));
+  return hits.slice(0, MAX_RESULTS).map(({ a }) => publicView(a));
+}
+
+const publicView = (a) => ({
+  code: a.code,
+  name: a.name,
+  city: a.city,
+  country: a.country,
+});
+
+/** Popular airports for 0–1 letters typed, so the list isn't empty. */
+function popular() {
+  const byCode = new Map(loadAirports().map((a) => [a.code, a]));
+  return [...new Set(HUBS)]
+    .map((c) => byCode.get(c))
+    .filter(Boolean)
+    .slice(0, MAX_RESULTS)
+    .map(publicView);
+}
+
+/* ── LiteAPI (extra matches only) ──────────────────────────── */
 
 async function searchLiteApi(query) {
-  if (!LITEAPI_KEY) return null;
-
-  const cached = SEARCH_CACHE.get(query);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return cached.results;
-  }
+  if (!LITEAPI_KEY) return [];
+  const key = fold(query);
+  const cached = SEARCH_CACHE.get(key);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.results;
 
   try {
     const res = await fetch(
       `${LITEAPI_BASE}/data/flights/airports/iatas?q=${encodeURIComponent(
         query
       )}`,
-      { headers: { "X-API-Key": LITEAPI_KEY } }
+      {
+        headers: { "X-API-Key": LITEAPI_KEY },
+        signal: AbortSignal.timeout(4000),
+      }
     );
-
-    if (!res.ok) {
-      throw new Error(`LiteAPI responded ${res.status}`);
-    }
-
+    if (!res.ok) throw new Error(`LiteAPI responded ${res.status}`);
     const data = await res.json();
     const list = Array.isArray(data?.data)
       ? data.data
       : Array.isArray(data)
       ? data
       : [];
-
-    // One-time diagnostic: show the ACTUAL shape LiteAPI sends back,
-    // rather than continuing to guess field names. Check your server
-    // log after the next search — whatever keys appear here (e.g.
-    // "iataCode" vs "iata_code", "cityName" vs "city") are what the
-    // mapping below needs to use.
-    if (!hasLoggedRawShape && list.length > 0) {
-      console.log(
-        "[airports.routes] Raw LiteAPI item shape (update mapping to match this):",
-        JSON.stringify(list[0], null, 2)
-      );
-      hasLoggedRawShape = true;
-    }
-
     const results = list
       .map((a) => ({
-        code: a.iata_code || a.code || a.iata || a.iataCode,
-        name: a.name || a.airport_name || a.airportName,
-        city: a.city || a.cityName || a.city_name,
-        country: a.country || a.country_name || a.countryName,
+        code: String(
+          a.iata_code || a.code || a.iata || a.iataCode || ""
+        ).toUpperCase(),
+        name: a.name || a.airport_name || a.airportName || "",
+        city: a.city || a.cityName || a.city_name || "",
+        country: a.country || a.country_name || a.countryName || "",
       }))
-      .filter((a) => a.code && a.name);
+      .filter((a) => a.code.length === 3 && a.name);
 
-    // If LiteAPI's call itself succeeded (list.length > 0) but every
-    // item got filtered out, the field-name guesses above are wrong for
-    // this response — treat it as a failure and fall back to the local
-    // file instead of silently returning an empty array to the user.
-    if (list.length > 0 && results.length === 0) {
-      console.warn(
-        `[airports.routes] LiteAPI returned ${list.length} raw item(s) for "${query}" but the field mapping matched none of them — falling back to local file. See the raw shape logged above.`
-      );
-      return null;
-    }
-
-    SEARCH_CACHE.set(query, { ts: Date.now(), results });
+    if (SEARCH_CACHE.size >= CACHE_MAX) SEARCH_CACHE.clear();
+    SEARCH_CACHE.set(key, { ts: Date.now(), results });
     return results;
   } catch (err) {
-    console.error("[airports.routes] LiteAPI fetch failed:", err.message);
-    return null;
+    console.error("[airports.routes] LiteAPI search failed:", err.message);
+    return [];
   }
 }
 
+/* ── routes ─────────────────────────────────────────────────── */
+
 /**
- * GET /api/airports?q=lon
- * Live LiteAPI airport search, falling back to the small local file if
- * LiteAPI is unavailable, the query is too short to bother calling it,
- * or LiteAPI's response didn't match our expected field shape.
+ * GET /api/airports?q=kingston
+ * Returns up to 25 airports: [{ code, name, city, country }]
  */
 router.get("/", async (req, res) => {
   try {
-    const query = String(req.query.q || "").trim();
+    const query = String(req.query.q || "")
+      .trim()
+      .slice(0, 60);
+    if (query.length < MIN_QUERY_LENGTH) return res.json(popular());
 
-    if (query.length < MIN_QUERY_LENGTH) {
-      // Not enough to search on yet - return local results so the UI
-      // still has something for very short input.
-      return res.json(searchFallback(query).slice(0, 25));
+    let results = searchLocal(query);
+
+    if (results.length < LITEAPI_WHEN_FEWER_THAN) {
+      const seen = new Set(results.map((a) => a.code));
+      const extra = (await searchLiteApi(query)).filter(
+        (a) => !seen.has(a.code)
+      );
+      results = [...results, ...extra].slice(0, MAX_RESULTS);
     }
 
-    const liteApiResults = await searchLiteApi(query.toLowerCase());
-
-    if (liteApiResults !== null) {
-      return res.json(liteApiResults.slice(0, 25));
-    }
-
-    // LiteAPI failed (or returned nothing usable) - fall back to local
-    // file for this request.
-    return res.json(searchFallback(query.toLowerCase()).slice(0, 25));
+    return res.json(results);
   } catch (err) {
     console.error("[airports.routes] GET / error:", err);
     return res.status(500).json({ error: "Failed to load airports" });
@@ -186,16 +333,14 @@ router.get("/", async (req, res) => {
  * GET /api/airports/health
  */
 router.get("/health", async (_req, res) => {
-  // Quick live check with a common query so /health actually verifies
-  // LiteAPI connectivity, not just that the file loaded.
-  const testResults = await searchLiteApi("new");
+  const liteApi = LITEAPI_KEY ? await searchLiteApi("new york") : [];
   return res.json({
     ok: true,
     route: "airports",
     env: LITEAPI_ENV,
-    liteApiReachable: testResults !== null,
-    sampleCount: testResults ? testResults.length : 0,
-    fallbackCount: loadFallbackFile().length,
+    localCount: loadAirports().length,
+    kingstonFound: searchLocal("KIN")[0]?.code === "KIN",
+    liteApiReachable: liteApi.length > 0,
   });
 });
 
