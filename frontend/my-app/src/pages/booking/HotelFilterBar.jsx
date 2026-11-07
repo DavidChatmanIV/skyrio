@@ -158,7 +158,7 @@ function HotelPanel({ value, onChange, close, hotels }) {
             lineHeight: 1.4,
           }}
         >
-          Search for stays to choose from the hotels in your destination.
+          Search first to pick a hotel.
         </div>
       ) : (
         <>
@@ -292,7 +292,13 @@ export default function HotelFilterBar({
 
   // How many HOTELS (not room offers) each option would keep — shown next
   // to the option, and used to gray out ones that would show nothing.
+  // Before a search there are no hotels to count, so options show no count
+  // and none are grayed out — the filters can be set up front.
+  const isPreSearch = hotelResults.length === 0;
+
   const counts = useMemo(() => {
+    if (isPreSearch)
+      return { stars: {}, rating: {}, price: {}, refundable: undefined };
     const atLeast = (key, min) =>
       hotels.filter((h) => (h[key] ?? 0) >= min).length;
     return {
@@ -314,7 +320,7 @@ export default function HotelFilterBar({
       ),
       refundable: hotels.filter((h) => h.refundable).length,
     };
-  }, [hotels]);
+  }, [hotels, isPreSearch]);
 
   const boards = useMemo(
     () =>
@@ -346,9 +352,9 @@ export default function HotelFilterBar({
     board: filters.board === "any" ? "Meals" : `Meals · ${filters.board}`,
   };
 
-  // No hotels yet (before a search): nothing to filter, so no filter row.
-  // Keeps empty dropdowns from covering the buttons underneath.
-  if (!visible || hotelResults.length === 0) return null;
+  // Always shown on Stays, even before a search. Meals appears once results
+  // show which meal plans are on offer.
+  if (!visible) return null;
 
   const truncate = {
     display: "inline-block",

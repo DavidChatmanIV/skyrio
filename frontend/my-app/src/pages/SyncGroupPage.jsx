@@ -457,24 +457,24 @@ function showDestination(group) {
 // What happens next, in plain words — shown under the stepper.
 function nextStepCopy({ status, prog, isOwner, myRsvp }) {
   if (myRsvp === "pending")
-    return "You've been invited. Tap \u201cI'm in\u201d so the group knows to plan for you.";
+    return "You're invited. Tap \u201cI'm in\u201d to join.";
   if (prog?.allBooked || ["booked", "completed"].includes(status))
     return "Everyone's booked. Have a great trip!";
   if (prog?.anyBooked)
-    return `${prog.bookedCount} of ${prog.travelers} travelers have booked. Each person books and pays for their own flight and room.`;
+    return `${prog.bookedCount} of ${prog.travelers} booked. Everyone pays for their own part.`;
   switch (status) {
     case "draft":
     case "inviting":
       return isOwner
-        ? "Waiting on your crew. Share the invite code or link so everyone can join."
-        : "Waiting for everyone to join. Once they're in, the trip moves to planning.";
+        ? "Share the invite link so your crew can join."
+        : "Waiting for everyone to join.";
     case "planning":
-      return "Set the destination, dates and your private budget, then ask Atlas for a plan.";
+      return "Set the place, dates and your budget. Then ask Atlas.";
     case "reviewing":
-      return "Look over Atlas's plan and vote on the options in the shortlist.";
+      return "Vote on the shortlist.";
     case "confirmed":
     case "payment_pending":
-      return "The plan is approved. Each person books and pays for their own part.";
+      return "Plan approved. Everyone books their own part.";
     case "cancelled":
       return "This trip was cancelled.";
     default:
@@ -489,21 +489,21 @@ const GP_TABS = [
     label: "Plan",
     Icon: Sparkles,
     go: "Go to Plan",
-    help: "Trip details, Atlas's plan, the group vote and the weather.",
+    help: "Details, Atlas plan, votes and weather.",
   },
   {
     key: "book",
     label: "Book",
     Icon: Plane,
     go: "Go to Book",
-    help: "Book and pay for your own flight and room, and see who's booked.",
+    help: "Book your part. See who's booked.",
   },
   {
     key: "group",
     label: "Group",
     Icon: Users,
     go: "Go to Group",
-    help: "Who's coming, the group chat and recent activity.",
+    help: "Who's coming, chat and activity.",
   },
 ];
 
@@ -640,7 +640,7 @@ export default function SyncGroupPage() {
           ]);
       } else antdMessage.error(data.error || "Group not found");
     } catch (err) {
-      antdMessage.error("Failed to load group");
+      antdMessage.error("Couldn't load this trip.");
     } finally {
       setLoading(false);
     }
@@ -686,7 +686,7 @@ export default function SyncGroupPage() {
         setGroup(data.group);
         fetchProgress();
         antdMessage.success(
-          going ? "You're in!" : "Got it — we let the organizer know."
+          going ? "You're in!" : "Got it. We told the organizer."
         );
       } else antdMessage.error(data.error);
     } catch (err) {
@@ -755,7 +755,7 @@ export default function SyncGroupPage() {
         antdMessage.success("Trip details saved");
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to save");
+      antdMessage.error("Couldn't save. Try again.");
     } finally {
       setSaving(false);
     }
@@ -886,7 +886,7 @@ export default function SyncGroupPage() {
           body: JSON.stringify({ plan: data.reply, atlasMessages: msgs }),
         });
         await fetchGroup();
-      } else antdMessage.error("Atlas couldn't generate a plan");
+      } else antdMessage.error("Atlas couldn't make a plan. Try again.");
     } catch (err) {
       antdMessage.error("Failed to reach Atlas");
     } finally {
@@ -953,7 +953,7 @@ export default function SyncGroupPage() {
         );
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Approval failed");
+      antdMessage.error("Couldn't save your vote. Try again.");
     } finally {
       setApproving(false);
     }
@@ -974,10 +974,10 @@ export default function SyncGroupPage() {
       if (data.ok) {
         setGroup(data.group);
         setChangeMsg("");
-        antdMessage.success("Change request submitted");
+        antdMessage.success("Change sent to the group.");
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to submit");
+      antdMessage.error("Couldn't submit. Try again.");
     } finally {
       setChangeSending(false);
     }
@@ -1045,9 +1045,7 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (data.ok) {
         setGroup(data.group);
-        antdMessage.success(
-          "Booking is open — everyone can book their own part."
-        );
+        antdMessage.success("Booking's open. Everyone books their own part.");
       } else antdMessage.error(data.error);
     } catch {
       antdMessage.error("Couldn't start booking");
@@ -1069,7 +1067,7 @@ export default function SyncGroupPage() {
         navigate("/sync-together");
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to delete");
+      antdMessage.error("Couldn't delete. Try again.");
     }
   };
   const renameTrip = async () => {
@@ -1089,7 +1087,7 @@ export default function SyncGroupPage() {
         setEditingTitle(false);
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to rename");
+      antdMessage.error("Couldn't rename. Try again.");
     }
   };
   const updateMyAirport = async (code) => {
@@ -1109,7 +1107,7 @@ export default function SyncGroupPage() {
         antdMessage.success(`Airport set to ${code}`);
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to update airport");
+      antdMessage.error("Couldn't update airport. Try again.");
     }
   };
 
@@ -1165,7 +1163,7 @@ export default function SyncGroupPage() {
         );
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to add");
+      antdMessage.error("Couldn't add. Try again.");
     }
     setAddInput("");
     setAddResults([]);
@@ -1192,9 +1190,7 @@ export default function SyncGroupPage() {
       const data = await res.json();
       if (data.ok) {
         antdMessage.success(
-          `Invite sent again to ${
-            name || data.sentTo
-          }. Ask them to check Spam or Promotions too.`
+          `Invite resent to ${name || data.sentTo}. Tell them to check Spam.`
         );
         fetchGroup();
       } else antdMessage.error(data.error || "Couldn't resend the invite");
@@ -1220,7 +1216,7 @@ export default function SyncGroupPage() {
         antdMessage.success(`${name} removed`);
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to remove");
+      antdMessage.error("Couldn't remove. Try again.");
     }
   };
   useEffect(() => {
@@ -1254,7 +1250,7 @@ export default function SyncGroupPage() {
         setTimeout(() => scrollChatToEnd(true), 100);
       } else antdMessage.error(data.error);
     } catch (err) {
-      antdMessage.error("Failed to send");
+      antdMessage.error("Couldn't send. Try again.");
     } finally {
       setChatSending(false);
     }
@@ -1278,9 +1274,7 @@ export default function SyncGroupPage() {
           : g
       );
       antdMessage.success(
-        data.myBudget
-          ? "Budget saved — only you can see it."
-          : "Budget cleared."
+        data.myBudget ? "Budget saved. Only you see it." : "Budget cleared."
       );
     } catch (err) {
       antdMessage.error(err.message || "Couldn't save your budget");
@@ -1354,7 +1348,7 @@ export default function SyncGroupPage() {
         <div style={{ textAlign: "center", padding: "80px 0" }}>
           <Spin size="large" />
           <p style={{ color: "rgba(255,255,255,0.5)", marginTop: 16 }}>
-            Loading your group...
+            Loading trip…
           </p>
         </div>
       </section>
@@ -1671,8 +1665,8 @@ export default function SyncGroupPage() {
                 }}
               >
                 {myRsvp === "pending"
-                  ? "Your answer tells the group who to plan and book for."
-                  : "Plans change — you can still join if there's room."}
+                  ? "So the group knows who to plan for."
+                  : "Changed your mind? You can still join."}
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -1724,7 +1718,7 @@ export default function SyncGroupPage() {
             <SectionTitle
               icon={<MapPin size={16} style={{ color: "#ff8a2a" }} />}
             >
-              Edit Trip Details
+              Edit trip
             </SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
@@ -2064,8 +2058,8 @@ export default function SyncGroupPage() {
                 }}
               >
                 {destination
-                  ? "Let Atlas suggest flights, stays and a day-by-day plan — or search everything yourself."
-                  : "Set a destination and dates above first, then choose how you want to plan."}
+                  ? "Atlas suggests flights, stays and a daily plan. Or search yourself."
+                  : "Add a destination and dates first."}
               </p>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <Button
@@ -2108,9 +2102,8 @@ export default function SyncGroupPage() {
                       margin: "2px 0 12px",
                     }}
                   >
-                    Results open with your trip's destination and dates. Tap
-                    “Suggest to group” on anything you like — it lands in the
-                    shortlist below for everyone to vote on.
+                    Tap “Suggest to group” on anything you like. The group votes
+                    on it.
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <Button
@@ -2147,8 +2140,7 @@ export default function SyncGroupPage() {
                           marginBottom: 8,
                         }}
                       >
-                        Already know the plan? Skip Atlas and approvals and let
-                        everyone book their own part now.
+                        Already know the plan? Skip voting and book now.
                       </div>
                       <Button
                         className="sk-sync-cta-btn"
@@ -2219,9 +2211,8 @@ export default function SyncGroupPage() {
                     style={{ flexShrink: 0, marginTop: 2, color: "#69b1ff" }}
                   />
                   <span>
-                    These are Atlas's suggestions — nothing is booked until each
-                    person books their own part. Prices can change; you'll see
-                    the real price before you pay.
+                    Suggestions only. Nothing is booked yet. Prices can change;
+                    you'll see the final price before you pay.
                   </span>
                 </div>
                 <AtlasPlanRenderer plan={atlasPlan} onSearch={openSearch} />
@@ -2321,7 +2312,7 @@ export default function SyncGroupPage() {
             <SectionTitle
               icon={<ThumbsUp size={16} style={{ color: "#ff8a2a" }} />}
             >
-              Review & Approve
+              Vote on the plan
             </SectionTitle>
             <div
               style={{
@@ -2396,7 +2387,7 @@ export default function SyncGroupPage() {
                       }
                       style={{ flex: 1 }}
                     >
-                      Request Change
+                      Suggest a change
                     </Button>
                   </>
                 ) : (
@@ -2531,7 +2522,7 @@ export default function SyncGroupPage() {
                     marginTop: 4,
                   }}
                 >
-                  Now everyone books their own flight and room below.
+                  Book your flight and room below.
                 </p>
               </div>
             )}
@@ -2600,7 +2591,7 @@ export default function SyncGroupPage() {
                       style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}
                     >
                       · {notJoined} {notJoined === 1 ? "hasn't" : "haven't"}{" "}
-                      accepted the invite yet
+                      joined yet
                     </span>
                   )}
                 </div>
@@ -3080,7 +3071,7 @@ export default function SyncGroupPage() {
                         addInput.trim().length >= 2 && (
                           <div className="sk-sync-search-dropdown">
                             <div className="sk-sync-search-empty">
-                              No users found — press Enter to invite by email
+                              No match. Press Enter to invite by email.
                             </div>
                           </div>
                         )}
@@ -3147,7 +3138,7 @@ export default function SyncGroupPage() {
             >
               {!chatMessages.length && (
                 <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
-                  No messages yet. Start the conversation!
+                  No messages yet. Say hi.
                 </p>
               )}
               {chatMessages.map((msg, i) => {
@@ -3541,7 +3532,7 @@ export default function SyncGroupPage() {
                     boxShadow: "0 4px 20px rgba(255,77,79,0.3)",
                   }}
                 >
-                  Delete Trip
+                  Delete trip
                 </button>
               </div>
             </div>

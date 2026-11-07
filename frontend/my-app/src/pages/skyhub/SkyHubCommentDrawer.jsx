@@ -239,11 +239,11 @@ export default function SkyHubCommentDrawer({
       setLoadingComments(true);
       const res = await skyFetch(`/api/skyhub/posts/${post.id}/comments`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to load comments");
+      if (!res.ok) throw new Error(data?.message || "Couldn't load comments.");
       setComments(Array.isArray(data.comments) ? data.comments : []);
     } catch (err) {
       console.error("fetchComments error:", err);
-      message.error(err.message || "Failed to load comments.");
+      message.error(err.message || "Couldn't load comments.");
     } finally {
       setLoadingComments(false);
     }
@@ -264,7 +264,8 @@ export default function SkyHubCommentDrawer({
         body: JSON.stringify({ text: commentText.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to post comment");
+      if (!res.ok)
+        throw new Error(data?.message || "Couldn't post your comment.");
 
       setCommentText("");
       setComments(data.comments || []);
@@ -272,7 +273,7 @@ export default function SkyHubCommentDrawer({
       message.success("Comment posted.");
     } catch (err) {
       console.error("handlePostComment error:", err);
-      message.error(err.message || "Could not post comment.");
+      message.error(err.message || "Couldn't post your comment.");
     } finally {
       setPostingComment(false);
     }
@@ -314,7 +315,7 @@ export default function SkyHubCommentDrawer({
       const data = await res.json().catch(() => ({}));
       if (!res.ok)
         throw new Error(data?.message || "Couldn't report the comment.");
-      message.success(data.message || "Thanks for reporting.");
+      message.success(data.message || "Thanks. We'll review it.");
       setReporting(null);
     } catch (err) {
       message.error(err.message);
@@ -541,7 +542,7 @@ export default function SkyHubCommentDrawer({
                 ? `Be the first to reply${
                     post?.author ? ` to ${post.author.split(" ")[0]}` : ""
                   }.`
-                : "Create a profile to be the first to reply."}
+                : "Sign up to reply."}
             </div>
           </div>
         )}

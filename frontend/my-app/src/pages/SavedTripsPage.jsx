@@ -46,7 +46,7 @@ export const MT_CSS = `
 .mt-tab.is-on { background: linear-gradient(135deg,#ff8a2a,#ffb347); color: #1a0e06; }
 
 .mt-list { display: flex; flex-direction: column; gap: 10px; }
-.mt-card { display: flex; align-items: stretch; border-radius: 18px; background: rgba(16,11,34,0.78); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 14px 40px rgba(0,0,0,0.28); overflow: hidden; }
+.mt-card { display: flex; align-items: stretch; border-radius: 18px; background: linear-gradient(160deg, rgba(74,40,112,0.6), rgba(34,18,62,0.7)); border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 14px 40px rgba(0,0,0,0.28); overflow: hidden; }
 .mt-card.is-cancelled { opacity: .85; }
 .mt-card.is-cancelled .mt-thumb { filter: grayscale(.7); }
 .mt-main { flex: 1; min-width: 0; display: flex; gap: 14px; padding: 14px 16px; }
@@ -104,7 +104,7 @@ export const MT_CSS = `
 
 /* Cancel modal */
 .mt-modalScrim { position: fixed; inset: 0; z-index: 2000; background: rgba(5,3,12,0.72); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.mt-modal { position: relative; width: 100%; max-width: 460px; max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: 22px; padding: 24px; background: rgba(16,11,34,0.98); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 30px 80px rgba(0,0,0,0.6); color: #fff; font-family: "DM Sans", system-ui, sans-serif; }
+.mt-modal { position: relative; width: 100%; max-width: 460px; max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: 22px; padding: 24px; background: linear-gradient(160deg, rgba(74,40,112,0.98), rgba(34,18,62,0.98)); border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 30px 80px rgba(0,0,0,0.6); color: #fff; font-family: "DM Sans", system-ui, sans-serif; }
 .mt-modal::before { content: ""; position: absolute; top: 0; left: 24px; right: 24px; height: 3px; border-radius: 0 0 3px 3px; background: linear-gradient(90deg,#ff8a2a,#ffb347,#8b6cff); }
 .mt-modal h2 { margin: 0 0 4px; font-size: 19px; font-weight: 800; }
 .mt-modal .mt-modalSub { margin: 0 0 16px; font-size: 13px; color: rgba(255,255,255,0.7); }
@@ -241,12 +241,11 @@ export function AirlineCredit({ credit, airline }) {
           : "Airline credit"}
       </div>
       <div>
-        {who} gave you credit instead of money back. Use it to book a new flight
-        directly with {who}
+        Credit instead of money back. Book directly with {who} to use it
         {vouchers[0]?.expiresAt
           ? ` before ${fmtDate(vouchers[0].expiresAt)}`
           : " before it expires"}
-        . Skyrio can&apos;t apply airline credit to new bookings yet.
+        . Skyrio can&apos;t apply it yet.
       </div>
       {vouchers
         .filter((v) => v?.code)
@@ -361,10 +360,8 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
           {b.status === "cancel_pending" && (
             <div className="mt-note is-warn">
               <Clock size={13} aria-hidden="true" />
-              Cancellation sent. The {isHotel ? "hotel" : "airline"} has to
-              confirm it on their end, which usually takes a few hours to a
-              couple of days. It&apos;ll switch to Cancelled when it&apos;s
-              done, and we&apos;ll notify you.
+              Cancellation sent. The {isHotel ? "hotel" : "airline"} confirms
+              it, usually within a few hours to 2 days. We&apos;ll notify you.
             </div>
           )}
           {b.status === "confirmed" && hasOpenCancelRequest(b) && (
@@ -600,10 +597,9 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
         {requested ? (
           <>
             <p style={{ fontSize: 14, lineHeight: 1.6, margin: "0 0 18px" }}>
-              We've received your cancellation request and emailed you a
-              confirmation. Your trip is <strong>not cancelled yet</strong>. Our
-              team will confirm the cancellation terms and any refund with the{" "}
-              {place}, then contact you before anything is cancelled.
+              Request received. We emailed you a copy. Your trip is{" "}
+              <strong>not cancelled yet</strong>. We&apos;ll confirm the terms
+              with the {place} and contact you first.
             </p>
             <button type="button" className="mt-done" onClick={onClose}>
               Done
@@ -613,7 +609,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
           <>
             <p style={{ fontSize: 14, lineHeight: 1.6, margin: "0 0 18px" }}>
               {result.pending
-                ? "Cancellation sent. The airline has to confirm it on their end, which usually takes a few hours to a couple of days. It'll switch to Cancelled when it's done, and we'll notify you."
+                ? `Cancellation sent. The ${place} confirms it, usually within a few hours to 2 days. We'll notify you.`
                 : result.airlineCredit
                 ? `Cancelled. The airline gave you ${
                     result.airlineCredit.amount
@@ -622,7 +618,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                           result.airlineCredit.currency || cur
                         )} in airline credit`
                       : "airline credit"
-                  } instead of a refund. You'll find it on this trip in My Trips.`
+                  } instead of a refund. It's on this trip in My Trips.`
                 : result.partial
                 ? result.message
                 : result.customerRefund > 0
@@ -630,7 +626,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                     result.customerRefund,
                     cur
                   )} is on its way to your card (usually 5–10 business days).`
-                : "Cancelled. Under the policy for this booking, no refund applies."}
+                : "Cancelled. No refund under this booking's policy."}
             </p>
             <button type="button" className="mt-done" onClick={onClose}>
               Done
@@ -677,7 +673,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                     <strong style={{ color: "#6ee7a8" }}>
                       {quote.estimatedRefund != null
                         ? fmtMoney(quote.estimatedRefund, quote.currency)
-                        : "set by the airline at cancellation"}
+                        : `set by the ${place} at cancellation`}
                     </strong>
                   </div>
                 )}
@@ -689,8 +685,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                 )}
                 {quote.note && <div className="mt-fine">{quote.note}</div>}
                 <div className="mt-fine">
-                  The refund amount and timing are set by the {place}, not
-                  Skyrio. This is the {place}&rsquo;s current estimate; their
+                  Set by the {place}, not Skyrio. This is their estimate; their
                   final answer applies.
                 </div>
               </div>
@@ -718,9 +713,9 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                     margin: "0 0 12px",
                   }}
                 >
-                  You can still send a cancellation request. Our team will
-                  confirm the terms and any refund with the {place} and contact
-                  you <strong>before</strong> anything is cancelled.
+                  You can send a request instead. We&apos;ll check the terms
+                  with the {place} and contact you <strong>before</strong>{" "}
+                  anything is cancelled.
                 </p>
                 <label
                   htmlFor="mt-cancel-note"
@@ -1043,7 +1038,7 @@ function BookedTrips() {
     upcoming: (
       <>
         <b>No upcoming trips</b>
-        Book a flight or hotel and it will show up here.
+        Your next booking shows up here.
       </>
     ),
     past: (
@@ -1106,7 +1101,7 @@ function BookedTrips() {
       ) : state.items.length === 0 ? (
         <div className="mt-empty">
           <b>No booked trips yet</b>
-          When you book a flight or hotel on Skyrio, it shows up here.
+          Your bookings show up here.
         </div>
       ) : (
         <>
@@ -1123,8 +1118,8 @@ function BookedTrips() {
               }}
             >
               <span>
-                Clearing hides a trip from this list. Your booking record and
-                any refund aren&apos;t affected.
+                Clearing only hides it. Records and refunds aren&apos;t
+                affected.
               </span>
               <button
                 type="button"
@@ -1218,16 +1213,12 @@ export default function SavedTripsPage() {
         <div>
           <div className="mt-kicker mt-mono">Your Skyrio</div>
           <h1 className="mt-title">My trips</h1>
-          <p className="mt-sub">
-            Your booked trips, plus everything you&apos;ve saved for later.
-          </p>
+          <p className="mt-sub">Booked trips and saved ideas.</p>
           <div className="mt-howto" role="note">
             <X size={16} aria-hidden="true" />
             <span>
-              <b>Need to cancel a flight or hotel?</b> Find it under{" "}
-              <b>Booked trips</b> below and tap <b>Cancel booking</b>.
-              You&apos;ll see what you get back before anything is cancelled.
-              Booked without an account?{" "}
+              <b>Need to cancel?</b> Tap <b>Cancel booking</b> on the trip
+              below. You&apos;ll see the refund first. No account?{" "}
               <a href="/find-booking">Find my booking</a>
             </span>
           </div>
@@ -1249,9 +1240,7 @@ export default function SavedTripsPage() {
             <h2 className="mt-h2" id="mt-saved">
               Saved for later
             </h2>
-            <p className="mt-h2sub">
-              Your shortlist. Compare options and book when you&apos;re ready.
-            </p>
+            <p className="mt-h2sub">Compare and book when you&apos;re ready.</p>
           </div>
         </div>
         <SavedTrips />

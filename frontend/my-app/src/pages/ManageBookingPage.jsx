@@ -130,7 +130,7 @@ export default function ManageBookingPage() {
           booking: null,
           error:
             data.message ||
-            "We couldn't open this booking. Use Find my booking to get a new link.",
+            "Couldn't open this booking. Use Find my booking for a new link.",
           expired: res.status === 401 || res.status === 403,
         });
         return;
@@ -145,7 +145,7 @@ export default function ManageBookingPage() {
       setState({
         loading: false,
         booking: null,
-        error: "We couldn't reach Skyrio. Check your connection and try again.",
+        error: "Couldn't reach Skyrio. Check your connection.",
         expired: false,
       });
     }
@@ -187,8 +187,8 @@ export default function ManageBookingPage() {
           {state.expired && (
             <>
               <p className="mt-sub" style={{ marginBottom: 16 }}>
-                Enter the email you booked with and your confirmation code, and
-                we&apos;ll email you a new link to manage or cancel it.
+                Enter your email and confirmation code. We&apos;ll send a new
+                link.
               </p>
               <Link to="/find-booking" className="mt-cta">
                 <Search size={16} aria-hidden="true" /> Find my booking
@@ -297,10 +297,8 @@ function BookingDetails({ b, onCancel }) {
             {b.status === "cancel_pending" && (
               <div className="mt-note is-warn">
                 <Clock size={13} aria-hidden="true" />
-                Cancellation sent. The {isHotel ? "hotel" : "airline"} has to
-                confirm it on their end, which usually takes a few hours to a
-                couple of days. It&apos;ll switch to Cancelled when it&apos;s
-                done, and we&apos;ll email you.
+                Cancellation sent. The {isHotel ? "hotel" : "airline"} confirms
+                it, usually within a few hours to 2 days. We&apos;ll email you.
               </div>
             )}
             {b.status === "confirmed" && requestOpen && (
@@ -314,9 +312,8 @@ function BookingDetails({ b, onCancel }) {
               <div className="mt-note is-muted">
                 <Users size={13} aria-hidden="true" />
                 <span>
-                  This room is shared with your Sync Together group (
-                  {b.sharedRoom.people} people). Only the trip organizer can
-                  cancel it, from the trip page.
+                  Shared with your Sync Together group ({b.sharedRoom.people}{" "}
+                  people). Only the organizer can cancel it.
                 </span>
               </div>
             )}
@@ -349,13 +346,13 @@ function BookingDetails({ b, onCancel }) {
           </button>
           <p className="mt-sub" style={{ fontSize: 13, textAlign: "center" }}>
             You&apos;ll see the {isHotel ? "hotel" : "airline"}&apos;s refund
-            estimate before anything is cancelled.
+            estimate first.
           </p>
         </div>
       )}
       {b.status === "confirmed" && !isUpcoming(b) && (
         <p className="mt-sub" style={{ marginTop: 16, fontSize: 13 }}>
-          This trip has already happened, so it can&apos;t be cancelled online.
+          This trip is over and can&apos;t be cancelled online.
         </p>
       )}
     </>

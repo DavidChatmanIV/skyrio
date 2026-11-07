@@ -888,8 +888,7 @@ function FareCountdown({ expiresAt, onExpired }) {
             This fare has expired
           </div>
           <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-            Prices can change — please go back and search again to get a current
-            price.
+            Prices change. Search again for a current price.
           </div>
         </div>
       </div>
@@ -958,8 +957,8 @@ function FareExpiredBlock({ onBackToResults, onRefresh, refreshing = false }) {
           </div>
           <div style={{ fontSize: 13, color: G.muted, marginTop: 3 }}>
             {onRefresh
-              ? "We'll check this same flight with the airline again. Your traveler details stay filled in. If you'd picked seats, you'll pick them again."
-              : "Prices and availability can change. Please go back and search again to get a current price before continuing."}
+              ? "We'll recheck this flight. Your details stay; seats may need picking again."
+              : "Prices change. Search again for a current price."}
           </div>
         </div>
       </div>
@@ -1077,8 +1076,7 @@ function FlightUnavailableModal({ flight, onFindAnother, onClose }) {
             marginBottom: 22,
           }}
         >
-          The airline sold the last seats at this price, so it can't be booked.
-          You haven't been charged.
+          Sold out at this price. You weren't charged.
         </div>
         <button
           ref={primaryRef}
@@ -1167,8 +1165,7 @@ function DiscardProgressModal({ onKeepEditing, onDiscard }) {
               id="discard-progress-desc"
               style={{ fontSize: 13, color: G.muted, marginTop: 6 }}
             >
-              You'll lose the traveler details you've entered. This can't be
-              undone.
+              Your traveler details will be lost.
             </div>
           </div>
         </div>
@@ -1260,10 +1257,8 @@ function CancellationBadge({ departureDateISO }) {
             24-hour cancellation may apply
           </div>
           <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-            Many airlines let you cancel within 24 hours of booking for a refund
-            on U.S. flights booked a week or more ahead. The airline decides if
-            this fare qualifies, and you&rsquo;ll see the real refund before you
-            cancel.
+            Many airlines refund cancellations within 24 hours. The airline
+            decides if this fare qualifies.
           </div>
         </div>
       </div>
@@ -1826,7 +1821,7 @@ function FareIncludes({ flight, baggage }) {
         style={{ fontSize: 12, color: G.muted, marginTop: 10, lineHeight: 1.5 }}
       >
         {bags.length
-          ? "Need a bag that isn't included? If the airline sells bags through Skyrio for this fare, you can add them in the Seats step. If not, we'll show you where to add them."
+          ? "Need more bags? Add them in the Seats step if the airline allows."
           : `${carrier} confirms this fare's bag allowance in the next step.`}
       </div>
       {/* Bags, changes and refunds are the airline's rules, not Skyrio's. */}
@@ -2153,24 +2148,21 @@ function BagAllowance({
             }}
           >
             {canAdd
-              ? `Bags you add here are booked with ${carrier} together with your ticket, at ${carrierPossessive} price. You can also add bags later with ${carrier}.`
+              ? `Booked with ${carrier} at ${carrierPossessive} price.`
               : onToggleBag && servicesLoaded && missing.length
-              ? "Buying bags online before you fly is usually cheaper than at the airport."
+              ? "Online is usually cheaper than at the airport."
               : missing.length
               ? `Need a ${missing
                   .map((r) => r.label.toLowerCase())
-                  .join(
-                    " or "
-                  )}? Add it with ${carrier} after booking, using your confirmation code. Buying online before you fly is usually cheaper than at the airport.`
-              : `Need more bags? Add them with ${carrier} after booking, using your confirmation code.`}{" "}
-            Allowance shown per adult, as confirmed by {carrier}.
+                  .join(" or ")}? Add it with ${carrier} after booking.`
+              : `More bags? Add them with ${carrier} after booking.`}{" "}
+            Per adult, from {carrier}.
           </div>
         </>
       ) : (
         <div style={{ fontSize: 13, color: G.muted, lineHeight: 1.5 }}>
-          We couldn't confirm this fare's bag allowance, so we won't guess.
-          Check {carrierPossessive} website before you fly, and add any bags
-          there using your confirmation code.
+          Bag allowance not confirmed. Check {carrierPossessive} website before
+          you fly.
         </div>
       )}
       {import.meta.env?.DEV && serviceCategories && (
@@ -2430,7 +2422,7 @@ function PriceSummary({ base, passengers, seatsPrice = 0, bagsPrice = 0 }) {
         <span style={{ color: "var(--cta, #ff8a2a)" }}>${usd2(total)}</span>
       </div>
       <div style={{ fontSize: 12, color: G.muted, marginTop: 8 }}>
-        The airline confirms the final price, shown before you pay.
+        Final price shown before you pay.
       </div>
     </div>
   );
@@ -3049,7 +3041,7 @@ function StepPassengers({
             Passenger details
           </h2>
           <p style={{ color: G.muted, fontSize: 14, marginBottom: 24 }}>
-            Must match each traveler's government-issued ID exactly.
+            Names must match each ID.
           </p>
           {/* Signed out: booking works as a guest. Say what that means. */}
           {!localStorage.getItem("token") && (
@@ -3076,9 +3068,8 @@ function StepPassengers({
                 <strong style={{ color: "#fff" }}>
                   You're booking as a guest.
                 </strong>{" "}
-                Your confirmation goes to the lead traveler's email. Create a
-                Skyrio account later with that same email to see this trip in My
-                Trips and earn Passport XP for it.
+                Sign up later with the same email to see it in My Trips and earn
+                XP.
               </span>
             </div>
           )}
@@ -3676,9 +3667,7 @@ function StepSeatsBags({
             )
           );
         if (hadStale) {
-          setNotice(
-            "Your fare was checked again with the airline, so please pick your seats and bags again."
-          );
+          setNotice("Fare rechecked. Please pick seats and bags again.");
         }
         setSelectedBags((prev) =>
           prev.filter((b) => bagIds.has(String(b.serviceId)))
@@ -3911,8 +3900,8 @@ function StepSeatsBags({
         console.error("[attach seat services] failed:", data);
         setNotice(
           bagsList.length
-            ? "We couldn't add those seats or bags with the airline. Try again, or remove them and continue."
-            : "We couldn't reserve those seats with the airline. Pick different seats or skip seat selection."
+            ? "Couldn't add those seats or bags. Try again or skip them."
+            : "Couldn't reserve those seats. Pick others or skip."
         );
         return false;
       }
@@ -3935,9 +3924,7 @@ function StepSeatsBags({
       onServicesAttached?.(newTransactionId, newSecret);
     } catch (err) {
       console.error("[attach seat services] error:", err);
-      setNotice(
-        "We couldn't reserve those seats with the airline. Pick different seats or skip seat selection."
-      );
+      setNotice("Couldn't reserve those seats. Pick others or skip.");
       return false;
     }
   }
@@ -3999,9 +3986,8 @@ function StepSeatsBags({
                   fontSize: 13,
                 }}
               >
-                Seat selection isn't available for this flight right now. You
-                can continue without picking seats — the airline will assign
-                them at check-in.
+                No seat selection on this flight. The airline assigns seats at
+                check-in.
               </div>
             ) : (
               <SkyrioSeatMap
@@ -4035,8 +4021,7 @@ function StepSeatsBags({
             )}
             {hasLapInfant && !prebookLoading && !prebookError && (
               <div style={{ fontSize: 12, color: G.muted, marginTop: 10 }}>
-                Infants under 2 ride on an adult's lap, so they don't need a
-                seat.
+                Infants under 2 sit on a lap.
               </div>
             )}
           </section>
@@ -4300,9 +4285,7 @@ function GroupPaymentBanner({ memberCount }) {
           You're booking your own seat for a group trip
         </div>
         <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-          Everyone in Sync Together books and pays for their own seat, so you
-          only pay for yourself. It'll show on the trip page, and you can cancel
-          it from My Trips.
+          You only pay for your own seat. It shows on the trip page.
         </div>
       </div>
     </div>
@@ -4537,9 +4520,7 @@ function StepReviewPay({
                   <strong style={{ color: "#fff" }}>
                     Need to change something?
                   </strong>{" "}
-                  Edit takes you back to Passengers. Your fare is checked again
-                  when you continue, so you may need to pick your seats and bags
-                  again.
+                  Editing rechecks the fare. You may need to pick seats again.
                 </span>
               </div>
             )}
@@ -4711,7 +4692,7 @@ function findExpiration(obj, depth = 0) {
 // The airline turned down a traveler's name (e.g. "Test Traveler"). The
 // flight itself is fine, so this must never read as "find another flight".
 const NAME_REJECTED_MSG =
-  "The airline didn't accept a traveler's name. Enter each name exactly as it appears on that person's ID, then try again.";
+  "The airline didn't accept a name. Use the name exactly as on the ID.";
 const NAME_ERROR_RE =
   /\b(first|last|given|family|middle|sur)\s?name\b|\bname\b.*\b(invalid|not allowed|rejected|format|too short|required)|\b(invalid|not allowed|rejected)\b.*\bname\b|passenger name|traveller name|traveler name|airline didn't accept a traveler's name|airline didn't accept the traveler details/i;
 function isNameError(msg = "") {
@@ -4721,14 +4702,14 @@ function isNameError(msg = "") {
 function friendlyFareError(raw = "") {
   if (isNameError(raw)) return NAME_REJECTED_MSG;
   if (/sold out|52010|no longer available|expired/i.test(raw)) {
-    return "This fare just sold out with the airline. Let's find you another flight.";
+    return "This fare just sold out. Let's find another flight.";
   }
   if (
     /51099|52099|53099|unable to process|failed to search|failed to create prebook|timeout|timed out|didn't respond/i.test(
       raw
     )
   ) {
-    return "The airline's system didn't respond. Please try again in a moment.";
+    return "The airline didn't respond. Try again in a moment.";
   }
   return raw || "We couldn't reserve this fare. Please pick another flight.";
 }
@@ -4824,7 +4805,7 @@ export default function BookingCheckout({
       try {
         if (!liveFlight.offerId) {
           throw new Error(
-            "This flight is missing its offer reference — please go back and select it again from search results."
+            "Something went wrong. Go back and pick the flight again."
           );
         }
         const API = import.meta.env?.VITE_API_URL || "";
@@ -4868,7 +4849,7 @@ export default function BookingCheckout({
           // The fare is really gone — stop here.
           throw new Error(
             vData.message ||
-              "This fare just sold out with the airline. Let's find you another flight."
+              "This fare just sold out. Let's find another flight."
           );
         } else if (
           vRes.status >= 500 ||
@@ -4883,8 +4864,7 @@ export default function BookingCheckout({
           );
         } else {
           throw new Error(
-            vData.message ||
-              "This fare is no longer available. Please go back and pick a fresh result."
+            vData.message || "This fare is gone. Go back and pick another."
           );
         }
         // Catch a traveler-count mismatch here, in plain words, instead of
@@ -4918,7 +4898,7 @@ export default function BookingCheckout({
           // `detail` (dev only) names the exact field LiteAPI rejected.
           throw new Error(
             (pData.message ||
-              "Could not reserve this fare. Please go back and try again.") +
+              "Couldn't reserve this fare. Go back and try again.") +
               (pData.detail ? ` [dev: ${pData.detail}]` : "")
           );
         }

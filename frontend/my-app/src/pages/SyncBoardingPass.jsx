@@ -1,4 +1,3 @@
-// src/pages/SyncBoardingPass.jsx
 // ─────────────────────────────────────────────────────────────
 // Sync Together's start-a-trip search, styled as a group boarding pass.
 //   DESTINATION · DATES · CREW  →  [Sync up]
@@ -17,6 +16,7 @@ import {
   Search,
   X,
   UserPlus,
+  Check,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "@/styles/SyncBoardingPass.css";
@@ -164,7 +164,7 @@ export default function SyncBoardingPass({
     peopleTimer.current = setTimeout(() => searchPeople(e.target.value), 300);
   };
   const whoInputRef = useRef(null);
-  const [justAdded, setJustAdded] = useState(""); // name shown in "✓ Added" line
+  const [justAdded, setJustAdded] = useState(""); // name shown in the "added" line
   const addedTimer = useRef(null);
   useEffect(() => () => clearTimeout(addedTimer.current), []);
 
@@ -420,7 +420,7 @@ export default function SyncBoardingPass({
 
                 {needCrew && !travelers.length && (
                   <div className="skbp-nudge" role="status">
-                    Add at least one friend to start the trip.
+                    Add a friend to start.
                   </div>
                 )}
                 <div className="skbp-who-search">
@@ -482,7 +482,7 @@ export default function SyncBoardingPass({
                     </span>
                     <span className="skbp-pop-text">
                       <strong>Invite “{who.trim()}”</strong>
-                      <small>We'll email them a link to join</small>
+                      <small>We'll email them an invite</small>
                     </span>
                   </button>
                 )}
@@ -516,7 +516,7 @@ export default function SyncBoardingPass({
                   ))}
                   {!travelers.length && !needCrew && (
                     <div className="skbp-manifest-empty">
-                      Add at least one friend to sync up.
+                      Add a friend to sync up.
                     </div>
                   )}
                 </div>
@@ -530,9 +530,12 @@ export default function SyncBoardingPass({
                       fontSize: 12.5,
                       fontWeight: 600,
                       color: "#52c41a",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
                     }}
                   >
-                    ✓ {justAdded} added. Add more, or tap Done.
+                    <Check size={14} aria-hidden="true" /> {justAdded} added.
                   </div>
                 )}
 
@@ -603,10 +606,8 @@ export default function SyncBoardingPass({
       </div>
       <p className="skbp-sub">
         {travelers.length
-          ? `${
-              travelers.length + 1
-            } travelers on this pass — everyone gets a link to join the plan.`
-          : "One plan. Every traveler covered. Add your crew to get started."}
+          ? `${travelers.length + 1} travelers. Everyone gets an invite link.`
+          : "One plan for the whole crew."}
       </p>
     </div>
   );

@@ -11,7 +11,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
-import { RANKS, RANK_PERKS, hasAnyRankPerks, XP_EARN } from "@/config/xpGuide";
 
 const STORAGE_KEY = "skyrio_tour_done";
 const START_DELAY_MS = 2500;
@@ -137,133 +136,48 @@ const Icon = {
   ),
 };
 
-/* ── SkyHub step — early access vs. production copy ───────────────── */
-const SKYHUB_STEP = SKYHUB_EARLY_ACCESS
-  ? {
-      icon: "skyhub",
-      kicker: "SkyHub · Early access",
-      title: "Be one of the first to post",
-      body: "SkyHub is where Skyrio travelers will share tips, photos and questions about places they've been. It's brand new, so you're early. Post from your own trips and help shape what it becomes.",
-      tip: "Tag the place in your post so future travelers headed there can find it.",
-      path: "/skyhub",
-      cta: "Open SkyHub",
-    }
-  : {
-      icon: "skyhub",
-      kicker: "SkyHub",
-      title: "Share your trip with other travelers",
-      body: "SkyHub is where Skyrio travelers post tips, photos and questions about places they've been. Read what others found, follow travelers you like, or post your own.",
-      tip: "Tag the place in your post so travelers headed there can find it.",
-      path: "/skyhub",
-      cta: "Open SkyHub",
-    };
-
-/* ── Steps — only things Skyrio actually does today ───────────────── */
+/* ── Steps — short and scannable ─────────────────────────────────────
+   Testers: "people don't read." One title + one short line per step,
+   five steps, and a button to try each thing. The forms and pages teach
+   the details (where / when / who are right on the search bar). */
 const STEPS = [
   {
-    icon: "plane",
-    kicker: "Welcome aboard",
-    title: "Welcome to Skyrio",
-    body: "Plan, book and share your trips in one place. Here's a quick look at the four main sections. It takes about a minute.",
-    points: [
-      { icon: "discover", text: "Discover: plan a trip with Atlas AI" },
-      { icon: "book", text: "Book: search flights and hotels" },
-      {
-        icon: "skyhub",
-        text: SKYHUB_EARLY_ACCESS
-          ? "SkyHub: share travel tips (early access)"
-          : "SkyHub: see and share travel tips",
-      },
-      { icon: "passport", text: "Passport: your XP, rank and trips" },
-    ],
-  },
-  {
     icon: "discover",
-    kicker: "Discover",
-    title: "Tell Atlas where you want to go",
-    body: "Type a destination and a budget in plain words, like “a warm beach trip in March under $1,500.” Atlas suggests a flight + hotel plan, then you see live prices before you book.",
-    tip: "Tap the Atlas AI button in the corner of any page to ask a question.",
+    kicker: "Atlas AI",
+    title: "Just ask Atlas",
+    body: "\u201CMiami in March, $800.\u201D Atlas finds the flights and hotel.",
     path: "/",
-    cta: "Open Discover",
+    cta: "Try Atlas",
   },
   {
     icon: "book",
     kicker: "Book",
-    title: "Search flights and hotels",
-    body: "Fill in your boarding pass (where, when, who) and search. Prices are live, and checkout shows exactly what you'll pay before you pay it.",
-    tip: "Tap the heart on a trip to save it for later. Your saved trips live under the heart in the menu.",
+    title: "Flights + hotels, one search",
+    body: "Live prices. See the total before you pay.",
     path: "/booking",
-    cta: "Open Book",
-  },
-  SKYHUB_STEP,
-  {
-    icon: "passport",
-    kicker: "XP · how you earn it",
-    title: "Earn XP as you travel",
-    body: "XP (experience points) are Skyrio's reward points. You earn them by booking trips and taking part in the community. Your Digital Passport keeps track.",
-    points: [
-      {
-        icon: "plane",
-        text: `Book a flight: ${XP_EARN.flightMin}–${XP_EARN.flightMax} XP (nonstop earns the most)`,
-      },
-      { icon: "book", text: `Book a hotel: ${XP_EARN.hotel} XP` },
-      {
-        icon: "check",
-        text: `Firsts: +${XP_EARN.firstBooking} for your first booking, +${XP_EARN.profileCompleted} for completing your profile`,
-      },
-      {
-        icon: "skyhub",
-        text: `SkyHub posts, comments and daily visits: up to ${XP_EARN.engagementDaily} XP a day`,
-      },
-      {
-        icon: "clock",
-        text: `Booking XP shows as pending and counts ${XP_EARN.bookingHoldHours} hours after your trip starts. A cancelled booking earns no XP.`,
-      },
-    ],
-  },
-  {
-    icon: "wallet",
-    kicker: "XP · what it's for",
-    title: "Spend XP on rewards",
-    body: "You have two XP numbers. Total earned decides your rank. Spendable XP is what you can trade for rewards. When you redeem, only your spendable XP goes down. Your rank never drops.",
-    points: [
-      {
-        icon: "check",
-        text: "Spend it in Passport Rewards on boosts, badges, perks and drops",
-      },
-      { icon: "check", text: "Spending XP never lowers your rank" },
-      {
-        icon: "no",
-        text: "XP isn't cash, and it can't be used to pay for flights or hotels right now",
-      },
-    ],
-    tip: "Using XP toward trips is something we want to add. If it happens, we'll announce it. Until then, XP is for rewards inside Skyrio.",
-    path: "/passport/rewards",
-    cta: "Open Passport Rewards",
-  },
-  {
-    icon: "trophy",
-    kicker: "XP · ranks",
-    title: "Climb 8 ranks",
-    body: "Every XP you earn moves you up a rank, and your rank shows on your passport and profile.",
-    ladder: true,
-    path: "/passport",
-    cta: "See my rank",
+    cta: "Search now",
   },
   {
     icon: "group",
     kicker: "Sync Together",
-    title: "Plan a trip with friends",
-    body: "Start a group trip, suggest flights and hotels for everyone to vote on, and keep it all in one place. Each person books and pays for their own part, so nobody has to front the whole trip.",
-    tip: "Find Sync Together in your Passport.",
+    title: "Travel as a group",
+    body: "Plan together. Everyone pays their own share.",
     path: "/sync-together",
-    cta: "Open Sync Together",
+    cta: "Start a group trip",
   },
   {
-    icon: "plane",
-    kicker: "You're all set",
-    title: "Ready when you are",
-    body: "Start with a destination and Atlas will take it from there. You can replay this tour any time from Help.",
+    icon: "skyhub",
+    kicker: SKYHUB_EARLY_ACCESS ? "SkyHub · New" : "SkyHub",
+    title: "Real tips from travelers",
+    body: "Photos and advice from people who went.",
+    path: "/skyhub",
+    cta: "Open SkyHub",
+  },
+  {
+    icon: "passport",
+    kicker: "Passport",
+    title: "Earn XP every trip",
+    body: "Book, post, level up. Unlock rewards.",
     isLast: true,
   },
 ];
@@ -271,7 +185,7 @@ const STEPS = [
 /* ── Styles ───────────────────────────────────────────────────────── */
 const TOUR_CSS = `
 .st-scrim { position: fixed; inset: 0; z-index: 2147483646; background: rgba(5,3,12,0.72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: stFade .25s ease both; }
-.st-card { position: relative; width: 100%; max-width: 460px; max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; border-radius: 24px; background: radial-gradient(120% 90% at 100% 0%, rgba(255,107,43,0.14), transparent 55%), radial-gradient(100% 90% at 0% 100%, rgba(139,108,255,0.16), transparent 60%), rgba(16,11,34,0.98); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 40px 100px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06); color: #fff; font-family: "DM Sans", system-ui, sans-serif; animation: stIn .3s cubic-bezier(.22,1,.36,1) both; }
+.st-card { position: relative; width: 100%; max-width: 460px; max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; border-radius: 24px; background: radial-gradient(120% 90% at 100% 0%, rgba(255,107,43,0.14), transparent 55%), radial-gradient(100% 90% at 0% 100%, rgba(139,108,255,0.16), transparent 60%), linear-gradient(160deg, #3d2168 0%, #241245 100%); border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 40px 100px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06); color: #fff; font-family: "DM Sans", system-ui, sans-serif; animation: stIn .3s cubic-bezier(.22,1,.36,1) both; }
 .st-card:focus { outline: none; }
 .st-card button { all: unset; box-sizing: border-box; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .st-card button:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
@@ -287,8 +201,8 @@ const TOUR_CSS = `
 .st-body { padding: 14px 22px 0; }
 .st-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .st-badge { flex-shrink: 0; width: 58px; height: 58px; border-radius: 18px; display: flex; align-items: center; justify-content: center; color: #ffb347; background: linear-gradient(135deg, rgba(255,138,42,0.2), rgba(139,108,255,0.18)); border: 1px solid rgba(255,138,42,0.35); box-shadow: 0 8px 24px rgba(255,138,42,0.18); }
-.st-title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
-.st-text { margin: 0 0 14px; font-size: 14.5px; line-height: 1.6; color: rgba(255,255,255,0.82); }
+.st-title { margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+.st-text { margin: 0 0 18px; font-size: 17px; line-height: 1.45; font-weight: 500; color: rgba(255,255,255,0.9); }
 
 .st-points { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .st-points li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); font-size: 13.5px; color: rgba(255,255,255,0.88); }
@@ -306,10 +220,10 @@ const TOUR_CSS = `
 .st-tip { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 14px; border-radius: 12px; background: rgba(255,138,42,0.09); border: 1px dashed rgba(255,138,42,0.4); font-size: 13px; line-height: 1.5; color: #ffd2a3; }
 .st-tip svg { flex-shrink: 0; margin-top: 1px; color: #ffb347; }
 
-.st-card .st-goto { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; font-size: 13px; font-weight: 700; color: #ffb347; border-bottom: 1px solid rgba(255,179,71,0.4); padding-bottom: 1px; }
-.st-card .st-goto:hover { color: #fff; border-color: #fff; }
+.st-card .st-goto { display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 16px; margin-bottom: 4px; border-radius: 999px; font-size: 14px; font-weight: 800; color: #fff; background: rgba(124,92,252,0.3); border: 1px solid rgba(167,139,250,0.55); }
+.st-card .st-goto:hover { background: rgba(124,92,252,0.45); }
 
-.st-foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding: 14px 22px calc(18px + env(safe-area-inset-bottom, 0px)); border-top: 1px dashed rgba(255,255,255,0.14); background: #100b22; }
+.st-foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding: 14px 22px calc(18px + env(safe-area-inset-bottom, 0px)); border-top: 1px dashed rgba(255,255,255,0.14); background: #241245; }
 .st-dots { display: flex; gap: 6px; align-items: center; }
 .st-card .st-dot { width: 8px; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.22); transition: width .25s ease, background .25s ease; }
 .st-card .st-dot.is-done { background: rgba(139,108,255,0.8); }
@@ -331,7 +245,7 @@ const TOUR_CSS = `
 @media (max-width: 560px) {
   .st-scrim { align-items: flex-end; padding: 0; }
   .st-card { max-width: none; max-height: 92dvh; border-radius: 24px 24px 0 0; animation-name: stUp; }
-  .st-title { font-size: 20px; }
+  .st-title { font-size: 23px; }
   .st-badge { width: 50px; height: 50px; border-radius: 15px; }
   .st-lastBtns { grid-template-columns: 1fr; }
 }
@@ -524,38 +438,6 @@ export default function SkyrioDTour() {
             </ul>
           )}
 
-          {s.ladder && (
-            <>
-              <ul className="st-ladder" aria-label="Skyrio ranks">
-                {RANKS.map((r) => (
-                  <li key={r.name}>
-                    <b>
-                      <i style={{ background: r.color }} aria-hidden="true" />
-                      {r.name}
-                    </b>
-                    <small>{r.minXp.toLocaleString()} XP</small>
-                    {(RANK_PERKS[r.name] || []).map((perk) => (
-                      <em
-                        key={perk.text}
-                        className={
-                          perk.status === "soon" ? "is-soon" : undefined
-                        }
-                      >
-                        {perk.text}
-                        {perk.status === "soon" ? " (coming soon)" : ""}
-                      </em>
-                    ))}
-                  </li>
-                ))}
-              </ul>
-              <p className="st-perkNote">
-                {hasAnyRankPerks()
-                  ? "Higher ranks unlock more of Skyrio. Anything marked coming soon isn't available yet."
-                  : "Perks that unlock as you rank up are on the way. When we add one, it'll show here and in Passport Rewards. The XP you earn now still counts toward your rank."}
-              </p>
-            </>
-          )}
-
           {s.tip && (
             <div className="st-tip">
               <Icon.tip size={17} />
@@ -636,7 +518,7 @@ export default function SkyrioDTour() {
                 className="st-btn is-primary"
                 onClick={next}
               >
-                {step === 0 ? "Show me around" : "Next"}
+                Next
                 <Icon.right size={16} />
               </button>
             )}

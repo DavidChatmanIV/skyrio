@@ -8,14 +8,16 @@ import { Button, Input, Modal, message } from "antd";
 import { Link } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
 
-
 /* skyhub-login */
 const skyAuthFetch = (url, opts = {}) => {
   const token = localStorage.getItem("token");
   return fetch(url, {
     credentials: "include",
     ...opts,
-    headers: { ...(opts.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      ...(opts.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 };
 
@@ -24,7 +26,10 @@ function skyFetch(path, opts = {}) {
   return skyAuthFetch(apiUrl(path), {
     credentials: "include",
     ...opts,
-    headers: { ...(opts.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      ...(opts.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 }
 
@@ -39,7 +44,11 @@ const fmt = (d, withTime = false) =>
     : "";
 
 const ACTION_TEXT = (s) =>
-  s.action === "ban" ? "Permanent suspension" : s.action === "suspension" ? `${s.suspensionDays}-day pause` : "Warning";
+  s.action === "ban"
+    ? "Permanent suspension"
+    : s.action === "suspension"
+    ? `${s.suspensionDays}-day pause`
+    : "Warning";
 
 export default function SkyHubStanding({ signedIn }) {
   const [data, setData] = useState(null);
@@ -65,7 +74,8 @@ export default function SkyHubStanding({ signedIn }) {
 
   // Strike emails link to /skyhub?standing=1
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("standing") === "1") setOpen(true);
+    if (new URLSearchParams(window.location.search).get("standing") === "1")
+      setOpen(true);
   }, []);
 
   if (!signedIn || !data) return null;
@@ -93,7 +103,17 @@ export default function SkyHubStanding({ signedIn }) {
     }
   };
 
-  const tone = paused ? { bg: "rgba(248,113,113,0.1)", line: "rgba(248,113,113,0.35)", fg: "#fca5a5" } : { bg: "rgba(251,191,36,0.1)", line: "rgba(251,191,36,0.35)", fg: "#fbbf24" };
+  const tone = paused
+    ? {
+        bg: "rgba(248,113,113,0.1)",
+        line: "rgba(248,113,113,0.35)",
+        fg: "#fca5a5",
+      }
+    : {
+        bg: "rgba(251,191,36,0.1)",
+        line: "rgba(251,191,36,0.35)",
+        fg: "#fbbf24",
+      };
 
   return (
     <>
@@ -120,32 +140,43 @@ export default function SkyHubStanding({ signedIn }) {
                 ? paused.permanent
                   ? "Your SkyHub account is suspended"
                   : `SkyHub is paused for you until ${fmt(paused.until, true)}`
-                : `You have ${activeStrikes} active strike${activeStrikes === 1 ? "" : "s"}`}
+                : `You have ${activeStrikes} active strike${
+                    activeStrikes === 1 ? "" : "s"
+                  }`}
             </div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
               {paused
                 ? "You can still read SkyHub, search and book trips."
-                : "Strikes expire after 90 days. More strikes lead to longer pauses."}
+                : "Strikes last 90 days. More strikes mean longer pauses."}
             </div>
           </div>
           <Button onClick={() => setOpen(true)}>See details</Button>
         </div>
       )}
 
-      <Modal open={open} onCancel={() => setOpen(false)} footer={null} title="Your SkyHub account standing" width={560}>
+      <Modal
+        open={open}
+        onCancel={() => setOpen(false)}
+        footer={null}
+        title="Your SkyHub standing"
+        width={560}
+      >
         {!show && strikes.length === 0 ? (
-          <p>You're in good standing — no strikes. Thanks for helping keep SkyHub friendly.</p>
+          <p>Good standing. No strikes.</p>
         ) : (
           <>
             {paused && (
               <p style={{ fontWeight: 600 }}>
-                {paused.permanent ? "Your SkyHub account is permanently suspended." : `Paused until ${fmt(paused.until, true)}.`} You can
-                still search and book trips.
+                {paused.permanent
+                  ? "Your SkyHub account is permanently suspended."
+                  : `Paused until ${fmt(paused.until, true)}.`}{" "}
+                You can still search and book trips.
               </p>
             )}
             <p style={{ opacity: 0.75 }}>
-              Active strikes: <strong>{activeStrikes}</strong>. Each strike lasts 90 days. The next ones lead to: 24-hour pause, 7 days, 30
-              days, then a permanent suspension.
+              Active strikes: <strong>{activeStrikes}</strong>. Each lasts 90
+              days. Next: a 24-hour pause, then 7 days, 30 days, then permanent
+              suspension.
             </p>
             <div style={{ display: "grid", gap: 10 }}>
               {strikes.map((s) => (
@@ -158,21 +189,49 @@ export default function SkyHubStanding({ signedIn }) {
                     opacity: s.active ? 1 : 0.6,
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
                     <strong>{s.reasonLabel}</strong>
-                    <span style={{ fontSize: 12, opacity: 0.7 }}>{fmt(s.at)}</span>
+                    <span style={{ fontSize: 12, opacity: 0.7 }}>
+                      {fmt(s.at)}
+                    </span>
                   </div>
                   <div style={{ fontSize: 13, marginTop: 2 }}>
                     {ACTION_TEXT(s)}
                     {s.severity === "severe" ? " · serious violation" : ""}
-                    {s.voided ? " · removed on appeal" : s.active ? ` · expires ${fmt(s.expiresAt)}` : " · expired"}
+                    {s.voided
+                      ? " · removed on appeal"
+                      : s.active
+                      ? ` · expires ${fmt(s.expiresAt)}`
+                      : " · expired"}
                   </div>
-                  {s.snippet && <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>“{s.snippet}”</div>}
-                  {s.note && <div style={{ fontSize: 13, marginTop: 6 }}>Note from Skyrio: {s.note}</div>}
-                  {s.appeal.status === "pending" && <div style={{ fontSize: 13, marginTop: 6, color: "#d9620f" }}>Appeal under review</div>}
+                  {s.snippet && (
+                    <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>
+                      “{s.snippet}”
+                    </div>
+                  )}
+                  {s.note && (
+                    <div style={{ fontSize: 13, marginTop: 6 }}>
+                      Note from Skyrio: {s.note}
+                    </div>
+                  )}
+                  {s.appeal.status === "pending" && (
+                    <div
+                      style={{ fontSize: 13, marginTop: 6, color: "#d9620f" }}
+                    >
+                      Appeal under review
+                    </div>
+                  )}
                   {s.appeal.status === "denied" && (
                     <div style={{ fontSize: 13, marginTop: 6 }}>
-                      Appeal denied{s.appeal.response ? `: ${s.appeal.response}` : ""}
+                      Appeal denied
+                      {s.appeal.response ? `: ${s.appeal.response}` : ""}
                     </div>
                   )}
                   {s.canAppeal &&
@@ -184,17 +243,28 @@ export default function SkyHubStanding({ signedIn }) {
                           onChange={(e) => setAppealText(e.target.value)}
                           rows={3}
                           maxLength={1000}
-                          placeholder="Tell us why you think this was a mistake."
+                          placeholder="Why was this a mistake?"
                         />
                         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                          <Button type="primary" loading={sending} disabled={appealText.trim().length < 10} onClick={sendAppeal}>
+                          <Button
+                            type="primary"
+                            loading={sending}
+                            disabled={appealText.trim().length < 10}
+                            onClick={sendAppeal}
+                          >
                             Send appeal
                           </Button>
-                          <Button onClick={() => setAppealing(null)}>Cancel</Button>
+                          <Button onClick={() => setAppealing(null)}>
+                            Cancel
+                          </Button>
                         </div>
                       </div>
                     ) : (
-                      <Button size="small" style={{ marginTop: 8 }} onClick={() => setAppealing(s)}>
+                      <Button
+                        size="small"
+                        style={{ marginTop: 8 }}
+                        onClick={() => setAppealing(s)}
+                      >
                         Appeal this
                       </Button>
                     ))}

@@ -45,6 +45,10 @@ import {
   PenLine,
   Sparkles,
   Check,
+  Palmtree,
+  Landmark,
+  Mountain,
+  Globe,
 } from "lucide-react";
 import AirportInput from "@/pages/booking/AirportInput";
 import { io } from "socket.io-client";
@@ -126,23 +130,23 @@ function safeEmailPrefix(email) {
 const LOCK_PERKS = [
   {
     icon: <Star size={16} />,
-    text: "Earn XP on every flight, hotel, and activity",
+    text: "Earn XP on flights, hotels and activities",
   },
   {
     icon: <Award size={16} />,
-    text: "Unlock badges and level up your traveller rank",
+    text: "Unlock badges and rank up",
   },
   {
     icon: <LucideTag size={16} />,
-    text: "Spend XP on rewards in Passport Rewards",
+    text: "Spend XP in Passport Rewards",
   },
   {
     icon: <MapPin size={16} />,
-    text: "Save trips and build your personal travel map",
+    text: "Save trips and build your travel map",
   },
   {
     icon: <Plane size={16} />,
-    text: "Get personalised AI trip recommendations",
+    text: "Get trip ideas from Atlas",
   },
 ];
 
@@ -152,7 +156,7 @@ const PREVIEW_STATS = [
   { val: "Voyager", label: "Rank" },
 ];
 
-const PREVIEW_BADGES = ["🏖️", "🗼", "🏔️", "🌏", "✈️", "🎌"];
+const PREVIEW_BADGES = [Palmtree, Landmark, Mountain, Globe, Plane, Camera];
 
 // ═════════════════════════════════════════════════════════════
 // Edit Profile — Skyrio look (dark glass, orange→purple stripe,
@@ -537,8 +541,8 @@ function EditProfileSheet({
             ) : null}
             <span className={`ep-help${fromDiscover ? " is-hint" : ""}`}>
               {fromDiscover
-                ? "Filled in from the airport you picked on Discover. Save to add it to your passport."
-                : "Flight searches start here. You can still fly from anywhere."}
+                ? "From the airport you picked on Discover. Save to keep it."
+                : "Flight searches start here. You can still pick any airport."}
             </span>
           </div>
 
@@ -594,9 +598,7 @@ function EditProfileSheet({
               })}
             </div>
             {vibes.length >= MAX_VIBES && (
-              <span className="ep-help">
-                That's 5. Tap one you picked to swap it out.
-              </span>
+              <span className="ep-help">Max 5. Tap one to swap it.</span>
             )}
           </div>
         </div>
@@ -672,9 +674,7 @@ function PassportLocked() {
           <div className="plk-inner">
             <div className="plk-hero">
               <h1 className="plk-title">Digital Passport</h1>
-              <p className="plk-sub">
-                Your travel identity — XP, badges, and exclusive rewards.
-              </p>
+              <p className="plk-sub">Your XP, badges and rewards.</p>
             </div>
             <div className="plk-layout">
               <div className="plk-preview" aria-hidden="true">
@@ -692,9 +692,9 @@ function PassportLocked() {
                     ))}
                   </div>
                   <div className="plk-blur-badges">
-                    {PREVIEW_BADGES.map((b, i) => (
+                    {PREVIEW_BADGES.map((B, i) => (
                       <div key={i} className="plk-blur-badge">
-                        {b}
+                        <B size={18} aria-hidden="true" />
                       </div>
                     ))}
                   </div>
@@ -705,8 +705,7 @@ function PassportLocked() {
                   </div>
                   <h2 className="plk-lock-title">Your passport awaits</h2>
                   <p className="plk-lock-sub">
-                    Create a free account to unlock your stats, badges, and
-                    travel history.
+                    Sign up free to see your stats, badges and trips.
                   </p>
                 </div>
               </div>
@@ -727,17 +726,17 @@ function PassportLocked() {
                     })
                   }
                 >
-                  Create your boarding pass — it's free
+                  Sign up free
                 </button>
                 <p className="plk-signin">
-                  Already a member?{" "}
+                  Have an account?{" "}
                   <button
                     className="plk-signin-link"
                     onClick={() =>
                       navigate("/login", { state: { redirectTo: "/passport" } })
                     }
                   >
-                    Sign in
+                    Log in
                   </button>
                 </p>
               </div>
@@ -806,11 +805,16 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
 
   const REWARDS = [
     { Icon: SharePlaneIcon, label: "You share your link", xp: "+10 XP" },
-    { Icon: ShareGlobeIcon, label: "Friend signs up", xp: "+50 XP to you" },
+    // Same numbers as backend/routes/api/referral.routes.js
     {
       Icon: ShareGiftIcon,
-      label: "Friend's welcome bonus",
-      xp: "+25 XP to them",
+      label: "Friend joins with your link",
+      xp: "+50 XP to them",
+    },
+    {
+      Icon: ShareGlobeIcon,
+      label: "Friend books their first trip",
+      xp: "+150 XP to you",
     },
   ];
 
@@ -833,7 +837,7 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
     try {
       await navigator.share({
         title: `${user?.username}'s Skyrio Passport`,
-        text: "Join me on Skyrio and earn bonus XP! ✈️",
+        text: "Join me on Skyrio. You get +50 XP when you sign up.",
         url: referralUrl,
       });
       fetch(apiUrl("/api/profile/share-xp"), {
@@ -911,7 +915,7 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
                 marginTop: 2,
               }}
             >
-              Earn XP every time someone joins through your link
+              Earn XP when friends join and book.
             </div>
           </div>
           <button
@@ -930,7 +934,7 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
               fontSize: 16,
             }}
           >
-            ✕
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
 
@@ -1050,7 +1054,15 @@ function PassportShareModal({ user, token, apiUrl, onClose }) {
               transition: "all 0.18s",
             }}
           >
-            {copied ? "✓ Copied!" : "Copy"}
+            {copied ? (
+              <span
+                style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                <Check size={13} aria-hidden="true" /> Copied
+              </span>
+            ) : (
+              "Copy"
+            )}
           </button>
         </div>
 
@@ -1194,7 +1206,7 @@ export default function DigitalPassportPage() {
 
   useEffect(() => {
     if (!location?.state?.fromAuth) return;
-    message.success(`Welcome aboard${user?.name ? `, ${user.name}` : ""} ✈️`);
+    message.success(`Welcome aboard${user?.name ? `, ${user.name}` : ""}`);
     try {
       window.history.replaceState({}, document.title);
     } catch {}
@@ -1443,7 +1455,9 @@ export default function DigitalPassportPage() {
       }
       if (!shared) {
         if (await copyText(url)) {
-          message.success("Referral link copied! +10 XP when someone joins ✈️");
+          message.success(
+            "Link copied. +150 XP when a friend books their first trip."
+          );
         } else {
           message.error("Couldn't copy the link. Try again.");
           return;
@@ -1495,7 +1509,7 @@ export default function DigitalPassportPage() {
           })
         );
       }
-      message.success("Avatar updated ✓");
+      message.success("Photo updated.");
     } catch (err) {
       message.error(err.message);
     } finally {
@@ -1556,7 +1570,7 @@ export default function DigitalPassportPage() {
       setEditOpen(false);
     } catch (err) {
       // Stay open so nothing typed is lost.
-      message.error(err.message || "Couldn't save. Please try again.");
+      message.error(err.message || "Couldn't save. Try again.");
     } finally {
       setEditSaving(false);
     }
@@ -1584,9 +1598,7 @@ export default function DigitalPassportPage() {
       navigate("/", { replace: true });
       message.success("Your account has been deleted.");
     } catch (err) {
-      message.error(
-        err.message || "Could not delete account. Please try again."
-      );
+      message.error(err.message || "Couldn't delete your account. Try again.");
     } finally {
       setDeleteLoading(false);
     }
@@ -1701,7 +1713,7 @@ export default function DigitalPassportPage() {
                             textAlign: "center",
                           }}
                         >
-                          Tap "Profile Music" to update your song
+                          Tap Music to change your song.
                         </div>
                       )}
                     </Card>
@@ -1756,7 +1768,7 @@ export default function DigitalPassportPage() {
                           repeated here. */}
                     </div>
                     <Text className="pp-credentialHint">
-                      This passport unlocks stamps, borders, and rewards.
+                      Unlock stamps, borders and rewards.
                     </Text>
                     <Button
                       className="pp-upgradeBtn"
@@ -1868,7 +1880,7 @@ export default function DigitalPassportPage() {
               color: "rgba(255,255,255,0.75)",
             }}
           >
-            Are you sure you want to delete your Skyrio account?
+            Delete your Skyrio account?
           </p>
           <div
             style={{
@@ -1910,7 +1922,7 @@ export default function DigitalPassportPage() {
                 color: "rgba(255,255,255,0.45)",
               }}
             >
-              This action is permanent and cannot be undone.
+              This can't be undone.
             </div>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -2011,7 +2023,7 @@ export default function DigitalPassportPage() {
               textAlign: "center",
             }}
           >
-            This will immediately log you out and delete all your data.
+            You'll be logged out and all your data deleted.
           </div>
         </div>
       </Modal>

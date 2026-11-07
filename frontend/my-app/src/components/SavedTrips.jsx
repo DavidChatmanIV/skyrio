@@ -15,10 +15,10 @@ import { apiUrl } from "@/lib/api";
 /* ── Styles (single drop-in file) ── */
 const ST_CSS = `
 .svt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-.svt-card { display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: rgba(16,11,34,0.78); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 14px 40px rgba(0,0,0,0.28); transition: border-color .18s, transform .18s; }
+.svt-card { display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: linear-gradient(160deg, rgba(74,40,112,0.6), rgba(34,18,62,0.7)); border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 14px 40px rgba(0,0,0,0.28); transition: border-color .18s, transform .18s; }
 .svt-card:hover { border-color: rgba(255,138,42,0.45); transform: translateY(-2px); }
 .svt-media { position: relative; height: 130px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.85); background: linear-gradient(135deg, rgba(255,138,42,.35), rgba(139,108,255,.4)); background-size: cover; background-position: center; }
-.svt-price { position: absolute; left: 12px; bottom: 12px; padding: 5px 10px; border-radius: 999px; background: rgba(14,7,22,0.82); color: #ffb347; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.svt-price { position: absolute; left: 12px; bottom: 12px; padding: 5px 10px; border-radius: 999px; background: rgba(42,22,80,0.88); color: #ffb347; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .svt-body { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 12px; flex: 1; }
 .svt-title { font-size: 15px; font-weight: 800; color: #fff; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .svt-meta { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: rgba(255,255,255,0.75); }
@@ -140,7 +140,7 @@ export default function SavedTrips() {
         <div className="svt-empty">
           <Heart size={28} aria-hidden="true" />
           <b>Nothing saved yet</b>
-          Tap the heart on a flight or hotel to keep it here for later.
+          Tap the heart on a flight or hotel to save it.
         </div>
       ) : (
         <div className="svt-grid">

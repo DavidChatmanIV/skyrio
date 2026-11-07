@@ -576,8 +576,8 @@ export default function PassportRewards({
                   <div>
                     <strong>Earn</strong>
                     <p>
-                      Book trips, join challenges, invite friends and post on
-                      SkyHub. Booking trips earns the most.
+                      Book trips, do challenges, invite friends and post on
+                      SkyHub. Booking earns the most.
                     </p>
                   </div>
                 </li>
@@ -586,9 +586,8 @@ export default function PassportRewards({
                   <div>
                     <strong>Rank up</strong>
                     <p>
-                      Every XP you earn adds to your rank, and spending never
-                      lowers it. Only a cancelled booking or a removed post
-                      takes XP back.
+                      Earned XP builds your rank. Spending never lowers it.
+                      Cancelled bookings and removed posts take XP back.
                     </p>
                   </div>
                 </li>
@@ -597,8 +596,7 @@ export default function PassportRewards({
                   <div>
                     <strong>Spend</strong>
                     <p>
-                      Use your spendable XP on the boosts, badges, perks and
-                      drops below. Spending lowers spendable XP, not your rank.
+                      Use spendable XP on the boosts, badges and perks below.
                     </p>
                   </div>
                 </li>
@@ -633,9 +631,9 @@ export default function PassportRewards({
                     </li>
                   </ul>
                   <p className="pr-how-note">
-                    Nonstop flights earn the most. Booking XP shows as pending,
-                    then counts {XP_EARN.bookingHoldHours} hours after your trip
-                    starts. A cancelled booking earns no XP.
+                    Nonstop earns the most. Booking XP is pending until{" "}
+                    {XP_EARN.bookingHoldHours} hours after your trip starts.
+                    Cancelled bookings earn none.
                   </p>
                 </section>
 
@@ -647,9 +645,7 @@ export default function PassportRewards({
                   <div className="pr-cant">
                     <Ban size={16} aria-hidden="true" />
                     <span>
-                      <b>XP isn't cash.</b> It can't be used to pay for flights
-                      or hotels right now. Using XP toward trips is something we
-                      want to add. If it happens, we'll announce it.
+                      <b>XP isn't cash.</b> It can't pay for flights or hotels.
                     </span>
                   </div>
                 </section>
@@ -695,8 +691,8 @@ export default function PassportRewards({
                   </ul>
                   <p className="pr-how-note">
                     {hasAnyRankPerks()
-                      ? "Higher ranks unlock more of Skyrio. Anything marked coming soon isn't available yet."
-                      : "Perks that unlock as you rank up are on the way. When we add one, it'll show here first. The XP you earn now still counts toward your rank."}
+                      ? "Anything marked coming soon isn't available yet."
+                      : "Rank perks are on the way. XP you earn now still counts."}
                   </p>
                 </section>
               </div>
@@ -734,7 +730,7 @@ export default function PassportRewards({
             ) : challenges.length === 0 ? (
               <EmptyState
                 title="No challenges running right now"
-                text="New challenges drop regularly — check back soon."
+                text="Check back soon."
                 onAction={() => setTab("all")}
                 actionLabel="Browse rewards"
               />
@@ -778,7 +774,7 @@ export default function PassportRewards({
             {visibleItems.length === 0 ? (
               <EmptyState
                 title="Nothing here yet"
-                text="New rewards drop regularly — keep earning XP so you're ready."
+                text="Keep earning XP for the next drop."
                 onAction={() => setTab("all")}
                 actionLabel="See all rewards"
               />
@@ -896,8 +892,7 @@ function RewardTicket({ item, featured = false, pending, onRedeem }) {
               <i style={{ width: `${item.pct}%` }} />
             </div>
             <span>
-              {fmt(item.cost - item.shortfall)} / {fmt(item.cost)} XP · earn{" "}
-              {fmt(item.shortfall)} more to unlock
+              {fmt(item.cost - item.shortfall)} / {fmt(item.cost)} XP
             </span>
           </div>
         )}
@@ -1035,7 +1030,7 @@ function RedeemSheet({
         <span className="pr-seg-label">Redemption confirmed</span>
         <h3 className="pr-sheet-title">{item.title}</h3>
         <p className="pr-sheet-text">
-          {item.howToUse || "It's been added to your Skyrio account."}
+          {item.howToUse || "Added to your account."}
         </p>
         <ul className="pr-math">
           <li>

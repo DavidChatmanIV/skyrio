@@ -291,7 +291,7 @@ function RoomLineItem({ room, index, total }) {
                       "MMM D, h:mm A"
                     )}`
                   : "Refundable rate"
-                : "Non-refundable — can't be cancelled for a refund"}
+                : "Non-refundable"}
               <span style={{ color: "rgba(255,255,255,0.55)" }}>
                 {" "}
                 · set by the hotel
@@ -379,7 +379,7 @@ function RoomGuestField({
                 marginTop: 8,
               }}
             >
-              The name must match the ID they'll show at check-in.
+              Name must match their ID.
             </div>
           </div>
           <button
@@ -421,7 +421,7 @@ function RoomGuestField({
           marginBottom: 10,
         }}
       >
-        The name must match the ID they'll show at check-in
+        Name must match their ID
       </div>
       {savedOptions.length > 0 && (
         <div
@@ -518,14 +518,12 @@ function AlsoStaying({ room, index, value, onChange }) {
       </div>
       {maxOthers === 0 ? (
         <div className="sk-also-note">
-          This room was priced for 1 guest. To share it, search again with 2 or
-          more travelers so the price includes everyone.
+          Priced for 1 guest. Search with 2+ travelers to share it.
         </div>
       ) : (
         <>
           <div className="sk-also-note">
-            The room is booked under the guest above. We send the other names to
-            the hotel as a note and add them to your trip.
+            We'll pass these names to the hotel.
           </div>
           {others.map((n, j) => (
             <div className="sk-also-row" key={j}>
@@ -819,8 +817,7 @@ function PaymentForm({
             marginBottom: 12,
           }}
         >
-          The card form didn't load. Check your connection and refresh the page
-          — your room details stay the same.
+          Card form didn't load. Refresh the page; your details stay.
         </div>
       )}
       {error && (
@@ -868,7 +865,7 @@ function PaymentForm({
           textAlign: "center",
         }}
       >
-        Your card is only charged once the hotel confirms your room.
+        Charged only after the hotel confirms.
       </div>
     </div>
   );
@@ -1030,16 +1027,16 @@ function ShareRoomPanel({ groupId, parts, room, guest, contactEmail }) {
           .map((t) => String(t.name || "Friend").split(" ")[0]);
         const share = people >= 2 ? `$${usd2(each)}` : "your share";
         const steps = [
-          "Skyrio checks the price with the hotel and sets up the shared room.",
-          `You hold your part (${share}) on your card — we take you there next.`,
+          "We confirm the price with the hotel.",
+          `You hold your part (${share}).`,
           others.length
             ? `${others.join(" & ")} ${
                 others.length > 1 ? "each hold their" : "holds their"
-              } part from the trip page. We notify them.`
-            : "Everyone sharing holds their part from the trip page.",
-          `The room is booked once everyone's in${
+              } part. We'll notify them.`
+            : "Everyone holds their part from the trip page.",
+          `Booked once everyone's in${
             parts?.holdHours ? ` (within ${parts.holdHours} hours)` : ""
-          }. Nobody is charged before that — if time runs out, every hold is released.`,
+          }. No charge before that.`,
         ];
         return (
           <ol
@@ -1150,8 +1147,7 @@ function RoomUnavailableNotice({ rooms, onFindAnother, onClose }) {
             marginBottom: 22,
           }}
         >
-          The hotel no longer has it at this price, so it can't be booked. Your
-          card was not charged.
+          Gone at this price. Your card wasn't charged.
         </div>
         <PayButton onClick={onFindAnother}>Find another room →</PayButton>
         <Button
@@ -1410,8 +1406,8 @@ export default function HotelCheckout({
         </Title>
         <Text style={{ color: "rgba(255,255,255,0.55)" }}>
           {rooms.length > 1
-            ? "Booking multiple rooms together — perfect for family or friends joining the trip."
-            : "Review the details below before paying."}
+            ? "Booking rooms together."
+            : "Check the details, then pay."}
         </Text>
 
         <style>{HC_CSS}</style>
@@ -1501,10 +1497,8 @@ export default function HotelCheckout({
               >
                 <Info size={15} style={{ flexShrink: 0, marginTop: 2 }} />
                 <span>
-                  <strong>You're booking as a guest.</strong> Your confirmation
-                  goes to the email below. Create a Skyrio account later with
-                  that same email to see this stay in My Trips and earn Passport
-                  XP for it.
+                  <strong>Booking as a guest.</strong> Sign up later with this
+                  email to see it in My Trips and earn XP.
                 </span>
               </div>
             )}
@@ -1543,7 +1537,7 @@ export default function HotelCheckout({
               />
               {emailBad && (
                 <div role="alert" style={ERR}>
-                  Enter a valid email — your confirmation goes here
+                  Enter a valid email for your confirmation
                 </div>
               )}
             </label>
@@ -1604,7 +1598,7 @@ export default function HotelCheckout({
                     on: shareMode,
                     set: true,
                     title: "Share with the group",
-                    sub: "Split it — everyone holds their own share.",
+                    sub: "Everyone pays their share.",
                   },
                 ].map((o) => (
                   <button

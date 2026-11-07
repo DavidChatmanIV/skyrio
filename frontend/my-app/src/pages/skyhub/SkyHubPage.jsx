@@ -63,7 +63,7 @@ function uploadErrorMessage(status, data) {
   if (status === 413) return "That photo is too large.";
   if (status === 401 || status === 403) return "Log in again to upload photos.";
   if (status === 404) return "Photo upload isn't available right now.";
-  if (status === 429) return "Too many uploads — wait a minute and try again.";
+  if (status === 429) return "Too many uploads. Wait a minute.";
   return "Upload failed.";
 }
 
@@ -124,13 +124,10 @@ const REASON_HINTS = {
 
 // Plain-English reasons a post didn't earn XP (from the anti-cheat service).
 const XP_REASONS = {
-  too_short:
-    "No XP this time: write a little more (or add a photo) to earn XP.",
-  daily_cap:
-    "You've reached today's XP limit for posts. Keep sharing, it resets tomorrow.",
-  cap: "You've reached today's XP limit for posts. Keep sharing, it resets tomorrow.",
-  cap_reached:
-    "You've reached today's XP limit for posts. Keep sharing, it resets tomorrow.",
+  too_short: "No XP yet. Write a bit more or add a photo.",
+  daily_cap: "Daily post XP reached. It resets tomorrow.",
+  cap: "Daily post XP reached. It resets tomorrow.",
+  cap_reached: "Daily post XP reached. It resets tomorrow.",
   duplicate: "You already earned XP for this post.",
   already_awarded: "You already earned XP for this post.",
 };
@@ -599,10 +596,12 @@ export default function SkyHubPage() {
       setLoadingFeed(true);
       const res = await skyFetch("/api/skyhub/feed");
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to load feed");
+      if (!res.ok) throw new Error(data?.message || "Couldn't load SkyHub.");
       setPosts(Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : []);
     } catch (err) {
-      message.error(err.message || "Could not load SkyHub feed.");
+      message.error(
+        err.message || "Couldn't load SkyHub. Refresh to try again."
+      );
     } finally {
       setLoadingFeed(false);
     }
@@ -732,7 +731,7 @@ export default function SkyHubPage() {
     forYou: {
       icon: "globe",
       title: "No posts yet",
-      sub: "Be the first. Share a tip, a question, or a story from a trip.",
+      sub: "Share a tip, a question or a trip story.",
       cta: "Write the first post",
     },
     following: {
@@ -741,39 +740,39 @@ export default function SkyHubPage() {
         ? "You're not following anyone yet"
         : "Log in to see who you follow",
       sub: currentUser
-        ? "Tap Follow next to a traveler's name on any post. Their new posts will show up here."
-        : "Follow travelers to keep up with their posts in one place.",
+        ? "Tap Follow on a post. Their new posts land here."
+        : "Follow travelers to see their posts here.",
       cta: "Browse all posts",
     },
     mine: {
       icon: "edit",
       title: "You haven't posted yet",
-      sub: "Anything you post shows up here so you can find it again.",
+      sub: "Your posts will show up here.",
       cta: "Write a post",
     },
     nearby: nearbyLocal
       ? {
           icon: "pin",
           title: `Nothing near ${localCity.name} yet`,
-          sub: `Know a good spot in or around ${localCity.name}? Post it and add the place so others nearby can find it.`,
+          sub: `Know a spot near ${localCity.name}? Post it and add the place.`,
           cta: `Post about ${localCity.name}`,
         }
       : {
           icon: "globe",
           title: "No place-tagged posts yet",
-          sub: "When you post, add the place. Posts from anywhere in the world show up here.",
+          sub: "Add a place when you post and it shows up here.",
           cta: "Post about a place",
         },
     questions: {
       icon: "chat",
       title: "No questions yet",
-      sub: "Have a travel question? Post it and other travelers can answer.",
+      sub: "Ask one. Other travelers can answer.",
       cta: "Ask a question",
     },
     trips: {
       icon: "plane",
       title: "No trips shared yet",
-      sub: "Share a story from a trip you took. Pick Story on the postcard.",
+      sub: "Pick Story on the postcard to share one.",
       cta: "Share a trip",
     },
   };
@@ -781,7 +780,7 @@ export default function SkyHubPage() {
 
   // One plain sentence per tab: what you're looking at.
   const TAB_HINTS = {
-    forYou: "Everything travelers are posting, newest first.",
+    forYou: "Newest posts first.",
     following: "New posts from travelers you follow.",
     mine: "Only the posts you've shared.",
     nearby: nearbyLocal
@@ -789,10 +788,10 @@ export default function SkyHubPage() {
         ? `Posts about places within ${NEARBY_MILES} miles of ${localCity.name}.`
         : `Posts about places in or around ${localCity.name}.`
       : localCity
-      ? "Posts from places all over the world."
-      : "Posts from places all over the world. Pick your city to see what's close to you.",
-    questions: "Questions travelers are asking. Reply to one to help out.",
-    trips: "Stories travelers have shared from their trips.",
+      ? "Posts from around the world."
+      : "Posts from around the world. Pick your city to see what's near you.",
+    questions: "Questions from travelers. Reply to help.",
+    trips: "Stories from travelers' trips.",
   };
 
   const FEED_TITLES = {
@@ -811,7 +810,7 @@ export default function SkyHubPage() {
       return false;
     }
     if (!composerText.trim() && composerPhotos.length === 0) {
-      message.warning("Write something or add a photo before posting.");
+      message.warning("Add text or a photo first.");
       return false;
     }
     try {
@@ -1101,9 +1100,7 @@ export default function SkyHubPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Could not report post.");
-      message.success(
-        data.message || "Thanks for reporting. Our team will review it."
-      );
+      message.success(data.message || "Thanks. We'll review it.");
       setReportPost(null);
     } catch (err) {
       message.error(err.message);
@@ -1120,7 +1117,7 @@ export default function SkyHubPage() {
       className: "skyhub-modal",
       title: `Block ${post.author}?`,
       content:
-        "You won't see each other's posts or comments on SkyHub, and you'll both be unfollowed. They won't be told. You can unblock anytime.",
+        "You'll stop seeing each other's posts and comments and unfollow each other. They won't be told. Unblock anytime.",
       okText: "Block",
       okButtonProps: { danger: true },
       onOk: async () => {
@@ -1192,8 +1189,7 @@ export default function SkyHubPage() {
               <span className="shPC-accent">postcard.</span>
             </h1>
             <p className="skyhub-pageSubtitle">
-              Tips, photos and questions from Skyrio travelers. Read what others
-              found, or share your own.
+              Tips, photos and questions from Skyrio travelers.
             </p>
             {/* Guests: say plainly what they can and can't do here. */}
             {!currentUser && (
@@ -1231,11 +1227,7 @@ export default function SkyHubPage() {
                   <circle cx="12" cy="12" r="3" />
                 </svg>
                 <span>
-                  <b style={{ color: "#fff" }}>
-                    You&rsquo;re viewing as a guest.
-                  </b>{" "}
-                  You can read every post. To post, comment, like or follow, you
-                  need a free Skyrio account.{" "}
+                  <b style={{ color: "#fff" }}>Browsing as a guest.</b>{" "}
                   <a
                     href="/register?from=skyhub"
                     onClick={(e) => {
@@ -1256,8 +1248,8 @@ export default function SkyHubPage() {
                     style={{ color: "#ffb347", fontWeight: 700 }}
                   >
                     log in
-                  </a>
-                  .
+                  </a>{" "}
+                  to post, like and comment.
                 </span>
               </div>
             )}
@@ -1514,8 +1506,8 @@ export default function SkyHubPage() {
                     >
                       <EmptyIcon type="plane" />
                     </div>
-                    <h3>Loading SkyHub...</h3>
-                    <p>Pulling in the latest travel conversations.</p>
+                    <h3>Loading SkyHub…</h3>
+                    <p>Getting the latest posts.</p>
                   </div>
                 ) : visiblePosts.length ? (
                   visiblePosts.map((post) => (
@@ -1662,8 +1654,7 @@ export default function SkyHubPage() {
         destroyOnHidden
       >
         <p style={{ marginBottom: 12, opacity: 0.75 }}>
-          What's wrong with it? Reports are anonymous — the person won't know it
-          was you.
+          What's wrong? Reports are anonymous.
         </p>
         <Radio.Group
           value={reportReason}

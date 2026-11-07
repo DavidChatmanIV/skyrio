@@ -1029,10 +1029,10 @@ function PackageTray({
       </div>
       <p className="sk-pkg-tray-note">
         {allBooked
-          ? "You're all set. Your flight and hotel are two separate bookings — each has its own confirmation email and cancellation rules, in My Trips."
+          ? "All set. Two bookings, two confirmations, both in My Trips."
           : flight && !flight.booked
-          ? "Your flight and hotel are two separate bookings, each paid on its own. Flight prices can change; we recheck the fare with the airline right before you pay."
-          : "Flight + hotel is paid in 2 steps: first the flight (charged by the airline), then the stay (charged by Skyrio for the hotel). Each gets its own confirmation and cancellation rules."}
+          ? "2 payments: flight first, then hotel. Fare rechecked before you pay."
+          : "2 payments: flight (airline), then hotel. Each has its own confirmation."}
       </p>
     </div>
   );
@@ -1348,14 +1348,12 @@ function FlightsForm({
       // search from a few minutes ago. Say so plainly.
       if (data.stale) {
         antdMessage.info(
-          "Showing results from a few minutes ago — the exact price is confirmed before you pay."
+          "Prices from a few minutes ago. Confirmed before you pay."
         );
       }
 
       if (flights.length === 0) {
-        antdMessage.info(
-          "No flights found for this route — try adjusting dates."
-        );
+        antdMessage.info("No flights found. Try other dates.");
       } else {
         // No number here: the list below counts departure options, which
         // is different from the raw fare count (testers saw 297 vs 27).
@@ -2416,9 +2414,7 @@ function StaysForm({
     if (!qDates[0] || !qDates[1])
       return antdMessage.warning("Select check-in and check-out dates");
     if (!pinned && qRooms > qAdults)
-      return antdMessage.warning(
-        "Each room needs at least one traveler — add travelers or remove a room"
-      );
+      return antdMessage.warning("Each room needs a traveler.");
 
     // Use the exact place whenever we have one: the picked suggestion, or —
     // if they typed a city and hit Search without picking — the suggestion
@@ -2487,7 +2483,7 @@ function StaysForm({
         antdMessage.info(
           place
             ? "No hotels found for that destination."
-            : "No hotels found — pick your city from the suggestions list for an exact match."
+            : "No hotels found. Pick your city from the list."
         );
         onSearch([]);
         return;
@@ -3356,7 +3352,7 @@ function SavedForm() {
     return (
       <div className="sk-search-bar" style={{ justifyContent: "center" }}>
         <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 14 }}>
-          No saved trips yet — hit Save on any result to add one
+          No saved trips yet. Tap Save on a result.
         </Text>
       </div>
     );
@@ -3421,8 +3417,8 @@ function FlightSkeleton({ destCity, fromCode }) {
           fromCode ? "airline" : "hotels"
         } again…`
       : waitedSec >= 20
-      ? `Still searching — ${providers} can be slow to respond. Hang tight…`
-      : "Live prices can take up to a minute to load.";
+      ? `Still searching. ${providers} can be slow.`
+      : "Live prices can take up to a minute.";
   useEffect(() => {
     const iv = setInterval(
       () => setStepIdx((i) => (i + 1) % ATLAS_LOADING_STEPS.length),
@@ -3448,7 +3444,7 @@ function FlightSkeleton({ destCity, fromCode }) {
       </div>
       <div className="sk-search-loading__sub">
         {fromCode && destCity
-          ? `Comparing options for ${fromCode} → ${destCity} based on timing, comfort & value.`
+          ? `Comparing ${fromCode} → ${destCity}…`
           : "Finding the best flights for your trip."}
       </div>
       <div className="sk-search-loading__sub" role="status" aria-live="polite">
@@ -3710,7 +3706,7 @@ function RoomCartBar({
           <p className="sk-roombar-note">
             {full
               ? `That's the most rooms for one trip (${max}).`
-              : "Want a different room too? Keep scrolling and tap Add to trip."}
+              : "Need another room? Tap Add to trip."}
           </p>
         </div>
       )}
@@ -3781,14 +3777,14 @@ const PLAN_MODES = [
   {
     key: "budget",
     Icon: Wallet,
-    title: "Plan on a budget",
+    title: "On a budget",
     sub: "Set a budget, see what fits",
   },
   {
     key: "atlas",
     Icon: Sparkles,
-    title: "Let Atlas plan it",
-    sub: "Tell our AI the trip you want",
+    title: "Ask Atlas",
+    sub: "It plans it for you",
   },
 ];
 function readPlanMode() {
@@ -5209,9 +5205,7 @@ export default function BookingPage() {
             `Found ${data.flights.length} flights to ${prefillData.destination}`
           );
         } else {
-          antdMessage.info(
-            "No flights found for this route — try adjusting dates."
-          );
+          antdMessage.info("No flights found. Try other dates.");
         }
       })
       .catch((err) => {
@@ -5659,8 +5653,8 @@ export default function BookingPage() {
     : tab === "Stays" && hotelResults.length > 0
     ? `${hotelResults.length} stay${hotelResults.length !== 1 ? "s" : ""} found`
     : destCity
-    ? "Ready — hit search to see live prices"
-    : "Add a destination to fill in your pass";
+    ? "Ready. Hit search."
+    : "Add a destination.";
 
   // ── Shortlist pick → open that exact flight / room / activity ──
   // Runs once per pick, as soon as fresh results are in.
@@ -5742,7 +5736,7 @@ export default function BookingPage() {
             ? `${
                 who.charAt(0).toUpperCase() + who.slice(1)
               } suggested room is gone. Other rooms at this hotel are below.`
-            : "There are no rooms left at this hotel for these dates. Try different dates or search for another hotel.",
+            : "No rooms left for these dates. Try other dates or hotels.",
         });
         reportUnavailable(pickedItem);
       }
@@ -5768,7 +5762,7 @@ export default function BookingPage() {
           title: "This activity isn't available for these dates",
           item: pickedItem.activity?.name || "",
           when: "",
-          body: "It isn't showing for your trip dates. Other things to do are below.",
+          body: "Not available on your dates. More ideas below.",
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5834,7 +5828,7 @@ export default function BookingPage() {
         when: sameFlight.departAt
           ? dayjs(sameFlight.departAt).format("ddd, MMM D · h:mm A")
           : "",
-        body: "The airline has no seats left on it at a price we can book. Other flights on the same route and dates are below — look for one that lands around the same time.",
+        body: "Sold out. Similar flights are below.",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -6028,7 +6022,7 @@ export default function BookingPage() {
                 .filter(Boolean)
                 .join(" · "),
               when: fmtWhen(gone),
-              body: "The airline stopped selling this fare after you picked it, so we took it off your list. Your traveler details are saved for the next flight.",
+              body: "That fare sold out. Your traveler details are saved.",
               alternative: alt
                 ? {
                     flight: alt,
@@ -6146,8 +6140,7 @@ export default function BookingPage() {
           }}
         >
           <span>
-            Planning a Sync Together trip — tap “Suggest to group” on anything
-            you like so everyone can vote, or book your own part.
+            Group trip: tap “Suggest to group” to vote, or book your part.
           </span>
           <span style={{ display: "flex", gap: 12 }}>
             <Link
@@ -6224,8 +6217,7 @@ export default function BookingPage() {
               <span className="sk-hero-title-accent">dream vacation.</span>
             </Title>
             <Text className="sk-hero-sub">
-              Search it yourself, plan on a budget, or let Atlas plan it for
-              you.
+              Search, set a budget, or ask Atlas.
             </Text>
           </div>
 
@@ -6287,8 +6279,7 @@ export default function BookingPage() {
                   <div className="sk-atlas-hint">
                     <Sparkles size={16} aria-hidden="true" />
                     <span>
-                      Tell Atlas where, when and your budget. It finds flights
-                      and hotels and opens checkout for you.
+                      Tell Atlas where, when and your budget. It does the rest.
                     </span>
                     <button
                       type="button"
@@ -6703,10 +6694,10 @@ export default function BookingPage() {
                           Number.isFinite(Number(priceWatchRoute?.price))
                             ? ` from $${wholeUsd(priceWatchRoute.price)}`
                             : ""
-                        } — we'll alert you if it drops.`
+                        }. We'll alert you if it drops.`
                       : priceWatchRoute
-                      ? `Get an alert if ${priceWatchRoute.from} → ${priceWatchRoute.to} drops below today's lowest price.`
-                      : "Search a route, then turn on price alerts."}
+                      ? `Alert me if ${priceWatchRoute.from} → ${priceWatchRoute.to} gets cheaper.`
+                      : "Search a route to watch its price."}
                   </div>
                 </div>
 
@@ -6729,7 +6720,7 @@ export default function BookingPage() {
                   ? isSearching
                     ? `Searching hotels in ${destCity || "your destination"}…`
                     : hotelResults.length > 0
-                    ? `Sorted by price · ${destCity} · Refund terms are set by each hotel`
+                    ? `Cheapest first · ${destCity} · Refunds set by each hotel`
                     : "Search above to find hotels."
                   : tab === "Excursions"
                   ? isSearching
@@ -6756,7 +6747,7 @@ export default function BookingPage() {
                         : ""
                     }`
                   : flightResults.length > 0 && flightDisplayCount === 0
-                  ? "Try relaxing your filters to see more results"
+                  ? "Try fewer filters."
                   : "Search above to find flights."}
               </div>
               {tab === "Flights" &&
@@ -8010,7 +8001,7 @@ export default function BookingPage() {
                       color: "rgba(255,255,255,0.38)",
                     }}
                   >
-                    Select airports and dates above to search live flights
+                    Pick where and when above.
                   </div>
                 </div>
               )}
@@ -8045,7 +8036,7 @@ export default function BookingPage() {
                     color: "rgba(255,255,255,0.38)",
                   }}
                 >
-                  Enter a destination and dates above to search live hotel rates
+                  Pick a city and dates above.
                 </div>
               </div>
             )}

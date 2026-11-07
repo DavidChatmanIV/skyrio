@@ -9,6 +9,9 @@
 // Then the features that set Skyrio apart: Sync Together, Passport & XP,
 // SkyHub, and easy manage/cancel.
 //
+// Copy rule (from testers: "people don't read"): headlines 3–6 words, one
+// short line under each, buttons that say what happens.
+//
 // The page follows the time of day (the visitor's own clock): morning,
 // afternoon, evening and night each get their own sky tint, sun/moon,
 // greeting and Atlas ideas. It checks again every minute, so it changes
@@ -54,45 +57,37 @@ const TIMES = {
     hours: "5am–noon",
     Icon: Sunrise,
     hello: "Good morning",
-    line: "Fresh day, fresh fares. A good time to plan the weekend.",
-    ideas: [
-      "Plan a weekend getaway for me",
-      "Find a cheap flight this month",
-      "Somewhere I can fly to in under 3 hours",
-    ],
+    line: "Fresh day, fresh fares.",
+    ideas: ["Weekend getaway", "Cheap flight this month", "Under 3 hours away"],
   },
   afternoon: {
     hours: "noon–5pm",
     Icon: Sun,
     hello: "Good afternoon",
-    line: "Daydreaming at your desk? Let's turn it into a trip.",
+    line: "Daydreaming? Make it a trip.",
     ideas: [
-      "Where is warm and sunny right now?",
-      "Beach trip for under $600",
-      "City break with great food",
+      "Somewhere warm now",
+      "Beach trip under $600",
+      "City break, great food",
     ],
   },
   evening: {
     hours: "5pm–9pm",
     Icon: Sunset,
     hello: "Good evening",
-    line: "Golden hour is for planning trips with friends.",
+    line: "Golden hour. Plan with friends.",
     ideas: [
-      "Plan a group trip with my friends",
-      "Last-minute trip this weekend",
-      "Romantic getaway for two",
+      "Group trip with friends",
+      "Last-minute weekend",
+      "Getaway for two",
     ],
   },
   night: {
     hours: "9pm–5am",
     Icon: Moon,
     hello: "Up late",
-    line: "Dream tonight, book tomorrow. Atlas is up whenever you are.",
-    ideas: [
-      "Red-eye flights for my next trip",
-      "My dream trip for next year",
-      "Somewhere quiet to recharge",
-    ],
+    line: "Dream tonight. Book tomorrow.",
+    ideas: ["Red-eye flights", "Dream trip next year", "Somewhere quiet"],
   },
 };
 function timeOfDay(date = new Date()) {
@@ -119,23 +114,23 @@ const NEW_THINGS = [
   {
     Icon: UserCheck,
     title: "Book as a guest",
-    text: "No account needed to book a flight or hotel.",
+    text: "No account needed.",
   },
   {
     Icon: Armchair,
     title: "Pick your seat",
-    text: "On flights where the airline offers it, choose your seat before you pay.",
+    text: "Choose it before you pay.",
   },
   {
     Icon: FindIcon,
     title: "Find my booking",
-    text: "Email + confirmation code opens your trip, ready to view or cancel.",
+    text: "Email + code. View or cancel.",
     to: "/find-booking",
   },
   {
     Icon: MessageSquareHeart,
     title: "Tell us anything",
-    text: "Feedback and reviews, with or without an account. We read every one.",
+    text: "We read every message.",
   },
 ];
 
@@ -350,21 +345,21 @@ const PATHS = [
     key: "search",
     Icon: Search,
     title: "Search myself",
-    text: "Pick your dates and compare flights and hotels side by side.",
-    go: "Search flights & stays",
+    text: "Compare flights and hotels.",
+    go: "Search",
   },
   {
     key: "budget",
     Icon: Wallet,
     title: "Plan on a budget",
-    text: "Set what you want to spend and see only the trips that fit.",
-    go: "Set my budget",
+    text: "Set a budget. See what fits.",
+    go: "Set budget",
   },
   {
     key: "atlas",
     Icon: Sparkles,
     title: "Let Atlas plan it",
-    text: "Tell our AI the trip you want in your own words. It finds the options and books them with you.",
+    text: "Say it in your words. Atlas does the rest.",
     go: "Ask Atlas",
   },
 ];
@@ -428,8 +423,7 @@ export default function LandingPage() {
             Plan smarter. <em>Travel better.</em>
           </h1>
           <p className="lp-sub">
-            Book flights and hotels, plan group trips where everyone pays their
-            own share, and earn XP with a free account, all in one place.
+            Flights, hotels and group trips. All in one place.
           </p>
 
           <form className="lp-ask" onSubmit={ask} role="search">
@@ -472,11 +466,9 @@ export default function LandingPage() {
           </div>
           <div className="lp-timeline">{T.line}</div>
           <div className="lp-hint">
-            Or{" "}
             <Link to="/booking" style={{ color: "#ffb347", fontWeight: 700 }}>
-              search flights and hotels yourself
+              Or search yourself →
             </Link>
-            .
           </div>
 
           <div className="lp-trust">
@@ -484,12 +476,11 @@ export default function LandingPage() {
               <ShieldCheck size={15} aria-hidden="true" /> Secure checkout
             </span>
             <span>
-              <CalendarX2 size={15} aria-hidden="true" /> See your refund
-              estimate before you cancel
+              <CalendarX2 size={15} aria-hidden="true" /> Refund estimate before
+              you cancel
             </span>
             <span>
-              <Users size={15} aria-hidden="true" /> Book with or without an
-              account
+              <Users size={15} aria-hidden="true" /> No account needed
             </span>
           </div>
 
@@ -526,9 +517,9 @@ export default function LandingPage() {
       {/* ── Three ways to plan ── */}
       <section className="lp-section" aria-labelledby="lp-paths-title">
         <div className="lp-wrap">
-          <div className="lp-label">Start your trip</div>
+          <div className="lp-label">Start here</div>
           <h2 className="lp-h2" id="lp-paths-title">
-            Three ways to plan. Pick yours.
+            Three ways to plan.
           </h2>
           <div className="lp-paths">
             {PATHS.map(({ key, Icon, title, text, go }) => (
@@ -561,20 +552,20 @@ export default function LandingPage() {
                 <Users size={13} aria-hidden="true" /> Group trips
               </span>
               <h2 className="lp-h2" id="lp-sync-title">
-                Sync Together: plan with friends, pay your own share.
+                Plan with friends. Pay your own share.
               </h2>
               <ul className="lp-sync__list">
                 <li>
                   <ArrowRight size={16} aria-hidden="true" />
-                  Invite friends with one link. They can join from any phone.
+                  Invite with one link.
                 </li>
                 <li>
                   <ArrowRight size={16} aria-hidden="true" />
-                  Pick flights and a place to stay together.
+                  Pick flights and a stay together.
                 </li>
                 <li>
                   <ArrowRight size={16} aria-hidden="true" />
-                  Everyone pays their own part. No chasing people for money.
+                  Everyone pays their part. No chasing money.
                 </li>
               </ul>
               <div
@@ -620,16 +611,13 @@ export default function LandingPage() {
         <div className="lp-wrap">
           <div className="lp-label">Why Skyrio</div>
           <h2 className="lp-h2" id="lp-feats-title">
-            More than a booking site.
+            More than booking.
           </h2>
           <div className="lp-feats">
             <div className="lp-feat">
               <Award size={24} aria-hidden="true" />
               <h3>Digital Passport &amp; XP</h3>
-              <p>
-                Every trip earns XP and stamps. Climb the ranks and spend XP on
-                rewards.
-              </p>
+              <p>Earn XP and stamps every trip.</p>
               <Link to="/passport">
                 {isAuthed ? "Open my Passport" : "See the Passport"}{" "}
                 <ArrowRight size={14} aria-hidden="true" />
@@ -638,10 +626,7 @@ export default function LandingPage() {
             <div className="lp-feat">
               <Globe2 size={24} aria-hidden="true" />
               <h3>SkyHub</h3>
-              <p>
-                Real trips from real travelers. Get ideas, share your own and
-                find people going where you are.
-              </p>
+              <p>Real tips from real travelers.</p>
               <Link to="/skyhub">
                 Explore SkyHub <ArrowRight size={14} aria-hidden="true" />
               </Link>
@@ -649,10 +634,7 @@ export default function LandingPage() {
             <div className="lp-feat">
               <CalendarX2 size={24} aria-hidden="true" />
               <h3>Change of plans? Easy.</h3>
-              <p>
-                Cancel a flight or hotel in a few taps. You see what you can
-                expect back before anything is cancelled.
-              </p>
+              <p>Cancel in a few taps. See your refund first.</p>
               <Link to={isAuthed ? "/saved-trips" : "/find-booking"}>
                 {isAuthed ? "Go to My trips" : "Find my booking"}{" "}
                 <ArrowRight size={14} aria-hidden="true" />
@@ -667,32 +649,23 @@ export default function LandingPage() {
         <div className="lp-wrap">
           <div className="lp-label">How it works</div>
           <h2 className="lp-h2" id="lp-steps-title">
-            Booking with Skyrio, step by step.
+            Book in 3 steps.
           </h2>
           <div className="lp-steps">
             <div className="lp-step">
               <span className="lp-step__n">1</span>
-              <h3>Find a flight or hotel</h3>
-              <p>
-                Search yourself, set a budget, or tell Atlas what you&apos;re
-                looking for. Prices shown are for your number of travelers.
-              </p>
+              <h3>Find it</h3>
+              <p>Search, set a budget or ask Atlas. Prices cover everyone.</p>
             </div>
             <div className="lp-step">
               <span className="lp-step__n">2</span>
-              <h3>Book and pay securely</h3>
-              <p>
-                Add traveler details, pick a seat when the airline offers it,
-                then pay. Your confirmation and booking code arrive by email.
-              </p>
+              <h3>Book it</h3>
+              <p>Add travelers, pick seats, pay. Confirmation by email.</p>
             </div>
             <div className="lp-step">
               <span className="lp-step__n">3</span>
-              <h3>Manage it anytime</h3>
-              <p>
-                View or cancel from My trips, or from Find my booking if you
-                booked as a guest. Check in with the airline before you fly.
-              </p>
+              <h3>Manage it</h3>
+              <p>View or cancel anytime. Check in with the airline.</p>
             </div>
           </div>
         </div>
@@ -706,8 +679,8 @@ export default function LandingPage() {
           </h2>
           <p className="lp-lead" style={{ margin: "12px auto 0" }}>
             {isAuthed
-              ? "Book your next flight or hotel, or let Atlas plan it for you."
-              : "Create a free account to earn XP and plan group trips, or book as a guest. No account needed."}
+              ? "Book it yourself or ask Atlas."
+              : "Book as a guest, or join free to earn XP."}
           </p>
           <div className="lp-cta__btns">
             <Link to="/booking" className="lp-btn lp-btn--primary">
@@ -718,7 +691,7 @@ export default function LandingPage() {
             </Link>
             {!isAuthed && (
               <Link to="/register" className="lp-btn lp-btn--ghost">
-                <Send size={16} aria-hidden="true" /> Create free account
+                <Send size={16} aria-hidden="true" /> Join free
               </Link>
             )}
           </div>

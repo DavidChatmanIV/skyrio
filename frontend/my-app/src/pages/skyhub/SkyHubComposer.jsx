@@ -34,7 +34,7 @@ export default function SkyHubComposer({
   topics = [],
 }) {
   const fileRef = useRef(null);
-  // ✅ NEW: lets SkyHubPage scroll to AND focus the textarea directly
+  // Lets SkyHubPage scroll to AND focus the textarea directly
   // (e.g. from the empty-state "Write the first post" button), instead
   // of guessing at a selector with no stable id/class to target.
   const textareaRef = useRef(null);
@@ -95,7 +95,7 @@ export default function SkyHubComposer({
   // failed post (no signal, rate limit) doesn't lose them.
   const handlePost = async () => {
     if (!composerText.trim() && files.length === 0) {
-      message.warning("Write something or add a photo.");
+      message.warning("Add text or a photo first.");
       return;
     }
     const ok = await onCreatePost?.();
@@ -247,9 +247,7 @@ export default function SkyHubComposer({
             onChange={(e) => setComposerText(e.target.value)}
             onFocus={() => setFocused(true)}
             placeholder={
-              signedIn
-                ? "Share a travel tip, story, or question..."
-                : "Log in to share a tip, story or question with travelers"
+              signedIn ? "Share a tip, story or question…" : "Log in to post"
             }
             aria-label="Write a SkyHub post"
             rows={focused ? 3 : 2}
@@ -285,7 +283,7 @@ export default function SkyHubComposer({
               <input
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                placeholder="Add destination or city..."
+                placeholder="Add a place…"
                 style={{
                   flex: 1,
                   border: "none",

@@ -82,12 +82,12 @@ function planFor(b, quote) {
   if (quote.inProgress)
     return {
       mode: "keep",
-      line: "The airline is already processing a cancellation for this one.",
+      line: "The airline is already cancelling this one.",
     };
   if (quote.error)
     return {
       mode: "request",
-      line: "We can't get the refund amount right now. If you cancel, we'll send a request and support will confirm with you before anything is cancelled.",
+      line: "Refund amount unavailable. If you cancel, support confirms with you before anything is cancelled.",
     };
   if (quote.alreadyCancelledWithSupplier)
     return {
@@ -112,7 +112,7 @@ function planFor(b, quote) {
               quote.airlineCredit.currency || quote.currency
             )} in airline credit`
           : "airline credit"
-      } instead of money back. You'd use it to book with the airline later.`,
+      }, not money back.`,
       refund: 0,
       credit: quote.airlineCredit?.amount || 0,
     };
@@ -274,7 +274,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
           if (!out.ok) {
             setProgress((p) => ({ ...p, [key]: "failed" }));
             throw new Error(
-              `The shared room at ${r.name} didn't cancel — the hotel didn't accept it. Nothing else was changed. Try again in a minute, or contact support if it keeps happening.`
+              `The shared room at ${r.name} didn't cancel. The hotel refused it. Nothing else changed. Try again soon or contact support.`
             );
           }
           setProgress((p) => ({ ...p, [key]: "done" }));
@@ -314,9 +314,9 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
           if (!r.ok) {
             setProgress((p) => ({ ...p, [b.id]: "failed" }));
             throw new Error(
-              `Your ${b.title} didn't cancel — the ${
+              `Your ${b.title} didn't cancel. The ${
                 b.type === "Flight" ? "airline" : "hotel"
-              } didn't accept it. Nothing else was changed. Try again in a minute, or contact support if it keeps happening.`
+              } refused it. Nothing else changed. Try again soon or contact support.`
             );
           }
           setProgress((p) => ({ ...p, [b.id]: "done" }));
@@ -463,8 +463,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
               Can&rsquo;t make {title}?
             </h2>
             <p className="ct-sub">
-              Things come up. Choose what happens to the trip and to your
-              bookings.
+              Choose what happens to the trip and your bookings.
             </p>
 
             {/* ── 1. The trip ── */}
@@ -490,13 +489,13 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
                     </strong>
                     <span className="ct-choiceSub">
                       {preview.canHandOff
-                        ? `The trip keeps going without you. ${
+                        ? `The trip goes on without you. ${
                             candidates.length === 1
                               ? firstName(candidates[0].name)
                               : "They"
                           } become${
                             candidates.length === 1 ? "s" : ""
-                          } the organizer and can keep planning or cancel it.`
+                          } the organizer.`
                         : preview.handOffBlockReason}
                     </span>
                     {candidates.length > 1 && preview.canHandOff && (
@@ -575,7 +574,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
                     else if (!q) line = "Checking the refund…";
                     else if (q.error)
                       line =
-                        "We can't get the hotel's refund right now. The hotel decides it when the room is cancelled.";
+                        "Refund unavailable right now. The hotel decides it.";
                     else if (q.estimatedRefund == null || !q.perPerson)
                       line = "If cancelled, the hotel decides the refund.";
                     else if (q.estimatedRefund <= 0)
@@ -648,7 +647,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
                     <span>
                       <strong>Cancel the room</strong>
                       <span className="ct-choiceSub">
-                        {`It's cancelled for everyone in it. ${joinNames([
+                        {`Cancelled for everyone in it. ${joinNames([
                           ...new Set(
                             rooms.flatMap((r) => r.others.map(firstName))
                           ),
@@ -672,7 +671,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
                       <strong>Keep the room</strong>
                       <span className="ct-choiceSub">
                         {tripChoice === "end"
-                          ? "To end the trip for everyone, the room has to be cancelled."
+                          ? "Ending the trip cancels the room."
                           : `It stays booked${
                               newOwner
                                 ? ` and ${firstName(newOwner.name)} manages it`
@@ -759,8 +758,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
                     <span>
                       <strong>Keep them</strong>
                       <span className="ct-choiceSub">
-                        They become your own trip in My Trips. Nothing is
-                        cancelled or charged.
+                        They move to My Trips. Nothing is cancelled or charged.
                       </span>
                     </span>
                   </label>
@@ -798,7 +796,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
                             ]
                               .filter(Boolean)
                               .join(" ")
-                          : "No refund applies. See each booking above."}
+                          : "No refund. See each booking above."}
                       </span>
                     </span>
                   </label>
@@ -847,7 +845,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
 
 const CSS = `
 .ct-scrim { position: fixed; inset: 0; z-index: 2147483600; background: rgba(5,3,12,0.65); animation: ctFade .18s ease both; }
-.ct-dialog { position: fixed; z-index: 2147483601; left: 50%; top: 50%; transform: translate(-50%,-50%); width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; padding: 24px 22px 20px; border-radius: 20px; background: rgba(16,11,34,0.98); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 28px 70px rgba(0,0,0,0.55); color: #fff; font-family: "DM Sans", system-ui, sans-serif; animation: ctIn .2s cubic-bezier(.22,1,.36,1) both; }
+.ct-dialog { position: fixed; z-index: 2147483601; left: 50%; top: 50%; transform: translate(-50%,-50%); width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; padding: 24px 22px 20px; border-radius: 20px; background: linear-gradient(160deg, rgba(74,40,112,0.98), rgba(34,18,62,0.98)); border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 28px 70px rgba(0,0,0,0.55); color: #fff; font-family: "DM Sans", system-ui, sans-serif; animation: ctIn .2s cubic-bezier(.22,1,.36,1) both; }
 .ct-dialog::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 20px 20px 0 0; background: linear-gradient(90deg,#ff8a2a,#ffb347,rgba(147,51,234,.85)); }
 .ct-dialog button, .ct-dialog select { font: inherit; }
 .ct-x { position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: transparent; color: rgba(255,255,255,0.7); cursor: pointer; }
@@ -873,7 +871,7 @@ const CSS = `
 .ct-choice strong { display: block; font-size: 14.5px; }
 .ct-choiceSub { display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: rgba(255,255,255,0.68); }
 .ct-select { display: block; width: 100%; margin-top: 10px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.3); color: #fff; font-size: 14px; }
-.ct-select option { background: #160f2c; color: #fff; }
+.ct-select option { background: #2a1650; color: #fff; }
 .ct-block { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 16px; padding: 12px 14px; border-radius: 14px; background: rgba(255,107,133,0.08); border: 1px solid rgba(255,107,133,0.3); font-size: 13.5px; line-height: 1.5; }
 .ct-block svg { flex-shrink: 0; margin-top: 2px; color: #ff8fa3; }
 .ct-actions { display: flex; flex-wrap: wrap; gap: 8px; }

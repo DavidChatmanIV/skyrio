@@ -56,21 +56,21 @@ export default function RewardsOptInPrompt({ open, onClose, onConfirm }) {
         Earn rewards as you travel
       </h2>
       <p className="rw-sub">
-        Turn on Passport Rewards to collect XP and spend it on perks. It&apos;s
-        optional, and booking works the same either way.
+        Collect XP and spend it on perks. Optional. Booking works the same
+        either way.
       </p>
       <ul className="rw-list">
         <li>
           <Plane size={17} aria-hidden="true" />
-          Earn XP for bookings, reviews and challenges
+          XP for bookings, reviews and challenges
         </li>
         <li>
           <Gift size={17} aria-hidden="true" />
-          Spend it in Passport Rewards
+          Spend it on perks
         </li>
         <li>
           <Trophy size={17} aria-hidden="true" />
-          Climb the Passport ranks as you go
+          Climb the Passport ranks
         </li>
       </ul>
       <p className="rw-fine">

@@ -41,27 +41,24 @@ export default function PolicyNote({
   if (variant === "agree") {
     body = isHotel ? (
       <>
-        By paying, you agree to {who}&rsquo;s cancellation and refund policy for
-        this rate. Skyrio can&rsquo;t change it.
+        By paying, you accept {who}&rsquo;s refund policy. Skyrio can&rsquo;t
+        change it.
       </>
     ) : (
       <>
-        By paying, you agree to {who}&rsquo;s fare rules for bags, changes and
-        refunds. Skyrio can&rsquo;t change them.
+        By paying, you accept {who}&rsquo;s rules for bags, changes and refunds.
       </>
     );
   } else {
     body = isHotel ? (
       <>
-        <b>Set by {who}, not Skyrio.</b> Refunds and cancellation terms come
-        from {who} for this exact rate. We show what they send us, and their
-        policy is final.
+        <b>Set by {who}, not Skyrio.</b> Refunds and cancellations follow their
+        policy.
       </>
     ) : (
       <>
-        <b>Set by {who}, not Skyrio.</b> Carry-on and checked bags, seat rules,
-        changes and refunds come from {who} for this exact fare. We show what
-        they send us, and their rules are final.
+        <b>Set by {who}, not Skyrio.</b> Bags, seats, changes and refunds follow
+        their rules.
       </>
     );
   }

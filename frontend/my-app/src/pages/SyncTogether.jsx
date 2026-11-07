@@ -64,17 +64,17 @@ const HOW_IT_WORKS = [
   {
     Icon: Lock,
     title: "Set dates & budgets",
-    desc: "Pick the place and dates. Everyone's budget stays private.",
+    desc: "Pick the place and dates. Budgets stay private.",
   },
   {
     Icon: ThumbsUp,
     title: "Plan & vote",
-    desc: "Atlas suggests flights, hotels and a day-by-day plan. The group votes.",
+    desc: "Atlas suggests a plan. The group votes.",
   },
   {
     Icon: Wallet,
     title: "Book your part",
-    desc: "Everyone books and pays for their own flight and room.",
+    desc: "Everyone pays for their own flight and room.",
   },
 ];
 
@@ -186,7 +186,7 @@ export default function SyncTogether() {
 
   const handleStartPlanning = async () => {
     if (travelers.length === 0) {
-      antdMessage.warning("Add at least one traveler to get started");
+      antdMessage.warning("Add at least one traveler.");
       return;
     }
     setCreating(true);
@@ -212,7 +212,7 @@ export default function SyncTogether() {
       });
       const data = await res.json();
       if (data.ok) {
-        antdMessage.success("Trip created — invites are on the way");
+        antdMessage.success("Trip created. Invites sent.");
         navigate(`/sync-together/${data.group.id}`);
       } else {
         antdMessage.error(data.error || "Something went wrong");
@@ -291,8 +291,7 @@ export default function SyncTogether() {
           <span className="sk-sync-highlight">Plan it together.</span>
         </h1>
         <p className="sk-sync-sub">
-          Invite your crew, vote on flights and hotels, and everyone pays their
-          own part. Nobody fronts the whole trip.
+          Invite your crew, vote together, and everyone pays their own way.
         </p>
         <ul className="sk-sync-trust">
           {TRUST.map(({ Icon, text }) => (
@@ -366,7 +365,7 @@ export default function SyncTogether() {
               We couldn&apos;t load your trips
             </div>
             <div className="sk-sync-emptySub">
-              Check your connection and refresh the page.
+              Check your connection and refresh.
             </div>
           </div>
         ) : myTrips.length === 0 ? (
@@ -374,7 +373,7 @@ export default function SyncTogether() {
             <Users size={28} aria-hidden="true" />
             <div className="sk-sync-emptyTitle">No group trips yet</div>
             <div className="sk-sync-emptySub">
-              Fill in the boarding pass above to start your first one.
+              Fill in the pass above to start one.
             </div>
           </div>
         ) : (

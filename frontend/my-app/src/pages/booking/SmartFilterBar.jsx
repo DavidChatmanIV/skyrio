@@ -855,13 +855,10 @@ export default function SmartFilterBar({
     );
   }, [filters.xp]);
 
-  // Before a search there's nothing to filter, so no filter row (same as
-  // Stays). A filter already set — e.g. an airline — still shows so it can
-  // be changed or cleared.
-  const anySet = ["price", "stops", "time", "airline", "xp"].some(
-    (k) => filters[k] !== undefined && filters[k] !== "any"
-  );
-  if (!visible || (isPreSearch && !anySet)) return null;
+  // Always shown on Flights, even before a search, so travelers can set
+  // price, stops, time, airline and XP up front. The Airline list shows
+  // popular carriers until there are results.
+  if (!visible) return null;
 
   return (
     <div

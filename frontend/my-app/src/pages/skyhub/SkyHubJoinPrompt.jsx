@@ -37,7 +37,7 @@ function JoinButtons({ onClick }) {
         className="sk-gateBtn sk-gatePrimary"
         onClick={onClick}
       >
-        Create your profile
+        Sign up free
       </Link>
       <Link
         to="/login"
@@ -45,7 +45,7 @@ function JoinButtons({ onClick }) {
         className="sk-gateBtn sk-gateSecondary"
         onClick={onClick}
       >
-        I already have an account
+        Log in
       </Link>
     </div>
   );
@@ -70,13 +70,12 @@ export function SkyHubJoinModal({ action, onClose }) {
           <PostcardIcon />
         </div>
         <h2 className="sk-gateTitle" style={{ color: "#fff" }}>
-          Create a profile to {action}
+          Sign up to {action}
         </h2>
         <p className="sk-gateText">
-          Post your own postcards, follow travelers, save tips and earn XP on
-          your Digital Passport.
+          Post, follow travelers, save tips and earn Passport XP.
         </p>
-        <p className="sk-gateText sk-gateFaint">Creating a profile is free.</p>
+        <p className="sk-gateText sk-gateFaint">It&rsquo;s free.</p>
         <JoinButtons onClick={onClose} />
       </div>
     </Modal>
@@ -88,7 +87,7 @@ export function SkyHubJoinCard() {
   return (
     <div style={{ textAlign: "center", padding: "6px 0 2px" }}>
       <p className="sk-gateText" style={{ marginBottom: 4 }}>
-        Create a free profile to send your own postcards and earn XP.
+        Sign up free to post and earn XP.
       </p>
       <JoinButtons />
     </div>

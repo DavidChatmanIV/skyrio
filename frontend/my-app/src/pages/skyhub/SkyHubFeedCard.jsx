@@ -180,7 +180,7 @@ function ImageGrid({ images }) {
       alt=""
       loading="lazy"
       className="sh-zoomable"
-      title="Click to see the full photo"
+      title="View full photo"
       onError={() => fail(i)}
       style={{
         width: "100%",
@@ -285,7 +285,7 @@ export default function SkyHubFeedCard({
         await navigator.share({ title: "SkyHub on Skyrio", text, url });
       } else {
         await navigator.clipboard.writeText(`${text}\n${url}`);
-        message.success("Copied — paste it anywhere to share.");
+        message.success("Link copied.");
       }
     } catch (err) {
       if (err?.name !== "AbortError")
@@ -463,7 +463,7 @@ export default function SkyHubFeedCard({
           }}
         >
           <EyeInvisibleOutlined />
-          Only you can see this — it was reported and our team is reviewing it.
+          Hidden while we review a report. Only you can see it.
         </div>
       )}
 
@@ -487,8 +487,8 @@ export default function SkyHubFeedCard({
               <Icon.shield size={15} />
             </span>
             <span>
-              Meeting up? Pick a public place, tell a friend your plans, and
-              keep your hotel and room number to yourself.{" "}
+              Meeting up? Pick a public place, tell a friend, and keep your
+              hotel and room number private.{" "}
               <a href="/skyhub/guidelines#meetups">Meetup safety</a>
             </span>
           </div>
