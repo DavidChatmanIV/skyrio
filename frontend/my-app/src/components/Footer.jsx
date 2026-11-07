@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import "@/styles/Footer.css";
 
@@ -41,7 +42,7 @@ function navCols(isAuthed) {
           to: isAuthed ? "/saved-trips" : "/find-booking",
         },
         { label: "Booking Guarantee", to: "/guarantee" },
-        { label: "Help Center", to: "/support" },
+        { label: "Help Center", href: `mailto:${SUPPORT_EMAIL}` },
         { label: "Contact Us", href: `mailto:${SUPPORT_EMAIL}` },
         { label: "Report an Issue", href: `mailto:${SUPPORT_EMAIL}` },
       ],
@@ -57,6 +58,50 @@ export default function Footer() {
 
   return (
     <footer className="sk-footer">
+      {/* ── Who sets the rules ──
+          First thing in the footer, in a box, so people actually see it.
+          Same message as the notes in checkout and the confirmation emails. */}
+      <div style={{ padding: "32px 16px 0" }}>
+        <div
+          role="note"
+          style={{
+            display: "flex",
+            gap: 12,
+            alignItems: "flex-start",
+            maxWidth: 900,
+            margin: "0 auto",
+            padding: "16px 18px",
+            borderRadius: 16,
+            background:
+              "linear-gradient(160deg, rgba(74,40,112,0.6), rgba(34,18,62,0.7))",
+            border: "1px solid rgba(255,179,71,0.45)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1)",
+            fontSize: 14,
+            lineHeight: 1.6,
+            textAlign: "left",
+            color: "rgba(255,255,255,0.88)",
+          }}
+        >
+          <ShieldCheck
+            size={20}
+            aria-hidden="true"
+            style={{ flexShrink: 0, marginTop: 2, color: "#ffb347" }}
+          />
+          <span>
+            <b style={{ color: "#fff" }}>
+              Airlines and hotels set their own rules.
+            </b>{" "}
+            Fares, carry-on and checked bags, seats, changes, refunds and
+            cancellations are set by each airline and hotel, not Skyrio. If
+            something goes wrong on Skyrio&rsquo;s end, our{" "}
+            <Link to="/guarantee" style={{ color: "#ffb347", fontWeight: 700 }}>
+              Booking Guarantee
+            </Link>{" "}
+            covers you.
+          </span>
+        </div>
+      </div>
+
       <div className="sk-footer__inner">
         {/* ── Brand ── */}
         <div className="sk-footer__brand">
@@ -92,31 +137,6 @@ export default function Footer() {
         ))}
       </div>
 
-      {/* ── Who sets the rules ──
-          Skyrio sells, but each airline and hotel sets its own policies.
-          Same message as the notes in checkout and the confirmation emails. */}
-      <p
-        className="sk-footer__disclaimer"
-        style={{
-          maxWidth: 900,
-          margin: "0 auto",
-          padding: "0 24px 18px",
-          fontSize: 12.5,
-          lineHeight: 1.6,
-          textAlign: "center",
-          color: "rgba(255,255,255,0.62)",
-        }}
-      >
-        Skyrio helps you search and book flights and hotels. Fares, carry-on and
-        checked bags, seat rules, changes, refunds and hotel cancellation
-        policies are set by each airline and hotel, not by Skyrio. If something
-        goes wrong on Skyrio's end, you're covered by our{" "}
-        <Link to="/guarantee" style={{ color: "#ff8a2a" }}>
-          Booking Guarantee
-        </Link>
-        .
-      </p>
-
       {/* ── Bottom bar ── */}
       {/* Extra room at the bottom so the floating Atlas / Help buttons
           don't sit on top of these links. */}
@@ -133,10 +153,6 @@ export default function Footer() {
               Manage a booking
             </Link>
             <span className="sk-footer__legal-sep">·</span>
-            <Link to="/about" className="sk-footer__legal-link">
-              About Skyrio
-            </Link>
-            <span className="sk-footer__legal-sep">·</span>
             <Link to="/privacy" className="sk-footer__legal-link">
               Privacy Policy
             </Link>
@@ -149,9 +165,12 @@ export default function Footer() {
               Cookie Policy
             </Link>
             <span className="sk-footer__legal-sep">·</span>
-            <Link to="/support" className="sk-footer__legal-link">
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="sk-footer__legal-link"
+            >
               Support
-            </Link>
+            </a>
           </div>
         </div>
       </div>

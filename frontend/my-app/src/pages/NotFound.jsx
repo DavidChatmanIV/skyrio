@@ -104,11 +104,10 @@ export default function NotFound() {
         </div>
         <div className="nf-code">404</div>
         <h1 className="nf-title" id="nf-title">
-          We couldn&rsquo;t find that page
+          Page not found
         </h1>
         <p className="nf-sub">
-          The link may be old or mistyped. We&rsquo;ve let the Skyrio team know
-          so we can fix it.
+          The link may be old or mistyped. We&rsquo;ve told our team.
         </p>
         <div className="nf-actions">
           <Link to="/" className="nf-btn nf-btn--main">
@@ -124,7 +123,7 @@ export default function NotFound() {
             className="nf-back"
             onClick={() => navigate(-1)}
           >
-            Go back to the last page
+            Go back
           </button>
         )}
       </div>

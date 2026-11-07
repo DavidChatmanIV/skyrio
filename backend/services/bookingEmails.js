@@ -133,7 +133,7 @@ export async function sendHotelConfirmation({
       noteLine(esc(hotelPolicy(rooms))) +
       (syncTip
         ? noteLine(
-            "Traveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share."
+            "Group trip next time? With Sync Together, everyone plans together and pays their own share."
           )
         : "") +
       (manageLink
@@ -168,7 +168,7 @@ ${total ? `Total charged: ${total}\n` : ""}${
 
 ${hotelPolicy(rooms)}${
     syncTip
-      ? "\n\nTraveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share."
+      ? "\n\nGroup trip next time? With Sync Together, everyone plans together and pays their own share."
       : ""
   }${
     manageLink ? `\n\nManage or cancel this booking: ${manageLink}` : ""
@@ -244,7 +244,7 @@ export async function sendCancellationEmail({
       creditMoney ? `${creditMoney} in airline credit` : "airline credit"
     }. Use it to book a new flight directly with ${creditAirline}${
       creditExpiry ? ` before ${creditExpiry}` : " before it expires"
-    }. Skyrio can't apply airline credit to new bookings yet. Your credit details are also saved on this trip in My Trips.`;
+    }. Skyrio can't apply it yet. It's also saved on this trip in My Trips.`;
   } else {
     title = "Your trip is cancelled";
     intro = `<strong>${trip}</strong> is cancelled.`;
@@ -384,7 +384,7 @@ export async function sendCancellationRequestEmail({
     bodyHtml: detailBox(
       "WHAT HAPPENS NEXT",
       subLine(
-        "Your trip is <strong>not cancelled yet</strong>. Our team will confirm the cancellation terms and any refund with the airline or hotel, then contact you before anything is cancelled."
+        "Your trip is <strong>not cancelled yet</strong>. We'll confirm the terms with the airline or hotel and contact you first."
       ) + (bookingId ? noteLine(`Skyrio booking ID: ${esc(bookingId)}`) : "")
     ),
     cta: { label: "View my trips", url: TRIPS_URL },
@@ -395,7 +395,7 @@ ${
   name ? `Hi ${name}, ` : ""
 }we've received your request to cancel ${tripDetails}.
 
-Your trip is NOT cancelled yet. Our team will confirm the cancellation terms and any refund with the airline or hotel, then contact you before anything is cancelled.
+Your trip is NOT cancelled yet. We'll confirm the terms with the airline or hotel and contact you first.
 ${bookingId ? `Skyrio booking ID: ${bookingId}` : ""}${textFooter}`;
   return sendEmail({
     to,

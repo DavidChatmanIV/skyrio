@@ -21,7 +21,7 @@ import {
 // One short line about Sync Together, used in booking confirmations only
 // when the booking was for 2+ people and isn't already a group trip.
 const SYNC_TIP =
-  "Traveling with a group next time? Sync Together on Skyrio lets everyone plan together and pay their own share.";
+  "Group trip next time? With Sync Together, everyone plans together and pays their own share.";
 
 const SIGNOFF = "\n\nSent by Skyrio - Plan smarter. Travel better.";
 
@@ -146,13 +146,13 @@ export async function sendTripDeleted({
     title: "This trip has been deleted",
     introHtml: `<strong>${esc(ownerName)}</strong> deleted <strong>${esc(
       name
-    )}</strong>. There's nothing further you need to do — this group trip no longer exists.`,
+    )}</strong>. Nothing else to do. This group trip is closed.`,
   });
   const text = `${ownerName} deleted ${tripTitle || "Untitled Trip"}${
     destination ? ` -> ${destination}` : ""
   }.
 
-There's nothing further you need to do - this group trip no longer exists.${SIGNOFF}`;
+Nothing else to do. This group trip is closed.${SIGNOFF}`;
 
   return sendEmail({
     to,
@@ -207,7 +207,7 @@ export async function sendPasswordReset({ to, resetUrl }) {
     preheader: "Reset your Skyrio password (link expires in 1 hour)",
     title: "Reset your password",
     introHtml:
-      "Click the button below to reset your Skyrio password. This link expires in <strong>1 hour</strong>.",
+      "Tap below to reset your password. The link expires in <strong>1 hour</strong>.",
     cta: { label: "Reset Password", url: resetUrl },
     footerNote: "If you didn't request this, you can safely ignore this email.",
   });
@@ -235,7 +235,7 @@ export async function sendVerificationEmail({ to, verifyUrl }) {
     preheader: "Verify your Skyrio email (link expires in 24 hours)",
     title: "Verify your email",
     introHtml:
-      "Click below to verify your Skyrio account. This link expires in <strong>24 hours</strong>.",
+      "Tap below to verify your account. The link expires in <strong>24 hours</strong>.",
     cta: { label: "Verify Email", url: verifyUrl },
     footerNote: "If you didn't create a Skyrio account, ignore this email.",
   });
