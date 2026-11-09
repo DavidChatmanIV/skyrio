@@ -3,6 +3,7 @@ import { Form, Input, Button, Typography, message, Card } from "antd";
 import { LockOutlined, UserOutlined, SafetyOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
+import { saveAdminToken, clearAdminToken } from "@/lib/adminAuth";
 
 const { Title, Text } = Typography;
 
@@ -32,6 +33,16 @@ export default function AdminLogin() {
 
       // ── Store email so dashboard can send it as fallback auth header ──
       localStorage.setItem("admin_email", email.toLowerCase());
+
+      // Signed admin token, sent as X-Admin-Token on every admin call.
+      // Needed when the browser blocks the cross-site admin cookie.
+      clearAdminToken();
+      const token = data.token || data.admin?.token;
+      if (token) saveAdminToken(token);
+      else
+        console.warn(
+          "[admin] Login response had no token. Is the new admin.routes.js deployed on Render?"
+        );
 
       navigate(returnTo);
     } catch (err) {
