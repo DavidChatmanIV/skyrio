@@ -55,6 +55,21 @@ function readAdminFromCookie(req) {
   }
 }
 
+// The same signed admin token, sent in an X-Admin-Token header. Chrome
+// and Safari can block the cookie because myskyrio.com and onrender.com
+// are different sites; the header works everywhere. Same JWT_SECRET
+// check and same isAdmin flag as the cookie, so it's just as strict.
+function readAdminFromToken(req) {
+  const token = req.headers?.["x-admin-token"];
+  if (!token || !JWT_SECRET) return null;
+  try {
+    const decoded = jwt.verify(String(token), JWT_SECRET);
+    return decoded?.isAdmin ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Header-based fallback for localhost cross-port dev ONLY ──
 // SECURITY: this trusts nothing but an email in a request header — anyone
 // who knows ADMIN_EMAIL could send it. It must never work in production,
@@ -75,7 +90,11 @@ function readAdminFromHeader(req) {
  * login without duplicating — and drifting from — this logic.
  */
 export function readAdminSession(req) {
-  return readAdminFromCookie(req) || readAdminFromHeader(req);
+  return (
+    readAdminFromCookie(req) ||
+    readAdminFromToken(req) ||
+    readAdminFromHeader(req)
+  );
 }
 
 // ✅ Exported so other route files (challenges.routes.js) can reuse this
@@ -127,9 +146,13 @@ router.post("/login", async (req, res) => {
       email: String(email).toLowerCase(),
     });
     setAdminCookie(res, token);
+    // token: for the X-Admin-Token header (see readAdminFromToken).
+    // Also inside `admin`, so a login page that saves the admin object
+    // keeps it without any change.
     return res.json({
       ok: true,
-      admin: { email: String(email).toLowerCase() },
+      token,
+      admin: { email: String(email).toLowerCase(), token },
     });
   } catch (e) {
     console.error("[admin] Login failed:", e);

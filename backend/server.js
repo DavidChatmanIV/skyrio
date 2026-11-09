@@ -121,6 +121,9 @@ const corsOptions = {
     // X-Manage-Token: the "Manage or cancel" link for one booking, so
     // guests (no account) can view and cancel it (services/manageLink.js).
     "X-Manage-Token",
+    // X-Admin-Token: the admin login, for browsers that block the
+    // cross-site admin cookie (routes/admin.routes.js).
+    "X-Admin-Token",
   ],
   optionsSuccessStatus: 204,
 };

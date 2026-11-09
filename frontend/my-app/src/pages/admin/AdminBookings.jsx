@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Clock,
 } from "lucide-react";
+import { adminTokenHeader } from "@/lib/adminAuth";
 
 const API = import.meta.env.VITE_API_URL || "";
 const STRIPE_TEST = String(
@@ -49,6 +50,7 @@ const authHeaders = () => {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
     ...(adminEmail && { "x-admin-email": adminEmail }),
+    ...adminTokenHeader(),
   };
 };
 
