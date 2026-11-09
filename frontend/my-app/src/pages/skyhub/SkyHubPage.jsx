@@ -91,7 +91,10 @@ const REASON_HINTS = {
   intimate_image: (
     <>
       We'll hide it right away. If it's an image of you, you can also send a{" "}
-      <a href="/skyhub/report-content" style={{ color: "#ff9555" }}>
+      <a
+        href="/skyhub/report-content?kind=intimate"
+        style={{ color: "#ff9555" }}
+      >
         formal removal request
       </a>
       . We act on those within 48 hours.
@@ -1650,7 +1653,7 @@ export default function SkyHubPage() {
         onCancel={() => setReportPost(null)}
         onOk={submitReport}
         okText="Send report"
-        okButtonProps={{ loading: reportSending, danger: true }}
+        okButtonProps={{ loading: reportSending }}
         destroyOnHidden
       >
         <p style={{ marginBottom: 12, opacity: 0.75 }}>

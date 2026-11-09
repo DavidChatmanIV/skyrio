@@ -556,7 +556,6 @@ export default function SkyHubCommentDrawer({
         onCancel={() => setReporting(null)}
         onOk={sendReport}
         okText="Send report"
-        okButtonProps={{ danger: true }}
         destroyOnHidden
       >
         <Radio.Group
