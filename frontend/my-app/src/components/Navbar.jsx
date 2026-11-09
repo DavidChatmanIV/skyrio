@@ -154,6 +154,23 @@ const SYNC_CSS = `
     padding: 2px 6px; border-radius: 999px; background: #ff8a2a; color: #1a0e06;
   }
   .sk-sync-cta.is-on .sk-sync-cta__new { background: #fff; }
+  /* Icon and label always side by side. A broader rule in Navbar.css
+     (links in the actions area) was turning this into a block, so the
+     icon sat on top of the text. These selectors are more specific. */
+  .sk-navbar .sk-nav-actions .sk-sync-cta {
+    display: inline-flex !important; flex-direction: row !important;
+    flex-wrap: nowrap !important; align-items: center !important;
+    justify-content: center; line-height: 1; width: auto; min-width: 0;
+  }
+  .sk-navbar .sk-nav-actions .sk-sync-cta > svg {
+    display: block; flex-shrink: 0; margin: 0;
+  }
+  .sk-navbar .sk-nav-actions .sk-sync-cta > span {
+    display: inline-block; margin: 0; line-height: 1;
+  }
+  @media (max-width: 1024px) {
+    .sk-navbar .sk-nav-actions .sk-sync-cta > .sk-sync-cta__label { display: none; }
+  }
   /* Tablet widths: keep the button, drop the badge so the bar fits */
   @media (max-width: 1180px) { .sk-sync-cta__new { display: none; } }
   @media (max-width: 1024px) { .sk-sync-cta__label { display: none; } .sk-sync-cta { padding: 0 11px; } }

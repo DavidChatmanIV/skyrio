@@ -26,6 +26,7 @@ import {
 import { reverseBookingXp } from "../services/xpService.js";
 import { readManageToken, mintManageToken } from "../services/manageLink.js";
 import { sendManageLinkEmail } from "../services/manageEmails.js";
+import { sendEmail, esc } from "../services/emailLayout.js";
 
 const router = Router();
 
@@ -659,6 +660,10 @@ router.get("/admin/search", adminOnly, async (req, res) => {
     if (req.query.type) filter.type = req.query.type;
     if (req.query.status === "cancel_requested") {
       filter["cancelRequest.status"] = "open";
+    } else if (req.query.status === "cancel_stuck") {
+      // Not final after 2 days — flagged by the flight cancel job
+      filter.status = "cancel_pending";
+      filter["cancellation.stuckFlaggedAt"] = { $exists: true };
     } else if (req.query.status) {
       filter.status = req.query.status;
     }
@@ -2144,10 +2149,19 @@ export async function finalizePendingFlightCancels({
     .sort({ updatedAt: 1 })
     .limit(limit);
   let finalized = 0;
+  // What LiteAPI said for each booking, so the admin "Check now" button
+  // can show it instead of a generic "still not final".
+  const results = [];
 
   for (const booking of pending) {
     const id = supplierIds(booking)[0];
-    if (!id) continue;
+    if (!id) {
+      results.push({
+        id: String(booking._id),
+        error: "No LiteAPI booking ID on this trip.",
+      });
+      continue;
+    }
     let live;
     try {
       live = unwrap((await flightGetBooking(id)).data);
@@ -2157,9 +2171,25 @@ export async function finalizePendingFlightCancels({
         String(booking._id),
         e.message
       );
+      results.push({
+        id: String(booking._id),
+        supplierId: id,
+        error:
+          e?.response?.data?.error?.message ||
+          e?.response?.data?.message ||
+          e.message ||
+          "Lookup failed",
+      });
       continue;
     }
     const st = String(live.status || "").toUpperCase();
+    results.push({
+      id: String(booking._id),
+      supplierId: id,
+      liveStatus: st || null,
+      cancelOnFile: !!live.cancelIntentAt,
+      final: st.startsWith("CANCELLED"),
+    });
     const currency = booking.totalCurrency || "USD";
 
     if (st.startsWith("CANCELLED")) {
@@ -2265,31 +2295,74 @@ export async function finalizePendingFlightCancels({
       continue;
     }
 
-    // Still CONFIRMED. If the airline still has a cancel on file, wait.
-    // If it has none for 2 days, the cancel didn't go through — put the
-    // booking back and tell the traveler instead of leaving it hanging.
+    // Not final yet. Never flip it back to "still booked" on our own: a
+    // missing field from LiteAPI (or a sandbox that never finishes) would
+    // tell travelers the wrong thing. After 2 days, flag it ONCE for a
+    // person: support gets an email, the traveler gets a heads-up, and the
+    // trip stays "Cancelling" until the airline answers or an admin decides.
     const since = new Date(
       booking.cancellation?.at || booking.updatedAt
     ).getTime();
-    if (!live.cancelIntentAt && Date.now() - since > STUCK_AFTER_MS) {
-      booking.status = "confirmed";
+    if (
+      Date.now() - since > STUCK_AFTER_MS &&
+      !booking.cancellation?.stuckFlaggedAt
+    ) {
+      booking.cancellation = {
+        ...(booking.cancellation || {}),
+        stuckFlaggedAt: new Date(),
+        liveStatus: st || null,
+      };
+      booking.markModified("cancellation");
       booking.adminNotes.push({
-        text: "Airline never finalized the cancellation and has no cancel on file. Put back to confirmed — follow up with the traveler.",
+        text: `Cancellation still not final after 2 days (LiteAPI status: ${
+          st || "unknown"
+        }${
+          live.cancelIntentAt ? ", cancel on file" : ", no cancel on file"
+        }). Left as cancel_pending. Check with LiteAPI, then finalize or put back to confirmed from the admin page.`,
         by: "system",
         at: new Date(),
       });
       await booking.save();
-      Notification.create({
-        user: booking.user,
-        type: "booking",
-        title: "Your flight cancellation didn't go through",
-        message:
-          "The airline didn't complete your cancellation, so your flight is still booked. Try cancelling again from My Trips, or contact support.",
-        link: `/saved-trips?booking=${booking._id}`,
-      }).catch(() => {});
+
+      const supportTo = process.env.SUPPORT_EMAIL;
+      if (supportTo) {
+        const text = `Flight cancellation stuck — action needed.
+
+Trip: ${booking.tripDetails}
+Skyrio booking ID: ${booking._id}
+LiteAPI booking ID: ${id}
+Traveler: ${booking.name || "—"} <${booking.email || "—"}>
+Cancellation sent: ${new Date(since).toISOString()}
+LiteAPI status now: ${st || "unknown"}${
+          live.cancelIntentAt ? " (cancel on file)" : " (no cancel on file)"
+        }
+
+The trip is still showing "Cancelling" to the traveler. Check with LiteAPI support, then finish it in /admin/bookings.`;
+        sendEmail({
+          to: supportTo,
+          subject: `[Action needed] Cancellation stuck: ${booking.tripDetails}`,
+          html: `<pre style="font-family:Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap">${esc(
+            text
+          )}</pre>`,
+          text,
+          tag: "cancel-stuck-alert",
+        }).catch((e) =>
+          console.error("[flight-cancel-job] stuck alert failed", e?.message)
+        );
+      }
+      if (booking.user) {
+        Notification.create({
+          user: booking.user,
+          type: "booking",
+          title: "Your cancellation is taking longer",
+          message:
+            "The airline hasn't confirmed your cancellation yet. We're checking with them and will update you. Nothing else to do for now.",
+          link: `/saved-trips?booking=${booking._id}`,
+        }).catch(() => {});
+      }
     }
   }
-  return { checked: pending.length, finalized };
+  return { checked: pending.length, finalized, results };
 }
 
 let _flightCancelTimer = null;
@@ -2314,6 +2387,87 @@ router.post("/admin/flight-cancels/check", adminOnly, async (_req, res) => {
   } catch (err) {
     console.error("POST /admin/flight-cancels/check error:", err);
     res.status(500).json({ message: "Couldn't check pending cancellations." });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   Admin: stuck cancellations
+   POST /api/bookings/admin/:id/check-cancel     ask LiteAPI now
+   POST /api/bookings/admin/:id/restore-confirmed  { note, notifyTraveler }
+     For a cancellation that really didn't go through (confirmed with
+     LiteAPI support): back to Confirmed, with a note, and the traveler
+     is told their flight is still booked.
+   ══════════════════════════════════════════════════════════════════ */
+router.post("/admin/:id/check-cancel", adminOnly, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id))
+      return res.status(400).json({ message: "Invalid booking id." });
+    const out = await finalizePendingFlightCancels({
+      onlyId: req.params.id,
+      limit: 1,
+    });
+    const b = await Booking.findById(req.params.id).select("status").lean();
+    res.json({
+      ok: true,
+      ...out,
+      status: b?.status || null,
+      result: out.results?.[0] || null,
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("POST /admin/:id/check-cancel error:", err);
+    res.status(500).json({ message: "Couldn't check with LiteAPI." });
+  }
+});
+
+router.post("/admin/:id/restore-confirmed", adminOnly, async (req, res) => {
+  try {
+    const note = String(req.body?.note || "")
+      .trim()
+      .slice(0, 2000);
+    if (!note)
+      return res
+        .status(400)
+        .json({ message: "Say what LiteAPI/the airline told you." });
+    if (!mongoose.isValidObjectId(req.params.id))
+      return res.status(400).json({ message: "Invalid booking id." });
+    const booking = await Booking.findById(req.params.id);
+    if (!booking)
+      return res.status(404).json({ message: "Booking not found." });
+    if (booking.status !== "cancel_pending")
+      return res.status(409).json({
+        message: "Only a booking that's being cancelled can be put back.",
+      });
+
+    booking.status = "confirmed";
+    booking.cancellation = {
+      ...(booking.cancellation || {}),
+      restoredAt: new Date(),
+      restoredBy: String(req.user.id),
+      restoreNote: note,
+    };
+    booking.markModified("cancellation");
+    booking.adminNotes.push({
+      text: `Put back to Confirmed: ${note}`,
+      by: String(req.user.id),
+      at: new Date(),
+    });
+    await booking.save();
+
+    if (req.body?.notifyTraveler !== false && booking.user) {
+      Notification.create({
+        user: booking.user,
+        type: "booking",
+        title: "Your flight is still booked",
+        message:
+          "The airline didn't complete your cancellation, so your flight is still booked. Cancel again from My Trips, or reply to our email if you need help.",
+        link: `/saved-trips?booking=${booking._id}`,
+      }).catch(() => {});
+    }
+    res.json({ ok: true, status: booking.status });
+  } catch (err) {
+    console.error("POST /admin/:id/restore-confirmed error:", err);
+    res.status(500).json({ message: "Couldn't update the booking." });
   }
 });
 

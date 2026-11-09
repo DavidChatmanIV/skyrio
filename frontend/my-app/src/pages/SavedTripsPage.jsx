@@ -468,8 +468,8 @@ function CancelProgress({ b, onCheck }) {
             {stuck && (
               <>
                 {" "}
-                <b>Taking longer than usual.</b> We&apos;re on it. Contact us if
-                you need it sooner.
+                <b>Taking longer than usual.</b> We&apos;re checking with the{" "}
+                {place}. Contact us if you need it sooner.
               </>
             )}
           </>

@@ -130,6 +130,29 @@ function StatusBadge({ status }) {
   );
 }
 
+const isStuck = (b) =>
+  b?.status === "cancel_pending" && Boolean(b?.cancellation?.stuckFlaggedAt);
+
+function StuckFlag() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 10,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: ".04em",
+        color: C.red,
+        marginTop: 4,
+      }}
+    >
+      <AlertTriangle size={11} /> Stuck 2+ days
+    </span>
+  );
+}
+
 function RequestFlag() {
   return (
     <span
@@ -289,8 +312,7 @@ function ManualCancel({ b, id, busy, run, onDone }) {
   const [notify, setNotify] = useState(true);
   const amt = Number(amount);
   const amountOk =
-    method === "none" ||
-    (Number.isFinite(amt) && amt > 0 && amt <= paid);
+    method === "none" || (Number.isFinite(amt) && amt > 0 && amt <= paid);
   const ready = note.trim() && amountOk && !busy;
 
   if (!open) {
@@ -311,10 +333,10 @@ function ManualCancel({ b, id, busy, run, onDone }) {
       }}
     >
       <div style={{ color: C.muted, lineHeight: 1.6, marginBottom: 12 }}>
-        Use this after you've cancelled with the{" "}
-        {isHotel ? "hotel" : "airline"} or LiteAPI support yourself (phone,
-        email, ticket). Skyrio marks the trip cancelled, handles the refund
-        the way you choose, and notifies the traveler.
+        Use this after you've cancelled with the {isHotel ? "hotel" : "airline"}{" "}
+        or LiteAPI support yourself (phone, email, ticket). Skyrio marks the
+        trip cancelled, handles the refund the way you choose, and notifies the
+        traveler.
       </div>
 
       <div style={labelStyle}>What happened? (required)</div>
@@ -323,7 +345,13 @@ function ManualCancel({ b, id, busy, run, onDone }) {
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="e.g. Cancelled via LiteAPI support ticket; airline confirmed full refund"
-        style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 10 }}
+        style={{
+          ...inputStyle,
+          width: "100%",
+          boxSizing: "border-box",
+          resize: "vertical",
+          marginBottom: 10,
+        }}
       />
 
       <div style={labelStyle}>Supplier reference (optional)</div>
@@ -331,7 +359,12 @@ function ManualCancel({ b, id, busy, run, onDone }) {
         value={ref}
         onChange={(e) => setRef(e.target.value)}
         placeholder="LiteAPI ticket #, hotel cancellation code…"
-        style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+        style={{
+          ...inputStyle,
+          width: "100%",
+          boxSizing: "border-box",
+          marginBottom: 10,
+        }}
       />
 
       <div style={labelStyle}>Refund to the traveler</div>
@@ -343,7 +376,15 @@ function ManualCancel({ b, id, busy, run, onDone }) {
         ]
           .filter(Boolean)
           .map(([value, label]) => (
-            <label key={value} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+            <label
+              key={value}
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                cursor: "pointer",
+              }}
+            >
               <input
                 type="radio"
                 name={`refund-method-${id}`}
@@ -370,20 +411,41 @@ function ManualCancel({ b, id, busy, run, onDone }) {
               placeholder="0.00"
               style={inputStyle}
             />
-            <button type="button" style={btn()} onClick={() => setAmount(String(paid))}>
+            <button
+              type="button"
+              style={btn()}
+              onClick={() => setAmount(String(paid))}
+            >
               Full amount
             </button>
           </div>
         </>
       )}
 
-      <label style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, cursor: "pointer" }}>
-        <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+      <label
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          marginBottom: 12,
+          cursor: "pointer",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={notify}
+          onChange={(e) => setNotify(e.target.checked)}
+        />
         Email and notify the traveler
       </label>
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" style={btn()} onClick={() => setOpen(false)} disabled={!!busy}>
+        <button
+          type="button"
+          style={btn()}
+          onClick={() => setOpen(false)}
+          disabled={!!busy}
+        >
           Close
         </button>
         <button
@@ -393,21 +455,30 @@ function ManualCancel({ b, id, busy, run, onDone }) {
           onClick={() => {
             const refundText =
               method === "none" ? "no refund" : `a ${money(amt, cur)} refund`;
-            if (!window.confirm(`Mark this trip cancelled with ${refundText}? This can't be undone.`)) return;
+            if (
+              !window.confirm(
+                `Mark this trip cancelled with ${refundText}? This can't be undone.`
+              )
+            )
+              return;
             run("manual-cancel", async () => {
-              const { data } = await api(`/api/bookings/admin/${id}/manual-cancel`, {
-                method: "POST",
-                body: JSON.stringify({
-                  note,
-                  supplierReference: ref,
-                  refundMethod: method,
-                  refundAmount: method === "none" ? 0 : amt,
-                  notifyTraveler: notify,
-                }),
-              });
+              const { data } = await api(
+                `/api/bookings/admin/${id}/manual-cancel`,
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    note,
+                    supplierReference: ref,
+                    refundMethod: method,
+                    refundAmount: method === "none" ? 0 : amt,
+                    notifyTraveler: notify,
+                  }),
+                }
+              );
               setOpen(false);
               await onDone();
-              if (data?.ok === false && data?.message) throw new Error(data.message);
+              if (data?.ok === false && data?.message)
+                throw new Error(data.message);
             });
           }}
         >
@@ -426,11 +497,18 @@ function ManualRefund({ b, id, busy, run, onDone }) {
   const ready = Number.isFinite(amt) && amt > 0 && reason.trim() && !busy;
   return (
     <div>
-      <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 8 }}>
-        Refund part or all of this booking to the traveler's card through
-        Stripe — for goodwill credits or a refund that failed. Already
-        refunded: {money(b.refundAmount || 0, cur)}. The traveler gets the
-        refund email once Stripe confirms it.
+      <div
+        style={{
+          color: C.muted,
+          fontSize: 13,
+          lineHeight: 1.6,
+          marginBottom: 8,
+        }}
+      >
+        Refund part or all of this booking to the traveler's card through Stripe
+        — for goodwill credits or a refund that failed. Already refunded:{" "}
+        {money(b.refundAmount || 0, cur)}. The traveler gets the refund email
+        once Stripe confirms it.
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input
@@ -453,7 +531,12 @@ function ManualRefund({ b, id, busy, run, onDone }) {
           style={btn("primary", !ready)}
           disabled={!ready}
           onClick={() => {
-            if (!window.confirm(`Refund ${money(amt, cur)} to the traveler's card?`)) return;
+            if (
+              !window.confirm(
+                `Refund ${money(amt, cur)} to the traveler's card?`
+              )
+            )
+              return;
             run("refund", async () => {
               await api(`/api/bookings/admin/${id}/refund`, {
                 method: "POST",
@@ -467,6 +550,212 @@ function ManualRefund({ b, id, busy, run, onDone }) {
         >
           {busy === "refund" ? "Refunding…" : "Issue refund"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Cancellation in progress (cancel_pending)
+//   Check with LiteAPI now → finalizes it if the airline is done.
+//   Put back to Confirmed → only after LiteAPI support says it didn't go
+//   through. "Mark cancelled" for the opposite is in "Handle by hand".
+// ─────────────────────────────────────────────
+function StuckCancelTools({ b, id, busy, run, onDone }) {
+  const [msg, setMsg] = useState("");
+  const [note, setNote] = useState("");
+  const [notify, setNotify] = useState(true);
+  const sentAt = b.cancellation?.at || b.updatedAt;
+  const days = sentAt
+    ? Math.floor((Date.now() - new Date(sentAt).getTime()) / 86400000)
+    : null;
+  return (
+    <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+      <div
+        style={{
+          background: isStuck(b) ? "rgba(248,113,113,.08)" : C.card,
+          border: `1px solid ${isStuck(b) ? `${C.red}55` : C.border}`,
+          borderRadius: 12,
+          padding: 12,
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ fontWeight: 700, color: isStuck(b) ? C.red : C.amber }}>
+          {isStuck(b)
+            ? "Stuck: not final after 2 days"
+            : "Waiting for the airline"}
+        </div>
+        <div style={{ color: C.muted }}>
+          Sent {when(sentAt, true)}
+          {days != null ? ` (${days} day${days === 1 ? "" : "s"} ago)` : ""}.
+          {b.cancellation?.liveStatus
+            ? ` LiteAPI status when flagged: ${b.cancellation.liveStatus}.`
+            : ""}{" "}
+          The traveler sees “Cancelling”. Nothing changes until the airline
+          answers or you decide below.
+        </div>
+      </div>
+
+      <div
+        style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}
+      >
+        <button
+          type="button"
+          style={btn("ghost", !!busy)}
+          disabled={!!busy}
+          onClick={() =>
+            run("check-cancel", async () => {
+              setMsg(null);
+              try {
+                const { data } = await api(
+                  `/api/bookings/admin/${id}/check-cancel`,
+                  {
+                    method: "POST",
+                  }
+                );
+                const r = data.result || {};
+                const at = new Date(
+                  data.checkedAt || Date.now()
+                ).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                  second: "2-digit",
+                });
+                let tone = "wait";
+                let text;
+                if (data.status === "cancelled") {
+                  tone = "ok";
+                  text =
+                    "The airline finished it. Marked cancelled and the traveler was told.";
+                } else if (r.error) {
+                  tone = "bad";
+                  text = `LiteAPI lookup failed: ${r.error}`;
+                } else if (data.checked === 0) {
+                  tone = "bad";
+                  text =
+                    "This trip isn't a flight in Cancelling anymore. Reload the page.";
+                } else {
+                  text = `LiteAPI says: ${
+                    r.liveStatus || "no status returned"
+                  }${
+                    r.cancelOnFile
+                      ? " (cancel on file)"
+                      : " (no cancel on file)"
+                  }. Not final yet, so nothing changed. If this stays the same, contact LiteAPI support.`;
+                }
+                setMsg({ tone, text, at });
+                await onDone();
+              } catch (e) {
+                setMsg({
+                  tone: "bad",
+                  text: `Couldn't check: ${e.message}`,
+                  at: new Date().toLocaleTimeString(),
+                });
+              }
+            })
+          }
+        >
+          <RefreshCw size={13} />{" "}
+          {busy === "check-cancel" ? "Checking…" : "Check with LiteAPI now"}
+        </button>
+      </div>
+      {msg && (
+        <div
+          key={msg.at}
+          role="status"
+          style={{
+            marginBottom: 12,
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: `1px solid ${
+              msg.tone === "ok"
+                ? `${C.green}66`
+                : msg.tone === "bad"
+                ? `${C.red}66`
+                : `${C.amber}66`
+            }`,
+            background:
+              msg.tone === "ok"
+                ? "rgba(74,222,128,.08)"
+                : msg.tone === "bad"
+                ? "rgba(248,113,113,.08)"
+                : "rgba(251,191,36,.08)",
+            color: "#fff",
+            animation: "abFlash .6s ease",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: C.faint,
+              marginBottom: 2,
+            }}
+          >
+            Checked at {msg.at}
+          </div>
+          {msg.text}
+          <style>{`@keyframes abFlash { from { opacity: .2; transform: translateY(-3px); } to { opacity: 1; transform: none; } }`}</style>
+        </div>
+      )}
+
+      <div style={labelStyle}>
+        Cancellation really didn&apos;t go through? (LiteAPI support confirmed)
+      </div>
+      <textarea
+        rows={2}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="e.g. LiteAPI ticket #123: airline rejected the cancel, PNR still active"
+        style={{
+          ...inputStyle,
+          width: "100%",
+          boxSizing: "border-box",
+          resize: "vertical",
+          marginBottom: 8,
+        }}
+      />
+      <label
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          marginBottom: 10,
+          cursor: "pointer",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={notify}
+          onChange={(e) => setNotify(e.target.checked)}
+        />
+        Tell the traveler their flight is still booked
+      </label>
+      <button
+        type="button"
+        style={btn("ghost", !note.trim() || !!busy)}
+        disabled={!note.trim() || !!busy}
+        onClick={() => {
+          if (
+            !window.confirm(
+              "Put this trip back to Confirmed? The traveler will see it as booked again."
+            )
+          )
+            return;
+          run("restore", async () => {
+            await api(`/api/bookings/admin/${id}/restore-confirmed`, {
+              method: "POST",
+              body: JSON.stringify({ note, notifyTraveler: notify }),
+            });
+            setNote("");
+            await onDone();
+          });
+        }}
+      >
+        {busy === "restore" ? "Saving…" : "Put back to Confirmed"}
+      </button>
+      <div style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>
+        Airline did cancel it? Use “Mark cancelled” under Handle by hand.
       </div>
     </div>
   );
@@ -643,7 +932,9 @@ function BookingDetail({ id, onClose, onChanged }) {
                     <>
                       <div style={{ color: C.muted, margin: "8px 0" }}>
                         Confirm the terms with{" "}
-                        {isHotel ? "the hotel" : "the airline / LiteAPI support"}
+                        {isHotel
+                          ? "the hotel"
+                          : "the airline / LiteAPI support"}
                         , contact the traveler, then cancel below (that closes
                         this request automatically) — or mark it resolved if
                         they decided to keep the trip.
@@ -888,13 +1179,24 @@ function BookingDetail({ id, onClose, onChanged }) {
 
             <Section title="Cancel">
               {!canCancel ? (
-                <div style={{ color: C.muted, fontSize: 13 }}>
-                  {b.status === "cancelled"
-                    ? "Already cancelled."
-                    : b.status === "cancel_pending"
-                    ? "The airline is still processing this cancellation. Use “Check now” above to see its status."
-                    : "Only confirmed bookings can be cancelled."}
-                </div>
+                b.status === "cancel_pending" ? (
+                  <StuckCancelTools
+                    b={b}
+                    id={id}
+                    busy={busy}
+                    run={run}
+                    onDone={async () => {
+                      await load();
+                      onChanged?.();
+                    }}
+                  />
+                ) : (
+                  <div style={{ color: C.muted, fontSize: 13 }}>
+                    {b.status === "cancelled"
+                      ? "Already cancelled."
+                      : "Only confirmed bookings can be cancelled."}
+                  </div>
+                )
               ) : (
                 <>
                   <div
@@ -1014,28 +1316,46 @@ function BookingDetail({ id, onClose, onChanged }) {
 
             {b.sharedRoom && b.status === "confirmed" && (
               <Section title="Shared room (Sync Together)">
-                <div style={{ fontSize: 13, opacity: 0.8, lineHeight: 1.5, marginBottom: 10 }}>
-                  This is one person's share of a room shared by {b.sharedRoom.people} people
-                  (room total {money(b.sharedRoom.roomTotal, b.totalCurrency)}). The normal
-                  cancel would cancel everyone's room but refund only this person, so it's
-                  blocked. Cancel the whole room here instead — every person gets their share
-                  of the hotel's refund.
+                <div
+                  style={{
+                    fontSize: 13,
+                    opacity: 0.8,
+                    lineHeight: 1.5,
+                    marginBottom: 10,
+                  }}
+                >
+                  This is one person's share of a room shared by{" "}
+                  {b.sharedRoom.people} people (room total{" "}
+                  {money(b.sharedRoom.roomTotal, b.totalCurrency)}). The normal
+                  cancel would cancel everyone's room but refund only this
+                  person, so it's blocked. Cancel the whole room here instead —
+                  every person gets their share of the hotel's refund.
                 </div>
                 <button
                   type="button"
                   style={btn("danger", Boolean(busy))}
                   disabled={Boolean(busy)}
                   onClick={() => {
-                    if (!window.confirm("Cancel the WHOLE shared room for everyone and refund each person their share?")) return;
+                    if (
+                      !window.confirm(
+                        "Cancel the WHOLE shared room for everyone and refund each person their share?"
+                      )
+                    )
+                      return;
                     run("shared-cancel", async () => {
-                      const { data } = await api(`/api/bookings/admin/${id}/shared-room/cancel`, { method: "POST" });
+                      const { data } = await api(
+                        `/api/bookings/admin/${id}/shared-room/cancel`,
+                        { method: "POST" }
+                      );
                       if (data?.message) setError("");
                       await load();
                       onChanged?.();
                     });
                   }}
                 >
-                  {busy === "shared-cancel" ? "Cancelling…" : "Cancel whole shared room"}
+                  {busy === "shared-cancel"
+                    ? "Cancelling…"
+                    : "Cancel whole shared room"}
                 </button>
               </Section>
             )}
@@ -1083,8 +1403,8 @@ function BookingDetail({ id, onClose, onChanged }) {
                 >
                   This checkout was started but never paid, so nothing was
                   booked and no one was charged. Removing it only deletes
-                  Skyrio's record. (Records from the last hour can't be
-                  removed, in case the traveler is still checking out.)
+                  Skyrio's record. (Records from the last hour can't be removed,
+                  in case the traveler is still checking out.)
                 </div>
                 <button
                   type="button"
@@ -1360,6 +1680,7 @@ export default function AdminBookings() {
             <option value="confirmed">Confirmed</option>
             <option value="pending">Pending</option>
             <option value="cancel_pending">Cancel pending</option>
+            <option value="cancel_stuck">Cancel stuck (2+ days)</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
@@ -1468,6 +1789,7 @@ export default function AdminBookings() {
               <span style={{ display: "flex", flexDirection: "column" }}>
                 <StatusBadge status={b.status} />
                 {openRequest(b) && <RequestFlag />}
+                {isStuck(b) && <StuckFlag />}
               </span>
             </button>
           ))}
