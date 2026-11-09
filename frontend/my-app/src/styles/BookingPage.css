@@ -4835,3 +4835,138 @@ body.sk-roombar-on .sk-results-wrap {
     background: rgba(52, 28, 90, 0.96) !important;
   }
 }
+
+/* ================================================================
+   PHONES — QUICK / FULL
+   Quick (default on phones): same page, extras tucked behind a tap.
+   Full: everything, like desktop. Toggled in BookingPage.jsx.
+================================================================ */
+.sk-viewmode {
+  display: none;
+}
+.sk-quick-pass-btn {
+  display: none;
+}
+/* Filters + sort above the results (after a search) */
+.sk-results-tools {
+  max-width: 1200px;
+  margin: 0 auto 8px;
+  padding: 0 16px;
+}
+
+@media (max-width: 768px) {
+  .sk-viewmode {
+    display: flex;
+    width: max-content;
+    margin: 4px auto 12px;
+    padding: 3px;
+    gap: 3px;
+    border-radius: 999px;
+    background: rgba(42, 22, 80, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .sk-viewmode button {
+    min-height: 32px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    font: 700 13px "DM Sans", system-ui, sans-serif;
+  }
+  .sk-viewmode button.is-on {
+    background: linear-gradient(135deg, #ff8a2a, #ffb347);
+    color: #1a0e06;
+  }
+  .sk-viewmode button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  /* Header: one short line */
+  .sk-quick .sk-bp-eyebrow,
+  .sk-quick .sk-hero-sub {
+    display: none !important;
+  }
+  .sk-quick .sk-booking-hero.sk-bp .sk-hero-title,
+  .sk-quick .sk-hero-title {
+    font-size: 22px !important;
+    line-height: 1.2 !important;
+    margin: 0 0 10px !important;
+  }
+
+  /* Plan modes: three small pills in one row */
+  .sk-quick .sk-planmode {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .sk-quick .sk-planmode__btn {
+    justify-content: center;
+    text-align: center;
+    padding: 9px 6px;
+    border-radius: 12px;
+  }
+  .sk-quick .sk-planmode__icon,
+  .sk-quick .sk-planmode__sub {
+    display: none !important;
+  }
+  .sk-quick .sk-planmode__title {
+    font-size: 13px;
+  }
+
+  /* Boarding pass: no header band; stub (XP, Price Watch, weather) on tap */
+  .sk-quick .sk-bp-band {
+    display: none;
+  }
+  .sk-quick:not(.is-pass-open) .sk-bp-stub,
+  .sk-quick:not(.is-pass-open) .sk-bp-perf {
+    display: none !important;
+  }
+  .sk-quick .sk-quick-pass-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 40px;
+    margin-top: 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.82);
+    font: 700 13px "DM Sans", system-ui, sans-serif;
+  }
+  .sk-quick .sk-quick-pass-btn[aria-expanded="true"] {
+    border-color: #ffb347;
+    color: #ffb347;
+  }
+
+  /* Filters: one button; the dropdown row opens on tap */
+  .sk-quick:not(.is-filters-open) .sk-bp-tools > div:not(.sk-bp-tools-row) {
+    display: none !important;
+  }
+  .sk-quick .sk-bp-tools-row .sk-qf:not(.sk-quick-filters):not(.sk-qf-clear) {
+    display: none;
+  }
+  .sk-quick .sk-quick-filters {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  /* Sync Together already lives in the navbar */
+  .sk-quick .sk-bp-tools-row a[href="/sync-together"] {
+    display: none;
+  }
+  .sk-quick .sk-bp-tools-row {
+    gap: 8px;
+  }
+
+  .sk-results-tools {
+    padding: 0 12px;
+  }
+}

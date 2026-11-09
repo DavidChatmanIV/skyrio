@@ -13,6 +13,19 @@ import {
   parsePrebookSeatOptions,
 } from "./Liteapiflights.utils.js";
 import { sendBookingConfirmation } from "../../../services/email.js";
+// Duffel = second flight supplier. Off unless DUFFEL_FLIGHTS_ENABLED=true.
+import {
+  duffelFlightsEnabled,
+  isDuffelOfferId,
+  isDuffelSoldOut,
+  searchDuffelFlights,
+  getDuffelOffer,
+} from "./Duffelflights.provider.js";
+import {
+  duffelOfferToFrontendShape,
+  mergeFlights,
+  journeyKey,
+} from "./Duffelflights.utils.js";
 import Booking from "../../../models/booking.js";
 import User from "../../../models/user.js";
 import Notification from "../../../models/notification.js";
@@ -567,18 +580,49 @@ export async function runSearch(params, { fresh = false } = {}) {
     console.log("[flights/search] payload:", JSON.stringify(payload));
 
     const startedAt = Date.now();
-    const { data } = await postRatesWithRetry(payload);
+    // LiteAPI and (when enabled) Duffel search at the same time.
+    const useDuffel = duffelFlightsEnabled();
+    const [liteRes, duffelRes] = await Promise.allSettled([
+      postRatesWithRetry(payload),
+      useDuffel ? searchDuffelFlights(params) : Promise.resolve([]),
+    ]);
 
-    console.log(
-      `[flights/search] LiteAPI answered in ${
-        Date.now() - startedAt
-      }ms, top-level keys:`,
-      Object.keys(data || {})
-    );
+    let liteFlights = [];
+    if (liteRes.status === "fulfilled") {
+      const { data } = liteRes.value;
+      console.log(
+        `[flights/search] LiteAPI answered in ${
+          Date.now() - startedAt
+        }ms, top-level keys:`,
+        Object.keys(data || {})
+      );
+      const results = normalizeFlightSearchResponse(data, params);
+      // Offers' clocks start when LiteAPI creates them, i.e. at request time.
+      liteFlights = stampOffers(results.map(toFrontendFlightShape), startedAt);
+    }
 
-    const results = normalizeFlightSearchResponse(data, params);
-    // Offers' clocks start when LiteAPI creates them, i.e. at request time.
-    const flights = stampOffers(results.map(toFrontendFlightShape), startedAt);
+    let duffelFlights = [];
+    if (duffelRes.status === "fulfilled") {
+      duffelFlights = stampOffers(duffelRes.value, startedAt);
+    } else {
+      console.warn(
+        "[flights/search] Duffel search failed (LiteAPI results still shown):",
+        duffelRes.reason?.response?.data?.errors?.[0]?.code ||
+          duffelRes.reason?.message
+      );
+    }
+
+    if (liteRes.status === "rejected") {
+      // Both failed (or Duffel is off / found nothing): same error as before.
+      if (!duffelFlights.length) throw liteRes.reason;
+      console.warn(
+        `[flights/search] LiteAPI failed — showing ${duffelFlights.length} Duffel fare(s) only`
+      );
+    }
+
+    const flights = useDuffel
+      ? mergeFlights(liteFlights, duffelFlights)
+      : liteFlights;
 
     console.log(
       `[flights/search] normalized ${
@@ -686,6 +730,9 @@ export function warmSearch(req, res) {
 async function refreshOffer({ params, selected, oldOfferId }) {
   const sig = journeySignature(selected);
   if (!sig) return null;
+  // Supplier-neutral match too, so a fare that sold out at one supplier
+  // can be refreshed from the other (they format flight numbers differently).
+  const key = journeyKey(selected);
   const startedAt = Date.now();
   try {
     const { flights } = await runSearch(params, { fresh: true });
@@ -693,7 +740,7 @@ async function refreshOffer({ params, selected, oldOfferId }) {
       (f) =>
         offerIdOf(f) &&
         offerIdOf(f) !== oldOfferId &&
-        journeySignature(f) === sig
+        (journeySignature(f) === sig || (key && journeyKey(f) === key))
     );
     if (!match) {
       console.warn(
@@ -703,11 +750,17 @@ async function refreshOffer({ params, selected, oldOfferId }) {
     }
 
     const newOfferId = offerIdOf(match);
-    const { data } = await liteApiFlights.post(
-      "/flights/verify",
-      buildVerifyPayload({ offerId: newOfferId }),
-      { timeout: VERIFY_TIMEOUT_MS, _noRetry: true }
-    );
+    let data = {};
+    if (isDuffelOfferId(newOfferId)) {
+      await getDuffelOffer(newOfferId); // throws if gone
+      data = { provider: "duffel" };
+    } else {
+      ({ data } = await liteApiFlights.post(
+        "/flights/verify",
+        buildVerifyPayload({ offerId: newOfferId }),
+        { timeout: VERIFY_TIMEOUT_MS, _noRetry: true }
+      ));
+    }
 
     const previousPrice = priceOf(selected);
     const newPrice = priceOf(match);
@@ -801,6 +854,10 @@ export async function verifyOffer(req, res) {
     return res.status(409).json({ ...SOLD_OUT_BODY });
   }
 
+  if (isDuffelOfferId(offerId)) {
+    return verifyDuffelOffer(req, res, { offerId, selected, params, canRefresh });
+  }
+
   try {
     const payload = buildVerifyPayload({ offerId });
     const { data } = await liteApiFlights.post("/flights/verify", payload, {
@@ -830,6 +887,47 @@ export async function verifyOffer(req, res) {
   }
 }
 
+// Verify for a Duffel fare: re-reads the offer from Duffel for its current
+// price. Same response shape as LiteAPI verify (ok, offerId, expiresAt, plus
+// priceChanged/newPrice when the price moved).
+async function verifyDuffelOffer(req, res, { offerId, selected, params, canRefresh }) {
+  try {
+    const offer = await getDuffelOffer(offerId);
+    const flight = stampOffers([duffelOfferToFrontendShape(offer)], Date.now())[0];
+    const previousPrice = priceOf(selected);
+    const newPrice = priceOf(flight);
+    const priceChanged =
+      previousPrice != null &&
+      newPrice != null &&
+      Math.abs(newPrice - previousPrice) >= 0.01;
+    return res.status(200).json({
+      ok: true,
+      provider: "duffel",
+      offerId,
+      flight,
+      expiresAt: flight.expiresAt,
+      priceChanged,
+      previousPrice,
+      newPrice,
+    });
+  } catch (err) {
+    if (isDuffelSoldOut(err)) {
+      removeOfferFromCache(offerId);
+      if (canRefresh) {
+        const refreshed = await refreshOffer({ params, selected, oldOfferId: offerId });
+        if (refreshed) return res.status(200).json(refreshed);
+      }
+      return res.status(409).json({ ...SOLD_OUT_BODY });
+    }
+    console.error("[flights/verify] Duffel verify failed:", err?.message);
+    return res.status(502).json({
+      ok: false,
+      code: err?.response?.data?.errors?.[0]?.code || "DUFFEL_ERROR",
+      message: "The airline's system didn't respond. Please try again in a moment.",
+    });
+  }
+}
+
 /**
  * Step 2 of 4 — reserve the offer with the provider, create a payment
  * intent (when usePaymentSdk is true). Returns a prebookId.
@@ -849,6 +947,16 @@ export async function createPrebook(req, res) {
       return res.status(400).json({
         ok: false,
         message: "offerId, contact, and passengers are required",
+      });
+    }
+    // Duffel checkout (Stripe hold → Duffel order) is the next step and
+    // isn't built yet. Keep DUFFEL_FLIGHTS_ENABLED off in production until it is.
+    if (isDuffelOfferId(offerId)) {
+      return res.status(409).json({
+        ok: false,
+        code: "DUFFEL_CHECKOUT_PENDING",
+        message:
+          "This fare can't be booked on Skyrio yet. Please pick another flight.",
       });
     }
     // Guests have no account email, so the confirmation (and claiming the
@@ -1155,7 +1263,8 @@ function cleanSeats(list) {
     );
 }
 
-async function saveFlightBooking({
+// Exported so the Duffel checkout saves bookings exactly the same way.
+export async function saveFlightBooking({
   userId,
   prebookId,
   transactionId,
@@ -1164,6 +1273,11 @@ async function saveFlightBooking({
   groupId,
   // Email from the checkout token, used when checkout didn't send one.
   fallbackEmail,
+  // Duffel bookings pass these; LiteAPI bookings leave them unset.
+  provider = "liteapi",
+  pnrOverride,
+  bookingIdOverride,
+  travelers,
 }) {
   try {
     const e = email || {};
@@ -1176,8 +1290,8 @@ async function saveFlightBooking({
     if (!userId && !contactEmail) {
       throw new Error("guest booking has no email");
     }
-    const pnr = extractFlightPnr(record);
-    const bookingId = extractFlightBookingId(record);
+    const pnr = pnrOverride ?? extractFlightPnr(record);
+    const bookingId = bookingIdOverride ?? extractFlightBookingId(record);
     const total = Number(e.totalAmount);
     const departDate = e.departureAt
       ? String(e.departureAt).slice(0, 10)
@@ -1218,22 +1332,27 @@ async function saveFlightBooking({
         // later with the airline aren't known to Skyrio.
         seats: cleanSeats(e.seats),
         groupId: groupId || null,
-        liteapi: record || null,
+        // Supplier's raw booking record (LiteAPI only; Duffel keeps its
+        // order id in providerBookingIds).
+        liteapi: provider === "liteapi" ? record || null : null,
       },
       dates: {
         start: toDate(e.departureAt),
         end: toDate(e.returnArrivingAt || e.returnDepartureAt || e.arrivalAt),
       },
-      travelers: 1,
-      passengers: e.passengerName
-        ? [{ name: e.passengerName, type: "adult" }]
-        : [],
+      travelers: Array.isArray(travelers) && travelers.length ? travelers.length : 1,
+      passengers:
+        Array.isArray(travelers) && travelers.length
+          ? travelers
+          : e.passengerName
+          ? [{ name: e.passengerName, type: "adult" }]
+          : [],
       status: "confirmed",
       paidAt: new Date(),
       total: Number.isFinite(total) ? total : 0,
       totalAmount: Number.isFinite(total) ? total : null,
       totalCurrency: String(e.currency || "USD").toUpperCase(),
-      provider: "liteapi",
+      provider,
       providerBookingIds: bookingId ? [String(bookingId)] : [],
       confirmationCodes: pnr ? [String(pnr)] : [],
     });

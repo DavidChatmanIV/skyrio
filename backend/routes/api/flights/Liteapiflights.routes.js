@@ -10,6 +10,10 @@ import {
   attachPrebookServices,
   completeBooking,
 } from "./Liteapiflights.controller.js";
+import {
+  createDuffelIntent,
+  completeDuffelBooking,
+} from "./Duffelflights.checkout.js";
 
 const router = express.Router();
 
@@ -42,5 +46,10 @@ router.post(
   attachPrebookServices
 );
 router.post("/complete", optionalAuth, completeBooking);
+
+// Duffel fares (offerId starts with "off_"): Stripe hold → Duffel order →
+// capture. Same checkout-token ownership rules as above.
+router.post("/duffel/intent", holdLimiter, optionalAuth, createDuffelIntent);
+router.post("/duffel/complete", optionalAuth, completeDuffelBooking);
 
 export default router;

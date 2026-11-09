@@ -16,6 +16,7 @@ import {
   Copy,
   RotateCcw,
   ChevronDown,
+  TrendingDown,
 } from "lucide-react";
 import SavedTrips from "../components/SavedTrips";
 
@@ -192,6 +193,87 @@ function isUpcoming(b) {
 
 const hasOpenCancelRequest = (b) => b.cancelRequest?.status === "open";
 
+/* ── "Check today's price": search the same trip again on Book ──
+   Same route (or hotel), same travelers, same cabin. Upcoming trips use the
+   same dates; past trips use the same length starting 3 weeks from today.
+   What was paid goes along so Book can show "You paid · Today from".
+   It's only sent when the search really matches (all adults, known route),
+   so the comparison is never apples to oranges. */
+const DAY = 24 * 60 * 60 * 1000;
+const isoDay = (d) => new Date(d).toISOString().slice(0, 10);
+export function priceCheckLink(b) {
+  const isHotel = b.type === "Hotel";
+  const start = b.dates?.start ? new Date(b.dates.start) : null;
+  const end = b.dates?.end ? new Date(b.dates.end) : null;
+  if (!start || Number.isNaN(start.getTime())) return null;
+  const nights =
+    end && !Number.isNaN(end.getTime())
+      ? Math.max(1, Math.round((end - start) / DAY))
+      : null;
+  const upcoming = start.getTime() > Date.now() + DAY;
+  const depart = upcoming ? start : new Date(Date.now() + 21 * DAY);
+  const ret = nights ? new Date(depart.getTime() + nights * DAY) : null;
+
+  const p = new URLSearchParams({ auto: "1", depart: isoDay(depart) });
+  if (ret) p.set("return", isoDay(ret));
+  if (!upcoming) p.set("newDates", "1");
+
+  const paid = Number(b.totalAmount ?? b.total);
+  let comparable = paid > 0;
+
+  if (isHotel) {
+    const room = b.hotelStay?.rooms?.[0] || {};
+    // Search the city, not the street ("1601 Biscayne Blvd, Miami" → "Miami").
+    const addrParts = String(room.address || "")
+      .split(",")
+      .map((x) => x.replace(/\b\d{5}(-\d{4})?\b/, "").trim())
+      .filter(Boolean);
+    const cityFromAddress =
+      addrParts.length > 1 ? addrParts.slice(1).join(", ") : addrParts[0];
+    const where = room.city || cityFromAddress || room.name;
+    if (!where || !ret) return null;
+    const rooms = b.hotelStay?.rooms?.length || 1;
+    p.set("tab", "Stays");
+    p.set("city", where);
+    p.set("rooms", String(rooms));
+    p.set(
+      "adults",
+      String(Math.max(rooms, Number(room.adults) * rooms || rooms))
+    );
+    if (room.name) p.set("hotelName", room.name);
+  } else {
+    const f = b.flight || {};
+    const m = String(b.tripDetails || "").match(
+      /([A-Z]{3})\s*(?:→|->)\s*([A-Z]{3})/
+    );
+    const from = f.origin || m?.[1];
+    const to = f.destination || m?.[2];
+    if (!from || !to) return null;
+    const pax = Array.isArray(b.passengers) ? b.passengers : [];
+    const adults = pax.length
+      ? pax.filter((x) => !x.type || /adult|ADT/i.test(x.type)).length
+      : Number(b.travelers) || 1;
+    // Children or infants on the booking: still search, but don't compare
+    // (the search below is adults only).
+    if (pax.length && adults !== pax.length) comparable = false;
+    p.set("tab", "Flights");
+    p.set("from", from);
+    p.set("to", to);
+    p.set("adults", String(Math.max(1, adults)));
+    if (f.cabin) p.set("cabin", String(f.cabin).toLowerCase());
+    if (/one[\s-]?way/i.test(b.tripDetails || "")) p.delete("return");
+    if (f.airline) p.set("airline", f.airline);
+  }
+
+  if (comparable) {
+    p.set("paid", String(Math.round(paid * 100) / 100));
+    p.set("paidCur", b.totalCurrency || "USD");
+    const bookedOn = b.paidAt || b.createdAt;
+    if (bookedOn) p.set("bookedOn", isoDay(bookedOn));
+  }
+  return `/booking?${p.toString()}`;
+}
+
 /* Cancelled trips you've cleared from this list. The booking record itself
    is never deleted (it's your receipt) — it's just hidden here.
    Saved on the server (booking.hiddenByUser) so it syncs across devices.
@@ -279,6 +361,7 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
   const subtitle = isHotel
     ? [room?.roomName, room?.boardName].filter(Boolean).join(" · ")
     : b.flight?.airline;
+  const checkLink = !cancelled ? priceCheckLink(b) : null;
   const canCancel =
     onCancel &&
     !b.sharedRoom &&
@@ -401,8 +484,18 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
             <div className="mt-price">{paid}</div>
           </div>
         )}
-        {(canCancel || (cancelled && onRemove)) && (
+        {(canCancel || checkLink || (cancelled && onRemove)) && (
           <div className="mt-actions">
+            {checkLink && (
+              <button
+                type="button"
+                className="mt-btn"
+                onClick={() => navigate(checkLink)}
+                title="Search this trip again and compare with what you paid"
+              >
+                <TrendingDown size={14} aria-hidden="true" /> Today&apos;s price
+              </button>
+            )}
             {canCancel && (
               <button
                 type="button"

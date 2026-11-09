@@ -28,6 +28,7 @@ import PhoneInput, {
 import "react-phone-number-input/style.css";
 import SkyrioSeatMap from "./SkyrioSeatMap";
 import LiteApiPayForm from "./LiteApiPayForm";
+import DuffelPayForm from "./DuffelPayForm";
 import OverBudgetCheck, {
   overBudgetBy,
 } from "@/components/syncTogether/OverBudgetCheck";
@@ -510,6 +511,16 @@ function fmt(start, end) {
     mm = m % 60;
   return h && mm ? `${h}h ${mm}m` : h ? `${h}h` : `${mm}m`;
 }
+// Duffel fares (offer ids "off_…") are paid on Skyrio's own Stripe account
+// and have no Seats & Bags step yet.
+const isDuffelOffer = (offerId) => /^off_/.test(String(offerId || ""));
+const NO_EXTRAS = {
+  selectedSeats: {},
+  seatsPrice: 0,
+  selectedBags: [],
+  bagsPrice: 0,
+  segments: [],
+};
 function buildFlight(flight) {
   if (!flight) return MOCK_FLIGHT;
   const airline = flight.owner || flight.airline || "Unknown";
@@ -4315,6 +4326,7 @@ function StepReviewPay({
   prebookError,
   baggage,
   onEditDetails,
+  duffelTotal = null,
 }) {
   // verify + prebook happen in the parent right after Passengers submits;
   // payment itself is handled by LiteApiPayForm.
@@ -4619,6 +4631,21 @@ function StepReviewPay({
                   provider={flight?.outbound?.airline}
                   style={{ marginBottom: 10 }}
                 />
+                {isDuffelOffer(flight?.offerId) ? (
+                  <DuffelPayForm
+                    clientSecret={clientSecret}
+                    checkoutId={prebookId}
+                    total={duffelTotal ?? total}
+                    currency={flight?.currency || "USD"}
+                    flight={flight}
+                    passengers={passengers}
+                    groupId={groupId}
+                    fareExpired={fareExpired}
+                    onBack={onBack}
+                    onRestart={onRefreshFare}
+                    onBookingSuccess={onBookingSuccess}
+                  />
+                ) : (
                 <LiteApiPayForm
                   clientSecret={clientSecret}
                   prebookId={prebookId}
@@ -4634,6 +4661,7 @@ function StepReviewPay({
                   hasSeats={seatsPrice > 0}
                   hasBags={selectedBags.length > 0}
                 />
+                )}
                 <CancellationBadge
                   departureDateISO={flight?.outbound?.dateISO}
                 />
@@ -4780,6 +4808,8 @@ export default function BookingCheckout({
     () => restoredProgress?.transactionId ?? null
   );
   const [clientSecret, setClientSecret] = useState(null);
+  // Duffel: the exact total on the Stripe hold (all travelers).
+  const [duffelTotal, setDuffelTotal] = useState(null);
   const [prebookLoading, setPrebookLoading] = useState(false);
   const [prebookError, setPrebookError] = useState("");
   // The fare's bag allowance as LiteAPI confirmed it (null = not confirmed).
@@ -4871,6 +4901,56 @@ export default function BookingCheckout({
         // sending it to the airline (which rejects it as "traveler details").
         const countProblem = travelerCountProblem(passengersList, pricedFor);
         if (countProblem) throw new Error(countProblem);
+        // Duffel fare: Stripe hold on Skyrio's account instead of a LiteAPI
+        // prebook. The ticket is booked (and the card charged) at Pay.
+        if (isDuffelOffer(verifiedOfferId)) {
+          const lead = passengersList[0];
+          const iRes = await fetch(`${API}/api/flights/duffel/intent`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({
+              offerId: verifiedOfferId,
+              groupId: groupId || null,
+              contact: { email: lead.email, phone: lead.phone },
+              passengers: passengersList.map((p) => ({
+                firstName: p.firstName,
+                lastName: p.lastName,
+                dob: p.dob,
+                gender: p.gender,
+                type: p.type,
+              })),
+            }),
+          });
+          const iData = await iRes.json().catch(() => ({}));
+          if (!iRes.ok || !iData.ok || !iData.clientSecret || !iData.checkoutToken) {
+            throw new Error(
+              iData.message || "Couldn't set up payment for this fare. Go back and try again."
+            );
+          }
+          saveCheckoutToken("flight", iData.checkoutId, iData.checkoutToken);
+          const heldTotal = Number(iData.total);
+          const shownTotal = Number(flight?.totalAmount);
+          setFareUpdate((prev) => ({
+            ...(prev || {}),
+            offerId: verifiedOfferId,
+            price: Number.isFinite(heldTotal) ? heldTotal : prev?.price ?? null,
+            expiresAt: iData.expiresAt || prev?.expiresAt || null,
+            previousPrice:
+              Number.isFinite(heldTotal) &&
+              Number.isFinite(shownTotal) &&
+              Math.abs(heldTotal - shownTotal) >= 0.01
+                ? shownTotal
+                : prev?.previousPrice ?? null,
+          }));
+          setDuffelTotal(Number.isFinite(heldTotal) ? heldTotal : null);
+          setPrebookId(iData.checkoutId);
+          setTransactionId(iData.checkoutId);
+          setClientSecret(iData.clientSecret);
+          // No Seats & Bags for Duffel yet → straight to Review & Pay.
+          setExtras(NO_EXTRAS);
+          setStep(2);
+          return;
+        }
         const leadPassenger = passengersList[0];
         // Phone is stored as E.164; LiteAPI takes calling code + national
         // number separately (e.g. "44" + "7911123456").
@@ -4981,9 +5061,10 @@ export default function BookingCheckout({
     setTransactionId(null);
     setClientSecret(null);
     setExtras((e) => (e ? { ...e, selectedSeats: {}, selectedBags: [] } : e));
-    setStep((s) => Math.min(s, 1));
+    setDuffelTotal(null);
+    setStep((s) => Math.min(s, isDuffelOffer(liveFlight.offerId) ? 2 : 1));
     runPrebook(passengers);
-  }, [passengers, runPrebook]);
+  }, [passengers, runPrebook, liveFlight.offerId]);
   // Resume after a refresh mid-checkout. StepSeatsBags refetches its own
   // seat data on mount, so the only thing missing on resume is the Stripe
   // client secret. With no prebookId (e.g. progress saved before this
@@ -4992,7 +5073,7 @@ export default function BookingCheckout({
     if (hasStartedPrebook.current) return;
     if (step === 0) return; // runPrebook fires from StepPassengers' onNext instead
     hasStartedPrebook.current = true;
-    if (prebookId) {
+    if (prebookId && !isDuffelOffer(liveFlight.offerId)) {
       (async () => {
         setPrebookLoading(true);
         try {
@@ -5227,7 +5308,11 @@ export default function BookingCheckout({
           </div>
           <ProgressBar
             step={step}
-            onStepClick={(i) => !bookingComplete && setStep(i)}
+            onStepClick={(i) =>
+              !bookingComplete &&
+              !(i === 1 && isDuffelOffer(liveFlight.offerId)) &&
+              setStep(i)
+            }
           />
           {fareUpdate?.previousPrice != null && fareUpdate?.price != null && (
             <div
@@ -5265,7 +5350,14 @@ export default function BookingCheckout({
               onNext={(p) => {
                 setEditLead(false);
                 setPassengers(p);
-                setStep(1);
+                // Duffel fares skip Seats & Bags (Review & Pay shows
+                // "Setting up secure payment…" until the hold is ready).
+                if (isDuffelOffer(liveFlight.offerId)) {
+                  setExtras(NO_EXTRAS);
+                  setStep(2);
+                } else {
+                  setStep(1);
+                }
                 // Start the real reservation as Passengers is submitted so a
                 // prebookId (and real seat data) exists for the Seats step.
                 runPrebook(p);
@@ -5321,9 +5413,11 @@ export default function BookingCheckout({
               tripBudget={tripBudget}
               onBudgetSaved={onBudgetSaved}
               progressKey={progressKey}
-              onBack={() => setStep(1)}
+              onBack={() =>
+                setStep(isDuffelOffer(liveFlight.offerId) ? 0 : 1)
+              }
               passengers={passengers}
-              extras={extras}
+              extras={extras || NO_EXTRAS}
               basePrice={liveFlight.basePrice}
               flight={liveFlight}
               groupId={effectiveGroupId}
@@ -5340,6 +5434,7 @@ export default function BookingCheckout({
               clientSecret={clientSecret}
               prebookError={prebookError}
               baggage={baggage}
+              duffelTotal={duffelTotal}
               onEditDetails={() => {
                 setEditLead(true);
                 setStep(0);

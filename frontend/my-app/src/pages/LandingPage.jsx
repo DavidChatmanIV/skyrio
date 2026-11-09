@@ -47,6 +47,7 @@ import {
   Search as FindIcon,
 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
+import TripGenerator from "@/components/TripGenerator";
 
 // Same key BookingPage reads, so the chosen path opens ready to go.
 const PLAN_MODE_KEY = "skyrio_plan_mode";
@@ -470,6 +471,12 @@ export default function LandingPage() {
               Or search yourself →
             </Link>
           </div>
+
+          {/* Can't decide? One tap makes a whole trip; Shuffle for another. */}
+          <div className="lp-label" style={{ marginTop: 34 }}>
+            Can&apos;t decide?
+          </div>
+          <TripGenerator />
 
           <div className="lp-trust">
             <span>

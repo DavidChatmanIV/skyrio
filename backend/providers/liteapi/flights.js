@@ -63,7 +63,11 @@ export async function searchFlights(input = {}) {
     cabinClass: input.cabin || input.cabinClass,
   };
   const { flights } = await runSearch(params);
-  let offers = (flights || []).filter((f) => f.offerId).map(toAtlasOffer);
+  // Atlas books through LiteAPI's checkout, so Duffel fares stay out of
+  // Atlas until Duffel checkout exists.
+  let offers = (flights || [])
+    .filter((f) => f.offerId && f.provider !== "duffel")
+    .map(toAtlasOffer);
 
   if (input.flightNumbers?.length) {
     const want = input.flightNumbers.map((n) => String(n).replace(/\s+/g, "").toUpperCase());

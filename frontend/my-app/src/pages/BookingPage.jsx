@@ -84,6 +84,8 @@ import {
   DollarSign,
   Calendar,
   ChevronsDown,
+  SlidersHorizontal,
+  Info,
   ArrowRight,
   Clock,
   Users,
@@ -4148,6 +4150,121 @@ function UnavailableNotice({ notice, groupId, onClose, onTryAlternative }) {
   );
 }
 
+/* ── "Today's price" (opened from My Trips) ──────────────────────────
+   You paid X · today the same trip is from Y. Compares like with like:
+   the same airline (or the same hotel) when it's in the results, and says
+   so plainly when it isn't. Prices are live search results, not a quote. */
+function PriceCheckBanner({ check, tab, flights, hotels }) {
+  const money = (n) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: check.cur || "USD",
+      maximumFractionDigits: 0,
+    }).format(n);
+  const minOf = (list) => {
+    const nums = list
+      .map((x) => Number(x.totalAmount))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    return nums.length ? Math.min(...nums) : null;
+  };
+  const same = (a, b) =>
+    String(a || "")
+      .trim()
+      .toLowerCase() ===
+    String(b || "")
+      .trim()
+      .toLowerCase();
+
+  let label = "";
+  let now = null;
+  let other = null;
+  if (tab === "Flights") {
+    const mine = check.airline
+      ? flights.filter((f) => same(f.owner, check.airline))
+      : [];
+    now = minOf(mine.length ? mine : flights);
+    label = mine.length ? `${check.airline} today` : "Today, any airline";
+    if (mine.length) {
+      const any = minOf(flights);
+      if (any && now && any < now)
+        other = `Cheapest on any airline: ${money(any)}`;
+    } else if (check.airline && flights.length) {
+      other = `${check.airline} isn't in today's results.`;
+    }
+  } else {
+    const mine = check.hotelName
+      ? hotels.filter((h) => same(h.name, check.hotelName))
+      : [];
+    now = minOf(mine.length ? mine : hotels);
+    label = mine.length ? `${check.hotelName} today` : "Today, this area";
+    if (!mine.length && check.hotelName && hotels.length)
+      other = `${check.hotelName} isn't in today's results.`;
+  }
+  if (now == null) return null;
+
+  const diff = Math.round(now - check.paid);
+  const tone = diff < 0 ? "#6ee7a8" : diff > 0 ? "#ffb347" : "#fff";
+  const bookedOn = check.bookedOn
+    ? new Date(`${check.bookedOn}T12:00:00Z`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+  return (
+    <div
+      role="status"
+      style={{
+        marginTop: 12,
+        padding: "12px 14px",
+        borderRadius: 14,
+        background:
+          "linear-gradient(160deg, rgba(74,40,112,0.62), rgba(34,18,62,0.74))",
+        border: "1px solid rgba(255,179,71,0.45)",
+        color: "#fff",
+        fontSize: 13.5,
+        lineHeight: 1.5,
+        maxWidth: 620,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "4px 18px",
+          alignItems: "baseline",
+        }}
+      >
+        <span>
+          You paid <b>{money(check.paid)}</b>
+          {bookedOn ? ` on ${bookedOn}` : ""}
+        </span>
+        <span>
+          {label} from <b>{money(now)}</b>
+        </span>
+        <b style={{ color: tone }}>
+          {diff < 0
+            ? `${money(-diff)} less now`
+            : diff > 0
+            ? `${money(diff)} more now`
+            : "Same price"}
+        </b>
+      </div>
+      <div
+        style={{ marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.65)" }}
+      >
+        {[
+          check.newDates ? "Same trip length, new dates." : "Same dates.",
+          other,
+          "Live prices. Your booking isn't changed.",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      </div>
+    </div>
+  );
+}
+
 export default function BookingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
@@ -4345,6 +4462,43 @@ export default function BookingPage() {
   // After a search, the results take over the page (like a separate
   // results page) with a "Change search" bar on top. The planner stays
   // mounted underneath, so nothing typed is lost going back.
+  // ── Phones: "Quick" (default) or "Full" ──
+  // Quick is the same page with the extras tucked behind a tap: the
+  // boarding-pass stub (XP, Price Watch, weather) and the filter dropdowns.
+  // Full shows everything, like desktop. The choice is remembered.
+  const [isPhone, setIsPhone] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      !!window.matchMedia?.("(max-width: 768px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.("(max-width: 768px)");
+    if (!mq) return;
+    const onChange = () => setIsPhone(mq.matches);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+  const [viewMode, setViewModeState] = useState(() => {
+    try {
+      return localStorage.getItem("skyrio_view_mode") === "full"
+        ? "full"
+        : "quick";
+    } catch {
+      return "quick";
+    }
+  });
+  const setViewMode = useCallback((m) => {
+    setViewModeState(m);
+    try {
+      localStorage.setItem("skyrio_view_mode", m);
+    } catch {
+      /* fine — just not remembered */
+    }
+  }, []);
+  const quick = isPhone && viewMode === "quick";
+  const [quickFiltersOpen, setQuickFiltersOpen] = useState(false);
+  const [quickPassOpen, setQuickPassOpen] = useState(false);
+
   const [resultsFocus, setResultsFocusState] = useState(false);
   const resultsFocusRef = useRef(false);
   const setResultsFocus = useCallback((on) => {
@@ -4628,6 +4782,19 @@ export default function BookingPage() {
       autoSearch,
     };
   }, [searchParams, autoSearch]);
+  // "Today's price" from My Trips: what they paid, to compare with now.
+  const priceCheck = useMemo(() => {
+    const paid = Number(searchParams.get("paid"));
+    if (!(paid > 0)) return null;
+    return {
+      paid,
+      cur: searchParams.get("paidCur") || "USD",
+      bookedOn: searchParams.get("bookedOn"),
+      airline: searchParams.get("airline"),
+      hotelName: searchParams.get("hotelName"),
+      newDates: searchParams.get("newDates") === "1",
+    };
+  }, [searchParams]);
   const hotelIdParam = searchParams.get("hotelId");
   const stayInitial = useMemo(() => {
     const city = searchParams.get("city") || searchParams.get("to");
@@ -6162,6 +6329,127 @@ export default function BookingPage() {
       </div>
     ) : null;
 
+  // Filters, sort and shortcuts. Shown under the search bar, and on top of
+  // the results once a search runs (the search form folds away then, and
+  // the filters used to fold away with it).
+  const toolsBlock = (
+    <div className="sk-bp-tools">
+      <SmartFilterBar
+        filters={smartFilters}
+        onChange={setSmartFilters}
+        flightResults={flightResults}
+        visible={tab === "Flights"}
+      />
+
+      <HotelFilterBar
+        filters={hotelFilters}
+        onChange={setHotelFilters}
+        hotelResults={hotelResults}
+        visible={tab === "Stays"}
+      />
+
+      <div className="sk-bp-tools-row">
+        {/* Quick mode (phones): one Filters button instead of
+                        the row of dropdowns. */}
+        {quick && (tab === "Flights" || tab === "Stays") && (
+          <button
+            type="button"
+            className={`sk-qf sk-quick-filters${
+              quickFiltersOpen ? " is-active" : ""
+            }`}
+            aria-expanded={quickFiltersOpen}
+            onClick={() => setQuickFiltersOpen((v) => !v)}
+          >
+            <SlidersHorizontal size={13} aria-hidden="true" /> Filters
+            {(tab === "Flights" ? activeFilterCount : activeHotelFilterCount) >
+            0
+              ? ` · ${
+                  tab === "Flights" ? activeFilterCount : activeHotelFilterCount
+                }`
+              : ""}
+          </button>
+        )}
+        {/* Sort + quick filters only once there are results —
+                        before a search they do nothing. */}
+        {tab === "Flights" && flightResults.length > 0 && (
+          <Button
+            className="sk-btn-orange sk-bp-sort"
+            onClick={() => {
+              const i = SORT_OPTIONS.findIndex((o) => o.key === sortBy);
+              setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length].key);
+            }}
+            title="Click to change sort"
+          >
+            Sort: {SORT_OPTIONS.find((o) => o.key === sortBy)?.label}
+          </Button>
+        )}
+        {tab === "Stays" && hotelResults.length > 0 && (
+          <Button
+            className="sk-btn-orange sk-bp-sort"
+            onClick={() => {
+              const i = HOTEL_SORT_OPTIONS.findIndex(
+                (o) => o.key === hotelSortBy
+              );
+              setHotelSortBy(
+                HOTEL_SORT_OPTIONS[(i + 1) % HOTEL_SORT_OPTIONS.length].key
+              );
+            }}
+            title="Click to change sort"
+          >
+            Sort: {HOTEL_SORT_OPTIONS.find((o) => o.key === hotelSortBy)?.label}
+          </Button>
+        )}
+
+        {tab === "Flights" &&
+          flightResults.length > 0 &&
+          quickFilters.map((qf) => (
+            <button
+              key={qf.label}
+              type="button"
+              className={`sk-qf${isQuickActive(qf) ? " is-active" : ""}`}
+              aria-pressed={isQuickActive(qf)}
+              onClick={() => toggleFilter(qf)}
+            >
+              {qf.label}
+            </button>
+          ))}
+        {tab === "Flights" && activeFilterCount > 0 && (
+          <button
+            type="button"
+            className="sk-qf sk-qf-clear"
+            onClick={clearFilters}
+          >
+            Clear filters
+          </button>
+        )}
+
+        {/* Pushes the next buttons to the right on desktop */}
+        <span className="sk-bp-tools-gap" aria-hidden="true" />
+
+        {!syncGroupId &&
+          planMode === "budget" &&
+          (visibleFlights.length > 0 || hotelResults.length > 0) && (
+            <button
+              type="button"
+              className="sk-scroll-budget-btn"
+              onClick={scrollToBudget}
+            >
+              <ChevronsDown
+                size={13}
+                style={{ marginRight: 4, verticalAlign: "middle" }}
+              />
+              Trip Budget
+            </button>
+          )}
+        <Link to="/sync-together">
+          <Button className="sk-btn-sync" icon={<SyncOutlined />}>
+            Sync Together
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <UnavailableNotice
@@ -6236,7 +6524,9 @@ export default function BookingPage() {
         </div>
       )}
       <div
-        className="sk-booking"
+        className={`sk-booking${quick ? " sk-quick" : ""}${
+          quickFiltersOpen ? " is-filters-open" : ""
+        }${quickPassOpen ? " is-pass-open" : ""}`}
         style={{
           "--sk-bg-image": `url(${heroImg})`,
           // Hidden (not unmounted) while a checkout overlay is open —
@@ -6248,6 +6538,26 @@ export default function BookingPage() {
         }}
       >
         <style>{PLAN_CSS}</style>
+        {/* Phones only: Quick / Full switch */}
+        {isPhone && (
+          <div className="sk-viewmode" role="radiogroup" aria-label="Page view">
+            {[
+              ["quick", "Quick"],
+              ["full", "Full"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={viewMode === key}
+                className={viewMode === key ? "is-on" : ""}
+                onClick={() => setViewMode(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {resultsFocus && (
           <div className="sk-resultsbar" role="region" aria-label="Your search">
             <button
@@ -6271,6 +6581,9 @@ export default function BookingPage() {
               </div>
             </div>
           </div>
+        )}
+        {resultsFocus && (tab === "Flights" || tab === "Stays") && (
+          <div className="sk-results-tools">{toolsBlock}</div>
         )}
         <div
           className="sk-booking-hero sk-bp"
@@ -6418,116 +6731,8 @@ export default function BookingPage() {
                 {/* ── Search form (scroll target for "Search manually") ── */}
                 <div ref={searchFormRef}>{searchForm}</div>
 
-                {/* ── Filters, sort and shortcuts — right under the search bar ── */}
-                <div className="sk-bp-tools">
-                  <SmartFilterBar
-                    filters={smartFilters}
-                    onChange={setSmartFilters}
-                    flightResults={flightResults}
-                    visible={tab === "Flights"}
-                  />
-
-                  <HotelFilterBar
-                    filters={hotelFilters}
-                    onChange={setHotelFilters}
-                    hotelResults={hotelResults}
-                    visible={tab === "Stays"}
-                  />
-
-                  <div className="sk-bp-tools-row">
-                    {/* Sort + quick filters only once there are results —
-                        before a search they do nothing. */}
-                    {tab === "Flights" && flightResults.length > 0 && (
-                      <Button
-                        className="sk-btn-orange sk-bp-sort"
-                        onClick={() => {
-                          const i = SORT_OPTIONS.findIndex(
-                            (o) => o.key === sortBy
-                          );
-                          setSortBy(
-                            SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length].key
-                          );
-                        }}
-                        title="Click to change sort"
-                      >
-                        Sort:{" "}
-                        {SORT_OPTIONS.find((o) => o.key === sortBy)?.label}
-                      </Button>
-                    )}
-                    {tab === "Stays" && hotelResults.length > 0 && (
-                      <Button
-                        className="sk-btn-orange sk-bp-sort"
-                        onClick={() => {
-                          const i = HOTEL_SORT_OPTIONS.findIndex(
-                            (o) => o.key === hotelSortBy
-                          );
-                          setHotelSortBy(
-                            HOTEL_SORT_OPTIONS[
-                              (i + 1) % HOTEL_SORT_OPTIONS.length
-                            ].key
-                          );
-                        }}
-                        title="Click to change sort"
-                      >
-                        Sort:{" "}
-                        {
-                          HOTEL_SORT_OPTIONS.find((o) => o.key === hotelSortBy)
-                            ?.label
-                        }
-                      </Button>
-                    )}
-
-                    {tab === "Flights" &&
-                      flightResults.length > 0 &&
-                      quickFilters.map((qf) => (
-                        <button
-                          key={qf.label}
-                          type="button"
-                          className={`sk-qf${
-                            isQuickActive(qf) ? " is-active" : ""
-                          }`}
-                          aria-pressed={isQuickActive(qf)}
-                          onClick={() => toggleFilter(qf)}
-                        >
-                          {qf.label}
-                        </button>
-                      ))}
-                    {tab === "Flights" && activeFilterCount > 0 && (
-                      <button
-                        type="button"
-                        className="sk-qf sk-qf-clear"
-                        onClick={clearFilters}
-                      >
-                        Clear filters
-                      </button>
-                    )}
-
-                    {/* Pushes the next buttons to the right on desktop */}
-                    <span className="sk-bp-tools-gap" aria-hidden="true" />
-
-                    {!syncGroupId &&
-                      planMode === "budget" &&
-                      (visibleFlights.length > 0 ||
-                        hotelResults.length > 0) && (
-                        <button
-                          type="button"
-                          className="sk-scroll-budget-btn"
-                          onClick={scrollToBudget}
-                        >
-                          <ChevronsDown
-                            size={13}
-                            style={{ marginRight: 4, verticalAlign: "middle" }}
-                          />
-                          Trip Budget
-                        </button>
-                      )}
-                    <Link to="/sync-together">
-                      <Button className="sk-btn-sync" icon={<SyncOutlined />}>
-                        Sync Together
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
+                {/* ── Filters, sort and shortcuts (toolsBlock, defined above) ── */}
+                {!resultsFocus && toolsBlock}
 
                 {/* Package in progress: flight first, then the stay */}
                 {packagePlan && (tab === "Flights" || tab === "Stays") && (
@@ -6542,6 +6747,22 @@ export default function BookingPage() {
                     onPayStay={handleCheckoutCart}
                     onDone={() => setPackagePlan(null)}
                   />
+                )}
+                {/* Quick mode: the stub (XP, Price Watch, weather) is one tap away */}
+                {quick && (
+                  <button
+                    type="button"
+                    className="sk-quick-pass-btn"
+                    aria-expanded={quickPassOpen}
+                    onClick={() => setQuickPassOpen((v) => !v)}
+                  >
+                    <Info size={14} aria-hidden="true" />
+                    {quickPassOpen
+                      ? "Hide trip details"
+                      : tab === "Flights"
+                      ? "Trip details · XP · Price Watch"
+                      : "Trip details"}
+                  </button>
                 )}
               </div>
 
@@ -6760,49 +6981,53 @@ export default function BookingPage() {
 
                 {/* ── Price Watch Card — flights only (it watches a flight route) ── */}
                 {tab === "Flights" && (
-                <div className="sk-price-watch-card">
-                  <div className="sk-pwc-header">
-                    <div className="sk-pwc-xp">
-                      <Zap size={13} className="sk-pwc-xp-icon" />
-                      <span className="sk-pwc-xp-label">
-                        Earn up to <strong>150 XP</strong> on booking
-                      </span>
+                  <div className="sk-price-watch-card">
+                    <div className="sk-pwc-header">
+                      <div className="sk-pwc-xp">
+                        <Zap size={13} className="sk-pwc-xp-icon" />
+                        <span className="sk-pwc-xp-label">
+                          Earn up to <strong>150 XP</strong> on booking
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`sk-pwc-toggle${
+                          priceWatchOn ? " is-on" : ""
+                        }`}
+                        onClick={handlePriceWatchToggle}
+                        aria-pressed={priceWatchOn}
+                        disabled={priceWatchBusy}
+                        aria-busy={priceWatchBusy}
+                      >
+                        {priceWatchOn ? (
+                          <Bell size={13} className="sk-pwc-bell" />
+                        ) : (
+                          <BellOff size={13} className="sk-pwc-bell" />
+                        )}
+                        <span className="sk-pwc-toggle-label">
+                          Price Watch {priceWatchOn ? "On" : "Off"}
+                        </span>
+                        <span
+                          className={`sk-pwc-dot${
+                            priceWatchOn ? " is-on" : ""
+                          }`}
+                        />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className={`sk-pwc-toggle${priceWatchOn ? " is-on" : ""}`}
-                      onClick={handlePriceWatchToggle}
-                      aria-pressed={priceWatchOn}
-                      disabled={priceWatchBusy}
-                      aria-busy={priceWatchBusy}
-                    >
-                      {priceWatchOn ? (
-                        <Bell size={13} className="sk-pwc-bell" />
-                      ) : (
-                        <BellOff size={13} className="sk-pwc-bell" />
-                      )}
-                      <span className="sk-pwc-toggle-label">
-                        Price Watch {priceWatchOn ? "On" : "Off"}
-                      </span>
-                      <span
-                        className={`sk-pwc-dot${priceWatchOn ? " is-on" : ""}`}
-                      />
-                    </button>
+                    {(priceWatchOn || priceWatchRoute) && (
+                      <div className="sk-pwc-desc">
+                        {priceWatchOn
+                          ? `Watching ${
+                              priceWatchRoute?.from ?? "your route"
+                            } → ${priceWatchRoute?.to ?? "destination"}${
+                              Number.isFinite(Number(priceWatchRoute?.price))
+                                ? ` from $${wholeUsd(priceWatchRoute.price)}`
+                                : ""
+                            }. We'll alert you if it drops.`
+                          : `Alert me if ${priceWatchRoute.from} → ${priceWatchRoute.to} gets cheaper.`}
+                      </div>
+                    )}
                   </div>
-                  {(priceWatchOn || priceWatchRoute) && (
-                  <div className="sk-pwc-desc">
-                    {priceWatchOn
-                      ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
-                          priceWatchRoute?.to ?? "destination"
-                        }${
-                          Number.isFinite(Number(priceWatchRoute?.price))
-                            ? ` from $${wholeUsd(priceWatchRoute.price)}`
-                            : ""
-                        }. We'll alert you if it drops.`
-                      : `Alert me if ${priceWatchRoute.from} → ${priceWatchRoute.to} gets cheaper.`}
-                  </div>
-                  )}
-                </div>
                 )}
 
                 <div className="sk-bp-barcode" aria-hidden="true" />
@@ -6870,6 +7095,16 @@ export default function BookingPage() {
                   >
                     Clear all filters
                   </button>
+                )}
+              {priceCheck &&
+                !isSearching &&
+                (tab === "Flights" || tab === "Stays") && (
+                  <PriceCheckBanner
+                    check={priceCheck}
+                    tab={tab}
+                    flights={flightResults}
+                    hotels={hotelResults}
+                  />
                 )}
             </div>
 
@@ -7775,7 +8010,10 @@ export default function BookingPage() {
                             >
                               <Zap
                                 size={11}
-                                style={{ marginRight: 3, verticalAlign: "middle" }}
+                                style={{
+                                  marginRight: 3,
+                                  verticalAlign: "middle",
+                                }}
                               />{" "}
                               {STAY_BOOKING_XP} XP
                             </span>

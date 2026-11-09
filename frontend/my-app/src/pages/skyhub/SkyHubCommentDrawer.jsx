@@ -114,6 +114,32 @@ const REASONS = [
   { value: "other", label: "Something else" },
 ];
 
+// Same safety help as reporting a post (SkyHubPage REASON_HINTS).
+const REASON_HINTS = {
+  child_safety: (
+    <>
+      We&apos;ll hide it right away and review it urgently. If a child is in
+      immediate danger, call 911. You can also report to the{" "}
+      <a
+        href="https://report.cybertip.org"
+        target="_blank"
+        rel="noreferrer"
+        style={{ color: "#ff9555" }}
+      >
+        NCMEC CyberTipline
+      </a>
+      .
+    </>
+  ),
+  self_harm: (
+    <>
+      We&apos;ll reach out to them with support, not a penalty. If someone is in
+      immediate danger, call 911. In the US you can call or text <b>988</b> any
+      time.
+    </>
+  ),
+};
+
 /* ── SVG icons (no emoji) ── */
 const svgProps = {
   fill: "none",
@@ -569,6 +595,9 @@ export default function SkyHubCommentDrawer({
             </Radio>
           ))}
         </Radio.Group>
+        {REASON_HINTS[reason] && (
+          <div className="shReport__hint">{REASON_HINTS[reason]}</div>
+        )}
       </Modal>
     </Drawer>
   );
