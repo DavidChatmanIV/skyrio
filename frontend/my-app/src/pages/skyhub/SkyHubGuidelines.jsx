@@ -94,7 +94,7 @@ const CSS = `
 .gl-kicker { margin-top: 14px; font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: #ffb347; }
 .gl-title { margin: 4px 0 6px; font-size: clamp(22px, 3.4vw, 28px); font-weight: 800; line-height: 1.2; text-wrap: balance; }
 .gl-sub { margin: 0; font-size: 14px; color: rgba(255,255,255,.78); }
-.gl-h2 { display: flex; align-items: center; gap: 8px; margin: 28px 0 10px; font-size: 17px; font-weight: 800; }
+.gl-h2 { display: inline-flex; align-items: center; gap: 8px; margin: 28px 0 10px; padding: 6px 14px 6px 12px; border-radius: 999px; font-size: 16px; font-weight: 800; background: rgba(42,22,80,.82); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .gl-h2 svg { color: #ffb347; }
 .gl-p { margin: 0 0 12px; font-size: 14px; color: rgba(255,255,255,.78); }
 .gl-p b { color: #fff; }
@@ -114,7 +114,7 @@ const CSS = `
 .gl-step b { display: block; font-size: 14.5px; }
 .gl-step span { display: block; font-size: 13px; color: rgba(255,255,255,.72); }
 .gl-list { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
-.gl-list li { position: relative; padding-left: 18px; font-size: 13.5px; color: rgba(255,255,255,.8); }
+.gl-list li { position: relative; padding-left: 18px; font-size: 13.5px; color: rgba(255,255,255,.85); }
 .gl-list li::before { content: ""; position: absolute; left: 4px; top: 8px; width: 6px; height: 6px; border-radius: 50%; background: #ffb347; }
 .gl-box { padding: 16px 18px; }
 .gl-box .gl-p:last-child { margin-bottom: 0; }
@@ -161,13 +161,15 @@ export default function SkyHubGuidelines() {
       <h2 className="gl-h2">
         <Flag size={17} aria-hidden="true" /> How we enforce them
       </h2>
-      <p className="gl-p">
-        Report anything from its <b>⋯</b> menu. Reports are anonymous. A post or
-        comment reported by 3 different people is hidden until we review it.
-        Reports about a <b>child&rsquo;s safety</b> or{" "}
-        <b>intimate images shared without consent</b> are hidden right away.
-        Breaking the rules gets the content removed and may add a strike:
-      </p>
+      <div className="gl-glass gl-box" style={{ marginBottom: 10 }}>
+        <p className="gl-p">
+          Report anything from its <b>⋯</b> menu. Reports are anonymous. A post
+          or comment reported by 3 different people is hidden until we review
+          it. Reports about a <b>child&rsquo;s safety</b> or{" "}
+          <b>intimate images shared without consent</b> are hidden right away.
+          Breaking the rules gets the content removed and may add a strike:
+        </p>
+      </div>
       <div className="gl-glass gl-ladder">
         {LADDER.map(([n, what, detail]) => (
           <div key={n} className="gl-step">
@@ -179,22 +181,24 @@ export default function SkyHubGuidelines() {
           </div>
         ))}
       </div>
-      <ul className="gl-list">
-        <li>Strikes expire after 90 days.</li>
-        <li>
-          Serious violations (threats, hate speech, scams, sexual content) skip
-          the warning and start at a 7-day pause. Repeats can mean permanent
-          suspension.
-        </li>
-        <li>
-          Pauses only affect SkyHub. Your trips, bookings and Passport are never
-          touched.
-        </li>
-        <li>
-          We always tell you what was removed and why, by email and in
-          notifications.
-        </li>
-      </ul>
+      <div className="gl-glass gl-box" style={{ marginTop: 10 }}>
+        <ul className="gl-list" style={{ marginTop: 0 }}>
+          <li>Strikes expire after 90 days.</li>
+          <li>
+            Serious violations (threats, hate speech, scams, sexual content)
+            skip the warning and start at a 7-day pause. Repeats can mean
+            permanent suspension.
+          </li>
+          <li>
+            Pauses only affect SkyHub. Your trips, bookings and Passport are
+            never touched.
+          </li>
+          <li>
+            We always tell you what was removed and why, by email and in
+            notifications.
+          </li>
+        </ul>
+      </div>
 
       <h2 className="gl-h2">
         <Scale size={17} aria-hidden="true" /> Appeals
