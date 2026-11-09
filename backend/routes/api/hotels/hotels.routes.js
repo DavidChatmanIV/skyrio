@@ -10,6 +10,7 @@ import {
   searchPlaces,
   initHotelCheckout,
   confirmHotelBooking,
+  checkHotelAvailability,
 } from "./hotels.controller.js";
 
 const router = Router();
@@ -23,6 +24,10 @@ router.get("/places", searchPlaces);
 
 // GET /api/hotels/search
 router.get("/search", searchHotels);
+
+// POST /api/hotels/availability — checkout opens → is this room still
+// bookable at this price? Answers before the traveler types anything.
+router.post("/availability", holdLimiter, checkHotelAvailability);
 
 // POST /api/hotels/prebook — standalone, manual testing. Admin-only.
 router.post("/prebook", verifyAdmin, prebookHotel);

@@ -980,37 +980,70 @@ export default function AtlasPanel() {
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let accumulated = "";
-          while (true) {
+          // Cards (cancel, booking, checkout link…) can arrive in the stream.
+          // Before, only the non-streaming reply read them, so Atlas said
+          // "the card is on screen" while no card ever showed.
+          let streamActions = [];
+          const takeActions = (parsed) => {
+            const list = Array.isArray(parsed?.actions)
+              ? parsed.actions
+              : parsed?.action
+              ? [parsed.action]
+              : parsed?.type === "action" && parsed?.data
+              ? [parsed.data]
+              : [];
+            const good = list.filter(KNOWN_ACTION);
+            if (good.length) streamActions = [...streamActions, ...good];
+          };
+          // A line can be split across two network chunks. Keep the unfinished
+          // part and finish it with the next chunk, or that line (often the
+          // card itself, which is long) gets dropped.
+          let buffer = "";
+          let finished = false;
+          const handleLine = (line) => {
+            if (!line.startsWith("data: ")) return;
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") {
+              finished = true;
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              takeActions(parsed);
+              const delta =
+                parsed?.delta?.text ||
+                parsed?.choices?.[0]?.delta?.content ||
+                "";
+              if (delta) {
+                accumulated += delta;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === streamId ? { ...m, content: accumulated } : m
+                  )
+                );
+              }
+            } catch {
+              /* not JSON — skip */
+            }
+          };
+          while (!finished) {
             const { done, value } = await reader.read();
             if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            for (const line of chunk.split("\n")) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6).trim();
-                if (data === "[DONE]") break;
-                try {
-                  const parsed = JSON.parse(data);
-                  const delta =
-                    parsed?.delta?.text ||
-                    parsed?.choices?.[0]?.delta?.content ||
-                    "";
-                  if (delta) {
-                    accumulated += delta;
-                    setMessages((prev) =>
-                      prev.map((m) =>
-                        m.id === streamId ? { ...m, content: accumulated } : m
-                      )
-                    );
-                  }
-                } catch {
-                  /* skip */
-                }
-              }
-            }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            for (const line of lines) handleLine(line);
           }
+          if (buffer) handleLine(buffer);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === streamId ? { ...m, streaming: false } : m
+              m.id === streamId
+                ? {
+                    ...m,
+                    streaming: false,
+                    ...(streamActions.length ? { actions: streamActions } : {}),
+                  }
+                : m
             )
           );
         } else {

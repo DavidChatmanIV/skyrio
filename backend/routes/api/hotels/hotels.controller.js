@@ -225,7 +225,12 @@ export async function searchHotels(req, res) {
       },
     });
 
-    const rates = (result?.data ?? []).flatMap(normalizeHotelRate);
+    // Only offers that can actually be booked: an offerId and a real price.
+    // LiteAPI can list a room type with no rate for these dates; showing it
+    // led to "no availability" only at Pay.
+    const rates = (result?.data ?? [])
+      .flatMap(normalizeHotelRate)
+      .filter((r) => r.offerId && Number(r.totalAmount) > 0);
 
     return res.json({
       ok: true,
@@ -279,6 +284,83 @@ export async function prebookHotel(req, res) {
       message: err?.message || "Failed to prebook hotel",
       details: err?.details,
     });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/hotels/availability
+// Body: { offers: [{ offerId, expectedTotal }] }
+//
+// Called as soon as checkout opens, so a sold-out room is caught
+// BEFORE the traveler fills in names and card details (it used to only
+// show up at Pay). Uses LiteAPI prebook, which confirms the room is
+// still bookable and returns today's price. Nothing is charged or held
+// on the card. Checkout-intent prebooks again at Pay, so the price
+// charged is always the latest one.
+//
+// Returns: { ok, rooms: [{ offerId, available, total, currency,
+//            priceChanged, message? }] }
+// ─────────────────────────────────────────────────────────────
+const SOLD_OUT_RE =
+  /sold out|no longer available|not available|unavailable|no availability|no rooms|rate.*(expired|invalid)|offer.*(expired|invalid|not found)/i;
+
+export async function checkHotelAvailability(req, res) {
+  try {
+    const offers = Array.isArray(req.body?.offers)
+      ? req.body.offers.slice(0, 6)
+      : [];
+    if (!offers.length || offers.some((o) => !o?.offerId)) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "'offers' with offerIds is required" });
+    }
+
+    const rooms = [];
+    for (const o of offers) {
+      try {
+        const r = await liteapi.bookRequest("/rates/prebook", {
+          method: "POST",
+          body: { usePaymentSdk: false, offerId: String(o.offerId) },
+        });
+        const prebookId = r?.data?.prebookId ?? r?.prebookId;
+        const total = readPrebookPrice(r);
+        const currency = r?.data?.currency ?? r?.currency ?? "USD";
+        if (!prebookId || !Number.isFinite(total)) {
+          rooms.push({
+            offerId: o.offerId,
+            available: false,
+            message: "This room just sold out.",
+          });
+          continue;
+        }
+        const expected = Number(o.expectedTotal);
+        rooms.push({
+          offerId: o.offerId,
+          available: true,
+          total,
+          currency,
+          // More than a cent different from what the results showed.
+          priceChanged:
+            Number.isFinite(expected) && Math.abs(total - expected) > 0.01,
+        });
+      } catch (err) {
+        const msg = String(err?.details?.error?.message || err?.message || "");
+        // 4xx from LiteAPI or a sold-out message = the room is gone.
+        // Anything else (timeout, 5xx) = we couldn't tell; don't block.
+        const gone =
+          SOLD_OUT_RE.test(msg) || (err?.status >= 400 && err?.status < 500);
+        rooms.push({
+          offerId: o.offerId,
+          available: gone ? false : null,
+          message: gone ? "This room just sold out." : undefined,
+        });
+      }
+    }
+    return res.json({ ok: true, rooms });
+  } catch (err) {
+    console.error("[hotels/availability] error:", err?.message);
+    // Never block checkout because the check itself failed.
+    return res.json({ ok: true, rooms: [], unchecked: true });
   }
 }
 
@@ -398,6 +480,22 @@ export async function initHotelCheckout(req, res) {
     }
 
     const combinedTotal = prebooks.reduce((sum, p) => sum + p.totalPrice, 0);
+
+    // Never charge more than the traveler saw. If the hotel's price went up
+    // since the page showed it, stop here (nothing held on the card) and
+    // send the new total so they can check it and tap Pay again.
+    const expected = Number(req.body.expectedTotal);
+    if (Number.isFinite(expected) && combinedTotal - expected > 0.01) {
+      return res.status(409).json({
+        ok: false,
+        priceChanged: true,
+        newTotal: combinedTotal,
+        currency,
+        message: `The hotel's price went up to $${combinedTotal.toFixed(
+          2
+        )}. Check the new total, then tap Pay again.`,
+      });
+    }
     const amountInCents = Math.round(combinedTotal * 100);
 
     // ── Step 2: ONE Stripe PaymentIntent, AUTHORIZE ONLY ──
@@ -624,7 +722,7 @@ async function markHotelBookingPaid(booking) {
     await Notification.create({
       user: flipped.user,
       type: "booking",
-      title: "Booking Confirmed 🏨",
+      title: "Booking confirmed",
       message: "Your hotel stay is confirmed. Have a great trip!",
       link: "/saved-trips",
     });

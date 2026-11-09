@@ -582,6 +582,9 @@ function PaymentForm({
   onSuccess,
   onInvalid,
   onUnavailable,
+  // Latest price from the availability check, when it moved.
+  priceNow = null,
+  onPriceChanged,
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -636,9 +639,17 @@ function PaymentForm({
         body: JSON.stringify({
           offers: rooms.map((r) => ({ offerId: r.offerId, hotelName: r.name })),
           guestEmail: email,
+          // The total on screen. The server won't charge more than this.
+          expectedTotal: priceNow ?? grandTotal,
         }),
       });
       const init = await initRes.json().catch(() => ({}));
+      if (init.priceChanged && Number(init.newTotal) > 0) {
+        // Nothing was held on the card. Show the new total; they tap Pay again.
+        onPriceChanged?.(Number(init.newTotal));
+        antdMessage.warning(init.message);
+        return;
+      }
       if (!initRes.ok || !init.ok) {
         throw new Error(
           init.message || "We couldn't start your booking. Please try again."
@@ -853,7 +864,7 @@ function PaymentForm({
       >
         {submitting
           ? stage || "Processing…"
-          : `Pay $${usd2(grandTotal)} · Book ${rooms.length} room${
+          : `Pay $${usd2(priceNow ?? grandTotal)} · Book ${rooms.length} room${
               rooms.length !== 1 ? "s" : ""
             }`}
       </PayButton>
@@ -1255,6 +1266,10 @@ export default function HotelCheckout({
   const [autofilled, setAutofilled] = useState(false);
   const [leadEditing, setLeadEditing] = useState(false);
   const [roomGone, setRoomGone] = useState(false);
+  // Is the room still bookable at this price? Checked as soon as checkout
+  // opens, so a sold-out room shows up now, not after typing everything.
+  // "checking" | "ok" | "unknown" ; newTotal set when the price moved.
+  const [avail, setAvail] = useState({ state: "checking", newTotal: null });
   // People saved on the profile (partner, family…) — tap to fill a room.
   const [savedTravelers, setSavedTravelers] = useState([]);
   const signedIn = Boolean(localStorage.getItem("token"));
@@ -1338,6 +1353,48 @@ export default function HotelCheckout({
     () => rooms.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0),
     [rooms]
   );
+
+  useEffect(() => {
+    if (!rooms.length) return;
+    let alive = true;
+    setAvail({ state: "checking", newTotal: null });
+    fetch(`${API}/api/hotels/availability`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        offers: rooms.map((r) => ({
+          offerId: r.offerId,
+          expectedTotal: r.totalAmount,
+        })),
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d) => {
+        if (!alive) return;
+        const list = Array.isArray(d?.rooms) ? d.rooms : [];
+        if (list.some((x) => x.available === false)) {
+          setRoomGone(true);
+          setAvail({ state: "gone", newTotal: null });
+          return;
+        }
+        const checked =
+          list.length === rooms.length && list.every((x) => x.available);
+        const moved = list.some((x) => x.priceChanged);
+        setAvail({
+          state: checked ? "ok" : "unknown",
+          newTotal:
+            checked && moved
+              ? list.reduce((sum, x) => sum + Number(x.total || 0), 0)
+              : null,
+        });
+      })
+      // Couldn't check: don't block. Pay still re-checks before charging.
+      .catch(() => alive && setAvail({ state: "unknown", newTotal: null }));
+    return () => {
+      alive = false;
+    };
+  }, [rooms]);
+
   // Fees the hotel collects at check-in, summed across rooms (if listed).
   const payAtHotel = useMemo(() => {
     const all = rooms.map(payAtHotelFees).filter(Boolean);
@@ -1440,8 +1497,49 @@ export default function HotelCheckout({
             >
               <div className="sk-checkout-total-row">
                 <span>Total</span>
-                <span className="sk-priceAmt">${usd2(grandTotal)}</span>
+                <span className="sk-priceAmt">
+                  ${usd2(avail.newTotal ?? grandTotal)}
+                </span>
               </div>
+              {avail.state === "checking" && (
+                <div
+                  role="status"
+                  style={{
+                    marginTop: 6,
+                    fontSize: 12.5,
+                    color: "rgba(255,255,255,0.65)",
+                  }}
+                >
+                  Checking this room is still available…
+                </div>
+              )}
+              {avail.state === "ok" && avail.newTotal == null && (
+                <div
+                  role="status"
+                  style={{ marginTop: 6, fontSize: 12.5, color: "#6ee7a8" }}
+                >
+                  Available at this price.
+                </div>
+              )}
+              {avail.newTotal != null && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 8,
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    fontSize: 12.5,
+                    lineHeight: 1.5,
+                    color: "#fff",
+                    background: "rgba(255,179,71,0.12)",
+                    border: "1px solid rgba(255,179,71,0.45)",
+                  }}
+                >
+                  <b>Price changed.</b> The hotel now charges $
+                  {usd2(avail.newTotal)} (was ${usd2(grandTotal)}). That&apos;s
+                  what you&apos;ll pay.
+                </div>
+              )}
               {payAtHotel && (
                 <div
                   style={{
@@ -1696,6 +1794,8 @@ export default function HotelCheckout({
                   }}
                   onInvalid={() => setShowErrors(true)}
                   onUnavailable={() => setRoomGone(true)}
+                  priceNow={avail.newTotal}
+                  onPriceChanged={(t) => setAvail({ state: "ok", newTotal: t })}
                 />
               </Elements>
             )}

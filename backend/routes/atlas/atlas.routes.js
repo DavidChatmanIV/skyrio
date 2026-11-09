@@ -6,10 +6,12 @@ import {
   buildToolResultMessages,
   buildDefaultSystemPromptForHistory,
 } from "../../services/atlasService.js";
+// Support tools (look up bookings, bring up the cancel card). The cancel
+// card only shows if the tool returns an `action` — atlasSupportTools.js does.
 import {
   ATLAS_SUPPORT_TOOLS,
   runAtlasTool,
-} from "../../services/atlasTools.js";
+} from "../../services/atlasSupportTools.js";
 import {
   buildPanelSystemPrompt,
   TRIP_TYPE_GUIDANCE,
@@ -787,22 +789,28 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
     // year ("Nov 20" -> a past year) and LiteAPI rejects the search.
     // Uses the traveler's time zone when the browser sends one.
     const tz =
-      typeof context?.timeZone === "string" && /^[A-Za-z_]+\/[A-Za-z_\/]+$/.test(context.timeZone)
+      typeof context?.timeZone === "string" &&
+      /^[A-Za-z_]+\/[A-Za-z_\/]+$/.test(context.timeZone)
         ? context.timeZone
         : "America/New_York";
     let todayISO;
     try {
-      todayISO = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+      todayISO = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(
+        new Date()
+      );
     } catch {
       todayISO = new Date().toISOString().slice(0, 10);
     }
-    const todayLong = new Date(`${todayISO}T12:00:00Z`).toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    });
+    const todayLong = new Date(`${todayISO}T12:00:00Z`).toLocaleDateString(
+      "en-US",
+      {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      }
+    );
     finalSystemPrompt += `\n\nToday is ${todayLong} (${todayISO}). All trip dates must be today or later. When someone gives a date without a year, use the next time that date comes up. Turn "next Friday", "this weekend", etc. into real dates from today, and say the dates back to them.`;
 
     // Signed-in travelers in the chat panel get the support tools (look up
@@ -847,6 +855,14 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
           ? await runAtlasTool(call.name, call.arguments, { userId })
           : { result: { error: "That needs an account." } };
         if (ran.action && actions.length < 3) actions.push(ran.action);
+        // A tool said it showed a card but sent nothing to show: tell Atlas,
+        // so it never says "the card is on screen" when it isn't.
+        if (ran.result?.shown && !ran.action) {
+          ran.result = {
+            error:
+              "The card couldn't be shown. Don't say it's on screen. Send them to My Trips (/saved-trips) and tell them to tap Cancel booking.",
+          };
+        }
         toolResults.push({ id: call.id, name: call.name, result: ran.result });
       }
       convo = [
@@ -920,7 +936,10 @@ router.get("/handoffs/:id", handoffLimit, async (req, res) => {
       });
     }
     if (!h.openedAt) {
-      AtlasCheckoutHandoff.updateOne({ _id: h._id }, { $set: { openedAt: new Date() } }).catch(() => {});
+      AtlasCheckoutHandoff.updateOne(
+        { _id: h._id },
+        { $set: { openedAt: new Date() } }
+      ).catch(() => {});
     }
     res.set("Cache-Control", "no-store");
     return res.json({
@@ -931,7 +950,10 @@ router.get("/handoffs/:id", handoffLimit, async (req, res) => {
       display: h.display,
       search: h.search,
       expiresAt: h.expiresAt,
-      secondsLeft: Math.max(0, Math.floor((new Date(h.expiresAt) - Date.now()) / 1000)),
+      secondsLeft: Math.max(
+        0,
+        Math.floor((new Date(h.expiresAt) - Date.now()) / 1000)
+      ),
     });
   } catch (err) {
     console.error("[Atlas handoff] error:", err.message);
