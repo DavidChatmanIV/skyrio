@@ -4899,6 +4899,12 @@ export default function BookingPage() {
         ? tabParam
         : "Flights")
   );
+  // A link that changes ?tab= while you're already on Book (e.g. the
+  // Skyrio tour's "Find events") switches the tab too.
+  useEffect(() => {
+    if (["Flights", "Stays", "Excursions", "Events"].includes(tabParam))
+      setTab(tabParam);
+  }, [tabParam]);
   const [flightResults, setFlightResults] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
   const [excursionResults, setExcursionResults] = useState([]);

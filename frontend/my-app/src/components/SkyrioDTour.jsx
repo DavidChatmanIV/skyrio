@@ -114,6 +114,12 @@ const Icon = {
       <path d="M12 7v5l3 2" />
     </Svg>
   ),
+  ticket: (p) => (
+    <Svg {...p}>
+      <path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" />
+      <path d="M13 6v2M13 11v2M13 16v2" />
+    </Svg>
+  ),
   tip: (p) => (
     <Svg {...p}>
       <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z" />
@@ -138,7 +144,7 @@ const Icon = {
 
 /* ── Steps — short and scannable ─────────────────────────────────────
    Testers: "people don't read." One title + one short line per step,
-   five steps, and a button to try each thing. The forms and pages teach
+   six steps, and a button to try each thing. The forms and pages teach
    the details (where / when / who are right on the search bar). */
 const STEPS = [
   {
@@ -156,6 +162,14 @@ const STEPS = [
     body: "Live prices. See the total before you pay.",
     path: "/booking",
     cta: "Search now",
+  },
+  {
+    icon: "ticket",
+    kicker: "Events · New",
+    title: "Games, concerts & shows",
+    body: "Find an event, then book the flight and hotel. Tickets are sold by Ticketmaster.",
+    path: "/booking?tab=Events",
+    cta: "Find events",
   },
   {
     icon: "group",
