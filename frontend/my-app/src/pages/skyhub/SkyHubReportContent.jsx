@@ -10,15 +10,15 @@ const API = import.meta.env.VITE_API_URL || "";
 const SUPPORT_EMAIL = "skyrioofficial@gmail.com";
 
 const KINDS = [
-  { key: "intimate", label: "An intimate image shared without consent" },
+  { key: "intimate", label: "Intimate image shared without consent" },
   { key: "copyright", label: "My copyrighted work" },
-  { key: "privacy", label: "My private info (address, phone, ID)" },
+  { key: "privacy", label: "My private info" },
   { key: "other", label: "Something else" },
 ];
 
 const CSS = `
-.rc-wrap { max-width: 620px; margin: 0 auto; padding: 28px 16px 120px; color: #fff; font-family: "DM Sans", system-ui, sans-serif; }
-.rc-card { position: relative; overflow: hidden; padding: 26px 22px; border-radius: 22px;
+.rc-wrap { max-width: 560px; margin: 0 auto; padding: 72px 16px 120px; color: #fff; font-family: "DM Sans", system-ui, sans-serif; }
+.rc-card { position: relative; overflow: hidden; padding: 22px 20px 20px; border-radius: 20px;
   background: linear-gradient(160deg, rgba(74,40,112,.6), rgba(34,18,62,.7));
   border: 1px solid rgba(255,255,255,.16);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 18px 44px rgba(12,4,28,.38);
@@ -26,33 +26,34 @@ const CSS = `
 .rc-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
   background: linear-gradient(90deg, #ff8a2a, #ffb347 40%, #7c5cfc); }
 .rc-kicker { font-size: 11.5px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: #ffb347; }
-.rc-title { margin: 6px 0 6px; font-size: 26px; font-weight: 800; line-height: 1.2; }
-.rc-sub { margin: 0 0 18px; font-size: 14.5px; line-height: 1.55; color: rgba(255,255,255,.78); }
-.rc-alert { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 20px; padding: 12px 14px; border-radius: 14px;
-  background: rgba(255,107,133,.08); border: 1px solid rgba(255,107,133,.35); font-size: 13.5px; line-height: 1.5; }
+.rc-title { margin: 4px 0 4px; font-size: 22px; font-weight: 800; line-height: 1.2; }
+.rc-sub { margin: 0 0 14px; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.78); }
+.rc-alert { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 4px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(255,107,133,.08); border: 1px solid rgba(255,107,133,.35); font-size: 12.5px; line-height: 1.5; }
 .rc-alert svg { flex-shrink: 0; margin-top: 2px; color: #ff8fa3; }
 .rc-alert a, .rc-link { color: #ffb347; font-weight: 700; }
-.rc-label { display: block; margin: 16px 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.7); }
-.rc-hint { margin: -2px 0 6px; font-size: 12.5px; color: rgba(255,255,255,.6); }
-.rc-input, .rc-text { width: 100%; box-sizing: border-box; padding: 11px 13px; border-radius: 12px; font: inherit; font-size: 15px; color: #fff;
+.rc-label { display: block; margin: 14px 0 5px; font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.7); }
+.rc-hint { margin: -1px 0 5px; font-size: 12px; color: rgba(255,255,255,.6); }
+.rc-input, .rc-text { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 10px; font: inherit; font-size: 14px; color: #fff;
   background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.18); outline: none; }
 .rc-input:focus, .rc-text:focus { border-color: #ff8a2a; }
-.rc-text { resize: vertical; min-height: 70px; }
-.rc-choices { display: grid; gap: 8px; }
-.rc-choice { display: flex; gap: 10px; align-items: center; padding: 11px 13px; border-radius: 12px; cursor: pointer;
-  border: 1px solid rgba(255,255,255,.14); font-size: 14.5px; }
+.rc-text { resize: vertical; min-height: 56px; }
+.rc-choices { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 520px) { .rc-choices { grid-template-columns: 1fr; } }
+.rc-choice { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.14); font-size: 13px; line-height: 1.3; }
 .rc-choice.is-on { border-color: #ff8a2a; background: rgba(255,138,42,.1); }
-.rc-choice input, .rc-check input { accent-color: #ff8a2a; width: 17px; height: 17px; flex-shrink: 0; margin: 0; }
-.rc-check { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: 13.5px; line-height: 1.5; cursor: pointer; }
+.rc-choice input, .rc-check input { accent-color: #ff8a2a; width: 15px; height: 15px; flex-shrink: 0; margin: 0; }
+.rc-check { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 12.5px; line-height: 1.5; cursor: pointer; }
 .rc-check input { margin-top: 2px; }
-.rc-btn { width: 100%; min-height: 50px; margin-top: 20px; border: 0; border-radius: 999px; cursor: pointer; font: inherit; font-size: 15.5px; font-weight: 800;
+.rc-btn { width: 100%; min-height: 46px; margin-top: 16px; border: 0; border-radius: 999px; cursor: pointer; font: inherit; font-size: 14.5px; font-weight: 800;
   color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); box-shadow: 0 10px 26px rgba(255,138,42,.3); }
 .rc-btn:disabled { opacity: .5; cursor: default; }
 .rc-error { display: flex; gap: 8px; align-items: center; margin-top: 14px; color: #ff9db0; font-size: 13.5px; }
 .rc-done { text-align: center; }
 .rc-doneIcon { width: 60px; height: 60px; margin: 0 auto 14px; border-radius: 18px; display: flex; align-items: center; justify-content: center;
   color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); }
-.rc-foot { margin-top: 16px; font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,.6); }
+.rc-foot { margin-top: 12px; font-size: 12px; line-height: 1.55; color: rgba(255,255,255,.6); }
 .rc-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .rc-wrap :focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
 `;
@@ -276,6 +277,7 @@ export default function SkyHubReportContent() {
         <textarea
           id="rc-details"
           className="rc-text"
+          rows={2}
           value={f.details}
           onChange={set("details")}
         />
