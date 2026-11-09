@@ -86,6 +86,8 @@ import {
   DollarSign,
   Calendar,
   ChevronsDown,
+  SlidersHorizontal,
+  Info,
   ArrowRight,
   Clock,
   Users,
@@ -464,19 +466,21 @@ function SearchBtn({ onClick, loading }) {
   );
 }
 
+// Flight + Stay and Cars sit up front (testers didn't find them under "More").
+// Its key stays "Packages" so ?tab=Packages links keep working.
 const PRIMARY_TABS = [
   { key: "Flights", label: "Flights" },
   { key: "Stays", label: "Stays" },
+  { key: "Cars", label: "Cars" },
+  { key: "Packages", label: "Flight + Stay" },
   { key: "Saved", label: "Saved" },
 ];
 
-// Cars is live via Duffel Cars. `comingSoon: true` on any tab still renders it
-// disabled with a "Soon" badge.
+// Cars is live via Duffel Cars and sits up front with Flights and Stays.
+// `comingSoon: true` on any tab still renders it disabled with a "Soon" badge.
 const MORE_TABS = [
-  { key: "Cars", label: "Cars" },
   { key: "Excursions", label: "Excursions" },
   { key: "Events", label: "Events" },
-  { key: "Packages", label: "Packages" },
   { key: "Last-Minute", label: "Last-Minute" },
 ];
 
@@ -3827,25 +3831,43 @@ const PLAN_CSS = `
     .sk-trip-type-btn { padding-left: 10px !important; padding-right: 10px !important; font-size: 12px !important; }
   }
 
-  /* Results view: the planner folds away and the results get the screen. */
+  /* Results view: the planner folds away and the results get the screen.
+     Skyrio purple glass, like the rest of the site. */
   .sk-resultsbar {
-    position: sticky; top: 84px; z-index: 20;
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    max-width: 1200px; margin: 12px auto 18px; padding: 12px 16px; border-radius: 16px;
-    background: rgba(20,14,40,0.92); border: 1px solid rgba(255,138,42,0.35);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    position: sticky; top: 84px; z-index: 20; overflow: hidden;
+    display: flex; align-items: center; gap: 12px;
+    max-width: 1200px; margin: 12px auto 14px; padding: 10px 14px; border-radius: 18px;
+    background: linear-gradient(160deg, rgba(74,40,112,0.9), rgba(34,18,62,0.92));
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 14px 34px rgba(12,4,28,0.4);
+    backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%);
   }
+  .sk-resultsbar::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #ff8a2a, #ffb347 40%, #7c5cfc); }
   .sk-resultsbar__back {
-    display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06);
-    color: #fff; font: inherit; font-weight: 700; font-size: 13.5px; cursor: pointer;
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px;
+    border-radius: 999px; border: 1px solid rgba(255,179,71,0.5); background: rgba(255,138,42,0.12);
+    color: #ffb347; font: inherit; font-weight: 800; font-size: 13.5px; cursor: pointer; white-space: nowrap;
   }
-  .sk-resultsbar__back:hover { border-color: #ff8a2a; }
-  .sk-resultsbar__title { font-weight: 800; font-size: 15px; min-width: 0; }
-  .sk-resultsbar__sub { font-size: 12.5px; color: rgba(255,255,255,0.6); }
+  .sk-resultsbar__back:hover { border-color: #ffb347; background: rgba(255,138,42,0.2); }
+  .sk-resultsbar__title { font-weight: 800; font-size: 15px; line-height: 1.25; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sk-resultsbar__sub { font-size: 12.5px; color: rgba(255,255,255,0.65); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Filters + sort under the bar: no divider line there */
+  .sk-results-tools .sk-bp-tools { border-top: 0 !important; margin-top: 0 !important; padding-top: 0 !important; }
   @media (max-width: 720px) {
-    .sk-resultsbar { top: 72px; margin: 8px 12px 14px; padding: 10px 12px; }
+    .sk-resultsbar { top: 72px; margin: 8px 12px 10px; padding: 8px 10px; gap: 10px; border-radius: 16px; }
+    .sk-resultsbar__back { min-height: 36px; padding: 0 12px; font-size: 13px; }
     .sk-resultsbar__title { font-size: 14px; }
+  }
+  /* Airline logos: a small tile, not a giant banner, on phones/tablets */
+  @media (max-width: 992px) {
+    .sk-booking .sk-thumb.sk-thumb--logo {
+      width: 52px !important; min-width: 52px !important; height: 52px !important;
+      border-radius: 14px; background-size: 72% !important;
+      background-color: #fff !important; border-color: rgba(255,255,255,0.3);
+    }
+    .sk-booking .sk-thumb.sk-thumb--logo::after { display: none; }
   }
 `;
 
@@ -4118,6 +4140,121 @@ function UnavailableNotice({ notice, groupId, onClose, onTryAlternative }) {
   );
 }
 
+/* ── "Today's price" (opened from My Trips) ──────────────────────────
+   You paid X · today the same trip is from Y. Compares like with like:
+   the same airline (or the same hotel) when it's in the results, and says
+   so plainly when it isn't. Prices are live search results, not a quote. */
+function PriceCheckBanner({ check, tab, flights, hotels }) {
+  const money = (n) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: check.cur || "USD",
+      maximumFractionDigits: 0,
+    }).format(n);
+  const minOf = (list) => {
+    const nums = list
+      .map((x) => Number(x.totalAmount))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    return nums.length ? Math.min(...nums) : null;
+  };
+  const same = (a, b) =>
+    String(a || "")
+      .trim()
+      .toLowerCase() ===
+    String(b || "")
+      .trim()
+      .toLowerCase();
+
+  let label = "";
+  let now = null;
+  let other = null;
+  if (tab === "Flights") {
+    const mine = check.airline
+      ? flights.filter((f) => same(f.owner, check.airline))
+      : [];
+    now = minOf(mine.length ? mine : flights);
+    label = mine.length ? `${check.airline} today` : "Today, any airline";
+    if (mine.length) {
+      const any = minOf(flights);
+      if (any && now && any < now)
+        other = `Cheapest on any airline: ${money(any)}`;
+    } else if (check.airline && flights.length) {
+      other = `${check.airline} isn't in today's results.`;
+    }
+  } else {
+    const mine = check.hotelName
+      ? hotels.filter((h) => same(h.name, check.hotelName))
+      : [];
+    now = minOf(mine.length ? mine : hotels);
+    label = mine.length ? `${check.hotelName} today` : "Today, this area";
+    if (!mine.length && check.hotelName && hotels.length)
+      other = `${check.hotelName} isn't in today's results.`;
+  }
+  if (now == null) return null;
+
+  const diff = Math.round(now - check.paid);
+  const tone = diff < 0 ? "#6ee7a8" : diff > 0 ? "#ffb347" : "#fff";
+  const bookedOn = check.bookedOn
+    ? new Date(`${check.bookedOn}T12:00:00Z`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+  return (
+    <div
+      role="status"
+      style={{
+        marginTop: 12,
+        padding: "12px 14px",
+        borderRadius: 14,
+        background:
+          "linear-gradient(160deg, rgba(74,40,112,0.62), rgba(34,18,62,0.74))",
+        border: "1px solid rgba(255,179,71,0.45)",
+        color: "#fff",
+        fontSize: 13.5,
+        lineHeight: 1.5,
+        maxWidth: 620,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "4px 18px",
+          alignItems: "baseline",
+        }}
+      >
+        <span>
+          You paid <b>{money(check.paid)}</b>
+          {bookedOn ? ` on ${bookedOn}` : ""}
+        </span>
+        <span>
+          {label} from <b>{money(now)}</b>
+        </span>
+        <b style={{ color: tone }}>
+          {diff < 0
+            ? `${money(-diff)} less now`
+            : diff > 0
+            ? `${money(diff)} more now`
+            : "Same price"}
+        </b>
+      </div>
+      <div
+        style={{ marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.65)" }}
+      >
+        {[
+          check.newDates ? "Same trip length, new dates." : "Same dates.",
+          other,
+          "Live prices. Your booking isn't changed.",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      </div>
+    </div>
+  );
+}
+
 export default function BookingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
@@ -4371,6 +4508,43 @@ export default function BookingPage() {
   // After a search, the results take over the page (like a separate
   // results page) with a "Change search" bar on top. The planner stays
   // mounted underneath, so nothing typed is lost going back.
+  // ── Phones: "Quick" (default) or "Full" ──
+  // Quick is the same page with the extras tucked behind a tap: the
+  // boarding-pass stub (XP, Price Watch, weather) and the filter dropdowns.
+  // Full shows everything, like desktop. The choice is remembered.
+  const [isPhone, setIsPhone] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      !!window.matchMedia?.("(max-width: 768px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.("(max-width: 768px)");
+    if (!mq) return;
+    const onChange = () => setIsPhone(mq.matches);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+  const [viewMode, setViewModeState] = useState(() => {
+    try {
+      return localStorage.getItem("skyrio_view_mode") === "full"
+        ? "full"
+        : "quick";
+    } catch {
+      return "quick";
+    }
+  });
+  const setViewMode = useCallback((m) => {
+    setViewModeState(m);
+    try {
+      localStorage.setItem("skyrio_view_mode", m);
+    } catch {
+      /* fine — just not remembered */
+    }
+  }, []);
+  const quick = isPhone && viewMode === "quick";
+  const [quickFiltersOpen, setQuickFiltersOpen] = useState(false);
+  const [quickPassOpen, setQuickPassOpen] = useState(false);
+
   const [resultsFocus, setResultsFocusState] = useState(false);
   const resultsFocusRef = useRef(false);
   const setResultsFocus = useCallback((on) => {
@@ -4666,6 +4840,19 @@ export default function BookingPage() {
       autoSearch,
     };
   }, [searchParams, autoSearch]);
+  // "Today's price" from My Trips: what they paid, to compare with now.
+  const priceCheck = useMemo(() => {
+    const paid = Number(searchParams.get("paid"));
+    if (!(paid > 0)) return null;
+    return {
+      paid,
+      cur: searchParams.get("paidCur") || "USD",
+      bookedOn: searchParams.get("bookedOn"),
+      airline: searchParams.get("airline"),
+      hotelName: searchParams.get("hotelName"),
+      newDates: searchParams.get("newDates") === "1",
+    };
+  }, [searchParams]);
   const hotelIdParam = searchParams.get("hotelId");
   const stayInitial = useMemo(() => {
     const city = searchParams.get("city") || searchParams.get("to");
@@ -4716,7 +4903,10 @@ export default function BookingPage() {
     if (!raw || raw.length > 80) return null;
     const isCode = /^[A-Za-z]{3}$/.test(raw);
     const code = isCode ? raw.toUpperCase() : raw;
-    const time = (k) => (/^\d{2}:\d{2}$/.test(searchParams.get(k) || "") ? searchParams.get(k) : null);
+    const time = (k) =>
+      /^\d{2}:\d{2}$/.test(searchParams.get(k) || "")
+        ? searchParams.get(k)
+        : null;
     const carCo = searchParams.get("carCo");
     const carModel = searchParams.get("carModel");
     return {
@@ -4734,7 +4924,8 @@ export default function BookingPage() {
       rateId: searchParams.get("carRate") || null,
       // From the group shortlist: re-find the same car if the rate expired.
       match: carCo && carModel ? { supplier: carCo, name: carModel } : null,
-      autoSearch: searchParams.get("auto") === "1" && searchParams.get("tab") === "Cars",
+      autoSearch:
+        searchParams.get("auto") === "1" && searchParams.get("tab") === "Cars",
     };
   }, [searchParams]);
 
@@ -4778,10 +4969,27 @@ export default function BookingPage() {
 
   const [tab, setTab] = useState(
     prefillData?.tab ??
-      (["Flights", "Stays", "Excursions", "Events", "Cars"].includes(tabParam)
+      ([
+        "Flights",
+        "Stays",
+        "Cars",
+        "Packages",
+        "Excursions",
+        "Events",
+      ].includes(tabParam)
         ? tabParam
         : "Flights")
   );
+  // A link that changes ?tab= while you're already on Book (e.g. the
+  // Skyrio tour's "Find events") switches the tab too.
+  useEffect(() => {
+    if (
+      ["Flights", "Stays", "Cars", "Packages", "Excursions", "Events"].includes(
+        tabParam
+      )
+    )
+      setTab(tabParam);
+  }, [tabParam]);
   const [flightResults, setFlightResults] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
   const [excursionResults, setExcursionResults] = useState([]);
@@ -6241,6 +6449,127 @@ export default function BookingPage() {
       </div>
     ) : null;
 
+  // Filters, sort and shortcuts. Shown under the search bar, and on top of
+  // the results once a search runs (the search form folds away then, and
+  // the filters used to fold away with it).
+  const toolsBlock = (
+    <div className="sk-bp-tools">
+      <SmartFilterBar
+        filters={smartFilters}
+        onChange={setSmartFilters}
+        flightResults={flightResults}
+        visible={tab === "Flights"}
+      />
+
+      <HotelFilterBar
+        filters={hotelFilters}
+        onChange={setHotelFilters}
+        hotelResults={hotelResults}
+        visible={tab === "Stays"}
+      />
+
+      <div className="sk-bp-tools-row">
+        {/* Quick mode (phones): one Filters button instead of
+                        the row of dropdowns. */}
+        {quick && (tab === "Flights" || tab === "Stays") && (
+          <button
+            type="button"
+            className={`sk-qf sk-quick-filters${
+              quickFiltersOpen ? " is-active" : ""
+            }`}
+            aria-expanded={quickFiltersOpen}
+            onClick={() => setQuickFiltersOpen((v) => !v)}
+          >
+            <SlidersHorizontal size={13} aria-hidden="true" /> Filters
+            {(tab === "Flights" ? activeFilterCount : activeHotelFilterCount) >
+            0
+              ? ` · ${
+                  tab === "Flights" ? activeFilterCount : activeHotelFilterCount
+                }`
+              : ""}
+          </button>
+        )}
+        {/* Sort + quick filters only once there are results —
+                        before a search they do nothing. */}
+        {tab === "Flights" && flightResults.length > 0 && (
+          <Button
+            className="sk-btn-orange sk-bp-sort"
+            onClick={() => {
+              const i = SORT_OPTIONS.findIndex((o) => o.key === sortBy);
+              setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length].key);
+            }}
+            title="Click to change sort"
+          >
+            Sort: {SORT_OPTIONS.find((o) => o.key === sortBy)?.label}
+          </Button>
+        )}
+        {tab === "Stays" && hotelResults.length > 0 && (
+          <Button
+            className="sk-btn-orange sk-bp-sort"
+            onClick={() => {
+              const i = HOTEL_SORT_OPTIONS.findIndex(
+                (o) => o.key === hotelSortBy
+              );
+              setHotelSortBy(
+                HOTEL_SORT_OPTIONS[(i + 1) % HOTEL_SORT_OPTIONS.length].key
+              );
+            }}
+            title="Click to change sort"
+          >
+            Sort: {HOTEL_SORT_OPTIONS.find((o) => o.key === hotelSortBy)?.label}
+          </Button>
+        )}
+
+        {tab === "Flights" &&
+          flightResults.length > 0 &&
+          quickFilters.map((qf) => (
+            <button
+              key={qf.label}
+              type="button"
+              className={`sk-qf${isQuickActive(qf) ? " is-active" : ""}`}
+              aria-pressed={isQuickActive(qf)}
+              onClick={() => toggleFilter(qf)}
+            >
+              {qf.label}
+            </button>
+          ))}
+        {tab === "Flights" && activeFilterCount > 0 && (
+          <button
+            type="button"
+            className="sk-qf sk-qf-clear"
+            onClick={clearFilters}
+          >
+            Clear filters
+          </button>
+        )}
+
+        {/* Pushes the next buttons to the right on desktop */}
+        <span className="sk-bp-tools-gap" aria-hidden="true" />
+
+        {!syncGroupId &&
+          planMode === "budget" &&
+          (visibleFlights.length > 0 || hotelResults.length > 0) && (
+            <button
+              type="button"
+              className="sk-scroll-budget-btn"
+              onClick={scrollToBudget}
+            >
+              <ChevronsDown
+                size={13}
+                style={{ marginRight: 4, verticalAlign: "middle" }}
+              />
+              Trip Budget
+            </button>
+          )}
+        <Link to="/sync-together">
+          <Button className="sk-btn-sync" icon={<SyncOutlined />}>
+            Sync Together
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <UnavailableNotice
@@ -6315,7 +6644,9 @@ export default function BookingPage() {
         </div>
       )}
       <div
-        className="sk-booking"
+        className={`sk-booking${quick ? " sk-quick" : ""}${
+          quickFiltersOpen ? " is-filters-open" : ""
+        }${quickPassOpen ? " is-pass-open" : ""}`}
         style={{
           "--sk-bg-image": `url(${heroImg})`,
           // Hidden (not unmounted) while a checkout overlay is open —
@@ -6327,6 +6658,26 @@ export default function BookingPage() {
         }}
       >
         <style>{PLAN_CSS}</style>
+        {/* Phones only: Quick / Full switch */}
+        {isPhone && (
+          <div className="sk-viewmode" role="radiogroup" aria-label="Page view">
+            {[
+              ["quick", "Quick"],
+              ["full", "Full"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={viewMode === key}
+                className={viewMode === key ? "is-on" : ""}
+                onClick={() => setViewMode(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {resultsFocus && (
           <div className="sk-resultsbar" role="region" aria-label="Your search">
             <button
@@ -6334,22 +6685,34 @@ export default function BookingPage() {
               className="sk-resultsbar__back"
               onClick={() => setResultsFocus(false)}
             >
-              <ArrowLeft size={15} aria-hidden="true" /> Change search
+              <ArrowLeft size={15} aria-hidden="true" /> Edit search
             </button>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="sk-resultsbar__title">{resultsTitle}</div>
+              {/* Route on top, what you're looking at underneath (the big
+                  "39 … Found" heading is right below, so not repeated here). */}
+              <div className="sk-resultsbar__title">
+                {(tab === "Stays"
+                  ? destCity
+                  : [originCity, destCity].filter(Boolean).join(" → ")) ||
+                  resultsTitle}
+              </div>
               <div className="sk-resultsbar__sub">
                 {[
                   tab,
-                  tab === "Stays"
-                    ? destCity
-                    : [originCity, destCity].filter(Boolean).join(" → "),
+                  tripDates?.[0] && tripDates?.[1]
+                    ? `${dayjs(tripDates[0]).format("MMM D")} – ${dayjs(
+                        tripDates[1]
+                      ).format("MMM D")}`
+                    : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
               </div>
             </div>
           </div>
+        )}
+        {resultsFocus && (tab === "Flights" || tab === "Stays") && (
+          <div className="sk-results-tools">{toolsBlock}</div>
         )}
         <div
           className="sk-booking-hero sk-bp"
@@ -6497,116 +6860,8 @@ export default function BookingPage() {
                 {/* ── Search form (scroll target for "Search manually") ── */}
                 <div ref={searchFormRef}>{searchForm}</div>
 
-                {/* ── Filters, sort and shortcuts — right under the search bar ── */}
-                <div className="sk-bp-tools">
-                  <SmartFilterBar
-                    filters={smartFilters}
-                    onChange={setSmartFilters}
-                    flightResults={flightResults}
-                    visible={tab === "Flights"}
-                  />
-
-                  <HotelFilterBar
-                    filters={hotelFilters}
-                    onChange={setHotelFilters}
-                    hotelResults={hotelResults}
-                    visible={tab === "Stays"}
-                  />
-
-                  <div className="sk-bp-tools-row">
-                    {/* Sort + quick filters only once there are results —
-                        before a search they do nothing. */}
-                    {tab === "Flights" && flightResults.length > 0 && (
-                      <Button
-                        className="sk-btn-orange sk-bp-sort"
-                        onClick={() => {
-                          const i = SORT_OPTIONS.findIndex(
-                            (o) => o.key === sortBy
-                          );
-                          setSortBy(
-                            SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length].key
-                          );
-                        }}
-                        title="Click to change sort"
-                      >
-                        Sort:{" "}
-                        {SORT_OPTIONS.find((o) => o.key === sortBy)?.label}
-                      </Button>
-                    )}
-                    {tab === "Stays" && hotelResults.length > 0 && (
-                      <Button
-                        className="sk-btn-orange sk-bp-sort"
-                        onClick={() => {
-                          const i = HOTEL_SORT_OPTIONS.findIndex(
-                            (o) => o.key === hotelSortBy
-                          );
-                          setHotelSortBy(
-                            HOTEL_SORT_OPTIONS[
-                              (i + 1) % HOTEL_SORT_OPTIONS.length
-                            ].key
-                          );
-                        }}
-                        title="Click to change sort"
-                      >
-                        Sort:{" "}
-                        {
-                          HOTEL_SORT_OPTIONS.find((o) => o.key === hotelSortBy)
-                            ?.label
-                        }
-                      </Button>
-                    )}
-
-                    {tab === "Flights" &&
-                      flightResults.length > 0 &&
-                      quickFilters.map((qf) => (
-                        <button
-                          key={qf.label}
-                          type="button"
-                          className={`sk-qf${
-                            isQuickActive(qf) ? " is-active" : ""
-                          }`}
-                          aria-pressed={isQuickActive(qf)}
-                          onClick={() => toggleFilter(qf)}
-                        >
-                          {qf.label}
-                        </button>
-                      ))}
-                    {tab === "Flights" && activeFilterCount > 0 && (
-                      <button
-                        type="button"
-                        className="sk-qf sk-qf-clear"
-                        onClick={clearFilters}
-                      >
-                        Clear filters
-                      </button>
-                    )}
-
-                    {/* Pushes the next buttons to the right on desktop */}
-                    <span className="sk-bp-tools-gap" aria-hidden="true" />
-
-                    {!syncGroupId &&
-                      planMode === "budget" &&
-                      (visibleFlights.length > 0 ||
-                        hotelResults.length > 0) && (
-                        <button
-                          type="button"
-                          className="sk-scroll-budget-btn"
-                          onClick={scrollToBudget}
-                        >
-                          <ChevronsDown
-                            size={13}
-                            style={{ marginRight: 4, verticalAlign: "middle" }}
-                          />
-                          Trip Budget
-                        </button>
-                      )}
-                    <Link to="/sync-together">
-                      <Button className="sk-btn-sync" icon={<SyncOutlined />}>
-                        Sync Together
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
+                {/* ── Filters, sort and shortcuts (toolsBlock, defined above) ── */}
+                {!resultsFocus && toolsBlock}
 
                 {/* Package in progress: flight first, then the stay */}
                 {packagePlan && (tab === "Flights" || tab === "Stays") && (
@@ -6621,6 +6876,22 @@ export default function BookingPage() {
                     onPayStay={handleCheckoutCart}
                     onDone={() => setPackagePlan(null)}
                   />
+                )}
+                {/* Quick mode: the stub (XP, Price Watch, weather) is one tap away */}
+                {quick && (
+                  <button
+                    type="button"
+                    className="sk-quick-pass-btn"
+                    aria-expanded={quickPassOpen}
+                    onClick={() => setQuickPassOpen((v) => !v)}
+                  >
+                    <Info size={14} aria-hidden="true" />
+                    {quickPassOpen
+                      ? "Hide trip details"
+                      : tab === "Flights"
+                      ? "Trip details · XP · Price Watch"
+                      : "Trip details"}
+                  </button>
                 )}
               </div>
 
@@ -6839,49 +7110,53 @@ export default function BookingPage() {
 
                 {/* ── Price Watch Card — flights only (it watches a flight route) ── */}
                 {tab === "Flights" && (
-                <div className="sk-price-watch-card">
-                  <div className="sk-pwc-header">
-                    <div className="sk-pwc-xp">
-                      <Zap size={13} className="sk-pwc-xp-icon" />
-                      <span className="sk-pwc-xp-label">
-                        Earn up to <strong>150 XP</strong> on booking
-                      </span>
+                  <div className="sk-price-watch-card">
+                    <div className="sk-pwc-header">
+                      <div className="sk-pwc-xp">
+                        <Zap size={13} className="sk-pwc-xp-icon" />
+                        <span className="sk-pwc-xp-label">
+                          Earn up to <strong>150 XP</strong> on booking
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`sk-pwc-toggle${
+                          priceWatchOn ? " is-on" : ""
+                        }`}
+                        onClick={handlePriceWatchToggle}
+                        aria-pressed={priceWatchOn}
+                        disabled={priceWatchBusy}
+                        aria-busy={priceWatchBusy}
+                      >
+                        {priceWatchOn ? (
+                          <Bell size={13} className="sk-pwc-bell" />
+                        ) : (
+                          <BellOff size={13} className="sk-pwc-bell" />
+                        )}
+                        <span className="sk-pwc-toggle-label">
+                          Price Watch {priceWatchOn ? "On" : "Off"}
+                        </span>
+                        <span
+                          className={`sk-pwc-dot${
+                            priceWatchOn ? " is-on" : ""
+                          }`}
+                        />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className={`sk-pwc-toggle${priceWatchOn ? " is-on" : ""}`}
-                      onClick={handlePriceWatchToggle}
-                      aria-pressed={priceWatchOn}
-                      disabled={priceWatchBusy}
-                      aria-busy={priceWatchBusy}
-                    >
-                      {priceWatchOn ? (
-                        <Bell size={13} className="sk-pwc-bell" />
-                      ) : (
-                        <BellOff size={13} className="sk-pwc-bell" />
-                      )}
-                      <span className="sk-pwc-toggle-label">
-                        Price Watch {priceWatchOn ? "On" : "Off"}
-                      </span>
-                      <span
-                        className={`sk-pwc-dot${priceWatchOn ? " is-on" : ""}`}
-                      />
-                    </button>
+                    {(priceWatchOn || priceWatchRoute) && (
+                      <div className="sk-pwc-desc">
+                        {priceWatchOn
+                          ? `Watching ${
+                              priceWatchRoute?.from ?? "your route"
+                            } → ${priceWatchRoute?.to ?? "destination"}${
+                              Number.isFinite(Number(priceWatchRoute?.price))
+                                ? ` from $${wholeUsd(priceWatchRoute.price)}`
+                                : ""
+                            }. We'll alert you if it drops.`
+                          : `Alert me if ${priceWatchRoute.from} → ${priceWatchRoute.to} gets cheaper.`}
+                      </div>
+                    )}
                   </div>
-                  {(priceWatchOn || priceWatchRoute) && (
-                  <div className="sk-pwc-desc">
-                    {priceWatchOn
-                      ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
-                          priceWatchRoute?.to ?? "destination"
-                        }${
-                          Number.isFinite(Number(priceWatchRoute?.price))
-                            ? ` from $${wholeUsd(priceWatchRoute.price)}`
-                            : ""
-                        }. We'll alert you if it drops.`
-                      : `Alert me if ${priceWatchRoute.from} → ${priceWatchRoute.to} gets cheaper.`}
-                  </div>
-                  )}
-                </div>
                 )}
 
                 <div className="sk-bp-barcode" aria-hidden="true" />
@@ -6953,6 +7228,16 @@ export default function BookingPage() {
                   >
                     Clear all filters
                   </button>
+                )}
+              {priceCheck &&
+                !isSearching &&
+                (tab === "Flights" || tab === "Stays") && (
+                  <PriceCheckBanner
+                    check={priceCheck}
+                    tab={tab}
+                    flights={flightResults}
+                    hotels={hotelResults}
+                  />
                 )}
             </div>
 
@@ -7077,7 +7362,7 @@ export default function BookingPage() {
                 >
                   <div className="sk-resultRow">
                     <div
-                      className="sk-thumb"
+                      className="sk-thumb sk-thumb--logo"
                       style={
                         flight.ownerLogo
                           ? {
@@ -7289,7 +7574,7 @@ export default function BookingPage() {
                   >
                     <div className="sk-resultRow">
                       <div
-                        className="sk-thumb"
+                        className="sk-thumb sk-thumb--logo"
                         style={
                           outbound.ownerLogo
                             ? {
@@ -7668,7 +7953,7 @@ export default function BookingPage() {
                         >
                           <div className="sk-resultRow">
                             <div
-                              className="sk-thumb"
+                              className="sk-thumb sk-thumb--logo"
                               style={
                                 outbound.ownerLogo
                                   ? {
@@ -7871,7 +8156,10 @@ export default function BookingPage() {
                             >
                               <Zap
                                 size={11}
-                                style={{ marginRight: 3, verticalAlign: "middle" }}
+                                style={{
+                                  marginRight: 3,
+                                  verticalAlign: "middle",
+                                }}
                               />{" "}
                               {STAY_BOOKING_XP} XP
                             </span>
