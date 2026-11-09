@@ -63,11 +63,16 @@ const ChangeRequestSchema = new Schema(
   { timestamps: true }
 );
 
-// ── Group shortlist ── flights and hotels someone suggested from search.
+// ── Group shortlist ── flights, hotels, activities, rental cars and events
+// someone suggested from search.
 // The group votes; the organizer picks the winner.
 const ShortlistItemSchema = new Schema(
   {
-    kind: { type: String, enum: ["hotel", "flight", "activity"], required: true },
+    kind: {
+      type: String,
+      enum: ["hotel", "flight", "activity", "car", "event"],
+      required: true,
+    },
     key: { type: String, required: true }, // dedupe: hotelId, or airline+route+times
     suggestedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     note: { type: String, trim: true, maxlength: 200, default: "" },
@@ -112,7 +117,40 @@ const ShortlistItemSchema = new Schema(
       reviews: Number,
       url: String,
     },
-    price: { type: Number, default: null }, // as shown when suggested (per person for flights, per room for hotels)
+    // Rental car (Duffel Cars). rateId expires, so the car is re-found by
+    // supplier + model + dates when someone opens it later.
+    car: {
+      rateId: String,
+      name: String,
+      category: String,
+      // Written this way: a bare "type: String" would make Mongoose treat
+      // the whole car object as a String.
+      type: { type: String },
+      image: String,
+      supplier: String,
+      supplierLogo: String,
+      passengers: Number,
+      pickupName: String,
+      pickupCode: String, // what the Cars tab searches (airport code or city)
+      pickupDate: String,
+      pickupTime: String,
+      dropoffDate: String,
+      dropoffTime: String,
+      days: Number,
+    },
+    // Event (Ticketmaster). Tickets are bought on Ticketmaster.
+    event: {
+      id: String,
+      name: String,
+      image: String,
+      date: String,
+      time: String,
+      venue: String,
+      city: String,
+      category: String,
+      url: String,
+    },
+    price: { type: Number, default: null }, // as shown when suggested (per person for flights, per room for hotels, whole rental for cars, from-price for events)
     currency: { type: String, default: "USD" },
   },
   { timestamps: true }

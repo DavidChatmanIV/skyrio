@@ -42,6 +42,7 @@ import {
   Hotel,
   Car,
   Compass,
+  CalendarDays,
   Package,
   MessageSquare,
   ThumbsUp,
@@ -305,6 +306,15 @@ function AtlasPlanRenderer({ plan, onSearch }) {
       l.includes("things to do")
     )
       return { tab: "Excursions", label: "Find things to do" };
+    if (l.includes("car") || l.includes("transport") || l.includes("getting around"))
+      return { tab: "Cars", label: "Find rental cars" };
+    if (
+      l.includes("event") ||
+      l.includes("concert") ||
+      l.includes("game") ||
+      l.includes("show")
+    )
+      return { tab: "Events", label: "Find events" };
     return null;
   };
   const renderLine = (raw, idx) => {
@@ -1958,8 +1968,14 @@ export default function SyncGroupPage() {
           >
             Trip Package
           </SectionTitle>
+          {/* Each tile opens that search with the trip's destination and
+              dates filled in (needs a destination first). */}
           <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: 8,
+            }}
           >
             {[
               {
@@ -1967,23 +1983,53 @@ export default function SyncGroupPage() {
                 l: "Flights",
                 a: true,
                 d: "Search & book",
+                tab: "Flights",
               },
               {
                 i: <Hotel size={16} />,
                 l: "Hotels",
                 a: true,
                 d: "Group stays",
+                tab: "Stays",
               },
-              { i: <Car size={16} />, l: "Car Rentals", d: "Shared transport" },
+              {
+                i: <Car size={16} />,
+                l: "Car Rentals",
+                a: true,
+                d: "Pay at pickup",
+                tab: "Cars",
+              },
+              {
+                i: <CalendarDays size={16} />,
+                l: "Events",
+                a: true,
+                d: "Games, concerts & shows",
+                tab: "Events",
+              },
               {
                 i: <Compass size={16} />,
                 l: "Excursions",
                 a: true,
                 d: "Activities",
+                tab: "Excursions",
               },
             ].map((x) => (
               <div
                 key={x.l}
+                role={destination ? "button" : undefined}
+                tabIndex={destination ? 0 : undefined}
+                title={
+                  destination
+                    ? `Search ${x.l.toLowerCase()} for this trip`
+                    : "Add a destination first"
+                }
+                onClick={() => destination && openSearch(x.tab)}
+                onKeyDown={(e) => {
+                  if (destination && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    openSearch(x.tab);
+                  }
+                }}
                 style={{
                   padding: "12px 14px",
                   borderRadius: 12,
@@ -1992,6 +2038,15 @@ export default function SyncGroupPage() {
                     x.a ? "rgba(255,138,42,0.15)" : "rgba(255,255,255,0.05)"
                   }`,
                   opacity: x.a ? 1 : 0.45,
+                  cursor: destination ? "pointer" : "default",
+                  transition: "border-color .15s",
+                }}
+                onMouseEnter={(e) => {
+                  if (destination)
+                    e.currentTarget.style.borderColor = "rgba(255,138,42,0.45)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,138,42,0.15)";
                 }}
               >
                 <div
@@ -2117,6 +2172,18 @@ export default function SyncGroupPage() {
                       onClick={() => openSearch("Stays")}
                     >
                       Stays
+                    </Button>
+                    <Button
+                      icon={<Car size={14} />}
+                      onClick={() => openSearch("Cars")}
+                    >
+                      Cars
+                    </Button>
+                    <Button
+                      icon={<CalendarDays size={14} />}
+                      onClick={() => openSearch("Events")}
+                    >
+                      Events
                     </Button>
                     <Button
                       icon={<Compass size={14} />}
@@ -2604,7 +2671,14 @@ export default function SyncGroupPage() {
               destination={group.destination}
               activityIdeas={
                 (myParts.shortlist || []).filter(
-                  (i) => i.kind === "activity" && i.status !== "removed"
+                  (i) =>
+                    (i.kind === "activity" || i.kind === "event") &&
+                    i.status !== "removed"
+                ).length
+              }
+              carIdeas={
+                (myParts.shortlist || []).filter(
+                  (i) => i.kind === "car" && i.status !== "removed"
                 ).length
               }
               onFind={(k) => {

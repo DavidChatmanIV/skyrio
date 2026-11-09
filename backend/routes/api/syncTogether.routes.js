@@ -1766,6 +1766,8 @@ function shortlistForClient(group, viewerId) {
         hotel: it.kind === "hotel" ? it.hotel : undefined,
         flight: it.kind === "flight" ? it.flight : undefined,
         activity: it.kind === "activity" ? it.activity : undefined,
+        car: it.kind === "car" ? it.car : undefined,
+        event: it.kind === "event" ? it.event : undefined,
         price: it.price,
         currency: it.currency,
         suggestedBy: people.get(String(it.suggestedBy)) || "Someone",
@@ -1788,6 +1790,42 @@ const cleanStr = (v, n = 200) =>
   v == null || v === "" ? undefined : String(v).trim().slice(0, n);
 const cleanNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
 const SHORTLIST_MAX = 30;
+const SHORTLIST_KINDS = ["hotel", "flight", "activity", "car", "event"];
+// Several of these can be on the plan at once (a big group may need two
+// cars; there can be a game AND a concert). Flight and hotel stay one pick.
+const MULTI_PICK_KINDS = ["activity", "car", "event"];
+const SUGGEST_NOUN = {
+  hotel: "stay",
+  flight: "flight",
+  activity: "activity",
+  car: "rental car",
+  event: "event",
+};
+// Same formula as carShortlistKey() in BookingPage.jsx — keep them in step.
+// The rate id expires, so the key is the car itself + where/when.
+function carShortlistKey(c) {
+  return [
+    "car",
+    c.supplier,
+    c.name,
+    c.pickupName || c.pickupCode,
+    c.pickupDate,
+    c.dropoffDate,
+  ]
+    .map((x) => String(x || "").slice(0, 40))
+    .join(":");
+}
+// "Hertz Toyota Corolla", "Heat vs Knicks", "Delta EWR→MIA" …
+function shortlistLabel(it, article = "the") {
+  if (it.kind === "hotel") return it.hotel?.name || `${article} hotel`;
+  if (it.kind === "activity") return it.activity?.name || `${article === "a" ? "an" : article} activity`;
+  if (it.kind === "event") return it.event?.name || `${article === "a" ? "an" : article} event`;
+  if (it.kind === "car")
+    return it.car?.name
+      ? `${it.car.supplier ? it.car.supplier + " " : ""}${it.car.name}`
+      : `${article} rental car`;
+  return `${it.flight?.airline || `${article} flight`} ${it.flight?.origin}→${it.flight?.destination}`;
+}
 
 // Your private budget — only ever the viewer's own, never anyone else's.
 function myBudgetFor(group, viewerId) {
@@ -1960,6 +1998,8 @@ async function computeParts(group, viewerId) {
           ? "flight"
           : b.type === "Hotel"
           ? "stay"
+          : b.type === "Car"
+          ? "car"
           : /excursion|activit|tour/i.test(String(b.type || ""))
           ? "activity"
           : "other",
@@ -2213,17 +2253,19 @@ router.post("/:id/resend-invite", async (req, res) => {
    ══════════════════════════════════════════════ */
 
 /* POST /api/sync-together/:id/shortlist
-   Body: { kind: "hotel"|"flight", note?, price?, currency?, hotel?: {...}, flight?: {...} } */
+   Body: { kind: "hotel"|"flight"|"activity"|"car"|"event", note?, price?, currency?,
+           hotel?|flight?|activity?|car?|event?: {...} } */
 router.post("/:id/shortlist", async (req, res) => {
   try {
     const userId = req.user?.id ?? req.user?._id;
     const group = await loadGroupForParts(req.params.id);
     if (!requireMember(group, userId, res)) return;
     const kind = req.body?.kind;
-    if (!["hotel", "flight", "activity"].includes(kind)) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Suggest a flight, a stay or an activity." });
+    if (!SHORTLIST_KINDS.includes(kind)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Suggest a flight, a stay, a car, an event or an activity.",
+      });
     }
 
     let item;
@@ -2250,6 +2292,60 @@ router.post("/:id/shortlist", async (req, res) => {
           checkin: cleanStr(h.checkin, 10),
           checkout: cleanStr(h.checkout, 10),
           adults: cleanNum(h.adults),
+        },
+      };
+    } else if (kind === "car") {
+      const c = req.body.car || {};
+      const ymd = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : undefined);
+      const hm = (v) => (/^\d{2}:\d{2}$/.test(String(v || "")) ? String(v) : undefined);
+      if (!c.name || !c.supplier || !ymd(c.pickupDate) || !ymd(c.dropoffDate))
+        return res
+          .status(400)
+          .json({ ok: false, error: "Pick a car from the search results." });
+      const car = {
+        rateId: /^rae_/.test(String(c.rateId || "")) ? cleanStr(c.rateId, 80) : undefined,
+        name: cleanStr(c.name, 120),
+        category: cleanStr(c.category, 60),
+        type: cleanStr(c.type, 40),
+        image: /^https:\/\//.test(String(c.image || "")) ? cleanStr(c.image, 600) : undefined,
+        supplier: cleanStr(c.supplier, 80),
+        supplierLogo: /^https:\/\//.test(String(c.supplierLogo || ""))
+          ? cleanStr(c.supplierLogo, 600)
+          : undefined,
+        passengers: cleanNum(c.passengers),
+        pickupName: cleanStr(c.pickupName, 160),
+        pickupCode: cleanStr(c.pickupCode, 80),
+        pickupDate: ymd(c.pickupDate),
+        pickupTime: hm(c.pickupTime),
+        dropoffDate: ymd(c.dropoffDate),
+        dropoffTime: hm(c.dropoffTime),
+        days: cleanNum(c.days),
+      };
+      item = { kind, key: carShortlistKey(car), car };
+    } else if (kind === "event") {
+      const e = req.body.event || {};
+      if (!e.id || !e.name)
+        return res
+          .status(400)
+          .json({ ok: false, error: "Pick an event from the results." });
+      item = {
+        kind,
+        key: `event:${String(e.id).slice(0, 120)}`,
+        event: {
+          id: cleanStr(e.id, 120),
+          name: cleanStr(e.name, 200),
+          image: /^https:\/\//.test(String(e.image || "")) ? cleanStr(e.image, 600) : undefined,
+          date: /^\d{4}-\d{2}-\d{2}$/.test(String(e.date || "")) ? String(e.date) : undefined,
+          time: /^\d{2}:\d{2}/.test(String(e.time || "")) ? String(e.time).slice(0, 5) : undefined,
+          venue: cleanStr(e.venue, 160),
+          city: cleanStr(e.city, 120),
+          category: cleanStr(e.category, 40),
+          // Ticketmaster's own page only — tickets are bought there.
+          url: /^https:\/\/([a-z0-9-]+\.)*(ticketmaster|livenation|universe)\.[a-z.]+\//i.test(
+            String(e.url || "")
+          )
+            ? cleanStr(e.url, 600)
+            : undefined,
         },
       };
     } else if (kind === "activity") {
@@ -2345,14 +2441,7 @@ router.post("/:id/shortlist", async (req, res) => {
       currency: cleanStr(req.body?.currency, 3) || "USD",
     });
     const added = group.shortlist[group.shortlist.length - 1];
-    const label =
-      kind === "hotel"
-        ? item.hotel.name || "a hotel"
-        : kind === "activity"
-        ? item.activity.name || "an activity"
-        : `${item.flight.airline || "a flight"} ${item.flight.origin}→${
-            item.flight.destination
-          }`;
+    const label = shortlistLabel(item, "a");
     const who = req.user?.name || req.user?.username || "Someone";
     logActivity(group, "shortlist_add", userId, `Suggested ${label}`);
     await group.save();
@@ -2367,7 +2456,7 @@ router.post("/:id/shortlist", async (req, res) => {
       others.map((u) => ({
         user: u,
         type: "booking",
-        title: `New ${kind === "activity" ? "activity" : kind} suggestion 🗳️`,
+        title: `New ${SUGGEST_NOUN[kind] || kind} suggestion 🗳️`,
         message: `${label} was added to the ${
           group.title || "trip"
         } shortlist. Vote for your favorite.`,
@@ -2537,7 +2626,7 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
         error: "That option isn't on the shortlist anymore.",
       });
 
-    if (it.kind !== "activity") {
+    if (!MULTI_PICK_KINDS.includes(it.kind)) {
       group.shortlist.forEach((s) => {
         if (s.kind === it.kind) s.status = "open";
       });
@@ -2555,10 +2644,9 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
         setAt: new Date(),
       };
       label = it.hotel.name || "the hotel";
-    } else if (it.kind === "activity") {
-      // Activities: several can be picked (it's a list of things to do).
-      it.status = "picked";
-      label = it.activity?.name || "the activity";
+    } else if (MULTI_PICK_KINDS.includes(it.kind)) {
+      // Activities, cars and events: several can be picked (it's a plan).
+      label = shortlistLabel(it);
     } else {
       group.groupFlightKey = it.key;
       label = `${it.flight.airline || "the flight"} ${it.flight.origin}→${
@@ -2583,10 +2671,19 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
         title:
           it.kind === "hotel"
             ? "The group's hotel is picked 🏨"
+            : it.kind === "car"
+            ? "Rental car added to the plan 🚗"
+            : it.kind === "event"
+            ? "Event added to the plan 🎫"
             : it.kind === "activity"
             ? "Added to the plan 🎟️"
             : "The group's flight is picked ✈️",
-        message: `${label} won. Book your part from the trip page.`,
+        message:
+          it.kind === "event"
+            ? `${label} is on the plan. Tickets are bought on Ticketmaster — open it from the trip page.`
+            : it.kind === "car"
+            ? `${label} is on the plan. Whoever's driving can book it from the trip page (pay at pickup).`
+            : `${label} won. Book your part from the trip page.`,
         link: `/sync-together/${group._id}`,
       }))
     ).catch(() => {});

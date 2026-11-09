@@ -1,9 +1,10 @@
 // "Your trip" tracker for Sync Together. One glance shows:
-//   • Flight / Stay / Things to do — booked or not, and what each cost
+//   • Flight / Stay / Car / Things to do — booked or not, and what each cost
+//     (Car and Things to do are optional; a car counts at its pay-at-pickup price)
 //   • Your private budget: booked so far, what's left (a progress meter)
 //   • The next thing to do, as one button
-// Used on the trip page (above the shortlist) and above Flights / Stays
-// search results. On search results it also sorts what fits first.
+// Used on the trip page (above the shortlist) and above Flights / Stays /
+// Cars / Excursions / Events search results. On search results it also sorts what fits first.
 import { useState } from "react";
 import {
   Wallet,
@@ -11,6 +12,7 @@ import {
   Plane,
   BedDouble,
   Ticket,
+  Car,
   Check,
   ArrowRight,
 } from "lucide-react";
@@ -20,20 +22,23 @@ import "@/styles/trip-budget.css";
 const STEPS = [
   { kind: "flight", title: "Flight", icon: Plane, find: "Find flights" },
   { kind: "stay", title: "Stay", icon: BedDouble, find: "Find stays" },
+  { kind: "car", title: "Car", icon: Car, find: "Find cars", optional: true },
   {
     kind: "activity",
     title: "Things to do",
     icon: Ticket,
     find: "Find activities",
+    optional: true,
   },
 ];
 
 export default function TripBudgetBar({
   groupId,
   tb, // from tripBudgetFrom()
-  kind = "flights", // the tab you're on: "flights" | "stays" | "activities" | null (trip page)
+  kind = "flights", // the tab you're on: "flights" | "stays" | "cars" | "activities" | "events" | null (trip page)
   destination,
-  activityIdeas = 0, // activities on the group shortlist
+  activityIdeas = 0, // activities + events on the group shortlist
+  carIdeas = 0, // rental cars on the group shortlist
   overCount = 0,
   noneFit = false,
   showingOver = false,
@@ -54,7 +59,9 @@ export default function TripBudgetBar({
       ? "stay"
       : kind === "flights"
       ? "flight"
-      : kind === "activities"
+      : kind === "cars"
+      ? "car"
+      : kind === "activities" || kind === "events"
       ? "activity"
       : null;
 
@@ -74,10 +81,14 @@ export default function TripBudgetBar({
       ? activityIdeas > 0
         ? `Optional · ${activityIdeas} on the shortlist`
         : "Optional"
+      : s.kind === "car"
+      ? carIdeas > 0
+        ? `Optional · ${carIdeas} on the shortlist`
+        : "Optional · pay at pickup"
       : "Not booked yet";
     return { ...s, items, done, amount, detail };
   });
-  const required = steps.filter((s) => s.kind !== "activity");
+  const required = steps.filter((s) => !s.optional);
   const doneCount = required.filter((s) => s.done).length;
   const next = required.find((s) => !s.done) || null;
 
@@ -107,12 +118,16 @@ export default function TripBudgetBar({
   const things =
     current === "stay"
       ? "rooms"
+      : current === "car"
+      ? "cars"
       : current === "activity"
       ? "activities"
       : "flights";
   const thing =
     current === "stay"
       ? "room"
+      : current === "car"
+      ? "car"
       : current === "activity"
       ? "activity"
       : "flight";
@@ -332,7 +347,8 @@ export default function TripBudgetBar({
           <li>
             <strong>Book your own part.</strong> Everyone books and pays for
             their own flight and stay. Each one checks off here once it's
-            booked.
+            booked. A rental car is optional — whoever's driving books it,
+            and pays the rental company at pickup.
           </li>
           {BUDGET_HOW_IT_WORKS.map(([b, t]) => (
             <li key={b}>

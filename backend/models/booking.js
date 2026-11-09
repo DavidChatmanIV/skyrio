@@ -89,6 +89,15 @@ const bookingSchema = new Schema(
     //   confirmation: [{ prebookId, bookingId, hotelConfirmationCode }] }
     hotelStay: { type: Schema.Types.Mixed, default: undefined },
 
+    // ── Car rental (Duffel Cars) ──
+    // { bookingId, reference, quoteId, supplier, car, pickup, dropoff,
+    //   pickupAt, dropoffAt, paymentType, payAtPickup: { amount, currency },
+    //   mileage, conditions, privacyPolicies }
+    // Postpaid rentals are paid to the rental company at pickup, so
+    // `total` stays 0 (Skyrio collected nothing) and totalAmount is the
+    // price due at the counter.
+    carRental: { type: Schema.Types.Mixed, default: undefined },
+
     // ── Sync Together ──
     // The group trip this booking belongs to (each member books their own
     // seat / room). Set only when the traveler is a member of that group.

@@ -4,12 +4,15 @@
 //   1. Anyone searches from the trip and taps "Suggest to group".
 //   2. Everyone votes here (suggesting counts as your vote).
 //   3. The organizer picks the winner. A picked hotel becomes the group's
-//      hotel; a picked flight is marked as the group's flight.
+//      hotel; a picked flight is marked as the group's flight. Activities,
+//      rental cars and events are "added to the plan" (several can be).
 //   4. Tapping a suggestion (or "Book this") goes STRAIGHT to that exact
 //      item: the link carries ?pick=<id>, and BookingPage re-finds the same
 //      flight / room in fresh results and opens checkout. If it's no longer
 //      available, the person lands on the same route/dates/hotel instead.
 //      Activities open the provider page directly when we have its link.
+//      Events open Ticketmaster (tickets are bought there). Cars open the
+//      Cars tab on that same car, re-found by company + model + dates.
 //   The list refreshes every 15 seconds while the page is open, so new
 //   suggestions and votes show up without reloading.
 // ─────────────────────────────────────────────────────────────
@@ -21,6 +24,8 @@ import {
   Plane,
   BedDouble,
   Ticket,
+  Car,
+  CalendarDays,
   ThumbsUp,
   Trophy,
   Trash2,
@@ -58,6 +63,16 @@ const money = (n, cur = "USD") =>
     : null;
 const t = (v) => (v ? dayjs(v).format("ddd MMM D, h:mm A") : "");
 const ymd = (v) => (v ? dayjs(v).format("YYYY-MM-DD") : null);
+const hm = (v) => (v ? dayjs(`2000-01-01T${v}`).format("h:mm A") : "");
+// Kinds where several can be on the plan at once.
+const PLAN_KINDS = ["activity", "car", "event"];
+const KIND_ICON = {
+  hotel: BedDouble,
+  activity: Ticket,
+  car: Car,
+  event: CalendarDays,
+  flight: Plane,
+};
 
 const card = {
   marginTop: 20,
@@ -85,22 +100,63 @@ function Option({
   busy,
 }) {
   const winner = it.status === "picked" || it.isGroupHotel || it.isGroupFlight;
+  const onPlan = PLAN_KINDS.includes(it.kind);
+  const Icon = KIND_ICON[it.kind] || Plane;
   const img =
     it.kind === "hotel"
       ? it.hotel?.thumbnail
       : it.kind === "activity"
       ? it.activity?.image
+      : it.kind === "car"
+      ? it.car?.image
+      : it.kind === "event"
+      ? it.event?.image
       : it.flight?.logo;
+  // Logos and car photos (cut-outs on white) fit inside; photos fill.
+  const contain = it.kind === "flight" || it.kind === "car";
   const title =
     it.kind === "hotel"
       ? it.hotel?.name || "Hotel"
       : it.kind === "activity"
       ? it.activity?.name || "Activity"
+      : it.kind === "car"
+      ? `${it.car?.name || "Rental car"}${
+          it.car?.category ? ` · ${it.car.category}` : ""
+        }`
+      : it.kind === "event"
+      ? it.event?.name || "Event"
       : `${it.flight?.airline || "Flight"} · ${it.flight?.origin} → ${
           it.flight?.destination
         }`;
   const lines =
-    it.kind === "activity"
+    it.kind === "car"
+      ? [
+          [it.car?.supplier, it.car?.pickupName].filter(Boolean).join(" · "),
+          it.car?.pickupDate
+            ? `${dayjs(it.car.pickupDate).format("MMM D")}${
+                it.car.pickupTime ? `, ${hm(it.car.pickupTime)}` : ""
+              } → ${dayjs(it.car.dropoffDate).format("MMM D")}${
+                it.car.dropoffTime ? `, ${hm(it.car.dropoffTime)}` : ""
+              }`
+            : null,
+          [
+            it.car?.passengers ? `${it.car.passengers} seats` : null,
+            "No payment now — pay at pickup",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        ]
+      : it.kind === "event"
+      ? [
+          it.event?.date
+            ? `${dayjs(it.event.date).format("ddd MMM D")}${
+                it.event.time ? ` · ${hm(it.event.time)}` : " · Time TBA"
+              }`
+            : "Date TBA",
+          [it.event?.venue, it.event?.city].filter(Boolean).join(", "),
+          "Tickets are sold on Ticketmaster",
+        ]
+      : it.kind === "activity"
       ? [
           [
             it.activity?.rating
@@ -189,8 +245,8 @@ function Option({
           borderRadius: 10,
           flexShrink: 0,
           background: img
-            ? `rgba(255,255,255,0.06) url(${img}) center / ${
-                it.kind === "flight" ? "60% no-repeat" : "cover"
+            ? `${contain ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.06)"} url(${img}) center / ${
+                it.kind === "flight" ? "60% no-repeat" : contain ? "contain no-repeat" : "cover"
               }`
             : "rgba(255,255,255,0.06)",
           display: "flex",
@@ -198,14 +254,7 @@ function Option({
           justifyContent: "center",
         }}
       >
-        {!img &&
-          (it.kind === "hotel" ? (
-            <BedDouble size={22} color="#ff8a2a" />
-          ) : it.kind === "activity" ? (
-            <Ticket size={22} color="#ff8a2a" />
-          ) : (
-            <Plane size={22} color="#ff8a2a" />
-          ))}
+        {!img && <Icon size={22} color="#ff8a2a" />}
       </div>
 
       <div style={{ flex: "1 1 220px", minWidth: 0 }}>
@@ -234,7 +283,7 @@ function Option({
               }}
             >
               <Trophy size={12} />{" "}
-              {it.kind === "activity" ? "ON THE PLAN" : "GROUP'S PICK"}
+              {onPlan ? "ON THE PLAN" : "GROUP'S PICK"}
             </span>
           )}
         </div>
@@ -271,6 +320,10 @@ function Option({
                 ? "per room, when suggested"
                 : it.kind === "activity"
                 ? "from, per person"
+                : it.kind === "car"
+                ? "whole rental, at pickup"
+                : it.kind === "event"
+                ? "from, per ticket"
                 : "per person, when suggested"}
             </div>
           </div>
@@ -313,7 +366,11 @@ function Option({
             className="sk-sync-cta-btn"
             onClick={stop(() => onBook(it))}
           >
-            Book this
+            {it.kind === "event"
+              ? it.event?.url
+                ? "Buy on Ticketmaster"
+                : "Find tickets"
+              : "Book this"}
           </Button>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -333,9 +390,7 @@ function Option({
                 fontFamily: "inherit",
               }}
             >
-              {it.kind === "activity"
-                ? "Add to the plan"
-                : "Pick for the group"}
+              {onPlan ? "Add to the plan" : "Pick for the group"}
             </button>
           )}
           {(it.suggestedByMe || isOrganizer) && (
@@ -438,6 +493,39 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
         );
       return;
     }
+    if (it.kind === "event") {
+      // Tickets are bought on Ticketmaster (opens in a new tab).
+      if (it.event?.url)
+        window.open(it.event.url, "_blank", "noopener,noreferrer");
+      else
+        navigate(
+          searchLink("Events", {
+            to: it.event?.city || data?.destination,
+            depart: it.event?.date || ymd(data?.dateRangeStart),
+            pick: it.id,
+          })
+        );
+      return;
+    }
+    if (it.kind === "car") {
+      const c = it.car || {};
+      // Same search as when it was suggested; the Cars tab then opens the
+      // same car (by rate id, or by company + model if the rate expired).
+      navigate(
+        searchLink("Cars", {
+          to: c.pickupCode || data?.destination,
+          depart: c.pickupDate || ymd(data?.dateRangeStart),
+          return: c.dropoffDate || ymd(data?.dateRangeEnd),
+          ptime: c.pickupTime,
+          dtime: c.dropoffTime,
+          carRate: c.rateId,
+          carCo: c.supplier,
+          carModel: c.name,
+          pick: it.id,
+        })
+      );
+      return;
+    }
     if (it.kind === "hotel") {
       navigate(
         searchLink("Stays", {
@@ -480,6 +568,8 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
     flight: (data.shortlist || []).filter((i) => i.kind === "flight").length,
     activity: (data.shortlist || []).filter((i) => i.kind === "activity")
       .length,
+    car: (data.shortlist || []).filter((i) => i.kind === "car").length,
+    event: (data.shortlist || []).filter((i) => i.kind === "event").length,
   };
   const comfy = data.budgetSummary?.comfortable;
 
@@ -524,6 +614,20 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
           </Button>
           <Button
             size="small"
+            icon={<Car size={13} />}
+            onClick={() => navigate(searchLink("Cars"))}
+          >
+            Find cars
+          </Button>
+          <Button
+            size="small"
+            icon={<CalendarDays size={13} />}
+            onClick={() => navigate(searchLink("Events"))}
+          >
+            Find events
+          </Button>
+          <Button
+            size="small"
             icon={<Ticket size={13} />}
             onClick={() => navigate(searchLink("Excursions"))}
           >
@@ -535,7 +639,7 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
         Search, tap <strong style={{ color: "#fff" }}>Suggest to group</strong>{" "}
         on anything you like, and vote here. Tap any suggestion to open it.
         {data.isOrganizer
-          ? " Pick the winner when the group agrees — a picked hotel becomes where everyone stays."
+          ? " Pick the winner when the group agrees — a picked hotel becomes where everyone stays. Cars, events and activities can all go on the plan."
           : " The organizer picks the winner."}
       </p>
       {comfy && (
@@ -559,8 +663,13 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
             ["all", `All (${counts.all})`],
             ["hotel", `Stays (${counts.hotel})`],
             ["flight", `Flights (${counts.flight})`],
+            ["car", `Cars (${counts.car})`],
+            ["event", `Events (${counts.event})`],
             ["activity", `Activities (${counts.activity})`],
-          ].map(([v, l]) => (
+          ]
+            // Hide empty Cars / Events chips so the row stays short.
+            .filter(([v]) => !["car", "event"].includes(v) || counts[v] > 0 || tab === v)
+            .map(([v, l]) => (
             <button
               key={v}
               type="button"
@@ -600,8 +709,9 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
             Nothing suggested yet
           </div>
           <div>
-            Find a flight, a stay or an activity you like and tap “Suggest to
-            group” — it shows up here for everyone to vote on.
+            Find a flight, a stay, a car, a game or concert, or an activity you
+            like and tap “Suggest to group” — it shows up here for everyone to
+            vote on.
           </div>
         </div>
       ) : (
@@ -624,7 +734,7 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
                   api(`/${groupId}/shortlist/${x.id}/pick`, { method: "POST" }),
                 x.kind === "hotel"
                   ? "Picked — it's now where the group stays."
-                  : x.kind === "activity"
+                  : PLAN_KINDS.includes(x.kind)
                   ? "Added to the group's plan."
                   : "Picked as the group's flight."
               )

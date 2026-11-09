@@ -10,6 +10,7 @@ import Compass from "@/components/Atlas/Compass";
 import AtlasBookingCard from "@/components/Atlas/AtlasBookingCard";
 import AtlasProfileCard from "@/components/Atlas/AtlasProfileCard";
 import AtlasCheckoutCard from "@/components/Atlas/AtlasCheckoutCard";
+import AtlasEventCard from "@/components/Atlas/AtlasEventCard";
 import { getGuestKey } from "@/lib/guestKey";
 import AtlasFeedbackBar from "@/components/Atlas/AtlasFeedbackBar";
 import { useQuietTurn, announcePopup } from "@/lib/popupQueue";
@@ -99,6 +100,9 @@ const KNOWN_ACTION = (a) =>
   (a?.type === "cancel" && a.bookingId) ||
   (a?.type === "booking" && a.proposalId) ||
   a?.type === "profile_setup" ||
+  (a?.type === "event" &&
+    typeof a.url === "string" &&
+    /^https:\/\//.test(a.url)) ||
   (a?.type === "checkout_link" &&
     typeof a.url === "string" &&
     /^https?:\/\//.test(a.url));
@@ -226,8 +230,11 @@ function buildStarterPrompts(ctx) {
   if (tripDays && hasDest)
     prompts.push(`Build me a ${tripDays}-day itinerary for ${destination}.`);
 
+  if (hasDest) prompts.push(`What games or concerts are in ${destination} during my trip?`);
+
   const fallbacks = [
     "I need to cancel one of my bookings.",
+    "Find me a rental car at MIA next weekend.",
     "Find me a warm destination under $1,500 in the next 6 weeks.",
     "What's the cheapest day to fly to Europe right now?",
     "Help me plan a 5-day trip under $800.",
@@ -337,7 +344,7 @@ const MODES = {
     label: "Chat",
     Icon: ChatIcon,
     status: "Trip help & bookings",
-    hint: "Ask about your trip, book flights and hotels, or get help with a booking.",
+    hint: "Ask about your trip, book flights, hotels and cars, find events, or get help with a booking.",
   },
   compass: {
     label: "Compass",
@@ -703,6 +710,8 @@ function Bubble({ msg, onActionResolved, conversationId, onProfileDone }) {
           );
         if (action?.type === "checkout_link")
           return <AtlasCheckoutCard key={`checkout-${i}`} action={action} />;
+        if (action?.type === "event")
+          return <AtlasEventCard key={`event-${i}`} action={action} />;
         if (action?.type === "profile_setup")
           return action.done ? (
             <div key={`profile-${i}`} className="ap-card__done" role="status">

@@ -47,6 +47,8 @@ await mount("/hotels", "./hotels/hotels.routes.js");
 // booking + payment hand off to Viator via affiliate link (no
 // Skyrio-side booking/payment flow, per Viator's license terms).
 await mount("/excursions", "./excursions/excursions.routes.js");
+// Car rentals — Duffel Cars (postpaid: traveler pays the rental company at pickup).
+await mount("/cars", "./cars/cars.routes.js");
 await mount("/airports", "./airports.routes.js");
 await mount("/skyhub", "./skyhub.routes.js");
 await mount("/weather", "./weather.routes.js");
@@ -128,6 +130,7 @@ api.get("/", (_req, res) => {
       "/flights",
       "/hotels",
       "/excursions",
+      "/cars",
       "/weather",
       "/skyhub",
       "/dm",

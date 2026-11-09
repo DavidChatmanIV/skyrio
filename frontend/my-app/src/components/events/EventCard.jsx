@@ -44,7 +44,7 @@ const ExternalIcon = () => (
   </svg>
 );
 
-export default function EventCard({ event, onPlanTrip }) {
+export default function EventCard({ event, onPlanTrip, extra = null }) {
   const price = formatPrice(event.priceRange);
   const venue = event.venue;
   const canPlan = Boolean(onPlanTrip && venue && event.suggestedDates);
@@ -88,6 +88,7 @@ export default function EventCard({ event, onPlanTrip }) {
             </a>
           )}
         </div>
+        {extra && <div className="sk-event-extra">{extra}</div>}
       </div>
     </article>
   );

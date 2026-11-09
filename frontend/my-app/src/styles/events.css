@@ -22,30 +22,40 @@
 }
 .sk-events-title { font-size: 1.35rem; font-weight: 700; margin: 0; }
 
+/* Category chips — same look as the Cars filters (glass chip, orange
+   gradient when active), left-aligned under the trip bar. */
 .sk-events-tabs {
   display: flex;
   gap: 6px;
-  padding: 4px;
-  border-radius: 999px;
-  background: var(--sk-glass);
-  border: 1px solid var(--sk-border);
-  backdrop-filter: blur(14px);
-  overflow-x: auto;
+  flex-wrap: wrap;
 }
 .sk-events-tab {
-  border: 0;
-  background: transparent;
-  color: var(--sk-muted);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(18, 16, 30, 0.5);
+  color: rgba(245, 243, 255, 0.75);
   padding: 7px 14px;
   border-radius: 999px;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
+  backdrop-filter: blur(12px);
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.sk-events-tab:hover:not(.is-active) {
+  border-color: rgba(255, 138, 61, 0.45);
+  color: #fff;
+}
+.sk-events-tab:focus-visible {
+  outline: 2px solid #ff8a3d;
+  outline-offset: 2px;
 }
 .sk-events-tab.is-active {
   color: #fff;
-  background: linear-gradient(135deg, var(--sk-orange), var(--sk-orange-2));
+  border-color: transparent;
+  background: linear-gradient(135deg, #ff8a3d, #ff5e3a);
+  box-shadow: 0 4px 14px rgba(255, 110, 58, 0.3);
 }
 
 .sk-events-grid {
@@ -187,3 +197,22 @@
 @media (max-width: 760px) {
   .sk-events-head { flex-direction: column; align-items: flex-start; }
 }
+
+/* Phones: chips scroll sideways in one row, like the Cars filters. */
+@media (max-width: 760px) {
+  .sk-events-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    margin-left: -4px;
+    padding: 0 4px 4px;
+  }
+  .sk-events-tabs::-webkit-scrollbar { display: none; }
+  .sk-events-tab { flex-shrink: 0; }
+}
+
+/* Sync Together: "Suggest to group" on event cards */
+.sk-event-extra { margin-top: 10px; }
+.sk-event-extra button, .sk-event-extra span { width: 100%; justify-content: center; }

@@ -1,6 +1,10 @@
-// src/utils/tripBudget.js
 // One place for the Sync Together trip-budget math, so the search page,
 // both checkouts and the trip page always agree.
+//
+// The budget is the traveler's PRIVATE total for the whole trip, per person
+// (flight + stay + car + activities). "left" = budget − what they've already
+// booked on this trip. Going over is always allowed — we just say so.
+// Rental cars count at the price the rental company quoted (paid at pickup).
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
@@ -44,7 +48,8 @@ export async function saveTripBudget(groupId, value) {
     body: JSON.stringify({ budget: value || null }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || "Couldn't save your budget");
+  if (!res.ok || !data.ok)
+    throw new Error(data.error || "Couldn't save your budget");
   return data;
 }
 
@@ -68,18 +73,39 @@ export function splitByBudget(list, getPrice, tb, showOver) {
 
 // The same four lines everywhere the budget is explained.
 export const BUDGET_HOW_IT_WORKS = [
-  ["One number for the whole trip.", "Flight, stay and activities, per person. Set it once."],
-  ["We track what you've booked.", "When you search, we subtract it and show what fits first."],
-  ["Going over is okay.", "Nothing is blocked. You'll see it clearly and can change your budget anytime."],
-  ["Always private.", "The group only sees what everyone's comfortable with, never your number."],
+  [
+    "One number for the whole trip.",
+    "Flight, stay, car and activities, per person. Set it once.",
+  ],
+  [
+    "We track what you've booked.",
+    "When you search, we subtract it and show what fits first. A rental car counts at the price you'll pay at pickup.",
+  ],
+  [
+    "Going over is okay.",
+    "Nothing is blocked. You'll see it clearly and can change your budget anytime.",
+  ],
+  [
+    "Always private.",
+    "The group only sees what everyone's comfortable with, never your number.",
+  ],
 ];
 
-// Search link for one part of a group trip (flight / stay / activity),
-// prefilled with the trip's destination and dates, ready to run.
+// Which BookingPage tab each part of a trip searches on.
+export const TRIP_TABS = {
+  flight: "Flights",
+  stay: "Stays",
+  activity: "Excursions",
+  car: "Cars",
+  event: "Events",
+};
+
+// Search link for one part of a group trip (flight / stay / activity /
+// car / event), prefilled with the trip's destination and dates, ready to run.
+// info = the /parts payload (or the group). opts: { from, cabin }
 export function tripSearchParams(groupId, info, kind, opts = {}) {
   const ymd = (v) => (v ? new Date(v).toISOString().slice(0, 10) : null);
-  const tab =
-    kind === "stay" ? "Stays" : kind === "activity" ? "Excursions" : "Flights";
+  const tab = TRIP_TABS[kind] || "Flights";
   const p = { groupId, tab, auto: "1" };
   if (info?.destination) p.to = info.destination;
   if (info?.dateRangeStart) p.depart = ymd(info.dateRangeStart);
@@ -93,5 +119,7 @@ export function tripSearchParams(groupId, info, kind, opts = {}) {
     p.adults = "1";
     p.rooms = "1";
   }
+  // Cars: "to" can be an airport code (MIA) or a city ("Miami") — the Cars
+  // search finds the airport either way. Events search by city.
   return p;
 }

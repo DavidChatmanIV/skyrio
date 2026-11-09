@@ -46,6 +46,16 @@ import {
   forgetStated,
 } from "./atlasLearning.js";
 import { LEARNING_CATEGORIES } from "../../models/AtlasLearnedPreference.js";
+// Cars (Duffel, pay at pickup) and events (Ticketmaster) — same code the
+// Book page's Cars and Events tabs use.
+import { searchCars, CarSearchError } from "../../routes/api/cars/cars.service.js";
+import { searchEvents } from "../../providers/ticketmasterProvider.js";
+import {
+  CATEGORY_MAP as EVENT_CATEGORIES,
+  normalizeEvent,
+  toTmDateTime,
+  addDays,
+} from "../../utils/eventsUtils.js";
 
 // ───────────────────────── Tool definitions (sent to Claude) ─────────────────────────
 
@@ -195,6 +205,56 @@ export const ATLAS_BOOKING_TOOLS = [
     },
   },
   {
+    name: "search_cars",
+    description:
+      "Search rental cars at an airport. Every car is paid to the rental company at pickup — Skyrio charges nothing. Returns up to 5 options with an optionId each. To book, call open_checkout with the optionId the user picks.",
+    parameters: {
+      type: "object",
+      properties: {
+        location: { type: "string", description: "Pick-up airport IATA code, e.g. MIA" },
+        pickupDate: { type: "string", description: "YYYY-MM-DD" },
+        dropoffDate: { type: "string", description: "YYYY-MM-DD" },
+        pickupTime: { type: "string", description: "HH:MM 24h, default 10:00" },
+        dropoffTime: { type: "string", description: "HH:MM 24h, default 10:00" },
+        driverAge: { type: "integer", minimum: 18, description: "Only if the driver is under 30" },
+        carType: {
+          type: "string",
+          enum: ["any", "small", "midsize", "suv", "van", "premium"],
+          description: "Only if the user asked for a kind of car",
+        },
+        maxTotal: { type: "number", description: "Optional cap on the rental total in USD" },
+      },
+      required: ["location", "pickupDate", "dropoffDate"],
+    },
+  },
+  {
+    name: "search_events",
+    description:
+      "Find concerts, sports games, shows and family events in a city for given dates (Ticketmaster). Returns up to 6 events with an optionId each. Tickets are sold by Ticketmaster, not Skyrio.",
+    parameters: {
+      type: "object",
+      properties: {
+        city: { type: "string", description: "City name, e.g. Miami" },
+        stateCode: { type: "string", description: "US state code if known, e.g. FL" },
+        startDate: { type: "string", description: "YYYY-MM-DD" },
+        endDate: { type: "string", description: "YYYY-MM-DD (default: start + 7 days)" },
+        category: { type: "string", enum: ["all", "sports", "music", "shows", "family"] },
+        keyword: { type: "string", description: "Team, artist or show name, if the user named one" },
+      },
+      required: ["city", "startDate"],
+    },
+  },
+  {
+    name: "show_event",
+    description:
+      "Show the user a card for one event with a 'Buy on Ticketmaster' button and a 'Plan a trip around it' button. Call after they show interest in a specific event from search_events.",
+    parameters: {
+      type: "object",
+      properties: { optionId: { type: "string", description: "optionId from search_events" } },
+      required: ["optionId"],
+    },
+  },
+  {
     name: "get_sync_trip",
     description:
       "Get a Sync Together group trip the user belongs to: destination, dates, and the flights/hotel other members already booked (with whether each is still available), plus the user's own share status and private budget.",
@@ -234,13 +294,13 @@ export const ATLAS_BOOKING_TOOLS = [
   {
     name: "open_checkout",
     description:
-      "Show a 'Review & pay' card that opens Skyrio's checkout page on the option the user picked. They enter traveler details and pay there. Use this for guests, for signed-in users with no saved card, or when the user would rather pay on the checkout page. Only call it after the user clearly picks an option. It does NOT book or charge anything.",
+      "Show a 'Review & pay' card that opens Skyrio's checkout page on the option the user picked. They enter traveler details and pay there. Use this for guests, for signed-in users with no saved card, or when the user would rather pay on the checkout page. Only call it after the user clearly picks an option. It does NOT book or charge anything. For a car (from search_cars) the card opens the car's checkout, where they add driver details; cars are paid at pickup.",
     parameters: {
       type: "object",
       properties: {
         optionId: {
           type: "string",
-          description: "optionId from search_flights or search_hotels",
+          description: "optionId from search_flights, search_hotels or search_cars",
         },
       },
       required: ["optionId"],
@@ -263,6 +323,9 @@ for (let i = ATLAS_BOOKING_TOOLS.length - 1; i >= 0; i--) {
 const GUEST_TOOL_NAMES = new Set([
   "search_flights",
   "search_hotels",
+  "search_cars",
+  "search_events",
+  "show_event",
   "open_checkout",
 ]);
 export const ATLAS_GUEST_BOOKING_TOOLS = ATLAS_BOOKING_TOOLS.filter((t) =>
@@ -318,7 +381,7 @@ function getOption(owner, optionId) {
 
 async function runBookingToolRaw(name, input, { userId, owner, ip }) {
   if (
-    (name === "search_flights" || name === "search_hotels") &&
+    ["search_flights", "search_hotels", "search_cars", "search_events"].includes(name) &&
     !searchLimit.tryConsume({ userId, guestKeyHash: userId ? null : owner, ip })
   ) {
     return {
@@ -349,6 +412,12 @@ async function runBookingToolRaw(name, input, { userId, owner, ip }) {
       return runFlightSearch(owner, userId, input);
     case "search_hotels":
       return runHotelSearch(owner, userId, input);
+    case "search_cars":
+      return runCarSearch(owner, input);
+    case "search_events":
+      return runEventSearch(owner, input);
+    case "show_event":
+      return showEvent(owner, input);
     case "open_checkout":
       return openCheckout(owner, userId, input);
     case "get_sync_trip":
@@ -894,6 +963,13 @@ async function openCheckout(owner, userId, { optionId }) {
         "Group trip shares are booked from the Sync Together trip page so friends' payments stay linked. Point the user there.",
     };
   }
+  if (opt.kind === "car") return openCarCheckout(opt);
+  if (opt.kind === "event") {
+    return {
+      error:
+        "Events are bought on Ticketmaster. Call show_event with this optionId instead.",
+    };
+  }
   if (!opt.raw?.frontend) {
     return {
       error:
@@ -1021,6 +1097,192 @@ async function openCheckout(owner, userId, { optionId }) {
   };
 }
 
+// ───────────────────────── Cars (Duffel, pay at pickup) ─────────────────────────
+
+const CAR_TYPE_MATCH = {
+  small: (c) => /mini|economy|compact/i.test(c.car.category || ""),
+  midsize: (c) => /midsize|standard|full/i.test(c.car.category || "") && c.car.type !== "SUV",
+  suv: (c) => c.car.type === "SUV",
+  van: (c) => /van|pickup/i.test(c.car.type || ""),
+  premium: (c) => /premium|luxury/i.test(c.car.category || ""),
+};
+
+async function runCarSearch(owner, input) {
+  const badDate = checkDates([
+    ["Pick-up date", input.pickupDate],
+    ["Drop-off date", input.dropoffDate],
+  ]);
+  if (badDate) return badDate;
+  const search = {
+    location: String(input.location || "").trim().toUpperCase(),
+    pickupDate: input.pickupDate,
+    dropoffDate: input.dropoffDate,
+    pickupTime: input.pickupTime || "10:00",
+    dropoffTime: input.dropoffTime || "10:00",
+    driverAge: Number(input.driverAge) || 30,
+  };
+  let found;
+  try {
+    found = await searchCars(search);
+  } catch (err) {
+    if (err instanceof CarSearchError) return { error: err.message };
+    console.error("[Atlas search_cars] failed:", err.message);
+    return { error: "Car search failed. Try again in a moment." };
+  }
+  const match = CAR_TYPE_MATCH[input.carType] || (() => true);
+  const cars = found.cars
+    .filter(match)
+    .filter((c) => !input.maxTotal || c.totalAmount <= input.maxTotal)
+    .slice(0, 5);
+  if (!cars.length) {
+    return {
+      options: [],
+      note: "No cars matched. Suggest other dates, another car type, or a nearby airport.",
+    };
+  }
+  return {
+    pickupPlace: found.place?.name || search.location,
+    days: found.days,
+    options: cars.map((c) => {
+      const display = {
+        company: c.supplier.name,
+        car: c.car.name,
+        category: c.car.category,
+        type: c.car.type,
+        seats: c.car.passengers,
+        bags: c.car.bags,
+        mileage: c.mileage,
+        pickupCounter: c.pickup.name,
+        counterAccess: c.pickup.access,
+        total: c.totalAmount,
+        perDay: c.perDay,
+        currency: c.currency,
+        payment: "Pay the rental company at pickup. Skyrio charges nothing.",
+      };
+      return {
+        optionId: cacheOption(owner, "car", { rateId: c.id, offer: c }, display, search),
+        ...display,
+      };
+    }),
+    note: "All car rentals are paid at pickup. To book one, call open_checkout with its optionId.",
+  };
+}
+
+function openCarCheckout(opt) {
+  const s = opt.search;
+  const d = opt.display;
+  const qs = new URLSearchParams({
+    tab: "Cars",
+    to: s.location,
+    depart: s.pickupDate,
+    return: s.dropoffDate,
+    ptime: s.pickupTime,
+    dtime: s.dropoffTime,
+    age: String(s.driverAge),
+    carRate: opt.raw.rateId,
+    auto: "1",
+  });
+  return {
+    card: {
+      type: "checkout_link",
+      kind: "car",
+      url: `${FRONTEND_URL}/booking?${qs}`,
+      title: `${d.company} · ${d.car}`,
+      lines: [
+        "No payment now — pay at pickup",
+        `${s.pickupDate} ${s.pickupTime} → ${s.dropoffDate} ${s.dropoffTime}`,
+        [d.pickupCounter, d.counterAccess].filter(Boolean).join(" · "),
+      ].filter(Boolean),
+      travelers: 1,
+      price: d.total,
+      currency: d.currency || "USD",
+      expiresAt: new Date(opt.expiresAt),
+    },
+    instruction:
+      "Tell the user a card is below that opens the car's checkout, where they add the driver's details and book. Nothing is charged by Skyrio: they pay the rental company at pickup. Do not say it's booked.",
+  };
+}
+
+// ───────────────────────── Events (Ticketmaster) ─────────────────────────
+
+async function runEventSearch(owner, input) {
+  const start = input.startDate;
+  const end = input.endDate || (ISO_DAY.test(String(start || "")) ? addDays(start, 7) : null);
+  const badDate = checkDates([
+    ["Start date", start],
+    ["End date", end],
+  ]);
+  if (badDate) return badDate;
+  if (end < start) return { error: "End date is before the start date." };
+  if (!process.env.TICKETMASTER_API_KEY) return { error: "Event search isn't available right now." };
+  const category = input.category && input.category !== "all" ? EVENT_CATEGORIES[input.category] : undefined;
+  let data;
+  try {
+    data = await searchEvents({
+      city: String(input.city || "").trim(),
+      stateCode: input.stateCode || undefined,
+      startDateTime: toTmDateTime(start),
+      endDateTime: toTmDateTime(end, true),
+      classificationName: category,
+      keyword: input.keyword ? String(input.keyword).slice(0, 100) : undefined,
+      size: 20,
+    });
+  } catch (err) {
+    console.error("[Atlas search_events] failed:", err.message);
+    return { error: "Event search failed. Try again in a moment." };
+  }
+  const events = (data?._embedded?.events || [])
+    .map(normalizeEvent)
+    .filter((e) => !["cancelled", "canceled", "offsale"].includes(e.status))
+    .slice(0, 6);
+  if (!events.length) {
+    return { options: [], note: "No events found. Suggest other dates or a nearby city." };
+  }
+  return {
+    options: events.map((e) => {
+      const display = {
+        name: e.name,
+        date: e.date,
+        time: e.time,
+        venue: e.venue?.name || null,
+        city: e.venue?.city || null,
+        category: e.genre || e.category,
+        priceFrom: e.priceRange?.min ?? null, // null = Ticketmaster didn't list a price
+        status: e.status === "postponed" || e.status === "rescheduled" ? e.status : null,
+      };
+      return { optionId: cacheOption(owner, "event", e, display, { city: input.city }), ...display };
+    }),
+    note: "Tickets are sold on Ticketmaster. Only mention a price if priceFrom is set. Use show_event to show a card for one.",
+  };
+}
+
+function showEvent(owner, { optionId }) {
+  const opt = getOption(owner, optionId);
+  if (!opt || opt.kind !== "event") return { error: "That event option expired. Search events again." };
+  const e = opt.raw;
+  if (!/^https:\/\//.test(String(e.url || ""))) {
+    return { error: "Ticketmaster didn't give a ticket link for this event." };
+  }
+  return {
+    card: {
+      type: "event",
+      name: e.name,
+      date: e.date,
+      time: e.time,
+      venue: e.venue?.name || null,
+      city: e.venue?.city || null,
+      state: e.venue?.state || null,
+      image: e.image || null,
+      url: e.url,
+      priceFrom: e.priceRange?.min ?? null,
+      currency: e.priceRange?.currency || "USD",
+      tripDates: e.suggestedDates || null,
+    },
+    instruction:
+      "Tell the user the event card is below: 'Buy on Ticketmaster' opens Ticketmaster to buy tickets (Skyrio doesn't sell tickets), and 'Plan a trip around it' asks you to find flights and a hotel for those dates.",
+  };
+}
+
 // ───────────────────────── Adapter for your existing Atlas tool loop ─────────────────────────
 
 const BOOKING_TOOL_NAMES = new Set(ATLAS_BOOKING_TOOLS.map((t) => t.name));
@@ -1057,6 +1319,11 @@ export async function runBookingTool(
       owner,
       ip,
     });
+
+    if (name === "show_event" && result?.card) {
+      const { card, ...forModel } = result;
+      return { result: forModel, action: card };
+    }
 
     if (name === "open_checkout" && result?.card) {
       const { card, ...forModel } = result;

@@ -28,6 +28,8 @@ export default function EventsResults({
   initialCategory = "all",
   title = "Happening while you're there",
   onPlanTrip,
+  // Sync Together: renders "Suggest to group" on each card (group trips only).
+  renderSuggest = null,
 }) {
   const [category, setCategory] = useState(initialCategory);
   const [events, setEvents] = useState([]);
@@ -92,7 +94,8 @@ export default function EventsResults({
   return (
     <section className="sk-events">
       <header className="sk-events-head">
-        {title ? <h2 className="sk-events-title">{title}</h2> : <span />}
+        {/* No title (Events tab) → the chips sit on the left. */}
+        {title && <h2 className="sk-events-title">{title}</h2>}
         <div className="sk-events-tabs" role="tablist">
           {TABS.map((t) => (
             <button
@@ -138,7 +141,12 @@ export default function EventsResults({
       {events.length > 0 && (
         <div className="sk-events-grid">
           {events.map((e) => (
-            <EventCard key={e.id} event={e} onPlanTrip={onPlanTrip} />
+            <EventCard
+              key={e.id}
+              event={e}
+              onPlanTrip={onPlanTrip}
+              extra={renderSuggest ? renderSuggest(e) : null}
+            />
           ))}
         </div>
       )}
