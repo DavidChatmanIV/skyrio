@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { MapPin, Plane, CornerDownRight } from "lucide-react";
 import { searchAirports } from "@/data/airportData";
+import { findRegion } from "./airportRegions";
 import "@/styles/AirportInput.css";
 
 /**
@@ -19,6 +20,9 @@ import "@/styles/AirportInput.css";
  * Uses React Portal to render the dropdown directly into document.body,
  * bypassing any parent stacking context (overflow, transform, z-index).
  *
+ * Typing a country or US state ("Costa Rica", "Maryland") lists that
+ * place's main airports first, under "Airports in Costa Rica".
+ *
  * n5/n6: Surfaces nearby metro airports in a distinct "Also nearby" section
  * when the top result belongs to a multi-airport metro area.
  */
@@ -32,6 +36,7 @@ export default function AirportInput({
   const [inputVal, setInputVal] = useState(value || "");
   const [results, setResults] = useState([]);
   const [nearby, setNearby] = useState(null); // { label, airports }
+  const [region, setRegion] = useState(null); // { name, airports }
   const [open, setOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
@@ -89,9 +94,13 @@ export default function AirportInput({
       setInputVal(val);
       // ✅ n5/n6: searchAirports now returns { results, nearby }
       const { results: found, nearby: nearbyAirports } = searchAirports(val);
-      setResults(found);
-      setNearby(nearbyAirports);
-      setOpen(found.length > 0 || !!nearbyAirports);
+      const reg = regionAirports(val);
+      const regionCodes = new Set(reg?.airports.map((a) => a.code) || []);
+      const rest = found.filter((a) => !regionCodes.has(a.code));
+      setRegion(reg);
+      setResults(rest);
+      setNearby(reg ? null : nearbyAirports);
+      setOpen(rest.length > 0 || !!reg || (!reg && !!nearbyAirports));
       onTextChange?.(val);
     },
     [onTextChange]
@@ -104,6 +113,7 @@ export default function AirportInput({
       setOpen(false);
       setResults([]);
       setNearby(null);
+      setRegion(null);
       onChange?.(airport);
     },
     [onChange]
@@ -117,7 +127,7 @@ export default function AirportInput({
     return acc;
   }, {});
 
-  const hasContent = results.length > 0 || !!nearby;
+  const hasContent = results.length > 0 || !!nearby || !!region;
 
   const renderOption = (ap, { sub = false, nearbyRow = false } = {}) => (
     <button
@@ -175,6 +185,19 @@ export default function AirportInput({
               zIndex: 9999,
             }}
           >
+            {/* ── Country or state: its main airports ── */}
+            {region && (
+              <div className="sk-airport-group">
+                <div className="sk-airport-city-header">
+                  <MapPin size={11} aria-hidden="true" /> Airports in{" "}
+                  {region.name}
+                </div>
+                {region.airports.map((ap) =>
+                  renderOption(ap, { nearbyRow: ap.nearby })
+                )}
+              </div>
+            )}
+
             {/* ── Primary results ── */}
             {Object.entries(grouped).map(([city, airports]) => (
               <div key={city} className="sk-airport-group">
@@ -219,7 +242,7 @@ export default function AirportInput({
         value={inputVal}
         onChange={handleChange}
         onFocus={() => {
-          if (results.length > 0 || nearby) setOpen(true);
+          if (results.length > 0 || nearby || region) setOpen(true);
         }}
         placeholder={placeholder}
         autoComplete="off"
@@ -228,4 +251,28 @@ export default function AirportInput({
       {dropdown}
     </div>
   );
+}
+
+// The country or state's airports, filled in from airportData where it has
+// the code (so the picked airport has every field the forms expect).
+function regionAirports(text) {
+  const r = findRegion(text);
+  if (!r) return null;
+  const airports = r.airports.map((a) => {
+    let full = null;
+    try {
+      full = searchAirports(a.code).results.find((x) => x.code === a.code);
+    } catch {
+      /* fall back to our own details */
+    }
+    return {
+      ...(full || {}),
+      code: a.code,
+      city: full?.city || a.city,
+      name: full?.name || a.name,
+      nearby: a.nearby,
+      distance: a.nearby ? "Nearby" : full?.distance,
+    };
+  });
+  return { name: r.name, airports };
 }

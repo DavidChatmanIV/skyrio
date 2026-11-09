@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // Discover — the home page ("/").
 //
-// One clear message, then three separate ways to plan (testers said one
-// page with everything at once was overwhelming):
+// One clear message, then the three ways to plan, right in the hero as a
+// switch (a tester landed on Atlas and didn't know searching herself was
+// an option):
 //   1. Search myself      → /booking (search mode)
 //   2. Plan on a budget   → /booking (budget mode)
 //   3. Let Atlas plan it  → opens the Atlas panel
@@ -48,9 +49,13 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import TripGenerator from "@/components/TripGenerator";
+import AirportInput from "@/pages/booking/AirportInput";
 
 // Same key BookingPage reads, so the chosen path opens ready to go.
 const PLAN_MODE_KEY = "skyrio_plan_mode";
+// Which choice the hero shows (search / budget / atlas). Remembered so a
+// returning visitor sees the way they planned last time.
+const HERO_MODE_KEY = "skyrio_home_mode";
 
 /* ── Time of day ───────────────────────────────────────────── */
 const TIMES = {
@@ -204,6 +209,30 @@ const CSS = `
 .lp-ask input::placeholder { color: rgba(255,255,255,.45); }
 .lp-ask__btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 20px; border: 0; border-radius: 12px; cursor: pointer; font: inherit; font-weight: 800; font-size: 15px; color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); white-space: nowrap; }
 .lp-ask__btn:focus-visible, .lp-btn:focus-visible, .lp-path:focus-visible { outline: 3px solid #ffb347; outline-offset: 3px; }
+.lp-modes { margin: 28px auto 0; display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 5px; border-radius: 999px; background: rgba(42,22,80,.6); border: 1px solid rgba(255,255,255,.16); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.lp-mode { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; color: rgba(255,255,255,.8); background: transparent; transition: background .15s, color .15s; }
+.lp-mode svg { color: #ffb347; }
+.lp-mode--atlas svg { color: #c4b5fd; }
+.lp-mode:hover { color: #fff; background: rgba(255,255,255,.06); }
+.lp-mode.is-on { color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); }
+.lp-mode.is-on svg { color: #1a0e06; }
+.lp-mode--atlas.is-on { color: #fff; background: linear-gradient(135deg, #7c5cfc, #a78bfa); }
+.lp-mode--atlas.is-on svg { color: #fff; }
+.lp-mode:focus-visible { outline: 3px solid #ffb347; outline-offset: 2px; }
+.lp-modes + .lp-ask { margin-top: 14px; }
+.lp-ask__btn--atlas { color: #fff; background: linear-gradient(135deg, #7c5cfc, #a78bfa); }
+.lp-ask--solo { align-items: center; }
+.lp-ask__note { flex: 1; display: flex; align-items: center; gap: 10px; padding: 0 12px; min-height: 48px; text-align: left; font-size: 15.5px; color: rgba(255,255,255,.88); }
+.lp-ask__note svg { color: #ffb347; flex-shrink: 0; }
+.lp-ask .sk-airport-wrap { flex: 1; min-width: 0; }
+.lp-ask .sk-airport-input { width: 100%; height: 48px; padding: 0; border: 0 !important; outline: none; background: transparent !important; box-shadow: none !important; color: #fff; font: inherit; font-size: 16px; }
+.lp-ask .sk-airport-input::placeholder { color: rgba(255,255,255,.45); }
+@media (max-width: 560px) {
+  .lp-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; border-radius: 16px; gap: 4px; }
+  .lp-mode { justify-content: center; gap: 5px; padding: 0 4px; font-size: 12.5px; border-radius: 12px; white-space: nowrap; }
+  .lp-ask { flex-direction: column; }
+  .lp-ask__btn { width: 100%; }
+}
 .lp-hint { margin-top: 12px; font-size: 13px; color: rgba(255,255,255,.55); }
 
 .lp-trust { margin-top: 26px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; font-size: 13px; color: rgba(255,255,255,.7); }
@@ -341,30 +370,6 @@ a.lp-newItem:hover { border-color: rgba(255,179,71,.6); }
 }
 `;
 
-const PATHS = [
-  {
-    key: "search",
-    Icon: Search,
-    title: "Search myself",
-    text: "Compare flights and hotels.",
-    go: "Search",
-  },
-  {
-    key: "budget",
-    Icon: Wallet,
-    title: "Plan on a budget",
-    text: "Set a budget. See what fits.",
-    go: "Set budget",
-  },
-  {
-    key: "atlas",
-    Icon: Sparkles,
-    title: "Let Atlas plan it",
-    text: "Say it in your words. Atlas does the rest.",
-    go: "Ask Atlas",
-  },
-];
-
 function openAtlas(message) {
   window.dispatchEvent(
     new CustomEvent("skyrio:open-atlas", {
@@ -377,6 +382,23 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const { user, isAuthed } = useAuth();
   const [where, setWhere] = useState("");
+  const [dest, setDest] = useState(null); // airport picked in Search mode
+  const [mode, setModeState] = useState(() => {
+    try {
+      const m = localStorage.getItem(HERO_MODE_KEY);
+      return ["search", "budget", "atlas"].includes(m) ? m : "search";
+    } catch {
+      return "search";
+    }
+  });
+  const setMode = (m) => {
+    setModeState(m);
+    try {
+      localStorage.setItem(HERO_MODE_KEY, m);
+    } catch {
+      /* private mode: just not remembered */
+    }
+  };
   const time = useTimeOfDay();
   const T = TIMES[time];
   const firstName = String(user?.name || user?.username || "")
@@ -394,6 +416,20 @@ export default function LandingPage() {
       /* private mode: the booking page just opens on search */
     }
     navigate("/booking");
+  };
+
+  const searchFlights = (e) => {
+    e.preventDefault();
+    try {
+      localStorage.setItem(PLAN_MODE_KEY, "search");
+    } catch {
+      /* ignore */
+    }
+    if (dest?.code) {
+      const q = new URLSearchParams({ tab: "Flights", to: dest.code });
+      if (dest.city) q.set("toName", dest.city);
+      navigate(`/booking?${q}`);
+    } else navigate("/booking?tab=Flights");
   };
 
   const ask = (e) => {
@@ -427,50 +463,133 @@ export default function LandingPage() {
             Flights, hotels and group trips. All in one place.
           </p>
 
-          <form className="lp-ask" onSubmit={ask} role="search">
-            <label className="lp-ask__field">
-              <Plane size={18} aria-hidden="true" />
-              <span
-                style={{
-                  position: "absolute",
-                  width: 1,
-                  height: 1,
-                  overflow: "hidden",
-                  clip: "rect(0 0 0 0)",
-                }}
-              >
-                Where do you want to go?
-              </span>
-              <input
-                value={where}
-                onChange={(e) => setWhere(e.target.value)}
-                placeholder="Where do you want to go?"
-                autoComplete="off"
-                maxLength={80}
-              />
-            </label>
-            <button type="submit" className="lp-ask__btn">
-              <Sparkles size={16} aria-hidden="true" /> Plan with Atlas
-            </button>
-          </form>
-          <div className="lp-ideas" aria-label="Ideas to ask Atlas">
-            {T.ideas.map((idea) => (
+          {/* How do you want to plan? All three choices up front. */}
+          <div
+            className="lp-modes"
+            role="tablist"
+            aria-label="How do you want to plan?"
+          >
+            {[
+              ["search", Search, "Search myself"],
+              ["budget", Wallet, "On a budget"],
+              ["atlas", Sparkles, "Ask Atlas"],
+            ].map(([key, Icon, label]) => (
               <button
-                key={idea}
+                key={key}
                 type="button"
-                className="lp-idea"
-                onClick={() => openAtlas(idea)}
+                role="tab"
+                aria-selected={mode === key}
+                className={`lp-mode${mode === key ? " is-on" : ""}${
+                  key === "atlas" ? " lp-mode--atlas" : ""
+                }`}
+                onClick={() => setMode(key)}
               >
-                <Sparkles size={13} aria-hidden="true" /> {idea}
+                <Icon size={15} aria-hidden="true" /> {label}
               </button>
             ))}
           </div>
+
+          {mode === "search" && (
+            <>
+              <form className="lp-ask" onSubmit={searchFlights} role="search">
+                <label className="lp-ask__field">
+                  <Plane size={18} aria-hidden="true" />
+                  <AirportInput
+                    value={dest ? `${dest.city} (${dest.code})` : ""}
+                    onChange={setDest}
+                    onTextChange={() => setDest(null)}
+                    placeholder="Where to? City, state or country"
+                  />
+                </label>
+                <button type="submit" className="lp-ask__btn">
+                  <Search size={16} aria-hidden="true" /> Search flights
+                </button>
+              </form>
+              <div className="lp-hint">
+                Compare flights, hotels and cars.{" "}
+                <Link
+                  to="/booking?tab=Packages"
+                  style={{ color: "#ffb347", fontWeight: 700 }}
+                >
+                  Flight + Stay →
+                </Link>{" "}
+                <Link
+                  to="/booking?tab=Cars"
+                  style={{ color: "#ffb347", fontWeight: 700, marginLeft: 8 }}
+                >
+                  Cars →
+                </Link>
+              </div>
+            </>
+          )}
+
+          {mode === "budget" && (
+            <>
+              <div className="lp-ask lp-ask--solo">
+                <span className="lp-ask__note">
+                  <Wallet size={18} aria-hidden="true" /> Set a budget. See what
+                  fits.
+                </span>
+                <button
+                  type="button"
+                  className="lp-ask__btn"
+                  onClick={() => choosePath("budget")}
+                >
+                  Set my budget <ArrowRight size={16} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="lp-hint">
+                Flights and hotels that fit your total.
+              </div>
+            </>
+          )}
+
+          {mode === "atlas" && (
+            <>
+              <form className="lp-ask" onSubmit={ask} role="search">
+                <label className="lp-ask__field">
+                  <Sparkles size={18} aria-hidden="true" />
+                  <span
+                    style={{
+                      position: "absolute",
+                      width: 1,
+                      height: 1,
+                      overflow: "hidden",
+                      clip: "rect(0 0 0 0)",
+                    }}
+                  >
+                    Where do you want to go?
+                  </span>
+                  <input
+                    value={where}
+                    onChange={(e) => setWhere(e.target.value)}
+                    placeholder="Where do you want to go?"
+                    autoComplete="off"
+                    maxLength={80}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="lp-ask__btn lp-ask__btn--atlas"
+                >
+                  <Sparkles size={16} aria-hidden="true" /> Plan with Atlas
+                </button>
+              </form>
+              <div className="lp-ideas" aria-label="Ideas to ask Atlas">
+                {T.ideas.map((idea) => (
+                  <button
+                    key={idea}
+                    type="button"
+                    className="lp-idea"
+                    onClick={() => openAtlas(idea)}
+                  >
+                    <Sparkles size={13} aria-hidden="true" /> {idea}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <div className="lp-timeline">{T.line}</div>
-          <div className="lp-hint">
-            <Link to="/booking" style={{ color: "#ffb347", fontWeight: 700 }}>
-              Or search yourself →
-            </Link>
-          </div>
 
           {/* Can't decide? One tap makes a whole trip; Shuffle for another. */}
           <div className="lp-label" style={{ marginTop: 34 }}>
@@ -517,35 +636,6 @@ export default function LandingPage() {
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Three ways to plan ── */}
-      <section className="lp-section" aria-labelledby="lp-paths-title">
-        <div className="lp-wrap">
-          <div className="lp-label">Start here</div>
-          <h2 className="lp-h2" id="lp-paths-title">
-            Three ways to plan.
-          </h2>
-          <div className="lp-paths">
-            {PATHS.map(({ key, Icon, title, text, go }) => (
-              <button
-                key={key}
-                type="button"
-                className={`lp-path${key === "atlas" ? " lp-path--atlas" : ""}`}
-                onClick={() => choosePath(key)}
-              >
-                <span className="lp-path__icon" aria-hidden="true">
-                  <Icon size={22} />
-                </span>
-                <span className="lp-path__title">{title}</span>
-                <span className="lp-path__text">{text}</span>
-                <span className="lp-path__go">
-                  {go} <ArrowRight size={15} aria-hidden="true" />
-                </span>
-              </button>
-            ))}
           </div>
         </div>
       </section>

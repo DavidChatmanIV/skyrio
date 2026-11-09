@@ -120,6 +120,15 @@ const Icon = {
       <path d="M13 6v2M13 11v2M13 16v2" />
     </Svg>
   ),
+  // Car (lucide "car" shape)
+  car: (p) => (
+    <Svg {...p}>
+      <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" />
+      <circle cx="7" cy="17" r="2" />
+      <path d="M9 17h6" />
+      <circle cx="17" cy="17" r="2" />
+    </Svg>
+  ),
   tip: (p) => (
     <Svg {...p}>
       <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z" />
@@ -170,6 +179,14 @@ const STEPS = [
     body: "Find an event, then book the flight and hotel. Tickets are sold by Ticketmaster.",
     path: "/booking?tab=Events",
     cta: "Find events",
+  },
+  {
+    icon: "car",
+    kicker: "Cars · New",
+    title: "Rental cars",
+    body: "Pick up at the airport or in town. The rental company sets the rules for fuel, mileage and deposits.",
+    path: "/booking?tab=Cars",
+    cta: "Find a car",
   },
   {
     icon: "group",
