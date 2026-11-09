@@ -1,3 +1,4 @@
+import eventsRoutes from "./routes/eventsRoutes.js";
 import "dotenv/config";
 import * as Sentry from "@sentry/node";
 import express from "express";
@@ -235,6 +236,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/sync-progress", syncProgressRoutes);
 app.use("/api/profile", profileTravelersRoutes);
 app.use("/api/stripe-config", stripeConfigRoutes);
+app.use("/api/events", eventsRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/travel-profile", travelProfileRoutes);
 // app.use("/api/atlas/proposals", atlasBookingRoutes);

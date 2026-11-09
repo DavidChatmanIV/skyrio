@@ -59,6 +59,8 @@ import TripTypeSelector from "@/components/Atlas/TripTypeSelector";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import { useExcursionSearch } from "@/hooks/useExcursionSearch";
 import ExcursionResults from "@/pages/booking/ExcursionResults";
+import EventsForm from "@/pages/booking/EventsForm";
+import EventsResults from "@/components/events/EventsResults";
 import TripBudgetBar from "@/components/syncTogether/TripBudgetBar";
 import WeatherStrip from "@/components/WeatherStrip";
 import {
@@ -472,6 +474,7 @@ const PRIMARY_TABS = [
 const MORE_TABS = [
   { key: "Cars", label: "Cars", comingSoon: true },
   { key: "Excursions", label: "Excursions" },
+  { key: "Events", label: "Events" },
   { key: "Packages", label: "Packages" },
   { key: "Last-Minute", label: "Last-Minute" },
 ];
@@ -4707,13 +4710,15 @@ export default function BookingPage() {
 
   const [tab, setTab] = useState(
     prefillData?.tab ??
-      (["Flights", "Stays", "Excursions"].includes(tabParam)
+      (["Flights", "Stays", "Excursions", "Events"].includes(tabParam)
         ? tabParam
         : "Flights")
   );
   const [flightResults, setFlightResults] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
   const [excursionResults, setExcursionResults] = useState([]);
+  // Events tab: the last search (city/dates/category). EventsResults fetches itself.
+  const [eventsSearch, setEventsSearch] = useState(null);
   const [selectedHotelOffer, setSelectedHotelOffer] = useState(null);
   // Rooms queued up for this Stays search — lets the user book one room,
   // then add another for family/friends before checking out together.
@@ -4984,6 +4989,48 @@ export default function BookingPage() {
       setBudgetState((prev) => ({ ...prev, tripDays: nights }));
     }
   }, []);
+
+  // Events → "Plan a trip around it": open Flights with the event's city and
+  // dates (arrive the day before, leave the day after). No auto-search, so the
+  // traveler checks their airport first. Venue info stays in the link for later
+  // (e.g. sorting hotels by distance to the venue).
+  const handlePlanTrip = useCallback(
+    (event) => {
+      const venue = event?.venue;
+      const dates = event?.suggestedDates;
+      if (!venue?.city || !dates) return;
+      const next = new URLSearchParams();
+      const gid = searchParams.get("groupId");
+      if (gid) next.set("groupId", gid);
+      const home = searchParams.get("from");
+      if (home) next.set("from", home);
+      next.set("tab", "Flights");
+      next.set("to", venue.city);
+      next.set("city", venue.city);
+      next.set("depart", dates.departDate);
+      next.set("return", dates.returnDate);
+      next.set("eventId", event.id);
+      next.set("eventName", event.name);
+      if (venue.name) next.set("venueName", venue.name);
+      if (venue.lat != null && venue.lng != null) {
+        next.set("venueLat", String(venue.lat));
+        next.set("venueLng", String(venue.lng));
+      }
+      setSearchParams(next);
+      setFlightResults([]);
+      setHotelResults([]);
+      setExcursionResults([]);
+      setTab("Flights");
+      antdMessage.success(
+        `Dates set for ${event.name}. Check your airports, then search.`
+      );
+      searchFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    },
+    [searchParams, setSearchParams]
+  );
 
   // "Search manually" / "Search flights to X" from HeroPlanner.
   // With a destination picked, prefill the Flights form (from/to) without
@@ -5909,6 +5956,14 @@ export default function BookingPage() {
             initial={excursionInitial}
           />
         );
+      case "Events":
+        return (
+          <EventsForm
+            onDestChange={setDestCity}
+            onSearch={setEventsSearch}
+            initial={excursionInitial}
+          />
+        );
       case "Packages":
         return <PackagesForm {...searchFormProps} />;
       case "Last-Minute":
@@ -5947,6 +6002,8 @@ export default function BookingPage() {
             excursionResults.length !== 1 ? "s" : ""
           } Found`
         : "Things to Do"
+      : tab === "Events"
+      ? "Games, Concerts & Shows"
       : isSearching
       ? "Searching flights…"
       : hasReturnData && selectedGroup
@@ -6730,6 +6787,10 @@ export default function BookingPage() {
                     : excursionResults.length > 0
                     ? `Powered by Viator · ${destCity}`
                     : "Search above to find tours & activities."
+                  : tab === "Events"
+                  ? eventsSearch
+                    ? `Happening in ${eventsSearch.city} · tickets sold on Ticketmaster`
+                    : "Search above to find games, concerts & shows."
                   : isSearching
                   ? `Searching ${originCity || fromCode} → ${
                       prefillData?.iata ?? destCity
@@ -7862,6 +7923,18 @@ export default function BookingPage() {
                   </Card>
                 );
               })}
+
+            {tab === "Events" && eventsSearch && (
+              <EventsResults
+                key={JSON.stringify(eventsSearch)}
+                city={eventsSearch.city}
+                startDate={eventsSearch.startDate}
+                endDate={eventsSearch.endDate}
+                initialCategory={eventsSearch.category}
+                title=""
+                onPlanTrip={handlePlanTrip}
+              />
+            )}
 
             {tab === "Excursions" && (
               <ExcursionResults

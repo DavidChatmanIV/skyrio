@@ -1,0 +1,131 @@
+/* src/styles/events.css — Skyrio dark-glass + orange gradient */
+
+.sk-events {
+  --sk-orange: #ff8a3d;
+  --sk-orange-2: #ff5e3a;
+  --sk-purple: #8b5cf6;
+  --sk-glass: rgba(18, 16, 30, 0.55);
+  --sk-border: rgba(255, 255, 255, 0.12);
+  --sk-text: #f5f3ff;
+  --sk-muted: rgba(245, 243, 255, 0.65);
+  margin: 24px 0;
+  color: var(--sk-text);
+}
+
+.sk-events-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.sk-events-title { font-size: 1.35rem; font-weight: 700; margin: 0; }
+
+.sk-events-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--sk-glass);
+  border: 1px solid var(--sk-border);
+  backdrop-filter: blur(14px);
+  overflow-x: auto;
+}
+.sk-events-tab {
+  border: 0;
+  background: transparent;
+  color: var(--sk-muted);
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sk-events-tab.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--sk-orange), var(--sk-orange-2));
+}
+
+.sk-events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.sk-event-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--sk-glass);
+  border: 1px solid var(--sk-border);
+  backdrop-filter: blur(16px);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.sk-event-card:hover { transform: translateY(-2px); border-color: rgba(255, 138, 61, 0.45); }
+
+.sk-event-media { position: relative; aspect-ratio: 16 / 9; background: #1b1830; }
+.sk-event-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sk-event-media-fallback {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 138, 61, 0.35), rgba(139, 92, 246, 0.35));
+}
+.sk-event-chip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(10, 8, 20, 0.7);
+  border: 1px solid var(--sk-border);
+  backdrop-filter: blur(8px);
+}
+.sk-event-chip--warn { left: auto; right: 10px; color: #ffd08a; }
+
+.sk-event-body { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 16px; flex: 1; }
+.sk-event-title { margin: 0 0 4px; font-size: 1rem; font-weight: 700; line-height: 1.3; }
+.sk-event-line { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 0.88rem; color: var(--sk-muted); }
+.sk-event-line svg { flex-shrink: 0; color: var(--sk-orange); }
+.sk-event-price { margin: 4px 0 0; font-weight: 700; color: var(--sk-orange); }
+
+.sk-event-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 10px; }
+.sk-event-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.sk-event-btn--primary {
+  color: #fff;
+  background: linear-gradient(135deg, var(--sk-orange), var(--sk-orange-2));
+}
+.sk-event-btn--ghost {
+  color: var(--sk-text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--sk-border);
+}
+.sk-event-btn--ghost:hover { border-color: rgba(255, 138, 61, 0.5); }
+
+.sk-event-skeleton { min-height: 300px; animation: sk-pulse 1.4s ease-in-out infinite; }
+@keyframes sk-pulse { 50% { opacity: 0.5; } }
+
+.sk-events-empty { color: var(--sk-muted, rgba(245, 243, 255, 0.65)); margin: 12px 0; }
+.sk-events-link { background: none; border: 0; color: #ff8a3d; font-weight: 700; cursor: pointer; padding: 0; }
+.sk-events-more { display: flex; margin: 18px auto 0; }
+.sk-events-attribution { margin-top: 14px; font-size: 0.75rem; color: var(--sk-muted); text-align: center; }
+
+@media (max-width: 760px) {
+  .sk-events-head { flex-direction: column; align-items: flex-start; }
+}
