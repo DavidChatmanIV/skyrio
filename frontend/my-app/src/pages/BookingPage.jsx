@@ -7767,6 +7767,18 @@ export default function BookingPage() {
                                 {hotel.totalCurrency}
                               </span>
                             </div>
+                            {/* XP this stay earns (base, before plan multiplier) —
+                                same flat amount the server grants for hotels. */}
+                            <span
+                              className="sk-tag sk-tag-xp"
+                              style={{ alignSelf: "flex-end", marginTop: 4 }}
+                            >
+                              <Zap
+                                size={11}
+                                style={{ marginRight: 3, verticalAlign: "middle" }}
+                              />{" "}
+                              {STAY_BOOKING_XP} XP
+                            </span>
                             {(() => {
                               const nights =
                                 hotel.checkin && hotel.checkout
