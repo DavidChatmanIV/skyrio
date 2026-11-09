@@ -2132,10 +2132,14 @@ router.delete("/:id", adminOnly, async (req, res) => {
    ══════════════════════════════════════════════════════════════════ */
 const STUCK_AFTER_MS = 48 * 60 * 60 * 1000; // no cancel on file for 2 days
 
-export async function finalizePendingFlightCancels({ limit = 50 } = {}) {
+export async function finalizePendingFlightCancels({
+  limit = 50,
+  onlyId = null, // check just one booking (traveler's "Check status")
+} = {}) {
   const pending = await Booking.find({
     type: "Flight",
     status: "cancel_pending",
+    ...(onlyId ? { _id: onlyId } : {}),
   })
     .sort({ updatedAt: 1 })
     .limit(limit);
@@ -2310,6 +2314,51 @@ router.post("/admin/flight-cancels/check", adminOnly, async (_req, res) => {
   } catch (err) {
     console.error("POST /admin/flight-cancels/check error:", err);
     res.status(500).json({ message: "Couldn't check pending cancellations." });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   POST /api/bookings/:id/check-cancel — traveler's "Check status"
+   Asks the airline (via LiteAPI) right now instead of waiting for the
+   20-minute job. Same logic as the job: final → Cancelled (+ email and
+   notification); no cancel on file after 2 days → back to Confirmed.
+   Once a minute per booking, so it can't be hammered.
+   ══════════════════════════════════════════════════════════════════ */
+const lastCancelCheck = new Map(); // bookingId -> time
+router.post("/:id/check-cancel", ownerAdminOrManageLink, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    if (!mongoose.isValidObjectId(id))
+      return res.status(400).json({ message: "Invalid booking." });
+    const now = Date.now();
+    const recent = now - (lastCancelCheck.get(id) || 0) < 60 * 1000;
+    if (!recent) {
+      lastCancelCheck.set(id, now);
+      if (lastCancelCheck.size > 5000)
+        lastCancelCheck.delete(lastCancelCheck.keys().next().value);
+      await finalizePendingFlightCancels({ onlyId: id, limit: 1 });
+    }
+    const b = await Booking.findById(id)
+      .select("status refundAmount refundStatus cancellation updatedAt")
+      .lean();
+    if (!b) return res.status(404).json({ message: "Booking not found." });
+    res.json({
+      ok: true,
+      checkedAt: new Date(recent ? lastCancelCheck.get(id) : now),
+      booking: {
+        _id: id,
+        status: b.status,
+        refundAmount: b.refundAmount ?? null,
+        refundStatus: b.refundStatus || null,
+        cancellation: b.cancellation || null,
+        updatedAt: b.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error("POST /:id/check-cancel error:", err);
+    res
+      .status(500)
+      .json({ message: "Couldn't check right now. Try again soon." });
   }
 });
 

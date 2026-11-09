@@ -17,6 +17,9 @@ import {
   RotateCcw,
   ChevronDown,
   TrendingDown,
+  Check,
+  RefreshCw,
+  Mail,
 } from "lucide-react";
 import SavedTrips from "../components/SavedTrips";
 
@@ -72,6 +75,27 @@ export const MT_CSS = `
 .mt-code { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 3px 4px 3px 10px; border-radius: 8px; background: rgba(0,0,0,.3); border: 1px dashed rgba(255,255,255,.25); }
 .mt-code button { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 0 8px; border: 0; border-radius: 6px; background: rgba(255,255,255,.08); color: #fff; font-size: 11.5px; font-weight: 700; cursor: pointer; }
 .mt-note.is-warn { color: #ffc27a; }
+/* Cancellation progress */
+.mt-track { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,138,42,.07); border: 1px solid rgba(255,179,71,.3); }
+.mt-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; }
+.mt-steps li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; font-size: 11.5px; font-weight: 700; color: rgba(255,255,255,.55); }
+.mt-steps li::before { content: ""; position: absolute; top: 11px; left: calc(-50% + 14px); right: calc(50% + 14px); height: 2px; background: rgba(255,255,255,.15); }
+.mt-steps li:first-child::before { display: none; }
+.mt-steps li.is-done::before, .mt-steps li.is-now::before { background: #ffb347; }
+.mt-dot { position: relative; z-index: 1; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,.25); background: rgba(34,18,62,.9); color: #1a0e06; }
+.mt-steps li.is-done { color: #fff; }
+.mt-steps li.is-done .mt-dot { background: #ffb347; border-color: #ffb347; }
+.mt-steps li.is-now { color: #ffb347; }
+.mt-steps li.is-now .mt-dot { border-color: #ffb347; box-shadow: 0 0 0 4px rgba(255,179,71,.18); }
+.mt-steps li.is-now .mt-dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #ffb347; animation: mtPulse 1.4s ease-in-out infinite; }
+@keyframes mtPulse { 50% { opacity: .35; } }
+.mt-trackText { margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,.82); }
+.mt-trackText b { color: #fff; }
+.mt-trackActs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.mt-trackActs .mt-btn { min-height: 32px; font-size: 12px; }
+.mt-trackActs a.mt-btn { text-decoration: none; }
+.mt-spin { animation: mtSpin 1s linear infinite; }
+@keyframes mtSpin { to { transform: rotate(360deg); } }
 .mt-note.is-good { color: #6ee7a8; }
 .mt-note.is-muted { color: rgba(255,255,255,0.68); }
 .mt-note a { color: #ffb347; }
@@ -139,7 +163,7 @@ export const MT_CSS = `
   .mt-modal { max-width: none; border-radius: 22px 22px 0 0; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 }
 @keyframes mtShimmer { to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .mt-skel, .mt-card.is-focus { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .mt-skel, .mt-card.is-focus, .mt-steps li.is-now .mt-dot::after { animation: none; } }
 `;
 
 /* ── Helpers — every value shown comes from the saved booking record ── */
@@ -344,8 +368,153 @@ export function AirlineCredit({ credit, airline }) {
   );
 }
 
+/* ── Cancellation progress ────────────────────────────────────────
+   Sent → Airline confirming → Refund. Shown while a cancellation is in
+   progress, and after it while a card refund is still on its way.
+   After 48 hours still "confirming": a Contact support link with the
+   booking details filled in. "Check status" asks the airline now. */
+const SUPPORT_EMAIL = "skyrioofficial@gmail.com";
+const STUCK_HOURS = 48;
+const ago = (t) => {
+  const h = Math.floor((Date.now() - new Date(t).getTime()) / 3600000);
+  if (!Number.isFinite(h) || h < 1) return "less than an hour ago";
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+};
+
+function CancelProgress({ b, onCheck }) {
+  const isHotel = b.type === "Hotel";
+  const place = isHotel ? "hotel" : "airline";
+  const pending = b.status === "cancel_pending";
+  const refundComing =
+    b.status === "cancelled" &&
+    b.refundAmount > 0 &&
+    b.refundStatus !== "succeeded";
+  const [checking, setChecking] = useState(false);
+  const [checkedNote, setCheckedNote] = useState("");
+  if (!pending && !refundComing) return null;
+
+  const sentAt = b.cancellation?.at || b.updatedAt;
+  const hours = sentAt
+    ? (Date.now() - new Date(sentAt).getTime()) / 3600000
+    : 0;
+  const stuck = pending && hours >= STUCK_HOURS;
+  const cur = b.cancellation?.currency || b.totalCurrency;
+  const expected = Number(b.cancellation?.customerRefund);
+
+  const steps = [
+    { label: "Sent", state: "done" },
+    {
+      label: isHotel ? "Hotel confirms" : "Airline confirms",
+      state: pending ? "now" : "done",
+    },
+    {
+      label: "Refund",
+      state: refundComing ? "now" : "todo",
+    },
+  ];
+
+  const check = async () => {
+    setChecking(true);
+    setCheckedNote("");
+    try {
+      const updated = await onCheck?.(b);
+      if (updated && updated.status !== b.status) return; // card re-renders
+      setCheckedNote(`Checked just now. Still with the ${place}.`);
+    } catch {
+      setCheckedNote("Couldn't check right now. Try again in a minute.");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const mail = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
+    `Cancellation still pending · booking ${String(b._id).slice(-10)}`
+  )}&body=${encodeURIComponent(
+    `Hi Skyrio,\n\nMy cancellation is still pending.\n\nTrip: ${stripDates(
+      b.tripDetails
+    )}\nBooking ID: ${b._id}\nConfirmation: ${
+      confirmationCodeOf(b) || "—"
+    }\nCancellation sent: ${
+      sentAt ? new Date(sentAt).toLocaleString("en-US") : "—"
+    }\n\nThanks!`
+  )}`;
+
+  return (
+    <div className="mt-track" role="status">
+      <ol className="mt-steps" aria-label="Cancellation progress">
+        {steps.map((st) => (
+          <li key={st.label} className={`is-${st.state}`}>
+            <span className="mt-dot" aria-hidden="true">
+              {st.state === "done" && <Check size={13} strokeWidth={3} />}
+            </span>
+            {st.label}
+          </li>
+        ))}
+      </ol>
+      <div className="mt-trackText">
+        {pending ? (
+          <>
+            Sent {sentAt ? ago(sentAt) : "recently"}. The {place} confirms it,
+            usually within a few hours to 2 days.
+            {expected > 0 && (
+              <>
+                {" "}
+                Expected refund: <b>{fmtMoney(expected, cur)}</b>. The {place}{" "}
+                sets the final amount.
+              </>
+            )}
+            {stuck && (
+              <>
+                {" "}
+                <b>Taking longer than usual.</b> We&apos;re on it. Contact us if
+                you need it sooner.
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            Cancelled. <b>{fmtMoney(b.refundAmount, b.totalCurrency)}</b> is on
+            its way to your card, usually 5–10 business days.
+          </>
+        )}
+      </div>
+      {pending && (
+        <div className="mt-trackActs">
+          {onCheck && (
+            <button
+              type="button"
+              className="mt-btn"
+              onClick={check}
+              disabled={checking}
+            >
+              <RefreshCw
+                size={13}
+                aria-hidden="true"
+                className={checking ? "mt-spin" : undefined}
+              />
+              {checking ? "Checking…" : "Check status"}
+            </button>
+          )}
+          {stuck && (
+            <a className="mt-btn" href={mail}>
+              <Mail size={13} aria-hidden="true" /> Contact support
+            </a>
+          )}
+        </div>
+      )}
+      {checkedNote && (
+        <div className="mt-trackText" style={{ marginTop: 6 }}>
+          {checkedNote}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── One booked trip ─────────────────────────────────────────────── */
-function BookedTripCard({ b, onCancel, onRemove, focused }) {
+function BookedTripCard({ b, onCancel, onRemove, onCheck, focused }) {
   const navigate = useNavigate();
   const isHotel = b.type === "Hotel";
   const room = b.hotelStay?.rooms?.[0];
@@ -361,7 +530,8 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
   const subtitle = isHotel
     ? [room?.roomName, room?.boardName].filter(Boolean).join(" · ")
     : b.flight?.airline;
-  const checkLink = !cancelled ? priceCheckLink(b) : null;
+  // Today's price only makes sense on a trip you're keeping.
+  const checkLink = b.status === "confirmed" ? priceCheckLink(b) : null;
   const canCancel =
     onCancel &&
     !b.sharedRoom &&
@@ -431,22 +601,18 @@ function BookedTripCard({ b, onCancel, onRemove, focused }) {
               airline={b.flight?.airline}
             />
           )}
-          {cancelled && b.refundAmount > 0 && (
-            <div className="mt-note is-good">
-              <Receipt size={13} aria-hidden="true" />
-              Refund {fmtMoney(b.refundAmount, b.totalCurrency)}{" "}
-              {b.refundStatus === "succeeded"
-                ? "issued"
-                : "on its way to your card"}
-            </div>
-          )}
-          {b.status === "cancel_pending" && (
-            <div className="mt-note is-warn">
-              <Clock size={13} aria-hidden="true" />
-              Cancellation sent. The {isHotel ? "hotel" : "airline"} confirms
-              it, usually within a few hours to 2 days. We&apos;ll notify you.
-            </div>
-          )}
+          <CancelProgress b={b} onCheck={onCheck} />
+          {cancelled &&
+            b.refundAmount > 0 &&
+            b.refundStatus === "succeeded" && (
+              <div className="mt-note is-good">
+                <Receipt size={13} aria-hidden="true" />
+                Refund {fmtMoney(b.refundAmount, b.totalCurrency)}{" "}
+                {b.refundStatus === "succeeded"
+                  ? "issued"
+                  : "on its way to your card"}
+              </div>
+            )}
           {b.status === "confirmed" && hasOpenCancelRequest(b) && (
             <div className="mt-note is-warn">
               <Clock size={13} aria-hidden="true" />
@@ -1011,7 +1177,8 @@ function BookedTrips() {
   /* Upcoming and past only hold active trips; cancelled ones get their
      own tab (where they can be cleared). */
   const groups = useMemo(() => {
-    const active = state.items.filter((b) => b.status !== "cancelled");
+    // Trips you're keeping. Ones being cancelled get their own tab.
+    const active = state.items.filter((b) => b.status === "confirmed");
     return {
       upcoming: active
         .filter(isUpcoming)
@@ -1024,6 +1191,13 @@ function BookedTrips() {
         .sort(
           (a, b) =>
             new Date(b.dates?.start || 0) - new Date(a.dates?.start || 0)
+        ),
+      cancelling: state.items
+        .filter((b) => b.status === "cancel_pending")
+        .sort(
+          (a, b) =>
+            new Date(b.cancellation?.at || b.updatedAt || 0) -
+            new Date(a.cancellation?.at || a.updatedAt || 0)
         ),
       cancelled: state.items.filter(
         (b) =>
@@ -1038,7 +1212,7 @@ function BookedTrips() {
   // to it and highlight it for a moment.
   useEffect(() => {
     if (!focusId || state.loading || jumped.current === focusId) return;
-    const key = ["upcoming", "past", "cancelled"].find((k) =>
+    const key = ["upcoming", "cancelling", "past", "cancelled"].find((k) =>
       groups[k].some((b) => b._id === focusId)
     );
     if (!key) return; // not one of your trips (or not loaded)
@@ -1057,6 +1231,7 @@ function BookedTrips() {
 
   const tabs = [
     { key: "upcoming", label: "Upcoming" },
+    { key: "cancelling", label: "Cancelling" },
     { key: "past", label: "Past" },
     { key: "cancelled", label: "Cancelled" },
   ].filter((t) => t.key === "upcoming" || groups[t.key].length > 0);
@@ -1127,7 +1302,25 @@ function BookedTrips() {
     );
   };
 
+  // "Check status": ask the airline now. Updates the card if it changed.
+  const checkCancel = async (b) => {
+    const res = await fetch(`${API}/api/bookings/${b._id}/check-cancel`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.booking) throw new Error(data.message || "failed");
+    replaceBooking(data.booking);
+    return data.booking;
+  };
+
   const emptyCopy = {
+    cancelling: (
+      <>
+        <b>Nothing being cancelled</b>
+        Trips you cancel show here until they&apos;re final.
+      </>
+    ),
     upcoming: (
       <>
         <b>No upcoming trips</b>
@@ -1235,6 +1428,7 @@ function BookedTrips() {
                   focused={focused === b._id}
                   onCancel={activeTab === "upcoming" ? setCancelling : null}
                   onRemove={removeOne}
+                  onCheck={checkCancel}
                 />
               ))}
             </div>
