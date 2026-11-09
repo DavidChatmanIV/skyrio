@@ -3859,25 +3859,43 @@ const PLAN_CSS = `
     .sk-trip-type-btn { padding-left: 10px !important; padding-right: 10px !important; font-size: 12px !important; }
   }
 
-  /* Results view: the planner folds away and the results get the screen. */
+  /* Results view: the planner folds away and the results get the screen.
+     Skyrio purple glass, like the rest of the site. */
   .sk-resultsbar {
-    position: sticky; top: 84px; z-index: 20;
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    max-width: 1200px; margin: 12px auto 18px; padding: 12px 16px; border-radius: 16px;
-    background: rgba(20,14,40,0.92); border: 1px solid rgba(255,138,42,0.35);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    position: sticky; top: 84px; z-index: 20; overflow: hidden;
+    display: flex; align-items: center; gap: 12px;
+    max-width: 1200px; margin: 12px auto 14px; padding: 10px 14px; border-radius: 18px;
+    background: linear-gradient(160deg, rgba(74,40,112,0.9), rgba(34,18,62,0.92));
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 14px 34px rgba(12,4,28,0.4);
+    backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%);
   }
+  .sk-resultsbar::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #ff8a2a, #ffb347 40%, #7c5cfc); }
   .sk-resultsbar__back {
-    display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06);
-    color: #fff; font: inherit; font-weight: 700; font-size: 13.5px; cursor: pointer;
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px;
+    border-radius: 999px; border: 1px solid rgba(255,179,71,0.5); background: rgba(255,138,42,0.12);
+    color: #ffb347; font: inherit; font-weight: 800; font-size: 13.5px; cursor: pointer; white-space: nowrap;
   }
-  .sk-resultsbar__back:hover { border-color: #ff8a2a; }
-  .sk-resultsbar__title { font-weight: 800; font-size: 15px; min-width: 0; }
-  .sk-resultsbar__sub { font-size: 12.5px; color: rgba(255,255,255,0.6); }
+  .sk-resultsbar__back:hover { border-color: #ffb347; background: rgba(255,138,42,0.2); }
+  .sk-resultsbar__title { font-weight: 800; font-size: 15px; line-height: 1.25; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sk-resultsbar__sub { font-size: 12.5px; color: rgba(255,255,255,0.65); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Filters + sort under the bar: no divider line there */
+  .sk-results-tools .sk-bp-tools { border-top: 0 !important; margin-top: 0 !important; padding-top: 0 !important; }
   @media (max-width: 720px) {
-    .sk-resultsbar { top: 72px; margin: 8px 12px 14px; padding: 10px 12px; }
+    .sk-resultsbar { top: 72px; margin: 8px 12px 10px; padding: 8px 10px; gap: 10px; border-radius: 16px; }
+    .sk-resultsbar__back { min-height: 36px; padding: 0 12px; font-size: 13px; }
     .sk-resultsbar__title { font-size: 14px; }
+  }
+  /* Airline logos: a small tile, not a giant banner, on phones/tablets */
+  @media (max-width: 992px) {
+    .sk-booking .sk-thumb.sk-thumb--logo {
+      width: 52px !important; min-width: 52px !important; height: 52px !important;
+      border-radius: 14px; background-size: 72% !important;
+      background-color: #fff !important; border-color: rgba(255,255,255,0.3);
+    }
+    .sk-booking .sk-thumb.sk-thumb--logo::after { display: none; }
   }
 `;
 
@@ -6565,16 +6583,25 @@ export default function BookingPage() {
               className="sk-resultsbar__back"
               onClick={() => setResultsFocus(false)}
             >
-              <ArrowLeft size={15} aria-hidden="true" /> Change search
+              <ArrowLeft size={15} aria-hidden="true" /> Edit search
             </button>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="sk-resultsbar__title">{resultsTitle}</div>
+              {/* Route on top, what you're looking at underneath (the big
+                  "39 … Found" heading is right below, so not repeated here). */}
+              <div className="sk-resultsbar__title">
+                {(tab === "Stays"
+                  ? destCity
+                  : [originCity, destCity].filter(Boolean).join(" → ")) ||
+                  resultsTitle}
+              </div>
               <div className="sk-resultsbar__sub">
                 {[
                   tab,
-                  tab === "Stays"
-                    ? destCity
-                    : [originCity, destCity].filter(Boolean).join(" → "),
+                  tripDates?.[0] && tripDates?.[1]
+                    ? `${dayjs(tripDates[0]).format("MMM D")} – ${dayjs(
+                        tripDates[1]
+                      ).format("MMM D")}`
+                    : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -7216,7 +7243,7 @@ export default function BookingPage() {
                 >
                   <div className="sk-resultRow">
                     <div
-                      className="sk-thumb"
+                      className="sk-thumb sk-thumb--logo"
                       style={
                         flight.ownerLogo
                           ? {
@@ -7428,7 +7455,7 @@ export default function BookingPage() {
                   >
                     <div className="sk-resultRow">
                       <div
-                        className="sk-thumb"
+                        className="sk-thumb sk-thumb--logo"
                         style={
                           outbound.ownerLogo
                             ? {
@@ -7807,7 +7834,7 @@ export default function BookingPage() {
                         >
                           <div className="sk-resultRow">
                             <div
-                              className="sk-thumb"
+                              className="sk-thumb sk-thumb--logo"
                               style={
                                 outbound.ownerLogo
                                   ? {
