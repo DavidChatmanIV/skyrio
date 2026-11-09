@@ -109,6 +109,16 @@ export default function EventsResults({
         </div>
       </header>
 
+      <div className="sk-events-notice" role="note">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+        </svg>
+        <div>
+          <strong>Tickets are sold by Ticketmaster.</strong>
+          <span>Event info comes from Ticketmaster. "Buy on Ticketmaster" takes you to their site to pay.</span>
+        </div>
+      </div>
+
       {loadingFirstPage && (
         <div className="sk-events-grid">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -140,7 +150,6 @@ export default function EventsResults({
       )}
       {status === "loading" && page > 0 && <p className="sk-events-empty">Loading…</p>}
 
-      <p className="sk-events-attribution">Event data from Ticketmaster. Tickets are bought on Ticketmaster.</p>
     </section>
   );
 }

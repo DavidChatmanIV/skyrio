@@ -4982,6 +4982,8 @@ export default function BookingPage() {
 
   // Trip dates from the search form, for the weather on the pass.
   const [tripDates, setTripDates] = useState([null, null]);
+  // Forecast starts collapsed — open it on tap. Keeps the pass short.
+  const [weatherOpen, setWeatherOpen] = useState(false);
   const handleDatesChange = useCallback(({ dates, nights }) => {
     setTripDates(Array.isArray(dates) ? dates : [null, null]);
     if (nights !== null && nights > 0) {
@@ -4991,8 +4993,8 @@ export default function BookingPage() {
   }, []);
 
   // Events → "Plan a trip around it": open Flights with the event's city and
-  // dates (arrive the day before, leave the day after). No auto-search, so the
-  // traveler checks their airport first. Venue info stays in the link for later
+  // dates (arrive the day before, leave the day after) and search right away
+  // from the home airport (if we know it). Venue info stays in the link for later
   // (e.g. sorting hotels by distance to the venue).
   const handlePlanTrip = useCallback(
     (event) => {
@@ -5002,8 +5004,16 @@ export default function BookingPage() {
       const next = new URLSearchParams();
       const gid = searchParams.get("groupId");
       if (gid) next.set("groupId", gid);
-      const home = searchParams.get("from");
-      if (home) next.set("from", home);
+      // Leave from the airport in the link, else the saved home airport,
+      // so the flight search can run right away.
+      const home = readHomeAirport();
+      const fromCode = searchParams.get("from") || home?.code;
+      if (fromCode) {
+        next.set("from", fromCode);
+        if (!searchParams.get("from") && home?.city)
+          next.set("fromName", home.city);
+        next.set("auto", "1");
+      }
       next.set("tab", "Flights");
       next.set("to", venue.city);
       next.set("city", venue.city);
@@ -5022,7 +5032,9 @@ export default function BookingPage() {
       setExcursionResults([]);
       setTab("Flights");
       antdMessage.success(
-        `Dates set for ${event.name}. Check your airports, then search.`
+        fromCode
+          ? `Finding flights for ${event.name}…`
+          : `Dates set for ${event.name}. Pick your airport, then search.`
       );
       searchFormRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -6704,16 +6716,50 @@ export default function BookingPage() {
                   )}
                 </div>
 
-                {/* ── Weather at the destination (real forecast) ── */}
+                {/* ── Weather at the destination (real forecast) ──
+                    Collapsed by default so the pass doesn't grow after a search. */}
                 {destCity && (
-                  <WeatherStrip
-                    city={destCity}
-                    start={tripDates[0]}
-                    end={tripDates[1]}
-                  />
+                  <div className="sk-weather-wrap">
+                    <button
+                      type="button"
+                      className="sk-weather-toggle"
+                      aria-expanded={weatherOpen}
+                      onClick={() => setWeatherOpen((o) => !o)}
+                    >
+                      <span>Weather in {destCity}</span>
+                      <span className="sk-weather-toggle-cta">
+                        {weatherOpen ? "Hide" : "Show"}
+                        <ChevronUp
+                          size={14}
+                          aria-hidden="true"
+                          style={{
+                            transform: weatherOpen ? "none" : "rotate(180deg)",
+                            transition: "transform 0.2s",
+                          }}
+                        />
+                      </span>
+                    </button>
+                    {weatherOpen && (
+                      <WeatherStrip
+                        city={destCity}
+                        start={tripDates[0]}
+                        end={tripDates[1]}
+                      />
+                    )}
+                  </div>
                 )}
 
-                {/* ── Price Watch Card ── */}
+                {/* Events: say plainly who sells what (no XP / price watch —
+                    tickets are bought on Ticketmaster, not Skyrio). */}
+                {tab === "Events" && (
+                  <div className="sk-events-stubnote">
+                    <strong>Tickets are sold by Ticketmaster.</strong>
+                    <span>Flights and hotels are booked on Skyrio.</span>
+                  </div>
+                )}
+
+                {/* ── Price Watch Card — flights only (it watches a flight route) ── */}
+                {tab === "Flights" && (
                 <div className="sk-price-watch-card">
                   <div className="sk-pwc-header">
                     <div className="sk-pwc-xp">
@@ -6743,7 +6789,8 @@ export default function BookingPage() {
                       />
                     </button>
                   </div>
-                  <div className="sk-pwc-desc" style={{ minHeight: "2.9em" }}>
+                  {(priceWatchOn || priceWatchRoute) && (
+                  <div className="sk-pwc-desc">
                     {priceWatchOn
                       ? `Watching ${priceWatchRoute?.from ?? "your route"} → ${
                           priceWatchRoute?.to ?? "destination"
@@ -6752,11 +6799,11 @@ export default function BookingPage() {
                             ? ` from $${wholeUsd(priceWatchRoute.price)}`
                             : ""
                         }. We'll alert you if it drops.`
-                      : priceWatchRoute
-                      ? `Alert me if ${priceWatchRoute.from} → ${priceWatchRoute.to} gets cheaper.`
-                      : "Search a route to watch its price."}
+                      : `Alert me if ${priceWatchRoute.from} → ${priceWatchRoute.to} gets cheaper.`}
                   </div>
+                  )}
                 </div>
+                )}
 
                 <div className="sk-bp-barcode" aria-hidden="true" />
               </aside>
