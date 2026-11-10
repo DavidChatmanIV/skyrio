@@ -179,7 +179,7 @@ function ReportItem({ item, onDone, readOnly }) {
           {item.reports.map((r) => (
             <div key={r.id} style={{ fontSize: 13, color: C.muted }}>
               <strong style={{ color: C.text }}>@{r.by}</strong> · {REASON_LABEL[r.reason] || r.reason} · {when(r.at)}
-              {r.details ? <div style={{ marginTop: 2 }}>“{r.details}”</div> : null}
+              {r.details ? <div style={{ marginTop: 2 }}>&quot;{r.details}&quot;</div> : null}
               {r.resolution ? <div style={{ marginTop: 2 }}>Resolved: {r.resolution}</div> : null}
             </div>
           ))}
@@ -298,7 +298,7 @@ function AppealItem({ a, onDone, readOnly }) {
         {a.severity === "severe" ? " (severe)" : ""} · {a.action === "ban" ? "permanent ban" : a.action === "suspension" ? `${a.suspensionDays}-day pause` : "warning"} · {when(a.strikeAt)}
         {a.by ? ` · by ${a.by}` : ""}
       </div>
-      {a.snippet && <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: 10, whiteSpace: "pre-wrap" }}>“{a.snippet}”</div>}
+      {a.snippet && <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: 10, whiteSpace: "pre-wrap" }}>&quot;{a.snippet}&quot;</div>}
       <div>
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Their appeal</div>
         <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{a.appeal?.message}</div>
@@ -306,7 +306,7 @@ function AppealItem({ a, onDone, readOnly }) {
       {readOnly ? (
         <div style={{ fontSize: 13, color: C.muted }}>
           {a.appeal?.status === "approved" ? "Approved" : "Denied"} by {a.appeal?.resolvedBy} · {when(a.appeal?.resolvedAt)}
-          {a.appeal?.response ? <div style={{ marginTop: 4 }}>“{a.appeal.response}”</div> : null}
+          {a.appeal?.response ? <div style={{ marginTop: 4 }}>&quot;{a.appeal.response}&quot;</div> : null}
         </div>
       ) : (
         <>

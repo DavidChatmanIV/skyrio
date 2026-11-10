@@ -7,7 +7,7 @@ export const ACTIVITY_RULES = {
   // ── Onboarding ─────────────────────────────────────────────────────────────
   profile_completed: {
     xp: 100,
-    title: "Completed Profile",
+    title: "Completed your profile",
     statKey: "profileCompleted",
     setValue: true,
   },
@@ -15,13 +15,13 @@ export const ACTIVITY_RULES = {
   // ── Flights ────────────────────────────────────────────────────────────────
   flight_searched: {
     xp: 5,
-    title: "Searched for a Flight",
+    title: "Searched for a flight",
     statKey: "flightsSearched",
     increment: 1,
   },
   flight_booked: {
     xp: 50,
-    title: "Booked a Flight",
+    title: "Booked a flight",
     statKey: "flightsBooked",
     increment: 1,
   },
@@ -29,13 +29,13 @@ export const ACTIVITY_RULES = {
   // ── Hotels ─────────────────────────────────────────────────────────────────
   hotel_searched: {
     xp: 5,
-    title: "Searched for a Hotel",
+    title: "Searched for a hotel",
     statKey: "hotelsSearched",
     increment: 1,
   },
   hotel_booked: {
     xp: 50,
-    title: "Booked a Hotel",
+    title: "Booked a hotel",
     statKey: "hotelsBooked",
     increment: 1,
   },
@@ -43,19 +43,19 @@ export const ACTIVITY_RULES = {
   // ── Social ─────────────────────────────────────────────────────────────────
   post_created: {
     xp: 10,
-    title: "Created a Post",
+    title: "Created a post",
     statKey: "postsCreated",
     increment: 1,
   },
   post_liked: {
     xp: 2,
-    title: "Liked a Post",
+    title: "Liked a post",
     statKey: "postsLiked",
     increment: 1,
   },
   user_followed: {
     xp: 5,
-    title: "Followed a Traveler",
+    title: "Followed a traveler",
     statKey: "usersFollowed",
     increment: 1,
   },
@@ -69,7 +69,7 @@ export const ACTIVITY_RULES = {
   },
   watch_triggered: {
     xp: 15,
-    title: "Price Watch Triggered",
+    title: "Price Watch triggered",
     statKey: "watchesTriggered",
     increment: 1,
   },
@@ -77,13 +77,13 @@ export const ACTIVITY_RULES = {
   // ── Destinations / Hotspots ────────────────────────────────────────────────
   hotspot_visited: {
     xp: 20,
-    title: "Visited a Hotspot",
+    title: "Visited a hotspot",
     statKey: "hotspotsVisited",
     increment: 1,
   },
   destination_saved: {
     xp: 5,
-    title: "Saved a Destination",
+    title: "Saved a destination",
     statKey: "destinationsSaved",
     increment: 1,
   },
@@ -91,7 +91,7 @@ export const ACTIVITY_RULES = {
   // ── Streaks / Milestones ───────────────────────────────────────────────────
   daily_login: {
     xp: 10,
-    title: "Daily Login",
+    title: "Daily login",
     statKey: "loginStreak",
     increment: 1,
   },

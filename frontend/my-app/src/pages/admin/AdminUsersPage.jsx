@@ -116,7 +116,7 @@ export default function AdminUsersPage() {
             padding: "40px 0",
           }}
         >
-          <Spin tip="Loading users..." />
+          <Spin tip="Loading users…" />
         </div>
       ) : (
         <Table

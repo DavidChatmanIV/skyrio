@@ -41,12 +41,12 @@ export default function PolicyNote({
   if (variant === "agree") {
     body = isHotel ? (
       <>
-        By paying, you accept {who}&rsquo;s refund policy. Skyrio can&rsquo;t
+        By paying, you accept {who}&apos;s refund policy. Skyrio can&apos;t
         change it.
       </>
     ) : (
       <>
-        By paying, you accept {who}&rsquo;s rules for bags, changes and refunds.
+        By paying, you accept {who}&apos;s rules for bags, changes and refunds.
       </>
     );
   } else {

@@ -339,7 +339,7 @@ export default function FindBookingPage() {
         <Link to="/saved-trips">
           <Plane size={18} aria-hidden="true" />
           <span>
-            My trips
+            My Trips
             <small>Have an account? See every booking.</small>
           </span>
         </Link>

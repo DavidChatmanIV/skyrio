@@ -71,7 +71,7 @@ export default function TripDetailsPass({
     <section className="tdp" aria-label="Trip details">
       <div className="tdp-main">
         <header className="tdp-head">
-          <span className="tdp-label">Trip Details · Boarding Pass</span>
+          <span className="tdp-label">Trip details · Boarding pass</span>
           {canEdit && (
             <button type="button" className="tdp-edit" onClick={onEdit}>
               Edit

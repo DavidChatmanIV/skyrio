@@ -167,7 +167,7 @@ export default function ForgotPasswordPage() {
                           onClick={handleRequestReset}
                           disabled={loading}
                         >
-                          {loading ? "Sending…" : "Send Reset Link"}
+                          {loading ? "Sending…" : "Send reset link"}
                         </button>
                       </>
                     )}
@@ -230,7 +230,7 @@ export default function ForgotPasswordPage() {
                           onClick={handleResetPassword}
                           disabled={loading}
                         >
-                          {loading ? "Resetting…" : "Reset Password"}
+                          {loading ? "Resetting…" : "Reset password"}
                         </button>
                       </>
                     )}
@@ -247,7 +247,7 @@ export default function ForgotPasswordPage() {
                             fontSize: 13,
                           }}
                         >
-                          Redirecting you to login…
+                          Taking you to log in…
                         </p>
                       </div>
                     )}
@@ -255,7 +255,7 @@ export default function ForgotPasswordPage() {
                     <div className="sk-secondary">
                       <div className="sk-linksRow">
                         <Link className="sk-linkSmall" to="/login">
-                          Back to login
+                          Back to log in
                         </Link>
                         <span className="sk-sep">•</span>
                         <Link className="sk-linkSmall sk-strong" to="/register">

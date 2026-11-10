@@ -90,8 +90,8 @@ export default function CookieBanner() {
               lineHeight: 1.5,
             }}
           >
-            We use cookies to enhance your experience saving trips, showing XP,
-            and keeping you logged in.
+            We use cookies to save your trips, show your XP and keep you logged
+            in.
           </span>
         </div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>

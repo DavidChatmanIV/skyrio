@@ -102,7 +102,7 @@ router.put("/travelers", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("[profile/travelers] save failed:", err);
-    res.status(500).json({ ok: false, message: "Could not save travelers" });
+    res.status(500).json({ ok: false, message: "Couldn't save travelers. Try again." });
   }
 });
 
@@ -119,7 +119,7 @@ router.delete("/travelers/:id", requireAuth, async (req, res) => {
     res.json({ ok: true, savedTravelers: user.savedTravelers });
   } catch (err) {
     console.error("[profile/travelers] delete failed:", err);
-    res.status(500).json({ ok: false, message: "Could not remove traveler" });
+    res.status(500).json({ ok: false, message: "Couldn't remove traveler. Try again." });
   }
 });
 

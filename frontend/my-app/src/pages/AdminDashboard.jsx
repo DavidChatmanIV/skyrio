@@ -1673,7 +1673,7 @@ function ChallengesPanel({ refreshKey }) {
       setModal((m) => ({ ...m, open: false }));
       reload();
     } catch (err) {
-      message.error(err.message || "Failed to save challenge.");
+      message.error(err.message || "Couldn't save challenge. Try again.");
     } finally {
       setSaving(false);
     }
@@ -1687,7 +1687,7 @@ function ChallengesPanel({ refreshKey }) {
       message.success("Challenge ended.");
       reload();
     } catch (err) {
-      message.error(err.message || "Failed to end challenge.");
+      message.error(err.message || "Couldn't end challenge. Try again.");
     }
   };
 
@@ -1917,7 +1917,7 @@ function RewardsPanel({ refreshKey }) {
       setModal((m) => ({ ...m, open: false }));
       reload();
     } catch (err) {
-      message.error(err.message || "Failed to save reward item.");
+      message.error(err.message || "Couldn't save reward item. Try again.");
     } finally {
       setSaving(false);
     }
@@ -1931,7 +1931,7 @@ function RewardsPanel({ refreshKey }) {
       message.success("Item removed.");
       reload();
     } catch (err) {
-      message.error(err.message || "Failed to remove item.");
+      message.error(err.message || "Couldn't remove item. Try again.");
     }
   };
 
@@ -2519,7 +2519,7 @@ function ThankModal({ kind, items, onClose, onSent }) {
                 </div>
               ))}
               <div style={{ marginTop: 8, opacity: 0.75 }}>
-                They&apos;re marked &ldquo;Email failed&rdquo;. Use Resend to
+                They&apos;re marked &quot;Email failed&quot;. Use Resend to
                 try again.
               </div>
             </div>
@@ -2575,8 +2575,8 @@ function ThankModal({ kind, items, onClose, onSent }) {
       destroyOnClose
     >
       <p className="sk-modal-hint">
-        They&apos;ll see it with &ldquo;Hi {first || "[first name]"},&rdquo; in
-        front and &ldquo;— The Skyrio team&rdquo; at the end.
+        They&apos;ll see it with &quot;Hi {first || "[first name]"},&quot; in
+        front and &quot;— The Skyrio team&quot; at the end.
         {reachable.length > peopleCount &&
           ` ${reachable.length} ${
             kind === "review" ? "reviews" : "submissions"
@@ -3432,7 +3432,7 @@ function TestimonialsQueue({ refreshKey, onChange }) {
                   </div>
                   <div className="sk-text sk-quote">{t.text}</div>
                   <div className="sk-sub" style={{ marginTop: 6 }}>
-                    Shown as “{t.displayName || "Skyrio traveler"}”
+                    Shown as &quot;{t.displayName || "Skyrio traveler"}&quot;
                     {t.city ? `, ${t.city}` : ""} ·{" "}
                     {t.user
                       ? userLabel(t.user)
@@ -3855,7 +3855,7 @@ const AdminDashboard = () => {
               ← Skyrio
             </button>
             <Button type="primary" danger size="small" onClick={handleLogout}>
-              Logout
+              Log out
             </Button>
           </div>
         </div>

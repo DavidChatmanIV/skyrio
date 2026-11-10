@@ -138,7 +138,7 @@ export default function SkyHubActiveTravelers({
           </span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
-              Active Travelers
+              Active travelers
             </div>
             <div
               style={{
@@ -195,7 +195,7 @@ export default function SkyHubActiveTravelers({
             color: "rgba(255,255,255,0.55)",
           }}
         >
-          Loading...
+          Loading…
         </div>
       ) : travelers.length === 0 ? (
         /* Clean empty state — no fake traveler names */

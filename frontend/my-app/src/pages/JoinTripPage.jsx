@@ -120,7 +120,7 @@ export default function JoinTripPage() {
       const data = await res.json();
       if (data.ok) {
         antdMessage.success(
-          data.alreadyMember ? "Taking you to the trip..." : "You're in!"
+          data.alreadyMember ? "Taking you to the trip…" : "You're in!"
         );
         navigate(`/sync-together/${data.group.id || data.group._id}`);
       } else {
@@ -162,7 +162,7 @@ export default function JoinTripPage() {
           {(inviteState === "checking" || inviteState === "signedIn") && (
             <p style={{ color: "rgba(255,255,255,0.6)", marginTop: 16 }}>
               {inviteState === "signedIn"
-                ? "You're signed in. Opening the trip…"
+                ? "You're logged in. Opening the trip…"
                 : "Signing you in…"}
             </p>
           )}
@@ -298,7 +298,7 @@ export default function JoinTripPage() {
             onClick={joinTrip}
             loading={joining}
           >
-            Join This Trip
+            Join this trip
           </Button>
         ) : (
           <div>
@@ -312,7 +312,7 @@ export default function JoinTripPage() {
             >
               {inviteState === "needsAccount"
                 ? "Create your Skyrio account to join — your email is already filled in."
-                : "Sign in or create an account to join"}
+                : "Log in or create an account to join"}
             </p>
             {inviteState === "expired" && (
               <p
@@ -323,7 +323,7 @@ export default function JoinTripPage() {
                   margin: "-8px 0 16px",
                 }}
               >
-                This invite link has expired. Sign in to join, or ask the
+                This invite link has expired. Log in to join, or ask the
                 organizer to resend the invite.
               </p>
             )}
@@ -364,7 +364,7 @@ export default function JoinTripPage() {
                 onClick={handleAuthSubmit}
                 loading={authLoading || joining}
               >
-                {mode === "login" ? "Sign In & Join" : "Create Account & Join"}
+                {mode === "login" ? "Log in & join" : "Create account & join"}
               </Button>
               <Button
                 type="text"
@@ -373,7 +373,7 @@ export default function JoinTripPage() {
               >
                 {mode === "login"
                   ? "New here? Create an account"
-                  : "Already have an account? Sign in"}
+                  : "Already have an account? Log in"}
               </Button>
             </div>
           </div>

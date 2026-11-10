@@ -100,7 +100,7 @@ router.get(
       console.error("[split-payments] client-secret error:", err);
       return res
         .status(500)
-        .json({ ok: false, message: "Failed to load your payment details" });
+        .json({ ok: false, message: "Couldn't load your payment details. Try again." });
     }
   }
 );

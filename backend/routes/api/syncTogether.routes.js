@@ -134,7 +134,7 @@ router.get("/preview/:code", async (req, res) => {
     });
   } catch (err) {
     console.error("[sync-together] preview error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to load invite" });
+    return res.status(500).json({ ok: false, error: "Couldn't load invite. Try again." });
   }
 });
 
@@ -271,7 +271,7 @@ router.post("/join/:code", async (req, res) => {
     return res.json({ ok: true, group: populated, alreadyMember: false });
   } catch (err) {
     console.error("[sync-together] join error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to join trip" });
+    return res.status(500).json({ ok: false, error: "Couldn't join trip. Try again." });
   }
 });
 
@@ -533,7 +533,7 @@ router.get("/my-trips", async (req, res) => {
     return res.json({ ok: true, groups });
   } catch (err) {
     console.error("[sync-together] my-trips error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to fetch trips" });
+    return res.status(500).json({ ok: false, error: "Couldn't load trips. Try again." });
   }
 });
 
@@ -634,7 +634,7 @@ router.post("/", async (req, res) => {
     return res.status(201).json({ ok: true, group: group.toSafeJSON() });
   } catch (err) {
     console.error("[sync-together] create error:", err);
-    return res.status(500).json({ ok: false, error: "Could not create group" });
+    return res.status(500).json({ ok: false, error: "Couldn't create group. Try again." });
   }
 });
 
@@ -680,7 +680,7 @@ router.patch("/:id", async (req, res) => {
       return res.status(403).json({
         ok: false,
         error:
-          "Only the organizer can edit trip details. Use “Request a change” to suggest one.",
+          "Only the organizer can edit trip details. Use \"Request a change\" to suggest one.",
       });
     }
 
@@ -806,7 +806,7 @@ router.post("/:id/plan", async (req, res) => {
     return res.json({ ok: true, group: populated });
   } catch (err) {
     console.error("[sync-together] plan error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to save plan" });
+    return res.status(500).json({ ok: false, error: "Couldn't save plan. Try again." });
   }
 });
 
@@ -919,7 +919,7 @@ router.post("/:id/change-request", async (req, res) => {
     console.error("[sync-together] change-request error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Failed to submit change request" });
+      .json({ ok: false, error: "Couldn't submit change request. Try again." });
   }
 });
 
@@ -1080,7 +1080,7 @@ router.delete("/:id/member/:memberId", async (req, res) => {
     console.error("[sync-together] remove member error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Failed to remove member" });
+      .json({ ok: false, error: "Couldn't remove member. Try again." });
   }
 });
 
@@ -1176,7 +1176,7 @@ router.post("/:id/member", async (req, res) => {
     return res.json({ ok: true, group: populated });
   } catch (err) {
     console.error("[sync-together] add member error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to add member" });
+    return res.status(500).json({ ok: false, error: "Couldn't add member. Try again." });
   }
 });
 
@@ -1566,7 +1566,7 @@ router.delete("/:id", async (req, res) => {
     });
   } catch (err) {
     console.error("[sync-together] delete error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to delete" });
+    return res.status(500).json({ ok: false, error: "Couldn't delete. Try again." });
   }
 });
 
@@ -1613,7 +1613,7 @@ router.patch("/:id/member-airport", async (req, res) => {
     console.error("[sync-together] member-airport error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Failed to update airport" });
+      .json({ ok: false, error: "Couldn't update airport. Try again." });
   }
 });
 
@@ -1670,7 +1670,7 @@ router.post("/:id/chat", async (req, res) => {
     return res.json({ ok: true, message: newMsg });
   } catch (err) {
     console.error("[sync-together] chat error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to send message" });
+    return res.status(500).json({ ok: false, error: "Couldn't send message. Try again." });
   }
 });
 
@@ -1709,7 +1709,7 @@ router.get("/:id/chat", async (req, res) => {
     console.error("[sync-together] chat fetch error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Failed to fetch messages" });
+      .json({ ok: false, error: "Couldn't load messages. Try again." });
   }
 });
 
@@ -2079,7 +2079,7 @@ router.get("/:id/parts", async (req, res) => {
       ...parts,
     });
   } catch (err) {
-    return sendSyncError(res, err, "Failed to load trip parts");
+    return sendSyncError(res, err, "Couldn't load trip parts. Try again.");
   }
 });
 
@@ -2156,7 +2156,7 @@ router.post("/:id/remind", async (req, res) => {
     await group.save();
     return res.json({ ok: true });
   } catch (err) {
-    return sendSyncError(res, err, "Failed to send reminder");
+    return sendSyncError(res, err, "Couldn't send reminder. Try again.");
   }
 });
 
@@ -3390,7 +3390,7 @@ router.post("/:id/attach-booking", async (req, res) => {
     if (me?.status === "declined") {
       return res.status(400).json({
         ok: false,
-        error: "You said you can't make it. Tap “I'm in” first.",
+        error: "You said you can't make it. Tap \"I'm in\" first.",
       });
     }
 

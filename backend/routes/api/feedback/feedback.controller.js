@@ -53,7 +53,7 @@ export async function submitFeedback(req, res) {
     console.error("Feedback submission error:", err);
     return res.status(500).json({
       ok: false,
-      message: err?.message || "Failed to submit feedback",
+      message: err?.message || "Couldn't submit feedback. Try again.",
     });
   }
 }
@@ -85,7 +85,7 @@ export async function listFeedback(req, res) {
     console.error("Feedback list error:", err);
     return res.status(500).json({
       ok: false,
-      message: err?.message || "Failed to load feedback",
+      message: err?.message || "Couldn't load feedback. Try again.",
     });
   }
 }
@@ -122,7 +122,7 @@ export async function updateFeedbackStatus(req, res) {
     console.error("Feedback status update error:", err);
     return res.status(500).json({
       ok: false,
-      message: err?.message || "Failed to update feedback status",
+      message: err?.message || "Couldn't update feedback status. Try again.",
     });
   }
 }

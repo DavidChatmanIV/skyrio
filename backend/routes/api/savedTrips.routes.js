@@ -23,7 +23,7 @@ router.get("/", requireAuth, async (req, res) => {
     console.error("Saved trips fetch error:", err);
     return res.status(500).json({
       ok: false,
-      message: "Failed to fetch saved trips",
+      message: "Couldn't load saved trips. Try again.",
     });
   }
 });
@@ -68,7 +68,7 @@ router.post("/", requireAuth, async (req, res) => {
     await Notification.create({
       user: req.user._id,
       type: "saved_trip",
-      title: "Trip Saved",
+      title: "Trip saved",
       message: `${savedTrip.title} was added to your saved trips`,
       link: "/saved-trips",
     });
@@ -89,7 +89,7 @@ router.post("/", requireAuth, async (req, res) => {
     console.error("Saved trips create error:", err);
     return res.status(500).json({
       ok: false,
-      message: "Failed to save trip",
+      message: "Couldn't save trip. Try again.",
     });
   }
 });
@@ -119,7 +119,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     console.error("Saved trips delete error:", err);
     return res.status(500).json({
       ok: false,
-      message: "Failed to delete saved trip",
+      message: "Couldn't delete saved trip. Try again.",
     });
   }
 });

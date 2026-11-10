@@ -226,7 +226,7 @@ export default function LoginPage() {
           );
         } else {
           setLoginError(
-            data?.message || data?.error || "Login failed. Please try again."
+            data?.message || data?.error || "Couldn't log you in. Try again."
           );
         }
         successHandledRef.current = false;
@@ -266,7 +266,7 @@ export default function LoginPage() {
       nav(redirectTo, { replace: true, state: { fromAuth: true } });
     } catch (err) {
       successHandledRef.current = false;
-      setLoginError(err?.message || "Login failed. Please try again.");
+      setLoginError(err?.message || "Couldn't log you in. Try again.");
     } finally {
       setLoading(false);
     }

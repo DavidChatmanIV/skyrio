@@ -149,7 +149,7 @@ const AvatarCustomizer = ({ avatar, onAvatarChange, borderStyles }) => {
             )}
           </div>
           <Text type="secondary" style={{ marginTop: 8, fontSize: 12 }}>
-            {uploading ? "Uploading..." : "Preview (same as header)"}
+            {uploading ? "Uploading…" : "Preview (same as header)"}
           </Text>
         </div>
 
@@ -169,7 +169,7 @@ const AvatarCustomizer = ({ avatar, onAvatarChange, borderStyles }) => {
             disabled={uploading}
             style={{ minHeight: 44 }}
           >
-            {uploading ? "Uploading..." : "Upload Avatar"}
+            {uploading ? "Uploading…" : "Upload Avatar"}
           </Button>
 
           <div>

@@ -15,7 +15,7 @@ export default function GuestBanner() {
       <Alert
         type="info"
         showIcon
-        message="You’re browsing as a Guest"
+        message="You're browsing as a Guest"
         description={
           <Space wrap>
             <span>

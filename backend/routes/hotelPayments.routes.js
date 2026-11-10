@@ -94,7 +94,7 @@ router.post("/intent", async (req, res) => {
     const currency = String(prebook?.currency || "USD").toLowerCase();
     if (!prebook?.prebookId || !netPrice || Number.isNaN(netPrice)) {
       return res.status(502).json({
-        error: "Could not read prebookId/price from LiteAPI",
+        error: "Couldn't read prebookId/price from LiteAPI. Try again.",
         prebook,
       });
     }

@@ -42,7 +42,7 @@ router.get(
       res.json({ items, total, page, limit });
     } catch (err) {
       console.error("GET /api/admin/users error:", err);
-      res.status(500).json({ message: "Failed to load users" });
+      res.status(500).json({ message: "Couldn't load users. Try again." });
     }
   }
 );
@@ -76,7 +76,7 @@ router.patch(
       res.json(user);
     } catch (err) {
       console.error("PATCH /api/admin/users/:id/role error:", err);
-      res.status(500).json({ message: "Failed to update role" });
+      res.status(500).json({ message: "Couldn't update role. Try again." });
     }
   }
 );
@@ -105,7 +105,7 @@ router.patch(
       res.json(user);
     } catch (err) {
       console.error("PATCH /api/admin/users/:id/status error:", err);
-      res.status(500).json({ message: "Failed to update status" });
+      res.status(500).json({ message: "Couldn't update status. Try again." });
     }
   }
 );

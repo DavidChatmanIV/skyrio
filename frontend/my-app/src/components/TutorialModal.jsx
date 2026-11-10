@@ -12,7 +12,7 @@ export default function TutorialModal({ open, onClose }) {
   const footer = useMemo(
     () => (
       <Button type="primary" onClick={close} className="btn-orange">
-        Let’s Go ✈️
+        Let&apos;s Go ✈️
       </Button>
     ),
     []
@@ -35,11 +35,11 @@ export default function TutorialModal({ open, onClose }) {
           <li>Get started in seconds — no stress.</li>
           <li>Earn XP as you plan and book trips.</li>
           <li>Use AI for quick trip ideas.</li>
-          <li>Turn on price tracking alerts when you’re ready.</li>
+          <li>Turn on price tracking alerts when you&apos;re ready.</li>
         </ul>
 
         <Text style={{ color: "rgba(255,255,255,.7)" }}>
-          You can reopen this anytime from “Take a 30-sec tour”.
+          You can reopen this anytime from &quot;Take a 30-sec tour&quot;.
         </Text>
       </Space>
     </Modal>

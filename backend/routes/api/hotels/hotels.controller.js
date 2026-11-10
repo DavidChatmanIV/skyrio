@@ -98,7 +98,7 @@ export async function lookupHotelsByLocation(req, res) {
     console.error("LiteAPI hotel lookup error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to look up hotels for this location",
+      message: err?.message || "Couldn't look up hotels for this location. Try again.",
       details: err?.details,
     });
   }
@@ -154,7 +154,7 @@ export async function searchPlaces(req, res) {
     console.error("LiteAPI places search error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to search places",
+      message: err?.message || "Couldn't search places. Try again.",
       details: err?.details,
     });
   }
@@ -243,7 +243,7 @@ export async function searchHotels(req, res) {
     console.error("LiteAPI search error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to search hotels",
+      message: err?.message || "Couldn't search hotels. Try again.",
       details: err?.details,
     });
   }
@@ -281,7 +281,7 @@ export async function prebookHotel(req, res) {
     console.error("LiteAPI prebook error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to prebook hotel",
+      message: err?.message || "Couldn't prebook hotel. Try again.",
       details: err?.details,
     });
   }
@@ -543,7 +543,7 @@ export async function initHotelCheckout(req, res) {
     console.error("Hotel checkout init error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to start hotel checkout",
+      message: err?.message || "Couldn't start hotel checkout. Try again.",
       details: err?.details,
     });
   }
@@ -1039,7 +1039,7 @@ export async function confirmHotelBooking(req, res) {
     console.error("Hotel booking confirmation error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to confirm hotel booking",
+      message: err?.message || "Couldn't confirm hotel booking. Try again.",
       details: err?.details,
     });
   }
@@ -1091,7 +1091,7 @@ export async function bookHotel(req, res) {
     console.error("LiteAPI booking error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to book hotel",
+      message: err?.message || "Couldn't book hotel. Try again.",
       details: err?.details,
     });
   }

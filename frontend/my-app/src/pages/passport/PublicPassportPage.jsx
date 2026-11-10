@@ -284,7 +284,7 @@ function JourneyCard({ journey, badgeColor }) {
             textOverflow: "ellipsis",
           }}
         >
-          {journey.destination || journey.title || "Unknown Journey"}
+          {journey.destination || journey.title || "Unknown journey"}
         </div>
         {journey.dates && (
           <div
@@ -1541,7 +1541,7 @@ export default function PublicPassportPage() {
               {/* Travel vibes */}
               {profile.travelVibes?.length > 0 && (
                 <div className="pp-pub-card pp-pub-section">
-                  <SectionLabel icon={Compass} label="Travel Vibe" />
+                  <SectionLabel icon={Compass} label="Travel vibe" />
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {profile.travelVibes.map((vibe) => (
                       <span key={vibe} className="pp-pub-vibe-chip">

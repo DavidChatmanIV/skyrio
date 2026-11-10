@@ -104,7 +104,7 @@ export default function SkyStreamHeader({
           <Input
             allowClear
             prefix={<SearchOutlined />}
-            placeholder="Search SkyStream..."
+            placeholder="Search SkyStream…"
             value={search}
             onChange={(e) => onSearchChange?.(e.target.value)}
           />

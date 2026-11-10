@@ -54,7 +54,7 @@ export default function SavedTrips() {
         const data = await res.json();
         if (!mounted) return;
         if (!data.ok)
-          throw new Error(data.message || "Failed to load saved trips");
+          throw new Error(data.message || "Couldn't load saved trips. Try again.");
         setTrips(data.savedTrips || []);
       } catch (err) {
         if (mounted) setError(err.message);
@@ -77,7 +77,7 @@ export default function SavedTrips() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok)
-        throw new Error(data.message || "Failed to remove trip");
+        throw new Error(data.message || "Couldn't remove trip. Try again.");
       setTrips((prev) => prev.filter((t) => (t.id || t._id) !== id));
     } catch (err) {
       setError(err.message);
@@ -104,7 +104,7 @@ export default function SavedTrips() {
         <Empty
           description={
             <span style={{ color: "rgba(255,255,255,0.5)" }}>
-              No trips saved yet — hit Save on any result to add one
+              No saved trips yet. Tap Save on a result to add one.
             </span>
           }
         />

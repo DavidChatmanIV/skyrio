@@ -165,7 +165,7 @@ export default function SkyHubGuidelines() {
         <p className="gl-p">
           Report anything from its <b>⋯</b> menu. Reports are anonymous. A post
           or comment reported by 3 different people is hidden until we review
-          it. Reports about a <b>child&rsquo;s safety</b> or{" "}
+          it. Reports about a <b>child&apos;s safety</b> or{" "}
           <b>intimate images shared without consent</b> are hidden right away.
           Breaking the rules gets the content removed and may add a strike:
         </p>
@@ -217,8 +217,8 @@ export default function SkyHubGuidelines() {
       </h2>
       <div className="gl-glass gl-box">
         <p className="gl-p">
-          Block anyone from the <b>⋯</b> menu on their post. You won&rsquo;t see
-          each other on SkyHub, and they aren&rsquo;t told.
+          Block anyone from the <b>⋯</b> menu on their post. You won&apos;t see
+          each other on SkyHub, and they aren&apos;t told.
         </p>
       </div>
 

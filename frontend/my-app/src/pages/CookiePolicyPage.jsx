@@ -155,7 +155,7 @@ export default function CookiePolicyPage() {
           <table className="sk-legal__table">
             <thead>
               <tr>
-                <th>Cookie Type</th>
+                <th>Cookie type</th>
                 <th>Purpose</th>
                 <th>Duration</th>
                 <th>Can Opt Out?</th>
@@ -199,7 +199,7 @@ export default function CookiePolicyPage() {
               </tr>
               <tr>
                 <td>
-                  <strong>Local Storage</strong>
+                  <strong>Local storage</strong>
                 </td>
                 <td>
                   Store non-sensitive user preferences locally in your browser,
@@ -286,7 +286,7 @@ export default function CookiePolicyPage() {
               for {SITE_DOMAIN}.
             </li>
             <li>
-              <strong>Opt-out of analytics</strong> — contact us at{" "}
+              <strong>Opt out of analytics</strong> — contact us at{" "}
               <a className="sk-legal__link" href={`mailto:${CONTACT_EMAIL}`}>
                 {CONTACT_EMAIL}
               </a>{" "}

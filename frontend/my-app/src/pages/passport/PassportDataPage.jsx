@@ -275,7 +275,7 @@ export default function PassportDataPage({
               <PlaneBadgePending size={14} />
             ) : null}
           </div>
-          {user?.bio && <p className="pdp-bio">“{user.bio}”</p>}
+          {user?.bio && <p className="pdp-bio">&quot;{user.bio}&quot;</p>}
 
           <dl className="pdp-grid">
             <div>

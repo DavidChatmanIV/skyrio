@@ -16,7 +16,7 @@ export default function AboutPage() {
         <span className="sk-trust__badge">
           <PlaneIcon /> About Skyrio
         </span>
-        <h1>Travel booking that feels like it's on your side.</h1>
+        <h1>Travel booking that feels like it's on your side</h1>
         <p className="sk-trust__lead">
           Skyrio brings flights, stays, excursions and group trips together in
           one place, with Atlas AI to help you plan and book.

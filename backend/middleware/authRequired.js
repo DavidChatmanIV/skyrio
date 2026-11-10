@@ -58,7 +58,7 @@ async function authRequired(req, res, next) {
     if (err.name === "TokenExpiredError") {
       return res
         .status(401)
-        .json({ message: "Session expired, please log in again" });
+        .json({ message: "Your session expired. Log in again." });
     }
 
     return res.status(401).json({ message: "Invalid or expired token" });

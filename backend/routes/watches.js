@@ -38,7 +38,7 @@ router.post("/", async (req, res) => {
 
     return res.status(201).json({ watch });
   } catch (err) {
-    return res.status(500).json({ error: "Failed to create watch" });
+    return res.status(500).json({ error: "Couldn't create watch. Try again." });
   }
 });
 
@@ -53,7 +53,7 @@ router.get("/", async (req, res) => {
 
     return res.json({ watches });
   } catch (err) {
-    return res.status(500).json({ error: "Failed to fetch watches" });
+    return res.status(500).json({ error: "Couldn't load watches. Try again." });
   }
 });
 
@@ -71,7 +71,7 @@ router.delete("/:id", async (req, res) => {
     if (!updated) return res.status(404).json({ error: "Not found" });
     return res.json({ ok: true });
   } catch (err) {
-    return res.status(500).json({ error: "Failed to remove watch" });
+    return res.status(500).json({ error: "Couldn't remove watch. Try again." });
   }
 });
 

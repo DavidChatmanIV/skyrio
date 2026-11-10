@@ -153,7 +153,7 @@ const BookingDashboard = () => {
 
       <input
         type="text"
-        placeholder="Search by name, email, or type..."
+        placeholder="Search by name, email, or type…"
         className="mb-4 p-2 border border-gray-300 rounded w-full"
         value={search}
         onChange={(e) => {
@@ -163,7 +163,7 @@ const BookingDashboard = () => {
       />
 
       {loading ? (
-        <p className="text-gray-500">Loading bookings...</p>
+        <p className="text-gray-500">Loading bookings…</p>
       ) : filtered.length === 0 ? (
         <p className="text-red-500">No matching bookings found.</p>
       ) : (

@@ -39,7 +39,7 @@ router.get("/", requireAuth, async (req, res) => {
     console.error("Profile me error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch profile" });
+      .json({ ok: false, message: "Couldn't load profile. Try again." });
   }
 });
 
@@ -86,7 +86,7 @@ router.get("/public/:username", async (req, res) => {
     console.error("Public profile error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch profile" });
+      .json({ ok: false, message: "Couldn't load profile. Try again." });
   }
 });
 

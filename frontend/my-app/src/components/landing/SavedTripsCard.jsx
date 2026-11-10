@@ -8,7 +8,7 @@ const { Text } = Typography;
 export default function SavedTripsCard({
   trips = [
     { city: "Paris", range: "Jan 15 – Jan 22", cta: "Dates" },
-    { city: "Tokyo", range: "Feb 2 – Feb 10", cta: "Who’s going" },
+    { city: "Tokyo", range: "Feb 2 – Feb 10", cta: "Who's going" },
   ],
 }) {
   return (

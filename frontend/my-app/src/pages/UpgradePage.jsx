@@ -25,7 +25,7 @@ const PLANS = {
     glow: "rgba(255,138,42,0.15)",
     border: "rgba(255,138,42,0.35)",
     textColor: "#1a0d04",
-    description: "Unlimited trips, priority Atlas AI, 2× XP and more.",
+    description: "Unlimited trips, priority Atlas AI, 1.5× XP and more.",
   },
   legend: {
     name: "Legend",
@@ -37,7 +37,7 @@ const PLANS = {
     border: "rgba(167,139,250,0.35)",
     textColor: "#fff",
     description:
-      "The full Skyrio experience — concierge planning, 5× XP, direct founder access.",
+      "The full Skyrio experience — concierge planning, 2.5× XP, direct founder access.",
   },
 };
 
@@ -202,7 +202,7 @@ export default function UpgradePage() {
 
         {canceled && !error && (
           <div className="up-msg up-msg--warn">
-            Checkout was canceled — you weren't charged. Pick up where you left off anytime.
+            Checkout was cancelled — you weren't charged. Pick up where you left off anytime.
           </div>
         )}
 

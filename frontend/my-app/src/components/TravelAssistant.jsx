@@ -252,7 +252,7 @@ export default function TravelAssistant() {
                 loading={loading}
                 icon={<RocketOutlined />}
               >
-                {loading ? "Generating..." : "Generate with Atlas"}
+                {loading ? "Generating…" : "Generate with Atlas"}
               </Button>
               <Button onClick={handleReset}>Reset</Button>
             </Space>

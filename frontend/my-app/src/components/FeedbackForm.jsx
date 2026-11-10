@@ -18,7 +18,7 @@ const FeedbackForm = () => {
 
   return (
     <Card
-      title="💬 We’d love your feedback!"
+      title="💬 We'd love your feedback!"
       bordered={false}
       style={{ maxWidth: 600, margin: "3rem auto" }}
     >
@@ -29,12 +29,12 @@ const FeedbackForm = () => {
 
         <Form.Item
           name="feedback"
-          label="Your Feedback"
+          label="Your feedback"
           rules={[{ required: true, message: "Please share your feedback." }]}
         >
           <TextArea
             rows={4}
-            placeholder="Let us know what you loved or what could be better..."
+            placeholder="Let us know what you loved or what could be better…"
           />
         </Form.Item>
 

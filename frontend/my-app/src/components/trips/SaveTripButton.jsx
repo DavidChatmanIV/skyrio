@@ -10,7 +10,7 @@ export default function SaveTripButton({
   onSaveError,
   size = "middle",
   variant = "solid",
-  label = "Save Trip",
+  label = "Save trip",
 }) {
   const auth = useAuth();
   const { openAuthModal } = useAuthModal();
@@ -55,7 +55,7 @@ export default function SaveTripButton({
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        throw new Error(data.message || "Failed to save trip");
+        throw new Error(data.message || "Couldn't save trip. Try again.");
       }
 
       setSaved(true);

@@ -175,7 +175,7 @@ const SYNC_CSS = `
   @media (max-width: 1180px) { .sk-sync-cta__new { display: none; } }
   @media (max-width: 1024px) { .sk-sync-cta__label { display: none; } .sk-sync-cta { padding: 0 11px; } }
 
-  /* Phone menu: My trips is where you view and cancel bookings. Testers
+  /* Phone menu: My Trips is where you view and cancel bookings. Testers
      couldn't find it under the small heart at the bottom of the menu. */
   .sk-mobile-trips {
     display: flex; align-items: center; gap: 12px;
@@ -194,7 +194,7 @@ const SYNC_CSS = `
   .sk-mobile-trips__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .sk-mobile-trips__title { font-weight: 700; font-size: 14.5px; }
   .sk-mobile-trips__sub { font-size: 12px; color: rgba(255,255,255,0.6); }
-  /* Desktop: a labeled "My trips" button, so finding where to view or
+  /* Desktop: a labeled "My Trips" button, so finding where to view or
      cancel a flight or hotel doesn't depend on spotting the heart icon. */
   .sk-trips-btn {
     display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 13px;
@@ -211,7 +211,7 @@ const SYNC_CSS = `
   .sk-guest-trips:hover { color: #fff; }
   @media (max-width: 1100px) { .sk-guest-trips { display: none; } }
 
-  /* Profile menu: photo button → Passport, My trips, Rewards, Admin, Log out */
+  /* Profile menu: photo button → Passport, My Trips, Rewards, Admin, Log out */
   .sk-profile { position: relative; }
   .sk-profile-btn {
     display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 8px 0 4px;
@@ -560,7 +560,7 @@ export default function Navbar() {
                         >
                           <Icon.trips size={18} />
                           <span>
-                            My trips
+                            My Trips
                             <small>View or cancel a booking</small>
                           </span>
                         </Link>
@@ -683,7 +683,7 @@ export default function Navbar() {
                   {
                     key: "trips",
                     to: isAuthed ? "/saved-trips" : "/find-booking",
-                    label: isAuthed ? "My trips" : "Find my booking",
+                    label: isAuthed ? "My Trips" : "Find my booking",
                     NavIcon: Icon.trips,
                     active: isSaved,
                   },

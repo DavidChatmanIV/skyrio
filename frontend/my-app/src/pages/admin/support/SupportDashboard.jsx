@@ -88,7 +88,7 @@ function SubmitForm({ onSubmit }) {
     return (
       <div style={styles.sentBox}>
         <div style={styles.sentIcon}>✓</div>
-        <h2 style={styles.sentTitle}>Got it — we'll be in touch soon.</h2>
+        <h2 style={styles.sentTitle}>Got it — we'll be in touch soon</h2>
         <p style={styles.sentSub}>
           A real human will review your issue and reply within 24 hours.
         </p>
@@ -102,7 +102,7 @@ function SubmitForm({ onSubmit }) {
     <div style={styles.formWrap}>
       <div style={styles.formHeader}>
         <span style={styles.badge}>🤖 AI couldn't help?</span>
-        <h1 style={styles.formTitle}>Talk to a human.</h1>
+        <h1 style={styles.formTitle}>Talk to a human</h1>
         <p style={styles.formSub}>
           Fill out the form and we'll personally get back to you.
         </p>
@@ -134,10 +134,10 @@ function SubmitForm({ onSubmit }) {
           value={form.category}
           onChange={(e) => set("category", e.target.value)}
         >
-          <option value="billing">Billing & Payments</option>
-          <option value="technical">Technical Issue</option>
+          <option value="billing">Billing & payments</option>
+          <option value="technical">Technical issue</option>
           <option value="account">Account Access</option>
-          <option value="feature">Feature Request</option>
+          <option value="feature">Feature request</option>
           <option value="other">Other</option>
         </select>
       </div>

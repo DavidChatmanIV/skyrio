@@ -285,7 +285,7 @@ export const AIPlannerCard = ({
             <Avatar>🤖</Avatar>
             <div className="ai-copy">
               <p style={{ margin: 0 }}>
-                Hi {userName}! Here’s a smart pick for you:
+                Hi {userName}! Here&apos;s a smart pick for you:
               </p>
               <p style={{ margin: "4px 0 0" }}>
                 <ThunderboltOutlined /> {summary}

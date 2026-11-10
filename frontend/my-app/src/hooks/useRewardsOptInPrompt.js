@@ -62,7 +62,7 @@ export default function useRewardsOptInPrompt() {
         body: JSON.stringify({ settings: { rewardsEnabled: enabled } }),
       });
 
-      if (!res.ok) throw new Error("Failed to update settings");
+      if (!res.ok) throw new Error("Couldn't update settings. Try again.");
       const data = await res.json();
 
       const current = readUser() || {};

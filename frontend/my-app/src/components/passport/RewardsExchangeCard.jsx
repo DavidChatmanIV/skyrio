@@ -72,7 +72,7 @@ export default function RewardsExchangeCard() {
       <div style={{ marginTop: 12 }}>
         <Input
           prefix={<SearchOutlined />}
-          placeholder="Search SkyHub..."
+          placeholder="Search SkyHub…"
           className="pp-searchPill"
         />
       </div>

@@ -108,7 +108,7 @@ router.get("/me", requireAuth, async (req, res) => {
     console.error("Profile me error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch profile" });
+      .json({ ok: false, message: "Couldn't load profile. Try again." });
   }
 });
 
@@ -126,7 +126,7 @@ router.get("/music", requireAuth, async (req, res) => {
     console.error("Get music error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch music" });
+      .json({ ok: false, message: "Couldn't load music. Try again." });
   }
 });
 
@@ -160,7 +160,7 @@ router.post("/music", requireAuth, async (req, res) => {
     return res.json({ ok: true, music: profile.profileMusic });
   } catch (err) {
     console.error("Save music error:", err);
-    return res.status(500).json({ ok: false, message: "Failed to save music" });
+    return res.status(500).json({ ok: false, message: "Couldn't save music. Try again." });
   }
 });
 
@@ -179,7 +179,7 @@ router.delete("/music", requireAuth, async (req, res) => {
     console.error("Delete music error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to delete music" });
+      .json({ ok: false, message: "Couldn't delete music. Try again." });
   }
 });
 
@@ -292,7 +292,7 @@ router.patch("/settings", requireAuth, async (req, res) => {
     console.error("Profile settings error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to update settings" });
+      .json({ ok: false, message: "Couldn't update settings. Try again." });
   }
 });
 
@@ -336,7 +336,7 @@ router.patch("/update", requireAuth, async (req, res) => {
     console.error("Profile update error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to update profile" });
+      .json({ ok: false, message: "Couldn't update profile. Try again." });
   }
 });
 
@@ -440,7 +440,7 @@ router.get("/public/:username", async (req, res) => {
     console.error("Public profile error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch profile" });
+      .json({ ok: false, message: "Couldn't load profile. Try again." });
   }
 });
 
@@ -508,7 +508,7 @@ router.get("/:username", async (req, res) => {
     console.error("Profile fetch error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch profile" });
+      .json({ ok: false, message: "Couldn't load profile. Try again." });
   }
 });
 

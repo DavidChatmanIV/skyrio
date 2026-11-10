@@ -1027,7 +1027,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                   <h3>Before you cancel</h3>
                   <ul>
                     <li>
-                      <b>This can&rsquo;t be undone.</b>{" "}
+                      <b>This can&apos;t be undone.</b>{" "}
                       {booking.type === "Hotel"
                         ? "Your room is released and may not be available again at this price."
                         : "Your seats are released and the fare may not be available again at this price."}
@@ -1047,7 +1047,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                     )}
                     {booking.type !== "Hotel" && (
                       <li>
-                        Seats or bags you paid for usually aren&rsquo;t refunded
+                        Seats or bags you paid for usually aren&apos;t refunded
                         separately. The airline decides.
                       </li>
                     )}
@@ -1067,7 +1067,7 @@ export function CancelTripModal({ booking, onClose, onDone, authHeaders }) {
                   <span>
                     I understand this cancels my{" "}
                     {booking.type === "Hotel" ? "stay" : "flight"} and
-                    can&rsquo;t be undone.
+                    can&apos;t be undone.
                   </span>
                 </label>
                 <div className="mt-modalBtns">
@@ -1499,7 +1499,7 @@ export default function SavedTripsPage() {
       <header className="mt-head">
         <div>
           <div className="mt-kicker mt-mono">Your Skyrio</div>
-          <h1 className="mt-title">My trips</h1>
+          <h1 className="mt-title">My Trips</h1>
           <p className="mt-sub">Booked trips and saved ideas.</p>
           <div className="mt-howto" role="note">
             <X size={16} aria-hidden="true" />

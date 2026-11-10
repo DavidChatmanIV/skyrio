@@ -138,7 +138,7 @@ export async function sendHotelConfirmation({
         : "") +
       (manageLink
         ? noteLine(
-            `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see the hotel's refund estimate before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${TRIPS_URL}" style="color:inherit;">My trips</a>.`
+            `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see the hotel's refund estimate before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${TRIPS_URL}" style="color:inherit;">My Trips</a>.`
           )
         : ""),
     // Guests have no My Trips, so the manage link is the main button.

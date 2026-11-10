@@ -6,7 +6,7 @@ const router = Router();
 router.get("/", (_req, res) => {
   res.json({
     ok: true,
-    service: "One Sky Quest API",
+    service: "Skyrio API",
     ts: new Date().toISOString(),
   });
 });

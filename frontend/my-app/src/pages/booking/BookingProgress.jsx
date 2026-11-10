@@ -89,8 +89,8 @@ export default function BookingProgress({ kind = "flight" }) {
         ))}
       </ul>
       <div className="bp-note">
-        Please keep this page open and don&rsquo;t refresh. You&rsquo;ll see
-        your confirmation here, and we&rsquo;ll email it to you too.
+        Please keep this page open and don&apos;t refresh. You&apos;ll see
+        your confirmation here, and we&apos;ll email it to you too.
       </div>
       <div className="bp-time">
         {secs < 60

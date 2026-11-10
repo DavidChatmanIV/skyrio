@@ -58,7 +58,7 @@ export default function SmartSearch({
         <Input
           allowClear
           size="large"
-          placeholder="Try “Lisbon weekend under $600”"
+          placeholder="Try &quot;Lisbon weekend under $600&quot;"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           prefix={<SearchOutlined />}

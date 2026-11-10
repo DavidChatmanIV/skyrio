@@ -260,7 +260,7 @@ const PERKS = [
   { Icon: IconMedal, text: "Unlock badges and level up your traveller rank" },
   { Icon: IconTag, text: "Spend XP on rewards in Passport Rewards" },
   { Icon: IconPin, text: "Save trips and build your personal travel map" },
-  { Icon: IconPlane, text: "Get personalised AI trip recommendations" },
+  { Icon: IconPlane, text: "Get personalized AI trip recommendations" },
 ];
 
 const PREVIEW_STATS = [

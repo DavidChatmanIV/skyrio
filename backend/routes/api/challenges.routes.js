@@ -67,7 +67,7 @@ router.get("/", requireAuth, async (req, res) => {
     console.error("[challenges] list error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to load challenges." });
+      .json({ ok: false, message: "Couldn't load challenges. Try again." });
   }
 });
 
@@ -111,7 +111,7 @@ router.post("/:id/activate", requireAuth, async (req, res) => {
     console.error("[challenges] activate error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to activate challenge." });
+      .json({ ok: false, message: "Couldn't activate challenge. Try again." });
   }
 });
 
@@ -155,7 +155,7 @@ router.get("/admin", verifyAdmin, async (req, res) => {
     console.error("[challenges] admin list error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to load challenges." });
+      .json({ ok: false, message: "Couldn't load challenges. Try again." });
   }
 });
 
@@ -202,7 +202,7 @@ router.post("/", verifyAdmin, async (req, res) => {
     console.error("[challenges] create error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to create challenge." });
+      .json({ ok: false, message: "Couldn't create challenge. Try again." });
   }
 });
 
@@ -244,7 +244,7 @@ router.patch("/:id", verifyAdmin, async (req, res) => {
     console.error("[challenges] update error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to update challenge." });
+      .json({ ok: false, message: "Couldn't update challenge. Try again." });
   }
 });
 
@@ -268,7 +268,7 @@ router.delete("/:id", verifyAdmin, async (req, res) => {
     console.error("[challenges] end error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to end challenge." });
+      .json({ ok: false, message: "Couldn't end challenge. Try again." });
   }
 });
 

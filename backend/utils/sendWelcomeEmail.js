@@ -31,7 +31,7 @@ export async function sendWelcomeEmail({ name, email }) {
       feature(
         "✈️",
         "Book flights &amp; hotels",
-        "Search real fares and stays, pick your seats, and get your confirmation in seconds."
+        "Search real fares and stays, pick your seats, and get your confirmation by email."
       ) +
       feature(
         "🤖",
@@ -54,7 +54,7 @@ export async function sendWelcomeEmail({ name, email }) {
   const text = `Welcome to Skyrio${firstName ? `, ${firstName}` : ""}!
 
 Your account is ready. Here's what you can do:
-- Book flights & hotels: search real fares and stays, pick your seats, and get your confirmation in seconds.
+- Book flights & hotels: search real fares and stays, pick your seats, and get your confirmation by email.
 - Plan with Atlas AI: tell Atlas your trip idea and budget.
 - Travel together: plan a group trip with Sync Together and split the cost.
 - Earn XP on your Passport with every trip you book.

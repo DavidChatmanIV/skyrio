@@ -273,7 +273,7 @@ export default function AuthBoardingPass({
 
           <div className="sk-authFineprint">
             <Text className="sk-fineText">
-              By continuing, you agree to Skyrio’s Terms and Privacy.
+              By continuing, you agree to Skyrio&apos;s Terms and Privacy.
             </Text>
           </div>
         </Form>

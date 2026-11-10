@@ -213,7 +213,7 @@ export default function SkyHubStanding({ signedIn }) {
                   </div>
                   {s.snippet && (
                     <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>
-                      “{s.snippet}”
+                      &quot;{s.snippet}&quot;
                     </div>
                   )}
                   {s.note && (

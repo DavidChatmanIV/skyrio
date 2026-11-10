@@ -9,7 +9,7 @@ const Contact = () => {
     <section style={{ padding: "60px 20px" }}>
       <Title level={2}>📬 Contact Us</Title>
       <Paragraph>
-        Have questions or feedback? Reach out and we’ll be in touch!
+        Have questions or feedback? Reach out and we&apos;ll be in touch!
       </Paragraph>
 
       <Form

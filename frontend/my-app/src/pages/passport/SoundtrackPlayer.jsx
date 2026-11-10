@@ -328,7 +328,7 @@ export default function SoundtrackPlayer({
             />
             <div className="sp-meta">
               <div className="sp-kicker">{label}</div>
-              <div className="sp-title">{name || "My Playlist"}</div>
+              <div className="sp-title">{name || "My playlist"}</div>
               <div className="sp-sub">
                 <span
                   className={`sp-bars${playing && !muted ? " is-on" : ""}`}

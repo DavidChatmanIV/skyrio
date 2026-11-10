@@ -67,7 +67,7 @@ router.get("/me", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("[xp] /me failed:", err);
-    res.status(500).json({ error: "Could not load XP" });
+    res.status(500).json({ error: "Couldn't load XP. Try again." });
   }
 });
 
@@ -115,7 +115,7 @@ router.post("/activity", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("[xp] /activity failed:", err);
-    res.status(500).json({ error: "Could not record activity" });
+    res.status(500).json({ error: "Couldn't record activity. Try again." });
   }
 });
 

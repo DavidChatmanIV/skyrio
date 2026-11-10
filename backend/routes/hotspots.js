@@ -46,7 +46,7 @@ router.get("/", async (req, res) => {
   } catch (e) {
     res
       .status(500)
-      .json({ message: "Failed to build hotspots", error: e?.message });
+      .json({ message: "Couldn't build hotspots. Try again.", error: e?.message });
   }
 });
 

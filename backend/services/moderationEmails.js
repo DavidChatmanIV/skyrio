@@ -54,7 +54,7 @@ export function sendReportAlert({ targetType, reason, count, autoHidden, snippet
       bodyHtml: detailBox(
         what.toUpperCase(),
         (authorName ? bigLine(`${esc(authorName)}${authorUsername ? ` @${esc(authorUsername)}` : ""}`) : "") +
-          (snippet ? subLine(`“${esc(clip(snippet))}”`) : "") +
+          (snippet ? subLine(`"${esc(clip(snippet))}"`) : "") +
           `<div style="height:10px;line-height:10px;">&nbsp;</div>` +
           kvRow("Reports so far", String(count))
       ),
@@ -83,7 +83,7 @@ export function sendStrikeNotice({ to, name, reason, severity, action, suspensio
       title,
       introHtml: `Hi ${esc(name || "there")}, we removed something you shared on SkyHub because it broke our community guidelines: <strong>${esc(REASON_LABEL[reason] || reason)}</strong>${severity === "severe" ? " (a serious violation)" : ""}.`,
       bodyHtml:
-        (snippet ? detailBox("WHAT WAS REMOVED", subLine(`“${esc(clip(snippet))}”`)) : "") +
+        (snippet ? detailBox("WHAT WAS REMOVED", subLine(`"${esc(clip(snippet))}"`)) : "") +
         detailBox(
           "WHAT HAPPENS NOW",
           subLine(esc(consequence)) +

@@ -107,11 +107,11 @@ export default function NotFound() {
           Page not found
         </h1>
         <p className="nf-sub">
-          The link may be old or mistyped. We&rsquo;ve told our team.
+          The link may be old or mistyped. We&apos;ve told our team.
         </p>
         <div className="nf-actions">
           <Link to="/" className="nf-btn nf-btn--main">
-            Go to Home
+            Go home
           </Link>
           <Link to="/booking" className="nf-btn nf-btn--alt">
             Plan a trip

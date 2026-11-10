@@ -198,7 +198,7 @@ router.post("/feedback", optionalUser, async (req, res) => {
       if (!userId)
         return res
           .status(401)
-          .json({ ok: false, message: "Sign in to rate your booking." });
+          .json({ ok: false, message: "Log in to rate your booking." });
       if (!validRating)
         return res
           .status(400)
@@ -241,7 +241,7 @@ router.post("/feedback", optionalUser, async (req, res) => {
     let xpAwarded = 0;
     let xpNote = null;
     if (!userId) {
-      xpNote = "Sign in to earn XP for feedback.";
+      xpNote = "Log in to earn XP for feedback.";
     } else if (!isCheckout && message.length < MIN_CHARS_FOR_XP) {
       xpNote = `Write at least ${MIN_CHARS_FOR_XP} characters to earn XP.`;
     } else {

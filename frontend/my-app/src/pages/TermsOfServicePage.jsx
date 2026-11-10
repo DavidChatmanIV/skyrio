@@ -225,7 +225,7 @@ export default function TermsOfServicePage() {
           <p className="sk-legal__p">
             {COMPANY} shows the policy information the airline, hotel or our
             booking partners provide for your fare or rate. If that information
-            is incomplete or changes, the airline&rsquo;s or hotel&rsquo;s own
+            is incomplete or changes, the airline&apos;s or hotel&apos;s own
             policy applies.
           </p>
           <h3 className="sk-legal__h3">24-hour cancellation</h3>

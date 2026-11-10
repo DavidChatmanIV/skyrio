@@ -425,7 +425,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
         {loadError && (
           <>
             <h2 id="ct-title" className="ct-title">
-              Couldn&rsquo;t load this trip
+              Couldn&apos;t load this trip
             </h2>
             <p className="ct-sub">{loadError}</p>
             <div className="ct-actions">
@@ -439,7 +439,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
         {preview && nothingPossible && (
           <>
             <h2 id="ct-title" className="ct-title">
-              You can&rsquo;t leave {title} yet
+              You can&apos;t leave {title} yet
             </h2>
             <p className="ct-block">
               <AlertTriangle size={16} />
@@ -460,7 +460,7 @@ export default function CancelTripDialog({ tripId, onClose, onCancelled }) {
         {preview && !nothingPossible && (
           <>
             <h2 id="ct-title" className="ct-title">
-              Can&rsquo;t make {title}?
+              Can&apos;t make {title}?
             </h2>
             <p className="ct-sub">
               Choose what happens to the trip and your bookings.

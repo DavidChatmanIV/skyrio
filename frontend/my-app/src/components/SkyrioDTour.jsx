@@ -160,7 +160,7 @@ const STEPS = [
     icon: "discover",
     kicker: "Atlas AI",
     title: "Just ask Atlas",
-    body: "\u201CMiami in March, $800.\u201D Atlas finds the flights and hotel.",
+    body: '"Miami in March, $800." Atlas finds the flights and hotel.',
     path: "/",
     cta: "Try Atlas",
   },

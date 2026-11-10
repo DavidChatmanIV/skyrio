@@ -236,8 +236,8 @@ async function api(path, { method = "GET", body } = {}) {
     let msg;
     if (res.status === 401)
       msg = token
-        ? "Your session expired. Sign in again and retry."
-        : "Please sign in to send this for now. We're switching on posting without an account.";
+        ? "Your session expired. Log in again and retry."
+        : "Please log in to send this for now. We're switching on posting without an account.";
     else if (res.status === 429)
       msg = "Too many requests. Wait a minute and try again.";
     else msg = detail || "Something went wrong. Please try again.";
@@ -1251,7 +1251,7 @@ export default function SupportRail() {
             <div style={{ flex: 1 }}>
               <div className="sr-tip__title">Need help or have an idea?</div>
               <div className="sr-tip__body">
-                Tap <strong>Help &amp; Feedback</strong> anytime to report a
+                Tap <strong>Help &amp; feedback</strong> anytime to report a
                 bug, share an idea, leave a review or reach a real person.
                 {signedIn && " Feedback can earn you XP."}
               </div>
@@ -1419,7 +1419,7 @@ export default function SupportRail() {
           </span>
           {!menuOpen && (
             <span className="sr-launcher__label" aria-hidden="true">
-              Help &amp; Feedback
+              Help &amp; feedback
             </span>
           )}
         </button>
@@ -1510,7 +1510,7 @@ export default function SupportRail() {
                 placeholder={
                   fbType === "bug"
                     ? "What happened, and what did you expect?"
-                    : "Tell us what you think..."
+                    : "Tell us what you think…"
                 }
                 aria-label="Your feedback"
                 rows={4}
@@ -1525,7 +1525,7 @@ export default function SupportRail() {
                 }}
               >
                 {!signedIn
-                  ? "Sign in to earn XP for feedback. No account needed to send it."
+                  ? "Log in to earn XP for feedback. No account needed to send it."
                   : fbChars < MIN_CHARS
                   ? `${MIN_CHARS - fbChars} more characters to earn XP`
                   : "XP is the same whatever you rate us."}
@@ -1592,7 +1592,7 @@ export default function SupportRail() {
                 disabled={fbSubmitting}
                 style={btnPrimary(fbSubmitting)}
               >
-                {fbSubmitting ? "Sending..." : "Send feedback"}
+                {fbSubmitting ? "Sending…" : "Send feedback"}
               </button>
             </>
           )}
@@ -1779,7 +1779,7 @@ export default function SupportRail() {
                 disabled={rvSubmitting}
                 style={btnPrimary(rvSubmitting)}
               >
-                {rvSubmitting ? "Sending..." : "Post review"}
+                {rvSubmitting ? "Sending…" : "Post review"}
               </button>
             </>
           )}
@@ -1948,11 +1948,11 @@ export default function SupportRail() {
                   value={helpForm.category}
                   onChange={(e) => setHelp("category", e.target.value)}
                 >
-                  <option value="billing">Billing & Payments</option>
-                  <option value="technical">Technical Issue</option>
-                  <option value="account">Account / Login</option>
-                  <option value="booking">Booking Problem</option>
-                  <option value="feature">Feature Request</option>
+                  <option value="billing">Billing & payments</option>
+                  <option value="technical">Technical issue</option>
+                  <option value="account">Account / log in</option>
+                  <option value="booking">Booking problem</option>
+                  <option value="feature">Feature request</option>
                   <option value="other">Other</option>
                 </select>
               </div>
@@ -2005,7 +2005,7 @@ export default function SupportRail() {
                 }}
               >
                 {helpSubmitting ? (
-                  "Sending..."
+                  "Sending…"
                 ) : (
                   <>
                     <Send size={16} aria-hidden="true" />

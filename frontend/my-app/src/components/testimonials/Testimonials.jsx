@@ -145,7 +145,7 @@ export default function Testimonials() {
            {testimonials.map((t) => (
              <Card key={t.id} className="sk-testimonials__card">
                <Rate disabled value={t.rating} character={<StarFilled />} />
-               <Text className="sk-testimonial-text">“{t.comment}”</Text>
+               <Text className="sk-testimonial-text">&quot;{t.comment}&quot;</Text>
                <Text className="sk-testimonial-author">— {t.name}</Text>
              </Card>
            ))}

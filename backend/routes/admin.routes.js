@@ -182,7 +182,7 @@ router.get("/users", verifyAdmin, async (_req, res) => {
     res.json(users);
   } catch (err) {
     console.error("[admin] Error fetching users:", err);
-    res.status(500).json({ message: "Failed to fetch users." });
+    res.status(500).json({ message: "Couldn't load users. Try again." });
   }
 });
 
@@ -299,7 +299,7 @@ router.get("/dashboard", verifyAdmin, async (_req, res) => {
     console.error("[admin] Dashboard error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to load dashboard" });
+      .json({ ok: false, message: "Couldn't load dashboard. Try again." });
   }
 });
 
@@ -366,7 +366,7 @@ router.get("/growth-metrics", verifyAdmin, async (_req, res) => {
     console.error("[admin] Growth metrics error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to load growth metrics" });
+      .json({ ok: false, message: "Couldn't load growth metrics. Try again." });
   }
 });
 

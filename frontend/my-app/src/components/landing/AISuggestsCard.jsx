@@ -53,7 +53,7 @@ export default function AISuggestsCard({
           </Title>
         </Space>
         <Text type="secondary">
-          Hey {userName}, here’s a quick idea tailored to your vibe and budget:
+          Hey {userName}, here&apos;s a quick idea tailored to your vibe and budget:
         </Text>
 
         {/* AI Match Strength (line progress uses `size`, not `strokeWidth`) */}

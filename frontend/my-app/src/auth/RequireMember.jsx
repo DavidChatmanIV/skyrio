@@ -26,7 +26,7 @@ export default function RequireMember({ children }) {
   if (isGuest) {
     return (
       <SoftBlock
-        title="Guest mode can’t access Passport"
+        title="Guest mode can't access Passport"
         subtitle="Create an account to unlock your Digital Passport and keep progress saved."
         primaryLabel="Create account"
         primaryIntent="signup"

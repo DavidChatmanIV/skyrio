@@ -1199,7 +1199,7 @@ export default function SkyrioSeatMap({
       </div>
       {activeRestricted && exitRowsHere && (
         <div style={{ fontSize: 12, color: G.muted, marginBottom: 10 }}>
-          Exit rows are greyed out for {firstName(activePassenger)} — airlines
+          Exit rows are grayed out for {firstName(activePassenger)} — airlines
           don't seat children or travelers with a pet there.
         </div>
       )}

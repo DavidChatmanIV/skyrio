@@ -168,7 +168,7 @@ export default function SkyHubReportContent() {
         <div className="rc-alert" role="note">
           <ShieldAlert size={16} aria-hidden="true" />
           <span>
-            <b>Involves a child?</b> Don&rsquo;t share or download it. Report it
+            <b>Involves a child?</b> Don&apos;t share or download it. Report it
             to the{" "}
             <a
               href="https://report.cybertip.org"
@@ -299,7 +299,7 @@ export default function SkyHubReportContent() {
           Email
         </label>
         <p className="rc-hint">
-          We&rsquo;ll send updates here. It&rsquo;s never shown.
+          We&apos;ll send updates here. It&apos;s never shown.
         </p>
         <input
           id="rc-email"

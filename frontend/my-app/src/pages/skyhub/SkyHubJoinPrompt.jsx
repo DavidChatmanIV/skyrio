@@ -75,7 +75,7 @@ export function SkyHubJoinModal({ action, onClose }) {
         <p className="sk-gateText">
           Post, follow travelers, save tips and earn Passport XP.
         </p>
-        <p className="sk-gateText sk-gateFaint">It&rsquo;s free.</p>
+        <p className="sk-gateText sk-gateFaint">It&apos;s free.</p>
         <JoinButtons onClick={onClose} />
       </div>
     </Modal>

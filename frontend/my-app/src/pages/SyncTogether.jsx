@@ -59,7 +59,7 @@ const HOW_IT_WORKS = [
   {
     Icon: Users,
     title: "Invite your crew",
-    desc: "Add friends by name or email. They tap “I'm in.”",
+    desc: "Add friends by name or email. They tap \"I'm in.\"",
   },
   {
     Icon: Lock,

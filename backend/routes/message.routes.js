@@ -36,7 +36,7 @@ router.get("/conversations/:userId", auth, async (req, res) => {
             { _id: userId, username: "you" },
             { _id: "u2", username: "Questy" },
           ],
-          lastMessage: "Welcome to OSQ DMs 👋",
+          lastMessage: "Welcome to Skyrio messages 👋",
           updatedAt: new Date(),
         },
       ]);
@@ -243,7 +243,7 @@ async function handleGetMessages(req, res) {
         {
           _id: "m2",
           conversationId,
-          text: "Welcome to One Sky Quest 🙌",
+          text: "Welcome to Skyrio 🙌",
           imageUrl: "",
           senderId: "u2",
           createdAt: new Date(),

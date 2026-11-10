@@ -23,7 +23,7 @@ try {
     await newCar.save();
     res.status(201).json(newCar);
 } catch (err) {
-    res.status(400).json({ error: "Failed to add car" });
+    res.status(400).json({ error: "Couldn't add car. Try again." });
 }
 });
 

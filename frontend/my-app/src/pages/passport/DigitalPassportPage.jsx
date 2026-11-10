@@ -1516,7 +1516,7 @@ export default function DigitalPassportPage() {
       });
       const profileData = await profileRes.json();
       if (!profileRes.ok)
-        throw new Error(profileData.message || "Failed to save avatar");
+        throw new Error(profileData.message || "Couldn't save your photo. Try again.");
       if (setUser) {
         setUser((prev) => ({ ...prev, avatar: data.url }));
         localStorage.setItem(
@@ -1607,7 +1607,7 @@ export default function DigitalPassportPage() {
         credentials: "include",
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || "Failed to delete account");
+      if (!res.ok) throw new Error(data.message || "Couldn't delete account. Try again.");
       localStorage.clear();
       sessionStorage.clear();
       if (logout) await logout();
@@ -1772,7 +1772,7 @@ export default function DigitalPassportPage() {
                         icon={<EditOutlined />}
                         onClick={() => setEditOpen(true)}
                       >
-                        Edit Profile
+                        Edit profile
                       </Button>
                       <Button
                         className="pp-actionBtn"
@@ -1889,7 +1889,7 @@ export default function DigitalPassportPage() {
               gap: 8,
             }}
           >
-            <WarningOutlined /> Delete Account
+            <WarningOutlined /> Delete account
           </span>
         }
         centered
@@ -1984,7 +1984,7 @@ export default function DigitalPassportPage() {
               gap: 8,
             }}
           >
-            <WarningOutlined /> Confirm Deletion
+            <WarningOutlined /> Confirm deletion
           </span>
         }
         centered

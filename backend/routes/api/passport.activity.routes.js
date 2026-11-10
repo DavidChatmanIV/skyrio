@@ -210,7 +210,7 @@ router.post("/activity", requireAuth, async (req, res) => {
     console.error("POST /api/passport/activity error:", error);
     return res.status(500).json({
       ok: false,
-      message: "Failed to update passport activity",
+      message: "Couldn't update passport activity. Try again.",
       error: error.message,
     });
   }

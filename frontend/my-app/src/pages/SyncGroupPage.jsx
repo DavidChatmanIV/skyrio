@@ -467,7 +467,7 @@ function showDestination(group) {
 // What happens next, in plain words — shown under the stepper.
 function nextStepCopy({ status, prog, isOwner, myRsvp }) {
   if (myRsvp === "pending")
-    return "You're invited. Tap \u201cI'm in\u201d to join.";
+    return "You're invited. Tap \"I'm in\" to join.";
   if (prog?.allBooked || ["booked", "completed"].includes(status))
     return "Everyone's booked. Have a great trip!";
   if (prog?.anyBooked)
@@ -498,7 +498,7 @@ const GP_TABS = [
     key: "plan",
     label: "Plan",
     Icon: Sparkles,
-    go: "Go to Plan",
+    go: "Go to plan",
     help: "Details, Atlas plan, votes and weather.",
   },
   {
@@ -512,7 +512,7 @@ const GP_TABS = [
     key: "group",
     label: "Group",
     Icon: Users,
-    go: "Go to Group",
+    go: "Go to group",
     help: "Who's coming, chat and activity.",
   },
 ];
@@ -898,7 +898,7 @@ export default function SyncGroupPage() {
         await fetchGroup();
       } else antdMessage.error("Atlas couldn't make a plan. Try again.");
     } catch (err) {
-      antdMessage.error("Failed to reach Atlas");
+      antdMessage.error("Couldn't reach Atlas. Try again.");
     } finally {
       setPlanLoading(false);
     }
@@ -943,7 +943,7 @@ export default function SyncGroupPage() {
         await fetchGroup();
       }
     } catch (err) {
-      antdMessage.error("Failed to reach Atlas");
+      antdMessage.error("Couldn't reach Atlas. Try again.");
     } finally {
       setFollowUpLoading(false);
     }
@@ -1381,11 +1381,11 @@ export default function SyncGroupPage() {
 
   let sc = {
     draft: { l: "Draft", c: "rgba(255,255,255,0.45)" },
-    inviting: { l: "Invitations Sent", c: "#ff8a2a" },
+    inviting: { l: "Invitations sent", c: "#ff8a2a" },
     planning: { l: "Planning", c: "#ff8a2a" },
-    reviewing: { l: "Reviewing Plan", c: "#1890ff" },
-    confirmed: { l: "All Approved", c: "#52c41a" },
-    payment_pending: { l: "Collecting Payment", c: "#ff8a2a" },
+    reviewing: { l: "Reviewing plan", c: "#1890ff" },
+    confirmed: { l: "All approved", c: "#52c41a" },
+    payment_pending: { l: "Collecting payment", c: "#ff8a2a" },
     booked: { l: "Booked", c: "#52c41a" },
     cancelled: { l: "Cancelled", c: "#ff4d4f" },
   }[group.status] || { l: "Draft", c: "rgba(255,255,255,0.45)" };
@@ -1798,7 +1798,7 @@ export default function SyncGroupPage() {
                     display: "block",
                   }}
                 >
-                  <Plane size={12} style={{ marginRight: 4 }} /> Cabin Class
+                  <Plane size={12} style={{ marginRight: 4 }} /> Cabin class
                 </label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {[
@@ -1847,7 +1847,7 @@ export default function SyncGroupPage() {
                     display: "block",
                   }}
                 >
-                  <Clock size={12} style={{ marginRight: 4 }} /> Departure Time
+                  <Clock size={12} style={{ marginRight: 4 }} /> Departure time
                 </label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {[
@@ -1966,7 +1966,7 @@ export default function SyncGroupPage() {
           <SectionTitle
             icon={<Package size={16} style={{ color: "#ff8a2a" }} />}
           >
-            Trip Package
+            Trip package
           </SectionTitle>
           {/* Each tile opens that search with the trip's destination and
               dates filled in (needs a destination first). */}
@@ -1994,7 +1994,7 @@ export default function SyncGroupPage() {
               },
               {
                 i: <Car size={16} />,
-                l: "Car Rentals",
+                l: "Car rentals",
                 a: true,
                 d: "Pay at pickup",
                 tab: "Cars",
@@ -2101,7 +2101,7 @@ export default function SyncGroupPage() {
               )
             }
           >
-            Atlas Trip Planner
+            Atlas trip planner
           </SectionTitle>
           {!hasPlan && (
             <>
@@ -2124,7 +2124,7 @@ export default function SyncGroupPage() {
                   loading={planLoading}
                   disabled={!destination}
                 >
-                  {planLoading ? "Atlas is searching..." : "Ask Atlas to plan"}
+                  {planLoading ? "Atlas is searching…" : "Ask Atlas to plan"}
                 </Button>
                 <Button
                   className="sk-sync-add-btn"
@@ -2157,7 +2157,7 @@ export default function SyncGroupPage() {
                       margin: "2px 0 12px",
                     }}
                   >
-                    Tap “Suggest to group” on anything you like. The group votes
+                    Tap &quot;Suggest to group&quot; on anything you like. The group votes
                     on it.
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2244,7 +2244,7 @@ export default function SyncGroupPage() {
                   <span
                     style={{ color: "#ff8a2a", fontWeight: 700, fontSize: 14 }}
                   >
-                    Atlas's Plan
+                    Atlas's plan
                   </span>
                   {group.planGeneratedAt && (
                     <span
@@ -2328,7 +2328,7 @@ export default function SyncGroupPage() {
                     value={followUp}
                     onChange={(e) => setFollowUp(e.target.value)}
                     onPressEnter={() => askFollowUp()}
-                    placeholder="Ask Atlas to adjust..."
+                    placeholder="Ask Atlas to adjust…"
                     style={{ flex: 1 }}
                   />
                   <Button
@@ -3196,7 +3196,7 @@ export default function SyncGroupPage() {
                 )
               }
             >
-              Group Chat
+              Group chat
             </SectionTitle>
             <div
               ref={chatBoxRef}
@@ -3321,7 +3321,7 @@ export default function SyncGroupPage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") sendChat();
                 }}
-                placeholder="Type a message..."
+                placeholder="Type a message…"
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -3569,7 +3569,7 @@ export default function SyncGroupPage() {
                   <span> · {placeName(group.destination)}</span>
                 )}
                 <br />
-                This cannot be undone.
+                This can&apos;t be undone.
               </p>
               <div style={{ display: "flex", gap: 10 }}>
                 <button

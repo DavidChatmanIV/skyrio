@@ -59,7 +59,7 @@ export async function lookupDestination(req, res) {
     console.error("Viator destination lookup error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to look up destination",
+      message: err?.message || "Couldn't look up destination. Try again.",
       details: err?.details,
     });
   }
@@ -156,7 +156,7 @@ export async function searchExcursions(req, res) {
     console.error("Viator search error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to search excursions",
+      message: err?.message || "Couldn't search excursions. Try again.",
       details: err?.details,
     });
   }
@@ -196,7 +196,7 @@ export async function getExcursionDetail(req, res) {
     console.error("Viator product detail error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to load excursion details",
+      message: err?.message || "Couldn't load excursion details. Try again.",
       details: err?.details,
     });
   }
