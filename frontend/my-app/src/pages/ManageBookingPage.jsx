@@ -162,7 +162,7 @@ export default function ManageBookingPage() {
       <style>{MT_CSS + PAGE_CSS}</style>
       {loginToken && (
         <Link to="/saved-trips" className="mb-back">
-          ← My trips
+          ← My Trips
         </Link>
       )}
       <div className="mt-kicker mt-mono">Manage booking</div>

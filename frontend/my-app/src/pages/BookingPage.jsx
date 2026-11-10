@@ -2655,7 +2655,7 @@ function StaysForm({
               })}
               {!suggestLoading && suggestions.length === 0 && (
                 <div className="sk-where-status">
-                  No places match “{cityName}”. Try a city, neighborhood or
+                  No places match &quot;{cityName}&quot;. Try a city, neighborhood or
                   hotel name.
                 </div>
               )}
@@ -3282,7 +3282,7 @@ function SavedForm() {
       .then((r) => r.json())
       .then((data) => {
         if (!data.ok)
-          throw new Error(data.message || "Failed to load saved trips");
+          throw new Error(data.message || "Couldn't load saved trips. Try again.");
         setTrips(data.savedTrips);
       })
       .catch((err) => setError(err.message))
@@ -3302,7 +3302,7 @@ function SavedForm() {
       setTrips((prev) => prev.filter((t) => (t.id || t._id) !== id));
       antdMessage.success("Trip removed");
     } catch (err) {
-      antdMessage.error(err.message || "Failed to remove trip");
+      antdMessage.error(err.message || "Couldn't remove trip. Try again.");
     } finally {
       setDeletingId(null);
     }
@@ -5224,7 +5224,7 @@ export default function BookingPage() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to create watch");
+        if (!res.ok) throw new Error(data.error || "Couldn't create watch. Try again.");
 
         setWatchIds((prev) => ({ ...prev, [flight.id]: data.watch._id }));
         setPriceWatchRoute({
@@ -5252,7 +5252,7 @@ export default function BookingPage() {
         );
       } catch (err) {
         setWatchingId(null);
-        antdMessage.error(err.message || "Failed to set up price watch");
+        antdMessage.error(err.message || "Couldn't set up price watch. Try again.");
       }
     },
     [watchingId, watchIds, priceWatchRoute]
@@ -6377,20 +6377,20 @@ export default function BookingPage() {
         ? `${excursionResults.length} Experience${
             excursionResults.length !== 1 ? "s" : ""
           } Found`
-        : "Things to Do"
+        : "Things to do"
       : tab === "Events"
-      ? "Games, Concerts & Shows"
+      ? "Games, concerts & shows"
       : tab === "Cars"
-      ? "Car Rentals"
+      ? "Car rentals"
       : isSearching
       ? "Searching flights…"
       : hasReturnData && selectedGroup
-      ? `${selectedGroup.options.length} Return Flight${
+      ? `${selectedGroup.options.length} Return flight${
           selectedGroup.options.length !== 1 ? "s" : ""
         }`
       : flightDisplayCount > 0
       ? `${flightDisplayCount} ${
-          hasReturnData ? "Departing Flight" : "Flight"
+          hasReturnData ? "Departing flight" : "Flight"
         }${flightDisplayCount !== 1 ? "s" : ""} Found${
           activeFilterCount > 0 ? " (filtered)" : ""
         }`
@@ -6649,7 +6649,7 @@ export default function BookingPage() {
                 size={13}
                 style={{ marginRight: 4, verticalAlign: "middle" }}
               />
-              Trip Budget
+              Trip budget
             </button>
           )}
         <Link to="/sync-together">
@@ -6708,7 +6708,7 @@ export default function BookingPage() {
           }}
         >
           <span>
-            Group trip: tap “Suggest to group” to vote, or book your part.
+            Group trip: tap &quot;Suggest to group&quot; to vote, or book your part.
           </span>
           <span style={{ display: "flex", gap: 12 }}>
             <Link
@@ -6815,7 +6815,7 @@ export default function BookingPage() {
           <div className="sk-bp-intro">
             <span className="sk-bp-eyebrow">Now boarding</span>
             <Title className="sk-hero-title">
-              You&rsquo;re building your{" "}
+              You&apos;re building your{" "}
               <span className="sk-hero-title-accent">dream vacation.</span>
             </Title>
             <Text className="sk-hero-sub">
@@ -7586,7 +7586,7 @@ export default function BookingPage() {
                             ) : packagePlan ? (
                               "Add to trip"
                             ) : (
-                              "Book Now"
+                              "Book now"
                             )}
                           </Button>
                         </div>
@@ -7837,7 +7837,7 @@ export default function BookingPage() {
                                   Selected
                                 </>
                               ) : (
-                                "Select Flight"
+                                "Select flight"
                               )}
                             </Button>
                           </div>

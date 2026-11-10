@@ -481,7 +481,7 @@ export default function SyncBoardingPass({
                       <UserPlus size={15} />
                     </span>
                     <span className="skbp-pop-text">
-                      <strong>Invite “{who.trim()}”</strong>
+                      <strong>Invite &quot;{who.trim()}&quot;</strong>
                       <small>We'll email them an invite</small>
                     </span>
                   </button>

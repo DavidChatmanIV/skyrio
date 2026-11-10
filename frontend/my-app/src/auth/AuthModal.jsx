@@ -21,7 +21,7 @@ const INTENT_COPY = {
   save: {
     title: "Log in to save trips ✨",
     kicker:
-      "Save this trip to your Passport so it’s waiting when you’re ready.",
+      "Save this trip to your Passport so it's waiting when you're ready.",
     perk: "✅ Saves to your account • 🔔 Price alerts later • 🧾 Receipts & history",
   },
   dm: {
@@ -37,7 +37,7 @@ const INTENT_COPY = {
   },
   book: {
     title: "Log in to book ✨",
-    kicker: "Bookings link to your Passport so confirmations don’t get lost.",
+    kicker: "Bookings link to your Passport so confirmations don't get lost.",
     perk: "✅ Trip timeline • 🧾 Confirmation vault • 🎁 XP rewards",
   },
   continue: {
@@ -237,7 +237,7 @@ export default function AuthModal({
         </Button>
 
         <Text type="secondary" style={{ fontSize: 12 }}>
-          You can upgrade anytime. Guest mode won’t save posts, DMs, or trips.
+          You can upgrade anytime. Guest mode won&apos;t save posts, DMs, or trips.
         </Text>
       </Space>
     </Modal>

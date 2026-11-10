@@ -239,7 +239,7 @@ export default function AdminBookingsManager() {
 
   // ---------- Admin-only protection UI ----------
   if (authLoading) {
-    return <div style={{ padding: 24 }}>Loading...</div>;
+    return <div style={{ padding: 24 }}>Loading…</div>;
   }
 
   if (!isAdmin) {

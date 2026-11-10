@@ -245,7 +245,7 @@ router.post("/book", holdLimiter, optionalAuth, async (req, res) => {
       await Notification.create({
         user: userId,
         type: "booking",
-        title: "Car Rental Booked 🚗",
+        title: "Car rental booked 🚗",
         message: `Your ${offer.supplier.name} car is confirmed${b.reference ? ` (ref ${b.reference})` : ""}. Pay at pickup.`,
         link: "/saved-trips",
       }).catch(() => {});
@@ -270,7 +270,7 @@ router.post("/book", holdLimiter, optionalAuth, async (req, res) => {
 // ── Cancel (signed-in owner) ──────────────────────────────────────────────
 router.post("/bookings/:id/cancel", optionalAuth, async (req, res) => {
   const userId = currentUserId(req);
-  if (!userId) return fail(res, 401, "Sign in to cancel this rental.");
+  if (!userId) return fail(res, 401, "Log in to cancel this rental.");
   const booking = await Booking.findById(req.params.id).catch(() => null);
   if (!booking || booking.type !== "Car" || !booking.carRental?.bookingId) {
     return fail(res, 404, "Rental not found.");

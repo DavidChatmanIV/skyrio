@@ -57,7 +57,7 @@ export default function Dashboard() {
       <Layout className="min-h-screen bg-white">
         <Content>
           <div style={{ padding: "2rem", textAlign: "center" }}>
-            You’re not logged in.
+            You&apos;re not logged in.
           </div>
         </Content>
       </Layout>
@@ -139,7 +139,7 @@ export default function Dashboard() {
       key: "xp",
       label: (
         <span>
-          <TrophyOutlined /> XP & Badges
+          <TrophyOutlined /> XP & badges
         </span>
       ),
       children: <XPBadgeCard />,
@@ -200,7 +200,7 @@ export default function Dashboard() {
               >
                 <div className="p-4">
                   <div className="mb-2 flex items-center justify-between text-[13px] text-white/85">
-                    <span className="font-medium">XP Level</span>
+                    <span className="font-medium">XP level</span>
                     <span className="inline-flex items-center gap-1">
                       <span className="text-white/90">{levelLabel}</span>
                       <span className="text-white/70">{levelPct}%</span>
@@ -317,7 +317,7 @@ export default function Dashboard() {
               marginBottom: 24,
             }}
           >
-            <Card title="XP & Status" style={{ borderRadius: 16 }}>
+            <Card title="XP & status" style={{ borderRadius: 16 }}>
               <Text strong>XP: </Text> <Text>{xp}</Text>
               <br />
               <Text strong>Level: </Text> <Text>{levelLabel}</Text>
@@ -329,7 +329,7 @@ export default function Dashboard() {
               <Text strong>Role: </Text> <Text>{user.role || "user"}</Text>
             </Card>
 
-            <Card title="Profile Snapshot" style={{ borderRadius: 16 }}>
+            <Card title="Profile snapshot" style={{ borderRadius: 16 }}>
               <Text strong>Email: </Text> <Text>{user.email}</Text>
               <br />
               {user.username && (

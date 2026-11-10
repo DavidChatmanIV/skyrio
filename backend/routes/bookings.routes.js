@@ -263,7 +263,7 @@ function blockSharedRoom(req, res, booking) {
   if (booking?.sharedRoom) {
     res.status(409).json({
       message: isAdminUser(req)
-        ? "This is one person's share of a Sync Together shared room. Cancelling here would cancel the whole room but refund only this person — the organizer cancels it from the trip page (that refunds everyone). Use “Handle by hand” to adjust just this record."
+        ? "This is one person's share of a Sync Together shared room. Cancelling here would cancel the whole room but refund only this person — the organizer cancels it from the trip page (that refunds everyone). Use \"Handle by hand\" to adjust just this record."
         : "This room is shared with your Sync Together group, so only the trip organizer can cancel it — from the trip page.",
       sharedRoom: true,
       groupId: booking.sharedRoom.groupId || null,
@@ -786,7 +786,7 @@ router.get("/admin/:id", adminOnly, async (req, res) => {
     res.json({ booking });
   } catch (err) {
     console.error("GET /api/bookings/admin/:id error:", err);
-    res.status(500).json({ message: "Failed to load booking." });
+    res.status(500).json({ message: "Couldn't load booking. Try again." });
   }
 });
 
@@ -818,7 +818,7 @@ router.get("/admin/:id/live", adminOnly, async (req, res) => {
     res.json({ results });
   } catch (err) {
     console.error("GET /api/bookings/admin/:id/live error:", err);
-    res.status(500).json({ message: "Failed to load live supplier data." });
+    res.status(500).json({ message: "Couldn't load live supplier data. Try again." });
   }
 });
 
@@ -851,7 +851,7 @@ router.post("/admin/:id/notes", adminOnly, async (req, res) => {
     res.json({ adminNotes: updated.adminNotes });
   } catch (err) {
     console.error("POST /api/bookings/admin/:id/notes error:", err);
-    res.status(500).json({ message: "Failed to save note." });
+    res.status(500).json({ message: "Couldn't save note. Try again." });
   }
 });
 
@@ -980,7 +980,7 @@ router.post(
         "POST /api/bookings/admin/:id/cancel-request/resolve error:",
         err
       );
-      res.status(500).json({ message: "Failed to resolve the request." });
+      res.status(500).json({ message: "Couldn't resolve the request. Try again." });
     }
   }
 );
@@ -1041,12 +1041,12 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
     if (refundMethod !== "none" && refundAmount <= 0) {
       return res
         .status(400)
-        .json({ message: "Enter the refund amount, or choose “No refund”." });
+        .json({ message: "Enter the refund amount, or choose \"No refund\"." });
     }
     if (refundMethod === "stripe" && !booking.stripePaymentIntentId) {
       return res.status(400).json({
         message:
-          "This booking wasn't paid through Skyrio's Stripe — the airline/LiteAPI refunds it. Choose “Refunded by the airline / LiteAPI”.",
+          "This booking wasn't paid through Skyrio's Stripe — the airline/LiteAPI refunds it. Choose \"Refunded by the airline / LiteAPI\".",
       });
     }
 
@@ -1184,7 +1184,7 @@ router.post("/admin/:id/manual-cancel", adminOnly, async (req, res) => {
     res.json({
       ok: !refundError,
       message: refundError
-        ? `Cancelled, but the Stripe refund failed: ${refundError}. Use “Issue a refund” to retry.`
+        ? `Cancelled, but the Stripe refund failed: ${refundError}. Use "Issue a refund" to retry.`
         : "Cancelled.",
       booking,
     });
@@ -1943,7 +1943,7 @@ router.get("/", authRequired, async (req, res) => {
     });
   } catch (err) {
     console.error("GET /api/bookings error:", err);
-    res.status(500).json({ message: "Failed to fetch bookings" });
+    res.status(500).json({ message: "Couldn't load bookings. Try again." });
   }
 });
 
@@ -2015,7 +2015,7 @@ router.post("/pending", authRequired, async (req, res) => {
     console.error("POST /api/bookings/pending error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to create pending booking" });
+      .json({ ok: false, message: "Couldn't create pending booking. Try again." });
   }
 });
 
@@ -2039,7 +2039,7 @@ router.post("/", authRequired, async (req, res) => {
     if (!type) {
       return res.status(400).json({
         message:
-          "Could not determine booking type — provide flight, hotel, or pkg.",
+          "Couldn't tell the booking type. Send flight, hotel or pkg.",
       });
     }
 

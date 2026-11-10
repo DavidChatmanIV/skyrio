@@ -146,7 +146,7 @@ function StepWelcome({ displayName, onNext }) {
           },
           {
             icon: <DollarSign size={18} />,
-            text: "Redeem XP for real travel discounts",
+            text: "Spend XP on Passport Rewards",
           },
         ].map((p) => (
           <div key={p.text} className="ob-perk">
@@ -248,7 +248,7 @@ function StepVibes({ onDone, onSkip }) {
       </div>
       <h2 className="ob-step__title">What's your travel vibe?</h2>
       <p className="ob-step__sub">
-        Pick up to 3 — Atlas will use these to personalise your suggestions.
+        Pick up to 3 — Atlas will use these to personalize your suggestions.
       </p>
       <div className="ob-vibes">
         {TRAVEL_VIBES.map((v) => (

@@ -223,7 +223,7 @@ export default function CheckoutFeedback({ bookingId }) {
                   onClick={sendComment}
                   disabled={busy || !comment.trim()}
                 >
-                  {busy ? "Sending..." : "Send"}
+                  {busy ? "Sending…" : "Send"}
                 </button>
               </div>
             </div>

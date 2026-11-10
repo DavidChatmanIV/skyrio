@@ -102,7 +102,7 @@ router.post(
           await Notification.create({
             user: userId,
             type: "booking",
-            title: "Booking Confirmed ✈️",
+            title: "Booking confirmed ✈️",
             message: "Your booking has been confirmed. Have a great trip!",
             link: "/saved-trips",
           });
@@ -182,13 +182,13 @@ router.post(
               await Notification.create({
                 user: booking.user,
                 type: "booking",
-                title: "Refund Processed 💰",
+                title: "Refund processed 💰",
                 message: `Your ${
                   isFullRefund ? "full" : "partial"
                 } refund of ${formatMoney(
                   refundAmount,
                   currency
-                )} has been processed. It may take 5-10 business days to appear on your statement.`,
+                )} has been processed. It may take 5–10 business days to appear on your statement.`,
                 link: "/saved-trips",
               });
             }
@@ -244,7 +244,7 @@ router.post(
             await Notification.create({
               user: booking.user,
               type: "booking",
-              title: "Refund Issue ⚠️",
+              title: "Refund issue ⚠️",
               message:
                 "Your refund could not be processed. Our support team has been notified and will follow up.",
               link: "/saved-trips",
@@ -344,7 +344,7 @@ router.post(
           await Notification.create({
             user: userId,
             type: "booking",
-            title: "Payment Failed ❌",
+            title: "Payment failed ❌",
             message:
               "Your payment could not be processed. Please try again or use a different payment method.",
             link: "/saved-trips",
@@ -418,7 +418,7 @@ router.post("/create-payment-intent", requireAuth, async (req, res) => {
     console.error("PaymentIntent error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to create payment intent" });
+      .json({ ok: false, message: "Couldn't create payment intent. Try again." });
   }
 });
 

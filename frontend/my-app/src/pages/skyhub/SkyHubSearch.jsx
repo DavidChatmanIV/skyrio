@@ -428,7 +428,7 @@ export default function SkyHubSearch({
             ))
           ) : (
             <div className="shRadar__none">
-              Nothing on the radar for “{value.trim()}” yet.
+              Nothing on the radar for &quot;{value.trim()}&quot; yet.
               <span>Be the first to post about it.</span>
             </div>
           )}

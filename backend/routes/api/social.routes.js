@@ -142,7 +142,7 @@ router.post("/follow/:targetId", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ POST /api/social/follow failed:", err);
-    return res.status(500).json({ ok: false, message: "Failed to follow" });
+    return res.status(500).json({ ok: false, message: "Couldn't follow. Try again." });
   }
 });
 
@@ -167,7 +167,7 @@ router.delete("/follow/:targetId", async (req, res) => {
       return res.status(403).json({
         ok: false,
         message:
-          "You can’t remove the official Skyrio account. You can mute updates instead.",
+          "You can't remove the official Skyrio account. You can mute updates instead.",
         canMuteInstead: true,
       });
     }
@@ -205,7 +205,7 @@ router.delete("/follow/:targetId", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ DELETE /api/social/follow failed:", err);
-    return res.status(500).json({ ok: false, message: "Failed to unfollow" });
+    return res.status(500).json({ ok: false, message: "Couldn't unfollow. Try again." });
   }
 });
 
@@ -233,7 +233,7 @@ router.get("/passport/stats", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ GET /api/social/passport/stats failed:", err);
-    return res.status(500).json({ ok: false, message: "Failed to load stats" });
+    return res.status(500).json({ ok: false, message: "Couldn't load stats. Try again." });
   }
 });
 
@@ -256,7 +256,7 @@ router.patch("/official/mute", async (req, res) => {
     console.error("❌ PATCH /api/social/official/mute failed:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to update preference" });
+      .json({ ok: false, message: "Couldn't update preference. Try again." });
   }
 });
 
@@ -272,7 +272,7 @@ router.post("/ensure-official", async (req, res) => {
     console.error("❌ POST /api/social/ensure-official failed:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to ensure official follow" });
+      .json({ ok: false, message: "Couldn't ensure official follow. Try again." });
   }
 });
 

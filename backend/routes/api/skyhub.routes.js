@@ -342,7 +342,7 @@ router.get("/feed", async (req, res) => {
     });
   } catch (err) {
     console.error("[skyhub] feed error:", err);
-    return res.status(500).json({ message: "Failed to load feed." });
+    return res.status(500).json({ message: "Couldn't load feed. Try again." });
   }
 });
 
@@ -424,7 +424,7 @@ router.post(
       });
     } catch (err) {
       console.error("[skyhub] create post error:", err);
-      return res.status(500).json({ message: "Failed to create post." });
+      return res.status(500).json({ message: "Couldn't create post. Try again." });
     }
   }
 );
@@ -490,7 +490,7 @@ router.patch(
       });
     } catch (err) {
       console.error("[skyhub] edit post error:", err);
-      return res.status(500).json({ message: "Failed to update post." });
+      return res.status(500).json({ message: "Couldn't update post. Try again." });
     }
   }
 );
@@ -532,7 +532,7 @@ router.delete("/posts/:id", requireViewer, async (req, res) => {
     return res.json({ success: true, message: "Post deleted.", xp: xpResult });
   } catch (err) {
     console.error("[skyhub] delete post error:", err);
-    return res.status(500).json({ message: "Failed to delete post." });
+    return res.status(500).json({ message: "Couldn't delete post. Try again." });
   }
 });
 
@@ -573,7 +573,7 @@ router.post(
       if (r) res.json({ liked: r.on, likesCount: r.count });
     } catch (err) {
       console.error("[skyhub] like error:", err);
-      res.status(500).json({ message: "Failed to update like." });
+      res.status(500).json({ message: "Couldn't update like. Try again." });
     }
   }
 );
@@ -588,7 +588,7 @@ router.post(
       if (r) res.json({ saved: r.on, savesCount: r.count });
     } catch (err) {
       console.error("[skyhub] save error:", err);
-      res.status(500).json({ message: "Failed to update save." });
+      res.status(500).json({ message: "Couldn't update save. Try again." });
     }
   }
 );
@@ -604,7 +604,7 @@ router.get("/posts/:id/comments", async (req, res) => {
     return res.json({ comments: await visibleComments(id, req.skyUser?.id) });
   } catch (err) {
     console.error("[skyhub] get comments error:", err);
-    return res.status(500).json({ message: "Failed to load comments." });
+    return res.status(500).json({ message: "Couldn't load comments. Try again." });
   }
 });
 
@@ -654,7 +654,7 @@ router.post(
       });
     } catch (err) {
       console.error("[skyhub] create comment error:", err);
-      return res.status(500).json({ message: "Failed to add comment." });
+      return res.status(500).json({ message: "Couldn't add comment. Try again." });
     }
   }
 );
@@ -685,7 +685,7 @@ router.delete("/comments/:id", requireViewer, async (req, res) => {
     return res.json({ ok: true, commentCount: fresh?.commentsCount ?? 0 });
   } catch (err) {
     console.error("[skyhub] delete comment error:", err);
-    return res.status(500).json({ message: "Failed to delete comment." });
+    return res.status(500).json({ message: "Couldn't delete comment. Try again." });
   }
 });
 
@@ -852,7 +852,7 @@ router.post(
   (req, res) =>
     fileReport(req, res, "post").catch((err) => {
       console.error("[skyhub] report post error:", err);
-      res.status(500).json({ message: "Failed to report post." });
+      res.status(500).json({ message: "Couldn't report post. Try again." });
     })
 );
 router.post(
@@ -862,7 +862,7 @@ router.post(
   (req, res) =>
     fileReport(req, res, "comment").catch((err) => {
       console.error("[skyhub] report comment error:", err);
-      res.status(500).json({ message: "Failed to report comment." });
+      res.status(500).json({ message: "Couldn't report comment. Try again." });
     })
 );
 router.post(
@@ -872,7 +872,7 @@ router.post(
   (req, res) =>
     fileReport(req, res, "user").catch((err) => {
       console.error("[skyhub] report user error:", err);
-      res.status(500).json({ message: "Failed to report traveler." });
+      res.status(500).json({ message: "Couldn't report traveler. Try again." });
     })
 );
 
@@ -900,7 +900,7 @@ router.get("/blocks", requireViewer, async (req, res) => {
     console.error("[skyhub] blocks error:", err);
     return res
       .status(500)
-      .json({ message: "Failed to load blocked travelers." });
+      .json({ message: "Couldn't load blocked travelers. Try again." });
   }
 });
 
@@ -1041,7 +1041,7 @@ router.post(
       });
     } catch (err) {
       console.error("[skyhub] block error:", err);
-      return res.status(500).json({ message: "Failed to block traveler." });
+      return res.status(500).json({ message: "Couldn't block traveler. Try again." });
     }
   }
 );
@@ -1055,7 +1055,7 @@ router.delete("/users/:id/block", requireViewer, async (req, res) => {
     return res.json({ ok: true, message: "Unblocked." });
   } catch (err) {
     console.error("[skyhub] unblock error:", err);
-    return res.status(500).json({ message: "Failed to unblock traveler." });
+    return res.status(500).json({ message: "Couldn't unblock traveler. Try again." });
   }
 });
 
@@ -1079,7 +1079,7 @@ router.get("/stats", async (_req, res) => {
     });
   } catch (err) {
     console.error("[skyhub] stats error:", err);
-    return res.status(500).json({ message: "Failed to load stats." });
+    return res.status(500).json({ message: "Couldn't load stats. Try again." });
   }
 });
 
@@ -1306,7 +1306,7 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
     return res.json({ ok: true, items: list });
   } catch (err) {
     console.error("[skyhub/admin] reports error:", err);
-    return res.status(500).json({ message: "Failed to load reports." });
+    return res.status(500).json({ message: "Couldn't load reports. Try again." });
   }
 });
 

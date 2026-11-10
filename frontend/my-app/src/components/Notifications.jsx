@@ -650,7 +650,7 @@ export default function Notifications({ variant = "bell", onOpen }) {
 
       {confirmClear && (
         <div className="nf-confirm" role="alertdialog" aria-label="Clear all">
-          Clear all {items.length} notifications? This can&rsquo;t be undone.
+          Clear all {items.length} notifications? This can&apos;t be undone.
           <div className="nf-confirm__btns">
             <button
               type="button"
@@ -706,11 +706,11 @@ export default function Notifications({ variant = "bell", onOpen }) {
             <div className="nf-empty__title">
               {activeTab === "sync"
                 ? "No group trip updates yet"
-                : "You’re all caught up"}
+                : "You're all caught up"}
             </div>
             <div className="nf-empty__sub">
               {activeTab === "sync"
-                ? "Trip invites, group chat messages and who’s going will show up here."
+                ? "Trip invites, group chat messages and who's going will show up here."
                 : "Booking updates, XP, group trips and SkyHub replies will show up here."}
             </div>
           </div>

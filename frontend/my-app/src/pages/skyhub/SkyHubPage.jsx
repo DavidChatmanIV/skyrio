@@ -803,7 +803,7 @@ export default function SkyHubPage() {
     mine: "Your posts",
     nearby: nearbyLocal ? `Near ${localCity.name}` : "Around the world",
     questions: "Questions",
-    trips: "Trips & Stories",
+    trips: "Trips & stories",
   };
 
   /* Handlers */
@@ -875,7 +875,7 @@ export default function SkyHubPage() {
         }),
       });
       const data = await readJson(res);
-      if (!res.ok) throw new Error(data?.message || "Failed to create post");
+      if (!res.ok) throw new Error(data?.message || "Couldn't create post. Try again.");
       // Use the photos the server actually saved, so what you see now is
       // what everyone sees after a refresh.
       if (urls.length && !(data.post.images || []).length) {
@@ -916,7 +916,7 @@ export default function SkyHubPage() {
       }
       return true;
     } catch (err) {
-      message.error(err.message || "Could not create post.");
+      message.error(err.message || "Couldn't create post. Try again.");
       return false;
     } finally {
       setCreatingPost(false);
@@ -939,7 +939,7 @@ export default function SkyHubPage() {
         )
       );
     } catch (err) {
-      message.error(err.message || "Could not update like.");
+      message.error(err.message || "Couldn't update like. Try again.");
     }
   };
 
@@ -994,7 +994,7 @@ export default function SkyHubPage() {
       );
       message.success(data.saved ? "Saved." : "Removed from saved.");
     } catch (err) {
-      message.error(err.message || "Could not update saved state.");
+      message.error(err.message || "Couldn't save the post. Try again.");
     }
   };
 
@@ -1102,7 +1102,7 @@ export default function SkyHubPage() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || "Could not report post.");
+      if (!res.ok) throw new Error(data?.message || "Couldn't report post. Try again.");
       message.success(data.message || "Thanks. We'll review it.");
       setReportPost(null);
     } catch (err) {

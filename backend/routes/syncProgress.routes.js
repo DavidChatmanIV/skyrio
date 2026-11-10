@@ -165,7 +165,7 @@ router.get("/:groupId", authFromBearer, async (req, res) => {
     console.error("[sync-progress] error:", err);
     res
       .status(500)
-      .json({ ok: false, message: "Could not load trip progress" });
+      .json({ ok: false, message: "Couldn't load trip progress. Try again." });
   }
 });
 

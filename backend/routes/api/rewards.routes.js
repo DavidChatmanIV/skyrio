@@ -56,7 +56,7 @@ router.get("/items", async (req, res) => {
     console.error("[rewards] items list error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to load rewards." });
+      .json({ ok: false, message: "Couldn't load rewards. Try again." });
   }
 });
 
@@ -179,7 +179,7 @@ router.get("/items/admin", verifyAdmin, async (req, res) => {
     console.error("[rewards] admin list error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to load rewards." });
+      .json({ ok: false, message: "Couldn't load rewards. Try again." });
   }
 });
 
@@ -230,7 +230,7 @@ router.post("/items", verifyAdmin, async (req, res) => {
     console.error("[rewards] create item error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to create reward item." });
+      .json({ ok: false, message: "Couldn't create reward item. Try again." });
   }
 });
 
@@ -276,7 +276,7 @@ router.patch("/items/:itemId", verifyAdmin, async (req, res) => {
     console.error("[rewards] update item error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to update reward item." });
+      .json({ ok: false, message: "Couldn't update reward item. Try again." });
   }
 });
 
@@ -298,7 +298,7 @@ router.delete("/items/:itemId", verifyAdmin, async (req, res) => {
     console.error("[rewards] remove item error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to remove reward item." });
+      .json({ ok: false, message: "Couldn't remove reward item. Try again." });
   }
 });
 

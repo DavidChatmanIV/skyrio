@@ -1364,7 +1364,7 @@ export async function saveFlightBooking({
         await Notification.create({
           user: userId,
           type: "booking",
-          title: "Flight Booked ✈️",
+          title: "Flight booked ✈️",
           message: pnr
             ? `Your flight is confirmed. Airline confirmation: ${pnr}.`
             : "Your flight is confirmed. Have a great trip!",

@@ -293,7 +293,7 @@ export default function AttachBookingCard({
             <>
               <p style={hint}>
                 Only you can see this list. Nothing is shared with the group
-                unless you tap “Link to trip”.
+                unless you tap &quot;Link to trip&quot;.
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {others.map((b) => (

@@ -33,7 +33,7 @@ router.get("/", requireAuth, async (req, res) => {
     console.error("Passport fetch error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch passport" });
+      .json({ ok: false, message: "Couldn't load passport. Try again." });
   }
 });
 
@@ -66,7 +66,7 @@ router.get("/stats", requireAuth, async (req, res) => {
     console.error("Passport stats error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch passport stats" });
+      .json({ ok: false, message: "Couldn't load passport stats. Try again." });
   }
 });
 
@@ -107,7 +107,7 @@ router.get("/followers", requireAuth, async (req, res) => {
     console.error("Passport followers error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch followers" });
+      .json({ ok: false, message: "Couldn't load followers. Try again." });
   }
 });
 
@@ -141,7 +141,7 @@ router.get("/following", requireAuth, async (req, res) => {
     console.error("Passport following error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch following" });
+      .json({ ok: false, message: "Couldn't load following. Try again." });
   }
 });
 
@@ -199,7 +199,7 @@ router.post("/activity", requireAuth, async (req, res) => {
     console.error("Passport activity error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to track passport activity" });
+      .json({ ok: false, message: "Couldn't track passport activity. Try again." });
   }
 });
 

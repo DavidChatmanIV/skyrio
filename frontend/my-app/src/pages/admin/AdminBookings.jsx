@@ -593,7 +593,7 @@ function StuckCancelTools({ b, id, busy, run, onDone }) {
           {b.cancellation?.liveStatus
             ? ` LiteAPI status when flagged: ${b.cancellation.liveStatus}.`
             : ""}{" "}
-          The traveler sees “Cancelling”. Nothing changes until the airline
+          The traveler sees &quot;Cancelling&quot;. Nothing changes until the airline
           answers or you decide below.
         </div>
       </div>
@@ -757,7 +757,7 @@ function StuckCancelTools({ b, id, busy, run, onDone }) {
         {busy === "restore" ? "Saving…" : "Put back to Confirmed"}
       </button>
       <div style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>
-        Airline did cancel it? Use “Mark cancelled” under Handle by hand.
+        Airline did cancel it? Use &quot;Mark cancelled&quot; under Handle by hand.
       </div>
     </div>
   );

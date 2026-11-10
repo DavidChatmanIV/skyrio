@@ -68,7 +68,7 @@ router.get("/redeemed", requireAuth, async (req, res) => {
     console.error("Fetch redeemed rewards error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to load redemption history." });
+      .json({ ok: false, message: "Couldn't load redemption history. Try again." });
   }
 });
 

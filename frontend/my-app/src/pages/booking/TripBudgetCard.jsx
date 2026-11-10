@@ -109,7 +109,7 @@ function buildAiSuggestion({ planned, spent, bookingTotal, tripDays }) {
 
   if (perDay !== null && perDay < 35) {
     return {
-      title: "Tight pacing — but doable.",
+      title: "Tight pacing, but doable",
       detail: `~$${Math.floor(
         perDay
       ).toLocaleString()} / day left. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
@@ -130,7 +130,7 @@ function buildAiSuggestion({ planned, spent, bookingTotal, tripDays }) {
   }
 
   return {
-    title: "Budget set — add your dates to pace it out.",
+    title: "Budget set. Add your dates to pace it out",
     detail: `You've budgeted $${p.toLocaleString()} total. Suggested split: Dining ~$${dining.toLocaleString()}, Transport ~$${transport.toLocaleString()}, Activities ~$${activities.toLocaleString()}.`,
     hint: "Select dates and Atlas will break this down day by day.",
     tone: "ok",
@@ -674,7 +674,7 @@ export default function TripBudgetCard({
             <div className="tb-aiTop">
               <div className="tb-aiBadge">
                 <ThunderboltOutlined />
-                <span>Atlas Plan</span>
+                <span>Atlas plan</span>
               </div>
               <div
                 className={`tb-novaSpark ${

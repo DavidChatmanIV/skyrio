@@ -10,7 +10,7 @@ const About = () => {
       <Paragraph style={{ maxWidth: 800 }}>
         One Sky Quest is your ultimate travel companion — built to help modern
         travelers like you plan unforgettable journeys, discover hidden gems,
-        and connect with a global community. Whether you’re chasing sunsets or
+        and connect with a global community. Whether you&apos;re chasing sunsets or
         building dream trips with AI, we're here to help you travel smarter,
         better, and together.
       </Paragraph>

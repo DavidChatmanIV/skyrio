@@ -710,7 +710,7 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
           </div>
           <div>
             Find a flight, a stay, a car, a game or concert, or an activity you
-            like and tap “Suggest to group” — it shows up here for everyone to
+            like and tap &quot;Suggest to group&quot; — it shows up here for everyone to
             vote on.
           </div>
         </div>

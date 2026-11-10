@@ -26,7 +26,7 @@ export default function GuaranteePage() {
         <span className="sk-trust__badge">
           <ShieldIcon /> Skyrio Booking Guarantee
         </span>
-        <h1>If something goes wrong on our end, you get your money back.</h1>
+        <h1>If something goes wrong on our end, you get your money back</h1>
         <p className="sk-trust__lead">
           Booking a trip with a new site is a big deal. Here's exactly what we
           cover, what we don't, and how fast refunds happen.
@@ -70,22 +70,22 @@ export default function GuaranteePage() {
         </h2>
         <ol className="sk-trust__steps">
           <li>
-            <strong>Tell us.</strong> Use Help in the corner of any page, or
+            <strong>Tell us</strong> Use Help in the corner of any page, or
             email{" "}
             <a href={`mailto:${TRUST.supportEmail}`}>{TRUST.supportEmail}</a>{" "}
             with your confirmation code.
           </li>
           <li>
-            <strong>A real person reviews it.</strong> You'll hear back{" "}
+            <strong>A real person reviews it</strong> You'll hear back{" "}
             {TRUST.responseTime}.
           </li>
           <li>
-            <strong>We start your refund.</strong> Once it's approved, we start
+            <strong>We start your refund</strong> Once it's approved, we start
             it within {TRUST.refundStartDays} business days, back to the card
             you paid with.
           </li>
           <li>
-            <strong>Your bank posts it.</strong> Card refunds usually take{" "}
+            <strong>Your bank posts it</strong> Card refunds usually take{" "}
             {TRUST.cardRefundDays} to show up. That timing is set by your bank,
             not Skyrio.
           </li>

@@ -27,7 +27,7 @@ export default function RequireRole({
           justifyContent: "center",
         }}
       >
-        <Spin size="large" tip="Checking your access..." />
+        <Spin size="large" tip="Checking your access…" />
       </div>
     );
   }

@@ -134,7 +134,7 @@ router.post("/register", async (req, res) => {
     });
   } catch (err) {
     console.error("Register error:", err);
-    return res.status(500).json({ ok: false, message: "Failed to register" });
+    return res.status(500).json({ ok: false, message: "Couldn't register. Try again." });
   }
 });
 
@@ -146,7 +146,7 @@ router.post("/login", async (req, res) => {
     if (!loginValue || !password) {
       return res
         .status(400)
-        .json({ ok: false, message: "Login and password are required" });
+        .json({ ok: false, message: "Enter your email or username and your password." });
     }
 
     const normalizedLogin = String(loginValue).trim().toLowerCase();
@@ -189,7 +189,7 @@ router.post("/login", async (req, res) => {
     });
   } catch (err) {
     console.error("Login error:", err);
-    return res.status(500).json({ ok: false, message: "Failed to login" });
+    return res.status(500).json({ ok: false, message: "Couldn't log you in. Try again." });
   }
 });
 
@@ -199,7 +199,7 @@ router.post("/logout", async (_req, res) => {
     return res.json({ ok: true, message: "Logged out successfully" });
   } catch (err) {
     console.error("Logout error:", err);
-    return res.status(500).json({ ok: false, message: "Failed to logout" });
+    return res.status(500).json({ ok: false, message: "Couldn't log you out. Try again." });
   }
 });
 
@@ -237,7 +237,7 @@ router.get("/available", async (req, res) => {
     console.error("Available check error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Could not check availability" });
+      .json({ ok: false, error: "Couldn't check availability. Try again." });
   }
 });
 
@@ -273,7 +273,7 @@ router.post("/forgot-password", async (req, res) => {
     console.error("Forgot password error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to send reset email" });
+      .json({ ok: false, message: "Couldn't send reset email. Try again." });
   }
 });
 
@@ -308,7 +308,7 @@ router.post("/reset-password", async (req, res) => {
     console.error("Reset password error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to reset password" });
+      .json({ ok: false, message: "Couldn't reset password. Try again." });
   }
 });
 
@@ -334,7 +334,7 @@ router.post("/send-verification", requireAuth, async (req, res) => {
     console.error("Send verification error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to send verification email" });
+      .json({ ok: false, message: "Couldn't send verification email. Try again." });
   }
 });
 
@@ -377,7 +377,7 @@ router.post("/invite-login", async (req, res) => {
         ok: false,
         expired: true,
         message:
-          "This invite link has expired. Sign in to join the trip, or ask for a new invite.",
+          "This invite link has expired. Log in to join the trip, or ask for a new invite.",
       });
     }
     const group = await SyncGroup.findById(invite.groupId)

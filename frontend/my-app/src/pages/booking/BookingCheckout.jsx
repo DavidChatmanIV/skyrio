@@ -1296,8 +1296,8 @@ function CancellationBadge({ departureDateISO }) {
           Departing soon
         </div>
         <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
-          This flight departs in under 7 days, so the airline&rsquo;s own fare
-          rules apply. The 24-hour cancellation window usually doesn&rsquo;t
+          This flight departs in under 7 days, so the airline&apos;s own fare
+          rules apply. The 24-hour cancellation window usually doesn&apos;t
           cover flights this close.
         </div>
       </div>
@@ -1305,7 +1305,7 @@ function CancellationBadge({ departureDateISO }) {
   );
 }
 function ProgressBar({ step, onStepClick }) {
-  const steps = ["Passengers", "Seats", "Review & Pay"];
+  const steps = ["Passengers", "Seats", "Review & pay"];
   return (
     <nav
       aria-label="Checkout progress"
@@ -1624,7 +1624,7 @@ function ShareFlightButton({ flight }) {
       {state === "copied"
         ? "Trip details copied"
         : state === "failed"
-        ? "Couldn't share, try again"
+        ? "Couldn't share. Try again."
         : "Share this flight"}
     </button>
   );
@@ -3550,7 +3550,7 @@ function StepPassengers({
               className="skc-btn-primary"
               onClick={handleContinue}
             >
-              Continue to Seats →
+              Continue to seats →
             </button>
           )}
           <div
@@ -4224,7 +4224,7 @@ function StepSeatsBags({
                     });
                   }}
                 >
-                  {prebookLoading ? "Reserving your fare…" : "Review & Pay →"}
+                  {prebookLoading ? "Reserving your fare…" : "Review & pay →"}
                 </button>
               </div>
               <div style={{ textAlign: "center", marginTop: 12 }}>
@@ -4431,7 +4431,7 @@ function StepReviewPay({
               marginBottom: 24,
             }}
           >
-            Review &amp; Pay
+            Review &amp; pay
           </h2>
           {groupId && <GroupPaymentBanner memberCount={groupMemberCount} />}
           {/* Booking for 2+ people outside a group trip → mention Sync
@@ -4601,7 +4601,7 @@ function StepReviewPay({
                 />
               </div>
               <div style={{ marginTop: 14, fontSize: 13 }}>
-                Setting up secure payment...
+                Setting up secure payment…
               </div>
             </div>
           )}
@@ -5089,7 +5089,7 @@ export default function BookingCheckout({
           });
           const data = await res.json();
           if (!res.ok || !data.ok) {
-            throw new Error("Could not restore your reservation.");
+            throw new Error("Couldn't restore your reservation. Try again.");
           }
           setBaggage(findBaggage(data.raw));
           // ASSUMPTION FLAGGED: the exact field name for the Stripe client
@@ -5105,14 +5105,14 @@ export default function BookingCheckout({
             null;
           if (!secret) {
             throw new Error(
-              "Could not restore payment setup for this reservation — please go back and search again."
+              "Couldn't restore payment for this reservation. Go back and search again."
             );
           }
           setClientSecret(secret);
         } catch (err) {
           setPrebookError(
             err.message ||
-              "Could not restore your reservation — please go back and search again."
+              "Couldn't restore your reservation. Go back and search again."
           );
         } finally {
           setPrebookLoading(false);

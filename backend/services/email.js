@@ -65,7 +65,7 @@ export async function sendTripInvite({
         }`
       ) + (memberNames ? subLine(`Travelers: ${esc(memberNames)}`) : "")
     ),
-    cta: { label: "View Trip &amp; Join", url: joinUrl },
+    cta: { label: "View trip &amp; join", url: joinUrl },
     footerNote: `Or use invite code: <strong>${esc(
       inviteCode
     )}</strong><br>You received this because ${esc(
@@ -109,12 +109,12 @@ export async function sendPlanReady({
       plannerName
     )}</strong> generated a plan for <strong>${esc(tripTitle)}${
       destination ? ` → ${esc(destination)}` : ""
-    }</strong>. Review it and approve!`,
-    cta: { label: "Review Plan", url: groupUrl },
+    }</strong>. Take a look and approve it.`,
+    cta: { label: "Review plan", url: groupUrl },
   });
   const text = `${plannerName} generated a plan for ${tripTitle}${
     destination ? ` -> ${destination}` : ""
-  }. Review it and approve!
+  }. Take a look and approve it.
 
 Review the plan: ${groupUrl}${SIGNOFF}`;
 
@@ -236,7 +236,7 @@ export async function sendVerificationEmail({ to, verifyUrl }) {
     title: "Verify your email",
     introHtml:
       "Tap below to verify your account. The link expires in <strong>24 hours</strong>.",
-    cta: { label: "Verify Email", url: verifyUrl },
+    cta: { label: "Verify email", url: verifyUrl },
     footerNote: "If you didn't create a Skyrio account, ignore this email.",
   });
   const text = `Verify your Skyrio email.
@@ -437,7 +437,7 @@ export async function sendBookingConfirmation({
     (syncTip ? noteLine(esc(SYNC_TIP)) : "") +
     (manageUrl
       ? noteLine(
-          `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see the airline's refund estimate before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${APP_URL}/saved-trips" style="color:inherit;">My trips</a>.`
+          `Need to cancel? Use <strong>Manage or cancel</strong> above. You'll see the airline's refund estimate before anything is cancelled. Have a Skyrio account? Your trips are also in <a href="${APP_URL}/saved-trips" style="color:inherit;">My Trips</a>.`
         )
       : "");
 

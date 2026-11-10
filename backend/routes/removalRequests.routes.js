@@ -177,8 +177,8 @@ router.post("/", async (req, res) => {
         title: "Request received",
         introHtml:
           kind === "intimate"
-            ? "We&rsquo;ll review it and remove the image within 48 hours if it breaks our rules. We&rsquo;ll email you when it&rsquo;s done."
-            : "We&rsquo;ll review it and email you with what we did.",
+            ? "We'll review it and remove the image within 48 hours if it breaks our rules. We'll email you when it's done."
+            : "We'll review it and email you with what we did.",
         bodyHtml: noteLine(
           `Your request: ${esc(KINDS[kind])}. Received ${esc(
             receivedAt.toUTCString()

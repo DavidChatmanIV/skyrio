@@ -89,7 +89,7 @@ export default function SkyHubTrendingDestinations({
           </span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
-              Trending Destinations
+              Trending destinations
             </div>
             <div
               style={{
@@ -145,7 +145,7 @@ export default function SkyHubTrendingDestinations({
             color: "rgba(255,255,255,0.55)",
           }}
         >
-          Loading...
+          Loading…
         </div>
       ) : items.length === 0 ? (
         /* Empty state — no fake data */
@@ -250,7 +250,7 @@ export default function SkyHubTrendingDestinations({
                     ? `${posts.toLocaleString()} ${
                         posts === 1 ? "post" : "posts"
                       }`
-                    : "Be first to post"}
+                    : "Be the first to post"}
                 </div>
               </div>
               <span style={{ color: "rgba(255,255,255,0.45)", flexShrink: 0 }}>

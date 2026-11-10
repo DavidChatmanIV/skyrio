@@ -180,7 +180,7 @@ export async function submitSupportTicket(req, res) {
     console.error("Support ticket submission error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to submit support ticket" });
+      .json({ ok: false, message: "Couldn't submit support ticket. Try again." });
   }
 }
 
@@ -219,7 +219,7 @@ export async function listSupportTickets(req, res) {
     console.error("Support ticket list error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to load support tickets" });
+      .json({ ok: false, message: "Couldn't load support tickets. Try again." });
   }
 }
 
@@ -249,7 +249,7 @@ export async function updateSupportTicketStatus(req, res) {
     console.error("Support ticket status update error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to update support ticket status" });
+      .json({ ok: false, message: "Couldn't update support ticket status. Try again." });
   }
 }
 
@@ -310,6 +310,6 @@ export async function replyToSupportTicket(req, res) {
     console.error("Support ticket reply error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to reply to support ticket" });
+      .json({ ok: false, message: "Couldn't reply to support ticket. Try again." });
   }
 }

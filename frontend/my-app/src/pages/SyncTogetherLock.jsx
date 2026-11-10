@@ -209,7 +209,7 @@ export default function SyncTogetherLock() {
               zIndex: 1,
             }}
           >
-            Plan your next group trip together.
+            Plan your next group trip together
           </h2>
 
           <p
@@ -288,7 +288,7 @@ export default function SyncTogetherLock() {
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            Create a free account — it's free
+            Create a free account
           </button>
 
           <div
@@ -304,7 +304,7 @@ export default function SyncTogetherLock() {
               onClick={() => navigate("/login?next=/sync-together")}
               style={{ color: "#ff8a2a", fontWeight: 700, cursor: "pointer" }}
             >
-              Sign in
+              Log in
             </span>
           </div>
         </div>

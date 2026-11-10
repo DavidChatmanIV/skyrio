@@ -325,7 +325,7 @@ router.get("/", async (req, res) => {
     return res.json(results);
   } catch (err) {
     console.error("[airports.routes] GET / error:", err);
-    return res.status(500).json({ error: "Failed to load airports" });
+    return res.status(500).json({ error: "Couldn't load airports. Try again." });
   }
 });
 

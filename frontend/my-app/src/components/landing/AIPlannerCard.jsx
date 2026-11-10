@@ -85,7 +85,7 @@ export default function AIPlannerCard({
         {mode === "suggest" && (
           <Space direction="vertical" size={10} style={{ width: "100%" }}>
             <Text type="secondary">
-              Hey {userName}, here’s a quick idea tailored to your vibe and
+              Hey {userName}, here&apos;s a quick idea tailored to your vibe and
               budget:
             </Text>
 
@@ -154,7 +154,7 @@ export default function AIPlannerCard({
               }}
             >
               <li>Pick your dates, budget, and travel vibe</li>
-              <li>We’ll generate stays, food, and must-do activities</li>
+              <li>We&apos;ll generate stays, food, and must-do activities</li>
               <li>Fine-tune and save as a trip plan</li>
             </ul>
 

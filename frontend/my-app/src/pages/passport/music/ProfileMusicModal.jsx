@@ -122,7 +122,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.message || "Failed to save music");
+          throw new Error(err.message || "Couldn't save music. Try again.");
         }
       }
 
@@ -267,7 +267,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
               width="100%"
               height="200"
               src={embedUrl}
-              title="YouTube Music Preview"
+              title="YouTube music preview"
               frameBorder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen

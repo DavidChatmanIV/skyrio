@@ -225,7 +225,7 @@ export async function createSplitPayment(req, res) {
     console.error("Split payment creation error:", err);
     return res.status(err?.status || 500).json({
       ok: false,
-      message: err?.message || "Failed to create split payment",
+      message: err?.message || "Couldn't create split payment. Try again.",
       details: err?.details,
     });
   }
@@ -303,7 +303,7 @@ export async function getSplitPaymentStatus(req, res) {
     console.error("Split payment status error:", err);
     return res.status(500).json({
       ok: false,
-      message: err?.message || "Failed to load split payment",
+      message: err?.message || "Couldn't load split payment. Try again.",
     });
   }
 }
@@ -356,7 +356,7 @@ export async function getShareClientSecret(req, res) {
     console.error("Split payment client-secret error:", err);
     return res.status(500).json({
       ok: false,
-      message: err?.message || "Failed to load payment details",
+      message: err?.message || "Couldn't load payment details. Try again.",
     });
   }
 }

@@ -84,7 +84,7 @@ export default function RegisterPage() {
           const result = await auth.available?.({ username });
           if (!result || result.ok === false) {
             setUnStatus(UN_ERROR);
-            setUnMessage(result?.error || "Could not check");
+            setUnMessage(result?.error || "Couldn't check. Try again.");
             return;
           }
           const isAvailable = result?.username?.available ?? false;
@@ -97,7 +97,7 @@ export default function RegisterPage() {
           }
         } catch {
           setUnStatus(UN_ERROR);
-          setUnMessage("Could not check — try again");
+          setUnMessage("Couldn't check. Try again.");
         }
       }, 500);
     },
@@ -113,7 +113,7 @@ export default function RegisterPage() {
 
   const passenger = useMemo(() => {
     const raw = (formData.name || formData.username || "").trim();
-    if (!raw) return "New Traveller";
+    if (!raw) return "New traveler";
     return raw.length > 18 ? raw.slice(0, 18) + "…" : raw;
   }, [formData.name, formData.username]);
 
@@ -463,11 +463,11 @@ export default function RegisterPage() {
                       <Text className="sk-muted">
                         Already have access?{" "}
                         <Link className="sk-inlineBtnLink" to="/login">
-                          Sign in
+                          Log in
                         </Link>
                       </Text>
                       <Text className="sk-muted sk-micro">
-                        By registering you agree to Skyrio's Terms of Service.
+                        By registering, you agree to Skyrio's Terms of Service.
                       </Text>
                     </div>
                   </div>

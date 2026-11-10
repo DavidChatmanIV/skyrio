@@ -603,7 +603,7 @@ export default function MembershipPage() {
       return plan.id === "free"
         ? "Cancel in Manage billing"
         : `Switch to ${plan.name}`;
-    if (plan.id === "free") return "Go to Dashboard";
+    if (plan.id === "free") return "Go to dashboard";
     return plan.cta;
   }
 
@@ -744,7 +744,7 @@ export default function MembershipPage() {
                 .trim()}
             >
               {plan.badge && <div className="mp-plan__badge">{plan.badge}</div>}
-              {isCurrent && <div className="mp-plan__yours">Your Plan</div>}
+              {isCurrent && <div className="mp-plan__yours">Your plan</div>}
 
               <div className="mp-plan__name">{plan.name}</div>
               <div className="mp-plan__desc">{plan.description}</div>
@@ -844,7 +844,7 @@ export default function MembershipPage() {
             </button>
             <div className="mp-note">
               Already have an account?{" "}
-              <span onClick={() => nav("/login")}>Sign in →</span>
+              <span onClick={() => nav("/login")}>Log in →</span>
             </div>
           </>
         )}

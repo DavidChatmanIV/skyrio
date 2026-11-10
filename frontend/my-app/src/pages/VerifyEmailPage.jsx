@@ -66,7 +66,7 @@ export default function VerifyEmailPage() {
                 fontSize: 14,
               }}
             >
-              Go to Login
+              Log in
             </Link>
           </>
         )}

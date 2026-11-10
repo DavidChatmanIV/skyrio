@@ -14,9 +14,9 @@ function navCols(isAuthed) {
       heading: "Product",
       links: [
         { label: "Discover", to: "/" },
-        { label: "Book a Flight", to: "/booking" },
+        { label: "Book a flight", to: "/booking" },
         { label: "Hotels", to: "/booking" },
-        { label: "SkyHub Community", to: "/skyhub" },
+        { label: "SkyHub community", to: "/skyhub" },
         { label: "Digital Passport", to: "/passport" },
         { label: "Sync Together", to: "/sync-together" },
       ],
@@ -24,7 +24,7 @@ function navCols(isAuthed) {
     {
       heading: "Passport",
       links: [
-        { label: "XP & Levels", to: "/passport" },
+        { label: "XP & levels", to: "/passport" },
         { label: "Badges & Rewards", to: "/passport/rewards" },
         { label: "Upgrade Passport", to: "/membership" },
       ],
@@ -35,7 +35,7 @@ function navCols(isAuthed) {
       heading: "Support",
       links: [
         isAuthed
-          ? { label: "My trips", to: "/saved-trips" }
+          ? { label: "My Trips", to: "/saved-trips" }
           : { label: "Find my booking", to: "/find-booking" },
         {
           label: "Cancel a booking",
@@ -43,8 +43,8 @@ function navCols(isAuthed) {
         },
         { label: "Booking Guarantee", to: "/guarantee" },
         { label: "Help Center", href: `mailto:${SUPPORT_EMAIL}` },
-        { label: "Contact Us", href: `mailto:${SUPPORT_EMAIL}` },
-        { label: "Report an Issue", href: `mailto:${SUPPORT_EMAIL}` },
+        { label: "Contact us", href: `mailto:${SUPPORT_EMAIL}` },
+        { label: "Report an issue", href: `mailto:${SUPPORT_EMAIL}` },
       ],
     },
     // Privacy, Terms and Cookies live once, in the bottom bar (they were
@@ -91,9 +91,9 @@ export default function Footer() {
             <b style={{ color: "#fff" }}>
               Airlines and hotels set their own rules.
             </b>{" "}
-            Fares, carry-on and checked bags, seats, changes, refunds and
+            Fares, bags (carry-on and checked), seats, changes, refunds and
             cancellations are set by each airline and hotel, not Skyrio. If
-            something goes wrong on Skyrio&rsquo;s end, our{" "}
+            something goes wrong on Skyrio&apos;s end, our{" "}
             <Link to="/guarantee" style={{ color: "#ffb347", fontWeight: 700 }}>
               Booking Guarantee
             </Link>{" "}

@@ -46,7 +46,7 @@ router.post("/", requireAuth, async (req, res) => {
     console.error("Notification create error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to create notification" });
+      .json({ ok: false, message: "Couldn't create notification. Try again." });
   }
 });
 
@@ -65,7 +65,7 @@ router.get("/", requireAuth, async (req, res) => {
     console.error("Notifications fetch error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch notifications" });
+      .json({ ok: false, message: "Couldn't load notifications. Try again." });
   }
 });
 
@@ -89,7 +89,7 @@ router.get("/mine", requireAuth, async (req, res) => {
     console.error("Notifications/mine fetch error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to fetch notifications" });
+      .json({ ok: false, message: "Couldn't load notifications. Try again." });
   }
 });
 
@@ -104,7 +104,7 @@ router.get("/unread-count", requireAuth, async (req, res) => {
     console.error("Notifications unread-count error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to count notifications" });
+      .json({ ok: false, message: "Couldn't count notifications. Try again." });
   }
 });
 
@@ -120,7 +120,7 @@ router.patch("/read-all", requireAuth, async (req, res) => {
     console.error("Notifications read-all error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to mark as read" });
+      .json({ ok: false, message: "Couldn't mark as read. Try again." });
   }
 });
 
@@ -133,7 +133,7 @@ router.delete("/clear", requireAuth, async (req, res) => {
     console.error("Notifications clear error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to clear notifications" });
+      .json({ ok: false, message: "Couldn't clear notifications. Try again." });
   }
 });
 
@@ -152,7 +152,7 @@ router.patch("/:id/read", requireAuth, async (req, res) => {
     console.error("Notification mark-read error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to mark as read" });
+      .json({ ok: false, message: "Couldn't mark as read. Try again." });
   }
 });
 
@@ -170,7 +170,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     console.error("Notification delete error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Failed to delete notification" });
+      .json({ ok: false, message: "Couldn't delete notification. Try again." });
   }
 });
 

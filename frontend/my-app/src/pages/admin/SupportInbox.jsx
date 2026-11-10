@@ -133,7 +133,7 @@ export default function AdminSupportInbox() {
       const json = await res.json().catch(() => ({}));
       if (json.ok) setTickets(json.tickets || []);
     } catch {
-      message.error("Could not load support tickets.");
+      message.error("Couldn't load support tickets. Try again.");
     }
     setTicketsLoading(false);
   }, [navigate]);
@@ -152,7 +152,7 @@ export default function AdminSupportInbox() {
       const json = await res.json().catch(() => ({}));
       if (json.ok) setFeedback(json.feedback || []);
     } catch {
-      message.error("Could not load feedback.");
+      message.error("Couldn't load feedback. Try again.");
     }
     setFeedbackLoading(false);
   }, [navigate]);
@@ -172,13 +172,13 @@ export default function AdminSupportInbox() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok)
-        throw new Error(json.message || "Failed to update");
+        throw new Error(json.message || "Couldn't update. Try again.");
       setTickets((prev) =>
         prev.map((t) => (t._id === id ? { ...t, status } : t))
       );
       message.success("Ticket updated.");
     } catch (err) {
-      message.error(err.message || "Failed to update ticket.");
+      message.error(err.message || "Couldn't update ticket. Try again.");
     }
   };
 
@@ -192,13 +192,13 @@ export default function AdminSupportInbox() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok)
-        throw new Error(json.message || "Failed to update");
+        throw new Error(json.message || "Couldn't update. Try again.");
       setFeedback((prev) =>
         prev.map((f) => (f._id === id ? { ...f, status } : f))
       );
       message.success("Feedback updated.");
     } catch (err) {
-      message.error(err.message || "Failed to update feedback.");
+      message.error(err.message || "Couldn't update feedback. Try again.");
     }
   };
 

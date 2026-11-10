@@ -41,19 +41,19 @@ const airportLabel = (ap) => {
 
 const TRIP_HEADLINES = {
   solo: {
-    title: "Your solo adventure starts here.",
+    title: "Your solo adventure starts here",
     sub: "Just you, the world, and your own pace.",
   },
   romantic: {
-    title: "Plan your perfect getaway for two.",
+    title: "Plan your perfect getaway for two",
     sub: "Unforgettable moments, beautifully planned.",
   },
   family: {
-    title: "A trip the whole family will love.",
+    title: "A trip the whole family will love",
     sub: "Kid-friendly, stress-free, and full of memories.",
   },
   group: {
-    title: "Get the whole crew together.",
+    title: "Get the whole crew together",
     sub: "Easy coordination, maximum fun.",
   },
 };
@@ -774,12 +774,12 @@ export default function HeroPlanner({
               <>
                 Prices are typical round-trip economy fares per person from New
                 York-area airports (EWR, JFK, LGA), checked {FARES_CHECKED}.
-                They don&rsquo;t include hotels. Not a live price — you&rsquo;ll
+                They don&apos;t include hotels. Not a live price — you&apos;ll
                 see real fares when you search.
               </>
             ) : (
               <>
-                We don&rsquo;t have fare estimates from {departureAirport.code}{" "}
+                We don&apos;t have fare estimates from {departureAirport.code}{" "}
                 yet, so these are ideas only. Search to see real prices.
               </>
             )}

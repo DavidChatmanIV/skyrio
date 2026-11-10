@@ -708,7 +708,7 @@ export default function LandingPage() {
         <div className="lp-wrap">
           <div className="lp-label">Why Skyrio</div>
           <h2 className="lp-h2" id="lp-feats-title">
-            More than booking.
+            More than booking
           </h2>
           <div className="lp-feats">
             <div className="lp-feat">
@@ -733,7 +733,7 @@ export default function LandingPage() {
               <h3>Change of plans? Easy.</h3>
               <p>Cancel in a few taps. See your refund first.</p>
               <Link to={isAuthed ? "/saved-trips" : "/find-booking"}>
-                {isAuthed ? "Go to My trips" : "Find my booking"}{" "}
+                {isAuthed ? "Go to My Trips" : "Find my booking"}{" "}
                 <ArrowRight size={14} aria-hidden="true" />
               </Link>
             </div>
@@ -746,7 +746,7 @@ export default function LandingPage() {
         <div className="lp-wrap">
           <div className="lp-label">How it works</div>
           <h2 className="lp-h2" id="lp-steps-title">
-            Book in 3 steps.
+            Book in 3 steps
           </h2>
           <div className="lp-steps">
             <div className="lp-step">

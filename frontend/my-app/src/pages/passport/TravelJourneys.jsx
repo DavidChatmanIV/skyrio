@@ -782,7 +782,7 @@ export default function TravelJourneys({ token }) {
                 className="tj-all"
                 onClick={() => navigate("/saved-trips")}
               >
-                All bookings in My trips{" "}
+                All bookings in My Trips{" "}
                 <ChevronRight size={14} aria-hidden="true" />
               </button>
             </div>

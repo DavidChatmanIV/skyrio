@@ -44,7 +44,7 @@ export default function CheckoutPage() {
               Checkout
             </Title>
             <Text type="secondary">
-              This is your clean checkout foundation. Next we’ll connect real
+              This is your clean checkout foundation. Next we&apos;ll connect real
               totals (stays/flights/fees) and payment.
             </Text>
 
@@ -99,7 +99,7 @@ export default function CheckoutPage() {
 
             <div className="sk-miniNote">
               <Text type="secondary">
-                We’ll break out carry-on / checked bag fees once Amadeus flight
+                We&apos;ll break out carry-on / checked bag fees once Amadeus flight
                 offers are live.
               </Text>
             </div>

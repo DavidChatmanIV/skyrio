@@ -34,9 +34,9 @@ export default function SupportPage() {
     <div className="sk-trust">
       <header className="sk-trust__hero">
         <span className="sk-trust__badge">
-          <ChatIcon /> Customer Support
+          <ChatIcon /> Customer support
         </span>
-        <h1>Real help from a real person.</h1>
+        <h1>Real help from a real person</h1>
         <p className="sk-trust__lead">
           Atlas can handle a lot right away. Anything it can't solve comes
           straight to our team, and you'll hear back {TRUST.responseTime}.

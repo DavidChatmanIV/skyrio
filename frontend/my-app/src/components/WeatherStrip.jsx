@@ -230,7 +230,7 @@ export default function WeatherStrip({
         </div>
       ) : mode === "later" ? (
         <div className="wx-note">
-          Your trip&rsquo;s forecast shows up around{" "}
+          Your trip&apos;s forecast shows up around{" "}
           <b>{availableOn.format("MMM D")}</b>. Forecasts only reach about{" "}
           {FORECAST_DAYS} days ahead.
         </div>
