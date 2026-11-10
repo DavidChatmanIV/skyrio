@@ -146,7 +146,7 @@ export default function TripBudgetBar({
           </div>
           <div className="tbb-title">
             {doneCount === required.length
-              ? "You're all booked 🎉"
+              ? "You're all booked"
               : `Your bookings: ${doneCount} of ${required.length}`}
           </div>
           {doneCount < required.length && (

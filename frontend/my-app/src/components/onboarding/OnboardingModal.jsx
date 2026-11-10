@@ -354,7 +354,7 @@ export default function OnboardingModal({ user, token }) {
           }
         }
 
-        message.success("You're all set! Welcome to Skyrio ✈️");
+        message.success("You're all set! Welcome to Skyrio");
       } catch {
         // Silent — onboarding shouldn't block if API fails
       } finally {

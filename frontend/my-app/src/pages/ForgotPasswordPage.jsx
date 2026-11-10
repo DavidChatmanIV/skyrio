@@ -6,6 +6,7 @@ import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
 import gateBg from "../assets/LoginBoardingpass/gate.png";
 import "../styles/login.css";
 
+import { Plane } from "lucide-react";
 const API = import.meta.env.VITE_API_URL || "";
 
 export default function ForgotPasswordPage() {
@@ -43,8 +44,8 @@ export default function ForgotPasswordPage() {
 
   const handleResetPassword = async () => {
     setError("");
-    if (!password || password.length < 6)
-      return setError("Password must be at least 6 characters.");
+    if (!password || password.length < 8)
+      return setError("Password must be at least 8 characters.");
     if (password !== confirm) return setError("Passwords don't match.");
     setLoading(true);
     try {
@@ -129,7 +130,7 @@ export default function ForgotPasswordPage() {
                   <div className="sk-flightLine" aria-hidden="true">
                     <div className="sk-lineDot" />
                     <div className="sk-line" />
-                    <div className="sk-plane">✈︎</div>
+                    <div className="sk-plane"><Plane size={16} aria-hidden="true" /></div>
                     <div className="sk-line" />
                     <div className="sk-lineDot" />
                   </div>
@@ -176,7 +177,7 @@ export default function ForgotPasswordPage() {
                     {!token && sent && (
                       <div style={{ textAlign: "center", padding: "16px 0" }}>
                         <p style={{ color: "#fff", fontSize: 15 }}>
-                          ✈️ Reset link sent!
+                          Reset link sent!
                         </p>
                         <p
                           style={{
@@ -239,7 +240,7 @@ export default function ForgotPasswordPage() {
                     {done && (
                       <div style={{ textAlign: "center", padding: "16px 0" }}>
                         <p style={{ color: "#fff", fontSize: 15 }}>
-                          ✅ Password reset!
+                          Password reset!
                         </p>
                         <p
                           style={{

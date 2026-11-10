@@ -255,7 +255,7 @@ export default function AdminSupportInbox() {
               setStatusFilter("all");
             }}
           >
-            🛟 Support Tickets ({tickets.length})
+            Support Tickets ({tickets.length})
           </button>
           <button
             className={`sk-inbox__tab ${
@@ -266,7 +266,7 @@ export default function AdminSupportInbox() {
               setStatusFilter("all");
             }}
           >
-            💬 Feedback ({feedback.length})
+            Feedback ({feedback.length})
           </button>
         </div>
 

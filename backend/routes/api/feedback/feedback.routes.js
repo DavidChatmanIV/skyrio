@@ -615,7 +615,7 @@ admin.patch("/feedback/admin/:id", async (req, res) => {
     fb.shippedBonusAwarded = true;
     bonus = XP.FEEDBACK_SHIPPED;
     await notify(fb.user, {
-      title: "Your feedback shipped 🚀",
+      title: "Your feedback shipped",
       message: `We built something you suggested. +${bonus} XP is in your account. Thank you!`,
     });
   }

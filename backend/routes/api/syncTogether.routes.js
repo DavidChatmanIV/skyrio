@@ -2456,7 +2456,7 @@ router.post("/:id/shortlist", async (req, res) => {
       others.map((u) => ({
         user: u,
         type: "booking",
-        title: `New ${SUGGEST_NOUN[kind] || kind} suggestion 🗳️`,
+        title: `New ${SUGGEST_NOUN[kind] || kind} suggestion`,
         message: `${label} was added to the ${
           group.title || "trip"
         } shortlist. Vote for your favorite.`,
@@ -2589,9 +2589,9 @@ router.post("/:id/shortlist/:itemId/unavailable", async (req, res) => {
         title:
           it.kind === "flight"
             ? wasGroupFlight
-              ? "The group's flight sold out ✈️"
-              : "A suggested flight sold out ✈️"
-            : "A suggested room is gone 🏨",
+              ? "The group's flight sold out"
+              : "A suggested flight sold out"
+            : "A suggested room is gone",
         message: `${label} can't be booked anymore, so it was removed from the shortlist.${
           wasGroupFlight ? " Pick a new group flight on the trip page." : ""
         }`,
@@ -2670,14 +2670,14 @@ router.post("/:id/shortlist/:itemId/pick", async (req, res) => {
         type: "booking",
         title:
           it.kind === "hotel"
-            ? "The group's hotel is picked 🏨"
+            ? "The group's hotel is picked"
             : it.kind === "car"
-            ? "Rental car added to the plan 🚗"
+            ? "Rental car added to the plan"
             : it.kind === "event"
-            ? "Event added to the plan 🎫"
+            ? "Event added to the plan"
             : it.kind === "activity"
-            ? "Added to the plan 🎟️"
-            : "The group's flight is picked ✈️",
+            ? "Added to the plan"
+            : "The group's flight is picked",
         message:
           it.kind === "event"
             ? `${label} is on the plan. Tickets are bought on Ticketmaster — open it from the trip page.`
@@ -2811,7 +2811,7 @@ router.put("/:id/group-hotel", async (req, res) => {
         others.map((u) => ({
           user: u,
           type: "booking",
-          title: "The group's hotel is picked 🏨",
+          title: "The group's hotel is picked",
           message: `Everyone's staying at ${
             h.name || "the group's hotel"
           }. Book your room from the trip page.`,
@@ -2912,7 +2912,7 @@ router.post("/:id/rsvp", async (req, res) => {
         {
           user: group.owner,
           type: "booking",
-          title: going ? "Someone's in 🎉" : "Someone can't make it",
+          title: going ? "Someone's in" : "Someone can't make it",
           message: `${who} ${going ? "is going on" : "can't make it to"} ${
             group.title || "your trip"
           }.`,

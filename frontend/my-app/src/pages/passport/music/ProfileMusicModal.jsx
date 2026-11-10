@@ -101,7 +101,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
     const payload = {
       provider,
       url: trimmed,
-      name: "▶️ My Travel Soundtrack",
+      name: "▶ My Travel Soundtrack",
       updatedAt: new Date().toISOString(),
     };
 
@@ -174,7 +174,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
   return (
     <Modal
       title={
-        <span style={{ color: "#fff", fontWeight: 700 }}>▶️ Profile Music</span>
+        <span style={{ color: "#fff", fontWeight: 700 }}>▶ Profile Music</span>
       }
       open={!!open}
       onCancel={onClose}
@@ -231,7 +231,7 @@ export default function ProfileMusicModal({ open, onClose, onSave, value }) {
               fontWeight: 700,
             }}
           >
-            ▶️ YouTube detected
+            ▶ YouTube detected
           </div>
         )}
 

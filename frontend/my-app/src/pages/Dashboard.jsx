@@ -175,7 +175,7 @@ export default function Dashboard() {
               {/* Greeting */}
               <header className="text-center">
                 <h1 className="font-semibold tracking-[-0.02em] text-[28px] sm:text-[32px] leading-tight">
-                  Good evening, {displayName} <span aria-hidden>🌆</span>
+                  Good evening, {displayName}
                 </h1>
                 <div className="mt-1 flex items-center justify-center gap-2 text-sm text-white/80">
                   <span className="rounded-full bg-white/10 px-2.5 py-1 backdrop-blur">
@@ -301,7 +301,7 @@ export default function Dashboard() {
         {/* ================= MAIN DASHBOARD CONTENT ================= */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Title level={2} className="!mb-1">
-            📊 Dashboard
+            Dashboard
           </Title>
           <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
             Your Skyrio control center — XP, trips, and travel tools in one

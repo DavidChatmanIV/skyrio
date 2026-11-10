@@ -6,7 +6,7 @@ const router = Router();
 
 // ✅ Test route
 router.get("/", (_req, res) => {
-  res.send("✅ User route is working!");
+  res.send("User route is working!");
 });
 
 // 🔐 GET: List all admins (superadmin-only)
@@ -15,7 +15,7 @@ router.get("/admins", verifyAdmin, async (_req, res) => {
     const admins = await Admin.find().select("email role");
     res.json(admins);
   } catch (err) {
-    console.error("❌ Failed to load admins:", err);
+    console.error("Failed to load admins:", err);
     res.status(500).json({ message: "Error loading admins." });
   }
 });
@@ -30,7 +30,7 @@ router.get("/saved-trips", auth, async (req, res) => {
 
     res.json({ savedTrips: user.savedTrips });
   } catch (err) {
-    console.error("❌ Failed to retrieve saved trips:", err);
+    console.error("Failed to retrieve saved trips:", err);
     res.status(500).json({ message: "Server error retrieving saved trips." });
   }
 });
@@ -57,7 +57,7 @@ router.post("/save-trip", auth, async (req, res) => {
 
     res.json({ message: "Trip saved successfully." });
   } catch (err) {
-    console.error("❌ Failed to save trip:", err);
+    console.error("Failed to save trip:", err);
     res.status(500).json({ message: "Server error saving trip." });
   }
 });
@@ -77,7 +77,7 @@ router.delete("/remove-trip/:id", auth, async (req, res) => {
 
     res.json({ message: "Trip removed successfully." });
   } catch (err) {
-    console.error("❌ Failed to remove trip:", err);
+    console.error("Failed to remove trip:", err);
     res.status(500).json({ message: "Server error removing trip." });
   }
 });

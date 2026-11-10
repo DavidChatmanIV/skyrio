@@ -102,7 +102,7 @@ router.post(
           await Notification.create({
             user: userId,
             type: "booking",
-            title: "Booking confirmed ✈️",
+            title: "Booking confirmed",
             message: "Your booking has been confirmed. Have a great trip!",
             link: "/saved-trips",
           });
@@ -182,7 +182,7 @@ router.post(
               await Notification.create({
                 user: booking.user,
                 type: "booking",
-                title: "Refund processed 💰",
+                title: "Refund processed",
                 message: `Your ${
                   isFullRefund ? "full" : "partial"
                 } refund of ${formatMoney(
@@ -244,7 +244,7 @@ router.post(
             await Notification.create({
               user: booking.user,
               type: "booking",
-              title: "Refund issue ⚠️",
+              title: "Refund issue",
               message:
                 "Your refund could not be processed. Our support team has been notified and will follow up.",
               link: "/saved-trips",
@@ -344,7 +344,7 @@ router.post(
           await Notification.create({
             user: userId,
             type: "booking",
-            title: "Payment failed ❌",
+            title: "Payment failed",
             message:
               "Your payment could not be processed. Please try again or use a different payment method.",
             link: "/saved-trips",

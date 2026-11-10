@@ -7,7 +7,7 @@ const FeedbackForm = () => {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = (values) => {
-    console.log("📩 Submitted Feedback:", values); 
+    console.log("Submitted Feedback:", values); 
 
     setLoading(true);
     setTimeout(() => {
@@ -18,7 +18,7 @@ const FeedbackForm = () => {
 
   return (
     <Card
-      title="💬 We'd love your feedback!"
+      title="We'd love your feedback!"
       bordered={false}
       style={{ maxWidth: 600, margin: "3rem auto" }}
     >

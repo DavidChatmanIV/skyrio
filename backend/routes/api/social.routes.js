@@ -46,7 +46,7 @@ async function ensureOfficialFollow(meId) {
         userId: meId,
         type: "system",
         event: "welcome",
-        title: "Welcome to Skyrio ✈️",
+        title: "Welcome to Skyrio",
         message:
           "Your Digital Passport is ready. Earn XP when you book, save trips, and explore.",
         targetType: "passport",
@@ -141,7 +141,7 @@ router.post("/follow/:targetId", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ POST /api/social/follow failed:", err);
+    console.error("POST /api/social/follow failed:", err);
     return res.status(500).json({ ok: false, message: "Couldn't follow. Try again." });
   }
 });
@@ -204,7 +204,7 @@ router.delete("/follow/:targetId", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ DELETE /api/social/follow failed:", err);
+    console.error("DELETE /api/social/follow failed:", err);
     return res.status(500).json({ ok: false, message: "Couldn't unfollow. Try again." });
   }
 });
@@ -232,7 +232,7 @@ router.get("/passport/stats", async (req, res) => {
       officialUserId: String(official._id),
     });
   } catch (err) {
-    console.error("❌ GET /api/social/passport/stats failed:", err);
+    console.error("GET /api/social/passport/stats failed:", err);
     return res.status(500).json({ ok: false, message: "Couldn't load stats. Try again." });
   }
 });
@@ -253,7 +253,7 @@ router.patch("/official/mute", async (req, res) => {
 
     return res.json({ ok: true, officialUpdatesMuted: muted });
   } catch (err) {
-    console.error("❌ PATCH /api/social/official/mute failed:", err);
+    console.error("PATCH /api/social/official/mute failed:", err);
     return res
       .status(500)
       .json({ ok: false, message: "Couldn't update preference. Try again." });
@@ -269,7 +269,7 @@ router.post("/ensure-official", async (req, res) => {
     const result = await ensureOfficialFollow(meId);
     return res.json(result);
   } catch (err) {
-    console.error("❌ POST /api/social/ensure-official failed:", err);
+    console.error("POST /api/social/ensure-official failed:", err);
     return res
       .status(500)
       .json({ ok: false, message: "Couldn't ensure official follow. Try again." });
