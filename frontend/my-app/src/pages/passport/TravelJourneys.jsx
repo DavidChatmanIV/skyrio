@@ -3,7 +3,9 @@
 // hides cancelled ones.
 //
 // Four tabs, one list each, so each list does one job:
-//   - Bookings: upcoming flights and hotels
+//   - Bookings: upcoming flights and hotels, with any trips being
+//     cancelled in their own short "Cancelling" section (status, how long
+//     since it was sent, and a Track link to the full tracker in My trips)
 //   - Group trips: Sync Together trips being planned (tap to open)
 //   - Past trips: trips already taken (each earns a passport stamp)
 //   - Cancel a trip: the bookings that can be cancelled, each with a
@@ -21,6 +23,8 @@ import {
   ChevronRight,
   X,
   Clock,
+  Check,
+  AlertTriangle,
 } from "lucide-react";
 import { CancelTripModal, MT_CSS } from "@/pages/SavedTripsPage";
 import { useNavigate } from "react-router-dom";
@@ -173,7 +177,21 @@ function normalizeBooking(b) {
       status: b.status,
       sharedRoom: b.sharedRoom,
     },
+    // When the cancellation was sent (for "Sent 2 days ago").
+    cancelSentAt: toDate(pick(b.cancellation?.at, b.cancelledAt, b.updatedAt)),
   };
+}
+
+// Same 2-day mark as My trips: after that it's "taking longer".
+const STUCK_HOURS = 48;
+function sentAgo(d) {
+  if (!d) return "";
+  const mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  if (mins < 60) return mins <= 1 ? "Sent just now" : `Sent ${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `Sent ${hrs} hr${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.round(hrs / 24);
+  return `Sent ${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 function normalizeSync(t) {
@@ -271,6 +289,27 @@ const TJ_CSS = `
 
 .tj-tag { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 8px; border-radius:999px; font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.72); white-space:nowrap; }
 .tj-tag--stamped { color:#ffb347; border-color:rgba(255,138,42,0.45); background:rgba(255,138,42,0.1); }
+
+.tj-cxl { border-color:rgba(255,194,122,0.28); background:rgba(255,179,71,0.05); }
+.tj-cxl.is-stuck { border-color:rgba(255,107,133,0.4); background:rgba(255,107,133,0.06); }
+.tj-cxl__status { margin-top:4px; display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; font-size:12px; color:#ffc27a; }
+.tj-cxl.is-stuck .tj-cxl__status { color:#ff9db0; }
+.tj-steps { display:flex; align-items:center; gap:4px; }
+.tj-step { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:rgba(255,255,255,0.45); white-space:nowrap; }
+.tj-step i { width:14px; height:14px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; border:1.5px solid rgba(255,255,255,0.3); }
+.tj-step.is-done { color:#6ee7a8; }
+.tj-step.is-done i { border-color:#6ee7a8; background:rgba(110,231,168,0.15); color:#6ee7a8; }
+.tj-step.is-now { color:#ffc27a; }
+.tj-step.is-now i { border-color:#ffc27a; }
+.tj-step.is-now i::after { content:""; width:6px; height:6px; border-radius:50%; background:#ffc27a; animation:tjPulse 1.4s ease-in-out infinite; }
+.tj-stepline { width:14px; height:1.5px; background:rgba(255,255,255,0.2); }
+@keyframes tjPulse { 50% { opacity:.3; } }
+@media (prefers-reduced-motion: reduce) { .tj-step.is-now i::after { animation:none; } }
+.tj-track { display:inline-flex; align-items:center; gap:2px; min-height:30px; padding:0 11px; border-radius:999px; border:1px solid rgba(255,194,122,.5); background:rgba(255,179,71,.1); color:#ffc27a; font:inherit; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.tj-track:hover { border-color:#ffb347; color:#fff; }
+.tj-track:focus-visible { outline:2px solid #ffb347; outline-offset:2px; }
+/* Phones: dots only, except the step it's on now */
+@media (max-width: 420px) { .tj-steps .tj-step:not(.is-now) > span { display:none; } .tj-stepline { width:8px; } }
 
 .tj-more { all:unset; box-sizing:border-box; margin-top:8px; width:100%; min-height:38px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:10px; border:1px dashed rgba(255,255,255,0.18); color:rgba(255,255,255,0.8); font-size:13px; font-weight:700; cursor:pointer; }
 .tj-more:hover { border-color:rgba(255,138,42,0.5); color:#ffb347; }
@@ -394,6 +433,85 @@ function JourneyRow({ j, onOpen, onCancel }) {
   );
 }
 
+// A trip being cancelled: one short status line, a 3-step tracker and a
+// Track link to the full details in My trips. Replaces the long
+// paragraph that repeated on every row.
+function CancellingRow({ j, onTrack }) {
+  const place = isStayType(j.type) ? "hotel" : "airline";
+  const hours = j.cancelSentAt
+    ? (Date.now() - j.cancelSentAt.getTime()) / 3600000
+    : 0;
+  const stuck = hours >= STUCK_HOURS;
+  const dates =
+    j.start &&
+    `${fmt(j.start)}${j.end && j.end > j.start ? ` → ${fmt(j.end)}` : ""}`;
+  return (
+    <div className={`tj-row tj-cxl${stuck ? " is-stuck" : ""}`}>
+      <div className="tj-row__main">
+        <span className="tj-row__icon">
+          <TypeIcon type={j.type} />
+        </span>
+        <div className="tj-row__body">
+          <div className="tj-row__name" title={j.title}>
+            {j.title}
+          </div>
+          <div className="tj-row__meta">
+            {[j.subtitle, dates].filter(Boolean).join(" · ")}
+          </div>
+          <div className="tj-cxl__status">
+            <span
+              className="tj-steps"
+              aria-label={`Cancellation sent. Waiting for the ${place}.`}
+            >
+              <span className="tj-step is-done">
+                <i>
+                  <Check size={9} strokeWidth={3} aria-hidden="true" />
+                </i>
+                <span>Sent</span>
+              </span>
+              <span className="tj-stepline" aria-hidden="true" />
+              <span className="tj-step is-now">
+                <i />
+                <span>{place === "hotel" ? "Hotel" : "Airline"} confirms</span>
+              </span>
+              <span className="tj-stepline" aria-hidden="true" />
+              <span className="tj-step">
+                <i />
+                <span>Refund</span>
+              </span>
+            </span>
+            <span>
+              {stuck ? (
+                <>
+                  <AlertTriangle
+                    size={12}
+                    aria-hidden="true"
+                    style={{ verticalAlign: -2 }}
+                  />{" "}
+                  Taking longer than usual. We&apos;re checking with the {place}
+                  .
+                </>
+              ) : (
+                sentAgo(j.cancelSentAt)
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="tj-action">
+        <button
+          type="button"
+          className="tj-track"
+          onClick={onTrack}
+          aria-label={`Track the cancellation of ${j.title}`}
+        >
+          Track <ChevronRight size={13} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main ──
 export default function TravelJourneys({ token }) {
   const navigate = useNavigate();
@@ -459,8 +577,16 @@ export default function TravelJourneys({ token }) {
       );
   }, [bookings, syncTrips]);
 
-  const upcomingBookings = journeys.filter(
+  const upcomingAll = journeys.filter(
     (j) => j.stage === "upcoming" && j.kind !== "sync"
+  );
+  // Trips being cancelled get their own short section, so they don't
+  // read like active bookings.
+  const cancellingTrips = upcomingAll.filter(
+    (j) => j.status === "cancel_pending"
+  );
+  const upcomingBookings = upcomingAll.filter(
+    (j) => j.status !== "cancel_pending"
   );
   const groupTrips = journeys.filter(
     (j) => j.stage === "upcoming" && j.kind === "sync"
@@ -468,9 +594,7 @@ export default function TravelJourneys({ token }) {
   const completed = journeys.filter((j) => j.stage === "completed").reverse();
   // Bookings that can be cancelled (or are being cancelled) online.
   const cancellable = upcomingBookings.filter(
-    (j) =>
-      !j.booking?.sharedRoom &&
-      (j.status === "confirmed" || j.status === "cancel_pending")
+    (j) => !j.booking?.sharedRoom && j.status === "confirmed"
   );
   const TABS = [
     {
@@ -478,7 +602,9 @@ export default function TravelJourneys({ token }) {
       label: "Bookings",
       items: upcomingBookings,
       help: "Your upcoming flights and hotels.",
-      empty: "No upcoming flights or hotels yet.",
+      empty: cancellingTrips.length
+        ? "No other upcoming trips."
+        : "No upcoming flights or hotels yet.",
     },
     {
       key: "group",
@@ -503,13 +629,21 @@ export default function TravelJourneys({ token }) {
     },
   ];
   const [tab, setTab] = useState(null);
-  const firstWithItems = TABS.find((t) => t.items.length && t.key !== "cancel");
+  const firstWithItems = TABS.find(
+    (t) =>
+      t.key !== "cancel" &&
+      (t.items.length || (t.key === "bookings" && cancellingTrips.length))
+  );
   const activeTab = tab || firstWithItems?.key || "bookings";
   const current = TABS.find((t) => t.key === activeTab) || TABS[0];
   const list = current.items;
   const [showAll, setShowAll] = useState(false);
   const PREVIEW = 4;
   const visible = showAll ? list : list.slice(0, PREVIEW);
+  // Trips being cancelled show above the list on Bookings and Cancel a trip.
+  const showCancelling =
+    cancellingTrips.length > 0 &&
+    (activeTab === "bookings" || activeTab === "cancel");
 
   // Cancel right here (same modal as My trips). Once done, update the row.
   const [cancelling, setCancelling] = useState(null);
@@ -582,24 +716,54 @@ export default function TravelJourneys({ token }) {
         emptyBox("Couldn't load your journeys right now.")
       ) : journeys.length === 0 ? (
         emptyBox("Your journeys will appear here after your first booking.")
-      ) : list.length === 0 ? (
+      ) : list.length === 0 && !showCancelling ? (
         emptyBox(current.empty)
       ) : (
         <>
-          <div className="tj-list" role="tabpanel">
-            {visible.map((j) => (
-              <JourneyRow
-                key={j.id}
-                j={j}
-                onOpen={openJourney(j)}
-                onCancel={
-                  activeTab === "cancel"
-                    ? (x) => setCancelling(x.booking)
-                    : undefined
-                }
-              />
-            ))}
-          </div>
+          {showCancelling && (
+            <div className="tj-section">
+              <div className="tj-label">
+                Cancelling · {cancellingTrips.length}
+              </div>
+              <div className="tj-list">
+                {cancellingTrips.map((j) => (
+                  <CancellingRow
+                    key={j.id}
+                    j={j}
+                    onTrack={() =>
+                      navigate(`/saved-trips?booking=${j.booking._id}`)
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {list.length > 0 && (
+            <div className="tj-section">
+              {showCancelling && activeTab === "bookings" && (
+                <div className="tj-label">Upcoming · {list.length}</div>
+              )}
+              <div className="tj-list" role="tabpanel">
+                {visible.map((j) => (
+                  <JourneyRow
+                    key={j.id}
+                    j={j}
+                    onOpen={openJourney(j)}
+                    onCancel={
+                      activeTab === "cancel"
+                        ? (x) => setCancelling(x.booking)
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {list.length === 0 && activeTab === "cancel" && (
+            <p className="tj-help" style={{ marginTop: 12 }}>
+              {current.empty}
+            </p>
+          )}
           {list.length > PREVIEW && (
             <button
               type="button"
