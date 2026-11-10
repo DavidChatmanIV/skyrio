@@ -5473,6 +5473,49 @@ export default function BookingPage() {
     setCheckoutRooms([]);
   }, []);
 
+  // ── Back button / swipe back from checkout → the listings ──
+  // Checkout is drawn over the results, not a separate page, so the
+  // browser had no "results" step: swiping back left Book and landed on
+  // the home page (tester report). Opening checkout now adds one history
+  // step; Back (or a swipe) removes it and closes checkout, with the
+  // results still there. Closing checkout with its own Back button takes
+  // the step away too, so the next Back doesn't do nothing.
+  const flightCheckoutOpen = showCheckout && !!selectedFlight;
+  const hotelCheckoutOpen = showHotelCheckout && checkoutRooms.length > 0;
+  const checkoutOpen = flightCheckoutOpen || hotelCheckoutOpen;
+  const checkoutStepRef = useRef(false);
+
+  useEffect(() => {
+    if (checkoutOpen && !checkoutStepRef.current) {
+      checkoutStepRef.current = true;
+      try {
+        window.history.pushState(
+          { ...(window.history.state || {}), skCheckout: true },
+          ""
+        );
+      } catch {
+        /* history unavailable: Back just works as before */
+      }
+    } else if (!checkoutOpen && checkoutStepRef.current) {
+      checkoutStepRef.current = false;
+      // Closed from inside the page: drop the extra step we added.
+      if (window.history.state?.skCheckout) window.history.back();
+    }
+  }, [checkoutOpen]);
+
+  useEffect(() => {
+    const onPop = () => {
+      if (!checkoutStepRef.current || window.history.state?.skCheckout) return;
+      // Back from checkout: close it, keep the results and the room cart.
+      checkoutStepRef.current = false;
+      setShowCheckout(false);
+      setSelectedFlight(null);
+      setShowHotelCheckout(false);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // ── Read trip type from landing page URL param on mount ──
   useEffect(() => {
     const typeFromUrl = searchParams.get("type");
