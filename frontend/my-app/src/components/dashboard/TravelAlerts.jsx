@@ -52,7 +52,7 @@ const TravelAlerts = () => {
   return (
     <div style={CARD_STYLE}>
       <Title level={4} style={{ color: "#fff", marginBottom: 16 }}>
-        💡 General Travel Tips
+        General Travel Tips
       </Title>
 
       {TIPS.length === 0 ? (

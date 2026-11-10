@@ -22,6 +22,13 @@ export const TRUST = {
   founder: "David Chatman IV",
   founderTitle: "Founder & CEO",
 
+  // DMCA designated agent, shown on the SkyHub safety page (Copyright).
+  // Leave null until Skyrio is registered at copyright.gov/dmca-directory:
+  // the line stays hidden, so the page never shows a placeholder or claims
+  // an agent that isn't registered. Then fill in exactly what you filed:
+  //   dmcaAgent: { name: "David Chatman IV, Skyrio LLC", address: "…", email: "…" },
+  dmcaAgent: null,
+
   // Last time the guarantee wording changed. Update when you edit it.
   guaranteeUpdated: "November 2026",
 };

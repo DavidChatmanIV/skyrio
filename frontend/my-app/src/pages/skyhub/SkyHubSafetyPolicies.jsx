@@ -1,4 +1,5 @@
 import React from "react";
+import { TRUST } from "@/config/trustConfig";
 
 /* ─────────────────────────────────────────────────────────────
    SkyHubSafetyPolicies — rendered inside SkyHubGuidelines.jsx.
@@ -153,10 +154,17 @@ export default function SkyHubSafetyPolicies() {
         . If your post is removed and you believe it was a mistake, you can send
         a counter-notice. Accounts with repeated valid copyright complaints are
         permanently banned.
-        <p style={{ margin: "10px 0 0", fontSize: 13, opacity: 0.75 }}>
-          Designated DMCA agent: Skyrio LLC, [address], [email].{" "}
-          {/* ← fill in after registering at copyright.gov/dmca-directory */}
-        </p>
+        {/* Shows once TRUST.dmcaAgent is filled in (config/trustConfig.js). */}
+        {TRUST.dmcaAgent && (
+          <p style={{ margin: "10px 0 0", fontSize: 13, opacity: 0.75 }}>
+            Designated DMCA agent: {TRUST.dmcaAgent.name},{" "}
+            {TRUST.dmcaAgent.address},{" "}
+            <a style={a} href={`mailto:${TRUST.dmcaAgent.email}`}>
+              {TRUST.dmcaAgent.email}
+            </a>
+            .
+          </p>
+        )}
       </section>
     </div>
   );

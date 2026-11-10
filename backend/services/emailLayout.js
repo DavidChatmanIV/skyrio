@@ -149,7 +149,7 @@ export function renderEmail({ preheader = "", title, introHtml = "", bodyHtml = 
     <tr><td align="center" style="padding:32px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
         <tr><td align="center" style="padding:0 0 22px;">
-          <span style="font-size:26px;font-weight:800;color:${C.button};letter-spacing:-0.5px;">✈ Skyrio</span>
+          <span style="font-size:26px;font-weight:800;color:${C.button};letter-spacing:-0.5px;">Skyrio</span>
         </td></tr>
         <tr><td class="sk-card sk-pad" bgcolor="${C.card}" style="background:${C.card};border:1px solid ${C.cardBorder};border-radius:18px;padding:34px 28px;">
           <h1 class="sk-heading" style="color:${C.heading};font-size:22px;font-weight:800;margin:0 0 10px;text-align:center;line-height:1.3;">${title}</h1>

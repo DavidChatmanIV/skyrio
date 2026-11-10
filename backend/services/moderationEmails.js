@@ -109,7 +109,7 @@ export function sendAppealDecision({ to, name, approved, response }) {
     subject: approved ? "Your SkyHub appeal was approved" : "Your SkyHub appeal was reviewed",
     html: renderEmail({
       preheader: approved ? "We removed the strike from your account." : "The strike stays on your account.",
-      title: approved ? "Appeal approved ✅" : "Appeal reviewed",
+      title: approved ? "Appeal approved" : "Appeal reviewed",
       introHtml: approved
         ? `Hi ${esc(name || "there")}, we looked again and removed the strike. Any pause it caused has been lifted.`
         : `Hi ${esc(name || "there")}, we looked at your appeal carefully. The strike stays on your account.`,

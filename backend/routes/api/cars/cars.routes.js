@@ -245,7 +245,7 @@ router.post("/book", holdLimiter, optionalAuth, async (req, res) => {
       await Notification.create({
         user: userId,
         type: "booking",
-        title: "Car rental booked 🚗",
+        title: "Car rental booked",
         message: `Your ${offer.supplier.name} car is confirmed${b.reference ? ` (ref ${b.reference})` : ""}. Pay at pickup.`,
         link: "/saved-trips",
       }).catch(() => {});

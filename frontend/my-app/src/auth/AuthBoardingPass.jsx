@@ -3,6 +3,7 @@ import { Typography, Form, Input, Button, Space, Tag } from "antd";
 import { UserOutlined, MailOutlined, LockOutlined } from "@ant-design/icons";
 import "./AuthBoardingPass.css";
 
+import { Plane } from "lucide-react";
 const { Title, Text } = Typography;
 
 /**
@@ -103,7 +104,7 @@ export default function AuthBoardingPass({
           </div>
 
           <div className="sk-routeLine" aria-hidden="true">
-            <span className="sk-plane">✈</span>
+            <span className="sk-plane"><Plane size={14} aria-hidden="true" /></span>
             <span className="sk-routeDash" />
           </div>
 

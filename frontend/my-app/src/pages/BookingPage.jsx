@@ -4787,7 +4787,7 @@ export default function BookingPage() {
             fontWeight: 700,
           }}
         >
-          🏆 The group's pick
+          The group's pick
         </span>
       );
     }
@@ -4814,7 +4814,7 @@ export default function BookingPage() {
           ? "✓ On the shortlist"
           : suggesting === key
           ? "Adding…"
-          : "🗳️ Suggest to group"}
+          : "Suggest to group"}
       </button>
     );
   };

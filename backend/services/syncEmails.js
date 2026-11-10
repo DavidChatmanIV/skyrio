@@ -62,7 +62,7 @@ export function sendGroupReminder({ to, name, organizerName, tripTitle, destinat
     subject: `Reminder: finish your part of ${tripTitle || "the group trip"}`,
     html: renderEmail({
       preheader: `${organizerName || "Your organizer"} sent a reminder about ${tripTitle || "your trip"}`,
-      title: "Your group is waiting on you ⏰",
+      title: "Your group is waiting on you",
       introHtml: `Hi ${esc(name || "there")}, <strong>${esc(organizerName || "your organizer")}</strong> sent a reminder about <strong>${esc(tripTitle || "your trip")}</strong>${destination ? ` to ${esc(destination)}` : ""}.`,
       bodyHtml: list,
       cta: { label: "Open the trip", url: groupUrl(groupId) },
@@ -79,7 +79,7 @@ export function sendShareRequested({ to, name, organizerName, room, shareCents, 
     subject: `Hold your share of the room at ${room?.name || "the hotel"}`,
     html: renderEmail({
       preheader: `Your share is ${cents(shareCents, currency)}. Hold it by ${fmtDeadline(deadline)}.`,
-      title: "You're sharing a room 🛏️",
+      title: "You're sharing a room",
       introHtml: `Hi ${esc(name || "there")}, <strong>${esc(organizerName || "your organizer")}</strong> picked a room for ${people} people. Put a hold on your card for your share.`,
       bodyHtml:
         roomBox(room) +
@@ -102,7 +102,7 @@ export function sendSharedRoomBooked({ to, name, room, shareCents, currency, peo
     subject: `Your shared room at ${room?.name || "the hotel"} is booked`,
     html: renderEmail({
       preheader: `Everyone's in — the room is booked. You paid ${cents(shareCents, currency)}.`,
-      title: "Everyone's in. Room booked! 🏨",
+      title: "Everyone's in. Room booked!",
       introHtml: `Hi ${esc(name || "there")}, all ${people} people held their share, so the room is booked.`,
       bodyHtml:
         roomBox(room) +
@@ -179,7 +179,7 @@ export function sendShareDeadlineReminder({ to, name, room, shareCents, currency
       : `Reminder: hold your share of ${room?.name || "the room"} by tomorrow`,
     html: renderEmail({
       preheader: `${heldCount} of ${people} have held their share. The room is released at ${fmtDeadline(deadline)} if not everyone is in.`,
-      title: urgent ? "Last call for the shared room ⏳" : "Your group is waiting on your share 🛏️",
+      title: urgent ? "Last call for the shared room" : "Your group is waiting on your share",
       introHtml: `Hi ${esc(name || "there")}, ${heldCount} of ${people} people have held their share. If everyone isn't in by the deadline, the room is released for everyone.`,
       bodyHtml:
         roomBox(room) +
@@ -206,10 +206,10 @@ export function sendEveryoneBooked({ to, name, tripTitle, destination, arrivals 
   return sendEmail({
     to,
     tag: "sync-everyone-booked",
-    subject: `Everyone's booked for ${tripTitle || "your trip"} 🎉`,
+    subject: `Everyone's booked for ${tripTitle || "your trip"}`,
     html: renderEmail({
       preheader: `Every traveler has booked their flight and room${destination ? ` for ${destination}` : ""}.`,
-      title: "Everyone's booked! 🎉",
+      title: "Everyone's booked!",
       introHtml: `Hi ${esc(name || "there")}, every traveler on <strong>${esc(tripTitle || "your trip")}</strong> has booked their flight and room.`,
       bodyHtml: arrivals.length
         ? detailBox("WHO LANDS WHEN", arrivals.map((a) => kvRow(esc(a.name), esc(fmt(a.arrivesAt)))).join("") + noteLine("Times are local to the arrival airport."))

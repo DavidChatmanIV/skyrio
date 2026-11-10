@@ -297,7 +297,7 @@ function Option({
         ))}
         <div style={{ ...muted, fontSize: 12, marginTop: 4 }}>
           Suggested by {it.suggestedByMe ? "you" : it.suggestedBy}
-          {it.voters?.length ? ` · 👍 ${it.voters.join(", ")}` : ""}
+          {it.voters?.length ? ` · Votes: ${it.voters.join(", ")}` : ""}
         </div>
       </div>
 
@@ -595,7 +595,7 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
             color: "#fff",
           }}
         >
-          🗳️ Group shortlist
+          Group shortlist
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <Button
@@ -644,7 +644,7 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
       </p>
       {comfy && (
         <p style={{ ...muted, marginTop: -4, fontSize: 12.5 }}>
-          💰 The group is comfortable up to about{" "}
+          The group is comfortable up to about{" "}
           <strong style={{ color: "#fff" }}>{money(comfy)}</strong> per person
           for the trip.
         </p>

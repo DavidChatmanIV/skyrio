@@ -1,12 +1,13 @@
 import React from "react";
 import { Typography } from "antd";
+import { Plane } from "lucide-react";
 const { Text } = Typography;
 
 export default function BoardingPassToast({
   name = "Explorer",
   routeFrom = "Home",
   routeTo = "Dashboard",
-  subtitle = "Enjoy your XP boost for today's check-in ✨",
+  subtitle = "Enjoy your XP boost for today's check-in",
 }) {
   return (
     <div style={styles.wrap}>
@@ -21,7 +22,7 @@ export default function BoardingPassToast({
           <Text style={styles.headerTitle}>Skyrio Access</Text>
         </div>
         <Text style={styles.headerIcon} aria-hidden>
-          ✈️
+          <Plane size={18} />
         </Text>
       </div>
 

@@ -28,6 +28,7 @@ import gateBg from "../assets/LoginBoardingpass/gate.png";
 import "../styles/login.css";
 import "../styles/RegisterPage.css";
 
+import { Plane } from "lucide-react";
 const { Title, Text } = Typography;
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -319,7 +320,7 @@ export default function RegisterPage() {
                   <div className="sk-flightLine" aria-hidden="true">
                     <div className="sk-lineDot" />
                     <div className="sk-line" />
-                    <div className="sk-plane">✈︎</div>
+                    <div className="sk-plane"><Plane size={16} aria-hidden="true" /></div>
                     <div className="sk-line" />
                     <div className="sk-lineDot" />
                   </div>

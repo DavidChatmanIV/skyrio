@@ -102,7 +102,7 @@ export default function XPBadgeCard() {
     <Card
       title={
         <span style={{ color: "#fff", fontWeight: 700 }}>
-          🏆 XP & Badge Progress
+          XP & Badge Progress
         </span>
       }
       variant="borderless"

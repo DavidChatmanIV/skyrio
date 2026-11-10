@@ -253,7 +253,7 @@ export default function DuffelPayForm({
         }}
       >
         <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 6 }}>
-          You're booked! ✈️
+          You're booked!
         </div>
         {result?.pnr && (
           <div style={{ fontSize: 14, marginBottom: 6 }}>

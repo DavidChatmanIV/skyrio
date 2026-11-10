@@ -277,7 +277,7 @@ export default function TripBudgetCard({
   const moodLabel = useMemo(() => {
     if (!hasBudget) return "Plan your budget";
     if (isOverBudget) return "Over budget";
-    if (percent < 55) return "On track ✨";
+    if (percent < 55) return "On track";
     if (percent < 85) return "Keep it steady";
     return "Watch extras";
   }, [hasBudget, isOverBudget, percent]);

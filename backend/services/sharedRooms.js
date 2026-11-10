@@ -462,7 +462,7 @@ export async function createSharedRoom({
     Notification.create({
       user: s.user,
       type: "booking",
-      title: "Hold your share of the room 🛏️",
+      title: "Hold your share of the room",
       message: `You're sharing a room at ${
         split.room.name || "the hotel"
       }. Hold your share before the deadline.`,
@@ -985,7 +985,7 @@ export async function finalizeSharedRoom(splitId) {
     Notification.create({
       user: s.user,
       type: "booking",
-      title: "Shared room booked 🏨",
+      title: "Shared room booked",
       message: `Everyone's in — ${split.room.name || "your room"} is booked.`,
       link: "/saved-trips",
     }).catch(() => {});
@@ -1192,7 +1192,7 @@ export async function sendDeadlineReminders(filter = {}) {
         type: "booking",
         title:
           mark.key === "6h"
-            ? "Last call for the shared room ⏳"
+            ? "Last call for the shared room"
             : "Hold your share of the room",
         message: `${heldCount} of ${
           room.shares.length
