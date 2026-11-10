@@ -8,7 +8,7 @@
 // swap these two lines to match exactly:
 const express = require("express");
 const router = express.Router();
-const User = require("../models/User"); // TODO: confirm this path/name
+const User = require("../models/user"); // TODO: confirm this path/name
 const { requireAuth } = require("../middleware/auth"); // TODO: confirm this path/name
 
 // ─────────────────────────────────────────────────────────────────────────

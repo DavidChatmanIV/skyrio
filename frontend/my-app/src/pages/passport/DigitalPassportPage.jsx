@@ -1137,6 +1137,24 @@ export default function DigitalPassportPage() {
   const [followOpen, setFollowOpen] = useState(false);
   const [followMode, setFollowMode] = useState("following");
   const [referralsCount, setReferralsCount] = useState(0);
+  // Passport Rewards the traveler owns (e.g. "golden_hour_cover").
+  const [ownedRewards, setOwnedRewards] = useState([]);
+  useEffect(() => {
+    if (!isAuthed || !token) return undefined;
+    const controller = new AbortController();
+    fetch(apiUrl("/api/rewards/redeemed"), {
+      credentials: "include",
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.ok && Array.isArray(d.redeemedRewards))
+          setOwnedRewards(d.redeemedRewards);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isAuthed, token]);
 
   const socketRef = useRef(null);
   const avatarInputRef = useRef(null);
@@ -1684,6 +1702,11 @@ export default function DigitalPassportPage() {
                     xpIntoLevel={Number(totalEarned || 0)}
                     xpNeeded={xpGoal}
                     onSpendXp={() => navigate("/passport/rewards")}
+                    cover={
+                      ownedRewards.includes("golden_hour_cover")
+                        ? "golden"
+                        : null
+                    }
                   />
 
                   {profileMusic && (

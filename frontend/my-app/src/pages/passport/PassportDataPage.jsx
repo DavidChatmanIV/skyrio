@@ -1,7 +1,7 @@
 import React from "react";
 import { Progress, Skeleton } from "antd";
 import { UserOutlined } from "@ant-design/icons";
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, Loader2, Plane } from "lucide-react";
 import FollowStats from "./FollowStats";
 import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
 import "../../styles/passport-datapage.css";
@@ -109,6 +109,25 @@ const GUILLOCHE = (() => {
 })();
 
 /* ─────────────────────────────────────────────────────────────
+   Golden Hour cover (Passport Reward "golden_hour_cover"): a warm
+   sunset on the passport. Only loaded for travelers who own it.
+   ───────────────────────────────────────────────────────────── */
+const GOLDEN_CSS = `
+.pdp.pdp--golden {
+  background:
+    radial-gradient(120% 90% at 85% 0%, rgba(255,214,122,0.55), transparent 55%),
+    linear-gradient(160deg, #b8572a 0%, #8f3a52 45%, #4b2470 100%) !important;
+  border-color: rgba(255,210,122,0.6) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,0.35), 0 22px 54px rgba(120,40,30,0.35) !important;
+}
+.pdp--golden .pdp-guilloche path { stroke: rgba(255,214,122,0.22) !important; }
+.pdp--golden .pdp-head { background: linear-gradient(90deg, rgba(255,179,71,0.35), rgba(255,138,42,0.15)) !important; }
+.pdp--golden .pdp-emblem, .pdp--golden .pdp-label { color: #ffe0a3 !important; }
+.pdp--golden .pdp-name { color: #fff6e3 !important; }
+.pdp--golden .pdp-mrz { color: rgba(255,234,190,0.75) !important; }
+`;
+
+/* ─────────────────────────────────────────────────────────────
    Component
    ───────────────────────────────────────────────────────────── */
 export default function PassportDataPage({
@@ -138,6 +157,8 @@ export default function PassportDataPage({
   xpIntoLevel,
   xpNeeded,
   onSpendXp,
+  // "golden" = the Golden Hour cover (a Passport Reward), or null
+  cover = null,
 }) {
   const hasAvatar = !!user?.avatar && user.avatar !== "/default-avatar.png";
   const issued = toDate(user?.createdAt);
@@ -160,7 +181,11 @@ export default function PassportDataPage({
   };
 
   return (
-    <section className="pdp" aria-label="Digital passport">
+    <section
+      className={`pdp${cover === "golden" ? " pdp--golden" : ""}`}
+      aria-label="Digital passport"
+    >
+      {cover === "golden" && <style>{GOLDEN_CSS}</style>}
       {/* Security pattern */}
       <svg
         className="pdp-guilloche"
@@ -180,7 +205,7 @@ export default function PassportDataPage({
       <header className="pdp-head">
         <div className="pdp-headBrand">
           <span className="pdp-emblem" aria-hidden="true">
-            ✈
+            <Plane size={14} />
           </span>
           SKYRIO
         </div>
@@ -307,7 +332,12 @@ export default function PassportDataPage({
             />
             {referralsCount > 0 && (
               <div className="pdp-referrals">
-                ✈️ <strong>{referralsCount}</strong>{" "}
+                <Plane
+                  size={13}
+                  aria-hidden="true"
+                  style={{ verticalAlign: -2, color: "#ffb347" }}
+                />{" "}
+                <strong>{referralsCount}</strong>{" "}
                 {referralsCount === 1 ? "traveler" : "travelers"} joined via
                 your passport
               </div>

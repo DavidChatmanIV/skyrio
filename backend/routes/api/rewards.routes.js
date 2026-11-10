@@ -8,6 +8,8 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 // both of which exist in this codebase but are NOT what AdminDashboard.jsx
 // actually authenticates against).
 import { verifyAdmin } from "../admin.routes.js";
+// Delivers rewards that need more than being "owned" (membership credits).
+import { fulfillReward } from "../../services/rewardFulfillment.js";
 
 const router = Router();
 
@@ -118,10 +120,36 @@ router.post("/redeem", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, message: "Not enough XP." });
     }
 
+    // XP is spent; now deliver the reward. If delivery fails, give the XP
+    // back (and the one-time slot), so no one pays for something they
+    // didn't get.
+    let delivered;
+    try {
+      delivered = await fulfillReward({ user: req.user, itemId });
+    } catch (err) {
+      console.error("[rewards] fulfillment failed, refunding XP:", itemId, err);
+      const undo = { $inc: { xp: reward.cost } };
+      if (!reward.repeatable) undo.$pull = { redeemedRewards: itemId };
+      await User.updateOne({ _id: userId }, undo).catch((e) =>
+        console.error(
+          "[rewards] XP refund FAILED, fix by hand:",
+          userId,
+          itemId,
+          e
+        )
+      );
+      return res.status(502).json({
+        ok: false,
+        message:
+          "Couldn't deliver that reward right now. Your XP wasn't spent. Try again later.",
+      });
+    }
+
     return res.json({
       ok: true,
       item: { id: itemId, title: reward.title, cost: reward.cost },
       newBalance: updatedUser.xp,
+      howToUse: delivered?.howToUse || null,
     });
   } catch (err) {
     console.error("Reward redeem error:", err);

@@ -203,6 +203,10 @@ function mapPost(
     avatar: post.avatar,
     verified: post.verified,
     authorBadge: getLevel(authorXp).current.name,
+    // "Seasoned Traveler" frame, a Passport Reward the author redeemed.
+    // Everyone who sees the post sees it.
+    authorFrame:
+      authorId && xpByAuthorId.frames?.has(authorId) ? "seasoned" : null,
     type: post.type,
     destination: post.destination,
     text: post.text,
@@ -252,11 +256,19 @@ async function xpMapFor(posts) {
   ];
   if (!ids.length) return new Map();
   const authors = await User.find({ _id: { $in: ids } })
-    .select("xpTotalEarned xp")
+    .select("xpTotalEarned xp redeemedRewards")
     .lean();
-  return new Map(
+  const map = new Map(
     authors.map((a) => [a._id.toString(), a.xpTotalEarned ?? a.xp ?? 0])
   );
+  // Authors who own the "Seasoned Traveler" frame (Passport Reward). Kept
+  // on the same map so every mapPost caller gets it with no extra query.
+  map.frames = new Set(
+    authors
+      .filter((a) => (a.redeemedRewards || []).includes("seasoned_frame"))
+      .map((a) => a._id.toString())
+  );
+  return map;
 }
 
 async function visibleComments(postId, viewerId) {

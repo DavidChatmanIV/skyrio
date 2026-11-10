@@ -241,6 +241,28 @@ function ImageGrid({ images }) {
   );
 }
 
+// "Seasoned Traveler" frame — a Passport Reward (itemId "seasoned_frame").
+// The server sends post.authorFrame = "seasoned" when the post's author
+// owns it, so everyone who sees the post sees the frame.
+const FRAME_CSS = `
+.skyhub-feedCard.has-frame-seasoned {
+  position: relative;
+  border-color: rgba(255,179,71,0.65) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,0.35), 0 0 22px rgba(255,138,42,0.18) !important;
+}
+.skyhub-feedCard.has-frame-seasoned::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  border-radius: inherit; pointer-events: none;
+  background: linear-gradient(90deg, #ff8a2a, #ffd27a 50%, #ff8a2a);
+}
+.sh-frameChip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 800; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  color: #1a0e06; background: linear-gradient(135deg, #ffb347, #ffd27a);
+}
+`;
+
 function fmt(n) {
   return n >= 1000 ? (n / 1000).toFixed(1) + "k" : n;
 }
@@ -334,8 +356,11 @@ export default function SkyHubFeedCard({
       : []),
   ];
 
+  const seasoned = post.authorFrame === "seasoned";
+
   return (
-    <div className="skyhub-feedCard">
+    <div className={`skyhub-feedCard${seasoned ? " has-frame-seasoned" : ""}`}>
+      {seasoned && <style>{FRAME_CSS}</style>}
       <div className="skyhub-feedCard__top">
         <Avatar name={post.author} avatarUrl={post.avatar} size={44} />
 
@@ -364,6 +389,14 @@ export default function SkyHubFeedCard({
                 )}
                 {post.following ? "Following" : "Follow"}
               </button>
+            )}
+            {seasoned && (
+              <span
+                className="sh-frameChip"
+                title="Seasoned Traveler: a Passport Reward"
+              >
+                <Icon.plane size={10} /> Seasoned Traveler
+              </span>
             )}
             {post.badge && (
               <span

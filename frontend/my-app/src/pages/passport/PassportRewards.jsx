@@ -87,57 +87,11 @@ const TABS = [
   { key: "challenges", label: "Challenges", Icon: Flag },
 ];
 
+// The catalog comes from the database (GET /api/rewards/items), the same
+// list the server charges from and the admin edits. It used to be typed in
+// here, so admin changes never showed and the two lists could disagree.
 // Optional per-item `howToUse` is shown after a successful redemption.
 // Only add it where it's TRUE for how the reward actually works.
-const DEFAULT_ITEMS = [
-  {
-    id: "weekend_xp",
-    type: "BOOST",
-    title: "Weekend XP Multiplier",
-    desc: "+2x XP on all bookings Fri–Sun",
-    cost: 250,
-    level: 1,
-    featured: true,
-    repeatable: true,
-  },
-  {
-    id: "review_streak",
-    type: "BADGE",
-    title: "Review Streak (+1.5x)",
-    desc: "Leave 3 verified reviews this month for extra XP.",
-    cost: 180,
-    level: 1,
-    repeatable: false,
-  },
-  {
-    id: "globetrotter",
-    type: "BADGE",
-    title: "Globetrotter",
-    desc: "Unlocked at higher tiers or buy to fast-track.",
-    cost: 400,
-    level: 3,
-    isNew: true,
-    repeatable: false,
-  },
-  {
-    id: "priority_support",
-    type: "PERK",
-    title: "Priority Support Week",
-    desc: "Jump the queue on Atlas AI escalations for 7 days.",
-    cost: 150,
-    level: 1,
-    repeatable: true,
-  },
-  {
-    id: "wc_jacket",
-    type: "LIMITED",
-    title: "Skyrio World Cup Jacket — Numbered Drop",
-    desc: "Limited 50-unit run. Redeem XP toward your unit.",
-    cost: 1200,
-    level: 5,
-    repeatable: false,
-  },
-];
 
 const HOW_KEY = "skyrio_rewards_how_closed";
 
@@ -179,7 +133,7 @@ export default function PassportRewards({
   embedded = false,
   title = "Passport Rewards",
   xp: xpProp = 0,
-  items = DEFAULT_ITEMS,
+  items: itemsProp = null,
   redeemedIds: redeemedIdsProp = [],
   onRedeem,
   onEarnMore,
@@ -201,6 +155,33 @@ export default function PassportRewards({
   const [confirmItem, setConfirmItem] = useState(null);
   const [phase, setPhase] = useState("confirm"); // confirm | pending | done
   const [redeemError, setRedeemError] = useState("");
+
+  // ── Catalog from the server ──
+  const [catalog, setCatalog] = useState(itemsProp || []);
+  const [catalogLoading, setCatalogLoading] = useState(!itemsProp);
+  const [catalogError, setCatalogError] = useState(false);
+  useEffect(() => {
+    if (itemsProp) return undefined;
+    const controller = new AbortController();
+    (async () => {
+      setCatalogLoading(true);
+      setCatalogError(false);
+      try {
+        const res = await fetch(apiUrl("/api/rewards/items"), {
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) throw new Error("catalog");
+        setCatalog(Array.isArray(data.items) ? data.items : []);
+      } catch (e) {
+        if (e.name !== "AbortError") setCatalogError(true);
+      } finally {
+        if (!controller.signal.aborted) setCatalogLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [itemsProp]);
+  const items = itemsProp || catalog;
 
   const [challenges, setChallenges] = useState([]);
   const [challengesLoading, setChallengesLoading] = useState(true);
@@ -452,6 +433,12 @@ export default function PassportRewards({
         setBalance((b) => Math.max(0, b - item.cost));
       }
       setRedeemedIds((ids) => (item.repeatable ? ids : [...ids, item.id]));
+      // The server says how to use what was just delivered (e.g. a
+      // membership credit). Show that over any text set on the item.
+      if (result?.howToUse)
+        setConfirmItem((it) =>
+          it ? { ...it, howToUse: result.howToUse } : it
+        );
       setPhase("done");
     } catch (err) {
       setPhase("confirm");
@@ -765,20 +752,33 @@ export default function PassportRewards({
               </>
             )}
 
-            <h2 className="pr-section">
-              {tab === "all"
-                ? "All rewards"
-                : TABS.find((t) => t.key === tab)?.label}
-            </h2>
+            {(catalogLoading || visibleItems.length > 0) && (
+              <h2 className="pr-section">
+                {tab === "all"
+                  ? "All rewards"
+                  : TABS.find((t) => t.key === tab)?.label}
+              </h2>
+            )}
 
-            {visibleItems.length === 0 ? (
+            {catalogLoading ? (
+              <div className="pr-loading">
+                <Loader2 size={22} className="pr-spin" />
+              </div>
+            ) : catalogError ? (
               <EmptyState
-                title="Nothing here yet"
-                text="Keep earning XP for the next drop."
-                onAction={() => setTab("all")}
-                actionLabel="See all rewards"
+                title="Couldn't load rewards"
+                text="Check your connection and try again."
+                onAction={() => window.location.reload()}
+                actionLabel="Try again"
               />
-            ) : (
+            ) : visibleItems.length === 0 && !featured ? (
+              <EmptyState
+                title="New rewards are on the way"
+                text="Keep earning XP. It's saved for when they drop."
+                onAction={() => setTab("challenges")}
+                actionLabel="See challenges"
+              />
+            ) : visibleItems.length === 0 ? null : (
               <div className="pr-grid">
                 {visibleItems.map((item) => (
                   <RewardTicket
