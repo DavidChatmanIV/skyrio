@@ -5496,12 +5496,28 @@ export default function BookingPage() {
         .querySelectorAll(".sk-checkout-overlay")
         .forEach((el) => (el.scrollTop = 0));
     };
-    toTop();
-    const raf = requestAnimationFrame(toTop);
-    const t = setTimeout(toTop, 300);
+    // How tall the top bar really is (phone vs desktop, banners), so
+    // checkout starts just under it.
+    const fitUnderNav = () => {
+      const nav = document.querySelector(".sk-navbar-wrap");
+      const bottom = nav ? Math.max(0, nav.getBoundingClientRect().bottom) : 76;
+      document.documentElement.style.setProperty(
+        "--sk-co-top",
+        `${Math.round(bottom + 8)}px`
+      );
+    };
+    const settle = () => {
+      fitUnderNav();
+      toTop();
+    };
+    settle();
+    const raf = requestAnimationFrame(settle);
+    const t = setTimeout(settle, 300);
+    window.addEventListener("resize", fitUnderNav);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t);
+      window.removeEventListener("resize", fitUnderNav);
     };
   }, [checkoutOpen]);
 
@@ -6395,7 +6411,13 @@ export default function BookingPage() {
     showCheckout && selectedFlight ? (
       <div
         className="sk-checkout-overlay"
-        style={{ "--sk-bg-image": `url(${heroImg})` }}
+        style={{
+          "--sk-bg-image": `url(${heroImg})`,
+          // Start below the fixed top bar, or the bar covers the
+          // checkout header and "Back to results".
+          paddingTop: "var(--sk-co-top, 76px)",
+          boxSizing: "border-box",
+        }}
       >
         <BookingCheckout
           flight={selectedFlight}
@@ -6472,7 +6494,13 @@ export default function BookingPage() {
     ) : showHotelCheckout && checkoutRooms.length > 0 ? (
       <div
         className="sk-checkout-overlay"
-        style={{ "--sk-bg-image": `url(${heroImg})` }}
+        style={{
+          "--sk-bg-image": `url(${heroImg})`,
+          // Start below the fixed top bar, or the bar covers the
+          // checkout header and "Back to results".
+          paddingTop: "var(--sk-co-top, 76px)",
+          boxSizing: "border-box",
+        }}
       >
         <HotelCheckout
           rooms={checkoutRooms}
