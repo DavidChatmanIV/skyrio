@@ -4646,21 +4646,21 @@ function StepReviewPay({
                     onBookingSuccess={onBookingSuccess}
                   />
                 ) : (
-                <LiteApiPayForm
-                  clientSecret={clientSecret}
-                  prebookId={prebookId}
-                  transactionId={transactionId}
-                  total={total}
-                  flight={flight}
-                  passengers={passengers}
-                  groupId={groupId}
-                  progressKey={progressKey}
-                  fareExpired={fareExpired}
-                  onBack={onBack}
-                  seats={seatsForBooking}
-                  hasSeats={seatsPrice > 0}
-                  hasBags={selectedBags.length > 0}
-                />
+                  <LiteApiPayForm
+                    clientSecret={clientSecret}
+                    prebookId={prebookId}
+                    transactionId={transactionId}
+                    total={total}
+                    flight={flight}
+                    passengers={passengers}
+                    groupId={groupId}
+                    progressKey={progressKey}
+                    fareExpired={fareExpired}
+                    onBack={onBack}
+                    seats={seatsForBooking}
+                    hasSeats={seatsPrice > 0}
+                    hasBags={selectedBags.length > 0}
+                  />
                 )}
                 <CancellationBadge
                   departureDateISO={flight?.outbound?.dateISO}
@@ -4922,9 +4922,15 @@ export default function BookingCheckout({
             }),
           });
           const iData = await iRes.json().catch(() => ({}));
-          if (!iRes.ok || !iData.ok || !iData.clientSecret || !iData.checkoutToken) {
+          if (
+            !iRes.ok ||
+            !iData.ok ||
+            !iData.clientSecret ||
+            !iData.checkoutToken
+          ) {
             throw new Error(
-              iData.message || "Couldn't set up payment for this fare. Go back and try again."
+              iData.message ||
+                "Couldn't set up payment for this fare. Go back and try again."
             );
           }
           saveCheckoutToken("flight", iData.checkoutId, iData.checkoutToken);
@@ -5198,14 +5204,25 @@ export default function BookingCheckout({
   }, [exitToResults]);
   const cancelDiscard = useCallback(() => setShowDiscardConfirm(false), []);
   useVhFix();
-  // Checkout would otherwise inherit the results page's scroll position
-  // and hide its own header/back button.
+  // Start at the top on open and on every step (Passengers → Seats →
+  // Review & Pay), so the header and "Back to results" are in view.
+  // Checkout usually scrolls inside its own layer (.sk-checkout-overlay),
+  // which window.scrollTo doesn't reach, so reset that too. Again after
+  // layout settles, since phones could land partway down.
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, []);
-  // Same fix for step changes within checkout.
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    const toTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document
+        .querySelectorAll(".sk-checkout-overlay")
+        .forEach((el) => (el.scrollTop = 0));
+    };
+    toTop();
+    const raf = requestAnimationFrame(toTop);
+    const t = setTimeout(toTop, 300);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [step]);
   return (
     <PlanBudgetCtx.Provider value={groupId ? null : planBudget}>
@@ -5413,9 +5430,7 @@ export default function BookingCheckout({
               tripBudget={tripBudget}
               onBudgetSaved={onBudgetSaved}
               progressKey={progressKey}
-              onBack={() =>
-                setStep(isDuffelOffer(liveFlight.offerId) ? 0 : 1)
-              }
+              onBack={() => setStep(isDuffelOffer(liveFlight.offerId) ? 0 : 1)}
               passengers={passengers}
               extras={extras || NO_EXTRAS}
               basePrice={liveFlight.basePrice}

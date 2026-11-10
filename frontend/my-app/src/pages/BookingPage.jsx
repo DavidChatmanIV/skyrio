@@ -5485,6 +5485,26 @@ export default function BookingPage() {
   const checkoutOpen = flightCheckoutOpen || hotelCheckoutOpen;
   const checkoutStepRef = useRef(false);
 
+  // Checkout scrolls inside its own layer (.sk-checkout-overlay), so
+  // window.scrollTo doesn't reach it. On phones it could open partway
+  // down, with "Back to results" hidden under the top bar (tester
+  // report). Start it at the very top, again after layout settles.
+  useEffect(() => {
+    if (!checkoutOpen) return undefined;
+    const toTop = () => {
+      document
+        .querySelectorAll(".sk-checkout-overlay")
+        .forEach((el) => (el.scrollTop = 0));
+    };
+    toTop();
+    const raf = requestAnimationFrame(toTop);
+    const t = setTimeout(toTop, 300);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [checkoutOpen]);
+
   useEffect(() => {
     if (checkoutOpen && !checkoutStepRef.current) {
       checkoutStepRef.current = true;
