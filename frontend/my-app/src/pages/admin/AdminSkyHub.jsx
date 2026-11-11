@@ -9,6 +9,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { adminTokenHeader } from "@/lib/adminAuth";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -31,6 +32,9 @@ const authHeaders = () => {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
     ...(adminEmail && { "x-admin-email": adminEmail }),
+    // The admin cookie is blocked cross-site on phones and Safari; the
+    // token header works everywhere (same as the admin dashboard).
+    ...adminTokenHeader(),
   };
 };
 
