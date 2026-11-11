@@ -25,11 +25,14 @@ const skyHubReportSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // null when an admin removed it straight from the feed (see filedBy).
     reporter: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
     },
+    // Admin who removed it from the feed without a traveler report.
+    filedBy: { type: String, default: null },
     reason: {
       type: String,
       // Keep in sync with REPORT_REASONS in services/skyhubModeration.js
@@ -44,6 +47,7 @@ const skyHubReportSchema = new mongoose.Schema(
         "scam",
         "spam",
         "misinformation",
+        "off_topic",
         "other",
       ],
       default: "other",

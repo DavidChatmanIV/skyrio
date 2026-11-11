@@ -8,7 +8,7 @@ const skyHubStrikeSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     reason: {
       type: String,
-      enum: ["spam", "harassment", "hate", "nudity", "scam", "violence", "misinformation", "other"],
+      enum: ["spam", "harassment", "hate", "nudity", "scam", "violence", "misinformation", "off_topic", "other"],
       default: "other",
     },
     severity: { type: String, enum: ["standard", "severe"], default: "standard" },

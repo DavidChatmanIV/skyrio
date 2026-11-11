@@ -31,6 +31,7 @@ import SkyHubStanding from "./SkyHubStanding";
 import { SkyHubJoinModal, SkyHubJoinCard } from "./SkyHubJoinPrompt";
 import { apiUrl } from "@/lib/api";
 import { AuthContext } from "@/context/AuthContext";
+import { getAdminToken, adminTokenHeader } from "@/lib/adminAuth";
 
 /* ── Logged-in requests ─────────────────────────────────────────
    SkyHub knows who you are from the same login token the rest of
@@ -83,6 +84,7 @@ const REPORT_REASONS = [
   { value: "child_safety", label: "Involves a child's safety", urgent: true },
   { value: "self_harm", label: "Someone may hurt themselves" },
   { value: "misinformation", label: "False or misleading info" },
+  { value: "off_topic", label: "Not about travel" },
   { value: "other", label: "Something else" },
 ];
 
@@ -1073,6 +1075,49 @@ export default function SkyHubPage() {
       },
     });
 
+  // Admin: take down any post from the feed. Logged in at /admin/login
+  // on this browser = the option shows in each post's menu.
+  const isAdminHere = !!getAdminToken();
+  const [adminPost, setAdminPost] = useState(null);
+  const [adminReason, setAdminReason] = useState("spam");
+  const [adminStrike, setAdminStrike] = useState(false);
+  const [adminSending, setAdminSending] = useState(false);
+  const openAdminRemove = (post) => {
+    setAdminReason("spam");
+    setAdminStrike(false);
+    setAdminPost(post);
+  };
+  const submitAdminRemove = async () => {
+    if (!adminPost) return;
+    setAdminSending(true);
+    try {
+      const res = await skyFetch("/api/skyhub/admin/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...adminTokenHeader() },
+        body: JSON.stringify({
+          targetType: "post",
+          targetId: adminPost.id,
+          action: adminStrike ? "strike" : "remove",
+          reason: adminReason,
+          fromFeed: true,
+        }),
+      });
+      const data = await readJson(res);
+      if (res.status === 403)
+        throw new Error("Couldn't remove it. Log in at /admin/login first.");
+      if (!res.ok)
+        throw new Error(data?.message || "Couldn't remove the post. Try again.");
+      const id = adminPost.id;
+      updateEverywhere((prev) => prev.filter((p) => p.id !== id));
+      setAdminPost(null);
+      message.success(adminStrike ? "Post removed and strike given." : "Post removed.");
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setAdminSending(false);
+    }
+  };
+
   const handleOpenComments = (post) => {
     setActiveCommentPost(post);
     setCommentDrawerOpen(true);
@@ -1525,6 +1570,7 @@ export default function SkyHubPage() {
                       onEditPost={handleEditPost}
                       onDeletePost={handleDeletePost}
                       onBlockUser={handleBlockUser}
+                      onAdminRemove={isAdminHere ? openAdminRemove : undefined}
                       onToggleFollow={handleToggleFollow}
                     />
                   ))
@@ -1685,6 +1731,52 @@ export default function SkyHubPage() {
           placeholder="Anything else we should know? (optional)"
           style={{ marginTop: 14 }}
         />
+      </Modal>
+
+      <Modal
+        open={!!adminPost}
+        title="Remove this post?"
+        className="skyhub-modal"
+        onCancel={() => setAdminPost(null)}
+        onOk={submitAdminRemove}
+        okText={adminStrike ? "Remove and give strike" : "Remove post"}
+        okButtonProps={{ danger: true, loading: adminSending }}
+        destroyOnHidden
+      >
+        <p style={{ marginBottom: 12, opacity: 0.75 }}>
+          It's hidden from SkyHub right away. The author is told which
+          guideline it broke. You can restore it under Actioned on the admin SkyHub page.
+        </p>
+        <Radio.Group
+          value={adminReason}
+          onChange={(e) => {
+            setAdminReason(e.target.value);
+            // Off-topic is removed, never a strike.
+            if (e.target.value === "off_topic") setAdminStrike(false);
+          }}
+          style={{ display: "flex", flexDirection: "column", gap: 8 }}
+        >
+          {REPORT_REASONS.filter((r) => r.value !== "child_safety").map((r) => (
+            <Radio key={r.value} value={r.value}>
+              {r.label}
+            </Radio>
+          ))}
+        </Radio.Group>
+        <p style={{ marginTop: 10, fontSize: 12, opacity: 0.6 }}>
+          Child safety: use Report instead, so it goes through the child
+          safety review on the admin page.
+        </p>
+        <label
+          style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}
+        >
+          <input
+            type="checkbox"
+            checked={adminStrike}
+            disabled={adminReason === "off_topic"}
+            onChange={(e) => setAdminStrike(e.target.checked)}
+          />
+          Also give the author a strike
+        </label>
       </Modal>
 
       <SkyHubJoinModal

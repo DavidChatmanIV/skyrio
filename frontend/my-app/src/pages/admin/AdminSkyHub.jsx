@@ -49,6 +49,7 @@ const REASON_LABEL = {
   nudity: "Nudity",
   violence: "Violence",
   misinformation: "Misleading",
+  off_topic: "Off-topic",
   other: "Other",
 };
 

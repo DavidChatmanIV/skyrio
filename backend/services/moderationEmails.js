@@ -28,6 +28,7 @@ export const REASON_LABEL = {
   nudity: "Nudity or sexual content",
   violence: "Violence or threats",
   misinformation: "False or misleading information",
+  off_topic: "Not about travel",
   other: "Breaking the community guidelines",
 };
 
