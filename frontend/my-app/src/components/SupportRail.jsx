@@ -559,6 +559,9 @@ export default function SupportRail() {
   );
   const [visits] = useState(countVisit);
   const [tipReady, setTipReady] = useState(false);
+  // After the tour closes: point at the launcher so people know the tour,
+  // reviews and feedback always live here.
+  const [coach, setCoach] = useState(false);
   const attention = !railSeen && !tipDismissed && visits <= ATTENTION_VISITS;
 
   // ── Feedback state ──
@@ -702,6 +705,25 @@ export default function SupportRail() {
     return () => clearTimeout(t);
   }, [attention, quiet]);
 
+  useEffect(() => {
+    let t;
+    const onTourClosed = () => {
+      clearTimeout(t);
+      t = setTimeout(() => setCoach(true), 700);
+    };
+    window.addEventListener("skyrio:tour-closed", onTourClosed);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("skyrio:tour-closed", onTourClosed);
+    };
+  }, []);
+  // Leave it up long enough to read, then tuck it away.
+  useEffect(() => {
+    if (!coach) return;
+    const t = setTimeout(() => setCoach(false), 12000);
+    return () => clearTimeout(t);
+  }, [coach]);
+
   // Escape closes the menu
   useEffect(() => {
     if (!menuOpen) return;
@@ -784,10 +806,12 @@ export default function SupportRail() {
   function dismissTip() {
     writeFlag(RAIL_TIP_KEY);
     setTipDismissed(true);
+    setCoach(false);
   }
 
   function toggleMenu() {
     markRailSeen();
+    setCoach(false);
     setMenuOpen((v) => !v);
   }
 
@@ -958,8 +982,7 @@ export default function SupportRail() {
   const rvChars = review.text.trim().length;
 
   const showTip =
-    attention &&
-    tipReady &&
+    (coach || (attention && tipReady)) &&
     !menuOpen &&
     activePanel === "closed" &&
     !prompt &&
@@ -1249,10 +1272,13 @@ export default function SupportRail() {
         <div className="sr-tip" role="status" data-sr-root="">
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
             <div style={{ flex: 1 }}>
-              <div className="sr-tip__title">Need help or have an idea?</div>
+              <div className="sr-tip__title">
+                {coach ? "It's all right here" : "Tour, reviews and feedback"}
+              </div>
               <div className="sr-tip__body">
-                Tap <strong>Help &amp; feedback</strong> anytime to report a
-                bug, share an idea, leave a review or reach a real person.
+                Tap <strong>Help &amp; feedback</strong> anytime to take the
+                tour again, leave a review, send feedback or reach a real
+                person.
                 {signedIn && " Feedback can earn you XP."}
               </div>
             </div>
@@ -1408,7 +1434,7 @@ export default function SupportRail() {
         <button
           type="button"
           className={`sr-launcher${railSeen ? " is-seen" : ""}${
-            attention && !menuOpen ? " is-pulsing" : ""
+            (attention || coach) && !menuOpen ? " is-pulsing" : ""
           }`}
           onClick={toggleMenu}
           aria-expanded={menuOpen}

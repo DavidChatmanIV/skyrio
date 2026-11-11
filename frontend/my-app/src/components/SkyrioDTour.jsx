@@ -296,6 +296,26 @@ const readDone = () => {
     return true; // storage blocked — don't nag
   }
 };
+// The cookie banner sits on top of everything, so on a first visit it
+// covered the tour's buttons. Wait until it's answered.
+const cookieAnswered = () => {
+  try {
+    return !!localStorage.getItem("cookieConsent");
+  } catch {
+    return true;
+  }
+};
+// Lets the Help & feedback rail know the tour is on screen / done.
+const announce = (open) => {
+  try {
+    window.dispatchEvent(
+      new CustomEvent("skyrio:popup", { detail: { id: "tour", open } })
+    );
+    if (!open) window.dispatchEvent(new Event("skyrio:tour-closed"));
+  } catch {
+    /* fine */
+  }
+};
 const saveDone = () => {
   try {
     localStorage.setItem(STORAGE_KEY, "1");
@@ -318,12 +338,30 @@ export default function SkyrioDTour() {
   // First visit: show once the page has settled
   useEffect(() => {
     if (visible || blocked || readDone()) return;
-    const t = setTimeout(() => {
-      lastFocus.current = document.activeElement;
-      setStep(0);
-      setVisible(true);
-    }, START_DELAY_MS);
-    return () => clearTimeout(t);
+    let t;
+    const start = () => {
+      t = setTimeout(() => {
+        lastFocus.current = document.activeElement;
+        setStep(0);
+        setVisible(true);
+        announce(true);
+      }, START_DELAY_MS);
+    };
+    if (cookieAnswered()) {
+      start();
+      return () => clearTimeout(t);
+    }
+    // Check once a second until the cookie banner is answered.
+    const poll = setInterval(() => {
+      if (cookieAnswered()) {
+        clearInterval(poll);
+        start();
+      }
+    }, 1000);
+    return () => {
+      clearInterval(poll);
+      clearTimeout(t);
+    };
   }, [blocked, visible]);
 
   // Replay on demand
@@ -332,6 +370,7 @@ export default function SkyrioDTour() {
       lastFocus.current = document.activeElement;
       setStep(0);
       setVisible(true);
+      announce(true);
     };
     window.addEventListener("skyrio:tour", replay);
     return () => window.removeEventListener("skyrio:tour", replay);
@@ -340,6 +379,7 @@ export default function SkyrioDTour() {
   const close = useCallback(() => {
     saveDone();
     setVisible(false);
+    announce(false);
     setTimeout(() => lastFocus.current?.focus?.(), 0);
   }, []);
 
