@@ -397,6 +397,39 @@ export default function AdminSkyHub() {
           90 days.
         </p>
 
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            padding: "12px 14px",
+            marginBottom: 18,
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(255,255,255,0.06)",
+          }}
+        >
+          <span style={{ color: C.muted, fontSize: 14 }}>
+            See something nobody reported? Open the feed and tap ⋯ on the post, then Remove post (admin).
+          </span>
+          <Link
+            to="/skyhub"
+            style={{
+              padding: "8px 14px",
+              borderRadius: 999,
+              fontWeight: 700,
+              fontSize: 14,
+              color: "#1a1030",
+              background: "linear-gradient(135deg,#ff8a4c,#ffb86b)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Open SkyHub feed
+          </Link>
+        </div>
+
         <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
           {[
             ["open", `Needs review${counts.reports ? ` (${counts.reports})` : ""}`],
