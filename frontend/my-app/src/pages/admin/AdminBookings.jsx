@@ -22,6 +22,7 @@ import {
   Clock,
 } from "lucide-react";
 import { adminTokenHeader } from "@/lib/adminAuth";
+import { ADMIN } from "@/lib/adminTheme";
 
 const API = import.meta.env.VITE_API_URL || "";
 const STRIPE_TEST = String(
@@ -29,9 +30,9 @@ const STRIPE_TEST = String(
 ).startsWith("pk_test");
 
 const C = {
-  bg: "#0b0817",
-  card: "rgba(255,255,255,0.04)",
-  border: "rgba(255,255,255,0.10)",
+  bg: ADMIN.pageBg,
+  card: ADMIN.card,
+  border: ADMIN.border,
   text: "#fff",
   muted: "rgba(255,255,255,0.6)",
   faint: "rgba(255,255,255,0.4)",
@@ -815,7 +816,7 @@ function BookingDetail({ id, onClose, onChanged }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(5,3,12,.65)",
+        background: "rgba(18,8,40,.6)",
         zIndex: 1000,
         display: "flex",
         justifyContent: "flex-end",
@@ -828,7 +829,7 @@ function BookingDetail({ id, onClose, onChanged }) {
           width: "min(720px, 100%)",
           height: "100%",
           overflowY: "auto",
-          background: "#120d24",
+          background: ADMIN.solid,
           borderLeft: `1px solid ${C.border}`,
           padding: 24,
           color: C.text,
@@ -1604,6 +1605,8 @@ export default function AdminBookings() {
       style={{
         minHeight: "100vh",
         background: C.bg,
+        backgroundColor: ADMIN.pageBase,
+        backgroundRepeat: "no-repeat",
         color: C.text,
         padding: "28px 24px 60px",
         fontFamily: "inherit",

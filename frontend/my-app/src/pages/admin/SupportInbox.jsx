@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Select, message } from "antd";
 import { apiUrl } from "@/lib/api";
+import { ADMIN } from "@/lib/adminTheme";
 
 // ─── Design tokens — matches AdminDashboard.jsx ────────────────────────────
 const C = {
-  bg: "#07060f",
-  card: "rgba(255,255,255,0.04)",
-  border: "rgba(255,255,255,0.08)",
+  bg: ADMIN.pageBg,
+  card: ADMIN.card,
+  border: ADMIN.border,
   borderAccent: "rgba(255,138,42,0.3)",
   orange: "#ff8a2a",
   orangeDim: "rgba(255,138,42,0.12)",
@@ -25,7 +26,7 @@ const C = {
 
 const INJECTED_CSS = `
   .sk-inbox * { box-sizing: border-box; }
-  .sk-inbox { min-height: 100vh; background: ${C.bg}; color: ${C.white}; font-family: "DM Sans", sans-serif; }
+  .sk-inbox { min-height: 100vh; background: ${C.bg}; background-color: ${ADMIN.pageBase}; background-repeat: no-repeat; color: ${C.white}; font-family: "DM Sans", sans-serif; }
   .sk-inbox__topbar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 18px 32px; background: rgba(255,255,255,0.02);

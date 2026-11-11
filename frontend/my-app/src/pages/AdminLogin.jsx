@@ -4,6 +4,7 @@ import { LockOutlined, UserOutlined, SafetyOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
 import { saveAdminToken, clearAdminToken } from "@/lib/adminAuth";
+import { ADMIN } from "@/lib/adminTheme";
 
 const { Title, Text } = Typography;
 
@@ -53,8 +54,23 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0b1220]">
-      <Card bordered={false} style={{ width: 380 }} className="osq-surface">
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: ADMIN.pageBg, backgroundColor: ADMIN.pageBase, padding: 16 }}
+    >
+      <Card
+        bordered={false}
+        style={{
+          width: 380,
+          maxWidth: "100%",
+          background: ADMIN.card,
+          border: `1px solid ${ADMIN.border}`,
+          borderRadius: 18,
+          overflow: "hidden",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 44px rgba(12,4,28,0.38)",
+        }}
+        className="osq-surface"
+      >
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <SafetyOutlined style={{ fontSize: 32, color: "#a78bfa" }} />
           <Title level={3} style={{ marginTop: 12 }}>
