@@ -63,6 +63,8 @@ export const REPORT_REASONS = {
   scam: { severity: "standard", label: "Scam or fraud" },
   spam: { severity: "standard", label: "Spam or ads" },
   misinformation: { severity: "standard", label: "False or misleading info" },
+  // SkyHub is for travel. Removed, but never a strike on its own.
+  off_topic: { severity: "standard", label: "Not about travel" },
   other: { severity: "standard", label: "Something else" },
 };
 export const REPORT_REASON_KEYS = Object.keys(REPORT_REASONS);

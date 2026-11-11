@@ -691,7 +691,7 @@ router.delete("/comments/:id", requireViewer, async (req, res) => {
 
 /* ─────────────────────────────────────────────────────────────
    Reports — posts, comments and travelers
-   Body: { reason: spam|harassment|hate|nudity|scam|violence|misinformation|other, details? }
+   Body: { reason: spam|harassment|hate|nudity|scam|violence|misinformation|off_topic|other, details? }
    A post or comment is hidden for review once 3 different people report it.
 ───────────────────────────────────────────────────────────── */
 async function fileReport(req, res, targetType) {
@@ -1348,6 +1348,11 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
       )
     ) {
       return res.status(400).json({ message: "Unknown action." });
+    }
+    if (["strike", "severe"].includes(action) && req.body?.reason === "off_topic") {
+      return res
+        .status(400)
+        .json({ message: "Off-topic posts are removed without a strike." });
     }
     const by = adminName(req);
     const Model =

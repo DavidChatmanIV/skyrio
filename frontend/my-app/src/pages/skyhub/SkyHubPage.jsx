@@ -84,6 +84,7 @@ const REPORT_REASONS = [
   { value: "child_safety", label: "Involves a child's safety", urgent: true },
   { value: "self_harm", label: "Someone may hurt themselves" },
   { value: "misinformation", label: "False or misleading info" },
+  { value: "off_topic", label: "Not about travel" },
   { value: "other", label: "Something else" },
 ];
 
@@ -1748,7 +1749,11 @@ export default function SkyHubPage() {
         </p>
         <Radio.Group
           value={adminReason}
-          onChange={(e) => setAdminReason(e.target.value)}
+          onChange={(e) => {
+            setAdminReason(e.target.value);
+            // Off-topic is removed, never a strike.
+            if (e.target.value === "off_topic") setAdminStrike(false);
+          }}
           style={{ display: "flex", flexDirection: "column", gap: 8 }}
         >
           {REPORT_REASONS.filter((r) => r.value !== "child_safety").map((r) => (
@@ -1767,6 +1772,7 @@ export default function SkyHubPage() {
           <input
             type="checkbox"
             checked={adminStrike}
+            disabled={adminReason === "off_topic"}
             onChange={(e) => setAdminStrike(e.target.checked)}
           />
           Also give the author a strike

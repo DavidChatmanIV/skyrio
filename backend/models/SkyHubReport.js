@@ -47,6 +47,7 @@ const skyHubReportSchema = new mongoose.Schema(
         "scam",
         "spam",
         "misinformation",
+        "off_topic",
         "other",
       ],
       default: "other",
