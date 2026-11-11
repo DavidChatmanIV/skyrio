@@ -15,7 +15,7 @@ const NOT_COVERED = [
   "Hotel refund and cancellation rules. Each hotel sets its own, and you'll see them before you pay.",
   "Airline rules for changes, cancellations, bags and carry-ons. Each airline sets these.",
   "Schedule changes or cancellations made by the airline or hotel. We'll help you contact them and follow their process.",
-  "Details entered wrong by the traveler (like a misspelled name), unless our site caused it.",
+  "Details entered incorrectly by the traveler (like a misspelled name), unless our site caused it.",
   "No-shows or trips you choose not to take.",
 ];
 
@@ -29,7 +29,7 @@ export default function GuaranteePage() {
         <h1>If something goes wrong on our end, you get your money back</h1>
         <p className="sk-trust__lead">
           Booking a trip with a new site is a big deal. Here's exactly what we
-          cover, what we don't, and how fast refunds happen.
+          cover, what we don't and how fast refunds happen.
         </p>
       </header>
 
