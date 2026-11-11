@@ -29,6 +29,7 @@ import {
 import dayjs from "dayjs";
 import { apiUrl } from "@/lib/api";
 import { adminTokenHeader, clearAdminToken } from "@/lib/adminAuth";
+import { ADMIN } from "@/lib/adminTheme";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    API
@@ -220,10 +221,10 @@ const XP_REASON_LABELS = {
 };
 
 const C = {
-  bg: "#07060f",
-  card: "rgba(255,255,255,0.04)",
-  border: "rgba(255,255,255,0.08)",
-  borderStrong: "rgba(255,255,255,0.16)",
+  bg: ADMIN.pageBg,
+  card: ADMIN.card,
+  border: ADMIN.border,
+  borderStrong: ADMIN.borderStrong,
   orange: "#ff8a2a",
   purple: "#7c5cfc",
   green: "#34d399",
@@ -231,8 +232,8 @@ const C = {
   blue: "#60a5fa",
   amber: "#ffb347",
   white: "#fff",
-  text: "rgba(255,255,255,0.75)",
-  muted: "rgba(255,255,255,0.45)",
+  text: ADMIN.text,
+  muted: ADMIN.muted,
 };
 
 /** Foreground + tinted background pairs. Use these instead of `color + "20"`,
@@ -260,7 +261,7 @@ const TONES = {
    no blur anywhere, no floating Atlas/Help buttons, a plain solid
    background, and long sections are only drawn when on screen. */
 const ADMIN_PAGE_CSS = `
-  html.sk-admin-page, html.sk-admin-page body { background: #07060f !important; }
+  html.sk-admin-page, html.sk-admin-page body { background: ${ADMIN.pageBase} !important; }
   html.sk-admin-page *,
   html.sk-admin-page *::before,
   html.sk-admin-page *::after {
@@ -281,12 +282,13 @@ const ADMIN_PAGE_CSS = `
 
 const INJECTED_CSS = `
   .sk-admin * { box-sizing: border-box; }
-  .sk-admin { min-height: 100vh; background: ${C.bg}; color: ${C.white}; font-family: "DM Sans", sans-serif; }
+  .sk-admin { min-height: 100vh; background: ${C.bg}; background-color: ${ADMIN.pageBase}; background-repeat: no-repeat; color: ${C.white}; font-family: "DM Sans", sans-serif; }
 
   /* Top bar + tabs */
   /* Solid, no blur: a full-width blur behind a sticky bar made Chrome on
      Mac skip drawing parts of this page (blank areas, empty pills). */
-  .sk-top { position: sticky; top: 0; z-index: 50; background: #07060f; border-bottom: 1px solid ${C.border}; }
+  .sk-top { position: sticky; top: 0; z-index: 50; background: ${ADMIN.solid}; border-bottom: 1px solid ${C.border}; box-shadow: 0 8px 24px rgba(12,4,28,0.35); }
+  .sk-top::before { content: ""; display: block; height: 3px; background: ${ADMIN.topline}; }
   .sk-top__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 32px 0; max-width: 1300px; margin: 0 auto; }
   .sk-top__logo { font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
   .sk-top__badge { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; background: ${TONES.orange.bg}; border: 1px solid rgba(255,138,42,0.3); color: ${C.orange}; border-radius: 999px; padding: 3px 10px; }
@@ -341,7 +343,7 @@ const INJECTED_CSS = `
   .sk-tile__arrow { color: ${C.orange}; font-size: 18px; font-weight: 700; flex-shrink: 0; }
 
   /* Stat cards */
-  .sk-stat { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 14px; padding: 18px; }
+  .sk-stat { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 14px; padding: 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }
   .sk-stat__top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .sk-stat__label { font-size: 12px; color: ${C.muted}; }
   .sk-stat__icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
@@ -349,7 +351,7 @@ const INJECTED_CSS = `
   .sk-stat__hint { font-size: 11px; color: ${C.muted}; margin-top: 8px; }
 
   /* Panels + rows */
-  .sk-panel { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 14px; overflow: hidden; }
+  .sk-panel { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 14px; overflow: hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }
   .sk-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid ${C.border}; flex-wrap: wrap; }
   .sk-panel__title { margin: 0; font-size: 13px; font-weight: 700; color: ${C.white}; }
   .sk-panel__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -452,13 +454,13 @@ const INJECTED_CSS = `
   .sk-fb.is-selected, .sk-row.is-selected { background: rgba(255,138,42,0.07); }
   .sk-fb__pick, .sk-check input { width: 16px; height: 16px; accent-color: ${C.orange}; cursor: pointer; flex-shrink: 0; margin: 0; }
   .sk-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: ${C.text}; cursor: pointer; user-select: none; }
-  .sk-bulk { position: sticky; top: 96px; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 20px; background: #1d1430; border-bottom: 1px solid rgba(255,138,42,0.35); font-size: 13px; }
+  .sk-bulk { position: sticky; top: 96px; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 20px; background: ${ADMIN.solidRaised}; border-bottom: 1px solid rgba(255,138,42,0.35); font-size: 13px; }
   .sk-bulk b { margin-right: 4px; }
   .sk-clearbar { flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 4px; border-radius: 12px; background: rgba(255,138,42,0.08); border: 1px solid rgba(255,138,42,0.3); font-size: 13px; color: ${C.text}; }
   .sk-clearbar span { margin-right: auto; }
   .sk-clearbar b { color: #fff; }
   /* Thank-you window: always dark, whatever theme the page gets */
-  .sk-thank-modal .ant-modal-content, .sk-thank-modal .ant-modal-header { background: #150f28 !important; color: #fff; }
+  .sk-thank-modal .ant-modal-content, .sk-thank-modal .ant-modal-header { background: ${ADMIN.solid} !important; color: #fff; }
   .sk-thank-modal .ant-modal-title { color: #fff !important; }
   .sk-thank-modal .ant-modal-close { color: rgba(255,255,255,0.6) !important; }
   .sk-thank-modal textarea, .sk-thank-modal .ant-input-affix-wrapper, .sk-thank-modal .ant-input-textarea-affix-wrapper { background: rgba(255,255,255,0.06) !important; color: #fff !important; border-color: rgba(255,255,255,0.18) !important; }
@@ -474,8 +476,8 @@ const INJECTED_CSS = `
   .sk-thank-modal .ant-modal-content { border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 20px 60px rgba(0,0,0,0.6) !important; }
 
   /* Small "are you sure?" popups (Popconfirm) */
-  .sk-pop .ant-popover-inner { background: #150f28 !important; border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 14px 40px rgba(0,0,0,0.55) !important; }
-  .sk-pop .ant-popover-arrow::before, .sk-pop .ant-popover-arrow::after { background: #150f28 !important; }
+  .sk-pop .ant-popover-inner { background: ${ADMIN.solid} !important; border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 14px 40px rgba(0,0,0,0.55) !important; }
+  .sk-pop .ant-popover-arrow::before, .sk-pop .ant-popover-arrow::after { background: ${ADMIN.solid} !important; }
   .sk-pop .ant-popconfirm-title { color: #fff !important; font-weight: 700; }
   .sk-pop .ant-popconfirm-description { color: rgba(255,255,255,0.75) !important; max-width: 280px; }
   .sk-pop .ant-popconfirm-message-icon .anticon { color: #ffb347 !important; }

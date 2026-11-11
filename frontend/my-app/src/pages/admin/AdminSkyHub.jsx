@@ -10,13 +10,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminTokenHeader } from "@/lib/adminAuth";
+import { ADMIN } from "@/lib/adminTheme";
 
 const API = import.meta.env.VITE_API_URL || "";
 
 const C = {
-  bg: "#120c1f",
-  panel: "rgba(255,255,255,0.04)",
-  line: "rgba(255,255,255,0.09)",
+  bg: ADMIN.pageBg,
+  panel: ADMIN.card,
+  line: ADMIN.border,
   text: "#f2eefa",
   muted: "rgba(242,238,250,0.6)",
   orange: "#ff8a2a",
@@ -161,7 +162,7 @@ function ReportItem({ item, onDone, readOnly }) {
       {c?.deleted ? (
         <div style={{ color: C.muted, fontStyle: "italic" }}>The author already deleted this.</div>
       ) : c ? (
-        <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: 12 }}>
+        <div style={{ background: ADMIN.field, borderRadius: 10, padding: 12 }}>
           {c.destination && <div style={{ color: C.orange, fontSize: 12, marginBottom: 4 }}>{c.destination}</div>}
           <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{c.text}</div>
           {c.images?.length > 0 && (
@@ -204,7 +205,7 @@ function ReportItem({ item, onDone, readOnly }) {
                   id={`reason-${item.key}`}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  style={{ display: "block", width: "100%", marginTop: 4, background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 8px" }}
+                  style={{ display: "block", width: "100%", marginTop: 4, background: ADMIN.field, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 8px" }}
                 >
                   {Object.entries(REASON_LABEL).map(([v, l]) => (
                     <option key={v} value={v}>
@@ -221,7 +222,7 @@ function ReportItem({ item, onDone, readOnly }) {
                   maxLength={500}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="e.g. Please don't post referral links"
-                  style={{ display: "block", width: "100%", marginTop: 4, background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 8px", fontFamily: "inherit" }}
+                  style={{ display: "block", width: "100%", marginTop: 4, background: ADMIN.field, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 8px", fontFamily: "inherit" }}
                 />
               </label>
             </div>
@@ -303,7 +304,7 @@ function AppealItem({ a, onDone, readOnly }) {
         {a.severity === "severe" ? " (severe)" : ""} · {a.action === "ban" ? "permanent ban" : a.action === "suspension" ? `${a.suspensionDays}-day pause` : "warning"} · {when(a.strikeAt)}
         {a.by ? ` · by ${a.by}` : ""}
       </div>
-      {a.snippet && <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: 10, whiteSpace: "pre-wrap" }}>&quot;{a.snippet}&quot;</div>}
+      {a.snippet && <div style={{ background: ADMIN.field, borderRadius: 10, padding: 10, whiteSpace: "pre-wrap" }}>&quot;{a.snippet}&quot;</div>}
       <div>
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Their appeal</div>
         <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{a.appeal?.message}</div>
@@ -322,7 +323,7 @@ function AppealItem({ a, onDone, readOnly }) {
             maxLength={1000}
             rows={2}
             placeholder="Reply to the traveler (included in their email)"
-            style={{ background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: 8, fontFamily: "inherit" }}
+            style={{ background: ADMIN.field, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: 8, fontFamily: "inherit" }}
           />
           {error && <div role="alert" style={{ color: C.red, fontSize: 13 }}>{error}</div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -391,7 +392,7 @@ export default function AdminSkyHub() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "inherit" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, backgroundColor: ADMIN.pageBase, backgroundRepeat: "no-repeat", color: C.text, fontFamily: "inherit" }}>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 16px 60px" }}>
         <Link to="/admin" style={{ color: C.muted, fontSize: 13 }}>← Admin dashboard</Link>
         <h1 style={{ fontSize: 26, margin: "8px 0 4px" }}>SkyHub reports</h1>
