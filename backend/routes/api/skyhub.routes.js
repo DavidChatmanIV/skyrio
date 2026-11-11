@@ -1204,7 +1204,7 @@ router.get("/admin/reports", adminOnly, async (req, res) => {
         id: String(r._id),
         reason: r.reason,
         details: r.details,
-        by: r.reporter?.username || r.reporter?.name || "traveler",
+        by: r.reporter?.username || r.reporter?.name || (r.filedBy ? "admin" : "traveler"),
         at: r.createdAt,
         resolution: r.resolution,
       });
@@ -1403,7 +1403,10 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
           })
             .select("reason")
             .lean();
-          const top = open.map((r) => r.reason)[0] || "other";
+          // An admin removing from the feed picks the reason (no reports yet).
+          const top = REPORT_REASONS.includes(req.body?.reason)
+            ? req.body.reason
+            : open.map((r) => r.reason)[0] || "other";
           if (top !== "child_safety") {
             notifyUser(
               doc.author,
@@ -1467,6 +1470,34 @@ router.post("/admin/resolve", adminOnly, async (req, res) => {
         by,
         forceBan: action === "ban",
       });
+    }
+
+    // Removed straight from the feed: file an admin record so it shows
+    // under Actioned on the admin page, where it can be restored.
+    if (
+      takeDown &&
+      Model &&
+      req.body?.fromFeed &&
+      !(await SkyHubReport.exists({ targetType, targetId, status: "open" }))
+    ) {
+      const reason = REPORT_REASONS.includes(req.body?.reason)
+        ? req.body.reason
+        : "other";
+      await SkyHubReport.updateOne(
+        { targetType, targetId, reporter: null },
+        {
+          $set: {
+            post: targetType === "post" ? targetId : null,
+            targetUser: targetUser || null,
+            filedBy: by,
+            reason,
+            severity: severityOf(reason),
+            details: "Removed by an admin from the feed.",
+            status: "open",
+          },
+        },
+        { upsert: true }
+      );
     }
 
     const resolution = {

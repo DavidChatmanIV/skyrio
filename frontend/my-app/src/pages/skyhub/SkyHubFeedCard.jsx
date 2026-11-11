@@ -277,6 +277,8 @@ export default function SkyHubFeedCard({
   onEditPost,
   onDeletePost,
   onBlockUser,
+  // Only passed when an admin is logged in on this browser.
+  onAdminRemove,
   // Optional: pass this (and post.following) once the follow API exists.
   // Until then the Follow button stays hidden — no button that does nothing.
   onToggleFollow,
@@ -352,6 +354,18 @@ export default function SkyHubFeedCard({
                 },
               ]
             : []),
+        ]
+      : []),
+    ...(onAdminRemove && !isOwner
+      ? [
+          { type: "divider" },
+          {
+            key: "admin-remove",
+            icon: <EyeInvisibleOutlined />,
+            label: "Remove post (admin)",
+            danger: true,
+            onClick: () => onAdminRemove(post),
+          },
         ]
       : []),
   ];
