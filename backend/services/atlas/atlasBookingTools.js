@@ -312,6 +312,32 @@ export const ATLAS_BOOKING_TOOLS = [
     },
   },
   {
+    name: "create_group_trip",
+    description:
+      "Turn the trip you just planned into a Sync Together group trip, so friends can vote and each pay their own part. Puts your top 2-3 flight options and top 2-3 hotel options from this chat on the group's shortlist to vote on. Only for signed-in users, and only after you've shown the options and the traveler says yes to making it a group trip. Pass optionIds from search_flights and search_hotels in this chat. Returns a card with the trip and an invite link.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short trip name, e.g. 'Miami with the crew'" },
+        flightOptionIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "2-3 optionIds from search_flights, best first",
+        },
+        hotelOptionIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "2-3 optionIds from search_hotels, best first",
+        },
+        budgetPerPerson: {
+          type: "number",
+          description: "The traveler's own budget per person in USD, if they gave one (kept private)",
+        },
+      },
+      required: ["flightOptionIds", "hotelOptionIds"],
+    },
+  },
+  {
     name: "price_trip",
     description:
       "Add up a trip, or compare options, with exact math. Pass the optionIds you plan to mention (a flight, a hotel, a car, or several hotels to compare). Returns each option's total, the trip total and the per-person amount, plus which option is cheapest. Call this before you state any combined total, per-person amount, or say one option is cheaper than another, and use its numbers exactly.",
@@ -441,6 +467,13 @@ async function runBookingToolRaw(name, input, { userId, owner, ip }) {
       return runHotelSearch(owner, userId, input);
     case "price_trip":
       return priceTrip(owner, input);
+    case "create_group_trip":
+      return userId
+        ? createGroupTripFromChat(owner, userId, input)
+        : {
+            error:
+              "Group trips need a free Skyrio account. Don't push it: they can book right here as a guest.",
+          };
     case "search_cars":
       return runCarSearch(owner, input);
     case "search_events":
@@ -655,6 +688,152 @@ async function runFlightSearch(owner, userId, input) {
       ...display,
     })),
     note: "Prices are live and expire in about 13 minutes. Options with whyForYou match this traveler's usual picks.",
+  };
+}
+
+// "Make this a group trip": a Sync Together trip with Atlas's top 2-3
+// flights and hotels on the shortlist, so the group votes. Everyone books
+// and pays their own part on the trip page, as usual.
+async function createGroupTripFromChat(owner, userId, input) {
+  const pick = (ids, kind) =>
+    (Array.isArray(ids) ? [...new Set(ids.map(String))] : [])
+      .map((id) => getOption(owner, id))
+      .filter((o) => o && o.kind === kind)
+      .slice(0, 3);
+  const flights = pick(input.flightOptionIds, "flight");
+  // Group members book rooms through the LiteAPI hotel search (shared rooms
+  // too), so Duffel Stays hotels can't go on a group shortlist yet.
+  const allHotels = pick(input.hotelOptionIds, "hotel");
+  const hotels = allHotels.filter((o) => o.raw?.supplier !== "duffel");
+  const skippedDuffel = allHotels.length - hotels.length;
+  if (!flights.length && !hotels.length) {
+    return {
+      error:
+        "Those options expired or weren't found. Search again, then call create_group_trip with the new optionIds.",
+    };
+  }
+
+  const fs = flights[0]?.search || {};
+  const hs = hotels[0]?.search || {};
+  const destination = String(hs.destination || fs.destination || "").slice(0, 80);
+  const start = hs.checkin || String(flights[0]?.display?.depart || "").slice(0, 10);
+  const end = hs.checkout || String(flights[0]?.display?.returnDepart || "").slice(0, 10);
+  const day = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? new Date(`${v}T12:00:00Z`) : null);
+  const travelers = Math.max(1, Number(fs.adults || hs.adults) || 1);
+  const budget = Number(input.budgetPerPerson);
+
+  const items = [];
+  for (const o of flights) {
+    const d = o.display || {};
+    const s = o.search || {};
+    items.push({
+      kind: "flight",
+      key: ["flight", d.airlineCode || d.airline, s.origin, s.destination, d.depart, d.returnDepart || ""]
+        .map((x) => String(x || "").slice(0, 40))
+        .join(":"),
+      suggestedBy: userId,
+      note: "Picked by Atlas",
+      votes: [],
+      flight: {
+        airline: d.airline,
+        airlineCode: d.airlineCode || undefined,
+        origin: s.origin,
+        destination: s.destination,
+        departAt: d.depart,
+        arriveAt: d.arrive,
+        returnDepartAt: d.returnDepart || undefined,
+        stops: Number.isFinite(Number(d.stops)) ? Number(d.stops) : undefined,
+        cabin: s.cabin || "economy",
+      },
+      // Shortlist flight prices are per person.
+      price: Number.isFinite(Number(d.price))
+        ? Math.round((Number(d.price) / Math.max(1, Number(s.adults) || 1)) * 100) / 100
+        : null,
+      currency: d.currency || "USD",
+    });
+  }
+  for (const o of hotels) {
+    const d = o.display || {};
+    const r = o.raw || {};
+    const s = o.search || {};
+    const rooms = Math.max(1, Number(d.rooms || s.rooms) || 1);
+    const total = Number(d.totalForAllRooms ?? d.total);
+    items.push({
+      kind: "hotel",
+      key: `hotel:${String(r.hotelId || "").slice(0, 64)}`,
+      suggestedBy: userId,
+      note: "Picked by Atlas",
+      votes: [],
+      hotel: {
+        hotelId: r.hotelId,
+        name: d.hotel || r.hotelName,
+        address: r.frontend?.address || undefined,
+        thumbnail: /^https:\/\//.test(String(r.frontend?.thumbnail || "")) ? r.frontend.thumbnail : undefined,
+        stars: Number.isFinite(Number(d.starRating)) ? Number(d.starRating) : undefined,
+        roomName: d.room,
+        boardName: d.board,
+        checkin: s.checkin,
+        checkout: s.checkout,
+        adults: Math.max(1, Math.floor((Number(s.adults) || 1) / rooms)),
+      },
+      // Shortlist hotel prices are per room, whole stay.
+      price: Number.isFinite(total) ? Math.round((total / rooms) * 100) / 100 : null,
+      currency: d.currency || "USD",
+    });
+  }
+  // Same option twice (e.g. two rates at one hotel): keep the first.
+  const seen = new Set();
+  const shortlist = items.filter((it) => it.key && !seen.has(it.key) && seen.add(it.key));
+
+  const title =
+    String(input.title || "").trim().slice(0, 80) ||
+    (destination ? `${destination} trip` : "Group trip");
+  const trip = await SyncTrip.create({
+    owner: userId,
+    title,
+    destination: destination || null,
+    departureAirport: fs.origin || null,
+    dateRangeStart: day(start),
+    dateRangeEnd: day(end),
+    members: [],
+    status: "inviting",
+    ownerBudget: Number.isFinite(budget) && budget > 0 ? budget : null,
+    shortlist,
+    activityLog: [
+      {
+        type: "created",
+        user: userId,
+        message: `Trip created from an Atlas plan with ${shortlist.length} options to vote on`,
+        createdAt: new Date(),
+      },
+    ],
+  });
+
+  const tripUrl = `${FRONTEND_URL}/sync-together/${trip._id}`;
+  const inviteUrl = `${FRONTEND_URL}/sync-together/join/${trip.inviteCode}`;
+  return {
+    created: true,
+    title,
+    flightsOnShortlist: flights.length,
+    hotelsOnShortlist: hotels.length,
+    travelersPlanned: travelers,
+    ...(skippedDuffel
+      ? {
+          note: `${skippedDuffel} hotel option(s) couldn't go on the group list (that hotel can't be booked as a group yet). Say so in one short line.`,
+        }
+      : {}),
+    tell:
+      "Say the group trip is ready with these options to vote on, and they can share the invite link from the card. Don't repeat the link in text.",
+    card: {
+      type: "group_trip",
+      groupId: String(trip._id),
+      title,
+      url: tripUrl,
+      inviteUrl,
+      flights: flights.length,
+      hotels: hotels.length,
+      travelers,
+    },
   };
 }
 
@@ -1484,6 +1663,11 @@ export async function runBookingTool(
     });
 
     if (name === "show_event" && result?.card) {
+      const { card, ...forModel } = result;
+      return { result: forModel, action: card };
+    }
+
+    if (name === "create_group_trip" && result?.card) {
       const { card, ...forModel } = result;
       return { result: forModel, action: card };
     }
