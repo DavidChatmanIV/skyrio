@@ -1,7 +1,7 @@
 import React from "react";
 import { Progress, Skeleton } from "antd";
 import { UserOutlined } from "@ant-design/icons";
-import { Camera, Loader2, Plane } from "lucide-react";
+import { Camera, Loader2, Plane, QrCode } from "lucide-react";
 import FollowStats from "./FollowStats";
 import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
 import "../../styles/passport-datapage.css";
@@ -130,6 +130,13 @@ const GOLDEN_CSS = `
 /* ─────────────────────────────────────────────────────────────
    Component
    ───────────────────────────────────────────────────────────── */
+// Passport No. shown on the page and on the share card (same number).
+export const passportNumber = (myId) =>
+  mrzText(String(myId || ""))
+    .replace(/</g, "")
+    .slice(-9)
+    .padStart(9, "0") || "000000000";
+
 export default function PassportDataPage({
   user,
   myId,
@@ -159,14 +166,12 @@ export default function PassportDataPage({
   onSpendXp,
   // "golden" = the Golden Hour cover (a Passport Reward), or null
   cover = null,
+  // Opens the "Share my passport" QR sheet
+  onShowQr,
 }) {
   const hasAvatar = !!user?.avatar && user.avatar !== "/default-avatar.png";
   const issued = toDate(user?.createdAt);
-  const docNo =
-    mrzText(String(myId || ""))
-      .replace(/</g, "")
-      .slice(-9)
-      .padStart(9, "0") || "000000000";
+  const docNo = passportNumber(myId);
   const homeBaseSet = homeBaseLabel && homeBaseLabel !== "Not set";
   const [mrz1, mrz2] = buildMrz({
     name: displayName,
@@ -274,6 +279,18 @@ export default function PassportDataPage({
             ) : user?.verificationPending ? (
               <PlaneBadgePending size={14} />
             ) : null}
+            {onShowQr && (
+              <button
+                type="button"
+                className="pdp-qrBtn"
+                onClick={onShowQr}
+                aria-label="Share my passport QR code"
+                title="Share my passport"
+              >
+                <QrCode size={14} aria-hidden="true" />
+                <span>Share</span>
+              </button>
+            )}
           </div>
           {user?.bio && <p className="pdp-bio">&quot;{user.bio}&quot;</p>}
 

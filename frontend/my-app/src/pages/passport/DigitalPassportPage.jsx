@@ -83,7 +83,8 @@ import TravelerSearch from "./TravelerSearch";
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import TravelJourneys from "./TravelJourneys";
 import ReferralCard from "./ReferralCard";
-import PassportDataPage from "./PassportDataPage";
+import PassportDataPage, { passportNumber } from "./PassportDataPage";
+import PassportQrSheet from "./PassportQrSheet";
 import { readHomeAirport, rememberHomeAirportLocally } from "@/lib/homeAirport";
 
 const { Text } = Typography;
@@ -750,350 +751,6 @@ function PassportLocked() {
 
 // ── Main page ────────────────────────────────────────────────
 
-// ── Referral share SVG icons ──────────────────────────────────
-function SharePlaneIcon({ size = 16, color = "#ff8a2a" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.925A1.5 1.5 0 0 0 5.135 9.25h6.115a.25.25 0 0 1 0 .5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.114A28.897 28.897 0 0 0 3.105 2.289z" />
-    </svg>
-  );
-}
-function ShareGlobeIcon({ size = 16, color = "#ff8a2a" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M21.721 12.752a9.711 9.711 0 0 0-.945-5.003 12.754 12.754 0 0 1-4.339 2.708 18.991 18.991 0 0 1-.214 4.772 17.165 17.165 0 0 0 5.498-2.477zM14.634 15.55a17.324 17.324 0 0 0 .332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 0 0 .332 4.647 17.385 17.385 0 0 0 5.268 0zM9.772 17.119a18.963 18.963 0 0 0 4.456 0A17.182 17.182 0 0 1 12 21.724a17.18 17.18 0 0 1-2.228-4.605zM7.777 15.23a18.87 18.87 0 0 1-.214-4.774 12.753 12.753 0 0 1-4.34-2.708 9.711 9.711 0 0 0-.944 5.004 17.165 17.165 0 0 0 5.498 2.477zM21.356 14.752a9.765 9.765 0 0 1-7.478 6.817 18.64 18.64 0 0 0 1.988-4.718 18.627 18.627 0 0 0 5.49-2.098zM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 0 0 1.988 4.718 9.765 9.765 0 0 1-7.478-6.816zM13.878 2.43a9.755 9.755 0 0 1 6.116 3.986 11.267 11.267 0 0 1-3.746 2.504 18.63 18.63 0 0 0-2.37-6.49zM12 2.276a17.152 17.152 0 0 1 2.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0 1 12 2.276zM10.122 2.43a18.629 18.629 0 0 0-2.37 6.49 11.266 11.266 0 0 1-3.746-2.504 9.754 9.754 0 0 1 6.116-3.985z" />
-    </svg>
-  );
-}
-function ShareGiftIcon({ size = 16, color = "#ff8a2a" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M9.375 3a1.875 1.875 0 0 0 0 3.75h1.875v4.5H3.375A1.875 1.875 0 0 1 1.5 9.375v-.75a1.875 1.875 0 0 1 1.875-1.875h.375A3.375 3.375 0 0 1 9.375 3zM15 6.75h1.875A1.875 1.875 0 0 1 18.75 8.625v.75A1.875 1.875 0 0 1 16.875 11.25H12.75V6.75H15zM11.25 12.75H3v6.375C3 20.496 3.504 21 4.125 21h7.125v-8.25zM12.75 21h7.125A1.125 1.125 0 0 0 21 19.875V12.75h-8.25V21zM14.625 3a3.375 3.375 0 0 1 3.375 3.375h.375A1.875 1.875 0 0 1 20.25 8.25v.75a1.875 1.875 0 0 1-1.875 1.875H14.625V6.75H12.75V3h1.875z" />
-    </svg>
-  );
-}
-
-// ── Referral Share Modal ──────────────────────────────────────
-function PassportShareModal({ user, token, apiUrl, onClose }) {
-  const [copied, setCopied] = React.useState(false);
-
-  // Lock body scroll and hide floating buttons while modal is open
-  React.useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    // Hide floating action buttons so they don't overlap the sheet
-    document
-      .querySelectorAll(
-        "[data-atlas-btn], [data-support-widget], .support-widget-root, #atlas-fab"
-      )
-      .forEach((el) => {
-        el.style.visibility = "hidden";
-      });
-    return () => {
-      document.body.style.overflow = prev;
-      document
-        .querySelectorAll(
-          "[data-atlas-btn], [data-support-widget], .support-widget-root, #atlas-fab"
-        )
-        .forEach((el) => {
-          el.style.visibility = "";
-        });
-    };
-  }, []);
-  const username = user?.username || "";
-  const referralUrl = `${PUBLIC_SITE}/u/${username}?ref=${username}`;
-
-  const REWARDS = [
-    { Icon: SharePlaneIcon, label: "You share your link", xp: "+10 XP" },
-    // Same numbers as backend/routes/api/referral.routes.js
-    {
-      Icon: ShareGiftIcon,
-      label: "Friend joins with your link",
-      xp: "+50 XP to them",
-    },
-    {
-      Icon: ShareGlobeIcon,
-      label: "Friend books their first trip",
-      xp: "+150 XP to you",
-    },
-  ];
-
-  const copyLink = async () => {
-    if (!(await copyText(referralUrl))) {
-      window.prompt("Copy your passport link:", referralUrl);
-      return;
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-    // Grant share XP
-    fetch(apiUrl("/api/profile/share-xp"), {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      credentials: "include",
-    }).catch(() => {});
-  };
-
-  const nativeShare = async () => {
-    try {
-      await navigator.share({
-        title: `${user?.username}'s Skyrio Passport`,
-        text: "Join me on Skyrio. You get +50 XP when you sign up.",
-        url: referralUrl,
-      });
-      fetch(apiUrl("/api/profile/share-xp"), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      }).catch(() => {});
-      onClose();
-    } catch (err) {
-      if (err?.name === "AbortError") return; // closed the share sheet — keep modal open
-      // Native share failed — fall back to copying so the click never does nothing
-      await copyLink();
-    }
-  };
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 2147483645,
-          background: "rgba(0,0,0,0.55)",
-          backdropFilter: "blur(2px)",
-        }}
-      />
-      {/* Sheet */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 2147483646,
-          background: "#16103a",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "20px 20px 0 0",
-          padding: "20px 20px 40px",
-          fontFamily: "'DM Sans', sans-serif",
-          boxShadow: "0 -20px 60px rgba(0,0,0,0.6)",
-          maxWidth: 520,
-          margin: "0 auto",
-        }}
-      >
-        {/* Handle */}
-        <div
-          style={{
-            width: 36,
-            height: 4,
-            borderRadius: 2,
-            background: "rgba(255,255,255,0.15)",
-            margin: "0 auto 20px",
-          }}
-        />
-
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 17, color: "#fff" }}>
-              Share your passport
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: "rgba(255,255,255,0.4)",
-                marginTop: 2,
-              }}
-            >
-              Earn XP when friends join and book.
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: "50%",
-              width: 32,
-              height: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "rgba(255,255,255,0.5)",
-              fontSize: 16,
-            }}
-          >
-            <X size={16} aria-hidden="true" />
-          </button>
-        </div>
-
-        {/* XP reward rows */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            marginBottom: 16,
-          }}
-        >
-          {REWARDS.map((r, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12,
-                padding: "10px 14px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 9,
-                    background: "rgba(255,138,42,0.12)",
-                    border: "1px solid rgba(255,138,42,0.2)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <r.Icon size={16} color="#ff8a2a" />
-                </div>
-                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
-                  {r.label}
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: "#ff8a2a",
-                  background: "rgba(255,138,42,0.12)",
-                  border: "1px solid rgba(255,138,42,0.22)",
-                  borderRadius: 20,
-                  padding: "3px 10px",
-                }}
-              >
-                {r.xp}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Link row */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.09)",
-            borderRadius: 12,
-            padding: "10px 12px",
-            marginBottom: 10,
-          }}
-        >
-          <svg
-            width={13}
-            height={13}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="rgba(255,255,255,0.35)"
-            strokeWidth={2}
-          >
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          </svg>
-          <div
-            style={{
-              flex: 1,
-              fontSize: 12,
-              color: "rgba(255,255,255,0.5)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {referralUrl}
-          </div>
-          <button
-            onClick={copyLink}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "6px 12px",
-              borderRadius: 8,
-              border: "none",
-              background: copied
-                ? "rgba(72,199,142,0.15)"
-                : "rgba(255,138,42,0.15)",
-              color: copied ? "#48c78e" : "#ff8a2a",
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              flexShrink: 0,
-              transition: "all 0.18s",
-            }}
-          >
-            {copied ? (
-              <span
-                style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-              >
-                <Check size={13} aria-hidden="true" /> Copied
-              </span>
-            ) : (
-              "Copy"
-            )}
-          </button>
-        </div>
-
-        {/* Native share */}
-        {typeof navigator !== "undefined" && navigator.share && (
-          <button
-            onClick={nativeShare}
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              padding: "12px 0",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.09)",
-              background: "rgba(255,255,255,0.04)",
-              color: "rgba(255,255,255,0.6)",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            More share options…
-          </button>
-        )}
-      </div>
-    </>
-  );
-}
 
 export default function DigitalPassportPage() {
   const location = useLocation();
@@ -1103,6 +760,18 @@ export default function DigitalPassportPage() {
   const { message } = App.useApp();
 
   const myId = useMemo(() => user?._id || user?.id || null, [user]);
+
+  // /passport?share=1 (navbar "Share my passport") opens the QR sheet.
+  useEffect(() => {
+    if (!user?.username) return;
+    const q = new URLSearchParams(location.search);
+    if (q.get("share") === "1") {
+      setShowShare(true);
+      q.delete("share");
+      const rest = q.toString();
+      navigate(`${location.pathname}${rest ? `?${rest}` : ""}`, { replace: true });
+    }
+  }, [user?.username, location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [musicOpen, setMusicOpen] = useState(false);
   const [profileMusic, setProfileMusic] = useState(null);
@@ -1673,6 +1342,7 @@ export default function DigitalPassportPage() {
                     displayName={displayName}
                     handle={handle}
                     currentBadge={currentBadge}
+                    onShowQr={() => setShowShare(true)}
                     homeBaseLabel={homeBaseLabel}
                     passportStats={passportStats}
                     statsLoading={statsLoading}
@@ -2053,10 +1723,19 @@ export default function DigitalPassportPage() {
 
       {/* Referral share modal */}
       {showShare && (
-        <PassportShareModal
+        <PassportQrSheet
           user={user}
-          token={token}
-          apiUrl={apiUrl}
+          tier={currentBadge}
+          docNo={passportNumber(myId)}
+          publicSite={PUBLIC_SITE}
+          onShared={() =>
+            // +10 XP, once a day (the server checks).
+            fetch(apiUrl("/api/profile/share-xp"), {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              credentials: "include",
+            }).catch(() => {})
+          }
           onClose={() => setShowShare(false)}
         />
       )}

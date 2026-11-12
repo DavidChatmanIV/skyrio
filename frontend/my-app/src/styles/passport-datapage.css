@@ -804,3 +804,25 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* "Share" pill next to the @handle: opens the passport QR sheet */
+.pdp-qrBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 42, 0.55);
+  background: linear-gradient(135deg, rgba(255, 138, 42, 0.22), rgba(124, 92, 252, 0.3));
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.pdp-qrBtn:hover { border-color: #ff8a2a; transform: translateY(-1px); }
+.pdp-qrBtn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
