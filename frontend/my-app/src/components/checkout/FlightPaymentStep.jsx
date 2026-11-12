@@ -7,6 +7,7 @@
 // Pass contact/passengers from useMemo or state — a new object every render re-runs prebook.
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { skyrioStripeAppearance } from "@/lib/stripeAppearance";
 import { apiUrl } from "@/lib/api";
 
 const SDK_SRC =
@@ -89,7 +90,7 @@ export default function FlightPaymentStep({
         targetRef.current.innerHTML = "";
         const payment = new window.LiteAPIPayment({
           publicKey: import.meta.env.VITE_LITEAPI_ENV || "sandbox",
-          appearance: { theme: "night" },
+          appearance: skyrioStripeAppearance(),
           options: { business: { name: "Skyrio" } },
           targetElement: `#${TARGET_ID}`,
           secretKey: session.secretKey,

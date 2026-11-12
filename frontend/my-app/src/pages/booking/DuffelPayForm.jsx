@@ -11,6 +11,7 @@
 // VITE_STRIPE_PUBLISHABLE_KEY / VITE_STRIPE_PK in the frontend .env.
 
 import { useEffect, useMemo, useState } from "react";
+import { skyrioStripeAppearance } from "@/lib/stripeAppearance";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -24,28 +25,7 @@ import { apiHeaders, getCheckoutToken } from "@/utils/checkoutToken";
 const API = import.meta.env.VITE_API_URL || "";
 const SANS =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const APPEARANCE = {
-  theme: "night",
-  variables: {
-    colorPrimary: "#f97316",
-    colorBackground: "#100c22",
-    colorText: "#ffffff",
-    colorDanger: "#f87171",
-    borderRadius: "10px",
-    fontFamily: SANS,
-  },
-  rules: {
-    ".Input": {
-      border: "1px solid rgba(255,255,255,0.10)",
-      backgroundColor: "rgba(255,255,255,0.06)",
-    },
-    ".Input:focus": {
-      border: "1px solid #f97316",
-      boxShadow: "0 0 0 3px rgba(249,115,22,0.35)",
-    },
-    ".Label": { color: "rgba(255,255,255,0.5)", fontSize: "12px" },
-  },
-};
+const APPEARANCE = skyrioStripeAppearance(SANS);
 
 const stripePromises = new Map();
 const getStripe = (pk) => {
