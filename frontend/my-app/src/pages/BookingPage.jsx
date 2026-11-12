@@ -2509,6 +2509,21 @@ function StaysForm({
         adults: String(qAdults),
         rooms: String(qRooms),
       });
+      // Middle of the hotels found, so the server can also check Duffel
+      // Stays around the same spot (ignored when Duffel Stays is off).
+      const pts = hotelsFound
+        .map((h) => [Number(h.latitude), Number(h.longitude)])
+        .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && (a || b));
+      if (pts.length && !pinned) {
+        searchParams.set(
+          "lat",
+          String(pts.reduce((s, p) => s + p[0], 0) / pts.length)
+        );
+        searchParams.set(
+          "lng",
+          String(pts.reduce((s, p) => s + p[1], 0) / pts.length)
+        );
+      }
       const searchRes = await fetch(`${API}/api/hotels/search?${searchParams}`);
       const searchData = await searchRes.json();
       if (!searchRes.ok || !searchData.ok)
@@ -2517,13 +2532,15 @@ function StaysForm({
       // Merge metadata (name, photo, stars) from the lookup step
       // with pricing/offer data from the search step, keyed by hotelId
       const metaById = Object.fromEntries(hotelsFound.map((h) => [h.id, h]));
+      // (Duffel Stays results arrive with their own name, photo and stars.)
       const enriched = (searchData.hotels ?? []).map((offer) => ({
         ...offer,
-        name: metaById[offer.hotelId]?.name ?? "Hotel",
-        thumbnail: metaById[offer.hotelId]?.main_photo ?? null,
-        stars: metaById[offer.hotelId]?.stars ?? null,
-        rating: metaById[offer.hotelId]?.rating ?? null,
-        address: metaById[offer.hotelId]?.address ?? "",
+        name: metaById[offer.hotelId]?.name ?? offer.name ?? "Hotel",
+        thumbnail:
+          metaById[offer.hotelId]?.main_photo ?? offer.thumbnail ?? null,
+        stars: metaById[offer.hotelId]?.stars ?? offer.stars ?? null,
+        rating: metaById[offer.hotelId]?.rating ?? offer.rating ?? null,
+        address: metaById[offer.hotelId]?.address ?? offer.address ?? "",
       }));
 
       // Attach the search dates to every result so HotelCheckout

@@ -109,6 +109,18 @@ const OTHERS_CSS = `
 const CARD_FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
+// Duffel Stays rooms (offerId "rat_…") need a phone number for the hotel.
+const isDuffelRoom = (r) =>
+  r?.provider === "duffel" || /^rat_/.test(String(r?.offerId || ""));
+// Same check the server makes: 10 digits (US), or "+" and a country code.
+const phoneOk = (v) => {
+  const raw = String(v || "").trim();
+  const d = raw.replace(/\D/g, "");
+  return raw.startsWith("+")
+    ? d.length >= 8
+    : d.length === 10 || (d.length === 11 && d.startsWith("1"));
+};
+
 // Real cancellation terms from the room rate, when LiteAPI sends them.
 // Returns null when unknown — we never guess a policy.
 function cancellationOf(room) {
@@ -578,6 +590,7 @@ function PaymentForm({
   rooms,
   guests,
   contactEmail,
+  contactPhone = "",
   groupId,
   onSuccess,
   onInvalid,
@@ -621,6 +634,10 @@ function PaymentForm({
         "Enter the full first and last name for every room's guest"
       );
     }
+    if (rooms.some(isDuffelRoom) && !phoneOk(contactPhone)) {
+      onInvalid?.();
+      return antdMessage.warning("Enter a phone number with area code");
+    }
     const names = guests.map((g) => ({
       firstName: g.firstName.trim(),
       lastName: g.lastName.trim(),
@@ -639,6 +656,7 @@ function PaymentForm({
         body: JSON.stringify({
           offers: rooms.map((r) => ({ offerId: r.offerId, hotelName: r.name })),
           guestEmail: email,
+          ...(contactPhone.trim() ? { guestPhone: contactPhone.trim() } : {}),
           // The total on screen. The server won't charge more than this.
           expectedTotal: priceNow ?? grandTotal,
         }),
@@ -684,7 +702,12 @@ function PaymentForm({
         const n = names[i];
         return {
           prebookId: p.prebookId,
-          holder: { firstName: n.firstName, lastName: n.lastName, email },
+          holder: {
+            firstName: n.firstName,
+            lastName: n.lastName,
+            email,
+            ...(contactPhone.trim() ? { phone: contactPhone.trim() } : {}),
+          },
           guests: [
             {
               occupancyNumber: 1,
@@ -1262,6 +1285,9 @@ export default function HotelCheckout({
     rooms.map(() => ({ firstName: "", lastName: "" }))
   );
   const [contactEmail, setContactEmail] = useState("");
+  // Only asked for when a room comes from Duffel Stays.
+  const [contactPhone, setContactPhone] = useState("");
+  const needsPhone = rooms.some(isDuffelRoom);
   const [showErrors, setShowErrors] = useState(false);
   const [autofilled, setAutofilled] = useState(false);
   const [leadEditing, setLeadEditing] = useState(false);
@@ -1319,8 +1345,9 @@ export default function HotelCheckout({
   const [confirmation, setConfirmation] = useState(null);
   const groupParts = useGroupParts(groupId);
   // Only the organizer can set up a shared room, one room at a time.
+  // Shared rooms run on LiteAPI only (Duffel Stays rooms are booked by one person).
   const canShare = Boolean(
-    groupId && groupParts?.isOrganizer && rooms.length === 1
+    groupId && groupParts?.isOrganizer && rooms.length === 1 && !needsPhone
   );
   const [shareMode, setShareMode] = useState(false);
   // Sync Together: soft check before paying if this goes past your budget.
@@ -1639,6 +1666,29 @@ export default function HotelCheckout({
                 </div>
               )}
             </label>
+            {needsPhone && (
+              <label style={{ display: "block", marginBottom: 18 }}>
+                <span style={LABEL}>Phone{REQ}</span>
+                <Input
+                  type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
+                  placeholder="(973) 555-0100"
+                  value={contactPhone}
+                  status={showErrors && !phoneOk(contactPhone) ? "error" : ""}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                />
+                {showErrors && !phoneOk(contactPhone) ? (
+                  <div role="alert" style={ERR}>
+                    Enter a phone number with area code
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
+                    The hotel needs it for your booking.
+                  </div>
+                )}
+              </label>
+            )}
 
             {rooms.map((r, i) => (
               <RoomGuestField
@@ -1787,6 +1837,7 @@ export default function HotelCheckout({
                   rooms={rooms}
                   guests={guests}
                   contactEmail={contactEmail}
+                  contactPhone={contactPhone}
                   groupId={groupId}
                   onSuccess={(c) => {
                     setConfirmation(c);

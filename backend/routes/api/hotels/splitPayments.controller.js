@@ -108,6 +108,16 @@ export async function createSplitPayment(req, res) {
       }
     }
 
+    // Split payments run on LiteAPI only; Duffel Stays rooms ("rat_…") are
+    // booked by one person from the hotel checkout.
+    if (offers.some((o) => /^rat_/.test(String(o.offerId || "")))) {
+      return res.status(400).json({
+        ok: false,
+        message:
+          "This hotel can't be split yet. Pick another room, or have one person book it.",
+      });
+    }
+
     // ── Prebook every offer to lock price + get a real total ──
     const prebooks = [];
     for (const offer of offers) {
