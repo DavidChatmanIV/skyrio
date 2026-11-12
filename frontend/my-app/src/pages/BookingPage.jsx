@@ -4273,6 +4273,49 @@ function PriceCheckBanner({ check, tab, flights, hotels }) {
   );
 }
 
+/* ── Last search, kept for this tab ─────────────────────────────────
+   If the traveler leaves Book (swipes back to Home) and comes back, their
+   last flight or stay search is still there: the search fields filled in
+   and, while prices are still valid, the results too.
+   • Flights: only fares that haven't expired (each has expiresAt, about
+     10 minutes). If none are left, just the search fields come back.
+   • Stays: results for 20 minutes (room prices are re-checked before
+     anyone pays anyway).
+   sessionStorage = this browser tab only; gone when the tab closes. */
+const LAST_SEARCH_KEY = "skyrio_last_search";
+const STAYS_KEEP_MS = 20 * 60 * 1000;
+const FARE_MARGIN_MS = 60 * 1000; // drop fares with under a minute left
+
+function saveLastSearch(entry) {
+  try {
+    sessionStorage.setItem(
+      LAST_SEARCH_KEY,
+      JSON.stringify({ ...entry, savedAt: Date.now() })
+    );
+  } catch {
+    /* storage full or blocked: nothing kept, no harm */
+  }
+}
+
+function readLastSearch() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(LAST_SEARCH_KEY) || "null");
+    if (!s || (s.tab !== "Flights" && s.tab !== "Stays")) return null;
+    const now = Date.now();
+    if (s.tab === "Flights") {
+      const fresh = (s.results || []).filter((f) => {
+        const t = Date.parse(f?.expiresAt || "");
+        return Number.isFinite(t) && t - now > FARE_MARGIN_MS;
+      });
+      return { ...s, results: fresh };
+    }
+    const freshStays = now - (Number(s.savedAt) || 0) < STAYS_KEEP_MS;
+    return { ...s, results: freshStays ? s.results || [] : [] };
+  } catch {
+    return null;
+  }
+}
+
 export default function BookingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
@@ -4303,6 +4346,19 @@ export default function BookingPage() {
     window.location.assign("/booking");
   }, []);
   const tabParam = searchParams.get("tab");
+  // Last search to bring back (see readLastSearch). Skipped when the URL
+  // asks for something specific (a link with a destination, a group trip,
+  // an Atlas hand-off…) or for another tab.
+  const [restored] = useState(() => {
+    const asksForSearch = ["to", "city", "depart", "auto", "hotelId", "kind", "groupId", "paid"].some(
+      (k) => searchParams.get(k)
+    );
+    if (asksForSearch) return null;
+    const last = readLastSearch();
+    if (!last) return null;
+    if (tabParam && tabParam !== last.tab) return null;
+    return last;
+  });
   // ── Sync Together trip info: is this person the organizer, and has the
   // group picked a hotel? (Lets the organizer pick it from these results.)
   const [syncInfo, setSyncInfo] = useState(null);
@@ -4600,6 +4656,21 @@ export default function BookingPage() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // Brought back the last search: show it (on phones, open the results
+  // view) and say so once.
+  const restoredShownRef = useRef(false);
+  useEffect(() => {
+    if (restoredShownRef.current || !restored?.results?.length) return;
+    restoredShownRef.current = true;
+    setResultsFocus(true);
+    antdMessage.info(
+      restored.tab === "Flights"
+        ? "Your last search. Prices are checked again before you pay."
+        : "Your last stay search. Room prices are checked again before you pay."
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // The big "not available anymore" notice (see UnavailableNotice).
   const [unavailableNotice, setUnavailableNotice] = useState(null);
   const closeUnavailableNotice = useCallback(
@@ -4843,7 +4914,23 @@ export default function BookingPage() {
   const flightInitial = useMemo(() => {
     const to = searchParams.get("to");
     const depart = searchParams.get("depart");
-    if (!to && !depart) return null;
+    if (!to && !depart) {
+      // Coming back to Book: fill the fields with the last flight search
+      // (no new search; any results still valid are already on screen).
+      const q = restored?.tab === "Flights" ? restored.query : null;
+      if (!q?.to) return null;
+      return {
+        from: q.from,
+        to: q.to,
+        fromName: q.fromName || undefined,
+        toName: q.toName || undefined,
+        depart: q.departDate,
+        ret: q.returnDate || null,
+        cabin: q.cabin || undefined,
+        adults: q.adults || undefined,
+        autoSearch: false,
+      };
+    }
     return {
       from: searchParams.get("from"),
       to,
@@ -4875,7 +4962,20 @@ export default function BookingPage() {
   const stayInitial = useMemo(() => {
     const city = searchParams.get("city") || searchParams.get("to");
     const checkin = searchParams.get("depart");
-    if (!city && !checkin && !hotelIdParam) return null;
+    if (!city && !checkin && !hotelIdParam) {
+      // Coming back to Book: fill the fields with the last stay search.
+      const q = restored?.tab === "Stays" ? restored.query : null;
+      if (!q?.city) return null;
+      return {
+        city: q.city,
+        checkin: q.checkin,
+        checkout: q.checkout,
+        adults: q.adults,
+        rooms: q.rooms,
+        hotel: null,
+        autoSearch: false,
+      };
+    }
     // Opening a specific hotel: wait until we know its name and photo.
     // A shortlist pick carries the suggested hotel's own details.
     let hotel = null;
@@ -4987,6 +5087,7 @@ export default function BookingPage() {
 
   const [tab, setTab] = useState(
     prefillData?.tab ??
+      restored?.tab ??
       ([
         "Flights",
         "Stays",
@@ -5008,8 +5109,12 @@ export default function BookingPage() {
     )
       setTab(tabParam);
   }, [tabParam]);
-  const [flightResults, setFlightResults] = useState([]);
-  const [hotelResults, setHotelResults] = useState([]);
+  const [flightResults, setFlightResults] = useState(() =>
+    restored?.tab === "Flights" ? restored.results : []
+  );
+  const [hotelResults, setHotelResults] = useState(() =>
+    restored?.tab === "Stays" ? restored.results : []
+  );
   const [excursionResults, setExcursionResults] = useState([]);
   // Events tab: the last search (city/dates/category). EventsResults fetches itself.
   const [eventsSearch, setEventsSearch] = useState(null);
@@ -5031,6 +5136,23 @@ export default function BookingPage() {
   const [searchError, setSearchError] = useState(null);
   const flightRetryRef = useRef(null);
   const [destCity, setDestCity] = useState(prefillData?.destination ?? "");
+  // Keep the last stay search for this tab (see saveLastSearch). The city
+  // name arrives just after the results, so this waits for both.
+  useEffect(() => {
+    if (!hotelResults.length || !destCity) return;
+    const h = hotelResults[0] || {};
+    saveLastSearch({
+      tab: "Stays",
+      query: {
+        city: destCity,
+        checkin: h.checkin,
+        checkout: h.checkout,
+        // Guests and rooms aren't on the results reliably, so the form
+        // keeps its own defaults for those rather than guessing.
+      },
+      results: hotelResults,
+    });
+  }, [hotelResults, destCity]);
   const [originCity, setOriginCity] = useState("");
   // What the Flights form still needs (from FlightsForm).
   const [flightMissing, setFlightMissing] = useState([]);
@@ -6291,6 +6413,9 @@ export default function BookingPage() {
             onSearch={(f, searched = {}) => {
               setFlightResults(f);
               if (f.length > 0) setResultsFocus(true);
+              // Kept for this tab, so leaving Book and coming back keeps it.
+              if (f.length > 0)
+                saveLastSearch({ tab: "Flights", query: searched, results: f });
               // Filters are intentionally NOT reset here — anything the
               // traveler picked before searching (price, stops, time,
               // airline, XP) should apply to the results that come back.
