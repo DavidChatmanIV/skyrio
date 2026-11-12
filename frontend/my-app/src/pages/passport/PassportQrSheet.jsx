@@ -125,7 +125,7 @@ export function buildPassCardSvg({ url, name, username, tier, docNo, photo }) {
   <rect width="${W}" height="120" rx="44" fill="url(#band)"/>
   <rect y="76" width="${W}" height="44" fill="url(#band)"/>
   <text x="48" y="74" font-size="34" font-weight="800" letter-spacing="1" fill="#1a0d04" font-family="DM Sans, Arial, sans-serif">SKYRIO</text>
-  <text x="${W - 48}" y="72" text-anchor="end" font-size="16" font-weight="700" letter-spacing="3" fill="#1a0d04" font-family="DM Sans, Arial, sans-serif">TRAVEL PASSPORT</text>
+  <text x="${W - 48}" y="72" text-anchor="end" font-size="16" font-weight="700" letter-spacing="3" fill="#1a0d04" font-family="DM Sans, Arial, sans-serif">DIGITAL PASSPORT</text>
   <rect x="${ox - 38}" y="${panelY}" width="${box + 76}" height="${box + 76}" rx="36" fill="#ffffff"/>
   <g fill="url(#qrg)">${dots}</g>
   ${finder(0, 0)}${finder(0, n - 7)}${finder(n - 7, 0)}

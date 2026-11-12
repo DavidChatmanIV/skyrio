@@ -88,7 +88,7 @@ export default function ShareRankPrompt({ badge, username, xp = 0 }) {
   const url = `${PUBLIC_SITE}/u/${encodeURIComponent(username || "")}`;
   const text = `I just hit ${badge} rank on Skyrio ✦ ${Number(
     xp
-  ).toLocaleString()} XP and counting. Check out my travel passport:`;
+  ).toLocaleString()} XP and counting. Check out my Skyrio Digital Passport:`;
 
   const flash = (s) => {
     setStatus(s);
