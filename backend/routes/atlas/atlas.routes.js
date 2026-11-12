@@ -909,18 +909,36 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       });
       if (!result?.toolCalls?.length) break;
 
+      // Tools asked for in the same round run at the same time (flights and
+      // hotels together, not one after the other), then are handled in order.
+      const calls = result.toolCalls.slice(0, 4);
+      const runs = await Promise.all(
+        calls.map((call) =>
+          (isBookingTool(call.name)
+            ? runBookingTool(call.name, call.arguments, {
+                userId,
+                guestKey: req.guestKeyHash,
+                ip: req.ip,
+              })
+            : userId
+            ? runAtlasTool(call.name, call.arguments, { userId })
+            : Promise.resolve({ result: { error: "That needs an account." } })
+          ).catch((err) => {
+            console.error(`[Atlas chat] ${call.name} failed:`, err?.message);
+            return {
+              result: {
+                error: "searchFailed",
+                message:
+                  "This step didn't go through (a technical problem). Tell the traveler something went wrong on our end and offer to try again.",
+              },
+            };
+          })
+        )
+      );
       const toolResults = [];
-      for (const call of result.toolCalls.slice(0, 4)) {
+      for (const [i, call] of calls.entries()) {
         toolsUsed.add(call.name);
-        const ran = isBookingTool(call.name)
-          ? await runBookingTool(call.name, call.arguments, {
-              userId,
-              guestKey: req.guestKeyHash,
-              ip: req.ip,
-            })
-          : userId
-          ? await runAtlasTool(call.name, call.arguments, { userId })
-          : { result: { error: "That needs an account." } };
+        const ran = runs[i];
         if (ran.action && actions.length < 3) actions.push(ran.action);
         // A tool said it showed a card but sent nothing to show: tell Atlas,
         // so it never says "the card is on screen" when it isn't.
