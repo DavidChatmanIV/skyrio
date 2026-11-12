@@ -1,18 +1,31 @@
 // One Skyrio look for every Stripe payment form (hotel and flight
 // checkout, Duffel, saved cards in Atlas). Stripe draws its fields in its
-// own frame, so the theme has to be passed in here; page CSS can't reach
-// it. Stripe only accepts solid colors, so these are the solid versions of
-// Skyrio's purple glass, with the orange accent. No near-black boxes
-// (the "Save my information for faster checkout" box from Link was #100c22).
+// own frame, so page CSS can't reach them; the theme is passed in here.
+//
+// Glass: Stripe's frame is see-through, so fields, tabs and the Link box
+// use the same translucent white fills as Skyrio's booking cards and let
+// the purple page show through. (Stripe takes no gradients or blur, and
+// its base color variables must be solid; rules can be translucent.)
+// No near-black boxes anywhere.
 
 const SANS =
   '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
 
-export const SKYRIO_PURPLE = "#2a1652"; // Skyrio solid surface
-const RAISED = "#341c63"; // boxes inside the form (Link, saved cards)
-const FIELD = "#3a2170"; // input fields
-const EDGE = "rgba(255,255,255,0.16)";
+// Solid fallback Stripe uses where it can't be see-through (menus, popups).
+export const SKYRIO_PURPLE = "#2e1852";
+
+const GLASS = "rgba(255,255,255,0.06)"; // fields (matches --sk-glass-light)
+const GLASS_UP = "rgba(255,255,255,0.09)"; // hover
+const PANEL = "rgba(255,255,255,0.045)"; // boxes: Link, saved cards, tabs
+const EDGE = "rgba(255,255,255,0.14)";
+const EDGE_SOFT = "rgba(255,255,255,0.10)";
 const ORANGE = "#ff8a2a";
+const ORANGE_TINT = "rgba(255,138,42,0.14)";
+const ORANGE_RING = "0 0 0 3px rgba(255,138,42,0.28)";
+const TEXT = "#ffffff";
+const TEXT_SOFT = "rgba(255,255,255,0.72)";
+const TEXT_DIM = "rgba(255,255,255,0.45)";
+const SHINE = "inset 0 1px 0 rgba(255,255,255,0.08)";
 
 export function skyrioStripeAppearance(fontFamily = SANS) {
   return {
@@ -20,71 +33,103 @@ export function skyrioStripeAppearance(fontFamily = SANS) {
     variables: {
       colorPrimary: ORANGE,
       colorBackground: SKYRIO_PURPLE,
-      colorText: "#ffffff",
-      colorTextSecondary: "rgba(255,255,255,0.68)",
-      colorTextPlaceholder: "rgba(255,255,255,0.45)",
-      // Payment-method tabs (Card / Bank / Klarna). Stripe's night theme
-      // drew the selected tab's icon and label dark, so they vanished on
-      // purple. Keep every tab readable.
-      tabIconColor: "rgba(255,255,255,0.75)",
-      tabIconHoverColor: "#ffffff",
-      tabIconSelectedColor: "#ffffff",
-      tabIconMoreColor: "rgba(255,255,255,0.75)",
-      tabIconMoreHoverColor: "#ffffff",
-      iconColor: "rgba(255,255,255,0.75)",
-      iconChevronDownColor: "rgba(255,255,255,0.75)",
+      colorText: TEXT,
+      colorTextSecondary: TEXT_SOFT,
+      colorTextPlaceholder: TEXT_DIM,
       colorDanger: "#f87171",
+      colorSuccess: "#4ade80",
       fontFamily,
-      borderRadius: "12px",
+      fontSizeBase: "16px",
+      borderRadius: "14px",
       spacingUnit: "4px",
+      // Tabs (Card / Bank / Klarna) and icons stay readable on purple.
+      tabIconColor: TEXT_SOFT,
+      tabIconHoverColor: TEXT,
+      tabIconSelectedColor: TEXT,
+      tabIconMoreColor: TEXT_SOFT,
+      tabIconMoreHoverColor: TEXT,
+      iconColor: TEXT_SOFT,
+      iconHoverColor: TEXT,
+      iconChevronDownColor: TEXT_SOFT,
+      iconCheckmarkColor: "#1a0e06",
+      accessibleColorOnColorPrimary: "#1a0e06",
     },
     rules: {
+      // Fields
       ".Input": {
-        backgroundColor: FIELD,
+        backgroundColor: GLASS,
         border: `1px solid ${EDGE}`,
-        boxShadow: "none",
+        boxShadow: SHINE,
+        color: TEXT,
       },
+      ".Input:hover": { backgroundColor: GLASS_UP },
       ".Input:focus": {
+        backgroundColor: GLASS_UP,
         border: `1px solid ${ORANGE}`,
-        boxShadow: "0 0 0 3px rgba(255,138,42,0.3)",
+        boxShadow: ORANGE_RING,
       },
-      ".Input--invalid": { border: "1px solid #f87171" },
-      ".Label": { color: "rgba(255,255,255,0.68)", fontSize: "12px", fontWeight: "600" },
-      // Containers inside the form: Link's "Save my information" box,
-      // saved payment methods, accordion rows.
+      ".Input--invalid": { border: "1px solid #f87171", boxShadow: "none" },
+      ".Input::placeholder": { color: TEXT_DIM },
+      ".Label": { color: TEXT_SOFT, fontSize: "13px", fontWeight: "600" },
+      ".Error": { color: "#fca5a5" },
+
+      // Boxes inside the form: Link's "Save my information", saved cards
       ".Block": {
-        backgroundColor: RAISED,
-        border: `1px solid ${EDGE}`,
-        boxShadow: "none",
+        backgroundColor: PANEL,
+        border: `1px solid ${EDGE_SOFT}`,
+        boxShadow: SHINE,
       },
+      ".BlockDivider": { backgroundColor: EDGE_SOFT },
       ".AccordionItem": {
-        backgroundColor: RAISED,
-        border: `1px solid ${EDGE}`,
-        boxShadow: "none",
+        backgroundColor: PANEL,
+        border: `1px solid ${EDGE_SOFT}`,
+        boxShadow: SHINE,
+        color: TEXT,
       },
+      ".AccordionItem--selected": { border: `1px solid ${ORANGE}` },
+
+      // Payment-method tabs
       ".Tab": {
-        backgroundColor: RAISED,
-        border: `1px solid ${EDGE}`,
-        boxShadow: "none",
+        backgroundColor: PANEL,
+        border: `1px solid ${EDGE_SOFT}`,
+        boxShadow: SHINE,
+        color: TEXT_SOFT,
       },
+      ".Tab:hover": { backgroundColor: GLASS_UP, color: TEXT },
       ".Tab--selected": {
+        backgroundColor: ORANGE_TINT,
         border: `1px solid ${ORANGE}`,
-        backgroundColor: FIELD,
-        color: "#ffffff",
-        boxShadow: "0 0 0 1px rgba(255,138,42,0.35)",
+        boxShadow: "0 0 18px rgba(255,138,42,0.25)",
+        color: TEXT,
       },
-      ".Tab--selected:hover": { color: "#ffffff" },
-      ".Tab--selected:focus": { color: "#ffffff" },
-      ".Tab:hover": { color: "#ffffff" },
-      ".TabLabel": { color: "rgba(255,255,255,0.8)" },
-      ".TabLabel--selected": { color: "#ffffff", fontWeight: "600" },
-      ".TabIcon": { color: "rgba(255,255,255,0.75)", fill: "rgba(255,255,255,0.75)" },
-      ".TabIcon--selected": { color: "#ffffff", fill: "#ffffff" },
-      ".PickerItem": { backgroundColor: RAISED, border: `1px solid ${EDGE}` },
-      ".PickerItem--selected": { border: `1px solid ${ORANGE}` },
-      ".Menu": { backgroundColor: RAISED, border: `1px solid ${EDGE}` },
-      ".CheckboxInput": { backgroundColor: FIELD, border: `1px solid ${EDGE}` },
+      ".Tab--selected:hover": { color: TEXT },
+      ".Tab--selected:focus": { color: TEXT, boxShadow: ORANGE_RING },
+      ".TabLabel": { color: TEXT_SOFT },
+      ".TabLabel--selected": { color: TEXT, fontWeight: "600" },
+      ".TabIcon": { color: TEXT_SOFT, fill: TEXT_SOFT },
+      ".TabIcon--selected": { color: TEXT, fill: TEXT },
+
+      // Lists and menus
+      ".PickerItem": {
+        backgroundColor: PANEL,
+        border: `1px solid ${EDGE_SOFT}`,
+        color: TEXT,
+      },
+      ".PickerItem--selected": {
+        backgroundColor: ORANGE_TINT,
+        border: `1px solid ${ORANGE}`,
+      },
+      ".Menu": { backgroundColor: SKYRIO_PURPLE, border: `1px solid ${EDGE}` },
+
+      // Checkboxes
+      ".CheckboxInput": { backgroundColor: GLASS, border: `1px solid ${EDGE}` },
       ".CheckboxInput--checked": { backgroundColor: ORANGE, borderColor: ORANGE },
+      ".CheckboxLabel": { color: TEXT_SOFT },
+
+      // Links and small print in Skyrio's warm orange
+      ".Link": { color: "#ffb347" },
+      ".TermsText": { color: TEXT_DIM },
+      ".TermsLink": { color: "#ffb347" },
     },
   };
 }
