@@ -186,7 +186,7 @@ export const ATLAS_BOOKING_TOOLS = [
   {
     name: "search_hotels",
     description:
-      "Search hotel rates. Returns up to 5 options with an optionId for each.",
+      "Search hotel rates. Returns up to 5 options, cheapest first, each with an optionId. Every price covers ALL the rooms asked for, for the whole stay (totalForAllRooms). Use those numbers as they are; never multiply or add them up yourself.",
     parameters: {
       type: "object",
       properties: {
@@ -195,10 +195,15 @@ export const ATLAS_BOOKING_TOOLS = [
         checkout: { type: "string", description: "YYYY-MM-DD" },
         adults: { type: "integer", minimum: 1 },
         children: { type: "integer", minimum: 0 },
-        rooms: { type: "integer", minimum: 1 },
+        rooms: {
+          type: "integer",
+          minimum: 1,
+          description:
+            "How many rooms. If the traveler doesn't say, use 1 room per 2 adults (4 friends = 2 rooms) and tell them.",
+        },
         maxNightly: {
           type: "number",
-          description: "Optional nightly budget cap in USD",
+          description: "Optional budget cap in USD per room per night",
         },
       },
       required: ["destination", "checkin", "checkout", "adults"],
@@ -306,6 +311,27 @@ export const ATLAS_BOOKING_TOOLS = [
       required: ["optionId"],
     },
   },
+  {
+    name: "price_trip",
+    description:
+      "Add up a trip, or compare options, with exact math. Pass the optionIds you plan to mention (a flight, a hotel, a car, or several hotels to compare). Returns each option's total, the trip total and the per-person amount, plus which option is cheapest. Call this before you state any combined total, per-person amount, or say one option is cheaper than another, and use its numbers exactly.",
+    parameters: {
+      type: "object",
+      properties: {
+        optionIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "optionIds from search_flights, search_hotels or search_cars",
+        },
+        travelers: {
+          type: "integer",
+          minimum: 1,
+          description: "How many people share the cost (for the per-person amount)",
+        },
+      },
+      required: ["optionIds"],
+    },
+  },
 ];
 
 // Saved-card "Confirm & Pay" (propose_booking) is switched OFF for now: its
@@ -327,6 +353,7 @@ const GUEST_TOOL_NAMES = new Set([
   "search_events",
   "show_event",
   "open_checkout",
+  "price_trip",
 ]);
 export const ATLAS_GUEST_BOOKING_TOOLS = ATLAS_BOOKING_TOOLS.filter((t) =>
   GUEST_TOOL_NAMES.has(t.name)
@@ -412,6 +439,8 @@ async function runBookingToolRaw(name, input, { userId, owner, ip }) {
       return runFlightSearch(owner, userId, input);
     case "search_hotels":
       return runHotelSearch(owner, userId, input);
+    case "price_trip":
+      return priceTrip(owner, input);
     case "search_cars":
       return runCarSearch(owner, input);
     case "search_events":
@@ -627,6 +656,88 @@ async function runFlightSearch(owner, userId, input) {
   };
 }
 
+// Exact sums for Atlas. Models are bad at adding up prices and at
+// "cheaper" comparisons (it once called a $2,403 hotel cheaper than a
+// $2,249 one), so Atlas calls this instead of doing the math itself.
+function priceTrip(owner, input) {
+  const ids = Array.isArray(input?.optionIds)
+    ? [...new Set(input.optionIds.map(String))].slice(0, 8)
+    : [];
+  if (!ids.length) return { error: "Pass the optionIds to add up." };
+  const cents = (n) => Math.round(Number(n) * 100);
+  const items = [];
+  const missing = [];
+  for (const id of ids) {
+    const opt = getOption(owner, id);
+    if (!opt) {
+      missing.push(id);
+      continue;
+    }
+    const d = opt.display || {};
+    const price = Number(
+      opt.kind === "hotel" ? d.totalForAllRooms ?? d.total : d.price ?? d.total
+    );
+    if (!Number.isFinite(price)) {
+      missing.push(id);
+      continue;
+    }
+    items.push({
+      optionId: id,
+      kind: opt.kind,
+      name:
+        opt.kind === "hotel"
+          ? `${d.hotel || "Hotel"}${d.rooms > 1 ? ` (${d.rooms} rooms)` : ""}`
+          : opt.kind === "flight"
+          ? `${d.airline || "Flight"}${d.flightNumbers ? ` ${d.flightNumbers}` : ""}`
+          : [d.company, d.car].filter(Boolean).join(" ") || opt.kind,
+      total: cents(price) / 100,
+      currency: d.currency || "USD",
+      payNow: opt.kind !== "car",
+    });
+  }
+  if (!items.length) {
+    return {
+      error:
+        "Those options expired or weren't found. Search again, then call price_trip with the new optionIds.",
+    };
+  }
+  const sumCents = items.reduce((s, it) => s + cents(it.total), 0);
+  const travelers = Math.max(1, Math.round(Number(input.travelers)) || 1);
+  // Cheapest of each kind, so "cheaper" claims can be checked.
+  const cheapestByKind = {};
+  for (const it of items) {
+    const best = cheapestByKind[it.kind];
+    if (!best || it.total < best.total)
+      cheapestByKind[it.kind] = { name: it.name, total: it.total };
+  }
+  const sorted = items.sort((a, b) => a.total - b.total);
+  const expired = missing.length ? { expired: missing } : {};
+  // Two options of the same kind = a comparison, not one trip. Adding
+  // them up would be meaningless, so just rank them.
+  const kinds = items.map((it) => it.kind);
+  if (new Set(kinds).size < kinds.length) {
+    return {
+      compare: sorted.map((it) => ({
+        ...it,
+        perPerson: Math.round(cents(it.total) / travelers) / 100,
+      })),
+      cheapestByKind,
+      travelers,
+      ...expired,
+      note:
+        "Cheapest first. Only call an option cheaper than another if it's higher in this list. For a trip total, call price_trip again with one option of each kind.",
+    };
+  }
+  return {
+    items: sorted,
+    tripTotal: sumCents / 100,
+    perPerson: Math.round(sumCents / travelers) / 100,
+    travelers,
+    ...expired,
+    note: "Use these exact numbers. Cars are paid at pickup, so say if one is included.",
+  };
+}
+
 async function runHotelSearch(owner, userId, input) {
   const badDate = checkDates([
     ["Check-in", input.checkin],
@@ -639,9 +750,30 @@ async function runHotelSearch(owner, userId, input) {
         "Check-out must be after check-in. Check the dates with the traveler.",
     };
   }
-  const rates = await searchHotelRates(input);
+  // Rooms: what the traveler asked for, or 1 per 2 adults. Sent to
+  // LiteAPI as one occupancy per room, so every price below already
+  // covers all the rooms (Atlas once said "2 rooms" but priced 1).
+  const adults = Math.max(1, Math.round(Number(input.adults)) || 1);
+  const rooms = Math.min(
+    adults,
+    Math.max(1, Math.round(Number(input.rooms)) || Math.ceil(adults / 2))
+  );
+  const rates = await searchHotelRates({ ...input, adults, rooms });
+  const nights = Math.max(
+    1,
+    Math.round(
+      (new Date(`${input.checkout}T00:00:00Z`) -
+        new Date(`${input.checkin}T00:00:00Z`)) /
+        86400000
+    )
+  );
+  const money = (n) => Math.round(n * 100) / 100;
   const candidates = rates
-    .filter((r) => !input.maxNightly || r.nightly <= input.maxNightly)
+    // An offer must cover every room asked for, or its price is too low.
+    .filter((r) => (r.roomCount || 1) >= rooms)
+    // maxNightly is per room per night.
+    .filter((r) => !input.maxNightly || r.nightly / rooms <= input.maxNightly)
+    .sort((a, b) => a.total - b.total)
     .slice(0, 15)
     .map((r) => ({
       _raw: r,
@@ -649,8 +781,14 @@ async function runHotelSearch(owner, userId, input) {
       starRating: r.starRating,
       room: r.roomName,
       board: r.boardName,
-      nightly: r.nightly,
+      rooms,
+      nights,
+      totalForAllRooms: r.total,
+      // Older code (booking card, checkout link) reads these two.
       total: r.total,
+      nightly: r.nightly,
+      perRoomPerNight: money(r.total / rooms / nights),
+      perPerson: money(r.total / adults),
       currency: r.currency,
       refundable: r.refundableTag === "RFN",
       cancellation: r.cancellationText,
@@ -665,7 +803,7 @@ async function runHotelSearch(owner, userId, input) {
     checkout: input.checkout,
     adults: input.adults,
     children: input.children || 0,
-    rooms: input.rooms || 1,
+    rooms,
   };
   const searchId = crypto.randomUUID();
   searchGroups.set(
