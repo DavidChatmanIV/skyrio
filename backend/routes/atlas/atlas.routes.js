@@ -891,6 +891,7 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
         : ATLAS_GUEST_BOOKING_TOOLS;
     const actions = [];
     const toolsUsed = new Set();
+    let groupSearchSeen = 0; // most adults in a flight/hotel search this turn
     let convo = normalizedMessages;
     let result = null;
 
@@ -938,6 +939,12 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       const toolResults = [];
       for (const [i, call] of calls.entries()) {
         toolsUsed.add(call.name);
+        if (
+          ["search_flights", "search_hotels"].includes(call.name) &&
+          Number(call.arguments?.adults) >= 3
+        ) {
+          groupSearchSeen = Math.max(groupSearchSeen, Number(call.arguments.adults));
+        }
         const ran = runs[i];
         if (ran.action && actions.length < 3) actions.push(ran.action);
         // A tool said it showed a card but sent nothing to show: tell Atlas,
@@ -954,6 +961,13 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
         ...convo,
         ...buildToolResultMessages(result.provider, result, toolResults),
       ];
+    }
+
+    // Guests planning for a group (3+ people) get one small, optional card
+    // about group trips. The panel shows it once per visit and it can be
+    // dismissed; it never blocks booking.
+    if (!userId && source === "panel" && groupSearchSeen && actions.length < 3) {
+      actions.push({ type: "group_signup_hint", travelers: groupSearchSeen });
     }
 
     const reply =

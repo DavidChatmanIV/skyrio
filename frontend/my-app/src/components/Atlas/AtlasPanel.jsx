@@ -11,6 +11,7 @@ import AtlasBookingCard from "@/components/Atlas/AtlasBookingCard";
 import AtlasProfileCard from "@/components/Atlas/AtlasProfileCard";
 import AtlasCheckoutCard from "@/components/Atlas/AtlasCheckoutCard";
 import AtlasEventCard from "@/components/Atlas/AtlasEventCard";
+import AtlasGroupCard, { keepFirstGroupHint } from "@/components/Atlas/AtlasGroupCard";
 import { getGuestKey } from "@/lib/guestKey";
 import AtlasFeedbackBar from "@/components/Atlas/AtlasFeedbackBar";
 import { useQuietTurn, announcePopup } from "@/lib/popupQueue";
@@ -105,7 +106,12 @@ const KNOWN_ACTION = (a) =>
     /^https:\/\//.test(a.url)) ||
   (a?.type === "checkout_link" &&
     typeof a.url === "string" &&
-    /^https?:\/\//.test(a.url));
+    /^https?:\/\//.test(a.url)) ||
+  (a?.type === "group_trip" &&
+    typeof a.url === "string" &&
+    /^https?:\/\//.test(a.url) &&
+    typeof a.inviteUrl === "string") ||
+  a?.type === "group_signup_hint";
 
 const saveChat = (list) => {
   try {
@@ -712,6 +718,11 @@ function Bubble({ msg, onActionResolved, conversationId, onProfileDone }) {
           return <AtlasCheckoutCard key={`checkout-${i}`} action={action} />;
         if (action?.type === "event")
           return <AtlasEventCard key={`event-${i}`} action={action} />;
+        if (
+          action?.type === "group_trip" ||
+          action?.type === "group_signup_hint"
+        )
+          return <AtlasGroupCard key={`group-${i}`} action={action} />;
         if (action?.type === "profile_setup")
           return action.done ? (
             <div key={`profile-${i}`} className="ap-card__done" role="status">
@@ -1098,7 +1109,7 @@ export default function AtlasPanel() {
               : parsed?.type === "action" && parsed?.data
               ? [parsed.data]
               : [];
-            const good = list.filter(KNOWN_ACTION);
+            const good = keepFirstGroupHint(list.filter(KNOWN_ACTION));
             if (good.length) streamActions = [...streamActions, ...good];
           };
           // A line can be split across two network chunks. Keep the unfinished
@@ -1160,7 +1171,7 @@ export default function AtlasPanel() {
             data.message ||
             "I couldn't come up with an answer. Please try again.";
           const actions = Array.isArray(data.actions)
-            ? data.actions.filter(KNOWN_ACTION)
+            ? keepFirstGroupHint(data.actions.filter(KNOWN_ACTION))
             : [];
           const toolsUsed = Array.isArray(data.toolsUsed)
             ? data.toolsUsed.slice(0, 10)
