@@ -1120,10 +1120,20 @@ export default function AtlasPanel() {
         // Closed or cleared on purpose — no error to show.
         if (err.name === "AbortError" && controller.signal.reason !== "timeout")
           return;
+        // Browsers word a dropped connection differently: Safari says
+        // "Load failed (host)", Chrome "Failed to fetch", Firefox
+        // "NetworkError…". Show one plain message instead.
+        const dropped =
+          err instanceof TypeError &&
+          /load failed|failed to fetch|networkerror|network connection/i.test(
+            err.message || ""
+          );
         setError(
           err.name === "AbortError"
-            ? "Atlas took too long to answer."
-            : err.message || "Something went wrong."
+            ? "Atlas took too long to answer. Try again."
+            : dropped
+            ? "Lost the connection to Atlas. Try again."
+            : err.message || "Something went wrong. Try again."
         );
       } finally {
         clearTimeout(giveUp);
