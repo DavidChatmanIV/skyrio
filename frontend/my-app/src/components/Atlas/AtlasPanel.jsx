@@ -766,6 +766,12 @@ export default function AtlasPanel() {
   const [conversationId, setConversationId] = useState(loadConvoId);
   // Last thing the traveler asked — so "Try again" can resend it.
   const lastAskRef = useRef("");
+  // Its request id: "Try again" reuses it, so if the server already
+  // finished that answer it's handed over instead of searching again.
+  const lastRequestIdRef = useRef("");
+  // How long Atlas has been working, for an honest status while a big
+  // trip (flights + hotels for a group) is being searched.
+  const [slowStage, setSlowStage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   // Wants to show (first visit, a page where it won't cover anything) →
@@ -987,13 +993,18 @@ export default function AtlasPanel() {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
-      // Never leave the traveler waiting forever.
-      let giveUp = setTimeout(() => controller.abort("timeout"), 60000);
+      // Never leave the traveler waiting forever. A group trip (flights +
+      // hotels from two suppliers) can take over a minute, so allow 2.5 min.
+      const WAIT_MS = 150000;
+      let giveUp = setTimeout(() => controller.abort("timeout"), WAIT_MS);
       // Same id on a retry, so the server hands back the answer it already
       // worked out instead of searching again.
       const requestId =
-        globalThis.crypto?.randomUUID?.() ||
-        `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        retry && lastRequestIdRef.current
+          ? lastRequestIdRef.current
+          : globalThis.crypto?.randomUUID?.() ||
+            `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      lastRequestIdRef.current = requestId;
       // Did the traveler leave the page (switch apps, lock the phone)
       // while Atlas was working? Phones drop the request when they do.
       let leftPage = typeof document !== "undefined" && document.hidden;
@@ -1058,7 +1069,7 @@ export default function AtlasPanel() {
             if (leftPage || document.hidden) await backOnPage();
             await new Promise((r) => setTimeout(r, WAITS[attempt + 1]));
             if (controller.signal.aborted) throw e;
-            giveUp = setTimeout(() => controller.abort("timeout"), 60000);
+            giveUp = setTimeout(() => controller.abort("timeout"), WAIT_MS);
           }
         }
 
@@ -1250,10 +1261,27 @@ export default function AtlasPanel() {
     lastAskRef.current = "";
   }, []);
 
+  useEffect(() => {
+    if (!loading) {
+      setSlowStage(0);
+      return;
+    }
+    const a = setTimeout(() => setSlowStage(1), 12000);
+    const b = setTimeout(() => setSlowStage(2), 40000);
+    return () => {
+      clearTimeout(a);
+      clearTimeout(b);
+    };
+  }, [loading]);
+
   const current = MODES[mode];
   const statusText =
     mode === "chat" && loading
-      ? "Thinking…"
+      ? slowStage === 2
+        ? "Big trips take a minute. Still searching…"
+        : slowStage === 1
+        ? "Searching flights and hotels…"
+        : "Thinking…"
       : atlasDestination
       ? `${current.status} · ${atlasDestination}`
       : current.status;
