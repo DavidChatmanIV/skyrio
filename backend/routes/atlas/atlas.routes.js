@@ -745,6 +745,7 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
   for (const [k, v] of chatRuns) if (v.expires < now) chatRuns.delete(k);
 
   let run = chatRuns.get(key);
+  if (run) console.info("[Atlas chat] traveler came back, handing over the same answer", rid.slice(0, 8));
   if (!run) {
     const { fake, promise } = captureRes();
     run = { promise, expires: now + CHAT_REPLAY_MS };

@@ -1037,17 +1037,29 @@ export default function AtlasPanel() {
             }),
             signal: controller.signal,
           });
+        // Dropped (they left the page, or the phone's network blinked):
+        // once they're back, pick up the answer the server kept working
+        // on. Right after coming back the phone's network can take a
+        // moment, so try a few times with short waits.
+        const WAITS = [0, 1500, 3000, 6000];
         let res;
-        try {
-          res = await ask();
-        } catch (e) {
-          // Dropped because they left the page: once they're back, pick up
-          // the answer (the server kept working on it). One quiet retry.
-          if (!isDrop(e) || controller.signal.aborted) throw e;
-          clearTimeout(giveUp);
-          if (leftPage) await backOnPage();
-          giveUp = setTimeout(() => controller.abort("timeout"), 60000);
-          res = await ask();
+        for (let attempt = 0; ; attempt++) {
+          try {
+            res = await ask();
+            break;
+          } catch (e) {
+            if (
+              !isDrop(e) ||
+              controller.signal.aborted ||
+              attempt >= WAITS.length - 1
+            )
+              throw e;
+            clearTimeout(giveUp);
+            if (leftPage || document.hidden) await backOnPage();
+            await new Promise((r) => setTimeout(r, WAITS[attempt + 1]));
+            if (controller.signal.aborted) throw e;
+            giveUp = setTimeout(() => controller.abort("timeout"), 60000);
+          }
         }
 
         if (!res.ok) {
