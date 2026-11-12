@@ -700,6 +700,17 @@ router.get("/picks", authRequired, async (req, res) => {
 // mode-detection path — instead of the raw, mode-blind default prompt.
 // ─────────────────────────────────────────────────────────────
 
+// Last pass on Atlas's wording, in case the model slips:
+// "~$472" → "about $472", "≈ 3 hrs" → "about 3 hrs", stray "~~" removed,
+// "**Flight** — United" → "**Flight:** United".
+function tidyReply(text) {
+  if (!text) return text;
+  return String(text)
+    .replace(/~~/g, "")
+    .replace(/(^|[\s(])[~≈]\s?(?=[$€£\d])/g, "$1about ")
+    .replace(/\*\*([^*\n]+?)\*\*\s+[—–]\s+/g, "**$1:** ");
+}
+
 router.post("/chat", chatLimit, guestKey, async (req, res) => {
   try {
     const { messages, context, source } = req.body ?? {};
@@ -835,7 +846,8 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
         systemPrompt: finalSystemPrompt,
         messages: convo,
         task: "default",
-        maxTokens: 700,
+        // Room for a full trip summary, so replies don't stop mid-sentence.
+        maxTokens: 1000,
         tools,
         // Tool replies must go back to the same provider that asked.
         ...(round > 0 && result?.provider ? { provider: result.provider } : {}),
@@ -872,7 +884,7 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
     }
 
     const reply =
-      result?.text ||
+      tidyReply(result?.text) ||
       (actions.some((a) => a.type === "booking")
         ? "Here's your booking. Review the details and tap Confirm & Pay."
         : actions.some((a) => a.type === "checkout_link")
