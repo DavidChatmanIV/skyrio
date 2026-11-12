@@ -988,26 +988,67 @@ export default function AtlasPanel() {
       const controller = new AbortController();
       abortRef.current = controller;
       // Never leave the traveler waiting forever.
-      const giveUp = setTimeout(() => controller.abort("timeout"), 60000);
+      let giveUp = setTimeout(() => controller.abort("timeout"), 60000);
+      // Same id on a retry, so the server hands back the answer it already
+      // worked out instead of searching again.
+      const requestId =
+        globalThis.crypto?.randomUUID?.() ||
+        `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      // Did the traveler leave the page (switch apps, lock the phone)
+      // while Atlas was working? Phones drop the request when they do.
+      let leftPage = typeof document !== "undefined" && document.hidden;
+      const onHide = () => {
+        if (document.hidden) leftPage = true;
+      };
+      document.addEventListener("visibilitychange", onHide);
+      const backOnPage = () =>
+        new Promise((resolve) => {
+          if (!document.hidden) return resolve();
+          const on = () => {
+            if (document.hidden) return;
+            document.removeEventListener("visibilitychange", on);
+            resolve();
+          };
+          document.addEventListener("visibilitychange", on);
+        });
+      const isDrop = (e) =>
+        e instanceof TypeError &&
+        /load failed|failed to fetch|networkerror|network connection/i.test(
+          e.message || ""
+        );
 
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch(`${API}/api/atlas/chat`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            // Lets a logged-out visitor's search results work across messages.
-            "X-Skyrio-Guest": getGuestKey(),
-          },
-          // Trip details only — the server writes Atlas's instructions.
-          body: JSON.stringify({
-            source: "panel",
-            messages: history,
-            context: contextForServer(atlasContext),
-          }),
-          signal: controller.signal,
-        });
+        const ask = () =>
+          fetch(`${API}/api/atlas/chat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              // Lets a logged-out visitor's search results work across messages.
+              "X-Skyrio-Guest": getGuestKey(),
+            },
+            // Trip details only — the server writes Atlas's instructions.
+            body: JSON.stringify({
+              source: "panel",
+              requestId,
+              messages: history,
+              context: contextForServer(atlasContext),
+            }),
+            signal: controller.signal,
+          });
+        let res;
+        try {
+          res = await ask();
+        } catch (e) {
+          // Dropped because they left the page: once they're back, pick up
+          // the answer (the server kept working on it). One quiet retry.
+          if (!isDrop(e) || controller.signal.aborted) throw e;
+          clearTimeout(giveUp);
+          if (leftPage) await backOnPage();
+          giveUp = setTimeout(() => controller.abort("timeout"), 60000);
+          res = await ask();
+        }
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
@@ -1137,6 +1178,7 @@ export default function AtlasPanel() {
         );
       } finally {
         clearTimeout(giveUp);
+        document.removeEventListener("visibilitychange", onHide);
         if (abortRef.current === controller) setLoading(false);
       }
     },
