@@ -284,8 +284,8 @@ export default function PassportDataPage({
                 type="button"
                 className="pdp-qrBtn"
                 onClick={onShowQr}
-                aria-label="Share my passport QR code"
-                title="Share my passport"
+                aria-label="Share my Digital Passport QR code"
+                title="Share my Digital Passport"
               >
                 <QrCode size={14} aria-hidden="true" />
                 <span>Share</span>
