@@ -7,7 +7,18 @@ import gateBg from "../assets/LoginBoardingpass/gate.png";
 import "../styles/login.css";
 
 import { Plane } from "lucide-react";
-const API = import.meta.env.VITE_API_URL || "";
+import { apiUrl } from "@/lib/api";
+
+// Reads a reply even when it isn't JSON (a proxy error page, an empty body),
+// so the traveler sees a real message instead of a blank failure.
+async function readJson(res) {
+  const raw = await res.text().catch(() => "");
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
 
 export default function ForgotPasswordPage() {
   const nav = useNavigate();
@@ -27,16 +38,24 @@ export default function ForgotPasswordPage() {
     if (!email.trim()) return setError("Please enter your email.");
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/auth/forgot-password`, {
+      // Same route as every other API call (through myskyrio.com on the live site).
+      const res = await fetch(apiUrl("/api/auth/forgot-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      const data = await readJson(res);
+      if (!res.ok)
+        throw new Error(
+          data.message || "Couldn't send the reset email. Try again."
+        );
       setSent(true);
     } catch (err) {
-      setError(err.message || "Something went wrong.");
+      setError(
+        err instanceof TypeError
+          ? "Couldn't reach Skyrio. Check your connection and try again."
+          : err.message || "Something went wrong. Try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -49,17 +68,22 @@ export default function ForgotPasswordPage() {
     if (password !== confirm) return setError("Passwords don't match.");
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/auth/reset-password`, {
+      const res = await fetch(apiUrl("/api/auth/reset-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      const data = await readJson(res);
+      if (!res.ok)
+        throw new Error(data.message || "Couldn't reset your password. Try again.");
       setDone(true);
       setTimeout(() => nav("/login"), 2500);
     } catch (err) {
-      setError(err.message || "Something went wrong.");
+      setError(
+        err instanceof TypeError
+          ? "Couldn't reach Skyrio. Check your connection and try again."
+          : err.message || "Something went wrong. Try again."
+      );
     } finally {
       setLoading(false);
     }
