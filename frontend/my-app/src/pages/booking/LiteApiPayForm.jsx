@@ -24,6 +24,7 @@
 //   VITE_LITEAPI_STRIPE_PK = (optional) LiteAPI's Stripe publishable key
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { skyrioStripeAppearance } from "@/lib/stripeAppearance";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -151,30 +152,8 @@ function pageFontSources() {
   }
 }
 
-function buildStripeAppearance(fontFamily) {
-  return {
-    theme: "night",
-    variables: {
-      colorPrimary: "#f97316",
-      colorBackground: "#100c22",
-      colorText: "#ffffff",
-      colorDanger: "#f87171",
-      borderRadius: "10px",
-      fontFamily,
-    },
-    rules: {
-      ".Input": {
-        border: "1px solid rgba(255,255,255,0.10)",
-        backgroundColor: "rgba(255,255,255,0.06)",
-      },
-      ".Input:focus": {
-        border: "1px solid #f97316",
-        boxShadow: "0 0 0 3px rgba(249,115,22,0.35)",
-      },
-      ".Label": { color: "rgba(255,255,255,0.5)", fontSize: "12px" },
-    },
-  };
-}
+// Shared Skyrio theme for Stripe (lib/stripeAppearance.js).
+const buildStripeAppearance = (fontFamily) => skyrioStripeAppearance(fontFamily);
 
 // ── Direct Stripe card form (fallback / preferred when key is known) ─────────
 const ZERO_DECIMAL = new Set([
@@ -497,7 +476,7 @@ export default function LiteApiPayForm({
         try {
           const payment = new window.LiteAPIPayment({
             publicKey: import.meta.env.VITE_LITEAPI_ENV || "sandbox",
-            appearance: { theme: "night" },
+            appearance: skyrioStripeAppearance(),
             options: { business: { name: "Skyrio" } },
             targetElement: `#${TARGET_ID}`,
             secretKey: clientSecret,

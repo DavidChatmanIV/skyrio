@@ -5,6 +5,7 @@
 // Env:   VITE_STRIPE_PUBLISHABLE_KEY (Skyrio's own pk_test_/pk_live_ key)
 
 import { useEffect, useState } from "react";
+import { skyrioStripeAppearance } from "@/lib/stripeAppearance";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -17,15 +18,7 @@ import { apiUrl } from "@/lib/api";
 const PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = PK ? loadStripe(PK) : null;
 
-const appearance = {
-  theme: "night",
-  variables: {
-    colorPrimary: "#ff8a2a",
-    colorBackground: "rgba(255,255,255,0.04)",
-    colorText: "#f5f5f7",
-    borderRadius: "12px",
-  },
-};
+const appearance = skyrioStripeAppearance();
 
 const authHeaders = () => {
   const token = localStorage.getItem("token");

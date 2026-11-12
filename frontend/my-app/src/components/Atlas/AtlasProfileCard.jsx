@@ -8,6 +8,7 @@
 // Details go straight to /api/travel-profile and Stripe. Only a short summary
 // ("profile saved, 1 traveler added, card saved") goes back to Atlas.
 import { useEffect, useMemo, useState } from "react";
+import { skyrioStripeAppearance } from "@/lib/stripeAppearance";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import PhoneInput from "react-phone-number-input";
@@ -398,7 +399,7 @@ export default function AtlasProfileCard({ focus = "full", travelerId = null, re
           {!stripePromise ? (
             <p className="abc-msg">Saving a card isn't available right now. You can still pay on the checkout page.</p>
           ) : clientSecret ? (
-            <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: "night" } }}>
+            <Elements stripe={stripePromise} options={{ clientSecret, appearance: skyrioStripeAppearance() }}>
               <CardForm
                 onSaved={(p) => {
                   setProfile(p);
