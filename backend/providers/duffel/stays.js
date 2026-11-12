@@ -29,7 +29,7 @@ const SEARCH_RADIUS_KM = 10;
 
 export function duffelStaysEnabled() {
   return (
-    String(process.env.DUFFEL_STAYS_ENABLED).toLowerCase() === "true" &&
+    /^(true|1|yes|on)$/i.test(String(process.env.DUFFEL_STAYS_ENABLED ?? "").replace(/["'\s]/g, "")) &&
     Boolean(process.env.DUFFEL_ACCESS_TOKEN)
   );
 }
@@ -76,7 +76,13 @@ duffel.interceptors.response.use(
 
 if (process.env.DUFFEL_ACCESS_TOKEN) {
   console.log(
-    `[Duffel Stays] ${duffelStaysEnabled() ? "ON" : "OFF (set DUFFEL_STAYS_ENABLED=true)"}`
+    `[Duffel Stays] ${
+      duffelStaysEnabled()
+        ? "ON"
+        : `OFF (set DUFFEL_STAYS_ENABLED=true; it's ${JSON.stringify(
+            process.env.DUFFEL_STAYS_ENABLED ?? null
+          )} now)`
+    }`
   );
 }
 
