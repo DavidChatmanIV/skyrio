@@ -102,6 +102,14 @@ const Icon = {
       <path d="m6 9 6 6 6-6" />
     </Svg>
   ),
+  share: (p) => (
+    <Svg {...p}>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" />
+    </Svg>
+  ),
   gift: (p) => (
     <Svg {...p}>
       <rect x="3" y="8" width="18" height="4" rx="1" />
@@ -554,6 +562,17 @@ export default function Navbar() {
                           </span>
                         </Link>
                         <Link
+                          to="/passport?share=1"
+                          className="sk-profile-item"
+                          role="menuitem"
+                        >
+                          <Icon.share size={18} />
+                          <span>
+                            Share my passport
+                            <small>QR code and link to follow you</small>
+                          </span>
+                        </Link>
+                        <Link
                           to="/saved-trips"
                           className="sk-profile-item"
                           role="menuitem"
@@ -697,6 +716,17 @@ export default function Navbar() {
                     NavIcon: Icon.trips,
                     active: isSaved,
                   },
+                  ...(isAuthed
+                    ? [
+                        {
+                          key: "share-passport",
+                          to: "/passport?share=1",
+                          label: "Share my passport",
+                          NavIcon: Icon.share,
+                          active: false,
+                        },
+                      ]
+                    : []),
                 ].map(({ key, to, label, NavIcon, active }) => (
                   <Link
                     key={key}
