@@ -839,9 +839,9 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
     let convo = normalizedMessages;
     let result = null;
 
-    // Up to 5 rounds: Atlas asks for a tool → we run it → Atlas answers.
+    // Up to 6 rounds: Atlas asks for a tool → we run it → Atlas answers.
     // Booking needs a few in one turn (profile → search → answer).
-    for (let round = 0; round < 5; round++) {
+    for (let round = 0; round < 6; round++) {
       result = await atlasChat({
         systemPrompt: finalSystemPrompt,
         messages: convo,

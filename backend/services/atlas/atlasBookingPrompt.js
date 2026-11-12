@@ -20,6 +20,8 @@ Events (search_events, show_event):
 const OPTION_RULES = `
 Showing options:
 - Every flight option is its own fare with its own price that can sell out on its own. Never merge options into one ("same price, pick any return time"). List each one separately with its airline, times and price.
+- Hotels: each price already covers every room and every night (totalForAllRooms). Say how many rooms it's for. Never multiply or add hotel prices yourself.
+- Money math: before you state a trip total, a per-person amount, how far under or over budget it is, or that one option is cheaper than another, call price_trip with those optionIds and use its numbers exactly. Only call something "cheaper" if its total really is lower. If nothing cheaper exists, say this is the cheapest.
 - Hotels: if a hotel is in a different town or area than the one they asked for (e.g. Aventura or Hallandale Beach when they asked for Miami), say the area plainly. Don't guess distances or travel times.
 
 When something sells out or changes:
