@@ -8,6 +8,12 @@
 
 import { liteapi } from "../../routes/api/hotels/hotel.provider.js";
 import { buildOccupancies, normalizeHotelRate } from "../../routes/api/hotels/hotels.utils.js";
+import {
+  duffelStaysEnabled,
+  searchDuffelStays,
+  isDuffelRateId,
+  quoteDuffelRate,
+} from "../duffel/stays.js";
 
 const MAX_HOTELS = 30;
 
@@ -37,6 +43,32 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
   if (!hotels.length) return [];
   const byId = new Map(hotels.map((h) => [h.id, h]));
 
+  // Duffel Stays around the same spot (middle of LiteAPI's hotels), in
+  // parallel. A Duffel problem never breaks the LiteAPI results.
+  const pts = hotels
+    .map((h) => [Number(h.latitude), Number(h.longitude)])
+    .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && (a || b));
+  const center = pts.length
+    ? [
+        pts.reduce((s, p) => s + p[0], 0) / pts.length,
+        pts.reduce((s, p) => s + p[1], 0) / pts.length,
+      ]
+    : null;
+  const duffelPromise =
+    duffelStaysEnabled() && center
+      ? searchDuffelStays({
+          latitude: center[0],
+          longitude: center[1],
+          checkin,
+          checkout,
+          adults,
+          rooms,
+        }).catch((e) => {
+          console.warn("[Atlas hotels] Duffel Stays skipped:", e.message);
+          return [];
+        })
+      : Promise.resolve([]);
+
   const ratesRes = await liteapi.searchRequest("/hotels/rates?rm=true", {
     method: "POST",
     body: {
@@ -62,7 +94,30 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
     hotelsWithRates: (ratesRes?.data ?? []).length,
     error: ratesRes?.error || undefined,
   });
-  return (ratesRes?.data ?? [])
+  const duffelRates = (await duffelPromise).map((r) => ({
+    offerId: r.offerId,
+    hotelId: r.hotelId,
+    hotelName: r.name,
+    starRating: r.stars,
+    roomName: r.roomName,
+    boardName: r.boardName,
+    roomCount: r.roomCount,
+    total: r.totalAmount,
+    nightly: Math.round((r.totalAmount / nights) * 100) / 100,
+    currency: r.totalCurrency,
+    refundableTag: r.refundableTag,
+    cancellationText:
+      r.refundableTag === "RFN"
+        ? r.cancellationPolicies?.cancelPolicyInfos?.[0]?.cancelTime
+          ? `Free cancellation until ${r.cancellationPolicies.cancelPolicyInfos[0].cancelTime}`
+          : "Refundable (see policy)"
+        : "Non-refundable",
+    supplier: "duffel",
+    // Same room object Book → Stays uses, so "Review & pay" opens the
+    // normal hotel checkout on it.
+    frontend: { ...r, adults },
+  }));
+  const liteRates = (ratesRes?.data ?? [])
     .flatMap(normalizeHotelRate)
     .filter((r) => r.offerId && Number.isFinite(Number(r.totalAmount)))
     .map((r) => {
@@ -95,8 +150,8 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
           totalCurrency: r.totalCurrency || "USD",
         },
       };
-    })
-    .sort((a, b) => a.total - b.total);
+    });
+  return [...liteRates, ...duffelRates].sort((a, b) => a.total - b.total);
 }
 
 function firstNumber(...vals) {
@@ -110,6 +165,15 @@ function firstNumber(...vals) {
 // Same prebook call as the regular checkout (usePaymentSdk: false — Skyrio
 // charges the card through Stripe, then books with LiteAPI).
 export async function createHotelPrebook({ offerId }) {
+  if (isDuffelRateId(offerId)) {
+    const q = await quoteDuffelRate(offerId);
+    return {
+      prebookId: q.prebookId,
+      price: { total: q.totalPrice, currency: q.currency },
+      cancellationText: null,
+      raw: q.raw,
+    };
+  }
   const res = await liteapi.bookRequest("/rates/prebook", {
     method: "POST",
     body: { usePaymentSdk: false, offerId },

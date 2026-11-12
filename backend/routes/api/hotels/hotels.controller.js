@@ -5,6 +5,15 @@
 import Stripe from "stripe";
 import { liteapi } from "./hotel.provider.js";
 import {
+  duffelStaysEnabled,
+  searchDuffelStays,
+  isDuffelRateId,
+  isDuffelQuoteId,
+  quoteDuffelRate,
+  bookDuffelQuote,
+  toE164,
+} from "../../../providers/duffel/stays.js";
+import {
   isValidDate,
   buildOccupancies,
   normalizeHotelRate,
@@ -211,6 +220,23 @@ export async function searchHotels(req, res) {
     const hotelIdsArray = hotelIds.split(",").map((id) => id.trim());
     const occupancies = buildOccupancies(adultsNum, rooms);
 
+    // Duffel Stays runs alongside, when on and the page sent a map point.
+    // It never holds up or breaks the LiteAPI results.
+    const duffelPromise =
+      duffelStaysEnabled() && req.query.lat && req.query.lng
+        ? searchDuffelStays({
+            latitude: req.query.lat,
+            longitude: req.query.lng,
+            checkin,
+            checkout,
+            adults: adultsNum,
+            rooms,
+          }).catch((e) => {
+            console.warn("[hotels/search] Duffel Stays skipped:", e.message);
+            return [];
+          })
+        : Promise.resolve([]);
+
     const result = await liteapi.searchRequest("/hotels/rates?rm=true", {
       method: "POST",
       body: {
@@ -228,9 +254,13 @@ export async function searchHotels(req, res) {
     // Only offers that can actually be booked: an offerId and a real price.
     // LiteAPI can list a room type with no rate for these dates; showing it
     // led to "no availability" only at Pay.
-    const rates = (result?.data ?? [])
+    const liteRates = (result?.data ?? [])
       .flatMap(normalizeHotelRate)
       .filter((r) => r.offerId && Number(r.totalAmount) > 0);
+    const duffelRates = (await duffelPromise).filter(
+      (r) => r.offerId && Number(r.totalAmount) > 0
+    );
+    const rates = [...liteRates, ...duffelRates];
 
     return res.json({
       ok: true,
@@ -318,13 +348,11 @@ export async function checkHotelAvailability(req, res) {
     const rooms = [];
     for (const o of offers) {
       try {
-        const r = await liteapi.bookRequest("/rates/prebook", {
-          method: "POST",
-          body: { usePaymentSdk: false, offerId: String(o.offerId) },
-        });
-        const prebookId = r?.data?.prebookId ?? r?.prebookId;
-        const total = readPrebookPrice(r);
-        const currency = r?.data?.currency ?? r?.currency ?? "USD";
+        const {
+          prebookId,
+          totalPrice: total,
+          currency,
+        } = await lockRoomPrice(o.offerId);
         if (!prebookId || !Number.isFinite(total)) {
           rooms.push({
             offerId: o.offerId,
@@ -362,6 +390,23 @@ export async function checkHotelAvailability(req, res) {
     // Never block checkout because the check itself failed.
     return res.json({ ok: true, rooms: [], unchecked: true });
   }
+}
+
+// Locks one room's price with whichever supplier it came from:
+// Duffel rate ("rat_…") → Duffel quote; anything else → LiteAPI prebook.
+// Same result either way: { prebookId, totalPrice, currency, raw }.
+async function lockRoomPrice(offerId) {
+  if (isDuffelRateId(offerId)) return quoteDuffelRate(String(offerId));
+  const r = await liteapi.bookRequest("/rates/prebook", {
+    method: "POST",
+    body: { usePaymentSdk: false, offerId: String(offerId) },
+  });
+  return {
+    prebookId: r?.data?.prebookId ?? r?.prebookId,
+    totalPrice: readPrebookPrice(r),
+    currency: r?.data?.currency ?? r?.currency ?? "USD",
+    raw: r,
+  };
 }
 
 // Reads the prebook price whichever field LiteAPI used.
@@ -424,7 +469,20 @@ export async function initHotelCheckout(req, res) {
       });
     }
 
-    // ── Step 1: prebook every room with LiteAPI to lock each price ──
+    // Duffel hotels need a phone number for the booking. Ask before
+    // anything is held on the card.
+    if (
+      offers.some((o) => isDuffelRateId(o?.offerId)) &&
+      !toE164(req.body.guestPhone)
+    ) {
+      return res.status(400).json({
+        ok: false,
+        needsPhone: true,
+        message: "Enter a phone number with area code for this hotel.",
+      });
+    }
+
+    // ── Step 1: lock every room's price (LiteAPI prebook or Duffel quote) ──
     const prebooks = [];
     for (const offer of offers) {
       if (!offer?.offerId) {
@@ -434,16 +492,12 @@ export async function initHotelCheckout(req, res) {
         });
       }
 
-      const prebookResult = await liteapi.bookRequest("/rates/prebook", {
-        method: "POST",
-        body: { usePaymentSdk: false, offerId: offer.offerId },
-      });
-
-      const prebookId =
-        prebookResult?.data?.prebookId ?? prebookResult?.prebookId;
-      const totalPrice = readPrebookPrice(prebookResult);
-      const currency =
-        prebookResult?.data?.currency ?? prebookResult?.currency ?? "USD";
+      const {
+        prebookId,
+        totalPrice,
+        currency,
+        raw: prebookResult,
+      } = await lockRoomPrice(offer.offerId);
 
       console.log("[hotels/checkout-intent] prebook", {
         prebookId,
@@ -569,19 +623,28 @@ export async function finalizeHotelBookings(bookings) {
 
   for (const b of bookings) {
     try {
-      const result = await liteapi.bookRequest("/rates/book", {
-        method: "POST",
-        body: {
-          holder: b.holder,
-          guests: b.guests,
-          payment: { method: "ACC_CREDIT_CARD" },
-          prebookId: b.prebookId,
-        },
-      });
+      // Duffel quote ("quo_…") → Duffel booking, paid from Skyrio's Duffel
+      // balance. Result has the same { data: { bookingId,
+      // hotelConfirmationCode } } shape as LiteAPI's.
+      const result = isDuffelQuoteId(b.prebookId)
+        ? await bookDuffelQuote({
+            quoteId: b.prebookId,
+            holder: b.holder,
+            guests: b.guests,
+          })
+        : await liteapi.bookRequest("/rates/book", {
+            method: "POST",
+            body: {
+              holder: b.holder,
+              guests: b.guests,
+              payment: { method: "ACC_CREDIT_CARD" },
+              prebookId: b.prebookId,
+            },
+          });
       results.push({ prebookId: b.prebookId, booking: result });
     } catch (err) {
       console.error(
-        `LiteAPI booking failed for prebookId ${b.prebookId}:`,
+        `${isDuffelQuoteId(b.prebookId) ? "Duffel" : "LiteAPI"} booking failed for prebookId ${b.prebookId}:`,
         err?.message || err
       );
       failures.push({
@@ -678,7 +741,12 @@ async function createPendingHotelBooking({
       totalCurrency: String(intent.currency || "usd").toUpperCase(),
       paymentIntentId: intent.id,
       stripePaymentIntentId: intent.id,
-      provider: "liteapi",
+      // "duffel" when every room came from Duffel Stays.
+      provider:
+        confirmation.length &&
+        confirmation.every((c) => /^bok_/.test(String(c.bookingId || "")))
+          ? "duffel"
+          : "liteapi",
       providerBookingIds: confirmation.map((c) => c.bookingId).filter(Boolean),
       confirmationCodes: confirmation
         .map((c) => c.hotelConfirmationCode)

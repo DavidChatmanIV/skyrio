@@ -2,6 +2,12 @@
 // LiteAPI calls for managing EXISTING bookings: look up, quote, cancel.
 // Uses the same key selection as the rest of the backend (LITEAPI_ENV).
 
+import {
+  isDuffelStayBookingId,
+  getDuffelStayBooking,
+  cancelDuffelStayBooking,
+} from "../providers/duffel/stays.js";
+
 const HOTEL_BASE = "https://book.liteapi.travel/v3.0";
 const FLIGHTS_BASE =
   process.env.LITEAPI_FLIGHTS_BASE || "https://api.liteapi.travel/v3.0";
@@ -47,10 +53,16 @@ async function call(base, method, path, body) {
 }
 
 // ── Hotels ──
+// Duffel Stays bookings ("bok_…") go to Duffel and come back in the same
+// shape, so every caller (admin live view, cancel quote, cancel) works for both.
 export const hotelGetBooking = (bookingId) =>
-  call(HOTEL_BASE, "GET", `/bookings/${encodeURIComponent(bookingId)}`);
+  isDuffelStayBookingId(bookingId)
+    ? getDuffelStayBooking(bookingId)
+    : call(HOTEL_BASE, "GET", `/bookings/${encodeURIComponent(bookingId)}`);
 export const hotelCancel = (bookingId) =>
-  call(HOTEL_BASE, "PUT", `/bookings/${encodeURIComponent(bookingId)}`);
+  isDuffelStayBookingId(bookingId)
+    ? cancelDuffelStayBooking(bookingId)
+    : call(HOTEL_BASE, "PUT", `/bookings/${encodeURIComponent(bookingId)}`);
 
 // ── Flights ──
 export const flightGetBooking = (bookingId) =>

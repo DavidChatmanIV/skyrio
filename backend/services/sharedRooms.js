@@ -298,6 +298,14 @@ export async function createSharedRoom({
   }
   if (group.status === "cancelled")
     throw new SyncError(400, "This trip was cancelled.");
+  // Shared rooms run on LiteAPI's prebook/book flow only. Duffel Stays
+  // rooms ("rat_…") are booked by one person from the hotel checkout.
+  if (/^rat_/.test(String(room?.offerId || ""))) {
+    throw new SyncError(
+      400,
+      "This hotel can't be shared yet. Pick another room to split, or have one person book it."
+    );
+  }
   if (!room?.offerId || !room?.hotelId || !room?.checkin || !room?.checkout) {
     throw new SyncError(400, "Pick a room from the hotel search first.");
   }

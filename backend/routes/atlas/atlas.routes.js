@@ -711,7 +711,59 @@ function tidyReply(text) {
     .replace(/\*\*([^*\n]+?)\*\*\s+[—–]\s+/g, "**$1:** ");
 }
 
+// ── Survive a phone leaving the page mid-answer ──
+// A big trip question takes 30–50s. If the traveler switches apps, the
+// phone drops the request, even though the server finishes it (logs show
+// 200). The panel sends a requestId and asks again when they come back;
+// this hands back the same answer (or waits for the one still running)
+// instead of searching twice.
+const CHAT_REPLAY_MS = 10 * 60 * 1000;
+const chatRuns = new Map(); // key → { promise, expires }
+function captureRes() {
+  let done;
+  const promise = new Promise((r) => (done = r));
+  const fake = {
+    statusCode: 200,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      done({ status: this.statusCode, body });
+      return this;
+    },
+  };
+  return { fake, promise };
+}
+
 router.post("/chat", chatLimit, guestKey, async (req, res) => {
+  const rid = String(req.body?.requestId || "").slice(0, 64);
+  if (!/^[\w-]{8,64}$/.test(rid)) return handleChat(req, res);
+  const owner = optionalUserId(req) || req.guestKeyHash || req.ip;
+  const key = `${owner}:${rid}`;
+  const now = Date.now();
+  for (const [k, v] of chatRuns) if (v.expires < now) chatRuns.delete(k);
+
+  let run = chatRuns.get(key);
+  if (run) console.info("[Atlas chat] traveler came back, handing over the same answer", rid.slice(0, 8));
+  if (!run) {
+    const { fake, promise } = captureRes();
+    run = { promise, expires: now + CHAT_REPLAY_MS };
+    chatRuns.set(key, run);
+    handleChat(req, fake).catch((err) =>
+      fake.status(500).json({
+        ok: false,
+        error: "Atlas couldn't answer just now. Please try again in a moment.",
+      })
+    );
+  }
+  const out = await run.promise;
+  // Errors aren't kept, so "Try again" really runs again.
+  if (out.status >= 400) chatRuns.delete(key);
+  if (!res.headersSent) res.status(out.status).json(out.body);
+});
+
+async function handleChat(req, res) {
   try {
     const { messages, context, source } = req.body ?? {};
 
@@ -822,7 +874,10 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
         timeZone: "UTC",
       }
     );
-    finalSystemPrompt += `\n\nToday is ${todayLong} (${todayISO}). All trip dates must be today or later. When someone gives a date without a year, use the next time that date comes up. Turn "next Friday", "this weekend", etc. into real dates from today, and say the dates back to them.`;
+    finalSystemPrompt += `\n\nToday is ${todayLong} (${todayISO}). The current year is ${todayISO.slice(0, 4)}. All trip dates must be today or later.
+Dates without a year: use the next time that date comes up and just go ahead. If that date already passed this year, it means next year (${Number(todayISO.slice(0, 4)) + 1}). Don't say the date "has passed", don't ask which year, and don't ask them to confirm it. Mention the year once in your answer (for example "Mar 12–15, 2027") and carry on with the search.
+Turn "next Friday", "this weekend", etc. into real dates from today, and say the dates back to them.
+Only ask about dates if they're truly unclear (no month given, or a range that doesn't make sense).`;
 
     // Signed-in travelers in the chat panel get the support tools (look up
     // their bookings, bring up a cancel card) plus the booking tools (search,
@@ -915,7 +970,7 @@ router.post("/chat", chatLimit, guestKey, async (req, res) => {
       error: "Atlas couldn't answer just now. Please try again in a moment.",
     });
   }
-});
+}
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/atlas/handoffs/:id
