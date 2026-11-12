@@ -32,6 +32,7 @@ import {
   ArrowLeftOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
+import useCloseOnBack from "@/lib/useCloseOnBack";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -5065,8 +5066,15 @@ export default function BookingPage() {
   // flights; once set, the results area switches to showing only that
   // outbound's available return flights — the two-step pattern used by
   // Google Flights / Expedia / Kayak, rather than an inline expander.
+  // (Back from "Choose your return flight" goes to the departing flights:
+  // see useCloseOnBack below, after selectedOutboundGroupKey.)
   const [selectedOutboundGroupKey, setSelectedOutboundGroupKey] =
     useState(null);
+  // Back / swipe back on "Choose your return flight" returns to the
+  // departing flights instead of leaving Book (tester feedback).
+  useCloseOnBack(!!selectedOutboundGroupKey, () =>
+    setSelectedOutboundGroupKey(null)
+  );
 
   // ── Price Watch (the card's switch) ──
   // ON creates a real watch on the server (same /api/watches the flight
@@ -5551,8 +5559,13 @@ export default function BookingPage() {
       }
     } else if (!checkoutOpen && checkoutStepRef.current) {
       checkoutStepRef.current = false;
-      // Closed from inside the page: drop the extra step we added.
-      if (window.history.state?.skCheckout) window.history.back();
+      // Closed from inside the page: drop the extra step we added, plus any
+      // checkout steps (travelers → seats → pay) stacked on top of it.
+      if (window.history.state?.skCheckout) {
+        const extra = Number(window.__skStepDepth) || 0;
+        window.__skStepDepth = 0;
+        window.history.go(-(1 + extra));
+      }
     }
   }, [checkoutOpen]);
 

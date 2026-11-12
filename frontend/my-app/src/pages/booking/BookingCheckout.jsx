@@ -8,6 +8,7 @@ import {
   useContext,
 } from "react";
 import dayjs from "dayjs";
+import useStepBack from "@/lib/useStepBack";
 import {
   Check,
   Plane,
@@ -4787,6 +4788,9 @@ export default function BookingCheckout({
     fareExpiresAt: fareUpdate?.expiresAt || null,
   };
   const [step, setStep] = useState(() => restoredProgress?.step ?? 0);
+  // Back / swipe back goes to the previous checkout step (pay → seats →
+  // travelers) instead of closing checkout.
+  useStepBack(step, setStep);
   // This flight's saved progress first; otherwise the travelers typed for
   // the last flight in this tab, so switching flights keeps them.
   const [passengers, setPassengers] = useState(() =>
