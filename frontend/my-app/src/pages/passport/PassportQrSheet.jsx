@@ -339,7 +339,7 @@ export default function PassportQrSheet({
       />
       <div
         role="dialog"
-        aria-label="Share my passport"
+        aria-label="Share my Digital Passport"
         style={{
           position: "fixed",
           left: 0,
@@ -362,7 +362,7 @@ export default function PassportQrSheet({
         <div style={{ width: 38, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.2)", margin: "0 auto 12px" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 18 }}>Share my passport</div>
+            <div style={{ fontWeight: 800, fontSize: 18 }}>Share my Digital Passport</div>
             <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
               Scan or tap to follow you on Skyrio.
             </div>
@@ -423,7 +423,7 @@ export default function PassportQrSheet({
             marginBottom: 12,
           }}
         >
-          <Share2 size={18} aria-hidden="true" /> Share my passport
+          <Share2 size={18} aria-hidden="true" /> Share to any app
         </button>
 
         {/* Quick picks */}

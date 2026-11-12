@@ -568,7 +568,7 @@ export default function Navbar() {
                         >
                           <Icon.share size={18} />
                           <span>
-                            Share my passport
+                            Share my Digital Passport
                             <small>QR code and link to follow you</small>
                           </span>
                         </Link>
@@ -721,7 +721,7 @@ export default function Navbar() {
                         {
                           key: "share-passport",
                           to: "/passport?share=1",
-                          label: "Share my passport",
+                          label: "Share my Digital Passport",
                           NavIcon: Icon.share,
                           active: false,
                         },
