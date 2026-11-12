@@ -207,14 +207,9 @@ const SYNC_CSS = `
   .sk-trips-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   .sk-trips-btn.is-on { border-color: #ff8a2a; background: rgba(255,138,42,0.16); }
   @media (max-width: 1100px) { .sk-trips-btn__label { display: none; } .sk-trips-btn { padding: 0 10px; } }
-  /* Same pill as the nav links (Discover, Book…): icon + label, 40px tall */
-  .sk-guest-trips { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; border-radius: 999px; font-family: "DM Sans", "Nunito", sans-serif; font-size: 0.92rem; font-weight: 600; line-height: 1; color: var(--sk-text-soft, rgba(255,255,255,0.75)); text-decoration: none; white-space: nowrap; transition: color .15s, background .15s; }
-  .sk-guest-trips svg { opacity: 0.85; flex-shrink: 0; width: 16px; height: 16px; }
-  .sk-guest-trips:hover { color: #fff; background: rgba(255,255,255,0.07); }
-  .sk-guest-trips.is-on { color: #1a0d04; font-weight: 700; background: linear-gradient(135deg, #ff8a2a, #ffb347); box-shadow: 0 6px 18px rgba(255,138,42,0.32); }
-  .sk-guest-trips.is-on svg { opacity: 1; }
-  .sk-guest-trips:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-  @media (max-width: 1100px) { .sk-guest-trips { display: none; } }
+  /* My booking uses the Sync Together pill (sk-sync-cta) so they match */
+  /* Narrow screens: the phone menu has "Find my booking" instead */
+  @media (max-width: 1100px) { .sk-navbar .sk-nav-actions .sk-sync-cta.sk-guest-trips { display: none !important; } }
 
   /* Profile menu: photo button → Passport, My Trips, Rewards, Admin, Log out */
   .sk-profile { position: relative; }
@@ -605,15 +600,20 @@ export default function Navbar() {
                 <div className="sk-guest-actions">
                   <Link
                     to="/find-booking"
-                    className={`sk-guest-trips${
+                    className={`sk-sync-cta sk-guest-trips${
                       location.pathname.startsWith("/find-booking")
                         ? " is-on"
                         : ""
                     }`}
+                    aria-current={
+                      location.pathname.startsWith("/find-booking")
+                        ? "page"
+                        : undefined
+                    }
                     title="Booked without an account? View or cancel it here."
                   >
-                    <Icon.trips size={16} />
-                    My booking
+                    <Icon.trips size={17} />
+                    <span className="sk-sync-cta__label">My booking</span>
                   </Link>
                   <Link to="/login" className="sk-nav-cta is-ghost">
                     Log in
