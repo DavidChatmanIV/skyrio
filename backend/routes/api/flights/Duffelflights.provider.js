@@ -23,7 +23,7 @@ const MAX_DUFFEL_OFFERS = 200;
 
 export function duffelFlightsEnabled() {
   return (
-    String(process.env.DUFFEL_FLIGHTS_ENABLED).toLowerCase() === "true" &&
+    /^(true|1|yes|on)$/i.test(String(process.env.DUFFEL_FLIGHTS_ENABLED ?? "").replace(/["'\s]/g, "")) &&
     Boolean(process.env.DUFFEL_ACCESS_TOKEN)
   );
 }
@@ -76,7 +76,11 @@ if (process.env.DUFFEL_ACCESS_TOKEN) {
     : "test";
   console.log(
     `[Duffel Flights] token found (${mode} mode) — search ${
-      duffelFlightsEnabled() ? "ON" : "OFF (set DUFFEL_FLIGHTS_ENABLED=true)"
+      duffelFlightsEnabled()
+        ? "ON"
+        : `OFF (set DUFFEL_FLIGHTS_ENABLED=true; it's ${JSON.stringify(
+            process.env.DUFFEL_FLIGHTS_ENABLED ?? null
+          )} now)`
     }`
   );
 }
