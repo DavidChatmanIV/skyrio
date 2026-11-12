@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
 import FollowButton from "./FollowButton";
+import PassportQrSheet from "./PassportQrSheet";
+import { passportNumber } from "./PassportDataPage";
 import PlaneBadge from "./PlaneBadge";
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import passportBg from "../../assets/DigitalPassport/worldmap.png";
@@ -1752,7 +1754,32 @@ export default function PublicPassportPage() {
       </div>
 
       {/* Referral share modal */}
-      {showShare && profile && (
+      {/* Your own passport: the same "Share my passport" QR card as the
+          Passport page. Someone else's: the simple link share. */}
+      {showShare && profile && isOwnProfile && (
+        <PassportQrSheet
+          user={profile}
+          name={profile.name || profile.username}
+          tier={profile.badge || "Explorer"}
+          docNo={passportNumber(profile._id || profile.id)}
+          publicSite={
+            import.meta.env.VITE_PUBLIC_SITE_URL ||
+            (window.location.hostname === "localhost"
+              ? "https://myskyrio.com"
+              : window.location.origin)
+          }
+          onShared={() =>
+            token &&
+            fetch(`${API}/api/profile/share-xp`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              credentials: "include",
+            }).catch(() => {})
+          }
+          onClose={() => setShowShare(false)}
+        />
+      )}
+      {showShare && profile && !isOwnProfile && (
         <ReferralShareModal
           profile={profile}
           isOwnProfile={isOwnProfile}

@@ -1725,6 +1725,7 @@ export default function DigitalPassportPage() {
       {showShare && (
         <PassportQrSheet
           user={user}
+          name={displayName}
           tier={currentBadge}
           docNo={passportNumber(myId)}
           publicSite={PUBLIC_SITE}

@@ -183,9 +183,18 @@ const BTN = {
   textDecoration: "none",
 };
 
-export default function PassportQrSheet({ user, tier, docNo, publicSite, onShared, onClose }) {
+export default function PassportQrSheet({
+  user,
+  name: nameProp,
+  tier,
+  docNo,
+  publicSite,
+  onShared,
+  onClose,
+}) {
   const username = user?.username || "";
-  const name = user?.name || user?.displayName || username;
+  // Same name the passport page shows, so the card matches it.
+  const name = nameProp || user?.name || user?.displayName || username;
   // ?ref= gives the friend +50 XP when they join (referral.routes.js).
   const link = `${publicSite}/u/${encodeURIComponent(username)}?ref=${encodeURIComponent(username)}`;
   const shortLink = `${publicSite.replace(/^https?:\/\//, "")}/u/${username}`;
