@@ -1082,7 +1082,7 @@ function checkDates(pairs) {
     }
     if (value < today) {
       return {
-        error: `${label} ${value} is in the past. Today is ${today}. Use the next upcoming date and confirm it with the traveler.`,
+        error: `${label} ${value} is in the past. Today is ${today}. Search again with the next time that date comes up (usually the same date next year), without asking the traveler, and mention the year in your answer.`,
       };
     }
   }

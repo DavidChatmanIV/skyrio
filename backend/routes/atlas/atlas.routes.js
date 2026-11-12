@@ -873,7 +873,10 @@ async function handleChat(req, res) {
         timeZone: "UTC",
       }
     );
-    finalSystemPrompt += `\n\nToday is ${todayLong} (${todayISO}). All trip dates must be today or later. When someone gives a date without a year, use the next time that date comes up. Turn "next Friday", "this weekend", etc. into real dates from today, and say the dates back to them.`;
+    finalSystemPrompt += `\n\nToday is ${todayLong} (${todayISO}). The current year is ${todayISO.slice(0, 4)}. All trip dates must be today or later.
+Dates without a year: use the next time that date comes up and just go ahead. If that date already passed this year, it means next year (${Number(todayISO.slice(0, 4)) + 1}). Don't say the date "has passed", don't ask which year, and don't ask them to confirm it. Mention the year once in your answer (for example "Mar 12–15, 2027") and carry on with the search.
+Turn "next Friday", "this weekend", etc. into real dates from today, and say the dates back to them.
+Only ask about dates if they're truly unclear (no month given, or a range that doesn't make sense).`;
 
     // Signed-in travelers in the chat panel get the support tools (look up
     // their bookings, bring up a cancel card) plus the booking tools (search,
