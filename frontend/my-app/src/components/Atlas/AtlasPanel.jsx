@@ -887,10 +887,43 @@ export default function AtlasPanel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Focus the box on computers only. On phones, focusing opens the
+  // keyboard right away, which squeezed the panel into a sliver and hid
+  // the "Try asking" ideas. Phone users tap the box when they're ready.
   useEffect(() => {
-    if (open && mode === "chat")
-      setTimeout(() => inputRef.current?.focus(), 120);
+    if (!open || mode !== "chat") return;
+    const touch =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(hover: none) and (pointer: coarse)").matches;
+    if (touch) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 120);
+    return () => clearTimeout(t);
   }, [open, mode]);
+
+  // Phones: the panel is a full-screen sheet. Track the visible area so
+  // the chat box sits right above the keyboard instead of behind it, and
+  // hide the other floating buttons while it's open.
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.classList.add("ap-is-open");
+    const vv = window.visualViewport;
+    const fit = () => {
+      if (!vv) return;
+      root.style.setProperty("--ap-vv-h", `${Math.round(vv.height)}px`);
+      root.style.setProperty("--ap-vv-top", `${Math.round(vv.offsetTop)}px`);
+    };
+    fit();
+    vv?.addEventListener("resize", fit);
+    vv?.addEventListener("scroll", fit);
+    return () => {
+      root.classList.remove("ap-is-open");
+      root.style.removeProperty("--ap-vv-h");
+      root.style.removeProperty("--ap-vv-top");
+      vv?.removeEventListener("resize", fit);
+      vv?.removeEventListener("scroll", fit);
+    };
+  }, [open]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
