@@ -11,6 +11,9 @@ import {
   sendPasswordReset,
   sendVerificationEmail,
 } from "../../services/email.js";
+// Same site address every other email uses (falls back safely when
+// FRONTEND_URL isn't set, so links never start with "undefined/").
+import { APP_URL } from "../../services/emailLayout.js";
 
 const router = Router();
 
@@ -106,7 +109,7 @@ router.post("/register", async (req, res) => {
     }).catch((err) => console.error("Welcome email failed:", err));
 
     // ── Verification email (now via Resend) ─────────────────────
-    const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verifyToken}`;
+    const verifyUrl = `${APP_URL}/verify-email?token=${verifyToken}`;
     sendVerificationEmail({
       to: user.email,
       verifyUrl,
@@ -259,11 +262,24 @@ router.post("/forgot-password", async (req, res) => {
     user.resetTokenExpiry = Date.now() + 1000 * 60 * 60;
     await user.save();
 
-    const resetUrl = `${process.env.FRONTEND_URL}/reset?token=${token}`;
-    await sendPasswordReset({
+    const resetUrl = `${APP_URL}/reset?token=${token}`;
+    // sendEmail never throws: it returns { ok: false } when the email
+    // service refuses (bad key, unverified sender…). Before, that failure
+    // was ignored and the page said "sent" while nothing arrived.
+    const sent = await sendPasswordReset({
       to: user.email,
       resetUrl,
     });
+    if (!sent?.ok) {
+      console.error(
+        "[auth/forgot-password] reset email NOT sent:",
+        sent?.error?.message || sent?.error || "unknown"
+      );
+      return res.status(502).json({
+        ok: false,
+        message: "Couldn't send the reset email right now. Try again in a few minutes.",
+      });
+    }
 
     return res.json({
       ok: true,
@@ -323,7 +339,7 @@ router.post("/send-verification", requireAuth, async (req, res) => {
     user.emailVerifyExpiry = Date.now() + 1000 * 60 * 60 * 24;
     await user.save();
 
-    const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+    const verifyUrl = `${APP_URL}/verify-email?token=${token}`;
     await sendVerificationEmail({
       to: user.email,
       verifyUrl,
