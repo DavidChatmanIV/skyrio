@@ -52,6 +52,16 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
   });
 
   const nights = nightsBetween(checkin, checkout);
+  // One line per search in the Render logs, to tell "no rooms" from a bad request.
+  console.info("[Atlas hotels] search", {
+    destination,
+    checkin,
+    checkout,
+    occupancies: buildOccupancies(adults, rooms),
+    hotelsAsked: hotels.length,
+    hotelsWithRates: (ratesRes?.data ?? []).length,
+    error: ratesRes?.error || undefined,
+  });
   return (ratesRes?.data ?? [])
     .flatMap(normalizeHotelRate)
     .filter((r) => r.offerId && Number.isFinite(Number(r.totalAmount)))
