@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+} from "react";
 
 // ─────────────────────────────────────────────
 // Popular airlines — shown in the Airline dropdown BEFORE a search,
@@ -236,6 +242,35 @@ export function FilterDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const panelRef = useRef(null);
+  // Where the panel sits, worked out on open so it always fits on screen
+  // (on phones the pills wrap, and a panel under a pill near either edge
+  // ran off the screen).
+  const [shift, setShift] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) {
+      setShift(null);
+      return;
+    }
+    const place = () => {
+      const wrap = ref.current?.getBoundingClientRect();
+      const panel = panelRef.current;
+      if (!wrap || !panel) return;
+      const vw = window.innerWidth || document.documentElement.clientWidth;
+      const gutter = 12;
+      const width = Math.min(panel.scrollWidth, vw - gutter * 2);
+      // Preferred spot: under the pill (left edges lined up, or right
+      // edges for align="right"), then nudged back inside the screen.
+      let left = align === "right" ? wrap.width - width : 0;
+      const minLeft = gutter - wrap.left;
+      const maxLeft = vw - gutter - width - wrap.left;
+      left = Math.max(minLeft, Math.min(left, maxLeft));
+      setShift({ left, width });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open, align]);
 
   useEffect(() => {
     if (!open) return;
@@ -338,13 +373,19 @@ export function FilterDropdown({
 
       {open && (
         <div
+          ref={panelRef}
           style={{
             position: "absolute",
             top: "calc(100% + 8px)",
-            ...(align === "right" ? { right: 0 } : { left: 0 }),
+            // Measured spot (see the effect above); until measured, keep it
+            // invisible so it never flashes off-screen.
+            left: shift ? shift.left : 0,
+            width: shift ? shift.width : undefined,
+            visibility: shift ? "visible" : "hidden",
             zIndex: 1000,
             minWidth: 200,
-            maxWidth: "calc(100vw - 32px)",
+            maxWidth: "calc(100vw - 24px)",
+            boxSizing: "border-box",
             // Solid Skyrio purple, not translucent — nothing behind it
             // should show through.
             background: "linear-gradient(160deg, #3d2168 0%, #2a1650 100%)",
@@ -556,7 +597,15 @@ function TimePanel({ value, onChange, close }) {
   return (
     <>
       <PanelLabel>Departure Time</PanelLabel>
-      <div style={{ display: "flex", gap: 8 }}>
+      {/* Two per row on phones, all in one row when there's room */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(118px, 1fr))",
+          gap: 8,
+          width: "min(520px, calc(100vw - 56px))",
+        }}
+      >
         {slots.map(({ val, label, sub, Icon }) => {
           const active = local === val;
           return (
