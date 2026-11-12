@@ -251,6 +251,11 @@ router.post("/forgot-password", async (req, res) => {
       return res.status(400).json({ ok: false, message: "Email required" });
 
     const user = await User.findOne({ email: email.trim().toLowerCase() });
+    // Logged (masked) so "no email arrived" can be told apart from a send
+    // failure. The traveler still sees the same message either way.
+    const masked = String(email).trim().toLowerCase().replace(/^(.).*(@.*)$/, "$1***$2");
+    if (!user) console.info("[auth/forgot-password] no account for", masked);
+    else console.info("[auth/forgot-password] sending reset email to", masked);
     if (!user)
       return res.json({
         ok: true,
