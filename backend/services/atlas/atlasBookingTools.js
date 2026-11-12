@@ -603,7 +603,9 @@ async function runFlightSearch(owner, userId, input) {
       err.response?.data || ""
     );
     return {
-      error: "Flight search failed. Try different dates or a nearby airport.",
+      error: "searchFailed",
+      message:
+        "The flight search didn't go through (a technical problem, not sold-out flights). Tell the traveler something went wrong on our end and offer to try again.",
     };
   }
   const candidates = offers
@@ -758,7 +760,21 @@ async function runHotelSearch(owner, userId, input) {
     adults,
     Math.max(1, Math.round(Number(input.rooms)) || Math.ceil(adults / 2))
   );
-  const rates = await searchHotelRates({ ...input, adults, rooms });
+  let rates;
+  try {
+    rates = await searchHotelRates({ ...input, adults, rooms });
+  } catch (err) {
+    console.error(
+      "[Atlas search_hotels] search failed:",
+      err.message,
+      err.details || err.response?.data || ""
+    );
+    return {
+      error: "searchFailed",
+      message:
+        "The hotel search didn't go through (a technical problem, not a sold-out city). Tell the traveler something went wrong on our end and offer to try again. Never say there's no availability.",
+    };
+  }
   const nights = Math.max(
     1,
     Math.round(
@@ -769,8 +785,9 @@ async function runHotelSearch(owner, userId, input) {
   );
   const money = (n) => Math.round(n * 100) / 100;
   const candidates = rates
-    // An offer must cover every room asked for, or its price is too low.
-    .filter((r) => (r.roomCount || 1) >= rooms)
+    // No room-count filter here: LiteAPI bundles every requested room into
+    // one offer and its price (offerRetailRate) already covers them all.
+    // Filtering on rates.length dropped every hotel (Nov 12 test).
     // maxNightly is per room per night.
     .filter((r) => !input.maxNightly || r.nightly / rooms <= input.maxNightly)
     .sort((a, b) => a.total - b.total)
@@ -794,6 +811,14 @@ async function runHotelSearch(owner, userId, input) {
       cancellation: r.cancellationText,
     }));
 
+  if (!candidates.length) {
+    return {
+      options: [],
+      note: rates.length
+        ? "Hotels came back, but none fit the nightly budget. Say that, give the cheapest price per room per night you saw if asked, and offer to raise the budget."
+        : "No hotel prices came back for this search. It may be a temporary problem. Say you couldn't get hotel prices right now and offer to try again or try nearby dates. Never say the city is sold out.",
+    };
+  }
   const ranked = (
     userId ? await rankForUser(userId, "hotel", candidates) : candidates
   ).slice(0, 5);
