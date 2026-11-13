@@ -2136,6 +2136,7 @@ function LaunchTravelerAdminPanel() {
   const [info, setInfo] = useState(null);
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
+  const [searched, setSearched] = useState(false);
 
   const search = async () => {
     const term = q.trim();
@@ -2146,6 +2147,7 @@ function LaunchTravelerAdminPanel() {
         `/api/admin/customers/search?q=${encodeURIComponent(term)}`
       );
       setResults((j.results || []).filter((r) => r.kind === "account"));
+      setSearched(true);
       setPicked(null);
       setInfo(null);
     } catch {
@@ -2195,118 +2197,138 @@ function LaunchTravelerAdminPanel() {
   const st = info?.status ? LT_STATUS[info.status] : null;
 
   return (
-    <div style={{ color: ADMIN.text }}>
-      <p style={{ color: ADMIN.muted, marginTop: 0 }}>
-        Earned automatically when someone books in the launch window and takes
-        the trip. Cancels, refunds and chargebacks take it back on their own.
-        Use this only for fraud.
-      </p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onPressEnter={search}
-          placeholder="Name, email or username"
-          style={{ maxWidth: 320 }}
-        />
-        <Button onClick={search} loading={busy && !picked}>
-          Find
-        </Button>
+    <div className="sk-panel">
+      <div className="sk-panel__head">
+        <h3 className="sk-panel__title">Find a traveler</h3>
+        <span className="sk-panel__meta">Fraud only</span>
+      </div>
+      <div className="sk-sub" style={{ padding: "12px 20px 0", whiteSpace: "normal", fontSize: 12 }}>
+        Earned on its own when someone books in the launch window and takes the
+        trip. Cancels, refunds and chargebacks take it back on their own.
       </div>
 
-      {results.length > 0 && !picked && (
-        <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
-          {results.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => load(r)}
-              style={{
-                textAlign: "left",
-                padding: "8px 12px",
-                borderRadius: 10,
-                background: ADMIN.solidRaised,
-                border: `1px solid ${ADMIN.border}`,
-                color: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              {r.name}{" "}
-              <span style={{ color: ADMIN.muted }}>
-                @{r.username} · {r.email}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+      <form
+        className="sk-fb-tools"
+        onSubmit={(e) => {
+          e.preventDefault();
+          search();
+        }}
+      >
+        <input
+          type="search"
+          className="sk-fb-search"
+          placeholder="Name, email or username"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="Find a traveler"
+        />
+        <button
+          type="submit"
+          className="sk-btn sk-btn--active"
+          disabled={busy || q.trim().length < 2}
+        >
+          {busy && !picked ? "Finding…" : "Find"}
+        </button>
+      </form>
+
+      {!picked &&
+        results.map((r) => (
+          <div
+            key={r.id}
+            className="sk-row"
+            role="button"
+            tabIndex={0}
+            style={{ cursor: "pointer" }}
+            onClick={() => load(r)}
+            onKeyDown={(e) => e.key === "Enter" && load(r)}
+          >
+            <div className="sk-row__left">
+              <div style={{ minWidth: 0 }}>
+                <div className="sk-name">{r.name}</div>
+                <div className="sk-sub">
+                  @{r.username} · {r.email}
+                </div>
+              </div>
+            </div>
+            <div className="sk-row__right">
+              <span className="sk-btn sk-btn--sm">Open</span>
+            </div>
+          </div>
+        ))}
 
       {picked && (
-        <div
-          style={{
-            marginTop: 14,
-            padding: 14,
-            borderRadius: 14,
-            background: ADMIN.solidRaised,
-            border: `1px solid ${ADMIN.border}`,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <LaunchTravelerBadge size={34} muted={info?.status !== "earned"} />
-            <div>
-              <div style={{ fontWeight: 700, color: "#fff" }}>
-                {picked.name}{" "}
+        <div className="sk-row sk-row--top">
+          <div className="sk-row__left">
+            <LaunchTravelerBadge size={36} muted={info?.status !== "earned"} />
+            <div style={{ minWidth: 0 }}>
+              <div className="sk-name">
+                {picked.name}
                 <span style={{ color: ADMIN.muted, fontWeight: 400 }}>
                   @{picked.username}
                 </span>
               </div>
-              <div style={{ fontSize: 13 }}>
-                {!info
-                  ? "Loading…"
-                  : st
-                  ? <span style={{ color: st.color }}>{st.label}</span>
-                  : "No badge"}
+              <div className="sk-sub" style={{ whiteSpace: "normal" }}>
+                {!info ? (
+                  "Loading…"
+                ) : st ? (
+                  <span style={{ color: st.color }}>{st.label}</span>
+                ) : (
+                  "No badge yet"
+                )}
                 {info?.blocked && (
-                  <span style={{ color: "#f87171", marginLeft: 8 }}>
-                    Blocked{info.blockedReason ? `: ${info.blockedReason}` : ""}
+                  <span style={{ color: "#f87171" }}>
+                    {" · "}Blocked{info.blockedReason ? `: ${info.blockedReason}` : ""}
                   </span>
                 )}
               </div>
+              {info && !info.blocked && (
+                <input
+                  className="sk-fb-search"
+                  style={{ marginTop: 10, width: "100%", maxWidth: 320 }}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Reason (e.g. fake booking)"
+                  aria-label="Reason for revoking"
+                />
+              )}
             </div>
           </div>
-
-          {info && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-              {!info.blocked && (
-                <>
-                  <Input
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Reason (e.g. fake booking)"
-                    style={{ maxWidth: 260 }}
-                  />
-                  <Popconfirm
-                    title="Revoke and block?"
-                    description="Takes the badge and its XP back. They can't earn it again."
-                    okText="Revoke"
-                    onConfirm={() => act("revoke")}
-                  >
-                    <Button danger loading={busy}>
-                      Revoke + block
-                    </Button>
-                  </Popconfirm>
-                </>
-              )}
-              {info.blocked && (
-                <Button onClick={() => act("unblock")} loading={busy}>
-                  Unblock
-                </Button>
-              )}
-              <Button type="text" onClick={() => { setPicked(null); setInfo(null); }}>
-                Back
-              </Button>
-            </div>
-          )}
+          <div className="sk-row__right">
+            {info && !info.blocked && (
+              <Popconfirm
+                overlayClassName="sk-pop"
+                title="Revoke and block?"
+                description="Takes the badge and its XP back. They can't earn it again."
+                okText="Revoke"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => act("revoke")}
+              >
+                <button type="button" className="sk-btn sk-btn--danger" disabled={busy}>
+                  Revoke + block
+                </button>
+              </Popconfirm>
+            )}
+            {info?.blocked && (
+              <button type="button" className="sk-btn" disabled={busy} onClick={() => act("unblock")}>
+                Unblock
+              </button>
+            )}
+            <button
+              type="button"
+              className="sk-btn"
+              onClick={() => {
+                setPicked(null);
+                setInfo(null);
+              }}
+            >
+              Back
+            </button>
+          </div>
         </div>
+      )}
+
+      {!picked && results.length === 0 && searched && (
+        <div className="sk-empty">No accounts found.</div>
       )}
     </div>
   );
