@@ -139,6 +139,9 @@ function TrackedRoutes() {
 
       {/* Public passport — outside AppLayout so it has its own nav/CTA bar */}
       <Route path="u/:username" element={<PublicPassportPage />} />
+      {/* /u with no name (typed, old link, search engine): send to the
+          traveler search instead of "Page not found". */}
+      <Route path="u" element={<Navigate to="/skyhub/travelers" replace />} />
 
       {/* ── Main app with AppLayout (navbar + footer) ── */}
       <Route element={<AppLayout />}>
