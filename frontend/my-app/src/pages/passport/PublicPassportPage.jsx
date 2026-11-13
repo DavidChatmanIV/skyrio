@@ -1379,6 +1379,7 @@ export default function PublicPassportPage() {
                         {profile.launchTraveler && (
                           <span
                             title={`${LAUNCH_TRAVELER_NAME}: booked during Skyrio's launch and took the trip`}
+                            aria-label={`${LAUNCH_TRAVELER_NAME} badge`}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",

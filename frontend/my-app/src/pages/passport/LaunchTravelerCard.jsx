@@ -21,6 +21,80 @@ const fmtDay = (d) =>
       })
     : "";
 
+// "Jan 15 – Apr 15, 2027" (year once when both dates share it).
+const fmtRange = (a, b) => {
+  if (!a || !b) return "";
+  const sameYear =
+    new Date(a).getUTCFullYear() === new Date(b).getUTCFullYear();
+  const start = new Date(a).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+    timeZone: "UTC",
+  });
+  return `${start} – ${fmtDay(b)}`;
+};
+
+// Three steps, so it's clear the badge needs a trip taken, not just booked.
+function Steps({ done }) {
+  const steps = ["Book", "Travel", "Unlock"];
+  return (
+    <ol
+      aria-label="Steps to earn the badge"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        listStyle: "none",
+        padding: 0,
+        margin: "12px 0 0",
+        flexWrap: "wrap",
+      }}
+    >
+      {steps.map((label, i) => {
+        const isDone = i < done;
+        const isNext = i === done;
+        return (
+          <li key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 10px",
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 600,
+                color: isDone ? "#1a0e06" : isNext ? "#fff" : "rgba(255,255,255,0.6)",
+                background: isDone
+                  ? "linear-gradient(90deg, #ffb347, #ff8a2a)"
+                  : isNext
+                  ? "rgba(255,138,42,0.14)"
+                  : "rgba(255,255,255,0.05)",
+                border: isDone
+                  ? "1px solid transparent"
+                  : isNext
+                  ? "1px solid rgba(255,138,42,0.55)"
+                  : "1px solid rgba(255,255,255,0.12)",
+              }}
+            >
+              {isDone && (
+                <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+              {label}
+            </span>
+            {i < steps.length - 1 && (
+              <span aria-hidden="true" style={{ width: 10, height: 1, background: "rgba(255,255,255,0.25)" }} />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 const box = {
   display: "flex",
   gap: 14,
@@ -71,19 +145,29 @@ export default function LaunchTravelerCard({ token }) {
 
   if (data.status === "earned") {
     return (
-      <div style={box}>
-        <LaunchTravelerBadge size={52} />
+      <div
+        style={{
+          ...box,
+          border: "1px solid rgba(255,138,42,0.45)",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.10), 0 0 24px rgba(255,138,42,0.18)",
+        }}
+      >
+        <LaunchTravelerBadge size={56} />
         <div>
           <div style={title}>{name}</div>
           <div style={sub}>
-            You booked during Skyrio's launch and took the trip. Never offered
-            again.
+            You booked during Skyrio's launch and took the trip. Only launch
+            travelers have this badge.
           </div>
-          {data.earnedAt && (
-            <div style={{ ...sub, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-              Earned {fmtDay(data.earnedAt)}
-            </div>
-          )}
+          <div style={{ ...sub, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+            {[
+              data.earnedAt && `Earned ${fmtDay(data.earnedAt)}`,
+              win && `Launch: ${fmtRange(win.start, win.end)}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
         </div>
       </div>
     );
@@ -93,7 +177,7 @@ export default function LaunchTravelerCard({ token }) {
     return (
       <div style={box}>
         <LaunchTravelerBadge size={52} muted />
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={title}>
             {name}
             <span
@@ -108,10 +192,11 @@ export default function LaunchTravelerCard({ token }) {
             </span>
           </div>
           <div style={sub}>
-            Unlocks with +{data.xp} XP when your trip starts
-            {data.unlocksAt ? ` (about ${fmtDay(data.unlocksAt)})` : ""}.
-            Cancelled or refunded trips don't count.
+            Unlocks with +{data.xp} XP once your trip starts
+            {data.unlocksAt ? ` (around ${fmtDay(data.unlocksAt)})` : ""}. If
+            the trip is cancelled or refunded, it won't unlock.
           </div>
+          <Steps done={1} />
         </div>
       </div>
     );
@@ -125,15 +210,16 @@ export default function LaunchTravelerCard({ token }) {
       <div style={{ minWidth: 0 }}>
         <div style={title}>Earn the {name} badge</div>
         <div style={sub}>
-          Book a trip by {fmtDay(win.end)} and take it. You get the badge and +
-          {data.xp} XP. Never offered again.
+          Book by {fmtDay(win.end)}, then take your trip. You'll get the badge
+          and +{data.xp} XP. Only offered during launch.
         </div>
+        <Steps done={0} />
         <button
           type="button"
           onClick={() => setShowRules((v) => !v)}
           aria-expanded={showRules}
           style={{
-            marginTop: 8,
+            marginTop: 10,
             padding: 0,
             background: "none",
             border: "none",
@@ -143,17 +229,15 @@ export default function LaunchTravelerCard({ token }) {
             cursor: "pointer",
           }}
         >
-          {showRules ? "Hide the rules" : "How it works"}
+          {showRules ? "Hide the rules" : "See the rules"}
         </button>
         {showRules && (
           <ul style={{ ...sub, margin: "8px 0 0", paddingLeft: 18 }}>
-            <li>
-              Book between {fmtDay(win.start)} and {fmtDay(win.end)}.
-            </li>
-            <li>Trips of ${data.minSpend}+ paid on Skyrio count.</li>
-            <li>It unlocks when your trip starts.</li>
-            <li>Cancelled, refunded or disputed trips don't count.</li>
-            <li>One per traveler. Same bonus on every plan.</li>
+            <li>Book {fmtRange(win.start, win.end)}.</li>
+            <li>Trips of ${data.minSpend} or more, paid on Skyrio, qualify.</li>
+            <li>The badge unlocks once your trip starts.</li>
+            <li>Cancelled, refunded or disputed trips don't qualify.</li>
+            <li>One badge per account. Every plan gets the same +{data.xp} XP.</li>
           </ul>
         )}
       </div>
