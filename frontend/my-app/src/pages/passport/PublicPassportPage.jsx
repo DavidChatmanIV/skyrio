@@ -375,7 +375,9 @@ function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
   const referralUrl =
     isOwnProfile && profile?.username
       ? `${window.location.origin}/u/${profile.username}?ref=${profile.username}`
-      : `${window.location.origin}/u/${profile?.username || ""}`;
+      : profile?.username
+      ? `${window.location.origin}/u/${profile.username}`
+      : window.location.origin; // never share a bare /u/ link
 
   const copyUrl = async () => {
     try {
