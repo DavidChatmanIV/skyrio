@@ -30,6 +30,7 @@ import dayjs from "dayjs";
 import { apiUrl } from "@/lib/api";
 import { adminTokenHeader, clearAdminToken } from "@/lib/adminAuth";
 import { ADMIN } from "@/lib/adminTheme";
+import LaunchTravelerBadge from "@/components/LaunchTravelerBadge";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    API
@@ -2114,7 +2115,200 @@ function EngagementTab({ refreshKey }) {
       <Section title="Rewards">
         <RewardsPanel refreshKey={refreshKey} />
       </Section>
+      <Section title="Launch Traveler badge">
+        <LaunchTravelerAdminPanel />
+      </Section>
     </>
+  );
+}
+
+/* Launch Traveler badge — look someone up, see their status, and revoke
+   (fraud) or unblock. Earning it is automatic; this is only for problems. */
+const LT_STATUS = {
+  earned: { label: "Earned", color: "#4ade80" },
+  pending: { label: "On its way (trip not started)", color: "#ffb347" },
+};
+
+function LaunchTravelerAdminPanel() {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [picked, setPicked] = useState(null); // { id, name, username, email }
+  const [info, setInfo] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const search = async () => {
+    const term = q.trim();
+    if (term.length < 2) return;
+    setBusy(true);
+    try {
+      const j = await adminRequest(
+        `/api/admin/customers/search?q=${encodeURIComponent(term)}`
+      );
+      setResults((j.results || []).filter((r) => r.kind === "account"));
+      setPicked(null);
+      setInfo(null);
+    } catch {
+      message.error("Couldn't search. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const load = async (acct) => {
+    setPicked(acct);
+    setInfo(null);
+    try {
+      const j = await adminRequest(
+        `/api/admin/customers/profile?userId=${encodeURIComponent(acct.id)}`
+      );
+      setInfo(j.launchTraveler || { status: null });
+    } catch {
+      message.error("Couldn't load this traveler. Try again.");
+    }
+  };
+
+  const act = async (kind) => {
+    if (!picked) return;
+    setBusy(true);
+    try {
+      await adminRequest(
+        `/api/admin/customers/${picked.id}/launch-traveler/${kind}`,
+        {
+          method: "POST",
+          body:
+            kind === "revoke"
+              ? { reason: reason.trim() || "revoked by admin", block: true }
+              : {},
+        }
+      );
+      message.success(kind === "revoke" ? "Badge revoked and blocked." : "Unblocked.");
+      setReason("");
+      await load(picked);
+    } catch {
+      message.error(kind === "revoke" ? "Couldn't revoke. Try again." : "Couldn't unblock. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const st = info?.status ? LT_STATUS[info.status] : null;
+
+  return (
+    <div style={{ color: ADMIN.text }}>
+      <p style={{ color: ADMIN.muted, marginTop: 0 }}>
+        Earned automatically when someone books in the launch window and takes
+        the trip. Cancels, refunds and chargebacks take it back on their own.
+        Use this only for fraud.
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onPressEnter={search}
+          placeholder="Name, email or username"
+          style={{ maxWidth: 320 }}
+        />
+        <Button onClick={search} loading={busy && !picked}>
+          Find
+        </Button>
+      </div>
+
+      {results.length > 0 && !picked && (
+        <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+          {results.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => load(r)}
+              style={{
+                textAlign: "left",
+                padding: "8px 12px",
+                borderRadius: 10,
+                background: ADMIN.solidRaised,
+                border: `1px solid ${ADMIN.border}`,
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              {r.name}{" "}
+              <span style={{ color: ADMIN.muted }}>
+                @{r.username} · {r.email}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {picked && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: 14,
+            borderRadius: 14,
+            background: ADMIN.solidRaised,
+            border: `1px solid ${ADMIN.border}`,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <LaunchTravelerBadge size={34} muted={info?.status !== "earned"} />
+            <div>
+              <div style={{ fontWeight: 700, color: "#fff" }}>
+                {picked.name}{" "}
+                <span style={{ color: ADMIN.muted, fontWeight: 400 }}>
+                  @{picked.username}
+                </span>
+              </div>
+              <div style={{ fontSize: 13 }}>
+                {!info
+                  ? "Loading…"
+                  : st
+                  ? <span style={{ color: st.color }}>{st.label}</span>
+                  : "No badge"}
+                {info?.blocked && (
+                  <span style={{ color: "#f87171", marginLeft: 8 }}>
+                    Blocked{info.blockedReason ? `: ${info.blockedReason}` : ""}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {info && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              {!info.blocked && (
+                <>
+                  <Input
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Reason (e.g. fake booking)"
+                    style={{ maxWidth: 260 }}
+                  />
+                  <Popconfirm
+                    title="Revoke and block?"
+                    description="Takes the badge and its XP back. They can't earn it again."
+                    okText="Revoke"
+                    onConfirm={() => act("revoke")}
+                  >
+                    <Button danger loading={busy}>
+                      Revoke + block
+                    </Button>
+                  </Popconfirm>
+                </>
+              )}
+              {info.blocked && (
+                <Button onClick={() => act("unblock")} loading={busy}>
+                  Unblock
+                </Button>
+              )}
+              <Button type="text" onClick={() => { setPicked(null); setInfo(null); }}>
+                Back
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -15,7 +15,11 @@ import {
   sendRefundIssuedEmail,
   formatMoney,
 } from "../services/bookingEmails.js";
-import { awardXpForBooking, reverseBookingXp } from "../services/xpService.js";
+import {
+  awardXpForBooking,
+  reverseBookingXp,
+  revokeLaunchTraveler,
+} from "../services/xpService.js";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -213,6 +217,40 @@ router.post(
         }
       } catch (err) {
         console.error("Refund webhook processing error:", err);
+      }
+    }
+
+    // ── Chargeback opened ──────────────────────────────────────
+    // The customer disputed the charge with their bank. Take back the
+    // booking's XP and the Launch Traveler badge, and block the account from
+    // earning the badge again. Safe to repeat (Stripe retries webhooks).
+    // Needs "charge.dispute.created" ticked on the webhook in Stripe.
+    if (event.type === "charge.dispute.created") {
+      const dispute = event.data.object;
+      const paymentIntentId = dispute.payment_intent;
+      try {
+        const booking = paymentIntentId
+          ? await Booking.findOne({
+              $or: [
+                { stripePaymentIntentId: paymentIntentId },
+                { paymentIntentId: paymentIntentId },
+              ],
+            })
+          : null;
+        if (booking) {
+          await reverseBookingXp(booking._id, "payment disputed");
+          if (booking.user) {
+            await revokeLaunchTraveler(booking.user, {
+              reason: "payment disputed",
+              block: true,
+            });
+          }
+          console.warn(
+            `[webhook] dispute on booking ${booking._id}: XP reversed, launch badge blocked`
+          );
+        }
+      } catch (err) {
+        console.error("Dispute webhook processing error:", err);
       }
     }
 

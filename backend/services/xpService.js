@@ -19,6 +19,10 @@ import {
 import User from "../models/user.js";
 // ⚠️ Render is case-sensitive: match your real filename exactly (booking.js vs Booking.js).
 import Booking from "../models/booking.js";
+import {
+  LAUNCH_TRAVELER,
+  launchTravelerIneligibleReason,
+} from "../config/launchTraveler.js";
 import Challenge from "../models/challenge.js";
 import Notification from "../models/notification.js";
 import ChallengeProgress from "../models/challengeProgress.js";
@@ -500,10 +504,14 @@ export async function awardXpForBooking(bookingId, { notify = true } = {}) {
     kind: isFlight ? "flight" : "hotel",
     stops: isFlight ? flightStops(booking.flight) : null,
   });
+  results.launch = await awardLaunchTraveler(booking).catch((e) => {
+    console.error("[xp] launch traveler check failed:", e.message);
+    return { awarded: false, reason: "error" };
+  });
 
   // One notification with the real total — only when XP was actually granted
   // now (a repeat call for the same booking grants nothing and stays quiet).
-  const total = ["booking", "first", "international"].reduce(
+  const total = ["booking", "first", "international", "launch"].reduce(
     (sum, k) => sum + (results[k]?.awarded ? results[k].amount : 0),
     0
   );
@@ -518,7 +526,98 @@ export async function awardXpForBooking(bookingId, { notify = true } = {}) {
       console.error("[xp] booking XP notification failed:", e.message)
     );
   }
+  if (notify && results.launch?.awarded) {
+    await Notification.create({
+      user: booking.user,
+      type: "xp",
+      title: `${LAUNCH_TRAVELER.name} badge on the way`,
+      message: `This trip earns the ${LAUNCH_TRAVELER.name} badge and +${results.launch.amount} XP. Unlocks when your trip starts.`,
+      link: "/passport",
+    }).catch((e) =>
+      console.error("[xp] launch traveler notification failed:", e.message)
+    );
+  }
   return { booking, results, total };
+}
+
+/* ───────────────────────── Launch Traveler badge ───────────────────────── */
+
+/**
+ * Grants the Launch Traveler badge + bonus XP as PENDING when a qualifying
+ * booking confirms (see config/launchTraveler.js for every check). It unlocks
+ * with the booking XP once the trip starts, and is reversed with it if the
+ * booking is cancelled, refunded or disputed. The badge IS the ledger row:
+ * pending = on its way, confirmed = earned, gone = not earned.
+ */
+export async function awardLaunchTraveler(booking) {
+  const user = booking?.user
+    ? await User.findById(booking.user).select("launchTravelerBlocked").lean()
+    : null;
+  const reason = launchTravelerIneligibleReason(booking, user);
+  if (reason) return { awarded: false, reason };
+
+  const start = bookingStartDate(booking);
+  if (!start) return { awarded: false, reason: "no_trip_date" };
+
+  const result = await awardXP({
+    userId: booking.user,
+    ruleKey: LAUNCH_TRAVELER.ruleKey,
+    sourceType: "Booking",
+    linkedTo: String(booking._id),
+    pending: true,
+    confirmAfter: new Date(
+      Math.max(start.getTime(), Date.now() + BOOKING_HOLD_HOURS * 3600 * 1000)
+    ),
+    skipMultiplier: true, // same bonus on every plan
+  });
+  if (result.awarded) {
+    console.log(
+      `[launch-traveler] pending for user ${booking.user} (booking ${booking._id})`
+    );
+  }
+  return result;
+}
+
+/** { status: "earned" | "pending" | null, earnedAt, bookingId } for one user. */
+export async function launchTravelerStatus(userId) {
+  const row = await XpLedger.findOne({
+    user: userId,
+    ruleKey: LAUNCH_TRAVELER.ruleKey,
+    status: { $in: ["pending", "confirmed"] },
+  })
+    .select("status updatedAt linkedTo confirmAfter")
+    .lean();
+  if (!row) return { status: null, earnedAt: null, unlocksAt: null };
+  return row.status === "confirmed"
+    ? { status: "earned", earnedAt: row.updatedAt, unlocksAt: null }
+    : { status: "pending", earnedAt: null, unlocksAt: row.confirmAfter };
+}
+
+/**
+ * Takes the badge + its XP back. block=true also stops the account from
+ * earning it again (chargebacks, fraud). Returns how many rows were reversed.
+ */
+export async function revokeLaunchTraveler(userId, { reason = "revoked", block = false } = {}) {
+  if (block) {
+    await User.updateOne(
+      { _id: userId },
+      { $set: { launchTravelerBlocked: true, launchTravelerBlockedReason: reason } }
+    );
+  }
+  const rows = await XpLedger.find({
+    user: userId,
+    ruleKey: LAUNCH_TRAVELER.ruleKey,
+    status: { $in: ["pending", "confirmed"] },
+  }).select("linkedTo");
+  let count = 0;
+  for (const r of rows) {
+    count += await reverseXp({
+      linkedTo: r.linkedTo,
+      ruleKey: LAUNCH_TRAVELER.ruleKey,
+      reason,
+    });
+  }
+  return count;
 }
 
 /** Cancel route + Stripe charge.refunded + charge.dispute.created webhooks. */

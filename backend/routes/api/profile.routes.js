@@ -11,7 +11,10 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 // is left untouched in case anything else still imports it; only this
 // file's import changed.
 import { getLevel } from "../../config/xpRules.js";
-import { applyBalance } from "../../services/xpService.js";
+import {
+  applyBalance,
+  launchTravelerStatus,
+} from "../../services/xpService.js";
 
 // Rank comes from LIFETIME earned XP, never the spendable balance —
 // redeeming rewards must never lower someone's rank.
@@ -376,6 +379,10 @@ router.get("/public/:username", async (req, res) => {
     const nextBadgeName = levelData?.next?.name || null;
     const badgePercentValue = levelData?.percent || 0;
 
+    const launchTravelerEarned = user
+      ? (await launchTravelerStatus(user._id)).status === "earned"
+      : false;
+
     const followersCount = user?.followers?.length ?? user?.followersCount ?? 0;
     const followingCount = user?.following?.length ?? user?.followingCount ?? 0;
 
@@ -417,6 +424,8 @@ router.get("/public/:username", async (req, res) => {
       isOfficial: user?.isOfficial || false,
       // Verification badge — shown on public passport page
       verifiedTier: user?.verifiedTier || null,
+      // Launch Traveler badge — only once it's earned (trip taken), never pending.
+      launchTraveler: launchTravelerEarned,
       followersCount,
       followingCount,
       travelVibes: profile.travelVibes || [],

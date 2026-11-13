@@ -35,6 +35,9 @@ import FollowButton from "./FollowButton";
 import PassportQrSheet from "./PassportQrSheet";
 import { passportNumber } from "./PassportDataPage";
 import PlaneBadge from "./PlaneBadge";
+import LaunchTravelerBadge, {
+  LAUNCH_TRAVELER_NAME,
+} from "@/components/LaunchTravelerBadge";
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import passportBg from "../../assets/DigitalPassport/worldmap.png";
 import "../../styles/profile-passport.css";
@@ -1372,6 +1375,29 @@ export default function PublicPassportPage() {
                         {/* Verification badge */}
                         {profile.verifiedTier && (
                           <PlaneBadge tier={profile.verifiedTier} size={15} />
+                        )}
+                        {profile.launchTraveler && (
+                          <span
+                            title={`${LAUNCH_TRAVELER_NAME}: booked during Skyrio's launch and took the trip`}
+                            aria-label={`${LAUNCH_TRAVELER_NAME} badge`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "3px 10px 3px 4px",
+                              borderRadius: 999,
+                              background:
+                                "linear-gradient(90deg, rgba(255,138,42,0.16), rgba(139,92,255,0.18))",
+                              border: "1px solid rgba(255,255,255,0.16)",
+                              color: "#fff",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <LaunchTravelerBadge size={20} />
+                            {LAUNCH_TRAVELER_NAME}
+                          </span>
                         )}
                         {isAuthed && !isOwnProfile && (
                           <FollowButton

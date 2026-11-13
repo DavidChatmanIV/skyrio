@@ -79,6 +79,7 @@ import { apiUrl } from "@/lib/api";
 import OnboardingModal from "@/components/onboarding/OnboardingModal";
 import ShareRankPrompt from "./ShareRankPrompt";
 import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
+import LaunchTravelerCard from "./LaunchTravelerCard";
 import TravelerSearch from "./TravelerSearch";
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import TravelJourneys from "./TravelJourneys";
@@ -1378,6 +1379,8 @@ export default function DigitalPassportPage() {
                         : null
                     }
                   />
+
+                  <LaunchTravelerCard token={token} />
 
                   {profileMusic && (
                     <Card

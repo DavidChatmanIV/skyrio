@@ -8,6 +8,12 @@ import {
 import { XP_RULES, DEAD_BOOKING_STATUSES } from "../config/xpRules.js";
 // ⚠️ Render is case-sensitive: match your real filename exactly (booking.js vs Booking.js).
 import Booking from "../models/booking.js";
+import User from "../models/user.js";
+import Notification from "../models/notification.js";
+import {
+  LAUNCH_TRAVELER,
+  launchTravelerIneligibleReason,
+} from "../config/launchTraveler.js";
 
 // The airline accepted a cancellation but hasn't finished it. Don't confirm
 // the XP (the trip is probably going away) and don't reverse it yet (the
@@ -29,7 +35,7 @@ export async function confirmPendingXp({ onRankUp } = {}) {
   for (const row of due) {
     const bookingId = row.linkedTo;
     const booking = mongoose.isValidObjectId(bookingId)
-      ? await Booking.findById(bookingId).select("status")
+      ? await Booking.findById(bookingId).lean()
       : null;
     const status = String(booking?.status || "").toLowerCase();
 
@@ -43,6 +49,26 @@ export async function confirmPendingXp({ onRankUp } = {}) {
         reason: "booking not active at confirm time",
       });
       continue;
+    }
+
+    // Launch Traveler: check everything again at unlock time (account
+    // blocked, booking refunded since, etc.). Only this row is taken back;
+    // the trip's normal booking XP is unaffected.
+    if (row.ruleKey === LAUNCH_TRAVELER.ruleKey) {
+      const user = await User.findById(row.user)
+        .select("launchTravelerBlocked")
+        .lean();
+      const why = launchTravelerIneligibleReason(booking, user);
+      // "program_off" / "outside_window" only matter when it was granted;
+      // turning the program off later must not take earned badges away.
+      if (why && !["program_off", "outside_window"].includes(why)) {
+        await reverseXp({
+          linkedTo: bookingId,
+          ruleKey: LAUNCH_TRAVELER.ruleKey,
+          reason: `launch traveler: ${why}`,
+        });
+        continue;
+      }
     }
 
     // Claim the row so two job runs can't confirm it twice.
@@ -65,6 +91,18 @@ export async function confirmPendingXp({ onRankUp } = {}) {
         time: Date.now(),
       }
     );
+
+    if (row.ruleKey === LAUNCH_TRAVELER.ruleKey) {
+      await Notification.create({
+        user: row.user,
+        type: "xp",
+        title: `You're a ${LAUNCH_TRAVELER.name}`,
+        message: `Your badge is on your Digital Passport. +${row.amount} XP added.`,
+        link: "/passport",
+      }).catch((e) =>
+        console.error("[xp-confirm] launch traveler notification", e.message)
+      );
+    }
 
     // Booking-based challenges move only once the booking is real.
     await progressChallenges(row.user, row.ruleKey);
