@@ -246,6 +246,14 @@ export const XP_RULES = {
   SEASONAL_AWARD: { xp: 0, label: "Seasonal award", iconKey: "gift" },
   // Amount comes from Challenge.bonusXP; pays once per challenge per user.
   CHALLENGE_COMPLETED: { xp: 0, label: "Challenge complete", iconKey: "gift" },
+  // Launch Traveler badge bonus (config/launchTraveler.js). Pending until the
+  // trip starts; one per account; same amount on every plan.
+  LAUNCH_TRAVELER: {
+    xp: 100,
+    label: "Launch Traveler badge",
+    iconKey: "badge",
+    once: true,
+  },
   // Only used by the old addXP(userId, amount) shim while callers are migrated.
   LEGACY_ADD: { xp: 0, label: "XP earned", iconKey: "star" },
   ADMIN_GRANT: { xp: 0, label: "Admin grant", iconKey: "wrench" },

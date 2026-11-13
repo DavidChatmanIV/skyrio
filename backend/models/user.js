@@ -202,6 +202,10 @@ const UserSchema = new Schema(
 
     // ---------- Email Verification ----------
     emailVerified: { type: Boolean, default: false },
+    // Launch Traveler badge: set by a chargeback or by an admin for fraud.
+    // A blocked account can't earn the badge or its bonus XP again.
+    launchTravelerBlocked: { type: Boolean, default: false },
+    launchTravelerBlockedReason: { type: String, default: null },
     emailVerifyToken: { type: String, select: false },
     emailVerifyExpiry: { type: Date, select: false },
 

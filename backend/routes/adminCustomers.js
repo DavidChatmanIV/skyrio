@@ -16,6 +16,10 @@ import SupportTicket from "../controllers/support.controller.js";
 import { verifyAdmin } from "./admin.routes.js";
 import { manageUrlFor } from "../services/manageLink.js";
 import { sendManageLinkEmail } from "../services/manageEmails.js";
+import {
+  launchTravelerStatus,
+  revokeLaunchTraveler,
+} from "../services/xpService.js";
 
 const router = Router();
 router.use(verifyAdmin);
@@ -296,9 +300,25 @@ router.get("/profile", async (req, res) => {
       ).length,
     };
 
+    let launchTraveler = null;
+    if (account) {
+      const [st, flags] = await Promise.all([
+        launchTravelerStatus(account.id),
+        User.findById(account.id)
+          .select("launchTravelerBlocked launchTravelerBlockedReason")
+          .lean(),
+      ]);
+      launchTraveler = {
+        ...st,
+        blocked: Boolean(flags?.launchTravelerBlocked),
+        blockedReason: flags?.launchTravelerBlockedReason || null,
+      };
+    }
+
     res.json({
       ok: true,
       kind: account ? "account" : "guest",
+      launchTraveler,
       account,
       guest: account ? null : { email, name: guestName },
       stats,
@@ -316,6 +336,49 @@ router.get("/profile", async (req, res) => {
     res
       .status(500)
       .json({ ok: false, message: "Couldn't load this customer." });
+  }
+});
+
+/* ── Launch Traveler badge (fraud tools) ───────────────────────────
+   POST /api/admin/customers/:userId/launch-traveler/revoke
+     Body: { reason?: string, block?: boolean (default true) }
+     Takes the badge and its XP back; block stops the account earning it again.
+   POST /api/admin/customers/:userId/launch-traveler/unblock
+     Lets the account earn it again with a new qualifying trip. */
+router.post("/:userId/launch-traveler/revoke", async (req, res) => {
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    return res.status(400).json({ ok: false, message: "Invalid user id." });
+  }
+  try {
+    const reason =
+      String(req.body?.reason || "").trim().slice(0, 200) || "revoked by admin";
+    const block = req.body?.block !== false;
+    const reversed = await revokeLaunchTraveler(userId, { reason, block });
+    console.log(
+      `[admin] launch traveler revoked for ${userId} by ${req.user?.id || "admin"} (block=${block}, rows=${reversed})`
+    );
+    res.json({ ok: true, reversed, blocked: block });
+  } catch (err) {
+    console.error("[admin/customers] launch revoke error:", err);
+    res.status(500).json({ ok: false, message: "Couldn't revoke the badge. Try again." });
+  }
+});
+
+router.post("/:userId/launch-traveler/unblock", async (req, res) => {
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    return res.status(400).json({ ok: false, message: "Invalid user id." });
+  }
+  try {
+    await User.updateOne(
+      { _id: userId },
+      { $set: { launchTravelerBlocked: false, launchTravelerBlockedReason: null } }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/customers] launch unblock error:", err);
+    res.status(500).json({ ok: false, message: "Couldn't unblock. Try again." });
   }
 });
 

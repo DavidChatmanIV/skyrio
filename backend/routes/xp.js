@@ -12,7 +12,15 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import User from "../models/user.js";
-import { awardPassiveActivity } from "../services/xpService.js";
+import {
+  awardPassiveActivity,
+  launchTravelerStatus,
+} from "../services/xpService.js";
+import {
+  LAUNCH_TRAVELER,
+  launchTravelerWindow,
+  launchTravelerMinSpend,
+} from "../config/launchTraveler.js";
 import {
   XP_MULTIPLIERS,
   getTier,
@@ -68,6 +76,27 @@ router.get("/me", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[xp] /me failed:", err);
     res.status(500).json({ error: "Couldn't load XP. Try again." });
+  }
+});
+
+// ─── GET /api/xp/launch-traveler ─────────────────────────────────────────────
+// Your Launch Traveler badge status + the window, for the Passport card.
+router.get("/launch-traveler", requireAuth, async (req, res) => {
+  try {
+    const win = launchTravelerWindow();
+    const st = await launchTravelerStatus(req.user.id);
+    res.json({
+      name: LAUNCH_TRAVELER.name,
+      xp: LAUNCH_TRAVELER.xp,
+      minSpend: launchTravelerMinSpend(),
+      window: win.configured
+        ? { start: win.start, end: win.end, open: win.open }
+        : null,
+      ...st,
+    });
+  } catch (err) {
+    console.error("[xp] launch-traveler failed:", err);
+    res.status(500).json({ error: "Couldn't load your badge. Try again." });
   }
 });
 
