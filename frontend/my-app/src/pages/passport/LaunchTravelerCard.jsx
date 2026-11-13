@@ -10,30 +10,20 @@ import LaunchTravelerBadge, {
 //   window open, not booked yet → how to earn it
 // Nothing shows outside the launch window if you don't have it.
 
+// Every date on this card uses one short format: 1/15/27. The launch
+// window is set in UTC on the server, so show the same days.
 const fmtDay = (d) =>
   d
-    ? new Date(d).toLocaleDateString(undefined, {
-        month: "short",
+    ? new Date(d).toLocaleDateString("en-US", {
+        month: "numeric",
         day: "numeric",
-        year: "numeric",
-        // The launch window is set in UTC on the server; show the same days.
+        year: "2-digit",
         timeZone: "UTC",
       })
     : "";
 
-// "Jan 15 – Apr 15, 2027" (year once when both dates share it).
-const fmtRange = (a, b) => {
-  if (!a || !b) return "";
-  const sameYear =
-    new Date(a).getUTCFullYear() === new Date(b).getUTCFullYear();
-  const start = new Date(a).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    ...(sameYear ? {} : { year: "numeric" }),
-    timeZone: "UTC",
-  });
-  return `${start} – ${fmtDay(b)}`;
-};
+// "1/15/27 – 4/15/27"
+const fmtRange = (a, b) => (a && b ? `${fmtDay(a)} – ${fmtDay(b)}` : "");
 
 // Three steps, so it's clear the badge needs a trip taken, not just booked.
 function Steps({ done }) {
