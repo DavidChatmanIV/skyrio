@@ -157,16 +157,10 @@ export default function LaunchTravelerCard({ token }) {
         <div>
           <div style={title}>{name}</div>
           <div style={sub}>
-            You booked during Skyrio's launch and took the trip. Only launch
-            travelers have this badge.
+            Booked and traveled at Skyrio's launch.
           </div>
           <div style={{ ...sub, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-            {[
-              data.earnedAt && `Earned ${fmtDay(data.earnedAt)}`,
-              win && `Launch: ${fmtRange(win.start, win.end)}`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+            {data.earnedAt && `Earned ${fmtDay(data.earnedAt)}`}
           </div>
         </div>
       </div>
@@ -192,9 +186,10 @@ export default function LaunchTravelerCard({ token }) {
             </span>
           </div>
           <div style={sub}>
-            Unlocks with +{data.xp} XP once your trip starts
-            {data.unlocksAt ? ` (around ${fmtDay(data.unlocksAt)})` : ""}. If
-            the trip is cancelled or refunded, it won't unlock.
+            {data.unlocksAt
+              ? `Unlocks around ${fmtDay(data.unlocksAt)}.`
+              : "Unlocks after your trip starts."}{" "}
+            +{data.xp} XP.
           </div>
           <Steps done={1} />
         </div>
@@ -210,8 +205,8 @@ export default function LaunchTravelerCard({ token }) {
       <div style={{ minWidth: 0 }}>
         <div style={title}>Earn the {name} badge</div>
         <div style={sub}>
-          Book by {fmtDay(win.end)}, then take your trip. You'll get the badge
-          and +{data.xp} XP. Only offered during launch.
+          Book by {fmtDay(win.end)} and take the trip. +{data.xp} XP. Launch
+          only.
         </div>
         <Steps done={0} />
         <button
@@ -229,15 +224,14 @@ export default function LaunchTravelerCard({ token }) {
             cursor: "pointer",
           }}
         >
-          {showRules ? "Hide the rules" : "See the rules"}
+          {showRules ? "Hide rules" : "Rules"}
         </button>
         {showRules && (
           <ul style={{ ...sub, margin: "8px 0 0", paddingLeft: 18 }}>
             <li>Book {fmtRange(win.start, win.end)}.</li>
-            <li>Trips of ${data.minSpend} or more, paid on Skyrio, qualify.</li>
-            <li>The badge unlocks once your trip starts.</li>
-            <li>Cancelled, refunded or disputed trips don't qualify.</li>
-            <li>One badge per account. Every plan gets the same +{data.xp} XP.</li>
+            <li>Trips ${data.minSpend}+ paid on Skyrio.</li>
+            <li>Cancelled or refunded trips don't qualify.</li>
+            <li>One per account.</li>
           </ul>
         )}
       </div>

@@ -531,7 +531,7 @@ export async function awardXpForBooking(bookingId, { notify = true } = {}) {
       user: booking.user,
       type: "xp",
       title: `${LAUNCH_TRAVELER.name} badge on the way`,
-      message: `This trip earns the ${LAUNCH_TRAVELER.name} badge and +${results.launch.amount} XP. Both unlock once your trip starts. Cancelled or refunded trips don't qualify.`,
+      message: `This trip earns the ${LAUNCH_TRAVELER.name} badge and +${results.launch.amount} XP. Unlocks when your trip starts.`,
       link: "/passport",
     }).catch((e) =>
       console.error("[xp] launch traveler notification failed:", e.message)

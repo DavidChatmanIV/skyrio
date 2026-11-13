@@ -97,7 +97,7 @@ export async function confirmPendingXp({ onRankUp } = {}) {
         user: row.user,
         type: "xp",
         title: `You're a ${LAUNCH_TRAVELER.name}`,
-        message: `Your badge is on your Digital Passport, and +${row.amount} XP is in your balance.`,
+        message: `Your badge is on your Digital Passport. +${row.amount} XP added.`,
         link: "/passport",
       }).catch((e) =>
         console.error("[xp-confirm] launch traveler notification", e.message)
