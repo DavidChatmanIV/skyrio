@@ -84,7 +84,10 @@ import TravelerSearch from "./TravelerSearch";
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import TravelJourneys from "./TravelJourneys";
 import ReferralCard from "./ReferralCard";
-import PassportDataPage, { passportNumber } from "./PassportDataPage";
+import PassportDataPage, {
+  passportNumber,
+  COVER_BY_ITEM,
+} from "./PassportDataPage";
 import PassportQrSheet from "./PassportQrSheet";
 import { readHomeAirport, rememberHomeAirportLocally } from "@/lib/homeAirport";
 
@@ -809,6 +812,8 @@ export default function DigitalPassportPage() {
   const [referralsCount, setReferralsCount] = useState(0);
   // Passport Rewards the traveler owns (e.g. "golden_hour_cover").
   const [ownedRewards, setOwnedRewards] = useState([]);
+  // Which owned cover to show (a reward itemId, "none", or null = default).
+  const [chosenCover, setChosenCover] = useState(null);
   useEffect(() => {
     if (!isAuthed || !token) return undefined;
     const controller = new AbortController();
@@ -821,6 +826,7 @@ export default function DigitalPassportPage() {
       .then((d) => {
         if (d?.ok && Array.isArray(d.redeemedRewards))
           setOwnedRewards(d.redeemedRewards);
+        if (d?.ok) setChosenCover(d.passportCover || null);
       })
       .catch(() => {});
     return () => controller.abort();
@@ -1374,7 +1380,13 @@ export default function DigitalPassportPage() {
                     xpNeeded={xpGoal}
                     onSpendXp={() => navigate("/passport/rewards")}
                     cover={
-                      ownedRewards.includes("golden_hour_cover")
+                      chosenCover && chosenCover !== "none"
+                        ? ownedRewards.includes(chosenCover)
+                          ? COVER_BY_ITEM[chosenCover] || null
+                          : null
+                        : chosenCover === "none"
+                        ? null
+                        : ownedRewards.includes("golden_hour_cover")
                         ? "golden"
                         : null
                     }

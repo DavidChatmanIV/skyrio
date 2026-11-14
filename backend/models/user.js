@@ -114,6 +114,9 @@ const UserSchema = new Schema(
     // ---------- XP & Rewards ----------
     xp: { type: Number, default: 0, min: 0 },
     redeemedRewards: { type: [String], default: [] },
+    // Which owned Passport cover to show (a reward itemId), "none" for the
+    // plain cover, or null = the default (Golden Hour if owned).
+    passportCover: { type: String, default: null },
     settings: { rewardsEnabled: { type: Boolean, default: false } },
 
     // ---------- XP Earning System (routes/xp.js) ----------

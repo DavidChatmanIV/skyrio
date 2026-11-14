@@ -10,6 +10,9 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 import { verifyAdmin } from "../admin.routes.js";
 // Delivers rewards that need more than being "owned" (membership credits).
 import { fulfillReward } from "../../services/rewardFulfillment.js";
+import { COVER_BY_ITEM, planRank } from "../../config/passportCovers.js";
+
+const PLAN_LABEL = { explorer: "Explorer", legend: "Legend" };
 
 const router = Router();
 
@@ -50,6 +53,8 @@ router.get("/items", async (req, res) => {
         featured: i.featured,
         repeatable: i.repeatable,
         isNew: i.isNewItem,
+        minPlan: i.minPlan || null,
+        cover: COVER_BY_ITEM[i.itemId] || null,
       })),
     });
   } catch (err) {
@@ -67,7 +72,31 @@ router.get("/redeemed", requireAuth, async (req, res) => {
   return res.json({
     ok: true,
     redeemedRewards: req.user.redeemedRewards || [],
+    plan: req.user.plan || "free",
+    passportCover: req.user.passportCover || null,
   });
+});
+
+// POST /api/rewards/cover  { itemId: "aurora_cover" | "none" }
+// Pick which owned Passport cover to show. Covers you redeemed are yours to
+// keep, even if your membership ends.
+router.post("/cover", requireAuth, async (req, res) => {
+  const itemId = String(req.body?.itemId || "");
+  if (itemId !== "none") {
+    if (!COVER_BY_ITEM[itemId]) {
+      return res.status(400).json({ ok: false, message: "That isn't a Passport cover." });
+    }
+    if (!(req.user.redeemedRewards || []).includes(itemId)) {
+      return res.status(403).json({ ok: false, message: "Redeem this cover first." });
+    }
+  }
+  try {
+    await User.updateOne({ _id: req.user._id }, { $set: { passportCover: itemId } });
+    return res.json({ ok: true, passportCover: itemId });
+  } catch (err) {
+    console.error("[rewards] cover save error:", err);
+    return res.status(500).json({ ok: false, message: "Couldn't change your cover. Try again." });
+  }
 });
 
 // POST /api/rewards/redeem
@@ -90,6 +119,18 @@ router.post("/redeem", requireAuth, async (req, res) => {
       return res
         .status(400)
         .json({ ok: false, message: "Unknown reward item." });
+    }
+
+    // Members-only rewards: checked here, not just hidden in the app.
+    if (reward.minPlan && planRank(req.user.plan) < planRank(reward.minPlan)) {
+      return res.status(403).json({
+        ok: false,
+        membersOnly: true,
+        minPlan: reward.minPlan,
+        message: `This reward is for ${PLAN_LABEL[reward.minPlan]} members${
+          reward.minPlan === "explorer" ? " and up" : ""
+        }.`,
+      });
     }
 
     const userId = req.user._id;
@@ -248,6 +289,7 @@ router.patch("/items/:itemId", verifyAdmin, async (req, res) => {
       "featured",
       "repeatable",
       "active",
+      "minPlan",
     ];
     const updates = {};
     for (const key of allowed) {

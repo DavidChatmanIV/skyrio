@@ -58,7 +58,7 @@ const LAUNCH = [
     itemId: "explorer_month",
     type: "PERK",
     title: "1 month of Skyrio Explorer",
-    desc: "A membership credit for one free month of Explorer. 1.5x XP on everything you earn.",
+    desc: "A membership credit for one free month of Explorer. 1.5x XP on bookings, SkyHub and challenges.",
     cost: 1200, // about 6 trips
     level: 1,
     featured: false,
@@ -69,7 +69,7 @@ const LAUNCH = [
     itemId: "legend_3_months",
     type: "LIMITED",
     title: "3 months of Skyrio Legend",
-    desc: "A membership credit for three free months of Legend. 2.5x XP on everything you earn.",
+    desc: "A membership credit for three free months of Legend. 2.5x XP on bookings, SkyHub and challenges.",
     cost: 3000, // frequent travelers only
     level: 1,
     featured: false,
