@@ -158,6 +158,9 @@ const bookingSchema = new Schema(
     // [{ type: "airline_change"|"supplier_cancelled", eventId, at, source,
     //    notified: { traveler, admins }, resolvedAt, resolvedBy }]
     supplierAlerts: { type: [Schema.Types.Mixed], default: undefined },
+    // Severe-weather warnings already sent for this trip ("EWR:Winter Storm
+    // Warning"), so each storm is only emailed once (services/weatherAlerts.js).
+    weatherAlertKeys: { type: [String], default: undefined },
 
     // ── Admin notes (NEW) ── internal only, never shown to travelers
     adminNotes: {

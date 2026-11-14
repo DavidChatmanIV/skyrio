@@ -2335,6 +2335,33 @@ function TravelAlertsTab({ refreshKey }) {
   const [airports, setAirports] = useState("");
   const [preview, setPreview] = useState(null);
 
+  // Severe weather at major US airports (National Weather Service).
+  const [weather, setWeather] = useState(null);
+  const loadWeather = useCallback(async () => {
+    try {
+      setWeather(await adminRequest("/api/admin/site-status/weather"));
+    } catch {
+      setWeather({ error: true, groups: [] });
+    }
+  }, []);
+  useEffect(() => {
+    loadWeather();
+  }, [loadWeather, refreshKey]);
+  const applyWeather = (g) => {
+    const where = g.airports.slice(0, 6).join(", ") + (g.airports.length > 6 ? ` +${g.airports.length - 6} more` : "");
+    setForm({
+      kind: "weather",
+      severity: g.severity === "Extreme" ? "critical" : "warning",
+      title: `${g.event} at ${g.airports.length > 3 ? "major US airports" : g.airports.join(", ")}`.slice(0, 80),
+      message: `The National Weather Service issued a ${g.event}. Flights at these airports could be delayed or cancelled. Check your airline's app for your flight's status.`.slice(0, 300),
+      areas: where.slice(0, 120),
+      affects: { flights: true, hotels: false, cars: false },
+      pause: { flights: false, hotels: false, cars: false },
+    });
+    if (live) setEditing(true);
+    setTimeout(() => document.getElementById("ta-title")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+  };
+
   const load = useCallback(async () => {
     try {
       const j = await adminRequest("/api/admin/site-status");
@@ -2434,6 +2461,51 @@ function TravelAlertsTab({ refreshKey }) {
 
   return (
     <>
+      <Section title="Severe weather at major airports">
+        <div className="sk-panel">
+          <div className="sk-panel__head">
+            <h3 className="sk-panel__title">National Weather Service warnings</h3>
+            <button type="button" className="sk-btn sk-btn--sm" onClick={loadWeather}>
+              Check again
+            </button>
+          </div>
+          {!weather ? (
+            <div className="sk-empty">Checking…</div>
+          ) : weather.error ? (
+            <div className="sk-empty">Couldn't check the weather. Try again.</div>
+          ) : weather.groups.length === 0 ? (
+            <div className="sk-empty">No severe weather warnings at the 50 busiest US airports.</div>
+          ) : (
+            weather.groups.map((g) => (
+              <div className="sk-row" key={g.event}>
+                <div className="sk-row__left">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="sk-name">
+                      {g.event}
+                      {g.severity === "Extreme" && (
+                        <span style={{ color: "#fca5a5", fontWeight: 600 }}>Extreme</span>
+                      )}
+                    </div>
+                    <div className="sk-sub" style={{ whiteSpace: "normal" }}>
+                      {g.airports.join(", ")}
+                      {g.ends ? ` · until ${dayjs(g.ends).format("ddd MMM D, h:mm A")}` : ""}
+                    </div>
+                  </div>
+                </div>
+                <div className="sk-row__right">
+                  <button type="button" className="sk-btn sk-btn--active" style={{ fontSize: 14, padding: "8px 16px" }} onClick={() => applyWeather(g)}>
+                    Use for alert
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+          <div style={{ ...fieldHint, padding: "10px 20px 14px", margin: 0 }}>
+            Travelers with flights in the next 3 days get their own weather email automatically. This only fills in a site-wide alert; nothing posts until you tap Post.
+          </div>
+        </div>
+      </Section>
+
       <Section title="Live alert">
         <div className="sk-panel">
           <div className="sk-panel__head">
