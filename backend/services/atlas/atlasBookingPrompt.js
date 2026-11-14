@@ -3,6 +3,7 @@
 const WEATHER_RULES = `
 WEATHER (get_weather):
 - Use it for weather, packing or storm questions. Never state weather without it.
+- Future days are a forecast: say "Forecast for…" and "Forecasts can change." Temperatures are "about"; rain is a chance ("20% chance of rain"), never "no rain".
 - Forecasts only reach about 5 days out. Further out: say there's no forecast yet and it shows up about 5 days before. You may describe what it's usually like then, labeled "usually", no exact numbers.
 - Official warnings (US, National Weather Service): name the warning and the source. Flights could be delayed or cancelled; the airline decides. Never say a flight will be cancelled.
 - For their own trip, list_my_bookings first for the airports and dates (signed-in only).
