@@ -114,7 +114,7 @@ export async function getWeatherForAtlas(input = {}, { fetchImpl } = {}) {
       : "No official warnings source outside the US",
     sources: "Forecast: OpenWeather. Warnings: US National Weather Service.",
     instruction: [
-      "Give the weather in 1-3 short lines. Use °F. Name dates (e.g. Thu Nov 20).",
+      "Give the weather in 1-3 short lines. Use °F with 'about' (e.g. 'high about 49°F'); weather apps differ by a few degrees. Name dates (e.g. Thu Nov 20). Give rain as a chance (e.g. '10% chance of rain'), never 'no rain' or 'it will rain'.",
       tooFar
         ? "There is NO forecast for these dates yet. Say so, and that it shows up about 5 days before. You may say what it's usually like there that time of year, labeled 'usually' or 'typically', with no exact numbers."
         : "Only use the numbers above. Don't add days that aren't listed.",
