@@ -452,6 +452,14 @@ const INJECTED_CSS = `
   .sk-fb-search:focus { border-color: ${C.orange}; }
   .sk-fb-search::placeholder { color: ${C.muted}; }
   .sk-fb-count { font-size: 12px; color: ${C.muted}; white-space: nowrap; }
+  /* Toolbar rows: search, filters, then count + actions. Native selects so
+     phones get their own picker and nothing overflows its row. */
+  .sk-fb-filters { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+  .sk-fb-meta { flex-basis: 100%; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .sk-fb-meta .sk-fb-count { margin-right: auto; }
+  .sk-tool-select { height: 38px; width: 100%; padding: 0 30px 0 12px; border-radius: 10px; border: 1px solid ${C.border}; background: rgba(255,255,255,0.05) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'><path d='M6 9l6 6 6-6' fill='none' stroke='%23ffffffaa' stroke-width='2.5' stroke-linecap='round'/></svg>") no-repeat right 10px center; color: #fff; font: inherit; font-size: 13px; appearance: none; -webkit-appearance: none; outline: none; cursor: pointer; }
+  .sk-tool-select:focus { border-color: ${C.orange}; }
+  .sk-tool-select option { background: #2a1652; color: #fff; }
   .sk-fb { padding: 16px 20px; border-bottom: 1px solid ${C.border}; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; }
   .sk-fb:last-child { border-bottom: none; }
   .sk-fb:hover { background: rgba(255,255,255,0.02); }
@@ -497,6 +505,11 @@ const INJECTED_CSS = `
     .sk-top__right { flex-wrap: wrap; }
     .sk-panel__head { padding: 12px 14px; }
     .sk-fb, .sk-fb-tools { padding-left: 14px; padding-right: 14px; }
+    .sk-fb-search { flex-basis: 100%; height: 40px; font-size: 16px; }
+    .sk-tool-select { height: 40px; font-size: 16px; }
+    .sk-fb-filters { grid-template-columns: 1fr 1fr; }
+    .sk-fb-filters > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .sk-fb-thank { flex-basis: 100%; justify-content: center; padding: 9px 14px !important; font-size: 13px !important; }
     .sk-fb { grid-template-columns: 1fr; }
     .sk-fb__side { justify-content: space-between; }
     .sk-row { flex-wrap: wrap; padding: 12px 14px; }
@@ -705,6 +718,24 @@ function AttentionTile({ icon, title, sub, badges, state, onClick }) {
         →
       </span>
     </button>
+  );
+}
+
+/** Native dropdown for toolbars (phones open their own picker). */
+function ToolSelect({ value, onChange, options, label }) {
+  return (
+    <select
+      className="sk-tool-select"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={label}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -3182,9 +3213,9 @@ const firstNameOf = (u) =>
 
 const RATING_FILTERS = [
   { value: "all", label: "All ratings", test: () => true },
-  { value: "high", label: "4–5 ★", test: (r) => r >= 4 },
-  { value: "mid", label: "3 ★", test: (r) => r === 3 },
-  { value: "low", label: "1–2 ★", test: (r) => r >= 1 && r <= 2 },
+  { value: "high", label: "4–5 stars", test: (r) => r >= 4 },
+  { value: "mid", label: "3 stars", test: (r) => r === 3 },
+  { value: "low", label: "1–2 stars", test: (r) => r >= 1 && r <= 2 },
   { value: "none", label: "No rating", test: (r) => !r },
 ];
 const SORTS = [
@@ -3598,20 +3629,6 @@ function FeedbackInbox({ refreshKey, onChange }) {
             value={status}
             onChange={setStatus}
           />
-          <Select
-            size="small"
-            value={type}
-            onChange={setType}
-            className="sk-select-dark"
-            style={{ width: 110 }}
-            options={[
-              { value: "all", label: "All types" },
-              { value: "bug", label: "Bugs" },
-              { value: "idea", label: "Ideas" },
-              { value: "general", label: "General" },
-              { value: "checkout", label: "Checkout" },
-            ]}
-          />
         </>
       }
     >
@@ -3639,7 +3656,37 @@ function FeedbackInbox({ refreshKey, onChange }) {
             </button>
           </div>
         )}
-        <label className="sk-check" title="Select everything shown">
+        <input
+          type="search"
+          className="sk-fb-search"
+          placeholder="Search feedback, people or pages…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search feedback"
+        />
+        <div className="sk-fb-filters">
+          <ToolSelect
+            label="Filter by type"
+            value={type}
+            onChange={setType}
+            options={[
+              { value: "all", label: "All types" },
+              { value: "bug", label: "Bugs" },
+              { value: "idea", label: "Ideas" },
+              { value: "general", label: "General" },
+              { value: "checkout", label: "Checkout" },
+            ]}
+          />
+          <ToolSelect
+            label="Filter by rating"
+            value={rating}
+            onChange={setRating}
+            options={RATING_FILTERS.map(({ value, label }) => ({ value, label }))}
+          />
+          <ToolSelect label="Sort" value={sort} onChange={setSort} options={SORTS} />
+        </div>
+        <div className="sk-fb-meta">
+          <label className="sk-check" title="Select everything shown">
           <input
             type="checkbox"
             checked={allShownSelected}
@@ -3649,51 +3696,26 @@ function FeedbackInbox({ refreshKey, onChange }) {
           />
           All
         </label>
-        <input
-          type="search"
-          className="sk-fb-search"
-          placeholder="Search feedback, people or pages…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search feedback"
-        />
-        <Select
-          size="small"
-          value={rating}
-          onChange={setRating}
-          className="sk-select-dark"
-          style={{ width: 118 }}
-          options={RATING_FILTERS.map(({ value, label }) => ({ value, label }))}
-          aria-label="Filter by rating"
-        />
-        <Select
-          size="small"
-          value={sort}
-          onChange={setSort}
-          className="sk-select-dark"
-          style={{ width: 122 }}
-          options={SORTS}
-          aria-label="Sort"
-        />
-        <span className="sk-fb-count">
-          {loading
-            ? "Loading…"
-            : `${rows.length} ${plural(rows.length, "item")}`}
-        </span>
-        {rows.length > 0 && (
-          <button
-            type="button"
-            className="sk-btn sk-btn--sm"
-            onClick={() =>
-              copy(rows.map(asText).join("\n\n---\n\n"), "All shown feedback")
-            }
-          >
-            Copy all
-          </button>
-        )}
+          <span className="sk-fb-count">
+            {loading
+              ? "Loading…"
+              : `${rows.length} ${plural(rows.length, "item")}`}
+          </span>
+          {rows.length > 0 && (
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              onClick={() =>
+                copy(rows.map(asText).join("\n\n---\n\n"), "All shown feedback")
+              }
+            >
+              Copy all
+            </button>
+          )}
+        </div>
         <button
           type="button"
-          className="sk-btn sk-btn--sm sk-btn--active"
+          className="sk-btn sk-btn--sm sk-btn--active sk-fb-thank"
           onClick={thankEveryone}
           disabled={findingAll}
           title="Everyone who has ever sent feedback and hasn't been thanked yet, one message each"
@@ -4053,7 +4075,25 @@ function TestimonialsQueue({ refreshKey, onChange }) {
             </button>
           </div>
         )}
-        <label className="sk-check" title="Select everything shown">
+        <input
+          type="search"
+          className="sk-fb-search"
+          placeholder="Search reviews or names…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search reviews"
+        />
+        <div className="sk-fb-filters">
+          <ToolSelect
+            label="Filter by rating"
+            value={rating}
+            onChange={setRating}
+            options={RATING_FILTERS.map(({ value, label }) => ({ value, label }))}
+          />
+          <ToolSelect label="Sort" value={sort} onChange={setSort} options={SORTS} />
+        </div>
+        <div className="sk-fb-meta">
+          <label className="sk-check" title="Select everything shown">
           <input
             type="checkbox"
             checked={allShownSelected}
@@ -4067,40 +4107,15 @@ function TestimonialsQueue({ refreshKey, onChange }) {
           />
           All
         </label>
-        <input
-          type="search"
-          className="sk-fb-search"
-          placeholder="Search reviews or names…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search reviews"
-        />
-        <Select
-          size="small"
-          value={rating}
-          onChange={setRating}
-          className="sk-select-dark"
-          style={{ width: 118 }}
-          options={RATING_FILTERS.map(({ value, label }) => ({ value, label }))}
-          aria-label="Filter by rating"
-        />
-        <Select
-          size="small"
-          value={sort}
-          onChange={setSort}
-          className="sk-select-dark"
-          style={{ width: 122 }}
-          options={SORTS}
-          aria-label="Sort"
-        />
-        <span className="sk-fb-count">
-          {loading
-            ? "Loading…"
-            : `${rows.length} ${plural(rows.length, "review")}`}
-        </span>
+          <span className="sk-fb-count">
+            {loading
+              ? "Loading…"
+              : `${rows.length} ${plural(rows.length, "review")}`}
+          </span>
+        </div>
         <button
           type="button"
-          className="sk-btn sk-btn--sm sk-btn--active"
+          className="sk-btn sk-btn--sm sk-btn--active sk-fb-thank"
           onClick={thankEveryone}
           disabled={findingAll}
           title="Everyone who has left a review and hasn't been thanked yet, one message each"
