@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getForecast } from "../weatherForecast.js";
-import { warningsForAirport, warningsForPoint, hasCoords } from "../weatherAlerts.js";
+import { warningsForAirport, warningsForPoint, hasCoords, airportCoords } from "../weatherAlerts.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AIRPORTS = new Map(
@@ -60,7 +60,8 @@ export async function getWeatherForAtlas(input = {}, { fetchImpl } = {}) {
 
   let fc;
   try {
-    fc = await getForecast({ city: query, days: 5, ...(fetchImpl ? { fetchImpl } : {}) });
+    const near = airport ? airportCoords(airport.code) : null;
+    fc = await getForecast({ city: query, days: 5, near, ...(fetchImpl ? { fetchImpl } : {}) });
   } catch {
     return { error: "Couldn't get the weather right now. Say so in one line and suggest checking a weather app." };
   }
@@ -97,7 +98,7 @@ export async function getWeatherForAtlas(input = {}, { fetchImpl } = {}) {
   }
 
   return {
-    place: `${fc.city}${fc.country ? `, ${fc.country}` : ""}${airport ? ` (${airport.code})` : ""}`,
+    place: [fc.city, fc.state, fc.country].filter(Boolean).join(", ") + (airport ? ` (${airport.code})` : ""),
     today,
     rightNow: fc.current
       ? { tempF: fc.current.temp, condition: fc.current.condition }
@@ -114,7 +115,7 @@ export async function getWeatherForAtlas(input = {}, { fetchImpl } = {}) {
       : "No official warnings source outside the US",
     sources: "Forecast: OpenWeather. Warnings: US National Weather Service.",
     instruction: [
-      "Give the weather in 1-3 short lines. For future days, start with 'Forecast for' and end with 'Forecasts can change.' so it's clear it's a prediction. For right now, say 'Right now'. Use °F with 'about' (e.g. 'high about 49°F'). Name dates (e.g. Thu Nov 20). Give rain as a chance (e.g. '10% chance of rain'), never 'no rain' or 'it will rain'.",
+      "Name the place with its state or country (e.g. 'Newark, New Jersey'), so it's clear which one. If they meant a different one, they can say so. Give the weather in 1-3 short lines. For future days, start with 'Forecast for' and end with 'Forecasts can change.' so it's clear it's a prediction. For right now, say 'Right now'. Use °F with 'about' (e.g. 'high about 49°F'). Name dates (e.g. Thu Nov 20). Give rain as a chance (e.g. '10% chance of rain'), never 'no rain' or 'it will rain'.",
       tooFar
         ? "There is NO forecast for these dates yet. Say so, and that it shows up about 5 days before. You may say what it's usually like there that time of year, labeled 'usually' or 'typically', with no exact numbers."
         : "Only use the numbers above. Don't add days that aren't listed.",
