@@ -886,6 +886,7 @@ export default function DigitalPassportPage() {
           setPassportStats({
             followers: Number(data?.stats?.followers ?? 0),
             following: Number(data?.stats?.following ?? 0),
+            tripsTaken: Number(data?.stats?.tripsTaken ?? 0),
           });
         }
       })
@@ -1072,6 +1073,7 @@ export default function DigitalPassportPage() {
           setPassportStats({
             followers: Number(data?.stats?.followers ?? 0),
             following: Number(data?.stats?.following ?? 0),
+            tripsTaken: Number(data?.stats?.tripsTaken ?? 0),
           });
         } else {
           setPassportStats({ followers: 0, following: 0 });

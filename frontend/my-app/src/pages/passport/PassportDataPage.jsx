@@ -314,8 +314,14 @@ export default function PassportDataPage({
               <dd className="pdp-value">{formatIssued(issued)}</dd>
             </div>
             <div>
-              <dt className="pdp-label">Valid Until</dt>
-              <dd className="pdp-value">Never</dd>
+              {/* Was "Valid until: Never", which said nothing. Trips taken
+                  is a real number: completed bookings on Skyrio. */}
+              <dt className="pdp-label">Trips Taken</dt>
+              <dd className="pdp-value">
+                {statsLoading && passportStats?.tripsTaken == null
+                  ? "…"
+                  : Number(passportStats?.tripsTaken || 0)}
+              </dd>
             </div>
             <div>
               <dt className="pdp-label">Status</dt>
