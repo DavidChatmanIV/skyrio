@@ -60,6 +60,7 @@ export const enabled = () =>
   process.env.USE_MOCKS !== "true";
 
 export const hasCoords = (code) => Boolean(COORDS[String(code || "").toUpperCase()]);
+export const airportCoords = (code) => COORDS[String(code || "").toUpperCase()] || null;
 
 /** Keeps only travel-relevant warnings from an NWS GeoJSON response. */
 export function pickTravelWarnings(geojson) {
