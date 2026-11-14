@@ -80,6 +80,9 @@ const CookiePolicyPage = lazy(() => import("./pages/CookiePolicyPage"));
 
 // ── Trust pages (booking guarantee, support, about) ──
 const GuaranteePage = lazy(() => import("./pages/trust/GuaranteePage"));
+const TravelDisruptionsPage = lazy(() =>
+  import("./pages/trust/TravelDisruptionsPage")
+);
 const SupportPage = lazy(() => import("./pages/trust/SupportPage"));
 const AboutPage = lazy(() => import("./pages/trust/AboutPage"));
 
@@ -265,6 +268,7 @@ function TrackedRoutes() {
 
         {/* ── Trust — public so anyone can check before booking ── */}
         <Route path="guarantee" element={<GuaranteePage />} />
+        <Route path="travel-disruptions" element={<TravelDisruptionsPage />} />
         <Route path="support" element={<SupportPage />} />
         <Route path="help" element={<Navigate to="/support" replace />} />
         <Route path="about" element={<AboutPage />} />

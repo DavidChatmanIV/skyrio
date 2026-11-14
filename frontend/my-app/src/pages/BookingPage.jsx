@@ -66,6 +66,7 @@ import CarRentalForm from "@/pages/booking/CarRentalForm";
 import CarResults from "@/components/cars/CarResults";
 import TripBudgetBar from "@/components/syncTogether/TripBudgetBar";
 import WeatherStrip from "@/components/WeatherStrip";
+import useSiteStatus, { pausedMessage } from "@/lib/useSiteStatus";
 import {
   readHomeAirport,
   fetchHomeAirport,
@@ -4317,6 +4318,8 @@ function readLastSearch() {
 }
 
 export default function BookingPage() {
+  // Disruption mode: show when this kind of booking is paused.
+  const siteStatus = useSiteStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
 
@@ -7102,6 +7105,34 @@ export default function BookingPage() {
                     if (val !== "Stays") setRoomCart([]);
                   }}
                 />
+                {(() => {
+                  const vertical =
+                    tab === "Flights" || tab === "Packages"
+                      ? "flights"
+                      : tab === "Stays"
+                      ? "hotels"
+                      : tab === "Cars"
+                      ? "cars"
+                      : null;
+                  const msg = vertical ? pausedMessage(siteStatus, vertical) : "";
+                  return msg ? (
+                    <div
+                      role="status"
+                      style={{
+                        margin: "10px 0 0",
+                        padding: "10px 14px",
+                        borderRadius: 14,
+                        background: "rgba(255,138,42,0.12)",
+                        border: "1px solid rgba(255,179,71,0.45)",
+                        color: "#fff",
+                        fontSize: 13,
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {msg} You can still search and save trips.
+                    </div>
+                  ) : null;
+                })()}
 
                 {/* ── Search form (scroll target for "Search manually") ── */}
                 <div ref={searchFormRef}>{searchForm}</div>

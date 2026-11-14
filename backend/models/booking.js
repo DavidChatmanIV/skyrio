@@ -153,6 +153,11 @@ const bookingSchema = new Schema(
     // terms with the supplier and the traveler first.
     // { status: "open"|"resolved", at, byUserId, reason, resolvedAt, resolvedBy, resolution }
     cancelRequest: { type: Schema.Types.Mixed, default: undefined },
+    // Changes the airline, hotel or rental company made on their side
+    // (Duffel webhooks). Newest first:
+    // [{ type: "airline_change"|"supplier_cancelled", eventId, at, source,
+    //    notified: { traveler, admins }, resolvedAt, resolvedBy }]
+    supplierAlerts: { type: [Schema.Types.Mixed], default: undefined },
 
     // ── Admin notes (NEW) ── internal only, never shown to travelers
     adminNotes: {

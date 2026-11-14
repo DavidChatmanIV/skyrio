@@ -11,6 +11,7 @@ import { Router } from "express";
 import Stripe from "stripe";
 import { requireAuth } from "../middleware/requireAuth.js";
 import HotelCheckoutSession from "../models/HotelCheckoutSession.js";
+import { requireSalesOpen } from "../services/siteStatus.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -79,7 +80,7 @@ async function liteRequest(path, body) {
 }
 
 // ── STEP 1: prebook + authorize-only PaymentIntent ── body: { offerId }
-router.post("/intent", async (req, res) => {
+router.post("/intent", requireSalesOpen("hotels"), async (req, res) => {
   try {
     const { offerId } = req.body || {};
     if (!offerId) return res.status(400).json({ error: "offerId is required" });

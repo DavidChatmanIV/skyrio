@@ -12,6 +12,7 @@ import {
   confirmHotelBooking,
   checkHotelAvailability,
 } from "./hotels.controller.js";
+import { requireSalesOpen } from "../../../services/siteStatus.js";
 
 const router = Router();
 
@@ -39,7 +40,7 @@ router.post("/book", verifyAdmin, bookHotel);
 
 // POST /api/hotels/checkout-intent — prebook + authorize-only Stripe
 // PaymentIntent. Guests can book; returns a checkout token.
-router.post("/checkout-intent", holdLimiter, optionalAuth, initHotelCheckout);
+router.post("/checkout-intent", requireSalesOpen("hotels"), holdLimiter, optionalAuth, initHotelCheckout);
 
 // POST /api/hotels/confirm-booking — verify authorization, book with LiteAPI,
 // then charge only for the rooms that were confirmed. Needs the checkout

@@ -14,6 +14,7 @@ import {
   createDuffelIntent,
   completeDuffelBooking,
 } from "./Duffelflights.checkout.js";
+import { requireSalesOpen } from "../../../services/siteStatus.js";
 
 const router = express.Router();
 
@@ -36,7 +37,7 @@ router.post("/verify", verifyOffer);
 // someone is signed in. /prebook hands back a checkout token, and every
 // later step must send it (X-Checkout-Token); the controller checks it, so
 // only whoever started a checkout can see or finish it.
-router.post("/prebook", holdLimiter, optionalAuth, createPrebook);
+router.post("/prebook", requireSalesOpen("flights"), holdLimiter, optionalAuth, createPrebook);
 // Fetches available seats/ancillaries + confirmed pricing for an
 // existing prebook.
 router.get("/prebook/:prebookId", optionalAuth, getPrebookDetails);
@@ -49,7 +50,7 @@ router.post("/complete", optionalAuth, completeBooking);
 
 // Duffel fares (offerId starts with "off_"): Stripe hold → Duffel order →
 // capture. Same checkout-token ownership rules as above.
-router.post("/duffel/intent", holdLimiter, optionalAuth, createDuffelIntent);
+router.post("/duffel/intent", requireSalesOpen("flights"), holdLimiter, optionalAuth, createDuffelIntent);
 router.post("/duffel/complete", optionalAuth, completeDuffelBooking);
 
 export default router;

@@ -14,7 +14,7 @@ const COVERED = [
 const NOT_COVERED = [
   "Hotel refund and cancellation rules. Each hotel sets its own, and you'll see them before you pay.",
   "Airline rules for changes, cancellations, bags and carry-ons. Each airline sets these.",
-  "Schedule changes or cancellations made by the airline or hotel. We'll help you contact them and follow their process.",
+  "Schedule changes or cancellations made by the airline or hotel. If an airline cancels or majorly changes your flight, you may be owed a refund. See Travel disruptions.",
   "Details entered incorrectly by the traveler (like a misspelled name), unless our site caused it.",
   "No-shows or trips you choose not to take.",
 ];

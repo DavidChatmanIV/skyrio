@@ -23,6 +23,7 @@ import Booking from "../../../models/booking.js";
 import SyncGroup from "../../../models/SyncGroup.js";
 import Notification from "../../../models/notification.js";
 import { currentUserId } from "../../../services/checkoutToken.js";
+import { requireSalesOpen } from "../../../services/siteStatus.js";
 
 const router = express.Router();
 
@@ -105,7 +106,7 @@ router.post("/quote", async (req, res) => {
 });
 
 // ── Book ──────────────────────────────────────────────────────────────────
-router.post("/book", holdLimiter, optionalAuth, async (req, res) => {
+router.post("/book", requireSalesOpen("cars"), holdLimiter, optionalAuth, async (req, res) => {
   if (!carsEnabled()) return fail(res, 503, "Car rentals aren't available right now.");
   const { quoteId, driver = {}, flightNumber, groupId } = req.body || {};
   if (!/^qut_/.test(String(quoteId || ""))) return fail(res, 400, "Your car selection expired. Please pick the car again.");
