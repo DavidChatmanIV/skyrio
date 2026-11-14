@@ -29,7 +29,7 @@ const PLANS = [
     id: "explorer",
     name: "Explorer",
     price: { monthly: 8, annual: 6 },
-    badge: "Most popular",
+    badge: "Recommended",
     description: "For frequent travelers who want more power and fewer limits.",
     cta: "Start Explorer",
     ctaRoute: "/register?plan=explorer",

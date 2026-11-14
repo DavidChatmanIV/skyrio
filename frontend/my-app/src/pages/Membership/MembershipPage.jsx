@@ -83,9 +83,9 @@ const PLANS = [
       { icon: "plane", text: "Search flights, hotels and cars worldwide" },
       {
         icon: "passport",
-        text: "Your Skyrio Passport with rank, XP & travel history",
+        text: "Your Skyrio Passport with rank, XP and travel history",
       },
-      { icon: "badge", text: "Badges & XP from day one" },
+      { icon: "badge", text: "Badges and XP from day one" },
       { icon: "save", text: "Save as many trips as you like" },
       { icon: "mail", text: "Email support from a real person" },
     ],
@@ -97,7 +97,7 @@ const PLANS = [
     annualTotal: 55,
     monthlyEquiv: 4.58,
     monthlySaving: 29,
-    badge: "Most popular",
+    badge: "Recommended",
     description: "For frequent travelers who want to earn XP faster.",
     cta: "Start Explorer",
     highlight: true,
@@ -105,11 +105,11 @@ const PLANS = [
       { icon: "infinite", text: "Everything in Free" },
       {
         icon: "star",
-        text: "1.5× XP on everything you earn — bookings, SkyHub & challenges",
+        text: "1.5× XP on bookings, SkyHub and challenges",
       },
       {
         icon: "mail",
-        text: "Priority email support — your messages are answered first",
+        text: "Priority email support. Your messages are answered first.",
       },
       { icon: "bolt", text: "Priority Atlas AI", soon: true },
       { icon: "budget", text: "Smart budget alerts", soon: true },
@@ -124,7 +124,7 @@ const PLANS = [
     annualTotal: 144,
     monthlyEquiv: 12.0,
     monthlySaving: 36,
-    badge: "Best value",
+    badge: "Most XP",
     description: "For power travelers who want the most XP and a direct line to the founder.",
     cta: "Go Legend",
     highlight: false,
@@ -132,15 +132,15 @@ const PLANS = [
       { icon: "bolt", text: "Everything in Explorer" },
       {
         icon: "star",
-        text: "2.5× XP on everything you earn — climb the ranks faster",
+        text: "2.5× XP on bookings, SkyHub and challenges",
       },
       {
         icon: "founder",
-        text: "Direct line to the founder — real answers, not canned replies",
+        text: "Message the founder directly. Real answers, not canned replies.",
       },
       {
         icon: "roadmap",
-        text: "Shape Skyrio's roadmap — your feedback is read first",
+        text: "Help shape what Skyrio builds next. Your feedback is read first.",
       },
       { icon: "concierge", text: "Concierge trip-building", soon: true },
       { icon: "badge", text: "Exclusive Legend badge", soon: true },
@@ -152,19 +152,23 @@ const PLANS = [
 const FAQS = [
   {
     q: "Can I switch plans anytime?",
-    a: "Yes — use Manage billing to move between Explorer and Legend or monthly and annual. Stripe prorates the difference automatically.",
+    a: "Yes. Use Manage billing to switch between Explorer and Legend, or between monthly and annual. You're only charged (or credited) the difference.",
   },
   {
     q: "How do I cancel?",
-    a: "Open Manage billing and cancel in a couple of clicks. You keep your paid perks until the end of the period you already paid for, then move to Free.",
+    a: "Open Manage billing and cancel. Your paid perks last until the end of the period you already paid for. Then you move to Free.",
   },
   {
     q: "Will I lose anything if I go back to Free?",
-    a: "No. Your trips, Passport rank and XP stay on your account — you just lose access to paid perks.",
+    a: "No. Your trips, Passport rank and XP stay on your account. You just stop getting paid perks, like extra XP.",
   },
   {
     q: "Are payments secure?",
-    a: "All payments are processed by Stripe. Skyrio never sees or stores your card number.",
+    a: "Yes. All payments are processed by Stripe. Skyrio never sees or stores your card number.",
+  },
+  {
+    q: "Do paid plans change trip prices or refund rules?",
+    a: "No. Every plan sees the same flight, hotel and car prices. Refund and change rules are set by the airline, hotel or rental company.",
   },
 ];
 
@@ -280,7 +284,10 @@ const CSS = `
     font-family: 'Syne', sans-serif; font-size: 46px;
     font-weight: 800; color: #fff; line-height: 1;
   }
-  .mp-plan__amount sup { font-size: 22px; vertical-align: top; margin-top: 9px; }
+  .mp-plan__amount sup { font-size: 22px; vertical-align: top; margin-top: 9px; display: inline-block; position: static; line-height: 1; }
+  /* "$15 /mo" on one line (the $ and /mo were stacking on phones). */
+  .mp-plan__row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .mp-plan__row .mp-plan__amount { display: inline-flex; align-items: flex-start; }
   .mp-plan__per {
     font-size: 13px; font-weight: 600;
     color: rgba(255,255,255,0.5); margin-top: 4px;
@@ -573,7 +580,7 @@ export default function MembershipPage() {
     if (plan.id === activePlan) return "Current plan";
     if (hasPaidSub)
       return plan.id === "free"
-        ? "Cancel in Manage billing"
+        ? "Switch to Free"
         : `Switch to ${plan.name}`;
     if (plan.id === "free") return "Go to dashboard";
     return plan.cta;
@@ -727,24 +734,28 @@ export default function MembershipPage() {
                   <div className="mp-plan__amount">Free</div>
                 ) : annual ? (
                   <>
-                    <div className="mp-plan__amount">
-                      <sup>$</sup>
-                      {plan.annualTotal}
+                    <div className="mp-plan__row">
+                      <div className="mp-plan__amount">
+                        <sup>$</sup>
+                        {plan.annualTotal}
+                      </div>
+                      <div className="mp-plan__per">/yr</div>
                     </div>
-                    <div className="mp-plan__per">/yr</div>
                     <div className="mp-plan__annual-total">
                       (${plan.monthlyEquiv}/mo)
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="mp-plan__amount">
-                      <sup>$</sup>
-                      {plan.price.monthly}
+                    <div className="mp-plan__row">
+                      <div className="mp-plan__amount">
+                        <sup>$</sup>
+                        {plan.price.monthly}
+                      </div>
+                      <div className="mp-plan__per">/mo</div>
                     </div>
-                    <div className="mp-plan__per">/mo</div>
                     <div className="mp-plan__save-nudge">
-                      or ${plan.annualTotal}/yr — save ${plan.monthlySaving}
+                      or ${plan.annualTotal}/yr (save ${plan.monthlySaving})
                     </div>
                   </>
                 )}
@@ -809,7 +820,7 @@ export default function MembershipPage() {
         <div className="mp-faq__head">
           <h2 className="mp-faq__title">Common questions</h2>
           <p className="mp-faq__sub">
-            Everything you need before choosing a plan.
+            What to know before you choose a plan.
           </p>
         </div>
         <div className="mp-faq__grid">

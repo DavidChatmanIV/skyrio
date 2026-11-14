@@ -195,8 +195,8 @@ export default function LaunchTravelerCard({ token }) {
       <div style={{ minWidth: 0 }}>
         <div style={title}>Earn the {name} badge</div>
         <div style={sub}>
-          Book by {fmtDay(win.end)} and take the trip. +{data.xp} XP. Launch
-          only.
+          Book by {fmtDay(win.end)} and take the trip to get the badge and +
+          {data.xp} XP. Limited time only.
         </div>
         <Steps done={0} />
         <button
