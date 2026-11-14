@@ -3,6 +3,8 @@ import Passport from "../../models/Passport.js";
 import User from "../../models/user.js";
 import Notification from "../../models/notification.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
+// Render is case-sensitive: the file is booking.js.
+import Booking from "../../models/booking.js";
 
 const router = Router();
 
@@ -52,12 +54,21 @@ router.get("/stats", requireAuth, async (req, res) => {
     const followers = user?.followers?.length ?? user?.followersCount ?? 0;
     const following = user?.following?.length ?? user?.followingCount ?? 0;
 
+    // Trips taken: confirmed bookings whose trip has started. Real bookings
+    // only, so it can't be padded by saving or cancelling.
+    const tripsTaken = await Booking.countDocuments({
+      user: req.user._id,
+      status: "confirmed",
+      "dates.start": { $lte: new Date() },
+    }).catch(() => 0);
+
     return res.json({
       ok: true,
       stats: {
         ...(passport.stats?.toObject?.() ?? passport.stats ?? {}),
         followers,
         following,
+        tripsTaken,
       },
       xp: passport.xp,
       level: passport.level,
