@@ -47,6 +47,7 @@ import { startJobs } from "./jobs/scheduler.js";
 import { assignFounderBadge } from "./routes/verificationRoutes.js";
 import { markGroupRead, groupRoom } from "./utils/notifyGroupMessage.js";
 import duffelWebhook from "./routes/duffelWebhook.routes.js";
+import { startWeatherJob } from "./services/weatherAlerts.js";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -414,6 +415,9 @@ await connectMongo();
 await assignFounderBadge();
 
 startJobs();
+
+// Severe-weather emails for trips in the next 3 days (National Weather Service).
+startWeatherJob();
 
 // Where To Next fare scan. Off unless DEAL_SCAN_ENABLED=true.
 startDealScanJob();
