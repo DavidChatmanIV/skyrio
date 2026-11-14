@@ -46,6 +46,7 @@ import Contact from "./models/contact.js";
 import { startJobs } from "./jobs/scheduler.js";
 import { assignFounderBadge } from "./routes/verificationRoutes.js";
 import { markGroupRead, groupRoom } from "./utils/notifyGroupMessage.js";
+import duffelWebhook from "./routes/duffelWebhook.routes.js";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -137,6 +138,8 @@ app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 
 app.use("/api/billing/webhook", billingWebhook);
 
+// Duffel webhooks (airline / hotel / car changes) — raw body for the signature.
+app.use("/api/webhooks/duffel", duffelWebhook);
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());

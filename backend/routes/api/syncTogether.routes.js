@@ -41,6 +41,7 @@ import {
   cancelSharedRoom,
   startSharedRoomJobs,
 } from "../../services/sharedRooms.js";
+import { requireSalesOpen } from "../../services/siteStatus.js";
 
 const router = Router();
 
@@ -3020,7 +3021,7 @@ router.patch("/:id/arrival-window", async (req, res) => {
                   thumbnail, checkin, checkout, adults},
            userIds: [...], holder: {firstName, lastName, email} }
    Organizer only. Checks the price with the hotel and starts collecting holds. */
-router.post("/:id/shared-rooms", async (req, res) => {
+router.post("/:id/shared-rooms", requireSalesOpen("hotels"), async (req, res) => {
   try {
     const userId = req.user?.id ?? req.user?._id;
     const group = await loadGroupForParts(req.params.id);

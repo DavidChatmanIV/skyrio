@@ -41,6 +41,7 @@ import {
 } from "../../controllers/atlasFeedbackController.js";
 // Same admin check as the feedback inbox and admin dashboard.
 import { verifyAdmin } from "../admin.routes.js";
+import { atlasStatusNote } from "../../services/siteStatus.js";
 
 const router = Router();
 
@@ -847,6 +848,10 @@ async function handleChat(req, res) {
         }
       }
     }
+
+    // Live travel alert (disruption mode) — same message as the site banner.
+    const alertNote = await atlasStatusNote().catch(() => "");
+    if (alertNote) finalSystemPrompt += `\n\n${alertNote}`;
 
     // Atlas has no clock of its own. Without today's date it guesses the
     // year ("Nov 20" -> a past year) and LiteAPI rejects the search.

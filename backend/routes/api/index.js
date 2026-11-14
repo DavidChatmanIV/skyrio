@@ -82,6 +82,14 @@ await mount("/dm", "../dm.js");
 // Admin text alerts — phones that get texted when a ticket needs a person.
 // Must come BEFORE the "/admin" mount below.
 await mount("/admin/alert-contacts", "../adminAlerts.js");
+// Disruption mode — live travel alert, booking pauses, traveler emails.
+await mount("/admin/site-status", "../siteStatus.routes.js");
+try {
+  const { publicSiteStatus } = await import("../siteStatus.routes.js");
+  api.use("/site-status", publicSiteStatus);
+} catch (err) {
+  console.error("[api] /site-status mount failed:", err.message);
+}
 // Admin Customers lookup — accounts + guests, bookings, tickets.
 await mount("/admin/customers", "../adminCustomers.js");
 await mount("/admin", "../admin.routes.js");

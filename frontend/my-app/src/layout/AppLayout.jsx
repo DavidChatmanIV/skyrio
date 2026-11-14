@@ -6,6 +6,7 @@ import AtlasPanel from "../components/Atlas/AtlasPanel";
 import CookieBanner from "../components/CookieBanner";
 import SkyrioDTour from "../components/SkyrioDTour";
 import SupportRail from "../components/SupportRail";
+import SiteStatusBanner from "../components/SiteStatusBanner";
 import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
 import bookingHeroImg from "@/assets/Booking/skyrio-hero.jpg";
 import heroBeach from "@/assets/skyhub/beach.png";
@@ -60,6 +61,7 @@ export default function AppLayout() {
         <Navbar />
 
         <main className={`osq-main ${isSkyHub ? "osq-main--flush" : ""}`}>
+          <SiteStatusBanner />
           <Outlet />
         </main>
 

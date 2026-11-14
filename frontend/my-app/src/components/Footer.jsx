@@ -42,6 +42,7 @@ function navCols(isAuthed) {
           to: isAuthed ? "/saved-trips" : "/find-booking",
         },
         { label: "Booking Guarantee", to: "/guarantee" },
+        { label: "Travel disruptions", to: "/travel-disruptions" },
         { label: "Help Center", href: `mailto:${SUPPORT_EMAIL}` },
         { label: "Contact us", href: `mailto:${SUPPORT_EMAIL}` },
         { label: "Report an issue", href: `mailto:${SUPPORT_EMAIL}` },

@@ -247,6 +247,38 @@ export default function TermsOfServicePage() {
             appear, depending on your bank. Airline credit is used directly with
             the airline under its terms.
           </p>
+          <h3 className="sk-legal__h3">Travel disruptions</h3>
+          <p className="sk-legal__p">
+            Events outside {COMPANY}&apos;s control can disrupt travel,
+            including air traffic control or government ground stops, airport
+            closures, weather, natural disasters, strikes, security or health
+            events, and airline, hotel or supplier system outages. In these
+            events, the airline, hotel or rental company decides whether a trip
+            is delayed, changed or cancelled, and its policies apply.
+          </p>
+          <ul className="sk-legal__ul">
+            <li>
+              If an airline cancels or significantly changes a flight to, from
+              or within the United States and you choose not to travel, you are
+              entitled to a refund under U.S. Department of Transportation
+              rules. Where {COMPANY} is the merchant of record, {COMPANY}{" "}
+              processes that refund.
+            </li>
+            <li>
+              Hotel and car rental bookings follow the property&apos;s or rental
+              company&apos;s policy, even when a related flight is cancelled.
+            </li>
+            <li>
+              {COMPANY} may post travel alerts and may pause new bookings during
+              a disruption. A pause never affects bookings you already have.
+            </li>
+            <li>
+              Travel alerts and emails from {COMPANY} share information from
+              airlines, authorities and suppliers. They are not a guarantee that
+              a trip will or won&apos;t operate. Check with your airline, hotel
+              or rental company for live status.
+            </li>
+          </ul>
         </div>
 
         <div className="sk-legal__section">

@@ -31,6 +31,7 @@ import { apiUrl } from "@/lib/api";
 import { adminTokenHeader, clearAdminToken } from "@/lib/adminAuth";
 import { ADMIN } from "@/lib/adminTheme";
 import LaunchTravelerBadge from "@/components/LaunchTravelerBadge";
+import SiteStatusBanner from "@/components/SiteStatusBanner";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    API
@@ -174,7 +175,14 @@ const TAKEDOWN_FILTERS = [
   ["restored", "Restored"],
 ];
 
-const TABS = ["overview", "moderation", "feedback", "reviews", "engagement"];
+const TABS = [
+  "overview",
+  "alerts",
+  "moderation",
+  "feedback",
+  "reviews",
+  "engagement",
+];
 
 const FEEDBACK_STATUSES = [
   { value: "new", label: "New", tone: "orange" },
@@ -2106,6 +2114,488 @@ function RewardsPanel({ refreshKey }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRAVEL ALERTS TAB (disruption mode)
+   One alert for the whole site: banner on every page, Atlas, booking pauses,
+   and emails to travelers whose trips start soon.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const NO_FLAGS = { flights: false, hotels: false, cars: false };
+const ALERT_PRESETS = {
+  ground_stop: {
+    label: "Ground stop (FAA)",
+    severity: "critical",
+    title: "Flights paused across the US",
+    message:
+      "The FAA has stopped flights at US airports. Expect delays and cancellations. Check your airline's app for your flight's status.",
+    areas: "All US airports",
+    affects: { flights: true, hotels: false, cars: false },
+    pause: { flights: true, hotels: false, cars: false },
+  },
+  airport: {
+    label: "Airport closure",
+    severity: "warning",
+    title: "Airport disruption",
+    message:
+      "Flights at these airports are delayed or cancelled. Check your airline's app for your flight's status.",
+    areas: "",
+    affects: { flights: true, hotels: false, cars: false },
+    pause: NO_FLAGS,
+  },
+  weather: {
+    label: "Severe weather",
+    severity: "warning",
+    title: "Severe weather",
+    message:
+      "Storms may delay or cancel flights. Check your airline and hotel before you travel.",
+    areas: "",
+    affects: { flights: true, hotels: true, cars: false },
+    pause: NO_FLAGS,
+  },
+  airline_outage: {
+    label: "Airline outage",
+    severity: "warning",
+    title: "Airline systems down",
+    message:
+      "An airline's systems are down, causing delays. Check that airline's app for your flight's status.",
+    areas: "",
+    affects: { flights: true, hotels: false, cars: false },
+    pause: NO_FLAGS,
+  },
+  strike: {
+    label: "Strike",
+    severity: "warning",
+    title: "Strike may affect travel",
+    message:
+      "A strike may delay or cancel some flights. Check your airline for your flight's status.",
+    areas: "",
+    affects: { flights: true, hotels: false, cars: false },
+    pause: NO_FLAGS,
+  },
+  security: {
+    label: "Security event",
+    severity: "critical",
+    title: "Security event",
+    message:
+      "Authorities are responding to a security event. Follow official guidance and check your airline before you head out.",
+    areas: "",
+    affects: { flights: true, hotels: false, cars: false },
+    pause: NO_FLAGS,
+  },
+  health: {
+    label: "Health or entry rules",
+    severity: "info",
+    title: "Travel advisory",
+    message:
+      "Entry or health rules have changed for some destinations. Check official guidance before you travel.",
+    areas: "",
+    affects: { flights: true, hotels: true, cars: false },
+    pause: NO_FLAGS,
+  },
+  natural_disaster: {
+    label: "Natural disaster",
+    severity: "critical",
+    title: "Natural disaster",
+    message:
+      "Travel to these areas is disrupted. Follow local authorities and check with your airline and hotel.",
+    areas: "",
+    affects: { flights: true, hotels: true, cars: true },
+    pause: NO_FLAGS,
+  },
+  skyrio_issue: {
+    label: "Problem on Skyrio",
+    severity: "warning",
+    title: "Booking is down for a bit",
+    message:
+      "We're fixing a problem with booking on Skyrio. Your trips aren't affected.",
+    areas: "",
+    affects: { flights: true, hotels: true, cars: true },
+    pause: { flights: true, hotels: true, cars: true },
+  },
+  maintenance: {
+    label: "Planned maintenance",
+    severity: "info",
+    title: "Planned maintenance",
+    message:
+      "Booking will be unavailable for a short time while we make updates. Your trips aren't affected.",
+    areas: "",
+    affects: { flights: true, hotels: true, cars: true },
+    pause: NO_FLAGS,
+  },
+  other: {
+    label: "Other",
+    severity: "warning",
+    title: "",
+    message: "",
+    areas: "",
+    affects: { flights: true, hotels: false, cars: false },
+    pause: NO_FLAGS,
+  },
+};
+const VERTICAL_LABEL = { flights: "Flights", hotels: "Stays", cars: "Cars" };
+const SEVERITY_OPTIONS = [
+  { value: "info", label: "Info (can be hidden)" },
+  { value: "warning", label: "Warning (can be hidden)" },
+  { value: "critical", label: "Critical (always shows)" },
+];
+const darkSelect = {
+  height: 34,
+  padding: "0 10px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "#2a1652",
+  color: "#fff",
+  font: "inherit",
+  fontSize: 13,
+};
+const fieldLabel = { fontSize: 12, color: "rgba(255,255,255,0.6)", margin: "12px 0 4px", display: "block" };
+
+function formFromPreset(kind) {
+  const p = ALERT_PRESETS[kind] || ALERT_PRESETS.other;
+  return {
+    kind,
+    severity: p.severity,
+    title: p.title,
+    message: p.message,
+    areas: p.areas,
+    affects: { ...p.affects },
+    pause: { ...p.pause },
+  };
+}
+
+function TravelAlertsTab({ refreshKey }) {
+  const [state, setState] = useState(null); // admin view from the server
+  const [form, setForm] = useState(() => formFromPreset("ground_stop"));
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  // Emailing travelers
+  const [hours, setHours] = useState(48);
+  const [verticals, setVerticals] = useState({ flights: true, hotels: false, cars: false });
+  const [airports, setAirports] = useState("");
+  const [preview, setPreview] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const j = await adminRequest("/api/admin/site-status");
+      setState(j.status || { active: false });
+      if (j.status?.active && j.status.raw) {
+        setForm({ ...j.status.raw, affects: { ...NO_FLAGS, ...j.status.raw.affects }, pause: { ...NO_FLAGS, ...j.status.raw.pause } });
+      }
+    } catch {
+      message.error("Couldn't load travel alerts. Try again.");
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load, refreshKey]);
+
+  const live = Boolean(state?.active);
+  const showForm = !live || editing;
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const setFlag = (group, k, v) =>
+    setForm((f) => {
+      const next = { ...f, [group]: { ...f[group], [k]: v } };
+      if (group === "pause" && v) next.affects = { ...next.affects, [k]: true };
+      return next;
+    });
+
+  const post = async () => {
+    setBusy(true);
+    try {
+      await adminRequest("/api/admin/site-status", { method: "PUT", body: form });
+      message.success(live ? "Alert updated." : "Alert posted.");
+      setEditing(false);
+      setPreview(null);
+      await load();
+    } catch (e) {
+      message.error(e.message || "Couldn't post the alert. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clear = async () => {
+    setBusy(true);
+    try {
+      await adminRequest("/api/admin/site-status/clear", { method: "POST" });
+      message.success("Alert turned off. Bookings are open.");
+      setEditing(false);
+      setPreview(null);
+      setForm(formFromPreset("ground_stop"));
+      await load();
+    } catch {
+      message.error("Couldn't turn the alert off. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const notify = async (dryRun) => {
+    setBusy(true);
+    try {
+      const j = await adminRequest("/api/admin/site-status/notify", {
+        method: "POST",
+        body: {
+          hours,
+          verticals: Object.keys(verticals).filter((k) => verticals[k]),
+          airports,
+          dryRun,
+        },
+      });
+      if (dryRun) setPreview(j);
+      else {
+        message.success(`Emailing ${j.queued} traveler${j.queued === 1 ? "" : "s"}.`);
+        setPreview(null);
+        await load();
+      }
+    } catch (e) {
+      message.error(e.message || "Couldn't check travelers. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const previewStatus = {
+    active: true,
+    id: "preview",
+    severity: form.severity,
+    title: form.title || "Title",
+    message: form.message || "Message",
+    areas: form.areas,
+    paused: form.pause,
+    helpPath: "/travel-disruptions",
+  };
+  const pausedNow = live
+    ? Object.keys(state.paused || {}).filter((k) => state.paused[k])
+    : [];
+
+  if (!state) return <div className="sk-empty">Loading…</div>;
+
+  return (
+    <>
+      <Section title="Live alert">
+        <div className="sk-panel">
+          <div className="sk-panel__head">
+            <h3 className="sk-panel__title">
+              {live ? "On: shown on every page" : "Off: nothing showing"}
+            </h3>
+            <span
+              className="sk-panel__meta"
+              style={live ? { background: "rgba(248,113,113,0.18)", color: "#fca5a5" } : undefined}
+            >
+              {live ? "Live" : "Off"}
+            </span>
+          </div>
+
+          {live && !editing && (
+            <div style={{ padding: "14px 20px", display: "grid", gap: 12 }}>
+              <SiteStatusBanner preview={{ ...state, paused: state.paused }} />
+              <div className="sk-sub" style={{ whiteSpace: "normal", fontSize: 12 }}>
+                {pausedNow.length
+                  ? `Paused: new ${pausedNow.map((k) => ({ flights: "flight", hotels: "stay", cars: "car rental" }[k])).join(", ")} bookings. Existing trips aren't affected.`
+                  : "No bookings paused."}{" "}
+                Atlas knows about this alert. Posted by {state.updatedBy || "admin"}
+                {state.startedAt ? ` · started ${dayjs(state.startedAt).format("MMM D, h:mm A")}` : ""}.
+              </div>
+              <div className="sk-panel__actions">
+                <button type="button" className="sk-btn" onClick={() => setEditing(true)}>
+                  Edit
+                </button>
+                <Popconfirm
+                  overlayClassName="sk-pop"
+                  title="Turn off this alert?"
+                  description="The banner goes away and any paused bookings open again."
+                  okText="Turn off"
+                  onConfirm={clear}
+                >
+                  <button type="button" className="sk-btn sk-btn--active" disabled={busy}>
+                    Turn off
+                  </button>
+                </Popconfirm>
+              </div>
+            </div>
+          )}
+
+          {showForm && (
+            <div style={{ padding: "6px 20px 18px" }}>
+              {!live && (
+                <>
+                  <label style={fieldLabel} htmlFor="ta-kind">What's happening</label>
+                  <select
+                    id="ta-kind"
+                    style={{ ...darkSelect, width: "100%", maxWidth: 360 }}
+                    value={form.kind}
+                    onChange={(e) => setForm(formFromPreset(e.target.value))}
+                  >
+                    {Object.entries(ALERT_PRESETS).map(([k, p]) => (
+                      <option key={k} value={k}>{p.label}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              <label style={fieldLabel} htmlFor="ta-title">Title ({form.title.length}/80)</label>
+              <input id="ta-title" className="sk-fb-search" style={{ width: "100%" }} maxLength={80} value={form.title} onChange={(e) => set("title", e.target.value)} />
+
+              <label style={fieldLabel} htmlFor="ta-msg">Message ({form.message.length}/300). Say what's happening and what to do. Don't guess how long it lasts.</label>
+              <textarea
+                id="ta-msg"
+                className="sk-fb-search"
+                style={{ width: "100%", height: 84, padding: "8px 12px", resize: "vertical" }}
+                maxLength={300}
+                value={form.message}
+                onChange={(e) => set("message", e.target.value)}
+              />
+
+              <label style={fieldLabel} htmlFor="ta-areas">Where (optional)</label>
+              <input id="ta-areas" className="sk-fb-search" style={{ width: "100%" }} maxLength={120} placeholder="e.g. All US airports, or EWR, JFK, LGA" value={form.areas} onChange={(e) => set("areas", e.target.value)} />
+
+              <label style={fieldLabel} htmlFor="ta-sev">How urgent</label>
+              <select id="ta-sev" style={darkSelect} value={form.severity} onChange={(e) => set("severity", e.target.value)}>
+                {SEVERITY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+
+              <span style={fieldLabel}>Pause new bookings (existing trips aren't affected)</span>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                {Object.keys(VERTICAL_LABEL).map((k) => (
+                  <label key={k} className="sk-check">
+                    <input type="checkbox" checked={Boolean(form.pause[k])} onChange={(e) => setFlag("pause", k, e.target.checked)} />
+                    {VERTICAL_LABEL[k]}
+                  </label>
+                ))}
+              </div>
+
+              <span style={fieldLabel}>Preview</span>
+              <SiteStatusBanner preview={previewStatus} />
+
+              <div className="sk-panel__actions" style={{ marginTop: 14 }}>
+                <Popconfirm
+                  overlayClassName="sk-pop"
+                  title={live ? "Update the alert?" : "Post this alert?"}
+                  description={
+                    Object.values(form.pause).some(Boolean)
+                      ? "It shows on every page, and the bookings you ticked are paused."
+                      : "It shows on every page right away."
+                  }
+                  okText={live ? "Update" : "Post"}
+                  onConfirm={post}
+                >
+                  <button
+                    type="button"
+                    className="sk-btn sk-btn--active"
+                    disabled={busy || form.title.trim().length < 3 || form.message.trim().length < 10}
+                  >
+                    {live ? "Update alert" : "Post alert"}
+                  </button>
+                </Popconfirm>
+                {editing && (
+                  <button type="button" className="sk-btn" onClick={() => { setEditing(false); load(); }}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {live && (
+        <Section title="Email travelers">
+          <div className="sk-panel">
+            <div className="sk-panel__head">
+              <h3 className="sk-panel__title">Trips starting soon</h3>
+              <span className="sk-panel__meta">{state.emailed || 0} emailed</span>
+            </div>
+            <div style={{ padding: "6px 20px 18px" }}>
+              <div className="sk-sub" style={{ whiteSpace: "normal", fontSize: 12, marginTop: 8 }}>
+                Emails the alert plus what they're owed. Each trip is emailed once per alert.
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginTop: 4 }}>
+                <div>
+                  <label style={fieldLabel} htmlFor="ta-hours">Starting within</label>
+                  <select id="ta-hours" style={darkSelect} value={hours} onChange={(e) => { setHours(Number(e.target.value)); setPreview(null); }}>
+                    {[24, 48, 72, 168].map((h) => (
+                      <option key={h} value={h}>{h === 168 ? "7 days" : `${h} hours`}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <label style={fieldLabel} htmlFor="ta-air">Only these airports (optional)</label>
+                  <input id="ta-air" className="sk-fb-search" style={{ width: "100%" }} placeholder="EWR, JFK" value={airports} onChange={(e) => { setAirports(e.target.value); setPreview(null); }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12 }}>
+                {Object.keys(VERTICAL_LABEL).map((k) => (
+                  <label key={k} className="sk-check">
+                    <input type="checkbox" checked={verticals[k]} onChange={(e) => { setVerticals((v) => ({ ...v, [k]: e.target.checked })); setPreview(null); }} />
+                    {VERTICAL_LABEL[k]}
+                  </label>
+                ))}
+              </div>
+
+              {preview && (
+                <div className="sk-sub" style={{ whiteSpace: "normal", fontSize: 13, marginTop: 12, color: "#fff" }}>
+                  {preview.toEmail} to email
+                  {preview.alreadyEmailed ? ` · ${preview.alreadyEmailed} already emailed` : ""}
+                  {preview.noEmail ? ` · ${preview.noEmail} with no email on file` : ""}
+                  {preview.sample?.length > 0 && (
+                    <ul style={{ margin: "6px 0 0", paddingLeft: 18, color: "rgba(255,255,255,0.7)", fontSize: 12 }}>
+                      {preview.sample.map((s, i) => (
+                        <li key={i}>{s.type}: {s.trip}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <div className="sk-panel__actions" style={{ marginTop: 14 }}>
+                <button type="button" className="sk-btn" disabled={busy || !Object.values(verticals).some(Boolean)} onClick={() => notify(true)}>
+                  Check who's affected
+                </button>
+                {preview?.toEmail > 0 && (
+                  <Popconfirm
+                    overlayClassName="sk-pop"
+                    title={`Email ${preview.toEmail} traveler${preview.toEmail === 1 ? "" : "s"}?`}
+                    description="They get the alert and what to do. This can't be undone."
+                    okText="Send"
+                    onConfirm={() => notify(false)}
+                  >
+                    <button type="button" className="sk-btn sk-btn--active" disabled={busy}>
+                      Email {preview.toEmail}
+                    </button>
+                  </Popconfirm>
+                )}
+              </div>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {state.history?.length > 0 && (
+        <Section title="Recent changes">
+          <div className="sk-panel">
+            {state.history.map((h, i) => (
+              <div className="sk-row" key={i}>
+                <div className="sk-row__left">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="sk-name">{h.active ? h.title : "Turned off"}</div>
+                    <div className="sk-sub">
+                      {h.at ? dayjs(h.at).format("MMM D, h:mm A") : ""} · {h.by || "admin"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+    </>
+  );
+}
+
 function EngagementTab({ refreshKey }) {
   return (
     <>
@@ -4031,6 +4521,7 @@ const AdminDashboard = () => {
   const { skyhub } = counts;
   const tabs = [
     { key: "overview", label: "Overview" },
+    { key: "alerts", label: "Travel alerts" },
     {
       key: "moderation",
       label: "Moderation",
@@ -4153,6 +4644,7 @@ const AdminDashboard = () => {
           />
         )}
         {tab === "engagement" && <EngagementTab refreshKey={refreshKey} />}
+        {tab === "alerts" && <TravelAlertsTab refreshKey={refreshKey} />}
       </main>
     </div>
   );

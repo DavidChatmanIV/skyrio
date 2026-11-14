@@ -14,6 +14,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import { requireAuth } from "../middleware/requireAuth.js";
 import FlightCheckoutSession from "../models/FlightCheckoutSession.js";
+import { requireSalesOpen } from "../services/siteStatus.js";
 
 const router = Router();
 
@@ -123,7 +124,7 @@ const EXPIRED_MSG = "This fare expired. Search again to see current prices.";
 const isExpired = (err) => err.status === 404 || err.code === 42005;
 
 // ── 1) PREBOOK ── body: { offerId, contact, passengers }
-router.post("/prebook", async (req, res) => {
+router.post("/prebook", requireSalesOpen("flights"), async (req, res) => {
   try {
     const { offerId, contact, passengers } = req.body || {};
     if (!offerId || !contact || !passengers?.length) {
