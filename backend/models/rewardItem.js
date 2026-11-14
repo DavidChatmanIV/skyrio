@@ -55,6 +55,9 @@ const RewardItemSchema = new Schema(
     // this item; this lets it disappear from what users see while
     // keeping redemption history intact.
     active: { type: Boolean, default: true, index: true },
+    // Members-only: the lowest plan that can redeem it (null = everyone).
+    // Checked on the server when redeeming.
+    minPlan: { type: String, enum: [null, "explorer", "legend"], default: null },
   },
   { timestamps: true }
 );

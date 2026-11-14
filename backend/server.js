@@ -48,6 +48,7 @@ import { assignFounderBadge } from "./routes/verificationRoutes.js";
 import { markGroupRead, groupRoom } from "./utils/notifyGroupMessage.js";
 import duffelWebhook from "./routes/duffelWebhook.routes.js";
 import { startWeatherJob, startWeatherWarmup } from "./services/weatherAlerts.js";
+import { ensureMemberRewards } from "./services/memberRewards.js";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -413,6 +414,11 @@ await connectMongo();
 // Assign purple founder badge on every deploy (safe idempotent upsert).
 // Reads FOUNDER_USER_ID from .env — no-ops silently if not set.
 await assignFounderBadge();
+
+// Members-only Passport covers in the rewards catalog (only adds missing ones).
+await ensureMemberRewards().catch((e) =>
+  console.error("[rewards] member rewards setup failed:", e.message)
+);
 
 startJobs();
 

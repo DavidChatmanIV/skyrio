@@ -127,6 +127,67 @@ const GOLDEN_CSS = `
 .pdp--golden .pdp-mrz { color: rgba(255,234,190,0.75) !important; }
 `;
 
+/* Members-only covers (Passport Rewards). Same structure as Golden Hour. */
+const AURORA_CSS = `
+.pdp.pdp--aurora {
+  background:
+    radial-gradient(90% 70% at 20% 0%, rgba(74,222,168,0.45), transparent 60%),
+    radial-gradient(80% 60% at 90% 20%, rgba(124,92,252,0.55), transparent 60%),
+    linear-gradient(170deg, #0f3a4a 0%, #1d2f6b 50%, #2a1652 100%) !important;
+  border-color: rgba(110,231,183,0.55) !important;
+  box-shadow: 0 0 0 1px rgba(110,231,183,0.3), 0 22px 54px rgba(10,40,60,0.4) !important;
+}
+.pdp--aurora .pdp-guilloche path { stroke: rgba(167,243,208,0.2) !important; }
+.pdp--aurora .pdp-head { background: linear-gradient(90deg, rgba(74,222,168,0.3), rgba(124,92,252,0.2)) !important; }
+.pdp--aurora .pdp-emblem, .pdp--aurora .pdp-label { color: #b7f5dc !important; }
+.pdp--aurora .pdp-name { color: #f0fffa !important; }
+.pdp--aurora .pdp-mrz { color: rgba(200,250,230,0.75) !important; }
+`;
+const MIDNIGHT_CSS = `
+.pdp.pdp--midnight {
+  /* Runway lights: one row of amber dots along the bottom edge. */
+  background:
+    radial-gradient(circle, rgba(255,179,71,0.9) 0 2px, transparent 2.5px) left 10px bottom 10px / 20px 8px repeat-x,
+    radial-gradient(120% 60% at 50% 115%, rgba(255,138,42,0.28), transparent 60%),
+    linear-gradient(170deg, #0b1230 0%, #131c48 55%, #1d0f3e 100%) !important;
+  border-color: rgba(147,170,255,0.45) !important;
+  box-shadow: 0 0 0 1px rgba(147,170,255,0.25), 0 22px 54px rgba(5,10,40,0.5) !important;
+}
+.pdp--midnight .pdp-guilloche path { stroke: rgba(170,190,255,0.16) !important; }
+.pdp--midnight .pdp-head { background: linear-gradient(90deg, rgba(90,110,220,0.35), rgba(255,138,42,0.15)) !important; }
+.pdp--midnight .pdp-emblem, .pdp--midnight .pdp-label { color: #c9d4ff !important; }
+.pdp--midnight .pdp-name { color: #f3f5ff !important; }
+.pdp--midnight .pdp-mrz { color: rgba(210,220,255,0.75) !important; }
+`;
+const LEGEND_CSS = `
+.pdp.pdp--legend {
+  background:
+    linear-gradient(115deg, transparent 30%, rgba(255,231,160,0.18) 45%, transparent 60%),
+    radial-gradient(100% 80% at 80% 0%, rgba(212,175,55,0.35), transparent 60%),
+    linear-gradient(160deg, #1a1408 0%, #0f0c06 55%, #1d1608 100%) !important;
+  border-color: rgba(230,195,90,0.75) !important;
+  box-shadow: 0 0 0 1px rgba(230,195,90,0.45), 0 22px 54px rgba(0,0,0,0.5) !important;
+}
+.pdp--legend .pdp-guilloche path { stroke: rgba(230,195,90,0.28) !important; }
+.pdp--legend .pdp-head { background: linear-gradient(90deg, rgba(212,175,55,0.4), rgba(212,175,55,0.1)) !important; }
+.pdp--legend .pdp-emblem, .pdp--legend .pdp-label { color: #f2d27a !important; }
+.pdp--legend .pdp-name { color: #fff3cf !important; }
+.pdp--legend .pdp-mrz { color: rgba(242,210,122,0.8) !important; }
+`;
+const COVER_CSS = {
+  golden: GOLDEN_CSS,
+  aurora: AURORA_CSS,
+  midnight: MIDNIGHT_CSS,
+  legend: LEGEND_CSS,
+};
+// Reward itemId → cover key (same as backend config/passportCovers.js).
+export const COVER_BY_ITEM = {
+  golden_hour_cover: "golden",
+  aurora_cover: "aurora",
+  midnight_runway_cover: "midnight",
+  legend_foil_cover: "legend",
+};
+
 /* ─────────────────────────────────────────────────────────────
    Component
    ───────────────────────────────────────────────────────────── */
@@ -164,7 +225,8 @@ export default function PassportDataPage({
   xpIntoLevel,
   xpNeeded,
   onSpendXp,
-  // "golden" = the Golden Hour cover (a Passport Reward), or null
+  // Cover key from a Passport Reward ("golden", "aurora", "midnight",
+  // "legend"), or null for the plain cover
   cover = null,
   // Opens the "Share my passport" QR sheet
   onShowQr,
@@ -187,10 +249,10 @@ export default function PassportDataPage({
 
   return (
     <section
-      className={`pdp${cover === "golden" ? " pdp--golden" : ""}`}
+      className={`pdp${COVER_CSS[cover] ? ` pdp--${cover}` : ""}`}
       aria-label="Digital passport"
     >
-      {cover === "golden" && <style>{GOLDEN_CSS}</style>}
+      {COVER_CSS[cover] && <style>{COVER_CSS[cover]}</style>}
       {/* Security pattern */}
       <svg
         className="pdp-guilloche"

@@ -122,9 +122,20 @@ const PR_GLASS_CSS = `
 `;
 const fmt = (n) => Number(n || 0).toLocaleString();
 
-function getStatus(item, { xp, redeemedIds, profileLoading }) {
+const PLAN_RANK = { free: 0, explorer: 1, legend: 2 };
+const PLAN_LABEL = { explorer: "Explorer", legend: "Legend" };
+// "Explorer members" / "Legend members" (Explorer rewards include Legend).
+const membersLabel = (minPlan) =>
+  minPlan === "legend" ? "Legend members" : "Explorer members";
+
+function getStatus(item, { xp, redeemedIds, profileLoading, plan }) {
   if (profileLoading) return "loading";
   if (!item.repeatable && redeemedIds.includes(item.id)) return "redeemed";
+  if (
+    item.minPlan &&
+    (PLAN_RANK[plan] ?? 0) < (PLAN_RANK[item.minPlan] ?? 0)
+  )
+    return "members_only";
   if (xp < item.cost) return "insufficient_xp";
   return "redeemable";
 }
@@ -150,6 +161,10 @@ export default function PassportRewards({
   const [balance, setBalance] = useState(xpProp);
   const [lifetime, setLifetime] = useState(xpProp);
   const [redeemedIds, setRedeemedIds] = useState(redeemedIdsProp);
+  const [plan, setPlan] = useState("free");
+  // Owned cover being shown on the Passport (itemId, "none" or null).
+  const [coverChoice, setCoverChoice] = useState(null);
+  const [coverSaving, setCoverSaving] = useState(null);
 
   // Redemption flow: confirm → pending → done (modal stays open the whole time)
   const [confirmItem, setConfirmItem] = useState(null);
@@ -247,6 +262,8 @@ export default function PassportRewards({
           const redeemedData = await redeemedRes.json();
           if (mounted && redeemedData?.ok) {
             setRedeemedIds(redeemedData.redeemedRewards || []);
+            setPlan(redeemedData.plan || "free");
+            setCoverChoice(redeemedData.passportCover || null);
           }
         }
       } catch {
@@ -368,15 +385,21 @@ export default function PassportRewards({
           xp: balance,
           redeemedIds,
           profileLoading,
+          plan,
         });
+        // Which owned cover is on the Passport right now.
+        const inUse =
+          !!item.cover &&
+          (coverChoice === item.id ||
+            (!coverChoice && item.id === "golden_hour_cover"));
         const shortfall = Math.max(0, item.cost - balance);
         const pct = Math.max(
           0,
           Math.min(100, Math.round((balance / Math.max(1, item.cost)) * 100))
         );
-        return { ...item, status, shortfall, pct };
+        return { ...item, status, shortfall, pct, inUse };
       }),
-    [items, balance, redeemedIds, profileLoading]
+    [items, balance, redeemedIds, profileLoading, plan, coverChoice]
   );
 
   const featured = useMemo(
@@ -393,7 +416,13 @@ export default function PassportRewards({
 
   const visibleItems = useMemo(() => {
     const activeType = TABS.find((t) => t.key === tab)?.type;
-    const rank = { redeemable: 0, insufficient_xp: 1, loading: 1, redeemed: 2 };
+    const rank = {
+      redeemable: 0,
+      insufficient_xp: 1,
+      loading: 1,
+      members_only: 1.5,
+      redeemed: 2,
+    };
     return enriched
       .filter((i) =>
         tab === "all" ? i.id !== featured?.id : i.type === activeType
@@ -403,6 +432,37 @@ export default function PassportRewards({
           (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.cost - b.cost
       );
   }, [enriched, tab, featured]);
+
+  // ── Passport cover: show an owned cover, or go back to the plain one ──
+  const applyCover = useCallback(
+    async (item) => {
+      const next = item.inUse ? "none" : item.id;
+      setCoverSaving(item.id);
+      try {
+        const res = await fetch(apiUrl("/api/rewards/cover"), {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ itemId: next }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) throw new Error(data?.message);
+        setCoverChoice(next);
+        message.success(
+          next === "none" ? "Back to the plain cover." : `${item.title} is on your Passport.`
+        );
+      } catch (e) {
+        message.error(e?.message || "Couldn't change your cover. Try again.");
+      } finally {
+        setCoverSaving(null);
+      }
+    },
+    [token]
+  );
+  const goMembership = useCallback(() => navigate("/membership"), [navigate]);
 
   // ── Redeem flow ──
   const requestRedeem = useCallback((item) => {
@@ -748,6 +808,9 @@ export default function PassportRewards({
                     phase === "pending" && confirmItem?.id === featured.id
                   }
                   onRedeem={() => requestRedeem(featured)}
+                  onUseCover={() => applyCover(featured)}
+                  coverSaving={coverSaving === featured.id}
+                  onMembership={goMembership}
                 />
               </>
             )}
@@ -786,6 +849,9 @@ export default function PassportRewards({
                     item={item}
                     pending={phase === "pending" && confirmItem?.id === item.id}
                     onRedeem={() => requestRedeem(item)}
+                    onUseCover={() => applyCover(item)}
+                    coverSaving={coverSaving === item.id}
+                    onMembership={goMembership}
                   />
                 ))}
               </div>
@@ -824,8 +890,37 @@ export default function PassportRewards({
 
 /* ───────────────────────── Pieces ───────────────────────── */
 
-function StubAction({ item, pending, onRedeem }) {
+function StubAction({ item, pending, onRedeem, onUseCover, coverSaving }) {
+  // Owned covers: put it on the Passport, or take it off.
+  if (item.status === "redeemed" && item.cover) {
+    return (
+      <button
+        type="button"
+        className={`pr-btn ${item.inUse ? "pr-btn--done" : "pr-btn--primary"}`}
+        onClick={onUseCover}
+        disabled={coverSaving}
+        aria-pressed={item.inUse}
+        title={item.inUse ? "Tap to go back to the plain cover" : undefined}
+      >
+        {coverSaving ? (
+          <Loader2 size={14} className="pr-spin" />
+        ) : item.inUse ? (
+          <>
+            <Check size={14} /> Using
+          </>
+        ) : (
+          "Use cover"
+        )}
+      </button>
+    );
+  }
   switch (item.status) {
+    case "members_only":
+      return (
+        <button type="button" className="pr-btn pr-btn--muted" disabled>
+          <Lock size={13} /> Members only
+        </button>
+      );
     case "loading":
       return (
         <button type="button" className="pr-btn pr-btn--muted" disabled>
@@ -858,7 +953,15 @@ function StubAction({ item, pending, onRedeem }) {
   }
 }
 
-function RewardTicket({ item, featured = false, pending, onRedeem }) {
+function RewardTicket({
+  item,
+  featured = false,
+  pending,
+  onRedeem,
+  onUseCover,
+  coverSaving,
+  onMembership,
+}) {
   const meta = TYPE_META[item.type] || TYPE_META.BOOST;
   const TypeIcon = meta.Icon;
   return (
@@ -872,6 +975,18 @@ function RewardTicket({ item, featured = false, pending, onRedeem }) {
           <span className="pr-chip">
             <TypeIcon size={12} /> {meta.label}
           </span>
+          {item.minPlan && (
+            <span
+              className="pr-chip"
+              style={{
+                background: "linear-gradient(90deg, rgba(255,138,42,0.2), rgba(124,92,252,0.25))",
+                borderColor: "rgba(255,179,71,0.45)",
+                color: "#ffd9a8",
+              }}
+            >
+              <Sparkles size={12} /> {membersLabel(item.minPlan)}
+            </span>
+          )}
           {item.isNew && <span className="pr-chip pr-chip--new">New</span>}
           {item.repeatable && (
             <span className="pr-chip pr-chip--soft">Repeatable</span>
@@ -900,6 +1015,28 @@ function RewardTicket({ item, featured = false, pending, onRedeem }) {
         {item.status === "redeemed" && (
           <span className="pr-stamp">Redeemed</span>
         )}
+
+        {item.status === "members_only" && (
+          <p className="pr-ticket-desc" style={{ marginTop: 8, fontSize: 13 }}>
+            For {PLAN_LABEL[item.minPlan]}
+            {item.minPlan === "explorer" ? " and Legend" : ""} members.{" "}
+            <button
+              type="button"
+              onClick={onMembership}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: "#ffb347",
+                fontWeight: 600,
+                cursor: "pointer",
+                font: "inherit",
+              }}
+            >
+              See membership
+            </button>
+          </p>
+        )}
       </div>
 
       <div className="pr-ticket-stub">
@@ -908,7 +1045,13 @@ function RewardTicket({ item, featured = false, pending, onRedeem }) {
           {fmt(item.cost)}
           <small>XP</small>
         </span>
-        <StubAction item={item} pending={pending} onRedeem={onRedeem} />
+        <StubAction
+          item={item}
+          pending={pending}
+          onRedeem={onRedeem}
+          onUseCover={onUseCover}
+          coverSaving={coverSaving}
+        />
       </div>
     </article>
   );
