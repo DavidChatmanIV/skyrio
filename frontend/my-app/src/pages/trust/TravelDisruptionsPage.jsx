@@ -12,27 +12,27 @@ import "@/styles/trust-pages.css";
 const SITUATIONS = [
   {
     title: "The airline cancelled your flight",
-    body: "Don't want the new flight they offer? You're owed a full refund, taxes and fees included. You don't have to take a voucher.",
+    body: "If you don't want the new flight they offer, you can get a full refund, including taxes and fees. You don't have to accept a voucher.",
   },
   {
     title: "The airline changed your flight",
-    body: "Moved 3+ hours (6+ international), a different airport, an extra stop or a lower cabin? You can say no and get a full refund.",
+    body: "If your flight moves 3+ hours (6+ for international), changes airports, adds a stop or drops to a lower cabin, you can turn it down and get a full refund.",
   },
   {
     title: "Ground stop or airport closure",
-    body: "Flights are held, not cancelled by default. Your airline's app has your flight's live status.",
+    body: "A ground stop pauses flights. It doesn't cancel them on its own. Your airline's app shows your flight's live status.",
   },
   {
     title: "Weather, strikes or outages",
-    body: "Airlines often waive change fees. Check your airline's travel alerts before you change anything.",
+    body: "Airlines sometimes waive change fees during these events. Check your airline's travel alerts before you change your trip.",
   },
   {
     title: "Your hotel",
-    body: "Your room follows the hotel's policy, even if your flight is cancelled. Free-cancellation rooms can be cancelled in Trips before the deadline.",
+    body: "Your room follows the hotel's policy, even if your flight is cancelled. If your room has free cancellation, you can cancel it in My Trips before the deadline.",
   },
   {
     title: "Your car rental",
-    body: "It follows the rental company's policy. Paying at pickup? Call the counter if your pickup time changes.",
+    body: "Your rental follows the rental company's policy. If you pay at pickup and your pickup time changes, call the rental counter.",
   },
   {
     title: "A problem on Skyrio's side",
@@ -59,8 +59,8 @@ export default function TravelDisruptionsPage() {
         </span>
         <h1>When travel gets disrupted</h1>
         <p className="sk-trust__lead">
-          Airlines, hotels and governments make these calls, not Skyrio. Here's
-          what you're owed and how we help.
+          Airlines, hotels and governments decide on delays and cancellations,
+          not Skyrio. Here's what you're owed and how we help.
         </p>
       </header>
 
@@ -108,8 +108,8 @@ export default function TravelDisruptionsPage() {
         </h2>
         <ol className="sk-trust__steps">
           <li>
-            <strong>Check with the airline or hotel</strong> They have the live
-            status and make the call on delays and cancellations.
+            <strong>Check with the airline or hotel</strong> They have your
+            trip's live status and decide on delays and cancellations.
           </li>
           <li>
             <strong>Tell us</strong> Use Help on any page, or email{" "}
@@ -117,15 +117,16 @@ export default function TravelDisruptionsPage() {
             with your confirmation code. A person replies {TRUST.responseTime}.
           </li>
           <li>
-            <strong>We handle the refund</strong> When you're owed one, we start
-            it within {TRUST.refundStartDays} business days. Card refunds take{" "}
-            {TRUST.cardRefundDays} to show, set by your bank.
+            <strong>We help with your refund</strong> If you're owed one, we
+            start it within {TRUST.refundStartDays} business days or follow up
+            with the airline or hotel for you. Card refunds can take{" "}
+            {TRUST.cardRefundDays} to show up. Your bank sets that timing.
           </li>
         </ol>
         <p className="sk-trust__note">
-          <ShieldIcon /> Refund rules above are the US Department of
-          Transportation's, for flights to, from or within the US. Other
-          countries have their own rules.
+          <ShieldIcon /> The flight refund rules above come from the US
+          Department of Transportation. They cover flights to, from or within
+          the US. Other countries have their own rules.
         </p>
       </section>
 

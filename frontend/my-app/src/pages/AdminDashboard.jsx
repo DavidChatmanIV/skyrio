@@ -2158,7 +2158,7 @@ const ALERT_PRESETS = {
     severity: "critical",
     title: "Flights paused across the US",
     message:
-      "The FAA has stopped flights at US airports. Expect delays and cancellations. Check your airline's app for your flight's status.",
+      "The FAA has paused flights at US airports. Expect delays and cancellations. Check your airline's app for your flight's status.",
     areas: "All US airports",
     affects: { flights: true, hotels: false, cars: false },
     pause: { flights: true, hotels: false, cars: false },

@@ -76,7 +76,7 @@ function travelerEmail(kind, booking) {
     intro = `The airline made a change to <strong>${trip}</strong>. The airline sets the new schedule, not Skyrio.`;
     what =
       `Check the new details in the airline's app or site${code ? ` with confirmation code <strong>${esc(code)}</strong>` : ""}. ` +
-      "If your flight was cancelled, or the change is significant (3+ hours domestic or 6+ international, a different airport, an extra stop, or a lower cabin) and you don't want the new flight, you're owed a full refund. Reply to this email or use Help, and we'll take care of it.";
+      "If your flight was cancelled, or it moved 3+ hours (6+ for international), changed airports, added a stop or dropped to a lower cabin, you can turn down the new flight and get a full refund. Reply to this email or use Help, and we'll take care of it.";
   } else {
     const who = booking.type === "Car" ? "rental company" : "hotel";
     title = `The ${who} cancelled your booking`;

@@ -294,7 +294,7 @@ function alertEmail(s, b, manageUrl) {
     ? "Your room follows the hotel's cancellation policy. If your plans change, check the policy in Trips or contact the hotel."
     : "Your rental follows the rental company's policy. Contact them if your pickup time changes.";
   const owed = isFlight
-    ? "If the airline cancels or significantly changes your flight (to, from or within the US) and you choose not to travel, you're owed a full refund. Request it in Trips or reply to this email."
+    ? "If the airline cancels or majorly changes your flight (to, from or within the US) and you choose not to fly, you can get a full refund. Ask for it in My Trips or reply to this email."
     : "";
   const html = renderEmail({
     preheader: `${s.title}. Here's what it means for your trip.`,
