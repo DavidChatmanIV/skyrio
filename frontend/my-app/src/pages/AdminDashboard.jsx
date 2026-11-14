@@ -2284,12 +2284,14 @@ const taField = {
   lineHeight: 1.4,
   outline: "none",
 };
+// Same light glass as the text fields, so every box in the form matches.
 const darkSelect = {
   ...taField,
-  background: "#2a1652",
-  height: 44,
+  height: 46,
   padding: "0 12px",
 };
+// Desktop browsers draw the open list with the option's own colors.
+const optionStyle = { background: "#2a1652", color: "#fff" };
 const fieldLabel = {
   display: "flex",
   justifyContent: "space-between",
@@ -2300,12 +2302,12 @@ const fieldLabel = {
   margin: "18px 0 6px",
 };
 const fieldHint = {
-  fontSize: 12.5,
-  color: "rgba(255,255,255,0.6)",
+  fontSize: 13,
+  color: "rgba(255,255,255,0.75)",
   margin: "-2px 0 8px",
   lineHeight: 1.4,
 };
-const fieldCount = { fontWeight: 400, fontSize: 12, color: "rgba(255,255,255,0.5)" };
+const fieldCount = { fontWeight: 400, fontSize: 12.5, color: "rgba(255,255,255,0.7)" };
 const checkRow = { display: "flex", gap: 18, flexWrap: "wrap", fontSize: 15 };
 
 function formFromPreset(kind) {
@@ -2488,7 +2490,7 @@ function TravelAlertsTab({ refreshKey }) {
                     onChange={(e) => setForm(formFromPreset(e.target.value))}
                   >
                     {Object.entries(ALERT_PRESETS).map(([k, p]) => (
-                      <option key={k} value={k}>{p.label}</option>
+                      <option key={k} value={k} style={optionStyle}>{p.label}</option>
                     ))}
                   </select>
                 </>
@@ -2520,7 +2522,7 @@ function TravelAlertsTab({ refreshKey }) {
               <label style={fieldLabel} htmlFor="ta-sev">How urgent</label>
               <select id="ta-sev" style={darkSelect} value={form.severity} onChange={(e) => set("severity", e.target.value)}>
                 {SEVERITY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <option key={o.value} value={o.value} style={optionStyle}>{o.label}</option>
                 ))}
               </select>
 
@@ -2585,7 +2587,7 @@ function TravelAlertsTab({ refreshKey }) {
                   <label style={fieldLabel} htmlFor="ta-hours">Trips starting within</label>
                   <select id="ta-hours" style={darkSelect} value={hours} onChange={(e) => { setHours(Number(e.target.value)); setPreview(null); }}>
                     {[24, 48, 72, 168].map((h) => (
-                      <option key={h} value={h}>{h === 168 ? "7 days" : `${h} hours`}</option>
+                      <option key={h} value={h} style={optionStyle}>{h === 168 ? "7 days" : `${h} hours`}</option>
                     ))}
                   </select>
                 </div>
