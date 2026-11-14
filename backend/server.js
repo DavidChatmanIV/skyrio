@@ -362,17 +362,36 @@ io.on("connection", (socket) => {
   });
 });
 
+// Render stops the old server with SIGTERM during every deploy. Socket.IO
+// keeps phones connected, so httpServer.close() alone never finished and
+// Render had to wait out its timeout before killing it. Close the sockets,
+// stop taking requests, then exit (at most 8 seconds).
+let shuttingDown = false;
 async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`\n🛑 ${signal} received — shutting down gracefully...`);
+  setTimeout(() => process.exit(0), 8_000).unref();
+  // Disconnect every socket and stop taking new requests. Requests already
+  // in flight (e.g. a payment finishing) complete first; idle keep-alive
+  // connections are dropped so they can't hold the server open.
+  await new Promise((resolve) => {
+    httpServer.once("close", resolve);
+    try {
+      io.close();
+    } catch {
+      /* already closed */
+    }
+    const sweep = setInterval(() => httpServer.closeIdleConnections?.(), 250);
+    sweep.unref();
+  });
   try {
     await mongoose.connection.close();
-    httpServer.close(() => {
-      console.log("👋 Server closed.");
-      process.exit(0);
-    });
   } catch {
-    process.exit(0);
+    /* already closed */
   }
+  console.log("👋 Server closed.");
+  process.exit(0);
 }
 
 process.on("SIGINT", () => shutdown("SIGINT"));
