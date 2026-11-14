@@ -15,7 +15,7 @@ import {
   clearSiteStatus,
   notifyAffectedTravelers,
 } from "../services/siteStatus.js";
-import { majorAirportWarnings } from "../services/weatherAlerts.js";
+import { getMajorWarnings } from "../services/weatherAlerts.js";
 
 export const publicSiteStatus = Router();
 publicSiteStatus.get("/", async (_req, res) => {
@@ -67,9 +67,9 @@ admin.get("/", async (_req, res) => {
 
 // GET /api/admin/site-status/weather — severe-weather warnings at major US
 // airports (National Weather Service), to turn into a site alert in one tap.
-admin.get("/weather", async (_req, res) => {
+admin.get("/weather", async (req, res) => {
   try {
-    res.json({ ok: true, ...(await majorAirportWarnings()) });
+    res.json({ ok: true, ...(await getMajorWarnings({ force: req.query.refresh === "1" })) });
   } catch (err) {
     console.error("[site-status] weather failed:", err.message);
     res.status(500).json({ ok: false, message: "Couldn't check the weather. Try again." });

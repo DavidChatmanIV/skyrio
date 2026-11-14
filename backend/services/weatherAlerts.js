@@ -98,7 +98,7 @@ export async function warningsForAirport(code, { fetchImpl = fetch } = {}) {
   try {
     const res = await fetchImpl(`${NWS}?point=${pt[0]},${pt[1]}`, {
       headers: { "User-Agent": UA, Accept: "application/geo+json" },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error(`NWS ${res.status}`);
     const alerts = pickTravelWarnings(await res.json());
@@ -126,7 +126,7 @@ async function mapLimit(items, limit, fn) {
 
 /** Admin view: active warnings at major airports, grouped by storm type. */
 export async function majorAirportWarnings(opts = {}) {
-  const lists = await mapLimit(MAJOR_US_AIRPORTS, 6, (c) => warningsForAirport(c, opts));
+  const lists = await mapLimit(MAJOR_US_AIRPORTS, 10, (c) => warningsForAirport(c, opts));
   const groups = new Map();
   MAJOR_US_AIRPORTS.forEach((code, i) => {
     for (const a of lists[i]) {
@@ -141,6 +141,49 @@ export async function majorAirportWarnings(opts = {}) {
     checkedAt: new Date(),
     groups: [...groups.values()].sort((a, b) => b.airports.length - a.airports.length),
   };
+}
+
+/* ───────────── admin snapshot (kept warm) ───────────── */
+// Checking 50 airports can take a while if the weather service is slow, so
+// the admin list is refreshed in the background and served instantly.
+const SNAPSHOT_MAX_AGE_MS = 15 * 60 * 1000;
+let snapshot = null;
+let refreshing = null;
+
+export function refreshMajorWarnings(opts = {}) {
+  if (!refreshing) {
+    refreshing = majorAirportWarnings(opts)
+      .then((s) => (snapshot = s))
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  return refreshing;
+}
+
+/**
+ * Admin list. Fresh snapshot → instant. Otherwise refresh, but answer within
+ * `waitMs` either way; `stillChecking: true` means try again in a few seconds.
+ */
+export async function getMajorWarnings({ force = false, waitMs = 12_000, ...opts } = {}) {
+  const age = snapshot ? Date.now() - new Date(snapshot.checkedAt).getTime() : Infinity;
+  if (!force && age < SNAPSHOT_MAX_AGE_MS) return { ...snapshot, stillChecking: false };
+  const done = await Promise.race([
+    refreshMajorWarnings(opts).catch(() => null),
+    new Promise((r) => setTimeout(() => r(null), waitMs).unref?.()),
+  ]);
+  if (done) return { ...done, stillChecking: false };
+  return { ...(snapshot || { checkedAt: null, groups: [] }), stillChecking: true };
+}
+
+/** Keeps the admin list warm (independent of traveler emails). */
+let warmTimer = null;
+export function startWeatherWarmup() {
+  if (warmTimer || process.env.RUN_JOBS === "false" || process.env.USE_MOCKS === "true") return;
+  const warm = () => refreshMajorWarnings().catch(() => {});
+  setTimeout(warm, 45_000).unref?.();
+  warmTimer = setInterval(warm, SNAPSHOT_MAX_AGE_MS);
+  warmTimer.unref?.();
 }
 
 /* ───────────── traveler emails ───────────── */
