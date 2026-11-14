@@ -2238,17 +2238,44 @@ const SEVERITY_OPTIONS = [
   { value: "warning", label: "Warning (can be hidden)" },
   { value: "critical", label: "Critical (always shows)" },
 ];
-const darkSelect = {
-  height: 34,
-  padding: "0 10px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "#2a1652",
+// 16px text in every field: iPhones zoom the whole page into any field
+// smaller than that, which made this form hard to read.
+const taField = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "rgba(255,255,255,0.06)",
   color: "#fff",
   font: "inherit",
-  fontSize: 13,
+  fontSize: 16,
+  lineHeight: 1.4,
+  outline: "none",
 };
-const fieldLabel = { fontSize: 12, color: "rgba(255,255,255,0.6)", margin: "12px 0 4px", display: "block" };
+const darkSelect = {
+  ...taField,
+  background: "#2a1652",
+  height: 44,
+  padding: "0 12px",
+};
+const fieldLabel = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 8,
+  fontSize: 14,
+  fontWeight: 600,
+  color: "rgba(255,255,255,0.9)",
+  margin: "18px 0 6px",
+};
+const fieldHint = {
+  fontSize: 12.5,
+  color: "rgba(255,255,255,0.6)",
+  margin: "-2px 0 8px",
+  lineHeight: 1.4,
+};
+const fieldCount = { fontWeight: 400, fontSize: 12, color: "rgba(255,255,255,0.5)" };
+const checkRow = { display: "flex", gap: 18, flexWrap: "wrap", fontSize: 15 };
 
 function formFromPreset(kind) {
   const p = ALERT_PRESETS[kind] || ALERT_PRESETS.other;
@@ -2391,7 +2418,7 @@ function TravelAlertsTab({ refreshKey }) {
           {live && !editing && (
             <div style={{ padding: "14px 20px", display: "grid", gap: 12 }}>
               <SiteStatusBanner preview={{ ...state, paused: state.paused }} />
-              <div className="sk-sub" style={{ whiteSpace: "normal", fontSize: 12 }}>
+              <div style={{ ...fieldHint, margin: 0 }}>
                 {pausedNow.length
                   ? `Paused: new ${pausedNow.map((k) => ({ flights: "flight", hotels: "stay", cars: "car rental" }[k])).join(", ")} bookings. Existing trips aren't affected.`
                   : "No bookings paused."}{" "}
@@ -2399,7 +2426,7 @@ function TravelAlertsTab({ refreshKey }) {
                 {state.startedAt ? ` · started ${dayjs(state.startedAt).format("MMM D, h:mm A")}` : ""}.
               </div>
               <div className="sk-panel__actions">
-                <button type="button" className="sk-btn" onClick={() => setEditing(true)}>
+                <button type="button" className="sk-btn" style={{ fontSize: 14, padding: "9px 18px" }} onClick={() => setEditing(true)}>
                   Edit
                 </button>
                 <Popconfirm
@@ -2409,7 +2436,7 @@ function TravelAlertsTab({ refreshKey }) {
                   okText="Turn off"
                   onConfirm={clear}
                 >
-                  <button type="button" className="sk-btn sk-btn--active" disabled={busy}>
+                  <button type="button" className="sk-btn sk-btn--active" style={{ fontSize: 14, padding: "9px 18px" }} disabled={busy}>
                     Turn off
                   </button>
                 </Popconfirm>
@@ -2422,9 +2449,10 @@ function TravelAlertsTab({ refreshKey }) {
               {!live && (
                 <>
                   <label style={fieldLabel} htmlFor="ta-kind">What's happening</label>
+                  <div style={fieldHint}>Fills in a starting message you can edit.</div>
                   <select
                     id="ta-kind"
-                    style={{ ...darkSelect, width: "100%", maxWidth: 360 }}
+                    style={darkSelect}
                     value={form.kind}
                     onChange={(e) => setForm(formFromPreset(e.target.value))}
                   >
@@ -2435,21 +2463,28 @@ function TravelAlertsTab({ refreshKey }) {
                 </>
               )}
 
-              <label style={fieldLabel} htmlFor="ta-title">Title ({form.title.length}/80)</label>
-              <input id="ta-title" className="sk-fb-search" style={{ width: "100%" }} maxLength={80} value={form.title} onChange={(e) => set("title", e.target.value)} />
+              <label style={fieldLabel} htmlFor="ta-title">
+                Title <span style={fieldCount}>{form.title.length}/80</span>
+              </label>
+              <input id="ta-title" style={taField} maxLength={80} value={form.title} onChange={(e) => set("title", e.target.value)} />
 
-              <label style={fieldLabel} htmlFor="ta-msg">Message ({form.message.length}/300). Say what's happening and what to do. Don't guess how long it lasts.</label>
+              <label style={fieldLabel} htmlFor="ta-msg">
+                Message <span style={fieldCount}>{form.message.length}/300</span>
+              </label>
+              <div style={fieldHint}>What's happening and what to do. Don't guess how long it lasts.</div>
               <textarea
                 id="ta-msg"
-                className="sk-fb-search"
-                style={{ width: "100%", height: 84, padding: "8px 12px", resize: "vertical" }}
+                rows={5}
+                style={{ ...taField, minHeight: 130, resize: "vertical" }}
                 maxLength={300}
                 value={form.message}
                 onChange={(e) => set("message", e.target.value)}
               />
 
-              <label style={fieldLabel} htmlFor="ta-areas">Where (optional)</label>
-              <input id="ta-areas" className="sk-fb-search" style={{ width: "100%" }} maxLength={120} placeholder="e.g. All US airports, or EWR, JFK, LGA" value={form.areas} onChange={(e) => set("areas", e.target.value)} />
+              <label style={fieldLabel} htmlFor="ta-areas">
+                Where <span style={fieldCount}>optional</span>
+              </label>
+              <input id="ta-areas" style={taField} maxLength={120} placeholder="e.g. All US airports, or EWR, JFK, LGA" value={form.areas} onChange={(e) => set("areas", e.target.value)} />
 
               <label style={fieldLabel} htmlFor="ta-sev">How urgent</label>
               <select id="ta-sev" style={darkSelect} value={form.severity} onChange={(e) => set("severity", e.target.value)}>
@@ -2458,8 +2493,9 @@ function TravelAlertsTab({ refreshKey }) {
                 ))}
               </select>
 
-              <span style={fieldLabel}>Pause new bookings (existing trips aren't affected)</span>
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              <span style={fieldLabel}>Pause new bookings</span>
+              <div style={fieldHint}>Existing trips and payments in progress aren't affected.</div>
+              <div style={checkRow}>
                 {Object.keys(VERTICAL_LABEL).map((k) => (
                   <label key={k} className="sk-check">
                     <input type="checkbox" checked={Boolean(form.pause[k])} onChange={(e) => setFlag("pause", k, e.target.checked)} />
@@ -2468,7 +2504,7 @@ function TravelAlertsTab({ refreshKey }) {
                 ))}
               </div>
 
-              <span style={fieldLabel}>Preview</span>
+              <span style={fieldLabel}>Preview: what travelers see</span>
               <SiteStatusBanner preview={previewStatus} />
 
               <div className="sk-panel__actions" style={{ marginTop: 14 }}>
@@ -2485,14 +2521,14 @@ function TravelAlertsTab({ refreshKey }) {
                 >
                   <button
                     type="button"
-                    className="sk-btn sk-btn--active"
+                    className="sk-btn sk-btn--active" style={{ fontSize: 14, padding: "9px 18px" }}
                     disabled={busy || form.title.trim().length < 3 || form.message.trim().length < 10}
                   >
                     {live ? "Update alert" : "Post alert"}
                   </button>
                 </Popconfirm>
                 {editing && (
-                  <button type="button" className="sk-btn" onClick={() => { setEditing(false); load(); }}>
+                  <button type="button" className="sk-btn" style={{ fontSize: 14, padding: "9px 18px" }} onClick={() => { setEditing(false); load(); }}>
                     Cancel
                   </button>
                 )}
@@ -2510,12 +2546,12 @@ function TravelAlertsTab({ refreshKey }) {
               <span className="sk-panel__meta">{state.emailed || 0} emailed</span>
             </div>
             <div style={{ padding: "6px 20px 18px" }}>
-              <div className="sk-sub" style={{ whiteSpace: "normal", fontSize: 12, marginTop: 8 }}>
-                Emails the alert plus what they're owed. Each trip is emailed once per alert.
+              <div style={{ ...fieldHint, margin: "12px 0 0" }}>
+                Sends the alert and what they're owed. Each trip is emailed once per alert.
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginTop: 4 }}>
                 <div>
-                  <label style={fieldLabel} htmlFor="ta-hours">Starting within</label>
+                  <label style={fieldLabel} htmlFor="ta-hours">Trips starting within</label>
                   <select id="ta-hours" style={darkSelect} value={hours} onChange={(e) => { setHours(Number(e.target.value)); setPreview(null); }}>
                     {[24, 48, 72, 168].map((h) => (
                       <option key={h} value={h}>{h === 168 ? "7 days" : `${h} hours`}</option>
@@ -2523,11 +2559,13 @@ function TravelAlertsTab({ refreshKey }) {
                   </select>
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <label style={fieldLabel} htmlFor="ta-air">Only these airports (optional)</label>
-                  <input id="ta-air" className="sk-fb-search" style={{ width: "100%" }} placeholder="EWR, JFK" value={airports} onChange={(e) => { setAirports(e.target.value); setPreview(null); }} />
+                  <label style={fieldLabel} htmlFor="ta-air">
+                    Only these airports <span style={fieldCount}>optional</span>
+                  </label>
+                  <input id="ta-air" style={taField} placeholder="EWR, JFK" value={airports} onChange={(e) => { setAirports(e.target.value); setPreview(null); }} />
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12 }}>
+              <div style={{ ...checkRow, marginTop: 14 }}>
                 {Object.keys(VERTICAL_LABEL).map((k) => (
                   <label key={k} className="sk-check">
                     <input type="checkbox" checked={verticals[k]} onChange={(e) => { setVerticals((v) => ({ ...v, [k]: e.target.checked })); setPreview(null); }} />
@@ -2552,7 +2590,7 @@ function TravelAlertsTab({ refreshKey }) {
               )}
 
               <div className="sk-panel__actions" style={{ marginTop: 14 }}>
-                <button type="button" className="sk-btn" disabled={busy || !Object.values(verticals).some(Boolean)} onClick={() => notify(true)}>
+                <button type="button" className="sk-btn" style={{ fontSize: 14, padding: "9px 18px" }} disabled={busy || !Object.values(verticals).some(Boolean)} onClick={() => notify(true)}>
                   Check who's affected
                 </button>
                 {preview?.toEmail > 0 && (
@@ -2563,7 +2601,7 @@ function TravelAlertsTab({ refreshKey }) {
                     okText="Send"
                     onConfirm={() => notify(false)}
                   >
-                    <button type="button" className="sk-btn sk-btn--active" disabled={busy}>
+                    <button type="button" className="sk-btn sk-btn--active" style={{ fontSize: 14, padding: "9px 18px" }} disabled={busy}>
                       Email {preview.toEmail}
                     </button>
                   </Popconfirm>
