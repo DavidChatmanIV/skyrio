@@ -2337,15 +2337,31 @@ function TravelAlertsTab({ refreshKey }) {
 
   // Severe weather at major US airports (National Weather Service).
   const [weather, setWeather] = useState(null);
-  const loadWeather = useCallback(async () => {
+  const [weatherBusy, setWeatherBusy] = useState(false);
+  const weatherRetry = useRef(null);
+  const loadWeather = useCallback(async ({ refresh = false, tries = 0 } = {}) => {
+    clearTimeout(weatherRetry.current);
+    setWeatherBusy(true);
     try {
-      setWeather(await adminRequest("/api/admin/site-status/weather"));
+      // Never wait forever on the weather service.
+      const j = await Promise.race([
+        adminRequest(`/api/admin/site-status/weather${refresh ? "?refresh=1" : ""}`),
+        new Promise((_, no) => setTimeout(() => no(new Error("timeout")), 20000)),
+      ]);
+      setWeather(j);
+      // Some airports still loading: check again by itself (up to ~30s).
+      if (j.stillChecking && tries < 5) {
+        weatherRetry.current = setTimeout(() => loadWeather({ tries: tries + 1 }), 6000);
+        return;
+      }
     } catch {
-      setWeather({ error: true, groups: [] });
+      setWeather((w) => ({ ...(w || { groups: [] }), error: true }));
     }
+    setWeatherBusy(false);
   }, []);
   useEffect(() => {
     loadWeather();
+    return () => clearTimeout(weatherRetry.current);
   }, [loadWeather, refreshKey]);
   const applyWeather = (g) => {
     const where = g.airports.slice(0, 6).join(", ") + (g.airports.length > 6 ? ` +${g.airports.length - 6} more` : "");
@@ -2465,14 +2481,25 @@ function TravelAlertsTab({ refreshKey }) {
         <div className="sk-panel">
           <div className="sk-panel__head">
             <h3 className="sk-panel__title">National Weather Service warnings</h3>
-            <button type="button" className="sk-btn sk-btn--sm" onClick={loadWeather}>
-              Check again
+            <button
+              type="button"
+              className="sk-btn sk-btn--sm"
+              disabled={weatherBusy}
+              onClick={() => loadWeather({ refresh: true })}
+            >
+              {weatherBusy ? "Checking…" : "Check again"}
             </button>
           </div>
-          {!weather ? (
-            <div className="sk-empty">Checking…</div>
-          ) : weather.error ? (
-            <div className="sk-empty">Couldn't check the weather. Try again.</div>
+          {weather?.checkedAt && (
+            <div style={{ ...fieldHint, padding: "10px 20px 0", margin: 0 }}>
+              Last checked {dayjs(weather.checkedAt).format("h:mm A")}
+              {weather.stillChecking ? " · still checking some airports…" : ""}
+            </div>
+          )}
+          {!weather || (weather.stillChecking && !weather.checkedAt) ? (
+            <div className="sk-empty">Checking 50 airports. This can take up to 30 seconds…</div>
+          ) : weather.error && !weather.groups?.length ? (
+            <div className="sk-empty">Couldn't reach the weather service. Try again.</div>
           ) : weather.groups.length === 0 ? (
             <div className="sk-empty">No severe weather warnings at the 50 busiest US airports.</div>
           ) : (
