@@ -1414,7 +1414,7 @@ router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
         const live = await flightGetBooking(ids[0]);
         const liveData = unwrap(live.data);
         const st = String(liveData.status || "").toUpperCase();
-        if (liveData.cancelIntentAt && !st.startsWith("CANCELLED")) {
+        if (liveData.cancelIntentAt && !isFinalCancelStatus(st)) {
           return res.json({
             cancellable: false,
             inProgress: true,
@@ -1422,7 +1422,7 @@ router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
               "The airline is already processing your cancellation. We'll let you know as soon as it's final.",
           });
         }
-        if (st.startsWith("CANCELLED")) {
+        if (isFinalCancelStatus(st)) {
           return res.json({
             cancellable: true,
             alreadyCancelledWithSupplier: true,
@@ -2136,6 +2136,13 @@ router.delete("/:id", adminOnly, async (req, res) => {
    net either way.
    ══════════════════════════════════════════════════════════════════ */
 const STUCK_AFTER_MS = 48 * 60 * 60 * 1000; // no cancel on file for 2 days
+const CANCEL_RETRY_EVERY_MS = 60 * 60 * 1000; // re-send the cancel at most hourly
+const SANDBOX_FINISH_AFTER_MS = 60 * 60 * 1000; // test trips only
+// CANCELLED, CANCELLED_WITH_CHARGES, and the one-L spelling just in case.
+const isFinalCancelStatus = (st) => /^CANCEL+ED/i.test(String(st || ""));
+// Same switch the LiteAPI client uses: sandbox unless LITEAPI_ENV=production.
+const liteapiIsSandbox = () =>
+  String(process.env.LITEAPI_ENV || "sandbox").toLowerCase() !== "production";
 
 export async function finalizePendingFlightCancels({
   limit = 50,
@@ -2182,17 +2189,63 @@ export async function finalizePendingFlightCancels({
       });
       continue;
     }
-    const st = String(live.status || "").toUpperCase();
+    let st = String(live.status || "").toUpperCase();
+    let finishedBy = "airline";
+    const since0 = new Date(booking.cancellation?.at || booking.updatedAt).getTime();
+
+    // 1) Ask again. LiteAPI: re-sending the cancel is safe, and once the
+    //    airline is done it answers 200 with the final result. Reading the
+    //    booking alone can lag behind. At most once an hour per trip.
+    if (!isFinalCancelStatus(st)) {
+      const lastRetry = new Date(booking.cancellation?.lastRetryAt || 0).getTime();
+      if (Date.now() - lastRetry > CANCEL_RETRY_EVERY_MS) {
+        booking.cancellation = {
+          ...(booking.cancellation || {}),
+          lastRetryAt: new Date(),
+          retries: (booking.cancellation?.retries || 0) + 1,
+        };
+        booking.markModified("cancellation");
+        try {
+          const r = await flightCancel(id);
+          const d = unwrap(r.data);
+          // 200 = final per LiteAPI. Trust it unless the answer itself
+          // says something else (then keep waiting).
+          if (r.httpStatus === 200 && (!d.status || isFinalCancelStatus(d.status))) {
+            live = { ...live, ...d };
+            st = d.status ? String(d.status).toUpperCase() : "CANCELLED";
+          }
+        } catch (e) {
+          if (!isConcurrentCancel(e)) {
+            console.error("[flight-cancel-job] re-send failed", String(booking._id), e.message);
+          }
+        }
+        if (!isFinalCancelStatus(st)) await booking.save();
+      }
+    }
+
+    // 2) Sandbox only: LiteAPI's test airlines never finish a cancellation,
+    //    so test trips would say "Cancelling" forever. Finish them after an
+    //    hour so testers see the whole flow. Never happens with live keys.
+    if (
+      !isFinalCancelStatus(st) &&
+      liteapiIsSandbox() &&
+      Date.now() - since0 > SANDBOX_FINISH_AFTER_MS
+    ) {
+      st = "CANCELLED";
+      finishedBy = "sandbox";
+    }
+
     results.push({
       id: String(booking._id),
       supplierId: id,
       liveStatus: st || null,
       cancelOnFile: !!live.cancelIntentAt,
-      final: st.startsWith("CANCELLED"),
+      final: isFinalCancelStatus(st),
+      finishedBy: isFinalCancelStatus(st) ? finishedBy : null,
     });
     const currency = booking.totalCurrency || "USD";
 
-    if (st.startsWith("CANCELLED")) {
+    if (isFinalCancelStatus(st)) {
       // Final. Read the outcome from the live booking where it's there,
       // otherwise keep what the cancel call returned.
       const prev = booking.cancellation || {};
@@ -2227,7 +2280,11 @@ export async function finalizePendingFlightCancels({
       };
       booking.markModified("cancellation");
       booking.adminNotes.push({
-        text: `Airline finalized the cancellation (${st}). ${
+        text: `${
+          finishedBy === "sandbox"
+            ? "Sandbox: LiteAPI's test airline doesn't finish cancellations, so Skyrio finished it after an hour"
+            : `Airline finalized the cancellation (${st})`
+        }. ${
           airlineCredit
             ? `Airline credit: ${moneyText(
                 airlineCredit.amount,
