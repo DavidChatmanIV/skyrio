@@ -50,6 +50,7 @@ import { LEARNING_CATEGORIES } from "../../models/AtlasLearnedPreference.js";
 // Book page's Cars and Events tabs use.
 import { searchCars, CarSearchError } from "../../routes/api/cars/cars.service.js";
 import { searchEvents } from "../../providers/ticketmasterProvider.js";
+import { GET_WEATHER_TOOL, getWeatherForAtlas } from "./atlasWeather.js";
 import {
   CATEGORY_MAP as EVENT_CATEGORIES,
   normalizeEvent,
@@ -60,6 +61,7 @@ import {
 // ───────────────────────── Tool definitions (sent to Claude) ─────────────────────────
 
 export const ATLAS_BOOKING_TOOLS = [
+  GET_WEATHER_TOOL,
   {
     name: "get_traveler_profile",
     description:
@@ -373,6 +375,7 @@ for (let i = ATLAS_BOOKING_TOOLS.length - 1; i >= 0; i--) {
 // Guests (not signed in) can search and get a checkout link — nothing that
 // reads or saves an account.
 const GUEST_TOOL_NAMES = new Set([
+  "get_weather",
   "search_flights",
   "search_hotels",
   "search_cars",
@@ -443,6 +446,8 @@ async function runBookingToolRaw(name, input, { userId, owner, ip }) {
     };
   }
   switch (name) {
+    case "get_weather":
+      return getWeatherForAtlas(input);
     case "get_traveler_profile":
       return getTravelerProfile(userId);
     case "start_profile_setup":

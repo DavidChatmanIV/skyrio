@@ -89,10 +89,20 @@ export function pickTravelWarnings(geojson) {
 const cache = new Map(); // code -> { at, alerts }
 
 /** Active travel warnings at an airport's location ([] if unknown/outside US). */
-export async function warningsForAirport(code, { fetchImpl = fetch } = {}) {
+export async function warningsForAirport(code, opts = {}) {
   const c = String(code || "").toUpperCase();
   const pt = COORDS[c];
   if (!pt) return [];
+  return warningsForPoint(pt[0], pt[1], { ...opts, cacheKey: c });
+}
+
+/** Active travel warnings at a lat/lon (US and territories; [] elsewhere). */
+export async function warningsForPoint(lat, lon, { fetchImpl = fetch, cacheKey } = {}) {
+  const la = Math.round(Number(lat) * 1e4) / 1e4;
+  const lo = Math.round(Number(lon) * 1e4) / 1e4;
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return [];
+  const c = cacheKey || `${la.toFixed(2)},${lo.toFixed(2)}`;
+  const pt = [la, lo];
   const hit = cache.get(c);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.alerts;
   try {
