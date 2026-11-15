@@ -1,5 +1,14 @@
 import React, { useState } from "react";
 import { Dropdown, message } from "antd";
+
+// Feed photos load a lighter copy (Cloudinary resizes on the fly); the
+// full-screen viewer still opens the original (data-full).
+export function lightPhoto(src, width = 900) {
+  if (typeof src !== "string") return src;
+  const m = src.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*)$/);
+  if (!m || /^(?:[a-z]_[^/]*,?)+\//.test(m[2])) return src; // not Cloudinary, or already resized
+  return `${m[1]}c_limit,w_${width},q_auto,f_auto/${m[2]}`;
+}
 import {
   MoreOutlined,
   FlagOutlined,
@@ -176,9 +185,11 @@ function ImageGrid({ images }) {
   const img = (src, i, style = {}) => (
     <img
       key={i}
-      src={src}
+      src={lightPhoto(src, vis.length === 1 ? 900 : 600)}
+      data-full={src}
       alt=""
       loading="lazy"
+      decoding="async"
       className="sh-zoomable"
       title="View full photo"
       onError={() => fail(i)}
@@ -448,13 +459,28 @@ export default function SkyHubFeedCard({
             <div className="skyhub-feedCard__location">
               {post.destination && (
                 <>
-                  <EnvironmentOutlined
-                    style={{ fontSize: 11, color: "#ff7a35" }}
-                  />
-                  <span style={{ color: "#ff7a35", fontWeight: 600 }}>
+                  <span className="skyhub-placeChip">
+                    <EnvironmentOutlined style={{ fontSize: 12 }} />
                     {post.destination}
+                    {post.milesAway !== null && post.milesAway !== undefined && (
+                      <span style={{ fontWeight: 600, opacity: 0.85 }}>
+                        {" "}
+                        · {post.milesAway < 1 ? "under 1" : post.milesAway} mi
+                      </span>
+                    )}
                   </span>
                 </>
+              )}
+              {post.beenThere && (
+                <span
+                  className="skyhub-beenThere"
+                  title="This traveler took a trip here with Skyrio"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M5 12.5l4.5 4.5L19 7.5" />
+                  </svg>
+                  Been there
+                </span>
               )}
               <span
                 style={{
@@ -548,7 +574,10 @@ export default function SkyHubFeedCard({
         {!post.images?.length && post.image && (
           <div className="skyhub-feedCard__media">
             <img
-              src={post.image}
+              src={lightPhoto(post.image)}
+              data-full={post.image}
+              loading="lazy"
+              decoding="async"
               alt="post"
               className="sh-zoomable"
               onError={(e) => {

@@ -48,7 +48,7 @@ export default function SkyHubPhotoViewer() {
       if (!img || !isPostPhoto(img)) return;
       const card = img.closest(".skyhub-feedCard");
       const imgs = [...card.querySelectorAll("img")].filter(isPostPhoto);
-      const srcs = imgs.map((x) => x.currentSrc || x.src);
+      const srcs = imgs.map((x) => x.dataset.full || x.currentSrc || x.src);
       const i = Math.max(0, imgs.indexOf(img));
       e.preventDefault();
       e.stopPropagation();
