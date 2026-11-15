@@ -15,8 +15,9 @@
 //
 // Self-contained: own styles (tg- prefix), lucide icons, guests welcome.
 // ─────────────────────────────────────────────────────────────
+import useForYou from "@/lib/useForYou";
 import React, { useCallback, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Sparkles,
   Shuffle,
@@ -68,6 +69,15 @@ const CSS = `
   background: rgba(255,255,255,.06); color: #fff; font: 600 13.5px "DM Sans", sans-serif; }
 .tg-sel option { background: #2a1650; color: #fff; }
 .tg-from { width: 92px; text-transform: uppercase; }
+.tg-style { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 8px 12px; border-radius: 14px; border: 1px dashed rgba(255,179,71,.4); background: rgba(255,255,255,.04); }
+.tg-style.is-on { border-style: solid; border-color: rgba(255,179,71,.5); background: rgba(255,138,42,.1); }
+.tg-styleToggle { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 0; border: 0; background: none; color: rgba(255,255,255,.8); font: 600 13.5px "DM Sans", sans-serif; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tg-styleToggle svg { flex: none; color: #ffb347; }
+.tg-style:not(.is-on) .tg-styleToggle { color: rgba(255,255,255,.6); }
+.tg-style:not(.is-on) .tg-styleToggle b { text-decoration: line-through; }
+.tg-styleToggle b { color: #fff; font-weight: 700; }
+.tg-styleEdit { flex: none; font: 800 13px "DM Sans", sans-serif; color: #ffb347; text-decoration: none; }
+.tg-styleToggle:focus-visible, .tg-styleEdit:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; border-radius: 6px; }
 .tg-chip { min-height: 34px; padding: 0 12px; border-radius: 999px; cursor: pointer; font: 700 13px "DM Sans", sans-serif;
   color: rgba(255,255,255,.85); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.16); }
 .tg-chip.is-on { color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); border-color: transparent; }
@@ -145,6 +155,12 @@ export default function TripGenerator() {
   const [who, setWho] = useState(1);
   const [vibe, setVibe] = useState("");
 
+  // What Atlas knows about how you travel (signed in, learning on).
+  const forYou = useForYou();
+  const styleLines = forYou?.enabled ? (forYou.lines || []).map((l) => l.text).filter(Boolean) : [];
+  const [useStyle, setUseStyle] = useState(true);
+  const styleOn = useStyle && styleLines.length > 0;
+
   const [trip, setTrip] = useState(null);
   const [lockPlace, setLockPlace] = useState(false);
   const [lockDates, setLockDates] = useState(false);
@@ -170,6 +186,8 @@ export default function TripGenerator() {
         who === 1 ? "Traveling solo." : `For ${who} people, total for everyone.`
       );
       if (budget) parts.push(`Total under $${budget}.`);
+      if (styleOn)
+        parts.push(`How I travel: ${styleLines.slice(0, 3).join("; ")}.`);
       if (lockDates && current)
         parts.push(
           `Use exactly these dates: depart ${current.depart}, return ${current.return}.`
@@ -180,7 +198,7 @@ export default function TripGenerator() {
         parts.push("Pick different dates or a different style of trip.");
       return parts.join(" ").slice(0, 480);
     },
-    [lockPlace, lockDates, vibe, who, budget]
+    [lockPlace, lockDates, vibe, who, budget, styleOn, styleLines.join("|")] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const show = (next, current) => {
@@ -338,6 +356,28 @@ export default function TripGenerator() {
             </button>
           ))}
         </div>
+        {/* Your travel style, from what Atlas learned. One tap turns it off. */}
+        {styleLines.length > 0 && (
+          <div className={`tg-style${styleOn ? " is-on" : ""}`}>
+            <button
+              type="button"
+              className="tg-styleToggle"
+              role="switch"
+              aria-checked={styleOn}
+              onClick={() => change(setUseStyle)(!useStyle)}
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              <span>
+                {styleOn ? "Using your style: " : "Not using your style: "}
+                <b>{styleLines[0].charAt(0).toLowerCase() + styleLines[0].slice(1)}</b>
+                {styleLines.length > 1 ? ` + ${styleLines.length - 1} more` : ""}
+              </span>
+            </button>
+            <Link to="/settings/atlas" className="tg-styleEdit">
+              Edit
+            </Link>
+          </div>
+        )}
         {/* After the first trip, Shuffle lives on the trip card. */}
         {!trip && (
           <button

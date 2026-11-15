@@ -3,7 +3,7 @@
 // travelers. Shows up to 3 true things from their own trips and what Atlas
 // learned (GET /api/atlas/for-you). Nothing shows for new travelers, when
 // "Let Atlas learn" is off, or for 30 days after they hide it.
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Sparkles,
@@ -17,7 +17,7 @@ import {
   TriangleAlert,
   ChevronRight,
 } from "lucide-react";
-import { atlasApi } from "@/components/Atlas/atlasApi";
+import useForYou from "@/lib/useForYou";
 
 const HIDE_KEY = "skyrio_atlas_noticed_hidden_until";
 const HIDE_DAYS = 30;
@@ -60,6 +60,7 @@ const CSS = `
 .an-btn:hover { background: rgba(255,138,42,.3); }
 .an-link { display: inline-flex; align-items: center; min-height: 36px; margin: 0; padding: 0 4px; font-size: 13.5px; font-weight: 700; line-height: 1; color: #ffb347; text-decoration: none; white-space: nowrap; }
 .an-link:hover { text-decoration: underline; }
+.an-note { font-size: 13px; color: rgba(255,255,255,.7); }
 .nt { display: flex; align-items: center; gap: 12px; margin: 22px auto 0; max-width: 560px; padding: 14px 16px; border-radius: 18px; text-align: left; color: #fff; text-decoration: none;
   background: linear-gradient(135deg, rgba(92,52,160,.55), rgba(60,32,96,.55)); border: 1px solid rgba(255,179,71,.35);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 30px rgba(20,8,40,.35); }
@@ -81,21 +82,13 @@ const CSS = `
 `;
 
 export default function AtlasNoticed({ onAsk }) {
-  const [data, setData] = useState(null);
+  const data = useForYou();
   const [hidden, setHidden] = useState(hiddenNow);
 
-  useEffect(() => {
-    let alive = true;
-    atlasApi("/api/atlas/for-you")
-      .then(({ ok, data: d }) => alive && ok && setData(d))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   const trip = data?.nextTrip || null;
-  const showStyle = !hidden && data?.enabled && data.lines?.length > 0;
+  // One thing on its own shows inside "Can't decide?" instead (TripGenerator);
+  // the full card is for when Atlas knows a few things.
+  const showStyle = !hidden && data?.enabled && data.lines?.length >= 2;
   if (!trip && !showStyle) return null;
 
   const hide = () => {
@@ -145,15 +138,7 @@ export default function AtlasNoticed({ onAsk }) {
             })}
           </ul>
           <div className="an-foot">
-            {data.ask && (
-              <button
-                type="button"
-                className="an-btn"
-                onClick={() => onAsk?.(data.ask)}
-              >
-                <Sparkles size={14} aria-hidden="true" /> Get trip ideas
-              </button>
-            )}
+            <span className="an-note">&quot;Make me a trip&quot; below uses this.</span>
             <Link
               to="/settings/atlas"
               className="an-link"
