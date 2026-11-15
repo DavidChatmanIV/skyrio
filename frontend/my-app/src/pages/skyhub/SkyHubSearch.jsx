@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { MapPin, Luggage, Hash } from "lucide-react";
+import { tidyPlace } from "@/lib/placeName";
 
 /* ─────────────────────────────────────────────────────────────
    SkyHubSearch — "SkyHub Radar"
@@ -160,7 +162,7 @@ export default function SkyHubSearch({
     const peopleMap = new Map();
     const tagsMap = new Map();
     posts.forEach((p) => {
-      count(placesMap, p.destination?.trim());
+      count(placesMap, tidyPlace(p.destination));
       count(peopleMap, p.author, { sub: p.username, avatar: p.avatar });
       (p.tags || []).forEach((t) => count(tagsMap, t.replace(/^#/, "")));
     });
@@ -180,7 +182,7 @@ export default function SkyHubSearch({
         key: "places",
         title: "Places",
         scope: "places",
-        icon: "📍",
+        icon: <MapPin size={15} />,
         items: match(placesMap),
       });
     if (scope === "all" || scope === "travelers")
@@ -188,7 +190,7 @@ export default function SkyHubSearch({
         key: "travelers",
         title: "Travelers",
         scope: "travelers",
-        icon: "🧳",
+        icon: <Luggage size={15} />,
         items: match(peopleMap),
       });
     if (scope === "all" || scope === "tips")
@@ -196,7 +198,7 @@ export default function SkyHubSearch({
         key: "tags",
         title: "Topics",
         scope: "tips",
-        icon: "#",
+        icon: <Hash size={15} />,
         items: match(tagsMap),
       });
     return out.filter((g) => g.items.length);
@@ -274,7 +276,7 @@ export default function SkyHubSearch({
             onClick={onCityClick}
             title={city ? "Change your city" : "Set your city"}
           >
-            <span aria-hidden="true">📍</span>
+            <MapPin size={15} aria-hidden="true" className="shRadar__cityPin" />
             <span className="shRadar__cityName">
               {city ? city.label || city.name : "Set city"}
             </span>

@@ -1457,9 +1457,14 @@
   align-items: center;
   justify-content: center;
   font-size: 19px;
-  border: 2px dashed rgba(125, 211, 252, 0.55);
-  background: rgba(56, 189, 248, 0.1);
+  color: #ffb347;
+  border: 2px dashed rgba(255, 179, 71, 0.55);
+  background: rgba(255, 138, 42, 0.12);
   transform: rotate(-8deg);
+}
+.shRadar__cityPin {
+  flex-shrink: 0;
+  color: #ff8a2a;
 }
 .shLocal__body {
   flex: 1;
@@ -1573,8 +1578,12 @@
   border-color: rgba(255, 107, 43, 0.5);
 }
 .shLocal__chip.is-gps {
-  color: #7dd3fc;
-  border-color: rgba(125, 211, 252, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ffb347;
+  border-color: rgba(255, 179, 71, 0.5);
+  background: rgba(255, 138, 42, 0.12);
 }
 .shLocal__error {
   margin-top: 8px;
@@ -2654,6 +2663,93 @@
 .shCmp-topic:focus-visible {
   outline: 2px solid #ff8a2a;
   outline-offset: 2px;
+}
+
+/* Place picker in the post box (works like the Radar's city picker) */
+.shCmp-place {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+.shCmp-placeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.shCmp-placePin {
+  flex-shrink: 0;
+  color: #ff8a2a;
+}
+.shCmp-placeInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+}
+.shCmp-placeInput::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+.shCmp-placeClear {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+.shCmp-placeChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.shCmp-placeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.88);
+  font-family: "DM Sans", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.shCmp-placeChip.is-gps {
+  color: #ffb347;
+  border-color: rgba(255, 179, 71, 0.5);
+  background: rgba(255, 138, 42, 0.12);
+}
+.shCmp-placeChip:active:not(:disabled) {
+  transform: scale(0.96);
+  border-color: #ffb347;
+}
+.shCmp-placeChip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.shCmp-placeChip:focus-visible,
+.shCmp-placeClear:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+.shCmp-placeError {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: #ffb4a6;
 }
 
 /* =====================================================================

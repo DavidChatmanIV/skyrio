@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import SkyHubTakedown from "../../models/SkyHubTakedown.js";
 import Notification from "../../models/notification.js";
 import SkyHubPost from "../../models/SkyHubPost.js";
+import { tidyPlace, geocodePlace, toGeoPoint } from "../../services/placeName.js";
 import SkyHubComment from "../../models/SkyHubComment.js";
 import SkyHubReport from "../../models/SkyHubReport.js";
 import SkyHubBlock from "../../models/SkyHubBlock.js";
@@ -208,7 +209,7 @@ function mapPost(
     authorFrame:
       authorId && xpByAuthorId.frames?.has(authorId) ? "seasoned" : null,
     type: post.type,
-    destination: post.destination,
+    destination: tidyPlace(post.destination),
     text: post.text,
     image: post.image || "",
     images: Array.isArray(post.images) ? post.images : [],
@@ -329,9 +330,31 @@ router.get("/feed", async (req, res) => {
           ],
         }
       : { hidden: { $ne: true } };
+    // Nearby tab: posts whose place is within `miles` of the viewer's city.
+    // Uses the city's map point (lat/lng from the browser, or looked up
+    // from its name). If we can't place the city, say so and the page
+    // falls back to matching names.
+    let near = {};
+    if (req.query.scope === "nearby") {
+      const lat = Number(req.query.lat);
+      const lng = Number(req.query.lng);
+      const center =
+        Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+          ? { lat, lng }
+          : await geocodePlace(req.query.place);
+      if (!center) return res.json({ posts: [], needsLocation: true });
+      const miles = Math.min(Math.max(Number(req.query.miles) || 25, 1), 200);
+      near = {
+        location: {
+          $geoWithin: { $centerSphere: [[center.lng, center.lat], miles / 3963.2] },
+        },
+      };
+    }
+
     const posts = await SkyHubPost.find({
       ...visible,
       ...authorFilter,
+      ...near,
     })
       .sort({ createdAt: -1 })
       .limit(50)
@@ -389,8 +412,10 @@ router.post(
       const type = POST_TYPES.includes(req.body?.type)
         ? req.body.type
         : "Story";
-      const destination = cleanText(req.body?.destination, 120);
+      const destination = tidyPlace(cleanText(req.body?.destination, 120));
       const tags = cleanTags(req.body?.tags);
+      // Put the place on the map for the Nearby tab (city level only).
+      const location = destination ? toGeoPoint(await geocodePlace(destination)) : undefined;
 
       const newPost = await SkyHubPost.create({
         author: me.id,
@@ -400,6 +425,7 @@ router.post(
         verified: me.verified,
         type,
         destination,
+        ...(location ? { location } : {}),
         text,
         image: images[0] || "",
         images,
@@ -462,7 +488,7 @@ router.patch(
           : post.text;
       const destination =
         req.body?.destination !== undefined
-          ? cleanText(req.body.destination, 120)
+          ? tidyPlace(cleanText(req.body.destination, 120))
           : post.destination;
       const hasPhotos = (post.images?.length || 0) > 0 || Boolean(post.image);
       if (!text && !hasPhotos)
@@ -477,6 +503,10 @@ router.patch(
 
       const changed = text !== post.text || destination !== post.destination;
       if (changed) {
+        if (destination !== post.destination) {
+          const point = destination ? toGeoPoint(await geocodePlace(destination)) : undefined;
+          post.location = point;
+        }
         post.text = text;
         post.destination = destination;
         post.editedAt = new Date();
