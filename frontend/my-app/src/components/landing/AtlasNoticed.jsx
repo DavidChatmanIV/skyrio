@@ -1,10 +1,10 @@
-// "Atlas noticed" — a small, quiet card on the home page for signed-in
+// "Your travel style" — a small, quiet card on the home page for signed-in
 // travelers. Shows up to 3 true things from their own trips and what Atlas
 // learned (GET /api/atlas/for-you). Nothing shows for new travelers, when
 // "Let Atlas learn" is off, or for 30 days after they hide it.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Sparkles, Plane, Moon, CalendarDays, Users, X, ArrowRight } from "lucide-react";
+import { Sparkles, Plane, Moon, CalendarDays, Users, X } from "lucide-react";
 import { atlasApi } from "@/components/Atlas/atlasApi";
 
 const HIDE_KEY = "skyrio_atlas_noticed_hidden_until";
@@ -40,7 +40,7 @@ const CSS = `
 .an-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; cursor: pointer;
   font: inherit; font-size: 13.5px; font-weight: 700; color: #fff; background: rgba(255,138,42,.18); border: 1px solid rgba(255,179,71,.6); }
 .an-btn:hover { background: rgba(255,138,42,.3); }
-.an-link { font-size: 13px; font-weight: 700; color: #ffb347; text-decoration: none; white-space: nowrap; }
+.an-link { display: inline-flex; align-items: center; min-height: 36px; margin: 0; padding: 0 4px; font-size: 13.5px; font-weight: 700; line-height: 1; color: #ffb347; text-decoration: none; white-space: nowrap; }
 .an-link:hover { text-decoration: underline; }
 `;
 
@@ -75,12 +75,12 @@ export default function AtlasNoticed({ onAsk }) {
       <style>{CSS}</style>
       <div className="an-head">
         <Sparkles size={16} aria-hidden="true" />
-        <b id="an-title">Atlas noticed</b>
+        <b id="an-title">Your travel style</b>
       </div>
       <button type="button" className="an-x" onClick={hide} aria-label="Hide for 30 days" title="Hide for 30 days">
         <X size={16} aria-hidden="true" />
       </button>
-      <p className="an-sub">Atlas uses this to suggest trips that fit you.</p>
+      <p className="an-sub">Atlas uses this to suggest trips for you.</p>
       <ul className="an-list">
         {data.lines.map((l) => {
           const Icon = ICONS[l.icon] || Sparkles;
@@ -101,8 +101,8 @@ export default function AtlasNoticed({ onAsk }) {
             <Sparkles size={14} aria-hidden="true" /> Get trip ideas
           </button>
         )}
-        <Link to="/settings/atlas" className="an-link">
-          See or change this <ArrowRight size={13} aria-hidden="true" style={{ verticalAlign: -2 }} />
+        <Link to="/settings/atlas" className="an-link" aria-label="Edit what Atlas knows">
+          Edit
         </Link>
       </div>
     </section>

@@ -58,7 +58,7 @@ export function buildForYou({ bookings = [], learned = [] } = {}) {
     lines.push({
       key: "from",
       icon: "plane",
-      text: `You usually fly from ${from.value}`,
+      text: `Usually fly from ${from.value}`,
       source: `${from.n} of ${flights.length} flights`,
     });
     facts.push(`I usually fly from ${from.value}`);
@@ -80,7 +80,7 @@ export function buildForYou({ bookings = [], learned = [] } = {}) {
     const near = nights.filter((n) => Math.abs(n - m) <= 1).length;
     if (near / nights.length >= MIN_SHARE) {
       const word = m === 1 ? "1 night" : `${m} nights`;
-      lines.push({ key: "length", icon: "moon", text: `Your trips usually last about ${word}`, source: `From ${nights.length} trips` });
+      lines.push({ key: "length", icon: "moon", text: `Trips last about ${word}`, source: `From ${nights.length} trips` });
       facts.push(`my trips usually last about ${word}`);
     }
   }
@@ -92,14 +92,14 @@ export function buildForYou({ bookings = [], learned = [] } = {}) {
     .map((d) => new Date(`${d}T12:00:00Z`).getUTCDay());
   const day = top(days);
   if (day && holds(day, days.length)) {
-    lines.push({ key: "day", icon: "calendar", text: `You often leave on ${WEEKDAYS[day.value]}`, source: `${day.n} of ${days.length} trips` });
+    lines.push({ key: "day", icon: "calendar", text: `Often leave on ${WEEKDAYS[day.value]}`, source: `${day.n} of ${days.length} trips` });
     facts.push(`I often leave on ${WEEKDAYS[day.value]}`);
   }
 
   // 5) Trips with friends.
   const group = trips.filter((b) => b.syncGroup).length;
   if (trips.length >= MIN_TRIPS && group >= MIN_TRIPS && group / trips.length >= 0.5) {
-    lines.push({ key: "group", icon: "users", text: "You often plan trips with friends", source: `${group} of ${trips.length} trips` });
+    lines.push({ key: "group", icon: "users", text: "Often travel with friends", source: `${group} of ${trips.length} trips` });
     facts.push("I often travel with friends");
   }
 
