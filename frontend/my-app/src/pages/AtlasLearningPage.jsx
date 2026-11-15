@@ -3,6 +3,7 @@
 // See, edit, pause or delete anything Atlas learned, or turn learning off.
 // Same look as the home page: purple glass, warm orange, serif title.
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Sparkles,
   Plane,
@@ -20,6 +21,7 @@ import {
   ShieldCheck,
   Check,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import { atlasApi } from "@/components/Atlas/atlasApi";
 
@@ -35,8 +37,13 @@ const CATEGORY = {
 };
 
 const CSS = `
-.alp2 { max-width: 640px; margin: 0 auto; padding: 28px 16px 64px; color: #fff; font-family: "DM Sans", system-ui, sans-serif; box-sizing: border-box; }
+.alp2 { max-width: 640px; margin: 0 auto; padding: 20px 16px 140px; color: #fff; font-family: "DM Sans", system-ui, sans-serif; box-sizing: border-box; }
 .alp2 *, .alp2 *::before, .alp2 *::after { box-sizing: border-box; }
+.alp2-back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 0 14px 0 10px; border-radius: 999px; font-size: 14px; font-weight: 700; color: #fff; text-decoration: none; background: rgba(60,32,96,.5); border: 1px solid rgba(255,255,255,.2); }
+.alp2-back svg { color: #ffb347; }
+.alp2-back:hover { border-color: #ffb347; }
+.alp2-back:focus-visible { outline: 3px solid #ffb347; outline-offset: 2px; }
+.alp2-top { display: flex; flex-direction: column; align-items: flex-start; }
 .alp2-kicker { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #ffb347; background: rgba(10,6,23,.45); border: 1px solid rgba(255,255,255,.2); }
 .alp2-title { margin: 14px 0 0; font-family: "Playfair Display", "Syne", Georgia, serif; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; font-weight: 800; letter-spacing: -.01em; }
 .alp2-title em { font-style: normal; background: linear-gradient(135deg, #ff8a2a, #ffb347 55%, #c4b5fd); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -77,7 +84,10 @@ const CSS = `
 `;
 
 async function api(path = "", method = "GET", body) {
-  const { ok, data } = await atlasApi(`/api/atlas/learning${path}`, { method, body });
+  const { ok, data } = await atlasApi(`/api/atlas/learning${path}`, {
+    method,
+    body,
+  });
   if (!ok) throw new Error(data?.error || "failed");
   return data;
 }
@@ -90,7 +100,9 @@ export default function AtlasLearningPage() {
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
-    api().then(setData).catch(() => setLoadErr(true));
+    api()
+      .then(setData)
+      .catch(() => setLoadErr(true));
   }, []);
 
   // Runs a change; shows a short message if it didn't go through.
@@ -107,6 +119,11 @@ export default function AtlasLearningPage() {
     return (
       <div className="alp2">
         <style>{CSS}</style>
+        <div className="alp2-top">
+          <Link to="/" className="alp2-back">
+            <ArrowLeft size={16} aria-hidden="true" /> Home
+          </Link>
+        </div>
         <p className="alp2-err">Couldn't load this page. Try again.</p>
       </div>
     );
@@ -114,17 +131,29 @@ export default function AtlasLearningPage() {
     return (
       <div className="alp2">
         <style>{CSS}</style>
+        <div className="alp2-top">
+          <Link to="/" className="alp2-back">
+            <ArrowLeft size={16} aria-hidden="true" /> Home
+          </Link>
+        </div>
         <p className="alp2-sub">Loading…</p>
       </div>
     );
 
-  const patch = (item) => setData((d) => ({ ...d, items: d.items.map((x) => (x.id === item.id ? item : x)) }));
+  const patch = (item) =>
+    setData((d) => ({
+      ...d,
+      items: d.items.map((x) => (x.id === item.id ? item : x)),
+    }));
 
   const toggleEnabled = run("save", async () => {
     const r = await api("/settings", "PUT", { enabled: !data.enabled });
     setData((d) => ({ ...d, enabled: r.enabled }));
   });
-  const toggleItem = (item) => run("save", async () => patch(await api(`/${item.id}`, "PATCH", { active: !item.active })));
+  const toggleItem = (item) =>
+    run("save", async () =>
+      patch(await api(`/${item.id}`, "PATCH", { active: !item.active })),
+    );
   const saveEdit = run("save", async () => {
     patch(await api(`/${editing.id}`, "PATCH", { text: editing.text }));
     setEditing(null);
@@ -132,7 +161,10 @@ export default function AtlasLearningPage() {
   const remove = (item) =>
     run("delete", async () => {
       await api(`/${item.id}`, "DELETE");
-      setData((d) => ({ ...d, items: d.items.filter((x) => x.id !== item.id) }));
+      setData((d) => ({
+        ...d,
+        items: d.items.filter((x) => x.id !== item.id),
+      }));
     });
   const clearAll = run("delete", async () => {
     await api("", "DELETE");
@@ -148,18 +180,30 @@ export default function AtlasLearningPage() {
     <div className="alp2">
       <style>{CSS}</style>
 
-      <span className="alp2-kicker">
-        <Sparkles size={14} aria-hidden="true" /> Atlas
-      </span>
+      <div className="alp2-top">
+        <Link to="/" className="alp2-back">
+          <ArrowLeft size={16} aria-hidden="true" /> Home
+        </Link>
+        <span className="alp2-kicker">
+          <Sparkles size={14} aria-hidden="true" /> Atlas
+        </span>
+      </div>
       <h1 className="alp2-title">
         What Atlas <em>knows</em>
       </h1>
-      <p className="alp2-sub">Atlas learns from your trips and what you tell it. Change or delete anything here.</p>
+      <p className="alp2-sub">
+        Atlas learns from your trips and what you tell it. Change or delete
+        anything here.
+      </p>
 
       <div className="alp2-card alp2-toggle">
         <div>
           <b>Let Atlas learn</b>
-          <span>{data.enabled ? "On. Atlas uses this to suggest trips." : "Off. Atlas won't learn or use anything below."}</span>
+          <span>
+            {data.enabled
+              ? "On. Atlas uses this to suggest trips."
+              : "Off. Atlas won't learn or use anything below."}
+          </span>
         </div>
         <button
           type="button"
@@ -173,12 +217,18 @@ export default function AtlasLearningPage() {
         </button>
       </div>
 
-      {err && <p className="alp2-err" role="alert">{err}</p>}
+      {err && (
+        <p className="alp2-err" role="alert">
+          {err}
+        </p>
+      )}
 
       {!grouped.length && (
         <div className="alp2-card alp2-empty">
           <Sparkles size={18} aria-hidden="true" />
-          <span>Nothing yet. Book a trip or tell Atlas how you like to travel.</span>
+          <span>
+            Nothing yet. Book a trip or tell Atlas how you like to travel.
+          </span>
         </div>
       )}
 
@@ -191,7 +241,10 @@ export default function AtlasLearningPage() {
             </h2>
             <div className="alp2-list">
               {items.map((item) => (
-                <div key={item.id} className={`alp2-card alp2-item${item.active ? "" : " off"}`}>
+                <div
+                  key={item.id}
+                  className={`alp2-card alp2-item${item.active ? "" : " off"}`}
+                >
                   {editing?.id === item.id ? (
                     <>
                       <input
@@ -200,13 +253,24 @@ export default function AtlasLearningPage() {
                         maxLength={200}
                         autoFocus
                         aria-label="Edit"
-                        onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                        onChange={(e) =>
+                          setEditing({ ...editing, text: e.target.value })
+                        }
                       />
                       <div className="alp2-actions">
-                        <button type="button" className="alp2-btn primary" onClick={saveEdit} disabled={!editing.text.trim()}>
+                        <button
+                          type="button"
+                          className="alp2-btn primary"
+                          onClick={saveEdit}
+                          disabled={!editing.text.trim()}
+                        >
                           <Check size={15} aria-hidden="true" /> Save
                         </button>
-                        <button type="button" className="alp2-btn" onClick={() => setEditing(null)}>
+                        <button
+                          type="button"
+                          className="alp2-btn"
+                          onClick={() => setEditing(null)}
+                        >
                           <X size={15} aria-hidden="true" /> Cancel
                         </button>
                       </div>
@@ -216,17 +280,37 @@ export default function AtlasLearningPage() {
                       <div className="alp2-text">{item.text}</div>
                       <div className="alp2-chips">
                         <span className="alp2-chip">{item.sourceLabel}</span>
-                        <span className="alp2-chip warm">{item.active ? item.strength : "Paused"}</span>
+                        <span className="alp2-chip warm">
+                          {item.active ? item.strength : "Paused"}
+                        </span>
                       </div>
                       <div className="alp2-actions">
-                        <button type="button" className="alp2-btn" onClick={() => setEditing({ id: item.id, text: item.text })}>
+                        <button
+                          type="button"
+                          className="alp2-btn"
+                          onClick={() =>
+                            setEditing({ id: item.id, text: item.text })
+                          }
+                        >
                           <Pencil size={14} aria-hidden="true" /> Edit
                         </button>
-                        <button type="button" className="alp2-btn" onClick={toggleItem(item)}>
-                          {item.active ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
+                        <button
+                          type="button"
+                          className="alp2-btn"
+                          onClick={toggleItem(item)}
+                        >
+                          {item.active ? (
+                            <Pause size={14} aria-hidden="true" />
+                          ) : (
+                            <Play size={14} aria-hidden="true" />
+                          )}
                           {item.active ? "Pause" : "Resume"}
                         </button>
-                        <button type="button" className="alp2-btn danger" onClick={remove(item)}>
+                        <button
+                          type="button"
+                          className="alp2-btn danger"
+                          onClick={remove(item)}
+                        >
                           <Trash2 size={14} aria-hidden="true" /> Delete
                         </button>
                       </div>
@@ -245,16 +329,28 @@ export default function AtlasLearningPage() {
             <div className="alp2-card">
               <p>Delete everything Atlas learned? This can't be undone.</p>
               <div className="alp2-actions" style={{ marginTop: 0 }}>
-                <button type="button" className="alp2-btn danger-solid" onClick={clearAll}>
+                <button
+                  type="button"
+                  className="alp2-btn danger-solid"
+                  onClick={clearAll}
+                >
                   <Trash2 size={14} aria-hidden="true" /> Delete all
                 </button>
-                <button type="button" className="alp2-btn" onClick={() => setConfirmClear(false)}>
+                <button
+                  type="button"
+                  className="alp2-btn"
+                  onClick={() => setConfirmClear(false)}
+                >
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <button type="button" className="alp2-btn danger" onClick={() => setConfirmClear(true)}>
+            <button
+              type="button"
+              className="alp2-btn danger"
+              onClick={() => setConfirmClear(true)}
+            >
               <Trash2 size={14} aria-hidden="true" /> Delete everything
             </button>
           )}
@@ -262,7 +358,8 @@ export default function AtlasLearningPage() {
       )}
 
       <p className="alp2-foot">
-        <ShieldCheck size={15} aria-hidden="true" /> Atlas never saves health, religion, money or other private details.
+        <ShieldCheck size={15} aria-hidden="true" /> Atlas never saves health,
+        religion, money or other private details.
       </p>
     </div>
   );
