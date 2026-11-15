@@ -879,6 +879,8 @@ export default function SkyHubPage() {
           topic: postTopic || undefined,
           tags: postTopic ? [postTopic] : [],
           destination: tidyPlace(destination),
+          // Radar city's state, so "Newark" is saved as "Newark, NJ".
+          near: localCity?.regionCode || localCity?.region || undefined,
           images: urls,
           image: urls[0] || "",
         }),
@@ -1034,6 +1036,7 @@ export default function SkyHubPage() {
         body: JSON.stringify({
           text: editText.trim(),
           destination: tidyPlace(editDestination),
+          near: localCity?.regionCode || localCity?.region || undefined,
         }),
       });
       const data = await readJson(res);
@@ -1443,6 +1446,7 @@ export default function SkyHubPage() {
                   destination={destination}
                   setDestination={setDestination}
                   radarCity={localCity}
+                  profileCity={[authUser?.city, authUser?.homeBase].find((v) => typeof v === "string" && v.trim()) || ""}
                   placeSuggestions={trendingDestinations.map((t) => t.name)}
                   onCreatePost={handleCreatePost}
                   creatingPost={creatingPost}

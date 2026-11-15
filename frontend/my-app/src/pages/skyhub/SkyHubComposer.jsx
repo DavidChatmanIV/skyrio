@@ -8,6 +8,7 @@ import {
 import { LocateFixed, MapPin, X } from "lucide-react";
 import { myCity, locationError } from "@/lib/whereAmI";
 import { tidyPlace } from "@/lib/placeName";
+import { apiUrl } from "@/lib/api";
 
 // "Join Trip" removed for now — old Join Trip posts still show in the feed.
 const POST_TYPES = ["Tip", "Question", "Story", "Photo"];
@@ -36,6 +37,7 @@ export default function SkyHubComposer({
   topics = [],
   radarCity = null, // the city picked on the SkyHub Radar
   placeSuggestions = [], // places people post about most
+  profileCity = "", // city on their profile, e.g. "Newark, NJ"
 }) {
   const fileRef = useRef(null);
   // Lets SkyHubPage scroll to AND focus the textarea directly
@@ -47,6 +49,16 @@ export default function SkyHubComposer({
   const [focused, setFocused] = useState(false);
   const [locating, setLocating] = useState(false);
   const [placeError, setPlaceError] = useState("");
+  // Fill the place in for them: the Radar city they picked, else their
+  // profile city. Only once, and never after they clear it.
+  const radarLabel = tidyPlace(radarCity?.label || radarCity?.name);
+  const homeLabel = tidyPlace(profileCity);
+  const [autoPlaced, setAutoPlaced] = useState(false);
+  useEffect(() => {
+    if (!focused || autoPlaced) return;
+    setAutoPlaced(true);
+    if (!destination.trim() && (radarLabel || homeLabel)) setDestination(radarLabel || homeLabel);
+  }, [focused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Same as the Radar: "Use my location" fills in your city ("Newark, NJ").
   const useMyLocation = async () => {
@@ -61,10 +73,35 @@ export default function SkyHubComposer({
       setLocating(false);
     }
   };
+  // What the typed place will be saved as. Just "Newark" with the Radar
+  // in NJ → "Newark, NJ" (the server checks the map).
+  const near = radarCity?.regionCode || radarCity?.region || "";
+  const [savesAs, setSavesAs] = useState("");
+  useEffect(() => {
+    const typed = tidyPlace(destination);
+    setSavesAs("");
+    if (!focused || typed.length < 2) return undefined;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const q = new URLSearchParams({ q: typed, near });
+        const res = await fetch(apiUrl(`/api/skyhub/place?${q}`), { signal: ctrl.signal });
+        const d = await res.json();
+        if (res.ok && d?.found && d.label && d.label !== typed) setSavesAs(d.label);
+      } catch {
+        /* preview only */
+      }
+    }, 450);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [destination, near, focused]);
+
   // Quick picks: your Radar city, then popular places (no repeats).
   const quickPlaces = [];
   const seenPlace = new Set([tidyPlace(destination).toLowerCase()]);
-  for (const p of [radarCity?.label || radarCity?.name, ...placeSuggestions]) {
+  for (const p of [radarLabel, homeLabel, ...placeSuggestions]) {
     const name = tidyPlace(p);
     if (!name || seenPlace.has(name.toLowerCase())) continue;
     seenPlace.add(name.toLowerCase());
@@ -352,6 +389,19 @@ export default function SkyHubComposer({
                   </button>
                 ))}
               </div>
+              {savesAs && !placeError && (
+                <div className="shCmp-placeHint">
+                  Saves as{" "}
+                  <button
+                    type="button"
+                    className="shCmp-placeHintBtn"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setDestination(savesAs)}
+                  >
+                    {savesAs}
+                  </button>
+                </div>
+              )}
               {placeError && (
                 <div className="shCmp-placeError" role="alert">
                   {placeError}
