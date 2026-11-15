@@ -3,7 +3,7 @@
 // See, edit, pause or delete anything Atlas learned, or turn learning off.
 // Same look as the home page: purple glass, warm orange, serif title.
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Sparkles,
   Plane,
@@ -39,9 +39,9 @@ const CATEGORY = {
 const CSS = `
 .alp2 { max-width: 640px; margin: 0 auto; padding: 20px 16px 140px; color: #fff; font-family: "DM Sans", system-ui, sans-serif; box-sizing: border-box; }
 .alp2 *, .alp2 *::before, .alp2 *::after { box-sizing: border-box; }
-.alp2-back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 0 14px 0 10px; border-radius: 999px; font-size: 14px; font-weight: 700; color: #fff; text-decoration: none; background: rgba(60,32,96,.5); border: 1px solid rgba(255,255,255,.2); }
+.alp2 .alp2-back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 0 14px 0 10px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: rgba(60,32,96,.5); border: 1px solid rgba(255,255,255,.2); -webkit-tap-highlight-color: transparent; }
 .alp2-back svg { color: #ffb347; }
-.alp2-back:hover { border-color: #ffb347; }
+@media (hover: hover) { .alp2 .alp2-back:hover { border-color: #ffb347; } }
 .alp2-back:focus-visible { outline: 3px solid #ffb347; outline-offset: 2px; }
 .alp2-top { display: flex; flex-direction: column; align-items: flex-start; }
 .alp2-kicker { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #ffb347; background: rgba(10,6,23,.45); border: 1px solid rgba(255,255,255,.2); }
@@ -93,6 +93,8 @@ async function api(path = "", method = "GET", body) {
 }
 
 export default function AtlasLearningPage() {
+  const navigate = useNavigate();
+  const goHome = () => navigate("/");
   const [data, setData] = useState(null);
   const [loadErr, setLoadErr] = useState(false);
   const [err, setErr] = useState("");
@@ -120,9 +122,9 @@ export default function AtlasLearningPage() {
       <div className="alp2">
         <style>{CSS}</style>
         <div className="alp2-top">
-          <Link to="/" className="alp2-back">
+          <button type="button" className="alp2-back" onClick={goHome}>
             <ArrowLeft size={16} aria-hidden="true" /> Home
-          </Link>
+          </button>
         </div>
         <p className="alp2-err">Couldn't load this page. Try again.</p>
       </div>
@@ -132,9 +134,9 @@ export default function AtlasLearningPage() {
       <div className="alp2">
         <style>{CSS}</style>
         <div className="alp2-top">
-          <Link to="/" className="alp2-back">
+          <button type="button" className="alp2-back" onClick={goHome}>
             <ArrowLeft size={16} aria-hidden="true" /> Home
-          </Link>
+          </button>
         </div>
         <p className="alp2-sub">Loading…</p>
       </div>
@@ -181,9 +183,9 @@ export default function AtlasLearningPage() {
       <style>{CSS}</style>
 
       <div className="alp2-top">
-        <Link to="/" className="alp2-back">
+        <button type="button" className="alp2-back" onClick={goHome}>
           <ArrowLeft size={16} aria-hidden="true" /> Home
-        </Link>
+        </button>
         <span className="alp2-kicker">
           <Sparkles size={14} aria-hidden="true" /> Atlas
         </span>

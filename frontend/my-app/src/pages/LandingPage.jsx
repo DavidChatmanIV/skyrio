@@ -250,7 +250,7 @@ const CSS = `
 .lp-from svg { color: #ffb347; }
 .lp-from b { color: #fff; }
 .lp-from .lp-fromEdit { display: inline-flex; align-items: center; margin: 0 0 0 6px; padding: 0; line-height: 1.2; font-weight: 700; color: #ffb347; text-decoration: none; }
-.lp-fromEdit:hover { text-decoration: underline; }
+.lp-from a.lp-fromEdit:hover, .lp-from a.lp-fromEdit:active, .lp-from a.lp-fromEdit:visited { color: #ffb347; }
 .lp-timeline { margin-top: 14px; font-size: 14px; color: rgba(255,255,255,.75); }
 
 /* What's new */
