@@ -119,7 +119,20 @@ export default function AuthProvider({ children }) {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        clearSession();
+        // Only a real "not logged in" (401/403) logs you out. A server
+        // that's restarting (deploy) or busy (5xx) keeps you signed in
+        // with your saved details until it's back.
+        if (res.status === 401 || res.status === 403) {
+          clearSession();
+        } else {
+          const cachedUser = safeParse(localStorage.getItem("user"));
+          if (cachedUser) {
+            setUser(cachedUser);
+            setToken(existingToken);
+          } else {
+            clearSession();
+          }
+        }
         setLoading(false);
         return;
       }

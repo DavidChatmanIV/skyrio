@@ -49,6 +49,7 @@ import { markGroupRead, groupRoom } from "./utils/notifyGroupMessage.js";
 import duffelWebhook from "./routes/duffelWebhook.routes.js";
 import { startWeatherJob, startWeatherWarmup } from "./services/weatherAlerts.js";
 import { startSkyHubPlaceBackfill } from "./services/placeName.js";
+import { startPhotoSync } from "./services/userAvatar.js";
 import { ensureMemberRewards } from "./services/memberRewards.js";
 
 Sentry.init({
@@ -427,6 +428,7 @@ startJobs();
 startWeatherJob();
 startWeatherWarmup(); // admin's "Severe weather at major airports" list
 startSkyHubPlaceBackfill(); // put older SkyHub posts on the map for Nearby
+startPhotoSync(); // profile photos onto accounts, so every page shows the same photo
 
 // Where To Next fare scan. Off unless DEAL_SCAN_ENABLED=true.
 startDealScanJob();

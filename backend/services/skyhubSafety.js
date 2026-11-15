@@ -9,6 +9,7 @@
 
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import { photosFor } from "./userAvatar.js";
 import User from "../models/user.js";
 import SkyHubPost from "../models/SkyHubPost.js";
 import SkyHubBlock from "../models/SkyHubBlock.js";
@@ -49,7 +50,7 @@ export async function readViewer(req, _res, next) {
           id: String(u._id),
           name: u.name || u.username || "Traveler",
           username: u.username || "traveler",
-          avatar: u.avatar || u.profilePicture || null,
+          avatar: (await photosFor([u._id])).get(String(u._id)) || null,
           verified: Boolean(u.verified || u.verifiedTier),
           isAdmin: u.role === "admin" || u.isAdmin === true,
         };

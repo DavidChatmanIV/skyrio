@@ -5,6 +5,7 @@
 //    like Twitter/Threads/Bluesky). Saves stay private (count only).
 import React, { useEffect, useState } from "react";
 import { Modal } from "antd";
+import { apiUrl } from "@/lib/api";
 
 const AV_BG = [
   "linear-gradient(135deg,#ff7a35,#c94f10)",
@@ -14,8 +15,10 @@ const AV_BG = [
   "linear-gradient(135deg,#f59e0b,#b45309)",
 ];
 
-export function PersonAvatar({ name, src, size = 44 }) {
+export function PersonAvatar({ name, src: raw, size = 44 }) {
   const [broken, setBroken] = useState(false);
+  // Photos on our own server come back as "/uploads/…".
+  const src = typeof raw === "string" && raw.startsWith("/uploads/") ? apiUrl(raw) : raw;
   if (src && /^https?:\/\//.test(src) && !broken)
     return (
       <img
