@@ -51,6 +51,7 @@ import { useAuth } from "@/auth/useAuth";
 import TripGenerator from "@/components/TripGenerator";
 import AirportInput from "@/pages/booking/AirportInput";
 import AtlasNoticed from "@/components/landing/AtlasNoticed";
+import { readHomeAirport, fetchHomeAirport, HOME_AIRPORT_EVENT } from "@/lib/homeAirport";
 
 // Same key BookingPage reads, so the chosen path opens ready to go.
 const PLAN_MODE_KEY = "skyrio_plan_mode";
@@ -245,6 +246,11 @@ const CSS = `
 .lp-idea svg { color: var(--lp-accent); }
 .lp-idea:hover { border-color: var(--lp-accent); }
 .lp-idea:focus-visible { outline: 3px solid var(--lp-accent); outline-offset: 2px; }
+.lp-from { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 12px; border-radius: 999px; font-size: 13.5px; color: rgba(255,255,255,.88); background: rgba(60,32,96,.5); border: 1px solid rgba(255,255,255,.18); }
+.lp-from svg { color: #ffb347; }
+.lp-from b { color: #fff; }
+.lp-from .lp-fromEdit { display: inline-flex; align-items: center; margin: 0 0 0 6px; padding: 0; line-height: 1.2; font-weight: 700; color: #ffb347; text-decoration: none; }
+.lp-fromEdit:hover { text-decoration: underline; }
 .lp-timeline { margin-top: 14px; font-size: 14px; color: rgba(255,255,255,.75); }
 
 /* What's new */
@@ -402,6 +408,21 @@ export default function LandingPage() {
   };
   const time = useTimeOfDay();
   const T = TIMES[time];
+  // Home airport (from their Passport): flight searches start there.
+  const [home, setHome] = useState(readHomeAirport);
+  useEffect(() => {
+    let alive = true;
+    if (isAuthed)
+      fetchHomeAirport()
+        .then(({ homeAirport }) => alive && homeAirport && setHome(homeAirport))
+        .catch(() => {});
+    const onChange = () => setHome(readHomeAirport());
+    window.addEventListener(HOME_AIRPORT_EVENT, onChange);
+    return () => {
+      alive = false;
+      window.removeEventListener(HOME_AIRPORT_EVENT, onChange);
+    };
+  }, [isAuthed]);
   const firstName = String(user?.name || user?.username || "")
     .trim()
     .split(/\s+/)[0];
@@ -428,6 +449,7 @@ export default function LandingPage() {
     }
     if (dest?.code) {
       const q = new URLSearchParams({ tab: "Flights", to: dest.code });
+      if (home?.code && home.code !== dest.code) q.set("from", home.code);
       if (dest.city) q.set("toName", dest.city);
       navigate(`/booking?${q}`);
     } else navigate("/booking?tab=Flights");
@@ -506,6 +528,15 @@ export default function LandingPage() {
                   <Search size={16} aria-hidden="true" /> Search flights
                 </button>
               </form>
+              {home?.code && (
+                <div className="lp-from">
+                  <Plane size={14} aria-hidden="true" /> From <b>{home.code}</b>
+                  {home.city && home.city !== home.code ? ` · ${home.city}` : ""}
+                  <Link to="/booking?tab=Flights" className="lp-fromEdit">
+                    Change
+                  </Link>
+                </div>
+              )}
               <div className="lp-hint">
                 Compare flights, hotels and cars.{" "}
                 <Link

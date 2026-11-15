@@ -36,6 +36,9 @@ await mount("/profile", "./profile.routes.js");
 await mount("/uploads", "./uploads.routes.js");
 await mount("/social", "./social.routes.js");
 await mount("/follow", "./follow.routes.js");
+// Home airport (GET/PATCH/DELETE /api/users/me/home-airport). Before the
+// other /users routes so "me" is never read as a username.
+await mount("/users", "../homeAirport.routes.js");
 await mount("/users", "./userSearch.routes.js");
 await mount("/passport", "./passport.routes.js");
 // Flights — now serving from LiteAPI (Duffel pending account approval).
