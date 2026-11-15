@@ -16,6 +16,7 @@
 // Self-contained: own styles (tg- prefix), lucide icons, guests welcome.
 // ─────────────────────────────────────────────────────────────
 import useForYou from "@/lib/useForYou";
+import { useAuth } from "@/auth/useAuth";
 import React, { useCallback, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -78,6 +79,9 @@ const CSS = `
 .tg-styleToggle b { color: #fff; font-weight: 700; }
 .tg-styleEdit { flex: none; font: 800 13px "DM Sans", sans-serif; color: #ffb347; text-decoration: none; }
 .tg-styleToggle:focus-visible, .tg-styleEdit:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; border-radius: 6px; }
+.tg-guestHint { margin: 12px 0 0; font: 500 13px "DM Sans", sans-serif; color: rgba(255,255,255,.62); text-align: center; }
+.tg-guestLink, .tg-guestLink:visited, .tg-guestLink:hover, .tg-guestLink:active { font: 700 13px "DM Sans", sans-serif; color: #ffb347; text-decoration: none; }
+.tg-guestLink:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; border-radius: 4px; }
 .tg-chip { min-height: 34px; padding: 0 12px; border-radius: 999px; cursor: pointer; font: 700 13px "DM Sans", sans-serif;
   color: rgba(255,255,255,.85); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.16); }
 .tg-chip.is-on { color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); border-color: transparent; }
@@ -157,6 +161,7 @@ export default function TripGenerator() {
 
   // What Atlas knows about how you travel (signed in, learning on).
   const forYou = useForYou();
+  const { isAuthed } = useAuth();
   const styleLines = forYou?.enabled ? (forYou.lines || []).map((l) => l.text).filter(Boolean) : [];
   const [useStyle, setUseStyle] = useState(true);
   const styleOn = useStyle && styleLines.length > 0;
@@ -377,6 +382,15 @@ export default function TripGenerator() {
               Edit
             </Link>
           </div>
+        )}
+        {/* Guests: one quiet line that this gets personal with an account. */}
+        {!isAuthed && (
+          <p className="tg-guestHint">
+            With an account, Atlas learns how you travel.{" "}
+            <Link to="/login" state={{ redirectTo: "/" }} className="tg-guestLink">
+              Log in
+            </Link>
+          </p>
         )}
         {/* After the first trip, Shuffle lives on the trip card. */}
         {!trip && (
