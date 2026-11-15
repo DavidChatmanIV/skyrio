@@ -63,7 +63,10 @@ const CSS = `
 .nt { display: flex; align-items: center; gap: 12px; margin: 22px auto 0; max-width: 560px; padding: 14px 16px; border-radius: 18px; text-align: left; color: #fff; text-decoration: none;
   background: linear-gradient(135deg, rgba(92,52,160,.55), rgba(60,32,96,.55)); border: 1px solid rgba(255,179,71,.35);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 30px rgba(20,8,40,.35); }
-.nt:hover { border-color: rgba(255,179,71,.7); }
+.an-stack a.nt, .an-stack a.nt:hover, .an-stack a.nt:active, .an-stack a.nt:visited { color: #fff; }
+.an-stack a.an-link, .an-stack a.an-link:hover, .an-stack a.an-link:active, .an-stack a.an-link:visited { color: #ffb347; }
+.nt, .an-link { -webkit-tap-highlight-color: transparent; }
+@media (hover: hover) { .nt:hover { border-color: rgba(255,179,71,.7); } }
 .nt:focus-visible { outline: 3px solid #ffb347; outline-offset: 2px; }
 .nt-icon { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #1a0e06; background: linear-gradient(135deg, #ff8a2a, #ffb347); }
 .nt-body { flex: 1; min-width: 0; }
