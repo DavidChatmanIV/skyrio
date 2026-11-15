@@ -16,7 +16,7 @@ const WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "
 
 const SOURCE_LABEL = {
   stated: "You told Atlas",
-  choices: "From options you picked",
+  choices: "From your picks",
   feedback: "From your feedback",
   bookings: "From your trips",
 };
@@ -114,19 +114,74 @@ export function buildForYou({ bookings = [], learned = [] } = {}) {
   };
 }
 
+const todayNY = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+
+const tripDay = (b) => isoDay(b.flight?.departureAt) || isoDay(b.hotelStay?.rooms?.[0]?.checkin) || isoDay(b.dates?.start);
+
+/** Pure: the soonest confirmed trip that hasn't started yet (today counts). */
+export function pickNextTrip(bookings = [], today = todayNY()) {
+  const next = bookings
+    .filter((b) => b && b.status === "confirmed" && !b.hiddenByUser)
+    .map((b) => ({ b, day: tripDay(b) }))
+    .filter((x) => x.day && x.day >= today)
+    .sort((a, z) => a.day.localeCompare(z.day))[0];
+  if (!next) return null;
+  const { b, day } = next;
+  const f = b.flight || {};
+  const isFlight = b.type === "Flight" && (f.destinationName || f.destination);
+  const place = isFlight
+    ? String(f.destinationName || f.destination)
+    : b.hotelStay?.rooms?.[0]?.name || String(b.tripDetails || "").split(" · ")[0] || "Your trip";
+  const daysAway = Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY_MS);
+  return {
+    id: String(b._id),
+    type: b.type,
+    place,
+    airport: isFlight && /^[A-Z]{3}$/i.test(f.destination || "") ? String(f.destination).toUpperCase() : null,
+    date: day,
+    daysAway,
+  };
+}
+
+// Forecast for the next trip's first day, only when it's within the
+// forecast range (~5 days). Never blocks the card for long.
+async function withForecast(trip) {
+  if (!trip?.airport || trip.daysAway > 4) return trip;
+  try {
+    const { getWeatherForAtlas } = await import("./atlasWeather.js");
+    const wx = await Promise.race([
+      getWeatherForAtlas({ place: trip.airport, startDate: trip.date }),
+      new Promise((r) => setTimeout(() => r(null), 3500)),
+    ]);
+    const day = wx?.forecast?.find((d) => d.date === trip.date);
+    return {
+      ...trip,
+      forecast: day ? { highF: day.highF, rainChancePct: day.rainChancePct, condition: day.condition } : null,
+      warning: wx?.warnings?.[0]?.event || null,
+    };
+  } catch {
+    return trip;
+  }
+}
+
 export async function forYouFor(userId) {
-  if (!(await isLearningEnabled(userId))) return { enabled: false, lines: [], ask: null };
-  const [bookings, learned] = await Promise.all([
+  const [enabled, bookings] = await Promise.all([
+    isLearningEnabled(userId),
     Booking.find({ user: userId, status: "confirmed" })
-      .select("type status flight.origin flight.departureAt dates syncGroup")
+      .select("type status hiddenByUser tripDetails flight.origin flight.destination flight.destinationName flight.departureAt hotelStay.rooms.name hotelStay.rooms.checkin dates syncGroup")
       .sort({ createdAt: -1 })
       .limit(40)
       .lean(),
-    AtlasLearnedPreference.find({ user: userId, active: true })
-      .select("key text source confidence editedByUser active")
-      .sort({ confidence: -1 })
-      .limit(10)
-      .lean(),
   ]);
-  return buildForYou({ bookings, learned });
+  // The next trip is the traveler's own booking, not something Atlas
+  // learned, so it shows even when learning is off.
+  const nextTrip = await withForecast(pickNextTrip(bookings));
+  if (!enabled) return { enabled: false, lines: [], ask: null, nextTrip };
+  const learned = await AtlasLearnedPreference.find({ user: userId, active: true })
+    .select("key text source confidence editedByUser active")
+    .sort({ confidence: -1 })
+    .limit(10)
+    .lean();
+  return { ...buildForYou({ bookings, learned }), nextTrip };
 }

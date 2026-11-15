@@ -6,7 +6,7 @@ import User from "../models/user.js";
 const SOURCE_LABEL = {
   stated: "You told Atlas",
   bookings: "From your trips",
-  choices: "From options you picked",
+  choices: "From your picks",
   feedback: "From your feedback",
 };
 
@@ -17,7 +17,7 @@ const view = (r) => ({
   source: r.source,
   sourceLabel: SOURCE_LABEL[r.source],
   // Plain words instead of a number
-  strength: r.source === "stated" || r.editedByUser ? "You said so" : r.confidence >= 0.75 ? "Strong pattern" : r.confidence >= 0.5 ? "Noticing a pattern" : "Still learning",
+  strength: r.source === "stated" || r.editedByUser ? "You said so" : r.confidence >= 0.75 ? "Strong" : r.confidence >= 0.5 ? "Likely" : "Still learning",
   active: r.active,
   updatedAt: r.updatedAt,
 });

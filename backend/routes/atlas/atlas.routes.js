@@ -617,7 +617,7 @@ router.get("/for-you", authRequired, async (req, res) => {
     res.json(await forYouFor(req.user.id));
   } catch (err) {
     console.error("[Atlas for-you]", err.message);
-    res.json({ enabled: true, lines: [], ask: null });
+    res.json({ enabled: true, lines: [], ask: null, nextTrip: null });
   }
 });
 
