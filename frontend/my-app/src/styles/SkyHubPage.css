@@ -2385,18 +2385,43 @@
   display: none;
 }
 
-/* Destination → a postmark */
+/* Place, Been there and type: one straight, wrapping row of chips
+   (the tilted postmark wrapped badly on phones once it held more). */
 .sh-postcards .skyhub-feedCard__location {
-  padding: 3px 11px;
-  border: 1.5px dashed rgba(255, 180, 107, 0.75);
-  border-radius: var(--r-pill);
-  transform: rotate(-4deg);
-  font-family: var(--shpc-mono);
-  font-size: 0.72rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  transform: none;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: #ffc48a;
+}
+.skyhub-placeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 180, 107, 0.7);
+  background: rgba(255, 138, 42, 0.12);
+  color: #ffd29a;
+  font-weight: 700;
+}
+.skyhub-placeChip .anticon {
+  color: #ffb347;
+}
+.sh-postcards .skyhub-feedCard__location .skyhub-beenThere,
+.sh-postcards .skyhub-feedCard__location > span:last-child:not(.skyhub-placeChip) {
+  margin-left: 0 !important;
+  font-size: 11.5px !important;
+  padding: 3px 9px !important;
 }
 
 .sh-postcards .skyhub-feedCard__text {
@@ -3015,3 +3040,46 @@ html:has(.skyhub-drawer.ant-drawer-open) [data-sr-root] {
     flex: 1;
   }
 }
+
+
+/* "Been there": author took a Skyrio trip to this place */
+.skyhub-beenThere {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #6ee7a8;
+  background: rgba(110, 231, 168, 0.12);
+  border: 1px solid rgba(110, 231, 168, 0.35);
+  white-space: nowrap;
+}
+
+/* Load more posts */
+.shMore {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 0 28px;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.shMore__btn {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 179, 71, 0.55);
+  background: rgba(255, 138, 42, 0.12);
+  color: #ffb347;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.shMore__btn:active:not(:disabled) { transform: scale(0.97); }
+.shMore__btn:disabled { opacity: 0.7; cursor: default; }

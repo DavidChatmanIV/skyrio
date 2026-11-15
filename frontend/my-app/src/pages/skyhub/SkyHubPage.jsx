@@ -235,8 +235,23 @@ function mapBackendPost(post) {
     liked: !!post.viewerHasLiked,
     saved: !!post.viewerHasSaved,
     following: !!post.viewerFollowsAuthor,
+    // Author took a Skyrio trip here (server checks real, past bookings)
+    beenThere: !!post.beenThere,
+    // Nearby tab: miles from your Radar city
+    milesAway: Number.isFinite(post.milesAway) ? post.milesAway : null,
   };
 }
+
+// Adds the "load more" cursor to a feed request.
+const pageUrl = (path, cursor) =>
+  cursor
+    ? `${path}${path.includes("?") ? "&" : "?"}before=${encodeURIComponent(cursor)}`
+    : path;
+// Appends a page, skipping posts already in the list.
+const appendPage = (prev, page) => {
+  const seen = new Set(prev.map((p) => p.id));
+  return [...prev, ...page.filter((p) => !seen.has(p.id))];
+};
 
 function deriveTrending(posts) {
   // "Newark Nj" and "Newark, NJ" count as one place.
@@ -545,6 +560,7 @@ export default function SkyHubPage() {
   // ── Following tab: posts from people you follow (fetched on demand) ──
   const [followingPosts, setFollowingPosts] = useState([]);
   const [loadingFollowing, setLoadingFollowing] = useState(false);
+  const [followingCursor, setFollowingCursor] = useState(null);
   const fetchFollowingFeed = useCallback(async () => {
     try {
       setLoadingFollowing(true);
@@ -555,6 +571,7 @@ export default function SkyHubPage() {
       setFollowingPosts(
         Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : []
       );
+      setFollowingCursor(data.nextCursor || null);
     } catch (err) {
       message.error(err.message || "Couldn't load posts you follow.");
     } finally {
@@ -571,6 +588,7 @@ export default function SkyHubPage() {
   const [nearbyPosts, setNearbyPosts] = useState([]);
   const [loadingNearby, setLoadingNearby] = useState(false);
   const [nearbyFailed, setNearbyFailed] = useState(false);
+  const [nearbyCursor, setNearbyCursor] = useState(null);
   const nearbyPath = useMemo(() => nearbyUrl(localCity), [localCity]);
   const fetchNearbyFeed = useCallback(async () => {
     if (!nearbyPath) return;
@@ -583,6 +601,7 @@ export default function SkyHubPage() {
       setNearbyPosts(
         Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : []
       );
+      setNearbyCursor(data.nextCursor || null);
       setNearbyFailed(false);
     } catch (err) {
       console.warn("[skyhub] nearby map search unavailable:", err.message);
@@ -603,6 +622,7 @@ export default function SkyHubPage() {
     setNearbyPosts(fn);
   }, []);
 
+  const [feedCursor, setFeedCursor] = useState(null);
   const fetchFeed = useCallback(async () => {
     try {
       setLoadingFeed(true);
@@ -610,6 +630,7 @@ export default function SkyHubPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Couldn't load SkyHub.");
       setPosts(Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : []);
+      setFeedCursor(data.nextCursor || null);
     } catch (err) {
       message.error(
         err.message || "Couldn't load SkyHub. Refresh to try again."
@@ -660,6 +681,44 @@ export default function SkyHubPage() {
       : useNearbyList
       ? nearbyPosts
       : posts;
+
+  // ── Load more as you scroll ──
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreFailed, setMoreFailed] = useState(false);
+  const pager =
+    activeTab === "following"
+      ? { cursor: followingCursor, path: "/api/skyhub/feed?scope=following", set: setFollowingPosts, setCursor: setFollowingCursor }
+      : useNearbyList
+      ? { cursor: nearbyCursor, path: nearbyPath, set: setNearbyPosts, setCursor: setNearbyCursor }
+      : { cursor: feedCursor, path: "/api/skyhub/feed", set: setPosts, setCursor: setFeedCursor };
+  const loadMore = useCallback(async () => {
+    if (!pager.cursor || !pager.path || loadingMore) return;
+    setLoadingMore(true);
+    setMoreFailed(false);
+    try {
+      const res = await skyFetch(pageUrl(pager.path, pager.cursor));
+      const data = await readJson(res);
+      if (!res.ok) throw new Error();
+      const page = Array.isArray(data.posts) ? data.posts.map(mapBackendPost) : [];
+      pager.set((prev) => appendPage(prev, page));
+      pager.setCursor(data.nextCursor || null);
+    } catch {
+      setMoreFailed(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [pager.cursor, pager.path, loadingMore]); // eslint-disable-line react-hooks/exhaustive-deps
+  const moreRef = useRef(null);
+  useEffect(() => {
+    const el = moreRef.current;
+    if (!el || !pager.cursor || moreFailed || typeof IntersectionObserver === "undefined") return undefined;
+    const io = new IntersectionObserver(
+      (entries) => entries.some((e) => e.isIntersecting) && loadMore(),
+      { rootMargin: "600px 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [pager.cursor, moreFailed, loadMore]);
 
   const visiblePosts = useMemo(
     () =>
@@ -1571,7 +1630,8 @@ export default function SkyHubPage() {
                     <p>Getting the latest posts.</p>
                   </div>
                 ) : visiblePosts.length ? (
-                  visiblePosts.map((post) => (
+                  <>
+                  {visiblePosts.map((post) => (
                     <SkyHubFeedCard
                       key={post.id}
                       post={post}
@@ -1586,7 +1646,29 @@ export default function SkyHubPage() {
                       onAdminRemove={isAdminHere ? openAdminRemove : undefined}
                       onToggleFollow={handleToggleFollow}
                     />
-                  ))
+                  ))}
+                  {pager.cursor && (
+                    <div ref={moreRef} className="shMore">
+                      {moreFailed ? (
+                        <>
+                          <span>Couldn&apos;t load more posts.</span>
+                          <button type="button" className="shMore__btn" onClick={loadMore}>
+                            Try again
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="shMore__btn"
+                          onClick={loadMore}
+                          disabled={loadingMore}
+                        >
+                          {loadingMore ? "Loading…" : "Load more posts"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  </>
                 ) : (
                   <div className="skyhub-emptyState">
                     <div

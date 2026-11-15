@@ -5,6 +5,7 @@ import SkyHubTakedown from "../../models/SkyHubTakedown.js";
 import Notification from "../../models/notification.js";
 import SkyHubPost from "../../models/SkyHubPost.js";
 import { tidyPlace, geocodePlace, toGeoPoint } from "../../services/placeName.js";
+import { beenThereIds } from "../../services/beenThere.js";
 import SkyHubComment from "../../models/SkyHubComment.js";
 import SkyHubReport from "../../models/SkyHubReport.js";
 import SkyHubBlock from "../../models/SkyHubBlock.js";
@@ -302,6 +303,21 @@ function adminName(req) {
    Public. Leaves out hidden posts and anyone blocked either way.
    Your own posts that are under review still show (to you only).
 ───────────────────────────────────────────────────────────── */
+const FEED_PAGE = 20;
+function parseCursor(raw) {
+  const m = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)_([a-f0-9]{24})$/i.exec(String(raw || ""));
+  if (!m) return null;
+  const at = new Date(m[1]);
+  return Number.isNaN(at.getTime()) ? null : { at, id: new mongoose.Types.ObjectId(m[2]) };
+}
+function milesBetween(a, b) {
+  const r = Math.PI / 180;
+  const x =
+    Math.sin(((b.lat - a.lat) * r) / 2) ** 2 +
+    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lng - a.lng) * r) / 2) ** 2;
+  return 7917.6 * Math.asin(Math.sqrt(x));
+}
+
 router.get("/feed", async (req, res) => {
   try {
     const viewerId = req.skyUser?.id || null;
@@ -335,10 +351,11 @@ router.get("/feed", async (req, res) => {
     // from its name). If we can't place the city, say so and the page
     // falls back to matching names.
     let near = {};
+    let center = null;
     if (req.query.scope === "nearby") {
       const lat = Number(req.query.lat);
       const lng = Number(req.query.lng);
-      const center =
+      center =
         Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
           ? { lat, lng }
           : await geocodePlace(req.query.place);
@@ -351,17 +368,39 @@ router.get("/feed", async (req, res) => {
       };
     }
 
+    // Pages: newest first, PAGE_SIZE at a time. `before` is the cursor the
+    // last page returned ("<createdAt ISO>_<id>"), for "load more".
+    const limit = Math.min(Math.max(Number(req.query.limit) || FEED_PAGE, 5), 50);
+    const cursor = parseCursor(req.query.before);
+    const older = cursor
+      ? {
+          $or: [
+            { createdAt: { $lt: cursor.at } },
+            { createdAt: cursor.at, _id: { $lt: cursor.id } },
+          ],
+        }
+      : null;
+
     const posts = await SkyHubPost.find({
-      ...visible,
-      ...authorFilter,
-      ...near,
+      $and: [visible, authorFilter, near, ...(older ? [older] : [])],
     })
-      .sort({ createdAt: -1 })
-      .limit(50)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .lean();
-    const xp = await xpMapFor(posts);
+    const hasMore = posts.length > limit;
+    if (hasMore) posts.length = limit;
+    const last = posts[posts.length - 1];
+
+    const [xp, been] = await Promise.all([xpMapFor(posts), beenThereIds(posts)]);
     return res.json({
-      posts: posts.map((p) => mapPost(p, viewerId, xp, followingIds)),
+      posts: posts.map((p) => {
+        const m = mapPost(p, viewerId, xp, followingIds);
+        m.beenThere = been.has(String(p._id));
+        const [lng, lat] = p.location?.coordinates || [];
+        if (center && Number.isFinite(lat)) m.milesAway = Math.round(milesBetween(center, { lat, lng }));
+        return m;
+      }),
+      nextCursor: hasMore && last ? `${new Date(last.createdAt).toISOString()}_${last._id}` : null,
     });
   } catch (err) {
     console.error("[skyhub] feed error:", err);
