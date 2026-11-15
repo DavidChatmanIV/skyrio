@@ -1,7 +1,6 @@
 // backend/routes/atlasLearningRoutes.js
-// Mount in server.js:
-//   app.use("/api/atlas/learning", atlasLearningRoutes);
-//   app.use("/api/atlas/feedback", atlasFeedbackRoutes);
+// atlasLearningRoutes is mounted at /api/atlas/learning by routes/atlas/atlas.routes.js.
+// (Feedback lives in atlas.routes.js; atlasFeedbackRoutes below is unused.)
 import { Router } from "express";
 import { authRequired, requireAdmin } from "../middleware/auth.js";
 import {
@@ -13,13 +12,23 @@ import {
 } from "../controllers/atlasLearningController.js";
 import { submitFeedback, getInsights, markReviewed } from "../controllers/atlasFeedbackController.js";
 
+// Express 4 doesn't catch errors in async handlers; answer instead of hanging.
+const safe = (fn) => async (req, res, next) => {
+  try {
+    await fn(req, res, next);
+  } catch (err) {
+    console.error("[Atlas learning]", err.message);
+    if (!res.headersSent) res.status(500).json({ error: "Couldn't save. Try again." });
+  }
+};
+
 export const atlasLearningRoutes = Router()
   .use(authRequired)
-  .get("/", listLearning)
-  .put("/settings", setLearningEnabled)
-  .patch("/:id", updateLearning)
-  .delete("/:id", deleteLearning)
-  .delete("/", clearLearning);
+  .get("/", safe(listLearning))
+  .put("/settings", safe(setLearningEnabled))
+  .patch("/:id", safe(updateLearning))
+  .delete("/:id", safe(deleteLearning))
+  .delete("/", safe(clearLearning));
 
 export const atlasFeedbackRoutes = Router()
   .use(authRequired)

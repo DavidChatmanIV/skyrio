@@ -42,6 +42,7 @@ const SyncGroupPage = lazy(() => import("./pages/SyncGroupPage"));
 const JoinTripPage = lazy(() => import("./pages/JoinTripPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SavedTripsPage = lazy(() => import("./pages/SavedTripsPage"));
+const AtlasLearningPage = lazy(() => import("./pages/AtlasLearningPage"));
 // Manage or cancel ONE booking — works without an account (guests), from
 // the "Manage or cancel" link in confirmation emails.
 const ManageBookingPage = lazy(() => import("./pages/ManageBookingPage"));
@@ -223,6 +224,17 @@ function TrackedRoutes() {
           element={<Navigate to="/passport" replace />}
         />
 
+        <Route
+          path="settings/atlas"
+          element={
+            <RequireAccount
+              feature="What Atlas knows"
+              benefit="See and change what Atlas learned about how you travel."
+            >
+              <AtlasLearningPage />
+            </RequireAccount>
+          }
+        />
         <Route
           path="saved-trips"
           element={
