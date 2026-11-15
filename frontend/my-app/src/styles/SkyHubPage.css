@@ -3430,3 +3430,128 @@ html:has(.skyhub-drawer.ant-drawer-open) [data-sr-root] {
 .shTrav__top .shTrav__name {
   min-width: 0;
 }
+
+/* Report: big tap rows, details only if wanted */
+.shReport__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+}
+.shReport__opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.shReport__opt.is-on {
+  border-color: #ffb347;
+  background: rgba(255, 138, 42, 0.18);
+}
+.shReport__opt:focus-visible,
+.shReport__more:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+.shReport__more {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #ffb347;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* After a trip: "Back from Miami? Share a spot." */
+.shShare {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(92, 52, 160, 0.55), rgba(60, 32, 96, 0.55));
+  border: 1px solid rgba(255, 179, 71, 0.4);
+  color: #fff;
+}
+.shShare__icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #1a0e06;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+}
+.shShare__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.shShare__body b {
+  font-size: 15.5px;
+}
+.shShare__body > span {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.78);
+}
+.shShare__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.shShare__go,
+.shShare__skip {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.shShare__go {
+  border: 0;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+}
+.shShare__skip {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-weight: 700;
+}
+.shShare__go:focus-visible,
+.shShare__skip:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+.shShare__go:active,
+.shShare__skip:active {
+  transform: scale(0.97);
+}
+.shReport__opt .shReport__urgent {
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-left: 0;
+}

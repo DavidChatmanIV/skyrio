@@ -5,7 +5,7 @@ import SkyHubTakedown from "../../models/SkyHubTakedown.js";
 import Notification from "../../models/notification.js";
 import SkyHubPost from "../../models/SkyHubPost.js";
 import { tidyPlace, geocodePlace, resolvePlace, toGeoPoint } from "../../services/placeName.js";
-import { beenThereIds } from "../../services/beenThere.js";
+import { beenThereIds, sharePromptFor } from "../../services/beenThere.js";
 import SkyHubComment from "../../models/SkyHubComment.js";
 import SkyHubReport from "../../models/SkyHubReport.js";
 import SkyHubBlock from "../../models/SkyHubBlock.js";
@@ -1208,6 +1208,16 @@ router.get("/stats", async (_req, res) => {
 /* ─────────────────────────────────────────────────────────────
    Your account standing — strikes, any pause, and appeals
 ───────────────────────────────────────────────────────────── */
+// After a trip: "Back from Miami? Share a spot." (once per trip, page-side)
+router.get("/me/share-prompt", requireViewer, async (req, res) => {
+  try {
+    return res.json({ prompt: await sharePromptFor(req.skyUser.id) });
+  } catch (err) {
+    console.error("[skyhub] share prompt error:", err.message);
+    return res.json({ prompt: null });
+  }
+});
+
 router.get("/me/standing", requireViewer, async (req, res) => {
   try {
     return res.json({ ok: true, ...(await standingFor(req.skyUser.id)) });

@@ -80,3 +80,44 @@ export async function beenThereIds(posts, { now = new Date(), BookingModel = Boo
   }
   return ids;
 }
+
+// ---- "Back from Miami? Share a spot." -------------------------------------
+const DAY_MS = 24 * 3600 * 1000;
+const SHARE_WINDOW_DAYS = 14;
+
+/**
+ * The traveler's most recent finished Skyrio flight trip (ended in the last
+ * 14 days) that they haven't posted about yet → { bookingId, place } or null.
+ * Shown once per trip on SkyHub; the page remembers a dismissal.
+ */
+export async function sharePromptFor(userId, { now = new Date(), BookingModel = Booking, PostModel } = {}) {
+  if (!userId) return null;
+  if (!PostModel) PostModel = (await import("../models/SkyHubPost.js")).default;
+  const since = new Date(now.getTime() - SHARE_WINDOW_DAYS * DAY_MS);
+  const trip = await BookingModel.findOne({
+    user: userId,
+    status: "confirmed",
+    type: "Flight",
+    "dates.end": { $gte: since, $lte: now },
+  })
+    .sort({ "dates.end": -1 })
+    .select("_id flight.destination flight.destinationName dates")
+    .lean();
+  if (!trip) return null;
+  const places = tripPlaces(trip);
+  const code = String(trip.flight?.destination || "").toUpperCase();
+  const place = tidyPlace(trip.flight?.destinationName || AIRPORTS.get(code)?.city || "");
+  if (!place || !places.length) return null;
+
+  // Already posted about it since the trip started? Then don't ask.
+  const posts = await PostModel.find({
+    author: userId,
+    createdAt: { $gte: trip.dates?.start || since },
+    destination: { $nin: ["", null] },
+  })
+    .select("destination location")
+    .limit(50)
+    .lean();
+  if (posts.some((p) => matchesTrip(p, places))) return null;
+  return { bookingId: String(trip._id), place };
+}

@@ -1285,10 +1285,12 @@ export default function SkyHubPage() {
   const [reportReason, setReportReason] = useState("spam");
   const [reportDetails, setReportDetails] = useState("");
   const [reportSending, setReportSending] = useState(false);
+  const [reportMore, setReportMore] = useState(false);
   const handleReportPost = (post) => {
     if (!currentUser) return askToJoin("report posts");
-    setReportReason("spam");
+    setReportReason("");
     setReportDetails("");
+    setReportMore(false);
     setReportPost(post);
   };
   const submitReport = async () => {
@@ -1305,7 +1307,7 @@ export default function SkyHubPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Couldn't report post. Try again.");
-      message.success(data.message || "Thanks. We'll review it.");
+      message.success("Thanks. We'll look at it.");
       setReportPost(null);
     } catch (err) {
       message.error(err.message);
@@ -1363,6 +1365,47 @@ export default function SkyHubPage() {
   // "Send a postcard" buttons: logged-out visitors get the sign-up prompt
   const startPost = () =>
     currentUser ? focusComposer() : askToJoin("send a postcard");
+
+  // After a Skyrio trip: "Back from Miami? Share a spot." Once per trip.
+  const SHARE_SEEN_KEY = "skyhub.sharePrompt.seen";
+  const seenTrips = () => {
+    try {
+      return JSON.parse(localStorage.getItem(SHARE_SEEN_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  };
+  const [sharePrompt, setSharePrompt] = useState(null);
+  useEffect(() => {
+    if (!currentUser?.id) return undefined;
+    let alive = true;
+    skyFetch("/api/skyhub/me/share-prompt")
+      .then((r) => readJson(r))
+      .then((d) => {
+        const p = d?.prompt;
+        if (alive && p?.bookingId && !seenTrips().includes(p.bookingId)) setSharePrompt(p);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeSharePrompt = () => {
+    if (sharePrompt?.bookingId) {
+      try {
+        const seen = seenTrips().filter((id) => id !== sharePrompt.bookingId);
+        localStorage.setItem(SHARE_SEEN_KEY, JSON.stringify([...seen, sharePrompt.bookingId].slice(-20)));
+      } catch {
+        /* shown again next visit; harmless */
+      }
+    }
+    setSharePrompt(null);
+  };
+  const shareFromTrip = () => {
+    setDestination(sharePrompt.place);
+    closeSharePrompt();
+    startPost();
+  };
 
   const scrollToFeed = () =>
     document
@@ -1558,6 +1601,28 @@ export default function SkyHubPage() {
             />
 
             <SkyHubStanding signedIn={!!currentUser} />
+
+            {sharePrompt && (
+              <section className="shShare" aria-label="Share a spot from your trip">
+                <div className="shShare__icon" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 16l20-6-20-6 4 6-4 6z" />
+                  </svg>
+                </div>
+                <div className="shShare__body">
+                  <b>Back from {sharePrompt.place}?</b>
+                  <span>Share a spot you liked. It helps the next traveler.</span>
+                  <div className="shShare__actions">
+                    <button type="button" className="shShare__go" onClick={shareFromTrip}>
+                      Share a spot
+                    </button>
+                    <button type="button" className="shShare__skip" onClick={closeSharePrompt}>
+                      Not now
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
 
             <div className="shPC-postcard">
               <div className="shPC-postcardHead">
@@ -1935,29 +2000,41 @@ export default function SkyHubPage() {
         onCancel={() => setReportPost(null)}
         onOk={submitReport}
         okText="Send report"
-        okButtonProps={{ loading: reportSending }}
+        okButtonProps={{ loading: reportSending, disabled: !reportReason }}
         destroyOnHidden
       >
         <p style={{ marginBottom: 12, opacity: 0.75 }}>
-          What's wrong? Reports are anonymous.
+          What's wrong? Pick one. Reports are anonymous.
         </p>
-        <Radio.Group
-          value={reportReason}
-          onChange={(e) => setReportReason(e.target.value)}
-          style={{ display: "flex", flexDirection: "column", gap: 8 }}
-        >
+        <div className="shReport__list" role="radiogroup" aria-label="Reason">
           {REPORT_REASONS.map((r) => (
-            <Radio key={r.value} value={r.value}>
-              {r.label}
+            <button
+              key={r.value}
+              type="button"
+              role="radio"
+              aria-checked={reportReason === r.value}
+              className={`shReport__opt${reportReason === r.value ? " is-on" : ""}`}
+              onClick={() => setReportReason(r.value)}
+            >
+              <span>{r.label}</span>
               {r.urgent && (
                 <span className="shReport__urgent">Hidden right away</span>
               )}
-            </Radio>
+            </button>
           ))}
-        </Radio.Group>
+        </div>
         {REASON_HINTS[reportReason] && (
           <div className="shReport__hint">{REASON_HINTS[reportReason]}</div>
         )}
+        {!reportMore ? (
+          <button
+            type="button"
+            className="shReport__more"
+            onClick={() => setReportMore(true)}
+          >
+            Add details (optional)
+          </button>
+        ) : (
         <Input.TextArea
           id="skyhub-report-details"
           value={reportDetails}
@@ -1966,7 +2043,9 @@ export default function SkyHubPage() {
           rows={3}
           placeholder="Anything else we should know? (optional)"
           style={{ marginTop: 14 }}
+          autoFocus
         />
+        )}
       </Modal>
 
       <Modal

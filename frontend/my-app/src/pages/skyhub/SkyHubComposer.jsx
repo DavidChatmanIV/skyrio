@@ -151,6 +151,8 @@ export default function SkyHubComposer({
     setFiles(nextFiles);
     setPreviews(nextPreviews);
     onPhotosChange?.(nextFiles);
+    // Photo first: open the place picker so adding where it was is one tap.
+    setFocused(true);
     e.target.value = "";
   };
 

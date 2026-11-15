@@ -6,6 +6,7 @@ import AtlasPanel from "../components/Atlas/AtlasPanel";
 import CookieBanner from "../components/CookieBanner";
 import SkyrioDTour from "../components/SkyrioDTour";
 import SupportRail from "../components/SupportRail";
+import useQuietFabs from "@/lib/useQuietFabs";
 import SiteStatusBanner from "../components/SiteStatusBanner";
 import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
 import bookingHeroImg from "@/assets/Booking/skyrio-hero.jpg";
@@ -26,6 +27,7 @@ function themeForPath(pathname) {
 }
 
 export default function AppLayout() {
+  useQuietFabs();
   const { pathname } = useLocation();
 
   const isLanding = pathname === "/";
