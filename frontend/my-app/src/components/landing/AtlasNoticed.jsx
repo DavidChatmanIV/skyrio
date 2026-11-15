@@ -72,6 +72,7 @@ const CSS = `
 .nt-line { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; font-size: 13px; color: rgba(255,255,255,.78); }
 .nt-line svg { flex: none; margin-top: 2px; color: #c9b8ff; }
 .nt-line.warn svg { color: #ffb347; }
+.nt-fine { display: block; margin: 2px 0 0 20px; font-size: 12px; color: rgba(255,255,255,.6); }
 .nt > svg { flex: none; color: rgba(255,255,255,.6); }
 .an-stack .an { margin-top: 12px; }
 `;
@@ -198,11 +199,14 @@ function NextTrip({ trip }) {
             Check your airline&apos;s app.
           </span>
         ) : fc ? (
-          <span className="nt-line">
-            <CloudSun size={14} aria-hidden="true" /> Forecast:{" "}
-            {fc.condition.toLowerCase()}, high about {fc.highF}°F,{" "}
-            {fc.rainChancePct}% chance of rain
-          </span>
+          <>
+            <span className="nt-line">
+              <CloudSun size={14} aria-hidden="true" /> Forecast:{" "}
+              {fc.condition.toLowerCase()}, high about {fc.highF}°F,{" "}
+              {fc.rainChancePct}% chance of rain
+            </span>
+            <span className="nt-fine">Forecasts can change.</span>
+          </>
         ) : null}
       </span>
       <ChevronRight size={18} aria-hidden="true" />
