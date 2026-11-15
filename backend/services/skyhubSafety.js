@@ -86,6 +86,7 @@ const LIMITS = {
   report: [{ max: 15, ms: 60 * 60 * 1000 }],
   block: [{ max: 30, ms: 60 * 60 * 1000 }],
   upload: [{ max: 30, ms: 60 * 60 * 1000 }],
+  place: [{ max: 60, ms: 10 * 60 * 1000 }], // "Saved as Newark, NJ" previews
 };
 const hits = new Map(); // `${action}:${userId}` → [timestamps]
 
