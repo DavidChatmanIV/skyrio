@@ -5,6 +5,7 @@ import SkyHubTakedown from "../../models/SkyHubTakedown.js";
 import Notification from "../../models/notification.js";
 import SkyHubPost from "../../models/SkyHubPost.js";
 import Booking from "../../models/booking.js";
+import { photosFor, realPhoto } from "../../services/userAvatar.js";
 import { tidyPlace, geocodePlace, resolvePlace, toGeoPoint } from "../../services/placeName.js";
 import { beenThereIds, sharePromptFor, tripPlaces, matchesTrip } from "../../services/beenThere.js";
 import SkyHubComment from "../../models/SkyHubComment.js";
@@ -203,7 +204,11 @@ function mapPost(
     isMine: Boolean(viewerId && authorId && authorId === viewerId),
     authorName: post.authorName,
     username: post.username,
-    avatar: post.avatar,
+    // The author's photo NOW (not the copy saved when they posted).
+    avatar:
+      authorId && xpByAuthorId.photos?.has(authorId)
+        ? xpByAuthorId.photos.get(authorId)
+        : realPhoto(post.avatar),
     verified: post.verified,
     authorBadge: getLevel(authorXp).current.name,
     // "Seasoned Traveler" frame, a Passport Reward the author redeemed.
@@ -269,6 +274,7 @@ async function xpMapFor(posts) {
   );
   // Authors who own the "Seasoned Traveler" frame (Passport Reward). Kept
   // on the same map so every mapPost caller gets it with no extra query.
+  map.photos = await photosFor(ids);
   map.frames = new Set(
     authors
       .filter((a) => (a.redeemedRewards || []).includes("seasoned_frame"))
@@ -287,10 +293,14 @@ async function visibleComments(postId, viewerId) {
     .sort({ createdAt: 1 })
     .limit(300)
     .lean();
-  const local = await localCommenters(postId, comments);
+  const [local, photos] = await Promise.all([
+    localCommenters(postId, comments),
+    photosFor(comments.map((c) => c.author)),
+  ]);
   return comments.map((c) => {
     const m = mapComment(c, viewerId);
     m.local = local.has(String(c.author));
+    if (photos.has(String(c.author))) m.avatar = photos.get(String(c.author));
     return m;
   });
 }
@@ -1275,6 +1285,7 @@ router.get("/posts/:id/likes", async (req, res) => {
     ]);
     const following = new Set((me?.following || []).map(String));
     const byId = new Map(users.map((u) => [String(u._id), u]));
+    const photos = await photosFor(users.map((u) => u._id));
     const people = ids
       .reverse() // newest likes first
       .map((uid) => byId.get(String(uid)))
@@ -1283,7 +1294,7 @@ router.get("/posts/:id/likes", async (req, res) => {
         id: String(u._id),
         name: u.name || u.username || "Traveler",
         username: u.username || "",
-        avatar: u.avatar || "",
+        avatar: photos.get(String(u._id)) || "",
         following: following.has(String(u._id)),
         isMe: String(u._id) === viewerId,
       }));
@@ -1309,7 +1320,7 @@ router.get("/users/:id/card", async (req, res) => {
       .select("name username avatar city followersCount xpTotalEarned xp isActive")
       .lean();
     if (!u || u.isActive === false) return res.status(404).json({ message: "Traveler not found." });
-    const [postCount, places, me] = await Promise.all([
+    const [postCount, places, me, photos] = await Promise.all([
       SkyHubPost.countDocuments({ author: id, hidden: { $ne: true } }),
       SkyHubPost.aggregate([
         { $match: { author: new mongoose.Types.ObjectId(id), hidden: { $ne: true }, destination: { $nin: ["", null] } } },
@@ -1318,12 +1329,13 @@ router.get("/users/:id/card", async (req, res) => {
         { $limit: 4 },
       ]),
       viewerId ? User.findById(viewerId).select("following").lean() : null,
+      photosFor([u._id]),
     ]);
     return res.json({
       id: String(u._id),
       name: u.name || u.username || "Traveler",
       username: u.username || "",
-      avatar: u.avatar || "",
+      avatar: photos.get(String(u._id)) || "",
       city: tidyPlace(u.city || ""),
       badge: getLevel(u.xpTotalEarned ?? u.xp ?? 0).current.name,
       followers: u.followersCount || 0,
