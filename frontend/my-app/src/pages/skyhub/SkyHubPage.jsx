@@ -6,6 +6,7 @@ import React, {
   useRef,
   useContext,
 } from "react";
+import { tidyPlace } from "@/lib/placeName";
 import { Badge, Button, Input, Modal, Radio, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
@@ -238,14 +239,20 @@ function mapBackendPost(post) {
 }
 
 function deriveTrending(posts) {
+  // "Newark Nj" and "Newark, NJ" count as one place.
   const counts = {};
+  const names = {};
   posts.forEach((p) => {
-    if (!p.destination?.trim()) return;
-    counts[p.destination] = (counts[p.destination] || 0) + 1;
+    const name = tidyPlace(p.destination);
+    if (!name) return;
+    const k = name.toLowerCase();
+    names[k] = names[k] || name;
+    counts[k] = (counts[k] || 0) + 1;
   });
   const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
+    .map(([k, cnt]) => [names[k], cnt])
     .map(([name, cnt]) => ({
       name,
       posts: cnt,
@@ -633,7 +640,7 @@ export default function SkyHubPage() {
       posts.map((p) => p.authorId || p.username).filter(Boolean)
     );
     const places = new Set(
-      posts.map((p) => p.destination?.trim().toLowerCase()).filter(Boolean)
+      posts.map((p) => tidyPlace(p.destination).toLowerCase()).filter(Boolean)
     );
     return {
       travelers: authors.size,
@@ -871,7 +878,9 @@ export default function SkyHubPage() {
           type: activePostType,
           topic: postTopic || undefined,
           tags: postTopic ? [postTopic] : [],
-          destination: destination.trim(),
+          destination: tidyPlace(destination),
+          // Radar city's state, so "Newark" is saved as "Newark, NJ".
+          near: localCity?.regionCode || localCity?.region || undefined,
           images: urls,
           image: urls[0] || "",
         }),
@@ -1026,7 +1035,8 @@ export default function SkyHubPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: editText.trim(),
-          destination: editDestination.trim(),
+          destination: tidyPlace(editDestination),
+          near: localCity?.regionCode || localCity?.region || undefined,
         }),
       });
       const data = await readJson(res);
@@ -1435,6 +1445,9 @@ export default function SkyHubPage() {
                   setActivePostType={setActivePostType}
                   destination={destination}
                   setDestination={setDestination}
+                  radarCity={localCity}
+                  profileCity={[authUser?.city, authUser?.homeBase].find((v) => typeof v === "string" && v.trim()) || ""}
+                  placeSuggestions={trendingDestinations.map((t) => t.name)}
                   onCreatePost={handleCreatePost}
                   creatingPost={creatingPost}
                   onPhotosChange={setComposerPhotos}

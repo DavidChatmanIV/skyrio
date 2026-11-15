@@ -48,6 +48,7 @@ import { assignFounderBadge } from "./routes/verificationRoutes.js";
 import { markGroupRead, groupRoom } from "./utils/notifyGroupMessage.js";
 import duffelWebhook from "./routes/duffelWebhook.routes.js";
 import { startWeatherJob, startWeatherWarmup } from "./services/weatherAlerts.js";
+import { startSkyHubPlaceBackfill } from "./services/placeName.js";
 import { ensureMemberRewards } from "./services/memberRewards.js";
 
 Sentry.init({
@@ -425,6 +426,7 @@ startJobs();
 // Severe-weather emails for trips in the next 3 days (National Weather Service).
 startWeatherJob();
 startWeatherWarmup(); // admin's "Severe weather at major airports" list
+startSkyHubPlaceBackfill(); // put older SkyHub posts on the map for Nearby
 
 // Where To Next fare scan. Off unless DEAL_SCAN_ENABLED=true.
 startDealScanJob();

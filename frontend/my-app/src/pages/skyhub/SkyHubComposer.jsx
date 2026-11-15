@@ -1,11 +1,14 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Button, message } from "antd";
 import {
-  EnvironmentOutlined,
   CameraOutlined,
   CloseCircleFilled,
   SendOutlined,
 } from "@ant-design/icons";
+import { LocateFixed, MapPin, X } from "lucide-react";
+import { myCity, locationError } from "@/lib/whereAmI";
+import { tidyPlace } from "@/lib/placeName";
+import { apiUrl } from "@/lib/api";
 
 // "Join Trip" removed for now — old Join Trip posts still show in the feed.
 const POST_TYPES = ["Tip", "Question", "Story", "Photo"];
@@ -32,6 +35,9 @@ export default function SkyHubComposer({
   topic = "",
   setTopic,
   topics = [],
+  radarCity = null, // the city picked on the SkyHub Radar
+  placeSuggestions = [], // places people post about most
+  profileCity = "", // city on their profile, e.g. "Newark, NJ"
 }) {
   const fileRef = useRef(null);
   // Lets SkyHubPage scroll to AND focus the textarea directly
@@ -41,6 +47,67 @@ export default function SkyHubComposer({
   const [previews, setPreviews] = useState([]);
   const [files, setFiles] = useState([]);
   const [focused, setFocused] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [placeError, setPlaceError] = useState("");
+  // Fill the place in for them: the Radar city they picked, else their
+  // profile city. Only once, and never after they clear it.
+  const radarLabel = tidyPlace(radarCity?.label || radarCity?.name);
+  const homeLabel = tidyPlace(profileCity);
+  const [autoPlaced, setAutoPlaced] = useState(false);
+  useEffect(() => {
+    if (!focused || autoPlaced) return;
+    setAutoPlaced(true);
+    if (!destination.trim() && (radarLabel || homeLabel)) setDestination(radarLabel || homeLabel);
+  }, [focused]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Same as the Radar: "Use my location" fills in your city ("Newark, NJ").
+  const useMyLocation = async () => {
+    setLocating(true);
+    setPlaceError("");
+    try {
+      const c = await myCity();
+      setDestination(tidyPlace(c.label || c.name));
+    } catch (e) {
+      setPlaceError(locationError(e));
+    } finally {
+      setLocating(false);
+    }
+  };
+  // What the typed place will be saved as. Just "Newark" with the Radar
+  // in NJ → "Newark, NJ" (the server checks the map).
+  const near = radarCity?.regionCode || radarCity?.region || "";
+  const [savesAs, setSavesAs] = useState("");
+  useEffect(() => {
+    const typed = tidyPlace(destination);
+    setSavesAs("");
+    if (!focused || typed.length < 2) return undefined;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const q = new URLSearchParams({ q: typed, near });
+        const res = await fetch(apiUrl(`/api/skyhub/place?${q}`), { signal: ctrl.signal });
+        const d = await res.json();
+        if (res.ok && d?.found && d.label && d.label !== typed) setSavesAs(d.label);
+      } catch {
+        /* preview only */
+      }
+    }, 450);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [destination, near, focused]);
+
+  // Quick picks: your Radar city, then popular places (no repeats).
+  const quickPlaces = [];
+  const seenPlace = new Set([tidyPlace(destination).toLowerCase()]);
+  for (const p of [radarLabel, homeLabel, ...placeSuggestions]) {
+    const name = tidyPlace(p);
+    if (!name || seenPlace.has(name.toLowerCase())) continue;
+    seenPlace.add(name.toLowerCase());
+    quickPlaces.push(name);
+    if (quickPlaces.length >= 3) break;
+  }
 
   useEffect(() => () => previews.forEach(URL.revokeObjectURL), []); // eslint-disable-line
 
@@ -267,33 +334,79 @@ export default function SkyHubComposer({
             }}
           />
 
-          {/* Destination — only when focused */}
+          {/* Place — only when focused. Works like the Radar's city picker. */}
           {focused && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-                paddingTop: 8,
-                marginTop: 4,
-              }}
-            >
-              <EnvironmentOutlined style={{ color: "#ff8a2a", fontSize: 14 }} />
-              <input
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                placeholder="Add a place…"
-                style={{
-                  flex: 1,
-                  border: "none",
-                  outline: "none",
-                  fontSize: 14,
-                  color: "rgba(255,255,255,0.65)",
-                  background: "transparent",
-                  fontFamily: "inherit",
-                }}
-              />
+            <div className="shCmp-place">
+              <div className="shCmp-placeRow">
+                <MapPin size={15} aria-hidden="true" className="shCmp-placePin" />
+                <input
+                  value={destination}
+                  onChange={(e) => {
+                    setDestination(e.target.value);
+                    setPlaceError("");
+                  }}
+                  onBlur={() => setDestination(tidyPlace(destination))}
+                  placeholder="Add a place (city, e.g. Newark, NJ)"
+                  aria-label="Place"
+                  maxLength={120}
+                  autoComplete="off"
+                  className="shCmp-placeInput"
+                />
+                {destination && (
+                  <button
+                    type="button"
+                    className="shCmp-placeClear"
+                    aria-label="Remove place"
+                    onClick={() => setDestination("")}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+              <div className="shCmp-placeChips">
+                <button
+                  type="button"
+                  className="shCmp-placeChip is-gps"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={useMyLocation}
+                  disabled={locating}
+                >
+                  <LocateFixed size={13} aria-hidden="true" />
+                  {locating ? "Finding you…" : "Use my location"}
+                </button>
+                {quickPlaces.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className="shCmp-placeChip"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setDestination(p);
+                      setPlaceError("");
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              {savesAs && !placeError && (
+                <div className="shCmp-placeHint">
+                  Saves as{" "}
+                  <button
+                    type="button"
+                    className="shCmp-placeHintBtn"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setDestination(savesAs)}
+                  >
+                    {savesAs}
+                  </button>
+                </div>
+              )}
+              {placeError && (
+                <div className="shCmp-placeError" role="alert">
+                  {placeError}
+                </div>
+              )}
             </div>
           )}
 

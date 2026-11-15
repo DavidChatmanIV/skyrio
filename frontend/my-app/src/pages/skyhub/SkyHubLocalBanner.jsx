@@ -1,4 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
+import { MapPin, Plane, LocateFixed, X } from "lucide-react";
+import { cityFromCoords, getPosition, locationError } from "@/lib/whereAmI";
+import { tidyPlace } from "@/lib/placeName";
 
 /* ─────────────────────────────────────────────────────────────
    SkyHubLocalBanner — "Landed somewhere new?"
@@ -11,39 +14,6 @@ import React, { useEffect, useRef, useState } from "react";
 ───────────────────────────────────────────────────────────── */
 
 const DISMISS_KEY = "skyhub.localBanner.dismissed";
-
-// Free, no-key reverse geocoder meant for browser use.
-async function cityFromCoords(lat, lng) {
-  const r = await fetch(
-    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
-  );
-  if (!r.ok) throw new Error("lookup failed");
-  const d = await r.json();
-  const name = d.city || d.locality || d.principalSubdivision;
-  if (!name) throw new Error("no city");
-  const regionCode = (d.principalSubdivisionCode || "").split("-")[1] || "";
-  const region = d.principalSubdivision || "";
-  const country = d.countryCode || "";
-  const short = country === "US" && regionCode ? regionCode : country;
-  return {
-    name,
-    region,
-    regionCode,
-    country,
-    label: short ? `${name}, ${short}` : name,
-  };
-}
-
-function getPosition(timeout = 10000) {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("unsupported"));
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve(p.coords),
-      (e) => reject(e),
-      { enableHighAccuracy: false, timeout, maximumAge: 30 * 60 * 1000 }
-    );
-  });
-}
 
 const sameCity = (a, b) =>
   a && b && a.name.toLowerCase() === b.name.toLowerCase();
@@ -125,11 +95,7 @@ export default function SkyHubLocalBanner({
       const c = await getPosition();
       choose(await cityFromCoords(c.latitude, c.longitude));
     } catch (e) {
-      setError(
-        e?.code === 1
-          ? "Location is off for this site. Pick your city instead."
-          : "Couldn't find your city. Pick it instead."
-      );
+      setError(locationError(e));
       setPicking(true);
       setTimeout(() => inputRef.current?.focus(), 30);
     } finally {
@@ -138,7 +104,7 @@ export default function SkyHubLocalBanner({
   };
 
   const submitTyped = () => {
-    const name = typed.trim().replace(/\s+/g, " ");
+    const name = tidyPlace(typed);
     if (!name) return;
     const [n, rest] = name.split(",").map((s) => s.trim());
     choose({
@@ -158,7 +124,7 @@ export default function SkyHubLocalBanner({
   return (
     <div className="shLocal" role="region" aria-label="Your SkyHub city">
       <div className="shLocal__stamp" aria-hidden="true">
-        {mismatch ? "✈" : "📍"}
+        {mismatch ? <Plane size={20} /> : <MapPin size={20} />}
       </div>
 
       <div className="shLocal__body">
@@ -196,7 +162,8 @@ export default function SkyHubLocalBanner({
                 onClick={useMyLocation}
                 disabled={locating}
               >
-                {locating ? "Finding you…" : "◎ Use my location"}
+                <LocateFixed size={14} aria-hidden="true" />
+                {locating ? "Finding you…" : "Use my location"}
               </button>
               {suggestions.slice(0, 4).map((s) => (
                 <button
@@ -269,7 +236,7 @@ export default function SkyHubLocalBanner({
         aria-label="Dismiss"
         onClick={dismiss}
       >
-        ✕
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   );
