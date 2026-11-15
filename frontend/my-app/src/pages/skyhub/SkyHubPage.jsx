@@ -155,6 +155,18 @@ function isNear(destination, city) {
   return code.length === 2 && new RegExp(`[ ,]${code}[ ,.]`).test(d);
 }
 
+// Questions tab: unanswered questions near your city first, then other
+// unanswered ones, then the rest (each group stays newest first).
+function questionsFirst(list, city) {
+  if (city === undefined) return list;
+  const rank = (p) =>
+    (p.comments > 0 ? 2 : 0) + (city && isNear(p.destination, city) ? 0 : 1);
+  return list
+    .map((p, i) => ({ p, i, r: rank(p) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map((x) => x.p);
+}
+
 // How far the Nearby tab looks around your city (the traveler picks).
 const NEARBY_MILES = 25;
 const MILE_CHOICES = [5, 25, 50];
@@ -301,9 +313,9 @@ function deriveTrending(posts) {
     }));
 }
 
-function deriveActiveTravelers(posts) {
+function deriveActiveTravelers(posts, city = null, myId = null) {
   const seen = new Set();
-  return posts
+  const list = posts
     .filter((p) => {
       const key = p.authorId || p.username;
       if (!key || seen.has(key)) return false;
@@ -314,9 +326,21 @@ function deriveActiveTravelers(posts) {
       name: p.author,
       username: p.username?.replace("@", ""),
       avatar: p.avatar,
-      location: p.destination,
+      location: tidyPlace(p.destination),
       badge: p.badge || "Explorer",
+      authorId: p.authorId || null,
+      following: !!p.following,
+      isMe: Boolean(myId && p.authorId && String(p.authorId) === String(myId)),
+      // Near your Radar city (by distance when known, else by name)
+      nearYou: Boolean(
+        city &&
+          p.destination &&
+          ((p.milesAway !== null && p.milesAway !== undefined && p.milesAway <= 25) ||
+            isNear(p.destination, city))
+      ),
     }));
+  // Travelers near you first; otherwise newest first, as before.
+  return [...list.filter((t) => t.nearYou), ...list.filter((t) => !t.nearYou)];
 }
 
 function deriveTrendingTags(posts) {
@@ -687,7 +711,15 @@ export default function SkyHubPage() {
   // Full lists; the sidebar shows the top few and "See all" opens the rest
   // right there (there's no separate destinations/travelers page).
   const trendingDestinations = useMemo(() => deriveTrending(posts), [posts]);
-  const activeTravelers = useMemo(() => deriveActiveTravelers(posts), [posts]);
+  const activeTravelers = useMemo(
+    () =>
+      deriveActiveTravelers(
+        posts,
+        localCity,
+        authUser?._id || authUser?.id
+      ),
+    [posts, localCity, authUser]
+  );
   const [showAllDest, setShowAllDest] = useState(false);
   const [showAllTravelers, setShowAllTravelers] = useState(false);
   const trendingTags = useMemo(() => deriveTrendingTags(posts), [posts]);
@@ -764,7 +796,7 @@ export default function SkyHubPage() {
 
   const visiblePosts = useMemo(
     () =>
-      sourcePosts.filter((post) => {
+      questionsFirst(sourcePosts.filter((post) => {
         const s = debouncedSearch.trim().toLowerCase();
         const inText = (post.text || "").toLowerCase().includes(s);
         const inPlace = (post.destination || "").toLowerCase().includes(s);
@@ -823,7 +855,7 @@ export default function SkyHubPage() {
             mt = true;
         }
         return ms && mf && mt;
-      }),
+      }), activeTab === "questions" ? localCity : undefined),
     [
       sourcePosts,
       debouncedSearch,
@@ -910,7 +942,9 @@ export default function SkyHubPage() {
       : localCity
       ? "Posts from around the world."
       : "Posts from around the world. Pick your city to see what's near you.",
-    questions: "Questions from travelers. Reply to help.",
+    questions: localCity
+      ? `Unanswered questions near ${localCity.name} come first. Reply to help.`
+      : "Unanswered questions come first. Reply to help.",
     trips: "Stories from travelers' trips.",
   };
 
@@ -1835,6 +1869,9 @@ export default function SkyHubPage() {
               expanded={showAllTravelers}
               loading={loadingFeed}
               onViewAll={() => setShowAllTravelers((v) => !v)}
+              onFollow={(t) =>
+                handleToggleFollow({ authorId: t.authorId, author: t.name })
+              }
               onPick={(t) =>
                 navigate(`/u/${encodeURIComponent(t.username)}`, {
                   // Lets the Passport page offer "Back to SkyHub".
