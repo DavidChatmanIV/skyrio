@@ -50,6 +50,7 @@ import {
 import { useAuth } from "@/auth/useAuth";
 import TripGenerator from "@/components/TripGenerator";
 import AirportInput from "@/pages/booking/AirportInput";
+import AtlasNoticed from "@/components/landing/AtlasNoticed";
 
 // Same key BookingPage reads, so the chosen path opens ready to go.
 const PLAN_MODE_KEY = "skyrio_plan_mode";
@@ -590,6 +591,9 @@ export default function LandingPage() {
             </>
           )}
           <div className="lp-timeline">{T.line}</div>
+
+          {/* Signed in with a few trips: what Atlas noticed (quiet, can hide). */}
+          {isAuthed && <AtlasNoticed onAsk={openAtlas} />}
 
           {/* Can't decide? One tap makes a whole trip; Shuffle for another. */}
           <div className="lp-label" style={{ marginTop: 34 }}>

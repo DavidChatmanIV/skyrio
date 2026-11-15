@@ -32,6 +32,8 @@ import AtlasCheckoutHandoff from "../../models/AtlasCheckoutHandoff.js";
 // search results only work for that same guest.
 import { guestKey } from "../../middleware/guestKey.js";
 import { buildLearnedContext } from "../../services/atlas/atlasLearning.js";
+import { forYouFor } from "../../services/atlas/forYou.js";
+import { atlasLearningRoutes } from "../atlasLearningRoutes.js";
 import authRequired from "../../middleware/authRequired.js";
 // Atlas thumbs up/down + founder insights (models/AtlasFeedback.js).
 import {
@@ -604,6 +606,23 @@ Suggest ${count} trips this traveler would likely book next.`;
     return body;
   });
 }
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/atlas/for-you — the home page's small "Atlas noticed" card.
+// Only patterns from the traveler's own trips and what Atlas learned.
+// ─────────────────────────────────────────────────────────────
+router.get("/for-you", authRequired, async (req, res) => {
+  try {
+    res.set("Cache-Control", "private, no-store");
+    res.json(await forYouFor(req.user.id));
+  } catch (err) {
+    console.error("[Atlas for-you]", err.message);
+    res.json({ enabled: true, lines: [], ask: null });
+  }
+});
+
+// What Atlas knows about you: see, edit, pause or delete (Settings page).
+router.use("/learning", atlasLearningRoutes);
 
 router.get("/picks", authRequired, async (req, res) => {
   const t0 = Date.now();

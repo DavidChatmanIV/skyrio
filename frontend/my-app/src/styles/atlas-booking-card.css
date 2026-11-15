@@ -152,6 +152,8 @@
 .alp-empty { font-size: 14px; color: #a0a0ad; margin-top: 18px; }
 .alp-clear { margin-top: 24px; }
 .alp-foot { font-size: 12px; color: #8a8a96; margin-top: 24px; }
+.alp .abc-card { background: linear-gradient(135deg, rgba(92,52,160,.45), rgba(60,32,96,.45)); border-color: rgba(255,255,255,.16); }
+.alp-sub, .alp-empty, .alp-meta, .alp-foot, .alp .abc-hold { color: rgba(255,255,255,.72); }
 
 /* ── Atlas insights (admin) ── */
 .ain-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

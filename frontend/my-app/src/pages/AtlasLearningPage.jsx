@@ -62,8 +62,7 @@ export default function AtlasLearningPage() {
     <div className="alp">
       <h1 className="alp-title">What Atlas knows about you</h1>
       <p className="alp-sub">
-        Atlas learns from your trips, the options you pick, and what you tell it, so it can suggest better trips over time.
-        You can change or delete anything here.
+        Atlas learns from your trips and what you tell it. Change or delete anything here.
       </p>
 
       <div className="abc-card alp-toggle">
@@ -71,8 +70,8 @@ export default function AtlasLearningPage() {
           <div className="abc-title">Let Atlas learn</div>
           <p className="abc-hold">
             {data.enabled
-              ? "On. Atlas uses what it learns to rank options and make suggestions."
-              : "Off. Atlas won't learn anything new or use what's below."}
+              ? "On. Atlas uses this to suggest trips."
+              : "Off. Atlas won't learn or use anything below."}
           </p>
         </div>
         <button className={`alp-switch ${data.enabled ? "on" : ""}`} onClick={toggleEnabled} aria-pressed={data.enabled} aria-label="Let Atlas learn">
@@ -81,7 +80,7 @@ export default function AtlasLearningPage() {
       </div>
 
       {!grouped.length && (
-        <p className="alp-empty">Nothing yet. Book a trip or tell Atlas how you like to travel, and it'll show up here.</p>
+        <p className="alp-empty">Nothing yet. Book a trip or tell Atlas how you like to travel.</p>
       )}
 
       {grouped.map(([cat, items]) => (
@@ -137,7 +136,7 @@ export default function AtlasLearningPage() {
         </div>
       )}
 
-      <p className="alp-foot">Atlas never learns health, religion, money, or other sensitive details.</p>
+      <p className="alp-foot">Atlas never saves health, religion, money or other private details.</p>
     </div>
   );
 }
