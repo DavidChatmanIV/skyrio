@@ -228,7 +228,11 @@ export default function WeatherStrip({
             );
           })}
         </div>
-      ) : mode === "later" ? (
+      ) : null}
+      {showDays && data && shown.length > 0 && (
+        <div className="wx-note">Forecasts can change.</div>
+      )}
+      {data === undefined || showDays ? null : mode === "later" ? (
         <div className="wx-note">
           Your trip&apos;s forecast shows up around{" "}
           <b>{availableOn.format("MMM D")}</b>. Forecasts only reach about{" "}
