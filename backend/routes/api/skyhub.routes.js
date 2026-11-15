@@ -4,8 +4,9 @@ import mongoose from "mongoose";
 import SkyHubTakedown from "../../models/SkyHubTakedown.js";
 import Notification from "../../models/notification.js";
 import SkyHubPost from "../../models/SkyHubPost.js";
+import Booking from "../../models/booking.js";
 import { tidyPlace, geocodePlace, resolvePlace, toGeoPoint } from "../../services/placeName.js";
-import { beenThereIds, sharePromptFor } from "../../services/beenThere.js";
+import { beenThereIds, sharePromptFor, tripPlaces, matchesTrip } from "../../services/beenThere.js";
 import SkyHubComment from "../../models/SkyHubComment.js";
 import SkyHubReport from "../../models/SkyHubReport.js";
 import SkyHubBlock from "../../models/SkyHubBlock.js";
@@ -286,7 +287,35 @@ async function visibleComments(postId, viewerId) {
     .sort({ createdAt: 1 })
     .limit(300)
     .lean();
-  return comments.map((c) => mapComment(c, viewerId));
+  const local = await localCommenters(postId, comments);
+  return comments.map((c) => {
+    const m = mapComment(c, viewerId);
+    m.local = local.has(String(c.author));
+    return m;
+  });
+}
+
+// "Local": the commenter's profile city is within 25 miles of the post's
+// place. Only from their own profile, never guessed from anything else.
+const LOCAL_MILES = 25;
+async function localCommenters(postId, comments) {
+  const out = new Set();
+  try {
+    const authors = [...new Set(comments.map((c) => String(c.author)).filter(Boolean))];
+    if (!authors.length) return out;
+    const post = await SkyHubPost.findById(postId).select("location").lean();
+    const [lng, lat] = post?.location?.coordinates || [];
+    if (!Number.isFinite(lat)) return out;
+    const users = await User.find({ _id: { $in: authors } }).select("city").lean();
+    for (const u of users) {
+      if (!u.city) continue;
+      const pt = await geocodePlace(u.city); // cached
+      if (pt && milesBetween(pt, { lat, lng }) <= LOCAL_MILES) out.add(String(u._id));
+    }
+  } catch {
+    /* no tags rather than a failed comments list */
+  }
+  return out;
 }
 
 function isAdmin(req) {
@@ -396,8 +425,27 @@ router.get("/feed", async (req, res) => {
         }
       : null;
 
+    // Radar search: ?q=newark looks through ALL of SkyHub (place, text,
+    // spot, traveler, tags). The page puts people you follow first.
+    const q = cleanText(req.query.q, 60);
+    const search = q
+      ? (() => {
+          const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/^#|^@/, ""), "i");
+          return {
+            $or: [
+              { destination: rx },
+              { text: rx },
+              { "spot.name": rx },
+              { authorName: rx },
+              { username: rx },
+              { tags: rx },
+            ],
+          };
+        })()
+      : null;
+
     const posts = await SkyHubPost.find({
-      $and: [visible, authorFilter, near, ...(older ? [older] : [])],
+      $and: [visible, authorFilter, near, ...(search ? [search] : []), ...(older ? [older] : [])],
     })
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit + 1)
@@ -1208,6 +1256,164 @@ router.get("/stats", async (_req, res) => {
 /* ─────────────────────────────────────────────────────────────
    Your account standing — strikes, any pause, and appeals
 ───────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   GET /api/skyhub/posts/:id/likes — who liked a post (public, like
+   Twitter/Threads/Bluesky). Saves stay private: only the count shows.
+───────────────────────────────────────────────────────────── */
+router.get("/posts/:id/likes", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!validId(id)) return res.status(400).json({ message: "Invalid post id." });
+    const post = await SkyHubPost.findById(id).select("likes hidden author").lean();
+    if (!post || post.hidden) return res.status(404).json({ message: "Post not found." });
+    const viewerId = req.skyUser?.id || null;
+    const hide = new Set((await hiddenAuthorIds(viewerId)).map(String));
+    const ids = (post.likes || []).filter((u) => validId(u) && !hide.has(String(u))).slice(-200);
+    const [users, me] = await Promise.all([
+      User.find({ _id: { $in: ids }, isActive: { $ne: false } }).select("name username avatar").lean(),
+      viewerId ? User.findById(viewerId).select("following").lean() : null,
+    ]);
+    const following = new Set((me?.following || []).map(String));
+    const byId = new Map(users.map((u) => [String(u._id), u]));
+    const people = ids
+      .reverse() // newest likes first
+      .map((uid) => byId.get(String(uid)))
+      .filter(Boolean)
+      .map((u) => ({
+        id: String(u._id),
+        name: u.name || u.username || "Traveler",
+        username: u.username || "",
+        avatar: u.avatar || "",
+        following: following.has(String(u._id)),
+        isMe: String(u._id) === viewerId,
+      }));
+    return res.json({ people, total: people.length });
+  } catch (err) {
+    console.error("[skyhub] likes list error:", err.message);
+    return res.status(500).json({ message: "Couldn't load likes. Try again." });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+   GET /api/skyhub/users/:id/card — the quick profile card when you tap a
+   name. Same public details as their Passport page.
+───────────────────────────────────────────────────────────── */
+router.get("/users/:id/card", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!validId(id)) return res.status(400).json({ message: "Invalid traveler." });
+    const viewerId = req.skyUser?.id || null;
+    if (viewerId && (await isBlockedBetween(viewerId, id)))
+      return res.status(404).json({ message: "Traveler not found." });
+    const u = await User.findById(id)
+      .select("name username avatar city followersCount xpTotalEarned xp isActive")
+      .lean();
+    if (!u || u.isActive === false) return res.status(404).json({ message: "Traveler not found." });
+    const [postCount, places, me] = await Promise.all([
+      SkyHubPost.countDocuments({ author: id, hidden: { $ne: true } }),
+      SkyHubPost.aggregate([
+        { $match: { author: new mongoose.Types.ObjectId(id), hidden: { $ne: true }, destination: { $nin: ["", null] } } },
+        { $group: { _id: { $toLower: "$destination" }, name: { $first: "$destination" }, n: { $sum: 1 } } },
+        { $sort: { n: -1 } },
+        { $limit: 4 },
+      ]),
+      viewerId ? User.findById(viewerId).select("following").lean() : null,
+    ]);
+    return res.json({
+      id: String(u._id),
+      name: u.name || u.username || "Traveler",
+      username: u.username || "",
+      avatar: u.avatar || "",
+      city: tidyPlace(u.city || ""),
+      badge: getLevel(u.xpTotalEarned ?? u.xp ?? 0).current.name,
+      followers: u.followersCount || 0,
+      posts: postCount,
+      places: places.map((p) => tidyPlace(p.name)).filter(Boolean),
+      following: Boolean(me?.following?.map(String).includes(String(u._id))),
+      isMe: String(u._id) === viewerId,
+    });
+  } catch (err) {
+    console.error("[skyhub] user card error:", err.message);
+    return res.status(500).json({ message: "Couldn't load this traveler. Try again." });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+   GET /api/skyhub/me/saved — your saved posts, grouped by your trips:
+   upcoming trips first, then trips in the last 60 days, then the rest
+   by place. A post joins a trip when its place is near that trip's
+   airport (same rule as "Been there").
+───────────────────────────────────────────────────────────── */
+router.get("/me/saved", requireViewer, async (req, res) => {
+  try {
+    const me = req.skyUser.id;
+    const hide = await hiddenAuthorIds(me);
+    const [saved, trips] = await Promise.all([
+      SkyHubPost.find({
+        saves: me,
+        hidden: { $ne: true },
+        ...(hide.length ? { author: { $nin: hide } } : {}),
+      })
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean(),
+      Booking.find({
+        user: me,
+        status: "confirmed",
+        type: "Flight",
+        $or: [
+          { "dates.end": { $gte: new Date(Date.now() - 60 * DAY) } },
+          { "dates.start": { $gte: new Date() } },
+        ],
+      })
+        .select("_id flight.destination flight.destinationName dates")
+        .sort({ "dates.start": 1 })
+        .limit(20)
+        .lean(),
+    ]);
+    const xp = await xpMapFor(saved);
+    const used = new Set();
+    const now = Date.now();
+    const groups = [];
+    for (const t of trips) {
+      const places = tripPlaces(t);
+      const posts = saved.filter((p) => !used.has(String(p._id)) && matchesTrip(p, places));
+      if (!posts.length) continue;
+      posts.forEach((p) => used.add(String(p._id)));
+      const start = t.dates?.start ? new Date(t.dates.start) : null;
+      groups.push({
+        kind: "trip",
+        bookingId: String(t._id),
+        place: tidyPlace(t.flight?.destinationName || places[0]?.city || ""),
+        start: t.dates?.start || null,
+        end: t.dates?.end || null,
+        upcoming: Boolean(start && start.getTime() > now),
+        posts: posts.map((p) => mapPost(p, me, xp)),
+      });
+    }
+    // Upcoming trips first (soonest), then past trips (latest first).
+    groups.sort((a, b) =>
+      a.upcoming !== b.upcoming
+        ? a.upcoming ? -1 : 1
+        : a.upcoming
+        ? new Date(a.start) - new Date(b.start)
+        : new Date(b.start) - new Date(a.start)
+    );
+    const byPlace = new Map();
+    for (const p of saved) {
+      if (used.has(String(p._id))) continue;
+      const name = tidyPlace(p.destination) || "No place";
+      const k = name.toLowerCase();
+      if (!byPlace.has(k)) byPlace.set(k, { kind: "place", place: name, posts: [] });
+      byPlace.get(k).posts.push(mapPost(p, me, xp));
+    }
+    return res.json({ groups: [...groups, ...byPlace.values()], total: saved.length });
+  } catch (err) {
+    console.error("[skyhub] saved error:", err.message);
+    return res.status(500).json({ message: "Couldn't load saved posts. Try again." });
+  }
+});
+
 // After a trip: "Back from Miami? Share a spot." (once per trip, page-side)
 router.get("/me/share-prompt", requireViewer, async (req, res) => {
   try {

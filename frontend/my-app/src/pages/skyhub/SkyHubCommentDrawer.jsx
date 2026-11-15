@@ -188,6 +188,7 @@ export default function SkyHubCommentDrawer({
   post,
   refreshPostComments,
   onNeedAccount, // opens the "create a profile" prompt on SkyHubPage
+  onOpenProfile, // (authorId) → quick profile card
 }) {
   const [comments, setComments] = useState([]);
   const [isPhone, setIsPhone] = useState(
@@ -529,9 +530,27 @@ export default function SkyHubCommentDrawer({
                 <UserAvatar name={comment.author} src={comment.avatar} />
                 <div className="skyhubC-itemBody">
                   <div className="skyhubC-itemMeta">
-                    <span className="skyhubC-name">
-                      {comment.author || "Traveler"}
-                    </span>
+                    {onOpenProfile && comment.authorId ? (
+                      <button
+                        type="button"
+                        className="skyhubC-name skyhubC-nameBtn"
+                        onClick={() => onOpenProfile(comment.authorId)}
+                      >
+                        {comment.author || "Traveler"}
+                      </button>
+                    ) : (
+                      <span className="skyhubC-name">
+                        {comment.author || "Traveler"}
+                      </span>
+                    )}
+                    {comment.local && (
+                      <span
+                        className="skyhubC-local"
+                        title="Lives near this place (from their profile)"
+                      >
+                        Local
+                      </span>
+                    )}
                     <span className="skyhubC-time">
                       {comment.timeAgo || "just now"}
                     </span>
