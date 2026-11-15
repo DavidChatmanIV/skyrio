@@ -28,6 +28,7 @@ import SkyHubPassportCard from "./SkyHubPassportCard";
 import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
 import SkyHubPhotoViewer from "./SkyHubPhotoViewer";
+import { ProfileCard, LikesList } from "./SkyHubPeople";
 import SkyHubStanding from "./SkyHubStanding";
 import { SkyHubJoinModal, SkyHubJoinCard } from "./SkyHubJoinPrompt";
 import { apiUrl } from "@/lib/api";
@@ -278,6 +279,16 @@ function mapBackendPost(post) {
     // Nearby tab: miles from your Radar city
     milesAway: Number.isFinite(post.milesAway) ? post.milesAway : null,
   };
+}
+
+// "Dec 12–15" / "Dec 30 – Jan 2" for a saved trip group.
+function savedRange(start, end) {
+  const f = (d, o) => new Date(d).toLocaleDateString("en-US", { timeZone: "UTC", ...o });
+  if (!end) return f(start, { month: "short", day: "numeric" });
+  const sameMonth = f(start, { month: "short" }) === f(end, { month: "short" });
+  return sameMonth
+    ? `${f(start, { month: "short", day: "numeric" })}–${f(end, { day: "numeric" })}`
+    : `${f(start, { month: "short", day: "numeric" })} – ${f(end, { month: "short", day: "numeric" })}`;
 }
 
 // Adds the "load more" cursor to a feed request.
@@ -684,6 +695,10 @@ export default function SkyHubPage() {
     setPosts(fn);
     setFollowingPosts(fn);
     setNearbyPosts(fn);
+    setSearchPosts((l) => (l ? fn(l) : l));
+    setSavedGroups((g) =>
+      g ? g.map((gr) => ({ ...gr, posts: fn(gr.posts) })).filter((gr) => gr.posts.length) : g
+    );
   }, []);
 
   const [feedCursor, setFeedCursor] = useState(null);
@@ -747,8 +762,37 @@ export default function SkyHubPage() {
 
   // Which list the current tab reads from.
   const useNearbyList = activeTab === "nearby" && nearbyLocal && !nearbyFailed;
-  const sourcePosts =
-    activeTab === "following"
+  // Radar search looks through ALL of SkyHub (server), people you follow first.
+  const [searchPosts, setSearchPosts] = useState(null);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    const q = debouncedSearch.trim();
+    if (!q) {
+      setSearchPosts(null);
+      return undefined;
+    }
+    let alive = true;
+    setSearching(true);
+    skyFetch(`/api/skyhub/feed?limit=50&q=${encodeURIComponent(q)}`)
+      .then((r) => readJson(r).then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!alive) return;
+        const list = ok && Array.isArray(d?.posts) ? d.posts.map(mapBackendPost) : null;
+        setSearchPosts(
+          list ? [...list.filter((p) => p.following), ...list.filter((p) => !p.following)] : null
+        );
+      })
+      .catch(() => alive && setSearchPosts(null))
+      .finally(() => alive && setSearching(false));
+    return () => {
+      alive = false;
+    };
+  }, [debouncedSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+  const searchingAll = Boolean(debouncedSearch.trim() && searchPosts);
+
+  const sourcePosts = searchingAll
+    ? searchPosts
+    : activeTab === "following"
       ? followingPosts
       : useNearbyList
       ? nearbyPosts
@@ -759,8 +803,9 @@ export default function SkyHubPage() {
   // ── Load more as you scroll ──
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreFailed, setMoreFailed] = useState(false);
-  const pager =
-    activeTab === "following"
+  const pager = searchingAll
+    ? { cursor: null, path: null, set: () => {}, setCursor: () => {} }
+    : activeTab === "following"
       ? { cursor: followingCursor, path: "/api/skyhub/feed?scope=following", set: setFollowingPosts, setCursor: setFollowingCursor }
       : useNearbyList
       ? { cursor: nearbyCursor, path: nearbyPath, set: setNearbyPosts, setCursor: setNearbyCursor }
@@ -799,7 +844,9 @@ export default function SkyHubPage() {
       questionsFirst(sourcePosts.filter((post) => {
         const s = debouncedSearch.trim().toLowerCase();
         const inText = (post.text || "").toLowerCase().includes(s);
-        const inPlace = (post.destination || "").toLowerCase().includes(s);
+        const inPlace =
+          (post.destination || "").toLowerCase().includes(s) ||
+          (post.spot?.name || "").toLowerCase().includes(s);
         const inPerson =
           (post.author || "").toLowerCase().includes(s) ||
           (post.username || "").toLowerCase().includes(s.replace(/^@?/, "@"));
@@ -824,6 +871,8 @@ export default function SkyHubPage() {
           ) ||
           (post.type || "").toLowerCase() === activeFilter.toLowerCase();
         let mt = true;
+        // Searching covers all of SkyHub, whatever tab you're on.
+        if (searchingAll) return ms && mf;
         switch (activeTab) {
           case "following":
             // Already narrowed by the server (?scope=following)
@@ -846,6 +895,9 @@ export default function SkyHubPage() {
           case "questions":
             mt = post.type === "Question";
             break;
+          case "saved":
+            mt = !!post.saved;
+            break;
           case "trips":
             // "Join Trip" is no longer offered on the postcard; older
             // Join Trip posts still show here.
@@ -855,9 +907,10 @@ export default function SkyHubPage() {
             mt = true;
         }
         return ms && mf && mt;
-      }), activeTab === "questions" ? localCity : undefined),
+      }), activeTab === "questions" && !searchingAll ? localCity : undefined),
     [
       sourcePosts,
+      searchingAll,
       debouncedSearch,
       searchScope,
       activeFilter,
@@ -928,7 +981,15 @@ export default function SkyHubPage() {
       cta: "Share a trip",
     },
   };
-  const empty = EMPTY[activeTab] || EMPTY.forYou;
+  const empty = debouncedSearch.trim()
+    ? {
+        icon: "globe",
+        title: `No posts about "${debouncedSearch.trim()}" yet`,
+        sub: "Try another place or word, or be the first to share one.",
+        cta: "Share a spot",
+        search: true,
+      }
+    : EMPTY[activeTab] || EMPTY.forYou;
 
   // One plain sentence per tab: what you're looking at.
   const TAB_HINTS = {
@@ -946,6 +1007,7 @@ export default function SkyHubPage() {
       ? `Unanswered questions near ${localCity.name} come first. Reply to help.`
       : "Unanswered questions come first. Reply to help.",
     trips: "Stories from travelers' trips.",
+    saved: "Posts you saved, grouped by your trips. Only you see these.",
   };
 
   const FEED_TITLES = {
@@ -955,6 +1017,7 @@ export default function SkyHubPage() {
     nearby: nearbyLocal ? `Near ${localCity.name}` : "Around the world",
     questions: "Questions",
     trips: "Trips & stories",
+    saved: "Saved",
   };
 
   /* Handlers */
@@ -1130,10 +1193,43 @@ export default function SkyHubPage() {
           ? `You're following ${post.author}.`
           : `Unfollowed ${post.author}.`
       );
+      return nowFollowing;
     } catch (err) {
       message.error(err.message);
+      return undefined;
     }
   };
+  // Profile card + "Liked by" list
+  const [profileUserId, setProfileUserId] = useState(null);
+  const [likesPostId, setLikesPostId] = useState(null);
+  const openProfile = (id) => {
+    if (!id) return;
+    setLikesPostId(null);
+    setProfileUserId(String(id));
+  };
+
+  // ── Saved tab: your saved posts, grouped by your trips ──
+  const [savedGroups, setSavedGroups] = useState(null);
+  const [savedFailed, setSavedFailed] = useState(false);
+  const [savedVersion, setSavedVersion] = useState(0);
+  useEffect(() => {
+    if (activeTab !== "saved" || !currentUser) return undefined;
+    let alive = true;
+    setSavedFailed(false);
+    skyFetch("/api/skyhub/me/saved")
+      .then((r) => readJson(r).then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!alive) return;
+        if (!ok) throw new Error();
+        setSavedGroups(
+          (d.groups || []).map((g) => ({ ...g, posts: (g.posts || []).map(mapBackendPost) }))
+        );
+      })
+      .catch(() => alive && setSavedFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, [activeTab, currentUser?.id, savedVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleSave = async (id) => {
     try {
@@ -1151,6 +1247,7 @@ export default function SkyHubPage() {
         )
       );
       message.success(data.saved ? "Saved." : "Removed from saved.");
+      setSavedVersion((v) => v + 1);
     } catch (err) {
       message.error(err.message || "Couldn't save the post. Try again.");
     }
@@ -1679,13 +1776,21 @@ export default function SkyHubPage() {
               <div className="skyhub-feedSectionHeader">
                 <div>
                   <h2 className="skyhub-sectionTitle">
-                    {FEED_TITLES[activeTab] || "Latest posts"}
+                    {debouncedSearch
+                      ? "Search"
+                      : FEED_TITLES[activeTab] || "Latest posts"}
                   </h2>
                   <p className="skyhub-sectionSubtext">
                     {debouncedSearch
-                      ? `${visiblePosts.length} result${
-                          visiblePosts.length !== 1 ? "s" : ""
-                        } for "${debouncedSearch}"`
+                      ? searching && !searchPosts
+                        ? `Searching SkyHub for "${debouncedSearch}"…`
+                        : `${visiblePosts.length} result${
+                            visiblePosts.length !== 1 ? "s" : ""
+                          } for "${debouncedSearch}" across SkyHub${
+                            visiblePosts.some((p) => p.following)
+                              ? ". People you follow come first."
+                              : "."
+                          }`
                       : TAB_HINTS[activeTab] || TAB_HINTS.forYou}{" "}
                     <a
                       href="/skyhub/guidelines"
@@ -1811,7 +1916,64 @@ export default function SkyHubPage() {
               </div>
 
               <div className="skyhub-feedList">
-                {feedLoading ? (
+                {activeTab === "saved" && !searchingAll ? (
+                  !currentUser ? (
+                    <div className="skyhub-emptyState">
+                      <h3>Log in to see what you saved</h3>
+                      <p>Tap the bookmark on any post to save it here.</p>
+                    </div>
+                  ) : savedFailed ? (
+                    <div className="skyhub-emptyState">
+                      <h3>Couldn&apos;t load saved posts. Try again.</h3>
+                    </div>
+                  ) : !savedGroups ? (
+                    <div className="skyhub-emptyState">
+                      <h3>Loading saved posts…</h3>
+                    </div>
+                  ) : !savedGroups.length ? (
+                    <div className="skyhub-emptyState">
+                      <h3>Nothing saved yet</h3>
+                      <p>Tap the bookmark on a post. Spots for a trip you booked are grouped together here.</p>
+                    </div>
+                  ) : (
+                    savedGroups.map((g) => (
+                      <section
+                        key={g.bookingId || `p:${g.place}`}
+                        className="shSaved"
+                        aria-label={g.kind === "trip" ? `Your ${g.place} trip` : g.place}
+                      >
+                        <header className="shSaved__head">
+                          <span className="shSaved__title">
+                            {g.kind === "trip" ? `${g.place} trip` : g.place}
+                          </span>
+                          <span className="shSaved__meta">
+                            {g.kind === "trip" && g.start
+                              ? `${savedRange(g.start, g.end)} · ${g.upcoming ? "Upcoming" : "Past"} · `
+                              : ""}
+                            {g.posts.length} saved
+                          </span>
+                        </header>
+                        {g.posts.map((post) => (
+                          <SkyHubFeedCard
+                            key={post.id}
+                            post={post}
+                            currentUserId={currentUserId}
+                            onToggleLike={handleToggleLike}
+                            onToggleSave={handleToggleSave}
+                            onOpenComments={handleOpenComments}
+                            onReportPost={handleReportPost}
+                            onEditPost={handleEditPost}
+                            onDeletePost={handleDeletePost}
+                            onBlockUser={handleBlockUser}
+                            onToggleFollow={handleToggleFollow}
+                            onOpenProfile={openProfile}
+                            onShowLikes={(id) => setLikesPostId(id)}
+                          />
+                        ))}
+                      </section>
+                    ))
+                  )
+                ) : feedLoading ? (
                   <div className="skyhub-emptyState">
                     <div
                       style={{
@@ -1840,6 +2002,8 @@ export default function SkyHubPage() {
                       onBlockUser={handleBlockUser}
                       onAdminRemove={isAdminHere ? openAdminRemove : undefined}
                       onToggleFollow={handleToggleFollow}
+                      onOpenProfile={openProfile}
+                      onShowLikes={(id) => setLikesPostId(id)}
                     />
                   ))}
                   {pager.cursor && (
@@ -1887,7 +2051,7 @@ export default function SkyHubPage() {
                     <Button
                       type="primary"
                       onClick={
-                        activeTab === "following"
+                        activeTab === "following" && !empty.search
                           ? () => setActiveTab("forYou")
                           : startPost
                       }
@@ -2105,6 +2269,27 @@ export default function SkyHubPage() {
         post={activeCommentPost}
         refreshPostComments={refreshPostComments}
         onNeedAccount={askToJoin}
+        onOpenProfile={openProfile}
+      />
+
+      <ProfileCard
+        userId={profileUserId}
+        fetcher={skyFetch}
+        onClose={() => setProfileUserId(null)}
+        onFollow={currentUser ? handleToggleFollow : undefined}
+        onOpenPassport={(username) => {
+          setProfileUserId(null);
+          navigate(`/u/${encodeURIComponent(username)}`, {
+            state: { from: "/skyhub", fromLabel: "SkyHub" },
+          });
+        }}
+      />
+      <LikesList
+        postId={likesPostId}
+        fetcher={skyFetch}
+        onClose={() => setLikesPostId(null)}
+        onOpenProfile={openProfile}
+        onFollow={currentUser ? handleToggleFollow : undefined}
       />
     </div>
   );

@@ -3555,3 +3555,287 @@ html:has(.skyhub-drawer.ant-drawer-open) [data-sr-root] {
   white-space: nowrap;
   margin-left: 0;
 }
+
+/* Tappable names / avatars → profile card */
+.skyhub-feedCard__who {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.skyhub-feedCard__nameBtn,
+.skyhubC-nameBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .skyhub-feedCard__nameBtn:hover,
+  .skyhubC-nameBtn:hover {
+    text-decoration: underline;
+  }
+}
+.skyhub-feedCard__who:focus-visible,
+.skyhub-feedCard__nameBtn:focus-visible,
+.skyhubC-nameBtn:focus-visible,
+.skyhub-likedBy:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+
+/* "Liked by 3 travelers" */
+.skyhub-likedBy {
+  display: block;
+  margin: 6px 0 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+}
+
+/* "Local" on comments */
+.skyhubC-local {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #6ee7a8;
+  background: rgba(110, 231, 168, 0.12);
+  border: 1px solid rgba(110, 231, 168, 0.3);
+}
+
+/* Saved tab: grouped by trip */
+.shSaved {
+  margin-bottom: 18px;
+}
+.shSaved__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 4px 2px 10px;
+}
+.shSaved__title {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+}
+.shSaved__meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffd29a;
+}
+
+/* People pop-ups (profile card, Liked by) */
+.shPpl .ant-modal-content {
+  background: linear-gradient(160deg, rgba(74, 40, 112, 0.97), rgba(34, 18, 62, 0.98)) !important;
+}
+.shPpl__msg {
+  margin: 8px 0;
+  color: rgba(255, 255, 255, 0.8);
+}
+.shPpl__av {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  object-fit: cover;
+  color: #fff;
+  font-weight: 800;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+.shPpl__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: #fff;
+}
+.shPpl__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.shPpl__who {
+  min-width: 0;
+}
+.shPpl__name {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 22px;
+  font-weight: 800;
+}
+.shPpl__sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.72);
+}
+.shPpl__badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff9f6b;
+  background: rgba(255, 122, 53, 0.12);
+  border: 1px solid rgba(255, 122, 53, 0.25);
+}
+.shPpl__city {
+  margin-top: 2px;
+  font-size: 13.5px;
+  color: #ffd29a;
+}
+.shPpl__stats {
+  display: flex;
+  gap: 24px;
+}
+.shPpl__stats div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.shPpl__stats b {
+  font-size: 18px;
+}
+.shPpl__stats span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+}
+.shPpl__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffb347;
+}
+.shPpl__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.shPpl__chip {
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffd29a;
+  background: rgba(255, 138, 42, 0.12);
+  border: 1px dashed rgba(255, 180, 107, 0.6);
+}
+.shPpl__actions {
+  display: flex;
+  gap: 8px;
+}
+.shPpl__follow,
+.shPpl__open {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.shPpl__follow {
+  border: 0;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  color: #1a0e06;
+}
+.shPpl__follow.is-on {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.shPpl__open {
+  border: 1px solid rgba(255, 179, 71, 0.55);
+  background: rgba(255, 138, 42, 0.12);
+  color: #ffb347;
+}
+.shPpl__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
+}
+.shPpl__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.shPpl__row .shPpl__follow {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.shPpl__rowOpen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.shPpl__rowText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.shPpl__rowName {
+  font-size: 14.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shPpl__rowSub {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.shPpl__follow:focus-visible,
+.shPpl__open:focus-visible,
+.shPpl__rowOpen:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
+.shPpl__follow:active,
+.shPpl__open:active {
+  transform: scale(0.97);
+}
+.skyhub-feedCard__nameBtn.skyhub-feedCard__name {
+  font-family: "Sora", sans-serif;
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: var(--sh-text, #fff);
+}
+.skyhubC-nameBtn {
+  font-weight: 700;
+}

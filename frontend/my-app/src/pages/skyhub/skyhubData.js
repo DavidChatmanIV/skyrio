@@ -13,6 +13,7 @@ export const skyhubTabs = [
   { value: "nearby", label: "Nearby" },
   { value: "trips", label: "Trips" },
   { value: "questions", label: "Questions" },
+  { value: "saved", label: "Saved" },
 ];
 
 // "Team Travel" excluded from display (kept here for data mapping)

@@ -293,6 +293,8 @@ export default function SkyHubFeedCard({
   // Optional: pass this (and post.following) once the follow API exists.
   // Until then the Follow button stays hidden — no button that does nothing.
   onToggleFollow,
+  onOpenProfile, // (authorId) → quick profile card
+  onShowLikes, // (postId) → "Liked by" list
 }) {
   const tm = TYPE_META[post.type] || TYPE_META.Story;
   const TypeIcon = tm.icon;
@@ -387,11 +389,32 @@ export default function SkyHubFeedCard({
     <div className={`skyhub-feedCard${seasoned ? " has-frame-seasoned" : ""}`}>
       {seasoned && <style>{FRAME_CSS}</style>}
       <div className="skyhub-feedCard__top">
-        <Avatar name={post.author} avatarUrl={post.avatar} size={44} />
+        {onOpenProfile && post.authorId ? (
+          <button
+            type="button"
+            className="skyhub-feedCard__who"
+            onClick={() => onOpenProfile(post.authorId)}
+            aria-label={`About ${post.author}`}
+          >
+            <Avatar name={post.author} avatarUrl={post.avatar} size={44} />
+          </button>
+        ) : (
+          <Avatar name={post.author} avatarUrl={post.avatar} size={44} />
+        )}
 
         <div className="skyhub-feedCard__head">
           <div className="skyhub-feedCard__line1">
-            <span className="skyhub-feedCard__name">{post.author}</span>
+            {onOpenProfile && post.authorId ? (
+              <button
+                type="button"
+                className="skyhub-feedCard__name skyhub-feedCard__nameBtn"
+                onClick={() => onOpenProfile(post.authorId)}
+              >
+                {post.author}
+              </button>
+            ) : (
+              <span className="skyhub-feedCard__name">{post.author}</span>
+            )}
             <span className="skyhub-feedCard__handle">{post.username}</span>
             {onToggleFollow && !isOwner && post.authorId && (
               <button
@@ -652,6 +675,15 @@ export default function SkyHubFeedCard({
             <Icon.share /> <span>Share</span>
           </button>
         </div>
+        {onShowLikes && post.likes > 0 && (
+          <button
+            type="button"
+            className="skyhub-likedBy"
+            onClick={() => onShowLikes(post.id)}
+          >
+            Liked by {post.likes} traveler{post.likes === 1 ? "" : "s"}
+          </button>
+        )}
       </div>
     </div>
   );
