@@ -1258,11 +1258,30 @@ export default function SkyHubPage() {
   const [editText, setEditText] = useState("");
   const [editDestination, setEditDestination] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
-  const handleEditPost = (post) => {
+  const [editSpot, setEditSpot] = useState({ name: "", get: "", price: 0 });
+  const [editSpotFocus, setEditSpotFocus] = useState(false);
+  const handleEditPost = (post, opts = {}) => {
     setEditText(post.text || "");
     setEditDestination(post.destination || "");
+    setEditSpot({
+      name: post.spot?.name || "",
+      get: post.spot?.get || "",
+      price: post.spot?.price || 0,
+    });
+    setEditSpotFocus(!!opts.spot);
     setEditingPost(post);
   };
+  // "Add spot details" opens Edit with the cursor in Spot name (the pop-up
+  // takes focus first, so wait for it to open).
+  useEffect(() => {
+    if (!editingPost || !editSpotFocus) return undefined;
+    const t = setTimeout(() => document.querySelector(".shEditSpot input")?.focus(), 250);
+    return () => clearTimeout(t);
+  }, [editingPost, editSpotFocus]);
+  const spotChangedFrom = (post) =>
+    (post.spot?.name || "") !== editSpot.name.trim() ||
+    (post.spot?.get || "") !== editSpot.get.trim() ||
+    (post.spot?.price || 0) !== (editSpot.price || 0);
   const saveEdit = async () => {
     if (!editingPost) return;
     const hasPhotos = (editingPost.images || []).length > 0;
@@ -1281,6 +1300,16 @@ export default function SkyHubPage() {
           text: editText.trim(),
           destination: tidyPlace(editDestination),
           near: localCity?.regionCode || localCity?.region || undefined,
+          // Only sent when changed. An empty name removes the spot details.
+          ...(editingPost.type !== "Question" && spotChangedFrom(editingPost)
+            ? {
+                spot: {
+                  name: editSpot.name.trim(),
+                  get: editSpot.get.trim(),
+                  price: editSpot.price || undefined,
+                },
+              }
+            : {}),
         }),
       });
       const data = await readJson(res);
@@ -2143,6 +2172,65 @@ export default function SkyHubPage() {
           aria-label="Destination"
           style={{ marginTop: 16 }}
         />
+        {editingPost && editingPost.type !== "Question" && (
+          <div className="shEditSpot">
+            <div className="shEditSpot__title">Spot details (optional)</div>
+            <label className="shCmp-spotField">
+              <span>Spot name</span>
+              <input
+                value={editSpot.name}
+                onChange={(e) => setEditSpot((sp) => ({ ...sp, name: e.target.value }))}
+                placeholder="e.g. Ramen Gami"
+                maxLength={80}
+                autoComplete="off"
+              />
+            </label>
+            <div className="shCmp-spotRow">
+              <label className="shCmp-spotField">
+                <span>What to get</span>
+                <input
+                  value={editSpot.get}
+                  onChange={(e) => setEditSpot((sp) => ({ ...sp, get: e.target.value }))}
+                  placeholder="Optional"
+                  maxLength={120}
+                  autoComplete="off"
+                />
+              </label>
+              <div className="shCmp-spotField">
+                <span id="shEdit-price">Price</span>
+                <div className="shCmp-price" role="radiogroup" aria-labelledby="shEdit-price">
+                  {[1, 2, 3].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      role="radio"
+                      aria-checked={editSpot.price === n}
+                      aria-label={["Cheap", "Mid-range", "Pricey"][n - 1]}
+                      className={editSpot.price === n ? "is-on" : ""}
+                      onClick={() =>
+                        setEditSpot((sp) => ({ ...sp, price: sp.price === n ? 0 : n }))
+                      }
+                    >
+                      {"$".repeat(n)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {editingPost.spot?.name && (
+              <button
+                type="button"
+                className="shCmp-spotRemove"
+                onClick={() => setEditSpot({ name: "", get: "", price: 0 })}
+              >
+                Remove spot details
+              </button>
+            )}
+            {!editSpot.name.trim() && (editSpot.get.trim() || editSpot.price) ? (
+              <div className="shEditSpot__hint">Add the spot&apos;s name to save these.</div>
+            ) : null}
+          </div>
+        )}
         {(editingPost?.images || []).length > 0 && (
           <p
             style={{

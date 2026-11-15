@@ -3839,3 +3839,44 @@ html:has(.skyhub-drawer.ant-drawer-open) [data-sr-root] {
 .skyhubC-nameBtn {
   font-weight: 700;
 }
+
+/* Edit post: spot details */
+.shEditSpot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.shEditSpot__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+.shEditSpot__hint {
+  font-size: 12.5px;
+  color: #ffd29a;
+}
+/* Own post without spot details: one-tap add */
+.skyhub-addSpot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 2px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 179, 71, 0.55);
+  background: transparent;
+  color: #ffb347;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.skyhub-addSpot:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: 2px;
+}
