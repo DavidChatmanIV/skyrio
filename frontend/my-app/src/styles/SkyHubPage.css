@@ -3301,3 +3301,132 @@ html:has(.skyhub-drawer.ant-drawer-open) [data-sr-root] {
   text-transform: uppercase;
   color: #ffb347;
 }
+
+/* Travelers list: open Passport + Follow, near you first */
+.shTrav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+}
+.shTrav__open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 4px 11px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.shTrav__open:disabled {
+  cursor: default;
+}
+@media (hover: hover) {
+  .shTrav__open:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+.shTrav__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.shTrav__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shTrav__loc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.72);
+}
+.shTrav__loc svg {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.55);
+}
+.shTrav__locName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shTrav__near {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #ffd29a;
+  background: rgba(255, 138, 42, 0.16);
+}
+.shTrav__badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(255, 122, 53, 0.12);
+  color: #ff9f6b;
+  border: 1px solid rgba(255, 122, 53, 0.2);
+}
+.shTrav__follow {
+  flex-shrink: 0;
+  min-height: 36px;
+  min-width: 82px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 179, 71, 0.55);
+  background: rgba(255, 138, 42, 0.12);
+  color: #ffb347;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.shTrav__follow.is-on {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+.shTrav__follow:active {
+  transform: scale(0.96);
+}
+.shTrav__open:focus-visible,
+.shTrav__follow:focus-visible {
+  outline: 2px solid #ff8a2a;
+  outline-offset: -2px;
+}
+/* Let the side column shrink to the phone width (rows ellipsize instead). */
+.skyhub-rightRail,
+.skyhub-rightRail > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.shTrav {
+  min-width: 0;
+}
+.shTrav__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.shTrav__top .shTrav__name {
+  min-width: 0;
+}

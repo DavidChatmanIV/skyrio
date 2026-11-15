@@ -105,6 +105,7 @@ export default function SkyHubActiveTravelers({
   loading,
   onViewAll,
   onPick,
+  onFollow, // (traveler) => toggles follow
 }) {
   const canExpand = onViewAll && (expanded || total > travelers.length);
   return (
@@ -233,88 +234,52 @@ export default function SkyHubActiveTravelers({
           const location = t.location || t.destination || "";
           const badge = t.badge || "Explorer";
           const canOpen = Boolean(onPick && t.username);
+          const canFollow = Boolean(onFollow && t.authorId && !t.isMe);
           return (
-            <button
-              type="button"
-              key={i}
-              disabled={!canOpen}
-              onClick={() => canOpen && onPick(t)}
-              aria-label={canOpen ? `Open ${name}'s Passport` : name}
+            <div
+              key={t.authorId || t.username || i}
+              className="shTrav"
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                width: "100%",
-                padding: "11px 16px",
-                background: "transparent",
-                border: "none",
                 borderBottom:
                   i < travelers.length - 1
                     ? "1px solid rgba(255,255,255,0.07)"
                     : "none",
-                cursor: canOpen ? "pointer" : "default",
-                transition: "background 0.12s",
-                textAlign: "left",
-                fontFamily: "inherit",
-                color: "inherit",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "rgba(255,255,255,0.07)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
             >
-              <div style={{ position: "relative", flexShrink: 0 }}>
-                <Avatar name={name} avatar={t.avatar} size={36} idx={i} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#fff",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {name}
-                </div>
-                {location && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "rgba(255,255,255,0.6)",
-                      marginTop: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 3,
-                    }}
-                  >
-                    <span style={{ color: "rgba(255,255,255,0.5)" }}>
-                      <PinIcon />
-                    </span>
-                    {location}
-                  </div>
-                )}
-              </div>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  borderRadius: 99,
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                  background: "rgba(255,122,53,0.12)",
-                  color: "#ff9f6b",
-                  border: "1px solid rgba(255,122,53,0.2)",
-                }}
+              <button
+                type="button"
+                className="shTrav__open"
+                disabled={!canOpen}
+                onClick={() => canOpen && onPick(t)}
+                aria-label={canOpen ? `Open ${name}'s Passport` : name}
               >
-                {badge}
-              </span>
-            </button>
+                <Avatar name={name} avatar={t.avatar} size={36} idx={i} />
+                <span className="shTrav__text">
+                  <span className="shTrav__top">
+                    <span className="shTrav__name">{name}</span>
+                    <span className="shTrav__badge">{badge}</span>
+                  </span>
+                  {location && (
+                    <span className="shTrav__loc">
+                      <PinIcon />
+                      <span className="shTrav__locName">{location}</span>
+                      {t.nearYou && <span className="shTrav__near">Near you</span>}
+                    </span>
+                  )}
+                </span>
+              </button>
+              {canFollow && (
+                <button
+                  type="button"
+                  className={`shTrav__follow${t.following ? " is-on" : ""}`}
+                  aria-pressed={t.following}
+                  aria-label={t.following ? `Following ${name}` : `Follow ${name}`}
+                  onClick={() => onFollow(t)}
+                >
+                  {t.following ? "Following" : "Follow"}
+                </button>
+              )}
+            </div>
           );
         })
       )}

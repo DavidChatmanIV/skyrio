@@ -156,6 +156,7 @@ export default function SkyHubSearch({
       const k = key.toLowerCase();
       const cur = map.get(k) || { label: key, n: 0, ...extra };
       cur.n += 1;
+      if (map === placesMap) cur.sub = `${cur.n} post${cur.n === 1 ? "" : "s"}`;
       map.set(k, cur);
     };
     const placesMap = new Map();
