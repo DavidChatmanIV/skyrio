@@ -42,6 +42,12 @@ const CSS = `
 .alp2 .alp2-back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 0 14px 0 10px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: rgba(60,32,96,.5); border: 1px solid rgba(255,255,255,.2); -webkit-tap-highlight-color: transparent; }
 .alp2-back svg { color: #ffb347; }
 @media (hover: hover) { .alp2 .alp2-back:hover { border-color: #ffb347; } }
+.alp2 .alp2-back, .alp2-btn, .alp2-switch { transition: transform .12s ease, background-color .12s ease, border-color .12s ease; }
+.alp2 .alp2-back:active { transform: scale(.96); color: #fff; background: rgba(255,138,42,.28); border-color: #ffb347; }
+.alp2-btn:active:not(:disabled) { transform: scale(.96); border-color: #ffb347; background: rgba(255,138,42,.22); }
+.alp2-btn.primary:active:not(:disabled), .alp2-btn.danger-solid:active { filter: brightness(.92); }
+.alp2-switch:active { transform: scale(.95); }
+@media (prefers-reduced-motion: reduce) { .alp2 .alp2-back, .alp2-btn, .alp2-switch { transition: none; } .alp2 .alp2-back:active, .alp2-btn:active, .alp2-switch:active { transform: none; } }
 .alp2-back:focus-visible { outline: 3px solid #ffb347; outline-offset: 2px; }
 .alp2-top { display: flex; flex-direction: column; align-items: flex-start; }
 .alp2-kicker { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #ffb347; background: rgba(10,6,23,.45); border: 1px solid rgba(255,255,255,.2); }
@@ -179,7 +185,7 @@ export default function AtlasLearningPage() {
     .filter(([, items]) => items.length);
 
   return (
-    <div className="alp2">
+    <div className="alp2" onTouchStart={() => {}}>
       <style>{CSS}</style>
 
       <div className="alp2-top">
