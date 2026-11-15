@@ -74,3 +74,41 @@
   font-size: 0.82rem;
   background: transparent;
 }
+
+/* Phones: floating Help + Atlas buttons step back while scrolling
+   (useQuietFabs adds .fab-quiet to <html>). Open menus stay as they are. */
+.ap-fab-wrapper,
+.sr-rail-wrapper,
+.ap-nudge,
+.sr-nudge {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+html.fab-quiet .ap-fab-wrapper:not(.is-open) {
+  opacity: 0.4;
+  transform: scale(0.82);
+  transform-origin: bottom right;
+}
+html.fab-quiet .sr-rail-wrapper:not(.is-open) {
+  opacity: 0.4;
+  transform: scale(0.82);
+  transform-origin: bottom left;
+}
+html.fab-quiet .ap-nudge,
+html.fab-quiet .sr-nudge {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.fab-quiet .ap-fab-wrapper:not(.is-open),
+  html.fab-quiet .sr-rail-wrapper:not(.is-open) {
+    transform: none;
+  }
+}
+
+/* A pop-up window is open: the floating buttons step aside so they never
+   cover its Cancel / Send buttons. */
+body:has(.ant-modal-mask) .ap-fab-wrapper,
+body:has(.ant-modal-mask) .sr-rail-wrapper {
+  opacity: 0;
+  pointer-events: none;
+}
