@@ -38,6 +38,8 @@ export default function SkyHubComposer({
   radarCity = null, // the city picked on the SkyHub Radar
   placeSuggestions = [], // places people post about most
   profileCity = "", // city on their profile, e.g. "Newark, NJ"
+  spot = { name: "", get: "", price: 0 }, // optional spot details
+  setSpot,
 }) {
   const fileRef = useRef(null);
   // Lets SkyHubPage scroll to AND focus the textarea directly
@@ -49,6 +51,9 @@ export default function SkyHubComposer({
   const [focused, setFocused] = useState(false);
   const [locating, setLocating] = useState(false);
   const [placeError, setPlaceError] = useState("");
+  const [spotOpen, setSpotOpen] = useState(false);
+  const showSpot = activePostType !== "Question" && typeof setSpot === "function";
+  const editSpot = (k, v) => setSpot?.((sp) => ({ ...sp, [k]: v }));
   // Fill the place in for them: the Radar city they picked, else their
   // profile city. Only once, and never after they clear it.
   const radarLabel = tidyPlace(radarCity?.label || radarCity?.name);
@@ -406,6 +411,80 @@ export default function SkyHubComposer({
                 <div className="shCmp-placeError" role="alert">
                   {placeError}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Spot details — optional, for a place worth going to */}
+          {focused && showSpot && (
+            <div className="shCmp-spot">
+              {!spotOpen && !spot.name ? (
+                <button
+                  type="button"
+                  className="shCmp-spotAdd"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setSpotOpen(true)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  Add a spot (restaurant, view, shop…)
+                </button>
+              ) : (
+                <>
+                  <label className="shCmp-spotField">
+                    <span>Spot name</span>
+                    <input
+                      value={spot.name}
+                      onChange={(e) => editSpot("name", e.target.value)}
+                      placeholder="e.g. Ramen Gami"
+                      maxLength={80}
+                      autoComplete="off"
+                    />
+                  </label>
+                  <div className="shCmp-spotRow">
+                    <label className="shCmp-spotField">
+                      <span>What to get</span>
+                      <input
+                        value={spot.get}
+                        onChange={(e) => editSpot("get", e.target.value)}
+                        placeholder="Optional"
+                        maxLength={120}
+                        autoComplete="off"
+                      />
+                    </label>
+                    <div className="shCmp-spotField">
+                      <span id="shCmp-price">Price</span>
+                      <div className="shCmp-price" role="radiogroup" aria-labelledby="shCmp-price">
+                        {[1, 2, 3].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            role="radio"
+                            aria-checked={spot.price === n}
+                            aria-label={["Cheap", "Mid-range", "Pricey"][n - 1]}
+                            className={spot.price === n ? "is-on" : ""}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => editSpot("price", spot.price === n ? 0 : n)}
+                          >
+                            {"$".repeat(n)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="shCmp-spotRemove"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setSpot?.({ name: "", get: "", price: 0 });
+                      setSpotOpen(false);
+                    }}
+                  >
+                    Remove spot
+                  </button>
+                </>
               )}
             </div>
           )}

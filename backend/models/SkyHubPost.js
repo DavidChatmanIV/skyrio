@@ -28,6 +28,14 @@ const skyHubPostSchema = new mongoose.Schema(
     },
     destination: { type: String, default: "", trim: true, maxlength: 120 },
 
+    // Optional "spot" details for a place worth going to (a restaurant,
+    // a view, a shop): its name, what to get, and a rough price.
+    spot: {
+      name: { type: String, trim: true, maxlength: 80 },
+      get: { type: String, trim: true, maxlength: 120 },
+      price: { type: Number, min: 1, max: 3 },
+    },
+
     // Map point for the destination, filled in from OpenWeather geocoding
     // when the post is created or edited. Used by the Nearby tab.
     // GeoJSON order is [longitude, latitude].

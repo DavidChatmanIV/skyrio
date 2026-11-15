@@ -211,6 +211,9 @@ function mapPost(
       authorId && xpByAuthorId.frames?.has(authorId) ? "seasoned" : null,
     type: post.type,
     destination: tidyPlace(post.destination),
+    spot: post.spot?.name
+      ? { name: post.spot.name, get: post.spot.get || "", price: post.spot.price || null }
+      : null,
     text: post.text,
     image: post.image || "",
     images: Array.isArray(post.images) ? post.images : [],
@@ -304,6 +307,18 @@ function adminName(req) {
    Your own posts that are under review still show (to you only).
 ───────────────────────────────────────────────────────────── */
 const FEED_PAGE = 20;
+
+// Optional spot details → { name, get, price } or undefined (nothing set).
+function cleanSpot(raw) {
+  if (!raw || typeof raw !== "object") return undefined;
+  const name = cleanText(raw.name, 80);
+  const get = cleanText(raw.get, 120);
+  const n = Number(raw.price);
+  const price = [1, 2, 3].includes(n) ? n : undefined;
+  if (!name) return undefined; // a spot needs a name
+  return { name, ...(get ? { get } : {}), ...(price ? { price } : {}) };
+}
+const spotText = (sp) => (sp ? [sp.name, sp.get].filter(Boolean).join(" ") : "");
 function parseCursor(raw) {
   const m = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)_([a-f0-9]{24})$/i.exec(String(raw || ""));
   if (!m) return null;
@@ -453,6 +468,11 @@ router.post(
         : "Story";
       const destination = tidyPlace(cleanText(req.body?.destination, 120));
       const tags = cleanTags(req.body?.tags);
+      const spot = cleanSpot(req.body?.spot);
+      if (spot) {
+        const spam = checkSpam(spotText(spot));
+        if (spam) return res.status(400).json({ message: spam });
+      }
       // Put the place on the map for the Nearby tab (city level only).
       const location = destination ? toGeoPoint(await geocodePlace(destination)) : undefined;
 
@@ -465,6 +485,7 @@ router.post(
         type,
         destination,
         ...(location ? { location } : {}),
+        ...(spot ? { spot } : {}),
         text,
         image: images[0] || "",
         images,
@@ -540,8 +561,18 @@ router.patch(
         if (spam) return res.status(400).json({ message: spam });
       }
 
-      const changed = text !== post.text || destination !== post.destination;
+      // Spot details: sent → replace (null/empty name clears them).
+      const oldSpot = post.spot?.name ? cleanSpot(post.spot) : undefined;
+      const newSpot = req.body?.spot !== undefined ? cleanSpot(req.body.spot) : oldSpot;
+      const spotChanged = JSON.stringify(newSpot || null) !== JSON.stringify(oldSpot || null);
+      if (spotChanged && newSpot) {
+        const spam = checkSpam(spotText(newSpot));
+        if (spam) return res.status(400).json({ message: spam });
+      }
+
+      const changed = text !== post.text || destination !== post.destination || spotChanged;
       if (changed) {
+        if (spotChanged) post.spot = newSpot;
         if (destination !== post.destination) {
           const point = destination ? toGeoPoint(await geocodePlace(destination)) : undefined;
           post.location = point;
