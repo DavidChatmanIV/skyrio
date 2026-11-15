@@ -588,6 +588,18 @@ export default function SkyHubFeedCard({
           </div>
         )}
         {post.text && <p className="skyhub-feedCard__text">{post.text}</p>}
+        {isOwner && onEditPost && !post.spot?.name && post.type !== "Question" && (
+          <button
+            type="button"
+            className="skyhub-addSpot"
+            onClick={() => onEditPost(post, { spot: true })}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add spot details
+          </button>
+        )}
 
         {post.tags?.length > 0 && (
           <div className="skyhub-feedCard__tags">
