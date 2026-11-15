@@ -155,8 +155,33 @@ function isNear(destination, city) {
   return code.length === 2 && new RegExp(`[ ,]${code}[ ,.]`).test(d);
 }
 
-// How far the Nearby tab looks around your city.
+// How far the Nearby tab looks around your city (the traveler picks).
 const NEARBY_MILES = 25;
+const MILE_CHOICES = [5, 25, 50];
+const MILES_KEY = "skyhub.nearbyMiles";
+const savedMiles = () => {
+  try {
+    const n = Number(localStorage.getItem(MILES_KEY));
+    return MILE_CHOICES.includes(n) ? n : NEARBY_MILES;
+  } catch {
+    return NEARBY_MILES;
+  }
+};
+
+// Places in the Nearby list, closest first: [{ name, miles, posts }].
+function nearYouPlaces(posts) {
+  const by = new Map();
+  for (const p of posts) {
+    const name = tidyPlace(p.destination);
+    if (!name || p.milesAway === null || p.milesAway === undefined) continue;
+    const k = name.toLowerCase();
+    const cur = by.get(k) || { name, miles: p.milesAway, posts: 0 };
+    cur.miles = Math.min(cur.miles, p.milesAway);
+    cur.posts += 1;
+    by.set(k, cur);
+  }
+  return [...by.values()].sort((a, b) => a.miles - b.miles || b.posts - a.posts);
+}
 
 // null/""/undefined → NaN, so a missing coordinate never becomes 0.
 const num = (v) =>
@@ -165,11 +190,11 @@ const num = (v) =>
 // The server request for the Nearby tab: exact coordinates if the city
 // picker saved them, plus the place name so the server can look it up
 // on the map when it has no coordinates.
-function nearbyUrl(city) {
+function nearbyUrl(city, miles = NEARBY_MILES) {
   if (!city?.name) return null;
   const params = new URLSearchParams({
     scope: "nearby",
-    miles: String(NEARBY_MILES),
+    miles: String(miles),
   });
   const lat = num(city.lat ?? city.latitude);
   const lng = num(city.lng ?? city.lon ?? city.longitude);
@@ -215,6 +240,7 @@ function mapBackendPost(post) {
     // One of the TOPIC chips (Budget, Food, ...) chosen on the postcard
     topic: post.topic || "",
     destination: post.destination || "",
+    spot: post.spot?.name ? post.spot : null,
     timeAgo: post.timeAgo || "just now",
     edited: !!post.edited,
     editedAt: post.editedAt || null,
@@ -531,6 +557,8 @@ export default function SkyHubPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [composerText, setComposerText] = useState("");
   const [destination, setDestination] = useState("");
+  // Optional spot details: { name, get, price } (price 1–3)
+  const [spot, setSpot] = useState({ name: "", get: "", price: 0 });
   const [activePostType, setActivePostType] = useState("Tip");
   // Optional topic picked on the postcard — same list as the TOPIC filter
   const [postTopic, setPostTopic] = useState("");
@@ -589,7 +617,19 @@ export default function SkyHubPage() {
   const [loadingNearby, setLoadingNearby] = useState(false);
   const [nearbyFailed, setNearbyFailed] = useState(false);
   const [nearbyCursor, setNearbyCursor] = useState(null);
-  const nearbyPath = useMemo(() => nearbyUrl(localCity), [localCity]);
+  const [nearbyMiles, setNearbyMilesState] = useState(savedMiles);
+  const setNearbyMiles = (n) => {
+    setNearbyMilesState(n);
+    try {
+      localStorage.setItem(MILES_KEY, String(n));
+    } catch {
+      /* remembered for this visit only */
+    }
+  };
+  const nearbyPath = useMemo(
+    () => nearbyUrl(localCity, nearbyMiles),
+    [localCity, nearbyMiles]
+  );
   const fetchNearbyFeed = useCallback(async () => {
     if (!nearbyPath) return;
     try {
@@ -681,6 +721,8 @@ export default function SkyHubPage() {
       : useNearbyList
       ? nearbyPosts
       : posts;
+
+  const nearPlaces = useMemo(() => nearYouPlaces(nearbyPosts), [nearbyPosts]);
 
   // ── Load more as you scroll ──
   const [loadingMore, setLoadingMore] = useState(false);
@@ -824,9 +866,16 @@ export default function SkyHubPage() {
     nearby: nearbyLocal
       ? {
           icon: "pin",
-          title: `Nothing near ${localCity.name} yet`,
-          sub: `Know a spot near ${localCity.name}? Post it and add the place.`,
-          cta: `Post about ${localCity.name}`,
+          title: "Quiet around here",
+          sub:
+            useNearbyList && nearbyMiles < 50
+              ? `No posts within ${nearbyMiles} miles of ${localCity.name} yet. Look farther, or be the first to share a spot.`
+              : `Know a spot near ${localCity.name}? Be the first to share it.`,
+          cta: "Share a spot",
+          wider:
+            useNearbyList && nearbyMiles < 50
+              ? MILE_CHOICES.find((m) => m > nearbyMiles)
+              : null,
         }
       : {
           icon: "globe",
@@ -856,7 +905,7 @@ export default function SkyHubPage() {
     mine: "Only the posts you've shared.",
     nearby: nearbyLocal
       ? useNearbyList
-        ? `Posts about places within ${NEARBY_MILES} miles of ${localCity.name}.`
+        ? `Posts about places within ${nearbyMiles} miles of ${localCity.name}.`
         : `Posts about places in or around ${localCity.name}.`
       : localCity
       ? "Posts from around the world."
@@ -940,6 +989,10 @@ export default function SkyHubPage() {
           destination: tidyPlace(destination),
           // Radar city's state, so "Newark" is saved as "Newark, NJ".
           near: localCity?.regionCode || localCity?.region || undefined,
+          spot:
+            spot.name.trim() && activePostType !== "Question"
+              ? { name: spot.name.trim(), get: spot.get.trim(), price: spot.price || undefined }
+              : undefined,
           images: urls,
           image: urls[0] || "",
         }),
@@ -966,6 +1019,7 @@ export default function SkyHubPage() {
       if (activeTab === "nearby" && nearbyLocal) fetchNearbyFeed();
       setComposerText("");
       setDestination("");
+      setSpot({ name: "", get: "", price: 0 });
       setActivePostType("Tip");
       setPostTopic("");
       setComposerPhotos([]);
@@ -1505,6 +1559,8 @@ export default function SkyHubPage() {
                   destination={destination}
                   setDestination={setDestination}
                   radarCity={localCity}
+                  spot={spot}
+                  setSpot={setSpot}
                   profileCity={[authUser?.city, authUser?.homeBase].find((v) => typeof v === "string" && v.trim()) || ""}
                   placeSuggestions={trendingDestinations.map((t) => t.name)}
                   onCreatePost={handleCreatePost}
@@ -1608,6 +1664,46 @@ export default function SkyHubPage() {
                       </button>
                     </div>
                   )}
+                  {activeTab === "nearby" && nearbyLocal && useNearbyList && (
+                    <div className="shNear">
+                      <div
+                        className="shNear__miles"
+                        role="radiogroup"
+                        aria-label={`How far from ${localCity.name}`}
+                      >
+                        {MILE_CHOICES.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            role="radio"
+                            aria-checked={nearbyMiles === m}
+                            className={`shNear__mile${nearbyMiles === m ? " is-on" : ""}`}
+                            onClick={() => setNearbyMiles(m)}
+                          >
+                            {m} mi
+                          </button>
+                        ))}
+                      </div>
+                      {nearPlaces.length > 1 && (
+                        <div className="shNear__places" aria-label="Places near you">
+                          {nearPlaces.slice(0, 4).map((pl) => (
+                            <button
+                              key={pl.name}
+                              type="button"
+                              className="shNear__place"
+                              onClick={() => {
+                                setSearchScope("places");
+                                setSearchValue(pl.name);
+                              }}
+                            >
+                              {pl.name}
+                              <span>{pl.miles < 1 ? "under 1" : pl.miles} mi</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <Badge
                   count={visiblePosts.length}
@@ -1681,6 +1777,14 @@ export default function SkyHubPage() {
                     </div>
                     <h3>{empty.title}</h3>
                     <p>{empty.sub}</p>
+                    {empty.wider && (
+                      <Button
+                        onClick={() => setNearbyMiles(empty.wider)}
+                        style={{ marginTop: 16, marginRight: 8 }}
+                      >
+                        Show {empty.wider} mi
+                      </Button>
+                    )}
                     <Button
                       type="primary"
                       onClick={

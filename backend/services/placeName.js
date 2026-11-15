@@ -24,7 +24,7 @@ const STATES = {
 const BY_NAME = new Map(Object.entries(STATES).map(([ab, n]) => [n.toLowerCase(), ab]));
 const SMALL = new Set(["of", "de", "la", "del", "da", "do", "the", "and", "on", "upon", "en"]);
 
-const stateCode = (s) => {
+export const stateCode = (s) => {
   const t = String(s || "").trim();
   if (/^[A-Za-z]{2}$/.test(t) && STATES[t.toUpperCase()]) return t.toUpperCase();
   return BY_NAME.get(t.toLowerCase()) || null;
@@ -82,33 +82,67 @@ export const placeKey = (raw) => tidyPlace(raw).toLowerCase();
 // ---- Map lookup -----------------------------------------------------------
 const OWM = "https://api.openweathermap.org/geo/1.0/direct";
 const DAY = 24 * 3600 * 1000;
-const cache = new Map(); // key → { at, point|null }
+const cache = new Map(); // query → { at, pick|null }
 
-/** → { lat, lng } or null. Never throws; gives up after ~4s. */
-export async function geocodePlace(raw, { fetchImpl = fetch, timeoutMs = 4000 } = {}) {
-  const name = tidyPlace(raw);
+// One geocoder call → the best match { name, state, country, lat, lon } or null.
+// undefined = couldn't ask (network); null = asked, nothing found.
+async function lookup(q, { fetchImpl = fetch, timeoutMs = 4000 } = {}) {
   const apiKey = process.env.WEATHER_API_KEY || process.env.OPENWEATHER_API_KEY;
-  if (!name || !apiKey) return null;
-  const key = name.toLowerCase();
+  if (!q || !apiKey) return undefined;
+  const key = q.toLowerCase();
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < (hit.point ? 30 * DAY : DAY)) return hit.point;
-
-  const q = normalizeQuery(name);
-  let point = null;
+  if (hit && Date.now() - hit.at < (hit.pick ? 30 * DAY : DAY)) return hit.pick;
+  let pick = null;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     const res = await fetchImpl(`${OWM}?q=${encodeURIComponent(q)}&limit=5&appid=${apiKey}`, { signal: ctrl.signal });
     clearTimeout(timer);
     const list = await res.json().catch(() => null);
-    const pick = pickPlace(list, { name: q.split(",")[0] });
-    if (pick && Number.isFinite(pick.lat) && Number.isFinite(pick.lon)) point = { lat: pick.lat, lng: pick.lon };
+    const p = pickPlace(list, { name: q.split(",")[0] });
+    if (p && Number.isFinite(p.lat) && Number.isFinite(p.lon)) pick = p;
   } catch {
-    return null; // network hiccup: don't cache, try again next time
+    return undefined; // network hiccup: don't cache, try again next time
   }
   if (cache.size > 2000) cache.delete(cache.keys().next().value);
-  cache.set(key, { at: Date.now(), point });
-  return point;
+  cache.set(key, { at: Date.now(), pick });
+  return pick;
+}
+
+const pointOf = (p) => (p ? { lat: p.lat, lng: p.lon } : null);
+const sameName = (a, b) => String(a || "").toLowerCase() === String(b || "").toLowerCase();
+
+/**
+ * Turns what the traveler typed into a place label + map point.
+ *   "Newark" with near "NJ" (their Radar city is in NJ) → "Newark, NJ"
+ *   "Newark" with no hint → the best-known Newark, with its state
+ *   "Paris, France" → stays "Paris, France"
+ * Never throws. If the map can't find it, the tidied text is kept as typed.
+ */
+export async function resolvePlace(raw, { near, fetchImpl, timeoutMs } = {}) {
+  const label = tidyPlace(raw);
+  if (!label) return { label: "", point: null };
+  const opts = { ...(fetchImpl ? { fetchImpl } : {}), ...(timeoutMs ? { timeoutMs } : {}) };
+
+  if (label.includes(",")) return { label, point: pointOf(await lookup(normalizeQuery(label), opts)) };
+
+  // Just a city name. Try the Radar city's state first ("Newark" → NJ).
+  const st = stateCode(near);
+  if (st) {
+    const inState = await lookup(`${label},${st},US`, opts);
+    if (inState && inState.country === "US" && sameName(inState.name, label)) {
+      return { label: `${label}, ${st}`, point: pointOf(inState) };
+    }
+  }
+  const any = await lookup(label, opts);
+  const anySt = any?.country === "US" ? stateCode(any.state) : null;
+  if (anySt && sameName(any.name, label)) return { label: `${label}, ${anySt}`, point: pointOf(any) };
+  return { label, point: pointOf(any) };
+}
+
+/** → { lat, lng } or null. */
+export async function geocodePlace(raw, opts = {}) {
+  return (await resolvePlace(raw, opts)).point;
 }
 
 /** GeoJSON for Mongo ([lng, lat]) or undefined. */
@@ -136,9 +170,11 @@ export async function backfillSkyHubPlaces({ Post, limit = 150, fetchImpl } = {}
   }
   let mapped = 0;
   for (const { name, ids } of byPlace.values()) {
-    const point = toGeoPoint(await geocodePlace(name, fetchImpl ? { fetchImpl } : {}));
-    if (!point) continue;
-    const r = await Post.updateMany({ _id: { $in: ids } }, { $set: { location: point } });
+    const { label, point } = await resolvePlace(name, fetchImpl ? { fetchImpl } : {});
+    const geo = toGeoPoint(point);
+    if (!geo) continue;
+    // "Newark Nj" → "Newark, NJ" so the same city groups together.
+    const r = await Post.updateMany({ _id: { $in: ids } }, { $set: { location: geo, destination: label } });
     mapped += r.modifiedCount ?? r.nModified ?? 0;
   }
   return { checked: rows.length, places: byPlace.size, mapped };

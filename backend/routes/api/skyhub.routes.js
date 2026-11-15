@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import SkyHubTakedown from "../../models/SkyHubTakedown.js";
 import Notification from "../../models/notification.js";
 import SkyHubPost from "../../models/SkyHubPost.js";
-import { tidyPlace, geocodePlace, toGeoPoint } from "../../services/placeName.js";
+import { tidyPlace, geocodePlace, resolvePlace, toGeoPoint } from "../../services/placeName.js";
 import { beenThereIds } from "../../services/beenThere.js";
 import SkyHubComment from "../../models/SkyHubComment.js";
 import SkyHubReport from "../../models/SkyHubReport.js";
@@ -211,6 +211,9 @@ function mapPost(
       authorId && xpByAuthorId.frames?.has(authorId) ? "seasoned" : null,
     type: post.type,
     destination: tidyPlace(post.destination),
+    spot: post.spot?.name
+      ? { name: post.spot.name, get: post.spot.get || "", price: post.spot.price || null }
+      : null,
     text: post.text,
     image: post.image || "",
     images: Array.isArray(post.images) ? post.images : [],
@@ -304,6 +307,18 @@ function adminName(req) {
    Your own posts that are under review still show (to you only).
 ───────────────────────────────────────────────────────────── */
 const FEED_PAGE = 20;
+
+// Optional spot details → { name, get, price } or undefined (nothing set).
+function cleanSpot(raw) {
+  if (!raw || typeof raw !== "object") return undefined;
+  const name = cleanText(raw.name, 80);
+  const get = cleanText(raw.get, 120);
+  const n = Number(raw.price);
+  const price = [1, 2, 3].includes(n) ? n : undefined;
+  if (!name) return undefined; // a spot needs a name
+  return { name, ...(get ? { get } : {}), ...(price ? { price } : {}) };
+}
+const spotText = (sp) => (sp ? [sp.name, sp.get].filter(Boolean).join(" ") : "");
 function parseCursor(raw) {
   const m = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)_([a-f0-9]{24})$/i.exec(String(raw || ""));
   if (!m) return null;
@@ -409,6 +424,22 @@ router.get("/feed", async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────────────────
+   GET /api/skyhub/place?q=Newark&near=NJ
+   What a typed place will be saved as ("Newark, NJ"), so the post box
+   can show it before posting. Public, cached, no map point returned.
+───────────────────────────────────────────────────────────── */
+router.get("/place", rateLimit("place"), async (req, res) => {
+  try {
+    const q = cleanText(req.query.q, 120);
+    if (!q || q.length < 2) return res.json({ label: "" });
+    const { label, point } = await resolvePlace(q, { near: cleanText(req.query.near, 40) });
+    return res.json({ label, found: Boolean(point) });
+  } catch {
+    return res.json({ label: tidyPlace(req.query.q), found: false });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
    POST /api/skyhub/posts   (logged in, not suspended, rate-limited)
 ───────────────────────────────────────────────────────────── */
 router.post(
@@ -451,10 +482,18 @@ router.post(
       const type = POST_TYPES.includes(req.body?.type)
         ? req.body.type
         : "Story";
-      const destination = tidyPlace(cleanText(req.body?.destination, 120));
+      // "Newark" + Radar city in NJ → "Newark, NJ", on the map (city level).
+      const place = await resolvePlace(cleanText(req.body?.destination, 120), {
+        near: cleanText(req.body?.near, 40),
+      });
+      const destination = place.label;
+      const location = toGeoPoint(place.point);
       const tags = cleanTags(req.body?.tags);
-      // Put the place on the map for the Nearby tab (city level only).
-      const location = destination ? toGeoPoint(await geocodePlace(destination)) : undefined;
+      const spot = cleanSpot(req.body?.spot);
+      if (spot) {
+        const spam = checkSpam(spotText(spot));
+        if (spam) return res.status(400).json({ message: spam });
+      }
 
       const newPost = await SkyHubPost.create({
         author: me.id,
@@ -465,6 +504,7 @@ router.post(
         type,
         destination,
         ...(location ? { location } : {}),
+        ...(spot ? { spot } : {}),
         text,
         image: images[0] || "",
         images,
@@ -525,10 +565,16 @@ router.patch(
         req.body?.text !== undefined
           ? cleanText(req.body.text, 1200)
           : post.text;
-      const destination =
-        req.body?.destination !== undefined
-          ? tidyPlace(cleanText(req.body.destination, 120))
-          : post.destination;
+      let newPoint;
+      let destination = post.destination;
+      if (req.body?.destination !== undefined) {
+        const typed = tidyPlace(cleanText(req.body.destination, 120));
+        if (typed !== tidyPlace(post.destination)) {
+          const place = await resolvePlace(typed, { near: cleanText(req.body?.near, 40) });
+          destination = place.label;
+          newPoint = toGeoPoint(place.point);
+        }
+      }
       const hasPhotos = (post.images?.length || 0) > 0 || Boolean(post.image);
       if (!text && !hasPhotos)
         return res
@@ -540,12 +586,19 @@ router.patch(
         if (spam) return res.status(400).json({ message: spam });
       }
 
-      const changed = text !== post.text || destination !== post.destination;
+      // Spot details: sent → replace (null/empty name clears them).
+      const oldSpot = post.spot?.name ? cleanSpot(post.spot) : undefined;
+      const newSpot = req.body?.spot !== undefined ? cleanSpot(req.body.spot) : oldSpot;
+      const spotChanged = JSON.stringify(newSpot || null) !== JSON.stringify(oldSpot || null);
+      if (spotChanged && newSpot) {
+        const spam = checkSpam(spotText(newSpot));
+        if (spam) return res.status(400).json({ message: spam });
+      }
+
+      const changed = text !== post.text || destination !== post.destination || spotChanged;
       if (changed) {
-        if (destination !== post.destination) {
-          const point = destination ? toGeoPoint(await geocodePlace(destination)) : undefined;
-          post.location = point;
-        }
+        if (spotChanged) post.spot = newSpot;
+        if (destination !== post.destination) post.location = newPoint;
         post.text = text;
         post.destination = destination;
         post.editedAt = new Date();
