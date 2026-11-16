@@ -19,7 +19,7 @@ function formatTime(timeStr) {
 }
 
 function formatPrice(pr) {
-  if (!pr) return null;
+  if (!pr || !(Number(pr.min) > 0)) return null; // never "From $0"
   const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: pr.currency || "USD", maximumFractionDigits: 0 });
   return `From ${fmt.format(pr.min)}`;
 }
@@ -69,7 +69,11 @@ export default function EventCard({ event: show, onPlanTrip, extra = null, rende
         ) : (
           <div className="sk-event-media-fallback" />
         )}
-        <span className="sk-event-chip">{event.genre || CATEGORY_LABEL[event.category]}</span>
+        <span className="sk-event-chip">
+          {event.genre && !/^(undefined|miscellaneous|other)$/i.test(event.genre)
+            ? event.genre
+            : CATEGORY_LABEL[event.category] || "Event"}
+        </span>
         {isChanged && <span className="sk-event-chip sk-event-chip--warn">{event.status === "postponed" ? "Postponed" : "Rescheduled"}</span>}
       </div>
 
