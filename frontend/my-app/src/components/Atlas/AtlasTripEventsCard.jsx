@@ -16,6 +16,8 @@ const money = (n, cur = "USD") => {
 };
 
 const realLink = (x) => /^https:\/\//.test(String(x?.url || ""));
+const showWhen = (s) =>
+  s?.date ? dayjs(`${s.date}T${s.time || "12:00"}`).format(s.time ? "ddd, MMM D · h:mm A" : "ddd, MMM D") : "";
 // A trip's suggestions show 3; a search the traveler asked for shows up to 5.
 const goodEvents = (a) =>
   (Array.isArray(a?.events) ? a.events : [])
@@ -64,9 +66,34 @@ export default function AtlasTripEventsCard({ action }) {
                         {dayjs(e.landBy).format("ddd, MMM D · h:mm A")} to make it.
                       </div>
                     )}
+                    {e.switchedFrom?.date && (
+                      <div className="ap-tev__hint">
+                        Showing this night because the flights land after the {showWhen(e.switchedFrom)} show.
+                      </div>
+                    )}
                     <a className="ap-card__btn is-primary ap-tev__buy" href={e.url} target="_blank" rel="noopener noreferrer">
                       Buy on Ticketmaster <ExternalLink size={12} aria-hidden="true" />
                     </a>
+                    {(e.otherShows || []).filter(realLink).length > 0 && (
+                      <div className="ap-tev__more">
+                        <div className="ap-tev__moreLabel">Other dates</div>
+                        {(e.otherShows || []).filter(realLink).map((o) => (
+                          <div key={`${o.date}-${o.time}`} className="ap-tev__show">
+                            <span className="ap-tev__showWhen">
+                              {showWhen(o)}
+                              {o.status ? ` · ${o.status}` : ""}
+                              {o.fitsAnyFlight === false && (
+                                <span className="ap-tev__late"> · flights land too late</span>
+                              )}
+                            </span>
+                            <a className="ap-tev__showBuy" href={o.url} target="_blank" rel="noopener noreferrer"
+                              aria-label={`Buy tickets for ${e.name} on ${showWhen(o)} on Ticketmaster`}>
+                              Buy <ExternalLink size={11} aria-hidden="true" />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 );
               })}
