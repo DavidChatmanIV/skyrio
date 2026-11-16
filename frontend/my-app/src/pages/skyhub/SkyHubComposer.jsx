@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
+import { SpotFields, EMPTY_SPOT } from "./SpotFields";
 import { Button, message } from "antd";
 import {
   CameraOutlined,
@@ -38,7 +39,7 @@ export default function SkyHubComposer({
   radarCity = null, // the city picked on the SkyHub Radar
   placeSuggestions = [], // places people post about most
   profileCity = "", // city on their profile, e.g. "Newark, NJ"
-  spot = { name: "", get: "", price: 0 }, // optional spot details
+  spot = EMPTY_SPOT, // optional spot details (see SpotFields.jsx)
   setSpot,
 }) {
   const fileRef = useRef(null);
@@ -53,7 +54,6 @@ export default function SkyHubComposer({
   const [placeError, setPlaceError] = useState("");
   const [spotOpen, setSpotOpen] = useState(false);
   const showSpot = activePostType !== "Question" && typeof setSpot === "function";
-  const editSpot = (k, v) => setSpot?.((sp) => ({ ...sp, [k]: v }));
   // Fill the place in for them: the Radar city they picked, else their
   // profile city. Only once, and never after they clear it.
   const radarLabel = tidyPlace(radarCity?.label || radarCity?.name);
@@ -434,53 +434,13 @@ export default function SkyHubComposer({
                 </button>
               ) : (
                 <>
-                  <label className="shCmp-spotField">
-                    <span>Spot name</span>
-                    <input
-                      value={spot.name}
-                      onChange={(e) => editSpot("name", e.target.value)}
-                      placeholder="e.g. Ramen Gami"
-                      maxLength={80}
-                      autoComplete="off"
-                    />
-                  </label>
-                  <div className="shCmp-spotRow">
-                    <label className="shCmp-spotField">
-                      <span>What to get</span>
-                      <input
-                        value={spot.get}
-                        onChange={(e) => editSpot("get", e.target.value)}
-                        placeholder="Optional"
-                        maxLength={120}
-                        autoComplete="off"
-                      />
-                    </label>
-                    <div className="shCmp-spotField">
-                      <span id="shCmp-price">Price</span>
-                      <div className="shCmp-price" role="radiogroup" aria-labelledby="shCmp-price">
-                        {[1, 2, 3].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            role="radio"
-                            aria-checked={spot.price === n}
-                            aria-label={["Cheap", "Mid-range", "Pricey"][n - 1]}
-                            className={spot.price === n ? "is-on" : ""}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => editSpot("price", spot.price === n ? 0 : n)}
-                          >
-                            {"$".repeat(n)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <SpotFields spot={spot} onChange={setSpot} text={composerText} idPrefix="shCmp" keepFocus />
                   <button
                     type="button"
                     className="shCmp-spotRemove"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
-                      setSpot?.({ name: "", get: "", price: 0 });
+                      setSpot?.(EMPTY_SPOT);
                       setSpotOpen(false);
                     }}
                   >

@@ -182,6 +182,36 @@ const SendIcon = () => (
   </svg>
 );
 
+const HeartIcon = ({ filled }) => (
+  <svg width="14" height="14" strokeWidth="2" {...svgProps} fill={filled ? "currentColor" : "none"}>
+    <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z" />
+  </svg>
+);
+
+const ReplyIcon = () => (
+  <svg width="14" height="14" strokeWidth="2" {...svgProps}>
+    <path d="M9 17l-5-5 5-5" />
+    <path d="M20 18v-2a4 4 0 00-4-4H4" />
+  </svg>
+);
+
+// Top comments in order, each followed by its replies (oldest first).
+function threaded(list) {
+  const tops = list.filter((c) => !c.parentId);
+  const byParent = new Map();
+  for (const c of list) {
+    if (!c.parentId) continue;
+    if (!byParent.has(c.parentId)) byParent.set(c.parentId, []);
+    byParent.get(c.parentId).push(c);
+  }
+  const out = [];
+  for (const t of tops) {
+    out.push(t);
+    for (const r of byParent.get(String(t._id)) || []) out.push(r);
+  }
+  return out;
+}
+
 export default function SkyHubCommentDrawer({
   open,
   onClose,
@@ -189,6 +219,7 @@ export default function SkyHubCommentDrawer({
   refreshPostComments,
   onNeedAccount, // opens the "create a profile" prompt on SkyHubPage
   onOpenProfile, // (authorId) → quick profile card
+  focusCommentId = null, // from a notification: scroll to this comment
 }) {
   const [comments, setComments] = useState([]);
   const [isPhone, setIsPhone] = useState(
@@ -199,6 +230,9 @@ export default function SkyHubCommentDrawer({
   const [postingComment, setPostingComment] = useState(false);
   const [reporting, setReporting] = useState(null);
   const [reason, setReason] = useState("spam");
+  // Replying to a comment: { id, name, username } (null = a new comment).
+  const [replyTo, setReplyTo] = useState(null);
+  const inputRef = React.useRef(null);
 
   const loggedIn = !!localStorage.getItem("token");
 
@@ -268,6 +302,15 @@ export default function SkyHubCommentDrawer({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Couldn't load comments.");
       setComments(Array.isArray(data.comments) ? data.comments : []);
+      if (focusCommentId) {
+        setTimeout(() => {
+          const el = document.getElementById(`skyhub-comment-${focusCommentId}`);
+          if (el) {
+            el.scrollIntoView({ block: "center", behavior: "smooth" });
+            el.classList.add("is-highlight");
+          }
+        }, 250);
+      }
     } catch (err) {
       console.error("fetchComments error:", err);
       message.error(err.message || "Couldn't load comments.");
@@ -288,16 +331,20 @@ export default function SkyHubCommentDrawer({
       const res = await skyFetch(`/api/skyhub/posts/${post.id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: commentText.trim() }),
+        body: JSON.stringify({
+          text: commentText.trim(),
+          ...(replyTo?.id ? { parentId: replyTo.id } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok)
         throw new Error(data?.message || "Couldn't post your comment.");
 
       setCommentText("");
+      setReplyTo(null);
       setComments(data.comments || []);
       refreshPostComments?.(post.id, data.commentCount);
-      message.success("Comment posted.");
+      message.success(replyTo ? "Reply posted." : "Comment posted.");
     } catch (err) {
       console.error("handlePostComment error:", err);
       message.error(err.message || "Couldn't post your comment.");
@@ -321,7 +368,10 @@ export default function SkyHubCommentDrawer({
           const data = await res.json().catch(() => ({}));
           if (!res.ok)
             throw new Error(data?.message || "Couldn't delete the comment.");
-          setComments((list) => list.filter((c) => c._id !== comment._id));
+          // Its replies go with it.
+          setComments((list) =>
+            list.filter((c) => c._id !== comment._id && c.parentId !== String(comment._id))
+          );
           refreshPostComments?.(post.id, data.commentCount);
         } catch (err) {
           message.error(err.message);
@@ -347,6 +397,50 @@ export default function SkyHubCommentDrawer({
     } catch (err) {
       message.error(err.message);
     }
+  };
+
+  const toggleLike = async (comment) => {
+    if (!localStorage.getItem("token")) {
+      onNeedAccount?.("like comments");
+      return;
+    }
+    // Show it right away; undo if the server says no.
+    const flip = (c) =>
+      c._id === comment._id
+        ? {
+            ...c,
+            likedByMe: !c.likedByMe,
+            likesCount: Math.max(0, (c.likesCount || 0) + (c.likedByMe ? -1 : 1)),
+            likedByAuthor: post?.isMine ? !c.likedByMe : c.likedByAuthor,
+          }
+        : c;
+    setComments((list) => list.map(flip));
+    try {
+      const res = await skyFetch(`/api/skyhub/comments/${comment._id}/like`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Couldn't update like. Try again.");
+      setComments((list) =>
+        list.map((c) =>
+          c._id === comment._id
+            ? { ...c, likedByMe: data.liked, likesCount: data.likesCount, likedByAuthor: data.likedByAuthor }
+            : c
+        )
+      );
+    } catch (err) {
+      setComments((list) => list.map((c) => (c._id === comment._id ? comment : c)));
+      message.error(err.message);
+    }
+  };
+
+  const startReply = (comment) => {
+    if (!localStorage.getItem("token")) {
+      onNeedAccount?.("reply");
+      return;
+    }
+    setReplyTo({ id: comment._id, name: comment.author || "Traveler", username: comment.username });
+    const handle = comment.username ? `@${comment.username} ` : "";
+    setCommentText((t) => (t.trim() ? t : handle));
+    setTimeout(() => inputRef.current?.focus?.(), 50);
   };
 
   // You can delete your own comments, and any comment on your own post.
@@ -390,7 +484,26 @@ export default function SkyHubCommentDrawer({
 
   const composer = loggedIn ? (
     <div className="skyhubC-composer">
+      {replyTo && (
+        <div className="skyhubC-replyBar">
+          <span>
+            Replying to <b>{replyTo.name}</b>
+          </span>
+          <button
+            type="button"
+            className="skyhubC-replyCancel"
+            onClick={() => {
+              setReplyTo(null);
+              setCommentText((t) => (replyTo.username && t.trim() === `@${replyTo.username}` ? "" : t));
+            }}
+            aria-label="Cancel reply"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+      )}
       <TextArea
+        ref={inputRef}
         className="skyhubC-input"
         value={commentText}
         onChange={(e) => setCommentText(e.target.value)}
@@ -401,7 +514,7 @@ export default function SkyHubCommentDrawer({
             handlePostComment();
           }
         }}
-        placeholder="Write a comment…"
+        placeholder={replyTo ? `Reply to ${replyTo.name.split(" ")[0]}…` : "Write a comment…"}
         maxLength={MAX_LEN}
         autoSize={{ minRows: 1, maxRows: 5 }}
         aria-label="Write a comment"
@@ -492,7 +605,7 @@ export default function SkyHubCommentDrawer({
             <Spin />
           </div>
         ) : commentCount ? (
-          comments.map((comment) => {
+          threaded(comments).map((comment) => {
             const menuItems = [
               ...(canDelete(comment)
                 ? [
@@ -526,7 +639,11 @@ export default function SkyHubCommentDrawer({
             ];
 
             return (
-              <div key={comment._id || comment.id} className="skyhubC-item">
+              <div
+                key={comment._id || comment.id}
+                id={`skyhub-comment-${comment._id}`}
+                className={`skyhubC-item${comment.parentId ? " is-reply" : ""}`}
+              >
                 <UserAvatar name={comment.author} src={comment.avatar} />
                 <div className="skyhubC-itemBody">
                   <div className="skyhubC-itemMeta">
@@ -541,6 +658,11 @@ export default function SkyHubCommentDrawer({
                     ) : (
                       <span className="skyhubC-name">
                         {comment.author || "Traveler"}
+                      </span>
+                    )}
+                    {comment.isPostAuthor && (
+                      <span className="skyhubC-authorTag" title="Wrote this post">
+                        Author
                       </span>
                     )}
                     {comment.local && (
@@ -572,6 +694,27 @@ export default function SkyHubCommentDrawer({
                     )}
                   </div>
                   <p className="skyhubC-text">{comment.text}</p>
+                  <div className="skyhubC-actions">
+                    <button
+                      type="button"
+                      className={`skyhubC-act${comment.likedByMe ? " is-on" : ""}`}
+                      onClick={() => toggleLike(comment)}
+                      aria-pressed={!!comment.likedByMe}
+                      aria-label={comment.likedByMe ? "Unlike comment" : "Like comment"}
+                    >
+                      <HeartIcon filled={comment.likedByMe} />
+                      {comment.likesCount ? <span>{comment.likesCount}</span> : null}
+                    </button>
+                    <button type="button" className="skyhubC-act" onClick={() => startReply(comment)}>
+                      <ReplyIcon />
+                      <span>Reply</span>
+                    </button>
+                    {comment.likedByAuthor && !comment.isPostAuthor && (
+                      <span className="skyhubC-authorLiked">
+                        <HeartIcon filled /> Liked by author
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
