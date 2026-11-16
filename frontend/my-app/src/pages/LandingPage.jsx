@@ -143,6 +143,9 @@ const NEW_THINGS = [
 ];
 
 const CSS = `
+/* Reach up behind the floating navbar so the strip above and below it is
+   the same sky as the page (no dark band). */
+.lp { margin-top: calc(-1 * var(--sk-nav-h, 86px)); padding-top: var(--sk-nav-h, 86px); }
 .lp { position: relative; overflow: hidden; color: #fff; font-family: "DM Sans", system-ui, sans-serif; width: 100%; box-sizing: border-box; background: linear-gradient(180deg, rgba(10,6,23,.3) 0%, rgba(10,6,23,.3) 82%, rgba(10,6,23,0) 100%), var(--lp-sky); transition: background 1.2s ease; }
 .lp > * { position: relative; z-index: 1; }
 
