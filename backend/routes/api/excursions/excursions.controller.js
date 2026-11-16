@@ -3,6 +3,18 @@ import { isValidDate, normalizeExcursionList } from "./excursions.utils.js";
 
 const AFFILIATE_CODE = process.env.VIATOR_AFFILIATE_CODE || null;
 
+// The Excursions tab's "What" choices. Viator's tag filter only takes its
+// own numeric tag ids, so sending "food" matched nothing useful. Instead we
+// fetch more and keep tours whose title/description fit the choice.
+const CATEGORY_WORDS = {
+  tours: /\btour|sightseeing|walking|guided|day trip|excursion/i,
+  adventure: /snorkel|kayak|zip ?line|atv|hik(e|ing)|div(e|ing)|scuba|surf|jet ?ski|parasail|raft|climb|bike|horse|adventure/i,
+  food: /food|tasting|culinary|cooking|wine|rum|beer|brewery|distillery|market|dinner|lunch|chocolate|coffee/i,
+  culture: /histor|museum|cultur|heritage|old town|art\b|architecture|cathedral|fort|temple|castle|walking tour/i,
+  wellness: /spa|yoga|wellness|massage|meditat|hot spring|retreat/i,
+};
+const matchesCategory = (x, re) => re.test(`${x.title || ""} ${x.shortDescription || ""}`);
+
 // ─────────────────────────────────────────────────────────────
 // GET /api/excursions/destinations
 //
@@ -119,11 +131,13 @@ export async function searchExcursions(req, res) {
     }
 
     const pageSizeNum = Math.min(Number(pageSize) || 20, 50);
+    const wordFilter = category ? CATEGORY_WORDS[String(category).toLowerCase()] : null;
+    const viatorTag = category && /^\d+$/.test(String(category)) ? [Number(category)] : undefined;
 
     const result = await viator.post("/products/search", {
       filtering: {
         destination: destinationId,
-        tags: category ? [category] : undefined,
+        tags: viatorTag,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         price:
@@ -135,22 +149,28 @@ export async function searchExcursions(req, res) {
             : undefined,
       },
       sorting: sort ? { sort } : undefined,
-      pagination: {
-        start: (Number(page) - 1) * pageSizeNum + 1,
-        count: pageSizeNum,
-      },
+      // A "What" choice filters after fetching, so ask for a full page.
+      pagination: wordFilter
+        ? { start: 1, count: 50 }
+        : {
+            start: (Number(page) - 1) * pageSizeNum + 1,
+            count: pageSizeNum,
+          },
       currency: "USD",
     });
 
     const products = result?.products ?? result?.data ?? [];
-    const excursions = normalizeExcursionList(products, {
+    const all = normalizeExcursionList(products, {
       affiliateCode: AFFILIATE_CODE,
     });
+    const excursions = wordFilter
+      ? all.filter((x) => matchesCategory(x, wordFilter)).slice(0, pageSizeNum)
+      : all;
 
     return res.json({
       ok: true,
       count: excursions.length,
-      totalCount: result?.totalCount ?? excursions.length,
+      totalCount: wordFilter ? excursions.length : result?.totalCount ?? excursions.length,
       page: Number(page),
       excursions,
     });
