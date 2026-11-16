@@ -37,7 +37,7 @@ import {
   Plane,
   BedDouble,
   ShieldCheck,
-  Send,
+  UserPlus,
   Sunrise,
   Sun,
   Sunset,
@@ -327,12 +327,18 @@ a.lp-newItem:hover { border-color: rgba(255,179,71,.6); }
 }
 .lp a.lp-btn--primary svg { color: #fff !important; }
 .lp a.lp-btn--primary:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 14px 34px rgba(124,92,252,.6), inset 0 1px 0 rgba(255,255,255,.3); }
-.lp a.lp-btn--ghost, .lp a.lp-btn--ghost:link, .lp a.lp-btn--ghost:visited {
+/* Join free: filled like its neighbors, in the orange-to-purple blend of
+   the two buttons beside it. */
+.lp a.lp-btn--join, .lp a.lp-btn--join:link, .lp a.lp-btn--join:visited,
+.lp a.lp-btn--join:hover, .lp a.lp-btn--join:active, .lp a.lp-btn--join:focus {
   color: #fff !important; text-decoration: none !important;
-  background: rgba(60,32,96,.35); border-color: rgba(255,255,255,.3);
+  background: linear-gradient(135deg, #ff8a2a 0%, #e0679a 50%, #8b5cf6 100%);
+  border-color: rgba(255,255,255,.2);
+  box-shadow: 0 10px 28px rgba(224,103,154,.4), inset 0 1px 0 rgba(255,255,255,.3);
+  transition: transform .15s, box-shadow .15s, filter .15s;
 }
-.lp a.lp-btn--ghost svg { color: inherit !important; }
-.lp a.lp-btn--ghost:hover, .lp a.lp-btn--ghost:focus { color: #ffb347 !important; border-color: #ffb347; }
+.lp a.lp-btn--join svg { color: #fff !important; }
+.lp a.lp-btn--join:hover { transform: translateY(-1px); filter: brightness(1.07); box-shadow: 0 14px 34px rgba(224,103,154,.55), inset 0 1px 0 rgba(255,255,255,.35); }
 /* Orange partner button (Find a hotel): pairs with the purple one, the
    same orange + purple as the navbar. */
 .lp a.lp-btn--orange, .lp a.lp-btn--orange:link, .lp a.lp-btn--orange:visited,
@@ -345,7 +351,7 @@ a.lp-newItem:hover { border-color: rgba(255,179,71,.6); }
 }
 .lp a.lp-btn--orange svg { color: #1a0e06 !important; }
 .lp a.lp-btn--orange:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 14px 34px rgba(255,138,42,.55), inset 0 1px 0 rgba(255,255,255,.4); }
-@media (prefers-reduced-motion: reduce) { .lp a.lp-btn--primary:hover, .lp a.lp-btn--orange:hover { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lp a.lp-btn--primary:hover, .lp a.lp-btn--orange:hover, .lp a.lp-btn--join:hover { transform: none; } }
 
 @media (max-width: 1100px) {
   .lp-orb { opacity: .45; }
@@ -822,8 +828,8 @@ export default function LandingPage() {
               <BedDouble size={16} aria-hidden="true" /> Find a hotel
             </Link>
             {!isAuthed && (
-              <Link to="/register" className="lp-btn lp-btn--ghost">
-                <Send size={16} aria-hidden="true" /> Join free
+              <Link to="/register" className="lp-btn lp-btn--join">
+                <UserPlus size={16} aria-hidden="true" /> Join free
               </Link>
             )}
           </div>
