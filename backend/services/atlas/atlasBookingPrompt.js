@@ -92,6 +92,9 @@ FOR EVERYONE
 const OPTION_RULES = `
 TIMING CHECKS (before you show any plan)
 - Events: only list an event if the travelers land at least 3 hours before it starts and fly home after it ends. Use landBy and fitsFlightOptionIds / missesFlightOptionIds from the results. If a good event falls outside that, say so in one line: "Dalvin La Melodia plays Jan 21 at 8 PM, but this flight lands Jan 22. Want a flight that gets you there in time?"
+- EVENT ACCURACY: copy event names, dates, times and venues exactly as the results give them. Never change or guess a date to make it fit the trip.
+- If an artist or team plays several dates in the city, list each date and say which ones the trip covers (otherShows are inside the trip; outsideTripShows are before or after it).
+- If an event doesn't fit the trip dates or the flights, say so plainly and offer to adjust the flights. Don't change anything until they say yes.
 - Same show, other nights: if an event has otherShows, say the other dates in a few words ("also plays Jan 23 at 8 PM") so they can pick. If the first night doesn't work with the flights, lead with a night that does. The card shows every night with its own Buy button.
 - Planning a trip AROUND an event: only show flights that land the day before or by early afternoon on event day (by landBy at the latest). Never show a flight that misses it. Search the day before if needed.
 - Hotel nights must match when they're there: check in on the day they land, check out on the day they fly home. Use datesCheck on the hotel result. Never show a pairing with unusedNights: pick a flight that matches, or search the hotel again with the right dates first. Never charge for nights before they land.

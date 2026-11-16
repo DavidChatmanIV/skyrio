@@ -16,6 +16,11 @@ const money = (n, cur = "USD") => {
 };
 
 const realLink = (x) => /^https:\/\//.test(String(x?.url || ""));
+// Other nights in the trip, then nights before/after it, by date.
+const nightsOf = (e) =>
+  [...(e.otherShows || []), ...(e.outsideTripShows || [])]
+    .filter(realLink)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || "").localeCompare(String(b.time || "")));
 const showWhen = (s) =>
   s?.date ? dayjs(`${s.date}T${s.time || "12:00"}`).format(s.time ? "ddd, MMM D · h:mm A" : "ddd, MMM D") : "";
 // A trip's suggestions show 3; a search the traveler asked for shows up to 5.
@@ -74,17 +79,19 @@ export default function AtlasTripEventsCard({ action }) {
                     <a className="ap-card__btn is-primary ap-tev__buy" href={e.url} target="_blank" rel="noopener noreferrer">
                       Buy on Ticketmaster <ExternalLink size={12} aria-hidden="true" />
                     </a>
-                    {(e.otherShows || []).filter(realLink).length > 0 && (
+                    {nightsOf(e).length > 0 && (
                       <div className="ap-tev__more">
                         <div className="ap-tev__moreLabel">Other dates</div>
-                        {(e.otherShows || []).filter(realLink).map((o) => (
+                        {nightsOf(e).map((o) => (
                           <div key={`${o.date}-${o.time}`} className="ap-tev__show">
                             <span className="ap-tev__showWhen">
                               {showWhen(o)}
                               {o.status ? ` · ${o.status}` : ""}
-                              {o.fitsAnyFlight === false && (
+                              {o.when ? (
+                                <span className="ap-tev__late"> · {o.when === "before" ? "before" : "after"} your trip</span>
+                              ) : o.fitsAnyFlight === false ? (
                                 <span className="ap-tev__late"> · flights land too late</span>
-                              )}
+                              ) : null}
                             </span>
                             <a className="ap-tev__showBuy" href={o.url} target="_blank" rel="noopener noreferrer"
                               aria-label={`Buy tickets for ${e.name} on ${showWhen(o)} on Ticketmaster`}>
