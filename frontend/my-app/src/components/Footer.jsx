@@ -14,8 +14,8 @@ function navCols(isAuthed) {
       heading: "Product",
       links: [
         { label: "Discover", to: "/" },
-        { label: "Book a flight", to: "/booking" },
-        { label: "Hotels", to: "/booking" },
+        { label: "Book a flight", to: "/booking?tab=Flights" },
+        { label: "Hotels", to: "/booking?tab=Stays" },
         { label: "SkyHub community", to: "/skyhub" },
         { label: "Digital Passport", to: "/passport" },
         { label: "Sync Together", to: "/sync-together" },
