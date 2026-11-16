@@ -33,7 +33,8 @@ import {
   Pencil,
   Check,
 } from "lucide-react";
-import { readHomeAirport } from "@/lib/homeAirport";
+import { readHomeAirport, saveHomeAirport } from "@/lib/homeAirport";
+import AirportInput from "@/pages/booking/AirportInput";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -70,6 +71,12 @@ const CSS = `
   background: rgba(255,255,255,.06); color: #fff; font: 600 13.5px "DM Sans", sans-serif; }
 .tg-sel option { background: #2a1650; color: #fff; }
 .tg-from { width: 92px; text-transform: uppercase; }
+.tg-fromWrap { flex: 1 1 100%; min-width: 0; }
+.tg-fromWrap .sk-airport-wrap { width: 100%; }
+.tg-fromWrap .sk-airport-input { width: 100%; box-sizing: border-box; min-height: 44px; padding: 0 16px; border-radius: 999px; font: 700 15px "DM Sans", sans-serif; color: #fff; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2); }
+.tg-fromWrap .sk-airport-input::placeholder { color: rgba(255,255,255,.6); font-weight: 600; }
+.tg-fromWrap .sk-airport-input:focus { outline: none; border-color: #ffb347; }
+.tg-homeHint { margin: 10px 0 0; font: 600 13px "DM Sans", sans-serif; color: rgba(255,255,255,.75); }
 .tg-style { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 8px 12px; border-radius: 14px; border: 1px dashed rgba(255,179,71,.4); background: rgba(255,255,255,.04); }
 .tg-style.is-on { border-style: solid; border-color: rgba(255,179,71,.5); background: rgba(255,138,42,.1); }
 .tg-styleToggle { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 0; border: 0; background: none; color: rgba(255,255,255,.8); font: 600 13.5px "DM Sans", sans-serif; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -154,7 +161,11 @@ export default function TripGenerator() {
     }
   })();
 
-  const [from, setFrom] = useState(home?.code || "EWR");
+  // Where trips start: your home airport, else pick one (no made-up default).
+  const [fromAp, setFromAp] = useState(home?.code ? home : null);
+  const from = fromAp?.code || "";
+  const [homeSaved, setHomeSaved] = useState(false);
+  const [homeErr, setHomeErr] = useState(false);
   const [budget, setBudget] = useState("");
   const [who, setWho] = useState(1);
   const [vibe, setVibe] = useState("");
@@ -233,6 +244,10 @@ export default function TripGenerator() {
   const generate = async () => {
     const current = trip;
     setError("");
+    if (!from) {
+      setError("Pick the airport you're flying from.");
+      return;
+    }
     // Nothing locked and ideas left over: instant.
     if (!lockPlace && !lockDates && queue.current.length) {
       show(queue.current.shift(), current);
@@ -307,17 +322,18 @@ export default function TripGenerator() {
       <style>{CSS}</style>
       <div className="tg-glass tg-panel">
         <div className="tg-row" role="group" aria-label="Trip options">
-          <input
-            className="tg-sel tg-from"
-            value={from}
-            onChange={(e) =>
-              change(setFrom)(
-                e.target.value.replace(/[^a-z]/gi, "").slice(0, 3)
-              )
-            }
-            aria-label="Flying from (airport code)"
-            placeholder="From"
-          />
+          <div className="tg-fromWrap" aria-label="Flying from">
+            <AirportInput
+              value={fromAp ? `${fromAp.city || fromAp.code} (${fromAp.code})` : ""}
+              onChange={(ap) => {
+                change(setFromAp)(ap?.code ? { code: ap.code, city: ap.city, name: ap.name } : null);
+                setHomeSaved(false);
+                setHomeErr(false);
+                if (ap?.code) setError("");
+              }}
+              placeholder="Flying from?"
+            />
+          </div>
           <select
             className="tg-sel"
             value={budget}
@@ -361,6 +377,26 @@ export default function TripGenerator() {
             </button>
           ))}
         </div>
+        {isAuthed && fromAp?.code && (fromAp.code !== home?.code || homeSaved) && (
+          <p className="tg-homeHint">
+            {homeSaved ? (
+              <>Saved. {fromAp.code} is your home airport.</>
+            ) : (
+              <button
+                type="button"
+                className="tg-guestLink"
+                onClick={async () => {
+                  setHomeErr(false);
+                  const r = await saveHomeAirport(fromAp);
+                  if (r?.synced) setHomeSaved(true);
+                  else setHomeErr(true);
+                }}
+              >
+                {homeErr ? "Couldn't save it. Try again." : `Make ${fromAp.code} my home airport`}
+              </button>
+            )}
+          </p>
+        )}
         {/* Your travel style, from what Atlas learned. One tap turns it off. */}
         {styleLines.length > 0 && (
           <div className={`tg-style${styleOn ? " is-on" : ""}`}>

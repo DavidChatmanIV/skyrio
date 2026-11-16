@@ -22,6 +22,8 @@ import BoardingPassToast from "../components/BoardingPassToast";
 import PassStub from "../components/PassStub";
 import AuthLayout from "../layout/AuthLayout";
 import { useAuth } from "../auth/useAuth";
+import AirportInput from "./booking/AirportInput";
+import { saveHomeAirport, readHomeAirport } from "../lib/homeAirport";
 
 import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
 import gateBg from "../assets/LoginBoardingpass/gate.png";
@@ -50,6 +52,9 @@ export default function RegisterPage() {
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
+  // Home airport: Atlas plans trips from here. Required so every new
+  // account starts with one (they can change it later in Passport).
+  const [homeAp, setHomeAp] = useState(() => readHomeAirport());
   const [isScanning, setIsScanning] = useState(false);
   const successHandledRef = useRef(false);
 
@@ -126,6 +131,10 @@ export default function RegisterPage() {
       message.warning("Please fill in all required fields.");
       return;
     }
+    if (!homeAp?.code) {
+      message.warning("Pick your home airport.");
+      return;
+    }
     if (password !== confirmPassword) {
       message.error("Passwords don't match.");
       return;
@@ -180,6 +189,9 @@ export default function RegisterPage() {
         if (data?.token) localStorage.setItem("token", data.token);
         if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
       }
+
+      // Save the home airport on the new account (token is stored above).
+      if (data?.token) await saveHomeAirport(homeAp).catch(() => null);
 
       const displayName =
         data.user?.name ||
@@ -391,6 +403,18 @@ export default function RegisterPage() {
                         onFocus={scanOn}
                         onBlur={scanOff}
                       />
+                    </div>
+
+                    <div className="sk-field sk-field-home">
+                      <div className="sk-fieldLabel">HOME AIRPORT *</div>
+                      <AirportInput
+                        value={homeAp?.code ? `${homeAp.city || homeAp.code} (${homeAp.code})` : ""}
+                        onChange={(ap) =>
+                          setHomeAp(ap?.code ? { code: ap.code, city: ap.city, name: ap.name } : null)
+                        }
+                        placeholder="Closest airport, like Newark"
+                      />
+                      <div className="sk-fieldHint">Atlas plans trips from here. You can change it later.</div>
                     </div>
 
                     <div className="sk-fieldRow">
