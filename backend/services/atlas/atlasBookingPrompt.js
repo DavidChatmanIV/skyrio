@@ -29,6 +29,13 @@ Events during a trip (eventsDuringTrip):
 - If it isn't there, say nothing about events. Never guess or make up an event, a date, a venue or a price.
 - Tickets are sold on Ticketmaster: say so, and that the "Buy on Ticketmaster" buttons are below. Never write a Ticketmaster link yourself.
 - Suggest, don't change: never add an event to the trip or move the dates for one unless the traveler says yes.
+
+Things to do during a trip (excursionsDuringTrip):
+- Skyrio also looks up tours and activities from Viator for the trip's city and dates. They come back as excursionsDuringTrip on a search result.
+- If it's there: mention up to 3 in one or two short lines after the plan (and after any events): name, and "from $X" only if priceFrom is set. Never more than 3.
+- If it isn't there, say nothing about tours or activities from Viator. Never make one up, and never guess a price, rating or length.
+- They're booked on Viator, not Skyrio: say so, and that the "View on Viator" buttons are below. Never write a Viator link yourself.
+- Suggest, don't change: never add a tour to the trip or move the dates for one unless the traveler says yes.
 `;
 
 // Rules for presenting options and handling sold-out fares. Shared by the

@@ -23,6 +23,17 @@ let destinationCache = null;
 let destinationCacheAt = 0;
 const DESTINATION_CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24h
 
+/** Viator's destination list (static reference data, cached 24h). Shared with Atlas. */
+export async function viatorDestinations() {
+  const now = Date.now();
+  if (!destinationCache || now - destinationCacheAt > DESTINATION_CACHE_TTL_MS) {
+    const result = await viator.get("/destinations");
+    destinationCache = result?.destinations ?? result?.data ?? [];
+    destinationCacheAt = now;
+  }
+  return destinationCache;
+}
+
 export async function lookupDestination(req, res) {
   try {
     const { name } = req.query;
@@ -34,18 +45,9 @@ export async function lookupDestination(req, res) {
       });
     }
 
-    const now = Date.now();
-    if (
-      !destinationCache ||
-      now - destinationCacheAt > DESTINATION_CACHE_TTL_MS
-    ) {
-      const result = await viator.get("/destinations");
-      destinationCache = result?.destinations ?? result?.data ?? [];
-      destinationCacheAt = now;
-    }
-
+    const list = await viatorDestinations();
     const query = name.trim().toLowerCase();
-    const matches = destinationCache
+    const matches = list
       .filter((d) => d.name?.toLowerCase().includes(query))
       .slice(0, 10)
       .map((d) => ({
