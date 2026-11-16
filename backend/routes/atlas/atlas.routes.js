@@ -62,6 +62,8 @@ const DATES_CHECK_NOTE =
 // up while flights and hotels search; this is the most extra time we wait
 // for them before Atlas answers. Anything slower is skipped.
 const TRIP_EXTRAS_GRACE_MS = 400;
+const MAX_TOOL_ROUNDS = 6;
+const MAX_TOOLS_PER_ROUND = 6;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TRIP_EVENTS_NOTE =
@@ -995,13 +997,14 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
 
     // Up to 6 rounds: Atlas asks for a tool → we run it → Atlas answers.
     // Booking needs a few in one turn (profile → search → answer).
-    for (let round = 0; round < 6; round++) {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       result = await atlasChat({
         systemPrompt: finalSystemPrompt,
         messages: convo,
         task: "default",
-        // Room for a full trip summary, so replies don't stop mid-sentence.
-        maxTokens: 1000,
+        // Room for a full trip summary plus several searches in one go
+        // (a cut-off tool call breaks the whole turn).
+        maxTokens: 1600,
         tools,
         // Tool replies must go back to the same provider that asked.
         ...(round > 0 && result?.provider ? { provider: result.provider } : {}),
@@ -1010,7 +1013,12 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
 
       // Tools asked for in the same round run at the same time (flights and
       // hotels together, not one after the other), then are handled in order.
-      const calls = result.toolCalls.slice(0, 4);
+      // Every call Atlas made must get an answer back, or Claude/OpenAI
+      // reject the next request ("tool_use without tool_result") and the
+      // traveler sees "Atlas couldn't answer". So calls past the limit get
+      // a "not run" answer instead of being dropped.
+      const calls = result.toolCalls.slice(0, MAX_TOOLS_PER_ROUND);
+      const skipped = result.toolCalls.slice(MAX_TOOLS_PER_ROUND);
 
       // A trip with a city and dates (hotel stay or round-trip flight) →
       // look for events and excursions at the same time. Events are skipped
@@ -1109,10 +1117,36 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
           };
         });
       }
+      for (const call of skipped) {
+        toolResults.push({
+          id: call.id,
+          name: call.name,
+          result: {
+            error: "notRun",
+            message: `Too many searches at once; this one wasn't run. Use what came back, or run it next.`,
+          },
+        });
+      }
       convo = [
         ...convo,
         ...buildToolResultMessages(result.provider, result, toolResults),
       ];
+      // Out of rounds and Atlas still wants more: one last call to answer
+      // with what it has (its tool calls were answered above).
+      if (round === MAX_TOOL_ROUNDS - 1) {
+        const last = await atlasChat({
+          systemPrompt: `${finalSystemPrompt}\n\nYou're out of steps for this message: answer now with what you already found. Don't call any more tools. If something's still missing, say what in one line and offer to look next.`,
+          messages: convo,
+          task: "default",
+          maxTokens: 1600,
+          tools,
+          provider: result.provider,
+        }).catch((err) => {
+          console.error("[Atlas chat] final answer failed:", err.message);
+          return null;
+        });
+        result = last?.text ? { ...last, toolCalls: [] } : { ...(last || result), text: last?.text || "", toolCalls: [] };
+      }
     }
 
     // Finished after Atlas started its reply (missed the 400 ms)? Still

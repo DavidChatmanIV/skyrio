@@ -1,4 +1,5 @@
 import { searchAirports } from "@/data/airportData";
+import { tripPrice, arrivalNight } from "@/lib/tripPrice";
 import React, {
   useMemo,
   useState,
@@ -106,6 +107,7 @@ import {
   Sparkles,
   Wallet,
   ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 
 // Airline logos: ask the logo service for a bigger image than the tile
@@ -877,12 +879,25 @@ function PackageTray({
     0
   );
   const stayTotal = bookedStay ? bookedStay.total : cartTotal;
-  const roomsPicked = bookedStay ? bookedStay.rooms : (stayRooms || []).length;
-  const total = (flight?.price || 0) + (roomsPicked ? stayTotal : 0);
-  const nights =
-    plan.depart && plan.ret
-      ? dayjs(plan.ret).diff(dayjs(plan.depart), "day")
-      : null;
+  // One cart entry can cover several rooms (a bundled offer).
+  const roomsPicked = bookedStay ? bookedStay.rooms : countRooms(stayRooms || []);
+  // PRICE CHECK (lib/tripPrice): flight = per person × travelers, stay =
+  // per room × rooms × nights, then Flight + Stay = Trip total, per person.
+  const firstRoom = (stayRooms || [])[0];
+  const price = tripPrice({
+    flight: flight ? { price: flight.price, raw: flight.raw } : null,
+    stay: roomsPicked
+      ? {
+          total: stayTotal,
+          rooms: roomsPicked,
+          checkin: bookedStay?.checkin || firstRoom?.checkin || plan.depart,
+          checkout: bookedStay?.checkout || firstRoom?.checkout || plan.ret,
+        }
+      : null,
+    travelers: plan.adults,
+  });
+  const total = price.tripTotal;
+  const nights = price.nights;
   const allBooked = flight?.booked && bookedStay;
 
   const Booked = () => (
@@ -928,10 +943,7 @@ function PackageTray({
             <>
               Flight · {flight.origin} → {flight.destination}
               <small>
-                {[
-                  flight.airline,
-                  `${plan.adults} traveler${plan.adults !== 1 ? "s" : ""}`,
-                ]
+                {[flight.airline, price.flightLine]
                   .filter(Boolean)
                   .join(" · ")}
               </small>
@@ -972,7 +984,8 @@ function PackageTray({
           {bookedStay?.name || `Stay in ${plan.city}`}
           <small>
             {roomsPicked
-              ? `${roomsPicked} room${roomsPicked !== 1 ? "s" : ""}${
+              ? price.stayLine ||
+                `${roomsPicked} room${roomsPicked !== 1 ? "s" : ""}${
                   nights ? ` · ${nights} night${nights !== 1 ? "s" : ""}` : ""
                 }`
               : tab === "Stays"
@@ -991,8 +1004,18 @@ function PackageTray({
         <span className="sk-pkg-tray-total">
           {total > 0 ? (
             <>
+              {flight && roomsPicked ? (
+                <span className="sk-pkg-tray-sum">
+                  Flight {usd(price.flightTotal)} + Stay {usd(price.stayTotal)} =
+                </span>
+              ) : null}
               {allBooked ? "Trip total paid" : "Trip total"}{" "}
               <strong>{usd(total)}</strong>
+              {flight && roomsPicked && price.travelers > 1 ? (
+                <span className="sk-pkg-tray-pp">
+                  {usd(price.perPerson)} per person · {price.travelers} travelers
+                </span>
+              ) : null}
             </>
           ) : (
             "Pick a flight and a stay to see your trip total"
@@ -1051,6 +1074,20 @@ function PackageTray({
           )}
         </span>
       </div>
+      {price.problems.length > 0 && !allBooked && (
+        <ul className="sk-pkg-tray-warn" role="alert">
+          {price.problems.map((p) => (
+            <li key={p}>
+              <AlertTriangle size={13} aria-hidden="true" /> {p}
+            </li>
+          ))}
+        </ul>
+      )}
+      {price.low && !allBooked && (
+        <p className="sk-pkg-tray-low">
+          This price is lower than usual. It's checked again before you pay.
+        </p>
+      )}
       <p className="sk-pkg-tray-note">
         {allBooked
           ? "All set. Two bookings, two confirmations, both in My Trips."
@@ -6061,7 +6098,7 @@ export default function BookingPage() {
           total: parseFloat(flight.totalAmount),
         });
         antdMessage.success("Flight added to your trip. Now pick your stay.");
-        packageRef.current.toStays?.();
+        packageRef.current.toStays?.(flight);
         return;
       }
       setSelectedFlight(flight);
@@ -6098,6 +6135,7 @@ export default function BookingPage() {
       flight: null, // filled in when a flight is picked
     };
   });
+  const pendingTabRef = useRef(null);
   const runHandoff = useCallback(
     ({ tab: nextTab, params = {}, plan }) => {
       const next = new URLSearchParams();
@@ -6117,21 +6155,36 @@ export default function BookingPage() {
       setSmartFilters(DEFAULT_FILTERS);
       setHotelFilters(DEFAULT_HOTEL_FILTERS);
       setVisibleCount(RESULTS_PER_PAGE);
-      setTab(nextTab);
+      // Switch tabs once the new link is in place (effect below). Switching
+      // now opened Stays with the old link's city and dates (the URL update
+      // lands a render later), and it searched those instead.
+      pendingTabRef.current = nextTab;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParams, setSearchParams]
   );
+  useEffect(() => {
+    if (pendingTabRef.current && tabParam === pendingTabRef.current) {
+      setTab(tabParam);
+      pendingTabRef.current = null;
+    }
+  }, [searchParams, tabParam]);
 
   // ── Package actions ──
-  const goToPackageStays = useCallback(() => {
+  const goToPackageStays = useCallback((pickedFlight) => {
     if (!packagePlan) return;
+    // Hotel nights = the night they land (before 6 AM counts as the night
+    // before) to the day the flight home leaves, not the search dates: a
+    // red-eye that lands the next morning shouldn't pay for an empty night.
+    const f = pickedFlight?.arrivingAt ? pickedFlight : packagePlan.flight?.raw;
+    const checkin = arrivalNight(f?.arrivingAt) || packagePlan.depart;
+    const checkout = String(f?.returningAt || "").slice(0, 10) || packagePlan.ret;
     runHandoff({
       tab: "Stays",
       params: {
         city: packagePlan.city,
-        depart: packagePlan.depart,
-        return: packagePlan.ret,
+        depart: checkout > checkin ? checkin : packagePlan.depart,
+        return: checkout > checkin ? checkout : packagePlan.ret,
         adults: packagePlan.adults,
         rooms: packagePlan.rooms,
       },
@@ -6726,7 +6779,9 @@ export default function BookingPage() {
                     ...p,
                     stay: {
                       booked: true,
-                      rooms: (c?.rooms || checkoutRooms).length,
+                      rooms: countRooms(c?.rooms || checkoutRooms),
+                      checkin: (c?.rooms || checkoutRooms)[0]?.checkin || null,
+                      checkout: (c?.rooms || checkoutRooms)[0]?.checkout || null,
                       total:
                         typeof c?.totalPaid === "number"
                           ? c.totalPaid
@@ -8524,22 +8579,33 @@ export default function BookingPage() {
                                 trip costs with this room — just the two real
                                 prices added up, no bundle "discount". */}
                             {packagePlan?.flight &&
-                              Number.isFinite(Number(hotel.totalAmount)) && (
-                                <div className="sk-pkg-trip-total">
-                                  <strong>
-                                    $
-                                    {wholeUsd(
-                                      packagePlan.flight.price +
-                                        Number(hotel.totalAmount)
-                                    )}{" "}
-                                    trip total
-                                  </strong>
-                                  <span>
-                                    ${wholeUsd(packagePlan.flight.price)} flight
-                                    + ${wholeUsd(hotel.totalAmount)} stay
-                                  </span>
-                                </div>
-                              )}
+                              Number.isFinite(Number(hotel.totalAmount)) &&
+                              (() => {
+                                const tp = tripPrice({
+                                  flight: packagePlan.flight,
+                                  stay: {
+                                    total: Number(hotel.totalAmount),
+                                    rooms: roomsIn(hotel),
+                                    checkin: hotel.checkin,
+                                    checkout: hotel.checkout,
+                                  },
+                                  travelers: packagePlan.adults,
+                                });
+                                return (
+                                  <div className="sk-pkg-trip-total">
+                                    <strong>
+                                      ${wholeUsd(tp.tripTotal)} trip total
+                                    </strong>
+                                    <span>
+                                      ${wholeUsd(tp.flightTotal)} flight + $
+                                      {wholeUsd(tp.stayTotal)} stay
+                                      {tp.travelers > 1
+                                        ? ` · $${wholeUsd(tp.perPerson)} per person`
+                                        : ""}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
                             <SaveTripButton
                               size="small"
                               variant="ghost"
