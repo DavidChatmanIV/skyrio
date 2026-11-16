@@ -16,7 +16,11 @@ const money = (n, cur = "USD") => {
 };
 
 const realLink = (x) => /^https:\/\//.test(String(x?.url || ""));
-const goodEvents = (a) => (Array.isArray(a?.events) ? a.events : []).filter((e) => e?.name && realLink(e)).slice(0, 3);
+// A trip's suggestions show 3; a search the traveler asked for shows up to 5.
+const goodEvents = (a) =>
+  (Array.isArray(a?.events) ? a.events : [])
+    .filter((e) => e?.name && realLink(e))
+    .slice(0, a?.mode === "search" ? 5 : 3);
 const goodTours = (a) => (Array.isArray(a?.excursions) ? a.excursions : []).filter((x) => x?.title && realLink(x)).slice(0, 3);
 
 export const isTripEventsAction = (a) =>
@@ -30,7 +34,7 @@ export default function AtlasTripEventsCard({ action }) {
       <div className="ap-card__top">
         {events.length ? <Ticket size={16} aria-hidden="true" /> : <Compass size={16} aria-hidden="true" />}
         <div>
-          <div className="ap-card__eyebrow">During your trip</div>
+          <div className="ap-card__eyebrow">{action.mode === "search" ? "Events" : "During your trip"}</div>
           <div className="ap-card__trip">
             {action.place ? `Happening in ${action.place}` : "Happening while you're there"}
           </div>
@@ -98,7 +102,9 @@ export default function AtlasTripEventsCard({ action }) {
             <div className="ap-card__note">Booked on Viator, not Skyrio.</div>
           </div>
         )}
-        <div className="ap-card__note">Your trip stays the same unless you add something.</div>
+        {action.mode !== "search" && (
+          <div className="ap-card__note">Your trip stays the same unless you add something.</div>
+        )}
       </div>
     </section>
   );

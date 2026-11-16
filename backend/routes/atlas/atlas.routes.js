@@ -1070,9 +1070,22 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       ];
     }
 
-    // What Atlas was told about → one "During your trip" card with the real
-    // "Buy on Ticketmaster" / "View on Viator" links (straight from the data).
-    const shownAny = extraShown.events || extraShown.excursions;
+    // Finished after Atlas started its reply (missed the 400 ms)? Still
+    // show them on the card. Only what's already done; never waits.
+    for (const x of TRIP_EXTRAS) {
+      if (!extraRuns[x.key] || extraShown[x.key]) continue;
+      const done = await Promise.race([extraRuns[x.key], sleep(0).then(() => null)]);
+      if (done?.[x.key]?.length) extraShown[x.key] = done;
+    }
+
+    // One "During your trip" card with the real "Buy on Ticketmaster" /
+    // "View on Viator" links (straight from the data). Skipped if Atlas
+    // already showed an events card from its own search this turn.
+    const searchCard = actions.find((a) => a.type === "trip_events");
+    if (searchCard && extraShown.excursions && !searchCard.excursions?.length) {
+      searchCard.excursions = extraShown.excursions.excursions; // tours go on the same card
+    }
+    const shownAny = !searchCard && (extraShown.events || extraShown.excursions);
     if (shownAny && actions.length < 3) {
       actions.push({
         type: "trip_events",
@@ -1113,6 +1126,12 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       reply,
       actions,
       toolsUsed: [...toolsUsed],
+      // For checking in the browser's Network tab: how many events/tours
+      // the trip lookup found (null = it didn't run this turn).
+      tripExtras: {
+        events: extraRuns.events ? extraShown.events?.events?.length ?? 0 : null,
+        excursions: extraRuns.excursions ? extraShown.excursions?.excursions?.length ?? 0 : null,
+      },
       provider: result?.provider,
       model: result?.model,
     });
