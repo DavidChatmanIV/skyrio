@@ -1,5 +1,6 @@
 // src/components/events/EventCard.jsx
 // One event card. Price only shows when Ticketmaster actually provides it.
+import { useState } from "react";
 
 const CATEGORY_LABEL = { sports: "Sports", music: "Concert", shows: "Show", family: "Family", other: "Event" };
 
@@ -44,7 +45,17 @@ const ExternalIcon = () => (
   </svg>
 );
 
-export default function EventCard({ event, onPlanTrip, extra = null }) {
+const nightLabel = (e) => `${formatDate(e.date)} · ${formatTime(e.time)}`;
+
+/**
+ * event.nights (optional): the same show on several dates, grouped by
+ * EventsResults. Tapping a date switches the card, so "Plan a trip around
+ * it" and "Buy on Ticketmaster" follow the night they picked.
+ */
+export default function EventCard({ event: show, onPlanTrip, extra = null, renderExtra = null }) {
+  const nights = Array.isArray(show.nights) && show.nights.length > 1 ? show.nights : [show];
+  const [pick, setPick] = useState(0);
+  const event = nights[Math.min(pick, nights.length - 1)];
   const price = formatPrice(event.priceRange);
   const venue = event.venue;
   const canPlan = Boolean(onPlanTrip && venue && event.suggestedDates);
@@ -74,6 +85,26 @@ export default function EventCard({ event, onPlanTrip, extra = null }) {
           </p>
         )}
 
+        {nights.length > 1 && (
+          <div className="sk-event-dates" role="radiogroup" aria-label={`${nights.length} dates`}>
+            <span className="sk-event-datesLabel">{nights.length} dates · pick one</span>
+            <div className="sk-event-dateChips">
+              {nights.map((n, i) => (
+                <button
+                  key={n.id || `${n.date}-${n.time}`}
+                  type="button"
+                  role="radio"
+                  aria-checked={i === pick}
+                  className={`sk-event-date${i === pick ? " is-on" : ""}`}
+                  onClick={() => setPick(i)}
+                >
+                  {nightLabel(n)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {price && <p className="sk-event-price">{price}</p>}
 
         <div className="sk-event-actions">
@@ -88,7 +119,10 @@ export default function EventCard({ event, onPlanTrip, extra = null }) {
             </a>
           )}
         </div>
-        {extra && <div className="sk-event-extra">{extra}</div>}
+        {(renderExtra || extra) && (
+          // Follows the night they picked (e.g. "Suggest to group").
+          <div className="sk-event-extra">{renderExtra ? renderExtra(event) : extra}</div>
+        )}
       </div>
     </article>
   );

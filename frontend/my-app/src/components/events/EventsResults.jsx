@@ -6,6 +6,24 @@
 
 import { useEffect, useState } from "react";
 import EventCard from "./EventCard";
+
+// Same show at the same venue on several dates → one card with a date
+// picker (in date order), instead of the same card repeated.
+function groupShows(list) {
+  const byKey = new Map();
+  for (const e of list) {
+    const key = `${String(e.name || "").trim().toLowerCase()}|${e.venue?.id || e.venue?.name || ""}`;
+    const g = byKey.get(key);
+    if (g) g.nights.push(e);
+    else byKey.set(key, { ...e, nights: [e] });
+  }
+  return [...byKey.values()].map((g) => {
+    const nights = [...g.nights].sort(
+      (a, b) => String(a.date || "").localeCompare(String(b.date || "")) || String(a.time || "").localeCompare(String(b.time || ""))
+    );
+    return { ...nights[0], nights };
+  });
+}
 import "@/styles/events.css";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -140,12 +158,12 @@ export default function EventsResults({
 
       {events.length > 0 && (
         <div className="sk-events-grid">
-          {events.map((e) => (
+          {groupShows(events).map((e) => (
             <EventCard
               key={e.id}
               event={e}
               onPlanTrip={onPlanTrip}
-              extra={renderSuggest ? renderSuggest(e) : null}
+              renderExtra={renderSuggest || null}
             />
           ))}
         </div>
