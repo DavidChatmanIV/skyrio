@@ -1,312 +1,135 @@
 /**
  * SyncTogetherLock.jsx
- * ─────────────────────
- * Login wall for Sync Together — shown to logged-out users.
- * Mobile-first responsive layout.
- *
- * Save to: src/pages/SyncTogetherLock.jsx
+ * Shown on /sync-together when logged out. Same purple glass as the rest
+ * of Skyrio: short, plain, one button.
  */
-
 import { useNavigate } from "react-router-dom";
 
-// ─── SVG Icons ────────────────────────────────────────────────────────────────
-function LockIcon({ size = 36 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="11" width="18" height="11" rx="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      <circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
+const svg = {
+  width: 18,
+  height: 18,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.8,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+};
 
-function UsersIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="9" cy="7" r="4" />
-      <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      <path d="M21 21v-2a4 4 0 0 0-3-3.85" />
-    </svg>
-  );
-}
+const GroupIcon = () => (
+  <svg {...svg} width={30} height={30}>
+    <circle cx="9" cy="7" r="4" />
+    <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    <path d="M21 21v-2a4 4 0 0 0-3-3.85" />
+  </svg>
+);
+const LinkIcon = () => (
+  <svg {...svg}>
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </svg>
+);
+const VoteIcon = () => (
+  <svg {...svg}>
+    <path d="M9 11l3 3L22 4" />
+    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+);
+const ChatIcon = () => (
+  <svg {...svg}>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+const PlaneIcon = () => (
+  <svg {...svg}>
+    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+  </svg>
+);
 
-function MapIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-      <line x1="9" y1="3" x2="9" y2="18" />
-      <line x1="15" y1="6" x2="15" y2="21" />
-    </svg>
-  );
-}
-
-function ChatIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-function SplitIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16 3h5v5" />
-      <path d="M8 3H3v5" />
-      <path d="M21 3l-7 7-4-4-7 7" />
-      <path d="M3 21l7-7 4 4 7-7" />
-    </svg>
-  );
-}
-
-function PlaneIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M22 2L11 13" />
-      <path d="M22 2L15 22L11 13L2 9L22 2Z" />
-    </svg>
-  );
-}
-
-const FEATURES = [
-  { Icon: UsersIcon, text: "Invite friends and family to your trip group" },
-  { Icon: MapIcon, text: "Build a shared itinerary everyone can see and edit" },
-  { Icon: ChatIcon, text: "Group chat to coordinate without leaving Skyrio" },
-  { Icon: SplitIcon, text: "Split planning so no one person carries the load" },
-  { Icon: PlaneIcon, text: "Book flights and hotels as a group in one place" },
+const STEPS = [
+  { Icon: LinkIcon, text: "Invite your crew with a link" },
+  { Icon: VoteIcon, text: "Vote on the plan together" },
+  { Icon: ChatIcon, text: "Chat in one place" },
+  { Icon: PlaneIcon, text: "Everyone books their own flight and room" },
 ];
+
+const CSS = `
+.stl { display: flex; justify-content: center; padding: 32px 16px 48px; color: #fff;
+  font-family: "DM Sans", system-ui, sans-serif; box-sizing: border-box; }
+.stl__card { position: relative; width: 100%; max-width: 480px; text-align: center;
+  padding: 36px 22px 26px; border-radius: 26px; overflow: hidden;
+  background: linear-gradient(160deg, rgba(74,40,112,.58) 0%, rgba(34,18,62,.66) 100%);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 18px 44px rgba(12,4,28,.38);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.stl__card::before { content: ""; position: absolute; top: 0; left: 24px; right: 24px; height: 3px;
+  border-radius: 0 0 3px 3px; background: linear-gradient(90deg, #ff8a2a, #ffb347 50%, #8b5cf6); }
+.stl__icon { width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 20px; display: grid;
+  place-items: center; color: #fff; background: linear-gradient(135deg, #ff8a2a, #8b5cf6);
+  box-shadow: 0 10px 26px rgba(139,92,246,.35); }
+.stl__title { margin: 0 0 8px; font-size: clamp(24px, 6vw, 30px); font-weight: 800;
+  letter-spacing: -0.02em; line-height: 1.15; }
+.stl__lead { margin: 0 auto 22px; max-width: 340px; font-size: 15px; line-height: 1.5;
+  color: rgba(255,255,255,.75); }
+.stl__list { list-style: none; margin: 0 0 22px; padding: 0; display: grid; gap: 8px; text-align: left; }
+.stl__row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+  font-size: 15px; font-weight: 600; color: rgba(255,255,255,.9); }
+.stl__row svg { color: #ffb347; flex-shrink: 0; }
+.stl__btn { width: 100%; min-height: 52px; border: 0; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 16px; font-weight: 800; color: #1a0e06;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+  box-shadow: 0 10px 28px rgba(255,138,42,.4), inset 0 1px 0 rgba(255,255,255,.35);
+  transition: transform .15s, filter .15s; }
+.stl__btn:active { transform: scale(.98); }
+@media (hover: hover) { .stl__btn:hover { transform: translateY(-1px); filter: brightness(1.06); } }
+.stl__btn:focus-visible, .stl__link:focus-visible { outline: 3px solid #ffb347; outline-offset: 3px; }
+.stl__login { margin-top: 14px; font-size: 14px; color: rgba(255,255,255,.7); }
+.stl__link { background: none; border: 0; padding: 0; font: inherit; font-weight: 800;
+  color: #ffb347; cursor: pointer; }
+`;
 
 export default function SyncTogetherLock() {
   const navigate = useNavigate();
+  const back = { state: { redirectTo: "/sync-together" } };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#09071a",
-        color: "#f0edff",
-        fontFamily: "'DM Sans', sans-serif",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px 16px",
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ width: "100%", maxWidth: 860 }}>
-        {/* ── Top: lock icon + headline (always full width on mobile) ── */}
-        <div
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.09)",
-            borderRadius: 20,
-            padding: "36px 24px",
-            textAlign: "center",
-            marginBottom: 16,
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          {/* Glow */}
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%,-50%)",
-              width: 300,
-              height: 300,
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle, rgba(255,138,42,0.10) 0%, transparent 70%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 18,
-              background: "rgba(255,138,42,0.10)",
-              border: "1px solid rgba(255,138,42,0.25)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#ff8a2a",
-              margin: "0 auto 20px",
-              position: "relative",
-              zIndex: 1,
-            }}
-          >
-            <LockIcon size={32} />
-          </div>
-
-          <h2
-            style={{
-              margin: "0 0 10px",
-              fontSize: "clamp(22px, 5vw, 32px)",
-              fontWeight: 800,
-              fontFamily: "'Syne', sans-serif",
-              letterSpacing: "-0.5px",
-              color: "#f0edff",
-              position: "relative",
-              zIndex: 1,
-            }}
-          >
-            Plan your next group trip together
-          </h2>
-
-          <p
-            style={{
-              fontSize: 15,
-              color: "rgba(240,237,255,0.5)",
-              lineHeight: 1.6,
-              margin: "0 auto",
-              maxWidth: 420,
-              position: "relative",
-              zIndex: 1,
-            }}
-          >
-            Create a free account to start a group trip, invite your crew, and
-            coordinate everything in one place.
-          </p>
+    <div className="stl">
+      <style>{CSS}</style>
+      <div className="stl__card">
+        <div className="stl__icon">
+          <GroupIcon />
         </div>
-
-        {/* ── Bottom: features + CTA ── */}
-        <div
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.09)",
-            borderRadius: 20,
-            padding: "24px 20px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
-          {FEATURES.map(({ Icon, text }) => (
-            <div
-              key={text}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "12px 16px",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12,
-                color: "rgba(240,237,255,0.75)",
-                fontSize: 14,
-                lineHeight: 1.4,
-              }}
-            >
-              <span style={{ color: "#ff8a2a", flexShrink: 0 }}>
-                <Icon />
-              </span>
+        <h1 className="stl__title">Plan a group trip</h1>
+        <p className="stl__lead">
+          Make a free account to start a trip with friends or family.
+        </p>
+        <ul className="stl__list">
+          {STEPS.map(({ Icon, text }) => (
+            <li key={text} className="stl__row">
+              <Icon />
               {text}
-            </div>
+            </li>
           ))}
-
+        </ul>
+        <button
+          type="button"
+          className="stl__btn"
+          onClick={() => navigate("/register", back)}
+        >
+          Join free
+        </button>
+        <div className="stl__login">
+          Have an account?{" "}
           <button
-            onClick={() => navigate("/register?next=/sync-together")}
-            style={{
-              width: "100%",
-              padding: "16px",
-              borderRadius: 14,
-              border: "none",
-              background: "linear-gradient(135deg, #ff8a2a, #ffb066)",
-              color: "#1a0d04",
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: 16,
-              fontWeight: 800,
-              cursor: "pointer",
-              marginTop: 6,
-              boxShadow: "0 8px 24px rgba(255,138,42,0.35)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.filter = "brightness(1.08)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.filter = "brightness(1)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
+            type="button"
+            className="stl__link"
+            onClick={() => navigate("/login", back)}
           >
-            Create a free account
+            Log in
           </button>
-
-          <div
-            style={{
-              textAlign: "center",
-              fontSize: 14,
-              color: "rgba(240,237,255,0.4)",
-              marginTop: 2,
-            }}
-          >
-            Already a member?{" "}
-            <span
-              onClick={() => navigate("/login?next=/sync-together")}
-              style={{ color: "#ff8a2a", fontWeight: 700, cursor: "pointer" }}
-            >
-              Log in
-            </span>
-          </div>
         </div>
       </div>
     </div>
