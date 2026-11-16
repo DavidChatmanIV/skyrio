@@ -5,6 +5,8 @@
 //   group_message — lives in utils/notifyGroupMessage.js (not here)
 //   post_like     — likes on your SkyHub post (collapsed per post)
 //   post_comment  — comments on your SkyHub post (collapsed per post)
+//   comment_reply — replies to your SkyHub comment (collapsed per comment)
+//   comment_like  — likes on your SkyHub comment (collapsed per comment)
 //
 // Requires MongoDB 4.2+ (pipeline updates).
 
@@ -160,6 +162,50 @@ export function notifyPostLike(
     buildText: ({ senders = [], count = 1 }) => ({
       title: `${names(senders[0], count - 1)} liked your post`,
       message: postPreview ? `"${postPreview.slice(0, 80)}"` : "",
+    }),
+  });
+}
+
+/** Call after a reply to someone's comment is saved. */
+export function notifyCommentReply(
+  io,
+  { postId, commentId, parentAuthorId, replierId, replierName, replyPreview }
+) {
+  if (same(parentAuthorId, replierId)) return null;
+  return upsertCollapsed(io, {
+    userId: parentAuthorId,
+    type: "comment_reply",
+    match: { targetId: oid(commentId) },
+    set: { targetType: "comment", link: `${skyhubPostLink(postId)}&comment=${encodeURIComponent(String(commentId))}` },
+    actorName: replierName,
+    buildText: ({ senders = [], count = 1 }) => ({
+      title:
+        count === 1
+          ? `${senders[0]} replied to your comment`
+          : `${count} new replies to your comment`,
+      message: replyPreview ? `${replierName}: ${replyPreview.slice(0, 80)}` : "",
+    }),
+  });
+}
+
+/** Call after a like on a comment is added (not on unlike). */
+export function notifyCommentLike(
+  io,
+  { postId, commentId, commentAuthorId, likerId, likerName, commentPreview, byPostAuthor }
+) {
+  if (same(commentAuthorId, likerId)) return null;
+  return upsertCollapsed(io, {
+    userId: commentAuthorId,
+    type: "comment_like",
+    match: { targetId: oid(commentId) },
+    set: { targetType: "comment", link: `${skyhubPostLink(postId)}&comment=${encodeURIComponent(String(commentId))}` },
+    actorName: likerName,
+    buildText: ({ senders = [], count = 1 }) => ({
+      title:
+        count === 1 && byPostAuthor
+          ? `${senders[0]} (the post's author) liked your comment`
+          : `${names(senders[0], count - 1)} liked your comment`,
+      message: commentPreview ? `"${commentPreview.slice(0, 80)}"` : "",
     }),
   });
 }

@@ -200,6 +200,8 @@ const BY_TYPE = {
   sync_update: { cat: "sync", Icon: Users, ...tone("#c4b5fd") },
   post_like: { cat: "social", Icon: Heart, ...tone("#ff8fa3") },
   post_comment: { cat: "social", Icon: MessageCircle, ...tone("#8fd0ff") },
+  comment_reply: { cat: "social", Icon: MessageCircle, ...tone("#8fd0ff") },
+  comment_like: { cat: "social", Icon: Heart, ...tone("#ff8fa3") },
 };
 
 const isSyncLink = (n) => /^\/sync(-together)?\//.test(String(n?.link || ""));

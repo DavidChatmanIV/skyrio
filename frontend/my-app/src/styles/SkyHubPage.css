@@ -3302,6 +3302,89 @@ html:has(.skyhub-drawer.ant-drawer-open) [data-sr-root] {
   color: #ffb347;
 }
 
+.skyhub-spot__row > span { display: flex; align-items: baseline; gap: 6px; }
+.skyhub-spot__head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.skyhub-spot__kind {
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffb347;
+  background: rgba(255, 138, 42, 0.14);
+  border: 1px solid rgba(255, 138, 42, 0.35);
+}
+.skyhub-spot__good { display: flex; flex-wrap: wrap; gap: 6px; }
+.skyhub-spot__tag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e9e1ff;
+  background: rgba(139, 92, 246, 0.18);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+.skyhub-spot__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.skyhub-spot__area { font-size: 13px; color: rgba(255, 255, 255, 0.75); }
+.skyhub-spot__map,
+.skyhub-spot__map:visited {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-decoration: none;
+  color: #ffb347 !important;
+  border: 1px solid rgba(255, 138, 42, 0.5);
+}
+@media (hover: hover) { .skyhub-spot__map:hover { background: rgba(255, 138, 42, 0.14); } }
+
+/* Spot details: form (SpotFields) */
+.shSpotF { display: flex; flex-direction: column; gap: 10px; }
+.shSpotF__group { display: flex; flex-wrap: wrap; gap: 6px; }
+.shSpotF__chip {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font: 700 13px "DM Sans", sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.shSpotF__chip.is-on { border-color: #ffb347; background: rgba(255, 138, 42, 0.22); }
+.shSpotF__chip:disabled { opacity: 0.4; cursor: not-allowed; }
+.shSpotF__chip:focus-visible, .shSpotF__suggest:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
+.shSpotF__suggest {
+  align-self: flex-start;
+  margin-top: -4px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 179, 71, 0.6);
+  background: transparent;
+  color: #ffb347;
+  font: 700 12.5px "DM Sans", sans-serif;
+  cursor: pointer;
+}
+.shSpotF__money {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(10, 6, 23, 0.3);
+}
+.shSpotF__money:focus-within { border-color: #ffb347; }
+.shSpotF__money i { padding-left: 10px; font-style: normal; font-weight: 800; color: rgba(255, 255, 255, 0.7); }
+.shCmp-spotField .shSpotF__money input { border: 0; background: transparent; padding-left: 4px; width: 100%; }
+.shCmp-spotField .shSpotF__money input:focus { border: 0; }
+
 /* Travelers list: open Passport + Follow, near you first */
 .shTrav {
   display: flex;

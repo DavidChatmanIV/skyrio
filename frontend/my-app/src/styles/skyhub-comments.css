@@ -392,3 +392,77 @@ body.skyhub-commentsOpen .feedback-fab {
     transition: none !important;
   }
 }
+
+/* ── Likes, replies and author tags ── */
+.skyhubC-item.is-reply {
+  margin-left: 44px;
+  padding-top: 10px;
+  border-top: 0;
+}
+.skyhubC-item.is-reply .skyhubC-avatar { width: 28px !important; height: 28px !important; line-height: 28px !important; }
+.skyhubC-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 6px;
+}
+.skyhubC-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--sc-muted);
+  font: 700 12.5px "DM Sans", sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.skyhubC-act.is-on { color: #ff8fa3; }
+.skyhubC-act:active { transform: scale(0.96); }
+@media (hover: hover) { .skyhubC-act:hover { color: #fff; } .skyhubC-act.is-on:hover { color: #ff8fa3; } }
+.skyhubC-act:focus-visible { outline: 2px solid #ffb347; outline-offset: 2px; border-radius: 6px; }
+.skyhubC-authorTag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #1a0e06;
+  background: linear-gradient(135deg, #ff8a2a, #ffb347);
+}
+.skyhubC-authorLiked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ff8fa3;
+}
+.skyhubC-replyBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: rgba(245, 242, 255, 0.85);
+  background: rgba(255, 138, 42, 0.12);
+  border: 1px solid rgba(255, 138, 42, 0.3);
+}
+.skyhubC-replyCancel {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--sc-muted);
+  cursor: pointer;
+}
+.skyhubC-item.is-highlight { animation: skyhubCFlash 2.2s ease; border-radius: 12px; }
+@keyframes skyhubCFlash { 0%, 40% { background: rgba(255, 138, 42, 0.16); } 100% { background: transparent; } }

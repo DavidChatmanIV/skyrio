@@ -32,8 +32,16 @@ const skyHubPostSchema = new mongoose.Schema(
     // a view, a shop): its name, what to get, and a rough price.
     spot: {
       name: { type: String, trim: true, maxlength: 80 },
+      // food | drinks | coffee | sight | shop | activity | stay
+      kind: { type: String, trim: true, maxlength: 20 },
       get: { type: String, trim: true, maxlength: 120 },
       price: { type: Number, min: 1, max: 3 },
+      // "About $18 per person" (what the poster paid), USD
+      cost: { type: Number, min: 1, max: 5000 },
+      // Up to 3: date_night, groups, solo, families, quick_bite, late_night, views, budget
+      goodFor: { type: [String], default: undefined },
+      // Neighborhood or street, e.g. "Ironbound" or "Ferry St"
+      area: { type: String, trim: true, maxlength: 80 },
     },
 
     // Map point for the destination, filled in from OpenWeather geocoding

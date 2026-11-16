@@ -24,6 +24,7 @@ import SkyHubSearch from "./SkyHubSearch";
 import SkyHubLocalBanner from "./SkyHubLocalBanner";
 import SkyHubFeedCard from "./SkyHubFeedCard";
 import SkyHubCommentDrawer from "./SkyHubCommentDrawer";
+import { SpotFields, EMPTY_SPOT, spotFromPost, spotPayload, spotChanged, spotHasExtras } from "./SpotFields";
 import SkyHubPassportCard from "./SkyHubPassportCard";
 import SkyHubTrendingDestinations from "./SkyHubTrendingDestinations";
 import SkyHubActiveTravelers from "./SkyHubActiveTravelers";
@@ -596,7 +597,7 @@ export default function SkyHubPage() {
   const [composerText, setComposerText] = useState("");
   const [destination, setDestination] = useState("");
   // Optional spot details: { name, get, price } (price 1–3)
-  const [spot, setSpot] = useState({ name: "", get: "", price: 0 });
+  const [spot, setSpot] = useState(EMPTY_SPOT);
   const [activePostType, setActivePostType] = useState("Tip");
   // Optional topic picked on the postcard — same list as the TOPIC filter
   const [postTopic, setPostTopic] = useState("");
@@ -1090,9 +1091,7 @@ export default function SkyHubPage() {
           // Radar city's state, so "Newark" is saved as "Newark, NJ".
           near: localCity?.regionCode || localCity?.region || undefined,
           spot:
-            spot.name.trim() && activePostType !== "Question"
-              ? { name: spot.name.trim(), get: spot.get.trim(), price: spot.price || undefined }
-              : undefined,
+            spot.name.trim() && activePostType !== "Question" ? spotPayload(spot) : undefined,
           images: urls,
           image: urls[0] || "",
         }),
@@ -1119,7 +1118,7 @@ export default function SkyHubPage() {
       if (activeTab === "nearby" && nearbyLocal) fetchNearbyFeed();
       setComposerText("");
       setDestination("");
-      setSpot({ name: "", get: "", price: 0 });
+      setSpot(EMPTY_SPOT);
       setActivePostType("Tip");
       setPostTopic("");
       setComposerPhotos([]);
@@ -1261,15 +1260,13 @@ export default function SkyHubPage() {
   const [editText, setEditText] = useState("");
   const [editDestination, setEditDestination] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
-  const [editSpot, setEditSpot] = useState({ name: "", get: "", price: 0 });
+  const [editSpot, setEditSpot] = useState(EMPTY_SPOT);
   const [editSpotFocus, setEditSpotFocus] = useState(false);
   const handleEditPost = (post, opts = {}) => {
     setEditText(post.text || "");
     setEditDestination(post.destination || "");
     setEditSpot({
-      name: post.spot?.name || "",
-      get: post.spot?.get || "",
-      price: post.spot?.price || 0,
+      ...spotFromPost(post),
     });
     setEditSpotFocus(!!opts.spot);
     setEditingPost(post);
@@ -1281,10 +1278,7 @@ export default function SkyHubPage() {
     const t = setTimeout(() => document.querySelector(".shEditSpot input")?.focus(), 250);
     return () => clearTimeout(t);
   }, [editingPost, editSpotFocus]);
-  const spotChangedFrom = (post) =>
-    (post.spot?.name || "") !== editSpot.name.trim() ||
-    (post.spot?.get || "") !== editSpot.get.trim() ||
-    (post.spot?.price || 0) !== (editSpot.price || 0);
+  const spotChangedFrom = (post) => spotChanged(post, editSpot);
   const saveEdit = async () => {
     if (!editingPost) return;
     const hasPhotos = (editingPost.images || []).length > 0;
@@ -1306,11 +1300,7 @@ export default function SkyHubPage() {
           // Only sent when changed. An empty name removes the spot details.
           ...(editingPost.type !== "Question" && spotChangedFrom(editingPost)
             ? {
-                spot: {
-                  name: editSpot.name.trim(),
-                  get: editSpot.get.trim(),
-                  price: editSpot.price || undefined,
-                },
+                spot: spotPayload(editSpot),
               }
             : {}),
         }),
@@ -1404,7 +1394,45 @@ export default function SkyHubPage() {
     }
   };
 
+  // From a notification: /skyhub?post=ID(&comment=ID) opens that post's
+  // comments (and scrolls to the comment). Then the link is tidied up.
+  const [focusCommentId, setFocusCommentId] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const qs = new URLSearchParams(window.location.search);
+    const postId = qs.get("post");
+    if (!/^[a-f0-9]{24}$/i.test(postId || "")) return undefined;
+    const commentId = qs.get("comment");
+    skyFetch(`/api/skyhub/posts/${postId}`)
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        if (!alive) return;
+        if (!r.ok || !d.post) {
+          message.info("That post isn't available anymore.");
+          return;
+        }
+        setFocusCommentId(/^[a-f0-9]{24}$/i.test(commentId || "") ? commentId : null);
+        setActiveCommentPost(mapBackendPost(d.post));
+        setCommentDrawerOpen(true);
+      })
+      .catch(() => {})
+      .finally(() => {
+        try {
+          qs.delete("post");
+          qs.delete("comment");
+          const rest = qs.toString();
+          window.history.replaceState(window.history.state, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+        } catch {
+          /* fine */
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const handleOpenComments = (post) => {
+    setFocusCommentId(null);
     setActiveCommentPost(post);
     setCommentDrawerOpen(true);
   };
@@ -2178,58 +2206,17 @@ export default function SkyHubPage() {
         {editingPost && editingPost.type !== "Question" && (
           <div className="shEditSpot">
             <div className="shEditSpot__title">Spot details (optional)</div>
-            <label className="shCmp-spotField">
-              <span>Spot name</span>
-              <input
-                value={editSpot.name}
-                onChange={(e) => setEditSpot((sp) => ({ ...sp, name: e.target.value }))}
-                placeholder="e.g. Ramen Gami"
-                maxLength={80}
-                autoComplete="off"
-              />
-            </label>
-            <div className="shCmp-spotRow">
-              <label className="shCmp-spotField">
-                <span>What to get</span>
-                <input
-                  value={editSpot.get}
-                  onChange={(e) => setEditSpot((sp) => ({ ...sp, get: e.target.value }))}
-                  placeholder="Optional"
-                  maxLength={120}
-                  autoComplete="off"
-                />
-              </label>
-              <div className="shCmp-spotField">
-                <span id="shEdit-price">Price</span>
-                <div className="shCmp-price" role="radiogroup" aria-labelledby="shEdit-price">
-                  {[1, 2, 3].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      role="radio"
-                      aria-checked={editSpot.price === n}
-                      aria-label={["Cheap", "Mid-range", "Pricey"][n - 1]}
-                      className={editSpot.price === n ? "is-on" : ""}
-                      onClick={() =>
-                        setEditSpot((sp) => ({ ...sp, price: sp.price === n ? 0 : n }))
-                      }
-                    >
-                      {"$".repeat(n)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <SpotFields spot={editSpot} onChange={setEditSpot} text={editText} idPrefix="shEdit" />
             {editingPost.spot?.name && (
               <button
                 type="button"
                 className="shCmp-spotRemove"
-                onClick={() => setEditSpot({ name: "", get: "", price: 0 })}
+                onClick={() => setEditSpot(EMPTY_SPOT)}
               >
                 Remove spot details
               </button>
             )}
-            {!editSpot.name.trim() && (editSpot.get.trim() || editSpot.price) ? (
+            {!editSpot.name.trim() && spotHasExtras(editSpot) ? (
               <div className="shEditSpot__hint">Add the spot&apos;s name to save these.</div>
             ) : null}
           </div>
@@ -2361,6 +2348,7 @@ export default function SkyHubPage() {
         refreshPostComments={refreshPostComments}
         onNeedAccount={askToJoin}
         onOpenProfile={openProfile}
+        focusCommentId={focusCommentId}
       />
 
       <ProfileCard

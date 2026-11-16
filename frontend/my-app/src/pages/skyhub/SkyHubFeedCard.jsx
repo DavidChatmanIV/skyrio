@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SpotView } from "./SpotFields";
 import { Dropdown, message } from "antd";
 
 // Feed photos load a lighter copy (Cloudinary resizes on the fly); the
@@ -577,29 +578,7 @@ export default function SkyHubFeedCard({
       )}
 
       <div className="skyhub-feedCard__body">
-        {post.spot?.name && (
-          <div className="skyhub-spot" aria-label="Spot">
-            <div className="skyhub-spot__name">{post.spot.name}</div>
-            {(post.spot.get || post.spot.price) && (
-              <div className="skyhub-spot__row">
-                {post.spot.get && (
-                  <div>
-                    <span className="skyhub-spot__label">Get</span>
-                    <span>{post.spot.get}</span>
-                  </div>
-                )}
-                {post.spot.price ? (
-                  <div>
-                    <span className="skyhub-spot__label">Price</span>
-                    <span aria-label={["Cheap", "Mid-range", "Pricey"][post.spot.price - 1]}>
-                      {"$".repeat(post.spot.price)}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
-        )}
+        {post.spot?.name && <SpotView spot={post.spot} destination={post.destination} />}
         {post.text && <p className="skyhub-feedCard__text">{post.text}</p>}
         {isOwner && onEditPost && !post.spot?.name && post.type !== "Question" && (
           <button

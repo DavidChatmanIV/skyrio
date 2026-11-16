@@ -32,6 +32,15 @@ import {
   LEGAL,
 } from "../../services/skyhubModeration.js";
 import { sendReportAlert } from "../../services/moderationEmails.js";
+import {
+  notifyPostLike,
+  notifyPostComment,
+  notifyCommentReply,
+  notifyCommentLike,
+} from "../../utils/notify.js";
+
+// Bell notifications never block or fail a SkyHub action.
+const quietly = (p) => Promise.resolve(p).catch((e) => console.warn("[skyhub] notify failed:", e?.message));
 // Namespace import: if a helper is ever renamed, XP just skips instead of
 // crashing the whole server on boot.
 import * as xpService from "../../services/xpService.js";
@@ -220,7 +229,15 @@ function mapPost(
     type: post.type,
     destination: tidyPlace(post.destination),
     spot: post.spot?.name
-      ? { name: post.spot.name, get: post.spot.get || "", price: post.spot.price || null }
+      ? {
+          name: post.spot.name,
+          kind: post.spot.kind || null,
+          get: post.spot.get || "",
+          price: post.spot.price || null,
+          cost: post.spot.cost || null,
+          goodFor: post.spot.goodFor?.length ? post.spot.goodFor : [],
+          area: post.spot.area || "",
+        }
       : null,
     text: post.text,
     image: post.image || "",
@@ -246,8 +263,9 @@ function mapPost(
   };
 }
 
-function mapComment(comment, viewerId) {
+function mapComment(comment, viewerId, postAuthorId = null) {
   const authorId = comment.author?.toString() || null;
+  const likes = (comment.likes || []).map(String);
   return {
     _id: comment._id,
     authorId,
@@ -257,6 +275,13 @@ function mapComment(comment, viewerId) {
     avatar: comment.avatar,
     text: comment.text,
     timeAgo: getTimeAgo(comment.createdAt),
+    parentId: comment.parent ? String(comment.parent) : null,
+    likesCount: likes.length,
+    likedByMe: Boolean(viewerId && likes.includes(viewerId)),
+    // The post's author liked this comment ("Liked by author").
+    likedByAuthor: Boolean(postAuthorId && likes.includes(postAuthorId)),
+    // This comment is from the post's author ("Author" tag).
+    isPostAuthor: Boolean(postAuthorId && authorId === postAuthorId),
   };
 }
 
@@ -297,12 +322,17 @@ async function visibleComments(postId, viewerId) {
     .sort({ createdAt: 1 })
     .limit(300)
     .lean();
-  const [local, photos] = await Promise.all([
+  const [local, photos, post] = await Promise.all([
     localCommenters(postId, comments),
     photosFor(comments.map((c) => c.author)),
+    SkyHubPost.findById(postId).select("author").lean(),
   ]);
+  const postAuthorId = post?.author ? String(post.author) : null;
+  // A reply whose top comment is gone (hidden or blocked) shows on its own.
+  const shownIds = new Set(comments.map((c) => String(c._id)));
   return comments.map((c) => {
-    const m = mapComment(c, viewerId);
+    const m = mapComment(c, viewerId, postAuthorId);
+    if (m.parentId && !shownIds.has(m.parentId)) m.parentId = null;
     m.local = local.has(String(c.author));
     if (photos.has(String(c.author))) m.avatar = photos.get(String(c.author));
     return m;
@@ -351,17 +381,35 @@ function adminName(req) {
 ───────────────────────────────────────────────────────────── */
 const FEED_PAGE = 20;
 
-// Optional spot details → { name, get, price } or undefined (nothing set).
+// Optional spot details → { name, kind, get, price, cost, goodFor, area }
+// or undefined (nothing set). Same lists as SpotFields.jsx on the site.
+const SPOT_KINDS = ["food", "drinks", "coffee", "sight", "shop", "activity", "stay"];
+const SPOT_GOOD_FOR = ["date_night", "groups", "solo", "families", "quick_bite", "late_night", "views", "budget"];
 function cleanSpot(raw) {
   if (!raw || typeof raw !== "object") return undefined;
   const name = cleanText(raw.name, 80);
   const get = cleanText(raw.get, 120);
+  const area = cleanText(raw.area, 80);
   const n = Number(raw.price);
   const price = [1, 2, 3].includes(n) ? n : undefined;
+  const c = Math.round(Number(raw.cost));
+  const cost = Number.isFinite(c) && c >= 1 && c <= 5000 ? c : undefined;
+  const kind = SPOT_KINDS.includes(raw.kind) ? raw.kind : undefined;
+  const goodFor = Array.isArray(raw.goodFor)
+    ? [...new Set(raw.goodFor.filter((g) => SPOT_GOOD_FOR.includes(g)))].slice(0, 3)
+    : [];
   if (!name) return undefined; // a spot needs a name
-  return { name, ...(get ? { get } : {}), ...(price ? { price } : {}) };
+  return {
+    name,
+    ...(kind ? { kind } : {}),
+    ...(get ? { get } : {}),
+    ...(price ? { price } : {}),
+    ...(cost ? { cost } : {}),
+    ...(goodFor.length ? { goodFor } : {}),
+    ...(area ? { area } : {}),
+  };
 }
-const spotText = (sp) => (sp ? [sp.name, sp.get].filter(Boolean).join(" ") : "");
+const spotText = (sp) => (sp ? [sp.name, sp.get, sp.area].filter(Boolean).join(" ") : "");
 function parseCursor(raw) {
   const m = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)_([a-f0-9]{24})$/i.exec(String(raw || ""));
   if (!m) return null;
@@ -733,7 +781,7 @@ async function toggle(req, res, field) {
   const post = await SkyHubPost.findOne({
     _id: id,
     hidden: { $ne: true },
-  }).select(`${field} author`);
+  }).select(`${field} author text`);
   if (!post || (await isBlockedBetween(me, post.author))) {
     res.status(404).json({ message: "Post not found." });
     return null;
@@ -744,7 +792,7 @@ async function toggle(req, res, field) {
     has ? { $pull: { [field]: me } } : { $addToSet: { [field]: me } },
     { new: true, projection: { [field]: 1 } }
   );
-  return { on: !has, count: updated[field].length };
+  return { on: !has, count: updated[field].length, post };
 }
 
 router.post(
@@ -754,7 +802,19 @@ router.post(
   async (req, res) => {
     try {
       const r = await toggle(req, res, "likes");
-      if (r) res.json({ liked: r.on, likesCount: r.count });
+      if (r) {
+        res.json({ liked: r.on, likesCount: r.count });
+        if (r.on && r.post?.author)
+          quietly(
+            notifyPostLike(req.app.get("io"), {
+              postId: req.params.id,
+              postAuthorId: r.post.author,
+              likerId: req.skyUser.id,
+              likerName: req.skyUser.name || "Someone",
+              postPreview: r.post.text || "",
+            })
+          );
+      }
     } catch (err) {
       console.error("[skyhub] like error:", err);
       res.status(500).json({ message: "Couldn't update like. Try again." });
@@ -817,14 +877,59 @@ router.post(
           .json({ message: "You can't comment on this post." });
       }
 
-      await SkyHubComment.create({
+      // Reply to a comment on this post (one level: a reply to a reply
+      // attaches to the top comment).
+      let parent = null;
+      if (req.body?.parentId) {
+        if (!validId(req.body.parentId))
+          return res.status(400).json({ message: "Invalid comment id." });
+        const p = await SkyHubComment.findOne({
+          _id: req.body.parentId,
+          post: post._id,
+          hidden: { $ne: true },
+        })
+          .select("author parent")
+          .lean();
+        if (!p) return res.status(404).json({ message: "That comment is gone." });
+        parent = p.parent
+          ? await SkyHubComment.findById(p.parent).select("author").lean()
+          : p;
+        // Replying to the exact comment's author, even inside a thread.
+        parent = { _id: parent?._id || p._id, notifyAuthor: p.author };
+      }
+
+      const created = await SkyHubComment.create({
         post: post._id,
         author: me.id,
         authorName: me.name,
         username: me.username,
         avatar: me.avatar,
         text,
+        ...(parent ? { parent: parent._id } : {}),
       });
+
+      const io = req.app.get("io");
+      quietly(
+        notifyPostComment(io, {
+          postId: post._id,
+          postAuthorId: post.author,
+          commenterId: me.id,
+          commenterName: me.name || "Someone",
+          commentPreview: text,
+        })
+      );
+      if (parent?.notifyAuthor && String(parent.notifyAuthor) !== String(post.author)) {
+        quietly(
+          notifyCommentReply(io, {
+            postId: post._id,
+            commentId: created._id,
+            parentAuthorId: parent.notifyAuthor,
+            replierId: me.id,
+            replierName: me.name || "Someone",
+            replyPreview: text,
+          })
+        );
+      }
       const fresh = await SkyHubPost.findByIdAndUpdate(
         id,
         { $inc: { commentsCount: 1 } },
@@ -843,6 +948,69 @@ router.post(
   }
 );
 
+// POST /api/skyhub/comments/:id/like — like / unlike a comment.
+router.post("/comments/:id/like", requireViewer, rateLimit("react"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!validId(id)) return res.status(400).json({ message: "Invalid comment id." });
+    const me = req.skyUser.id;
+    const c = await SkyHubComment.findOne({ _id: id, hidden: { $ne: true } })
+      .select("likes post author text")
+      .lean();
+    if (!c || (await isBlockedBetween(me, c.author)))
+      return res.status(404).json({ message: "Comment not found." });
+    const post = await SkyHubPost.findOne({ _id: c.post, hidden: { $ne: true } }).select("author").lean();
+    if (!post) return res.status(404).json({ message: "Post not found." });
+    const has = (c.likes || []).map(String).includes(me);
+    const updated = await SkyHubComment.findByIdAndUpdate(
+      id,
+      has ? { $pull: { likes: me } } : { $addToSet: { likes: me } },
+      { new: true, projection: { likes: 1 } }
+    ).lean();
+    const likes = (updated?.likes || []).map(String);
+    const postAuthorId = post.author ? String(post.author) : null;
+    res.json({
+      liked: !has,
+      likesCount: likes.length,
+      likedByAuthor: Boolean(postAuthorId && likes.includes(postAuthorId)),
+    });
+    if (!has && c.author)
+      quietly(
+        notifyCommentLike(req.app.get("io"), {
+          postId: c.post,
+          commentId: c._id,
+          commentAuthorId: c.author,
+          likerId: me,
+          likerName: req.skyUser.name || "Someone",
+          commentPreview: c.text || "",
+          byPostAuthor: me === postAuthorId,
+        })
+      );
+  } catch (err) {
+    console.error("[skyhub] comment like error:", err);
+    res.status(500).json({ message: "Couldn't update like. Try again." });
+  }
+});
+
+// GET /api/skyhub/posts/:id — one post (for links from notifications).
+router.get("/posts/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!validId(id)) return res.status(400).json({ message: "Invalid post id." });
+    const viewerId = req.skyUser?.id || null;
+    const post = await SkyHubPost.findById(id).lean();
+    const mine = viewerId && post?.author && String(post.author) === viewerId;
+    if (!post || (post.hidden && !mine)) return res.status(404).json({ message: "Post not found." });
+    if (viewerId && (await isBlockedBetween(viewerId, post.author)))
+      return res.status(404).json({ message: "Post not found." });
+    const xp = await xpMapFor([post]);
+    return res.json({ post: mapPost(post, viewerId, xp) });
+  } catch (err) {
+    console.error("[skyhub] get post error:", err);
+    return res.status(500).json({ message: "Couldn't load this post. Try again." });
+  }
+});
+
 // DELETE /api/skyhub/comments/:id — your comment, a comment on your post, or an admin.
 router.delete("/comments/:id", requireViewer, async (req, res) => {
   try {
@@ -860,13 +1028,16 @@ router.delete("/comments/:id", requireViewer, async (req, res) => {
       return res
         .status(403)
         .json({ message: "You can't delete this comment." });
+    // Its replies go with it.
+    const gone = 1 + (c.parent ? 0 : (await SkyHubComment.deleteMany({ parent: c._id })).deletedCount || 0);
     await SkyHubComment.deleteOne({ _id: id });
-    const fresh = await SkyHubPost.findOneAndUpdate(
-      { _id: c.post, commentsCount: { $gt: 0 } },
-      { $inc: { commentsCount: -1 } },
+    const before = await SkyHubPost.findById(c.post).select("commentsCount").lean();
+    const fresh = await SkyHubPost.findByIdAndUpdate(
+      c.post,
+      { $set: { commentsCount: Math.max(0, (before?.commentsCount || 0) - gone) } },
       { new: true }
     );
-    return res.json({ ok: true, commentCount: fresh?.commentsCount ?? 0 });
+    return res.json({ ok: true, commentCount: fresh?.commentsCount ?? 0, removed: gone });
   } catch (err) {
     console.error("[skyhub] delete comment error:", err);
     return res.status(500).json({ message: "Couldn't delete comment. Try again." });
