@@ -590,6 +590,59 @@ const searchGroups = new Map(); // searchId -> [display, ...]
 // (owner, departingAt, arrivingAt, totalAmount, stops), with segments only
 // as a fallback — so a missing or differently named segment field can't
 // crash every Atlas search.
+// "11h 5m" from minutes.
+const hm = (min) => {
+  if (!Number.isFinite(min) || min < 0) return null;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+};
+// Minutes between two local times at the SAME airport (a layover), so
+// time zones don't matter. null if either is missing.
+const minutesBetween = (a, b) => {
+  const t1 = Date.parse(String(a || "").slice(0, 19) + "Z");
+  const t2 = Date.parse(String(b || "").slice(0, 19) + "Z");
+  return Number.isFinite(t1) && Number.isFinite(t2) ? Math.round((t2 - t1) / 60000) : null;
+};
+
+/**
+ * One direction of a flight, in plain parts: when it leaves and lands
+ * (local times), where it stops and how long each stop is. A stop of
+ * 6h+ is "long"; one that runs past midnight is "overnight".
+ */
+export function legSummary(slice) {
+  const segs = Array.isArray(slice?.segments) ? slice.segments : [];
+  if (!slice || !segs.length) return null;
+  const layovers = [];
+  for (let i = 0; i < segs.length - 1; i++) {
+    const min = minutesBetween(segs[i].arrivalTime, segs[i + 1].departureTime);
+    const airport = segs[i].destination || segs[i + 1].origin || null;
+    if (min == null) continue;
+    const overnight =
+      String(segs[i].arrivalTime || "").slice(0, 10) !== String(segs[i + 1].departureTime || "").slice(0, 10);
+    layovers.push({ airport, length: hm(min), long: min >= 360, overnight });
+  }
+  return {
+    from: slice.origin || segs[0].origin || null,
+    to: slice.destination || segs.at(-1).destination || null,
+    departLocal: slice.departureTime || segs[0].departureTime || null,
+    arriveLocal: slice.arrivalTime || segs.at(-1).arrivalTime || null,
+    stops: Math.max(0, segs.length - 1),
+    layovers,
+  };
+}
+
+// "Nonstop" / "1 stop · 27h in FLL (overnight)" for one direction.
+export function stopsLine(leg, fallbackStops) {
+  const stops = leg ? leg.stops : fallbackStops;
+  if (!Number.isFinite(stops)) return "";
+  if (stops === 0) return "Nonstop";
+  const lay = (leg?.layovers || [])
+    .map((l) => `${l.length}${l.airport ? ` in ${l.airport}` : ""}${l.overnight ? " (overnight)" : ""}`)
+    .join(", ");
+  return `${stops} stop${stops > 1 ? "s" : ""}${lay ? ` · ${lay}` : ""}`;
+}
+
 function flightDisplay(o) {
   const f = o.frontend || {};
   const segs = Array.isArray(o.segments) ? o.segments : [];
@@ -613,10 +666,15 @@ function flightDisplay(o) {
     arrive: f.arrivingAt || f.arrivalTime || last.arriveTime || null,
     returnDepart: f.returningAt || null,
     stops,
+    // Air time + stops for BOTH directions added together. Not a trip length.
     duration: o.durationText || null,
+    totalTimeBothWays: o.durationText || null,
+    // Each direction on its own, with every stop and how long it is.
+    outbound: legSummary(f.slices?.[0]),
+    returnTrip: legSummary(f.slices?.[1]),
     price: Number(o.price?.total ?? f.totalAmount),
     currency: o.price?.currency || f.totalCurrency || "USD",
-    includedBags: o.baggageSummary || "Not listed by airline",
+    includedBags: o.baggageSummary || "Shown at checkout",
   };
 }
 
@@ -1188,9 +1246,8 @@ async function proposeBooking(
       } · ${opt.display.depart}`,
       lines: [
         `${opt.display.airline} ${opt.display.flightNumbers}`,
-        `${
-          opt.display.stops === 0 ? "Nonstop" : `${opt.display.stops} stop(s)`
-        } · ${opt.display.duration}`,
+        `Out: ${stopsLine(opt.display.outbound, opt.display.stops)}`,
+        ...(opt.display.returnTrip ? [`Back: ${stopsLine(opt.display.returnTrip)}`] : []),
         `Bags: ${opt.display.includedBags}`,
         `${travelerIds.length} traveler(s)`,
       ],
@@ -1414,9 +1471,8 @@ async function openCheckout(owner, userId, { optionId }) {
           `${opt.search.departDate}${
             opt.search.returnDate ? ` – ${opt.search.returnDate}` : " · one way"
           }`,
-          `${d.stops === 0 ? "Nonstop" : `${d.stops} stop(s)`}${
-            d.duration ? ` · ${d.duration}` : ""
-          }`,
+          `Out: ${stopsLine(d.outbound, d.stops)}`,
+          ...(d.returnTrip ? [`Back: ${stopsLine(d.returnTrip)}`] : []),
           `Bags: ${d.includedBags}`,
         ]
       : [
@@ -1594,7 +1650,34 @@ async function runEventSearch(owner, input) {
   if (!events.length) {
     return { options: [], note: "No events found. Suggest other dates or a nearby city." };
   }
+  // The events with real ticket links → a card with "Buy on Ticketmaster"
+  // buttons right away (no extra step for the traveler).
+  const withLinks = events.filter((e) => /^https:\/\//.test(String(e.url || "")));
+  const placeLabel = place?.label || String(input.city || "").trim();
   return {
+    card: withLinks.length
+      ? {
+          type: "trip_events",
+          mode: "search",
+          place: placeLabel || null,
+          start,
+          end,
+          events: withLinks.map((e) => ({
+            name: e.name,
+            date: e.date,
+            time: e.time || null,
+            venue: e.venue?.name || null,
+            city: e.venue?.city || null,
+            category: e.genre || e.category || null,
+            priceFrom: e.priceRange?.min ?? null,
+            currency: e.priceRange?.currency || "USD",
+            url: e.url,
+            status: e.status === "postponed" || e.status === "rescheduled" ? e.status : null,
+          })),
+          excursions: [],
+        }
+      : null,
+    cardShown: withLinks.length > 0,
     options: events.map((e) => {
       const display = {
         name: e.name,
@@ -1608,7 +1691,10 @@ async function runEventSearch(owner, input) {
       };
       return { optionId: cacheOption(owner, "event", e, display, { city: input.city }), ...display };
     }),
-    note: "Tickets are sold on Ticketmaster. Only mention a price if priceFrom is set. Use show_event to show a card for one.",
+    note:
+      "A card with a 'Buy on Ticketmaster' button for each event is already shown below your reply (cardShown). " +
+      "Tickets are sold on Ticketmaster. Only mention a price if priceFrom is set. Don't call show_event for these. " +
+      "If you're already planning a trip with dates that include these events, don't offer to plan a trip around one.",
   };
 }
 
@@ -1675,6 +1761,11 @@ export async function runBookingTool(
       owner,
       ip,
     });
+
+    if (name === "search_events" && result?.card) {
+      const { card, ...forModel } = result;
+      return { result: forModel, action: card };
+    }
 
     if (name === "show_event" && result?.card) {
       const { card, ...forModel } = result;
