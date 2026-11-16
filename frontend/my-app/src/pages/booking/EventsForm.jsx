@@ -8,10 +8,14 @@ import { Select, message as antdMessage } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { MapPin, Calendar, Zap } from "lucide-react";
 import AirportInput from "@/pages/booking/AirportInput";
+import { searchAirports } from "@/data/airportData";
 import SkyrioPicker from "@/pages/booking/SkyrioPicker";
 
 export default function EventsForm({ onDestChange, onSearch, initial = null }) {
   const [destDisplay, setDestDisplay] = useState("");
+  // State or territory of the picked city ("PR" for San Juan, "CA" for
+  // San Jose), so Ticketmaster searches the right one.
+  const [destState, setDestState] = useState("");
   const [dates, setDates] = useState([null, null]);
   const [category, setCategory] = useState("all");
 
@@ -22,6 +26,7 @@ export default function EventsForm({ onDestChange, onSearch, initial = null }) {
 
     onSearch?.({
       city,
+      state: opts.city ? undefined : destState || undefined,
       startDate: range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : undefined,
       endDate: range[1] ? dayjs(range[1]).format("YYYY-MM-DD") : undefined,
       category,
@@ -59,7 +64,16 @@ export default function EventsForm({ onDestChange, onSearch, initial = null }) {
             placeholder="City"
             onChange={(ap) => {
               setDestDisplay(ap.city);
+              setDestState(ap.state || "");
               onDestChange?.(ap.city);
+            }}
+            // Typed a city without picking from the list: still search it.
+            onTextChange={(text) => {
+              setDestDisplay(text);
+              // "San Juan" typed in full → it's the San Juan in our list (PR).
+              const plain = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+              const exact = searchAirports(text).results.find((a) => plain(a.city) === plain(text));
+              setDestState(exact?.state || "");
             }}
           />
         </div>

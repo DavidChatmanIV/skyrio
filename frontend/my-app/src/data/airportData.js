@@ -514,6 +514,75 @@ export const AIRPORTS = [
     country: "Mexico",
     distance: "5 mi from city center",
   },
+  // ── Puerto Rico & Caribbean ──
+  // Puerto Rico is a US territory: state "PR" (searches, Ticketmaster).
+  {
+    code: "SJU",
+    name: "Luis Muñoz Marín Intl.",
+    city: "San Juan",
+    state: "PR",
+    country: "Puerto Rico",
+    distance: "8 mi from Old San Juan",
+  },
+  {
+    code: "BQN",
+    name: "Rafael Hernández Intl.",
+    city: "Aguadilla",
+    state: "PR",
+    country: "Puerto Rico",
+    distance: "6 mi from city center",
+  },
+  {
+    code: "PSE",
+    name: "Mercedita Intl.",
+    city: "Ponce",
+    state: "PR",
+    country: "Puerto Rico",
+    distance: "5 mi from city center",
+  },
+  {
+    code: "STT",
+    name: "Cyril E. King Airport",
+    city: "St. Thomas",
+    state: "VI",
+    country: "US Virgin Islands",
+    distance: "3 mi from Charlotte Amalie",
+  },
+  {
+    code: "PUJ",
+    name: "Punta Cana Intl.",
+    city: "Punta Cana",
+    country: "Dominican Republic",
+    distance: "10 mi from the resorts",
+  },
+  {
+    code: "SDQ",
+    name: "Las Américas Intl.",
+    city: "Santo Domingo",
+    country: "Dominican Republic",
+    distance: "15 mi from city center",
+  },
+  {
+    code: "MBJ",
+    name: "Sangster Intl.",
+    city: "Montego Bay",
+    country: "Jamaica",
+    distance: "3 mi from city center",
+  },
+  {
+    code: "NAS",
+    name: "Lynden Pindling Intl.",
+    city: "Nassau",
+    country: "Bahamas",
+    distance: "10 mi from downtown",
+  },
+  {
+    code: "AUA",
+    name: "Queen Beatrix Intl.",
+    city: "Oranjestad",
+    country: "Aruba",
+    distance: "3 mi from city center",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -614,14 +683,16 @@ export function getNearbyAirports(code) {
 export function searchAirports(query, limit = 8) {
   if (!query || query.trim().length < 2) return { results: [], nearby: null };
 
-  const q = query.trim().toLowerCase();
+  // Accents don't matter: "San Jose" finds "San José".
+  const plain = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const q = plain(query.trim());
 
   const scored = AIRPORTS.reduce((acc, airport) => {
-    const city = airport.city.toLowerCase();
+    const city = plain(airport.city);
     const code = airport.code.toLowerCase();
-    const name = airport.name.toLowerCase();
-    const state = (airport.state || "").toLowerCase();
-    const country = (airport.country || "").toLowerCase();
+    const name = plain(airport.name);
+    const state = plain(airport.state);
+    const country = plain(airport.country);
 
     let score = 0;
 
