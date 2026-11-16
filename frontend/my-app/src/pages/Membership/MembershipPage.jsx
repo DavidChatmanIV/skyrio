@@ -165,6 +165,9 @@ const CSS = `
     color: #fff;
     font-family: 'DM Sans', sans-serif;
     padding: 64px 24px 96px;
+    /* Reach up behind the floating navbar so there's no band above it. */
+    margin-top: calc(-1 * var(--sk-nav-h, 86px));
+    padding-top: calc(64px + var(--sk-nav-h, 86px));
   }
   .mp-head { text-align: center; margin-bottom: 52px; }
   .mp-eyebrow {
