@@ -19,6 +19,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
 import AirportInput from "@/pages/booking/AirportInput";
 import { readHomeAirport, fetchHomeAirport } from "@/lib/homeAirport";
+import { useAuth } from "@/auth/useAuth";
 
 const MIN_BUDGET = 200;
 const MAX_BUDGET = 5000;
@@ -407,35 +408,38 @@ export default function HeroPlanner({
   const [budgetDraft, setBudgetDraft] = useState("");
   const [selectedDest, setSelectedDest] = useState(null);
 
-  // Flying from: starts on the saved home airport.
-  const [homeAirport, setHomeAirport] = useState(readHomeAirport);
-  const [departureAirport, setDepartureAirport] = useState(
-    () => readHomeAirport() || null
-  );
-  const [departureDisplay, setDepartureDisplay] = useState(() =>
-    airportLabel(readHomeAirport())
-  );
+  // Flying from: signed in → starts on your home airport. Guests start
+  // empty and pick one (nothing left over from another login).
+  const { isAuthed } = useAuth();
+  const [homeAirport, setHomeAirport] = useState(null);
+  const [departureAirport, setDepartureAirport] = useState(null);
+  const [departureDisplay, setDepartureDisplay] = useState("");
   const userTouchedOrigin = useRef(false);
 
-  // New device: nothing saved in this browser, so ask the account.
   useEffect(() => {
-    if (homeAirport) return;
     let alive = true;
-    fetchHomeAirport()
-      .then(({ homeAirport: ap } = {}) => {
-        if (!alive || !ap) return;
-        setHomeAirport(ap);
-        if (!userTouchedOrigin.current) {
-          setDepartureAirport(ap);
-          setDepartureDisplay(airportLabel(ap));
-        }
-      })
-      .catch(() => {});
+    const use = (ap) => {
+      setHomeAirport(ap || null);
+      if (!userTouchedOrigin.current) {
+        setDepartureAirport(ap || null);
+        setDepartureDisplay(ap ? airportLabel(ap) : "");
+      }
+    };
+    if (!isAuthed) {
+      use(null);
+      return undefined;
+    }
+    const local = readHomeAirport();
+    if (local) use(local);
+    else
+      // New device: nothing saved in this browser, so ask the account.
+      fetchHomeAirport()
+        .then(({ homeAirport: ap } = {}) => alive && ap && use(ap))
+        .catch(() => {});
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAuthed]);
 
   // Keep the boarding pass in sync.
   useEffect(() => {
