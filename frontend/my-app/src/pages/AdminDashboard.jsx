@@ -3906,6 +3906,11 @@ function FeedbackInbox({ refreshKey, onChange }) {
                   <span>{fb.user?.email || fb.guestEmail}</span>
                 )}
                 {!fb.user && fb.guestEmail && <Pill tone="blue">Guest</Pill>}
+                {(fb.plan === "legend" || fb.plan === "explorer") && (
+                  <Pill tone={fb.plan === "legend" ? "amber" : "purple"}>
+                    {fb.plan === "legend" ? "Legend" : "Explorer"} member
+                  </Pill>
+                )}
                 <Pill tone={FEEDBACK_TYPE_TONES[fb.type] || "muted"}>
                   {FEEDBACK_TYPE_LABELS[fb.type] || fb.type}
                 </Pill>

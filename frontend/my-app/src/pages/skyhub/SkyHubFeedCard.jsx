@@ -272,6 +272,14 @@ const FRAME_CSS = `
   padding: 2px 8px; border-radius: 999px; white-space: nowrap;
   color: #1a0e06; background: linear-gradient(135deg, #ffb347, #ffd27a);
 }
+/* Legend member badge (paid plan perk) */
+.sh-legendChip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 800; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  color: #ffd27a; background: linear-gradient(135deg, #5b3fd6, #8b5cf6);
+  border: 1px solid rgba(255,210,122,0.45);
+}
 `;
 
 function fmt(n) {
@@ -437,6 +445,11 @@ export default function SkyHubFeedCard({
                 )}
                 {post.following ? "Following" : "Follow"}
               </button>
+            )}
+            {post.legend && (
+              <span className="sh-legendChip" title="Legend member">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg> Legend
+              </span>
             )}
             {seasoned && (
               <span

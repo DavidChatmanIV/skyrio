@@ -97,6 +97,11 @@ export function ProfileCard({ userId, fetcher, onClose, onFollow, onOpenPassport
               <div className="shPpl__sub">
                 {card.username ? `@${card.username}` : ""}
                 {card.badge && <span className="shPpl__badge">{card.badge}</span>}
+                {card.legend && (
+                  <span className="sh-legendChip" title="Legend member">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg> Legend
+                  </span>
+                )}
               </div>
               {card.city && <div className="shPpl__city">{card.city}</div>}
             </div>

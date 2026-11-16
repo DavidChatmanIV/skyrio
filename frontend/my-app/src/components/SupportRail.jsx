@@ -206,6 +206,15 @@ const textareaStyle = {
 };
 
 const isSignedIn = () => !!localStorage.getItem("token");
+// The signed-in traveler's plan (shown only; the server reads the real one).
+const myPlan = () => {
+  try {
+    if (!isSignedIn()) return "free";
+    return JSON.parse(localStorage.getItem("user") || "{}").plan || "free";
+  } catch {
+    return "free";
+  }
+};
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Hidden from people (and screen readers); only bots fill it in.
 const honeypotStyle = {
@@ -978,6 +987,7 @@ export default function SupportRail() {
   if (pickerActive) return null;
 
   const signedIn = isSignedIn();
+  const plan = myPlan();
   const fbChars = fbMessage.trim().length;
   const rvChars = review.text.trim().length;
 
@@ -1920,7 +1930,9 @@ export default function SupportRail() {
                   margin: "0 0 8px",
                 }}
               >
-                Got it. We'll be in touch.
+                {helpForm.category === "founder" && plan === "legend"
+                  ? "Sent to the founder."
+                  : "Got it. We'll be in touch."}
               </p>
               <p
                 style={{
@@ -1929,7 +1941,12 @@ export default function SupportRail() {
                   margin: "0 0 24px",
                 }}
               >
-                A real person will reply to {helpForm.email || "your email"}.
+                {helpForm.category === "founder" && plan === "legend"
+                  ? `The founder will reply to ${helpForm.email || "your email"}.`
+                  : `A real person will reply to ${helpForm.email || "your email"}.`}
+                {plan !== "free" &&
+                  helpForm.category !== "founder" &&
+                  " Members are answered first."}
               </p>
               <button type="button" onClick={closePanel} style={btnSecondary}>
                 Close
@@ -1979,6 +1996,9 @@ export default function SupportRail() {
                   <option value="account">Account / log in</option>
                   <option value="booking">Booking problem</option>
                   <option value="feature">Feature request</option>
+                  {plan === "legend" && (
+                    <option value="founder">Message the founder</option>
+                  )}
                   <option value="other">Other</option>
                 </select>
               </div>

@@ -6,11 +6,14 @@ import {
   replyToSupportTicket,
 } from "../controllers/support.controller.js";
 import { verifyAdmin } from "./admin.routes.js";
+import { optionalAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
 
-// POST /api/support — submit new support ticket (logged-in or anonymous)
-router.post("/", submitSupportTicket);
+// POST /api/support — submit new support ticket (logged-in or anonymous).
+// optionalAuth reads the login so members' tickets get their plan
+// (priority) from the server, never from the form.
+router.post("/", optionalAuth, submitSupportTicket);
 
 // Everything below is admin-only: tickets hold people's names, emails and
 // problems, so only the admin dashboard may read or change them.

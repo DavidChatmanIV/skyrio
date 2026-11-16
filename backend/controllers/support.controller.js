@@ -16,8 +16,11 @@ const CATEGORIES = [
   "account",
   "booking",
   "feature",
+  "founder", // Legend only: "Message the founder"
   "other",
 ];
+const PLANS = ["free", "explorer", "legend"];
+const PLAN_RANK = { free: 0, explorer: 1, legend: 2 };
 const STATUSES = ["open", "in_progress", "resolved", "closed"];
 
 const replySchema = new mongoose.Schema(
@@ -48,6 +51,11 @@ const supportTicketSchema = new mongoose.Schema(
     source: { type: String, enum: ["form", "atlas"], default: "form" },
     // Someone needs help fast (e.g. stuck at the airport). Texts admins.
     urgent: { type: Boolean, default: false },
+    // The sender's plan when they wrote in (read from their account).
+    // priority sorts the dashboard: Legend 2, Explorer 1, Free 0, and a
+    // Legend "Message the founder" note 3.
+    plan: { type: String, enum: PLANS, default: "free" },
+    priority: { type: Number, default: 0 },
     // Optional: the booking this is about, so the dashboard can link to it.
     bookingId: { type: String, required: false },
     replies: { type: [replySchema], default: [] },
@@ -59,6 +67,7 @@ const supportTicketSchema = new mongoose.Schema(
 );
 
 supportTicketSchema.index({ status: 1, createdAt: -1 });
+supportTicketSchema.index({ status: 1, urgent: -1, priority: -1, createdAt: -1 });
 
 const SupportTicket =
   mongoose.models.SupportTicket ||
@@ -153,11 +162,23 @@ export async function submitSupportTicket(req, res) {
         .json({ ok: false, message: "'message' is required" });
     }
 
+    // Plan comes from the account, never the form. Only Legend members can
+    // use the founder line; anyone else's "founder" note is filed as other.
+    const plan = PLANS.includes(req.user?.plan) ? req.user.plan : "free";
+    const toFounder = category === "founder" && plan === "legend";
+    const cat = toFounder
+      ? "founder"
+      : CATEGORIES.includes(category) && category !== "founder"
+      ? category
+      : "other";
+
     const ticket = await SupportTicket.create({
       userId: req.user?._id || req.user?.id || undefined,
       name: String(name).trim(),
       email: String(email).trim(),
-      category: CATEGORIES.includes(category) ? category : "other",
+      category: cat,
+      plan,
+      priority: toFounder ? 3 : PLAN_RANK[plan],
       message: String(message).trim(),
       page: page || undefined,
       userAgent: req.headers["user-agent"] || undefined,
@@ -170,7 +191,9 @@ export async function submitSupportTicket(req, res) {
     const preview = ticket.message.replace(/\s+/g, " ").slice(0, 90);
     notifyAdmins(
       ticket.urgent ? "supportUrgent" : "supportAll",
-      `${ticket.urgent ? "URGENT " : ""}ticket from ${ticket.name} (${
+      `${ticket.urgent ? "URGENT " : ""}${
+        toFounder ? "FOUNDER LINE " : ""
+      }${plan !== "free" ? `[${plan}] ` : ""}ticket from ${ticket.name} (${
         ticket.category
       }): ${preview}`
     );
@@ -201,10 +224,11 @@ export async function listSupportTickets(req, res) {
 
     const [tickets, byStatus] = await Promise.all([
       SupportTicket.find(filter)
-        // Urgent first, then newest.
-        .sort({ urgent: -1, createdAt: -1 })
+        // Urgent first, then the founder line, Legend, Explorer, Free;
+        // newest first within each.
+        .sort({ urgent: -1, priority: -1, createdAt: -1 })
         .limit(Math.min(Number(limit) || 50, 200))
-        .populate("userId", "email username name")
+        .populate("userId", "email username name plan")
         .lean(),
       SupportTicket.aggregate([{ $group: { _id: "$status", n: { $sum: 1 } } }]),
     ]);

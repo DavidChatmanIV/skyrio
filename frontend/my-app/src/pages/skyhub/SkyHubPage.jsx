@@ -249,6 +249,9 @@ function mapBackendPost(post) {
     avatar: photoUrl(post.avatar) || null,
     verified: !!post.verified,
     badge: post.authorBadge || "Explorer",
+    legend: !!post.authorLegend,
+    // "Seasoned Traveler" frame (a Passport Reward the author redeemed)
+    authorFrame: post.authorFrame || null,
     type: post.type || "Story",
     // One of the TOPIC chips (Budget, Food, ...) chosen on the postcard
     topic: post.topic || "",
