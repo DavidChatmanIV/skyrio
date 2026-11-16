@@ -50,6 +50,7 @@ import { LEARNING_CATEGORIES } from "../../models/AtlasLearnedPreference.js";
 // Book page's Cars and Events tabs use.
 import { searchCars, CarSearchError } from "../../routes/api/cars/cars.service.js";
 import { searchEvents } from "../../providers/ticketmasterProvider.js";
+import { placeFor } from "./tripEvents.js";
 import { GET_WEATHER_TOOL, getWeatherForAtlas } from "./atlasWeather.js";
 import {
   CATEGORY_MAP as EVENT_CATEGORIES,
@@ -237,7 +238,7 @@ export const ATLAS_BOOKING_TOOLS = [
   {
     name: "search_events",
     description:
-      "Find concerts, sports games, shows and family events in a city for given dates (Ticketmaster). Returns up to 6 events with an optionId each. Tickets are sold by Ticketmaster, not Skyrio.",
+      "Find concerts, sports games, shows and family events in a city for given dates (Ticketmaster). Returns up to 5 events with an optionId each. Tickets are sold by Ticketmaster, not Skyrio.",
     parameters: {
       type: "object",
       properties: {
@@ -1563,13 +1564,19 @@ async function runEventSearch(owner, input) {
   if (end < start) return { error: "End date is before the start date." };
   if (!process.env.TICKETMASTER_API_KEY) return { error: "Event search isn't available right now." };
   const category = input.category && input.category !== "all" ? EVENT_CATEGORIES[input.category] : undefined;
+  // "San Juan" / "Puerto Rico" → the whole island (countryCode PR).
+  const place = placeFor({
+    destination: [input.city, input.stateCode].filter(Boolean).join(", "),
+  });
+  const pr = place?.countryCode === "PR";
   let data;
   try {
     data = await searchEvents({
-      city: String(input.city || "").trim(),
-      stateCode: input.stateCode || undefined,
+      city: pr ? undefined : String(input.city || "").trim(),
+      stateCode: pr ? undefined : input.stateCode || undefined,
+      countryCode: pr ? "PR" : undefined,
       startDateTime: toTmDateTime(start),
-      endDateTime: toTmDateTime(end, true),
+      endDateTime: toTmDateTime(addDays(end, 1), true), // late shows run past midnight UTC
       classificationName: category,
       keyword: input.keyword ? String(input.keyword).slice(0, 100) : undefined,
       size: 20,
@@ -1581,7 +1588,9 @@ async function runEventSearch(owner, input) {
   const events = (data?._embedded?.events || [])
     .map(normalizeEvent)
     .filter((e) => !["cancelled", "canceled", "offsale"].includes(e.status))
-    .slice(0, 6);
+    // Only events on the asked-for days (by the event's local date).
+    .filter((e) => e.date && e.date >= start && e.date <= end)
+    .slice(0, 5);
   if (!events.length) {
     return { options: [], note: "No events found. Suggest other dates or a nearby city." };
   }

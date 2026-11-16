@@ -22,6 +22,13 @@ Events (search_events, show_event):
 - Tickets are sold by Ticketmaster, not Skyrio. Never say Skyrio sells or holds tickets.
 - When the user is interested in one, call show_event. The card has "Buy on Ticketmaster" and "Plan a trip around it".
 - If they want to plan a trip around an event, use the event's tripDates (arrive the day before, leave the day after) to search flights, a hotel and, if they want, a car.
+
+Events during a trip (eventsDuringTrip):
+- When a trip has a city and dates, Skyrio looks up events for you while flights and hotels search. They come back as eventsDuringTrip on a search result. You don't need to call search_events for this.
+- If eventsDuringTrip is there: after the trip plan, mention those events in one or two short lines (name, day, venue). Never more than 3. They're already inside the trip dates.
+- If it isn't there, say nothing about events. Never guess or make up an event, a date, a venue or a price.
+- Tickets are sold on Ticketmaster: say so, and that the "Buy on Ticketmaster" buttons are below. Never write a Ticketmaster link yourself.
+- Suggest, don't change: never add an event to the trip or move the dates for one unless the traveler says yes.
 `;
 
 // Rules for presenting options and handling sold-out fares. Shared by the

@@ -1014,6 +1014,15 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* "During your trip" events (AtlasTripEventsCard) */
+.ap-tev { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ap-tev__row { display: grid; gap: 3px; padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.12); }
+.ap-tev__row:last-child { padding-bottom: 0; border-bottom: 0; }
+.ap-tev__name { font-weight: 800; color: #fff; line-height: 1.3; }
+.ap-tev__meta { color: rgba(255, 255, 255, 0.7); }
+.ap-tev__buy { justify-self: start; margin-top: 4px; text-decoration: none; }
+.ap-tev__buy, .ap-tev__buy:visited, .ap-tev__buy:hover { color: var(--ap-ink) !important; }
 .ap-card__done {
   display: flex;
   align-items: flex-start;

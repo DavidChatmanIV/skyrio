@@ -11,6 +11,7 @@ import AtlasBookingCard from "@/components/Atlas/AtlasBookingCard";
 import AtlasProfileCard from "@/components/Atlas/AtlasProfileCard";
 import AtlasCheckoutCard from "@/components/Atlas/AtlasCheckoutCard";
 import AtlasEventCard from "@/components/Atlas/AtlasEventCard";
+import AtlasTripEventsCard, { isTripEventsAction } from "@/components/Atlas/AtlasTripEventsCard";
 import AtlasGroupCard, { keepFirstGroupHint } from "@/components/Atlas/AtlasGroupCard";
 import { getGuestKey } from "@/lib/guestKey";
 import AtlasFeedbackBar from "@/components/Atlas/AtlasFeedbackBar";
@@ -111,7 +112,8 @@ const KNOWN_ACTION = (a) =>
     typeof a.url === "string" &&
     /^https?:\/\//.test(a.url) &&
     typeof a.inviteUrl === "string") ||
-  a?.type === "group_signup_hint";
+  a?.type === "group_signup_hint" ||
+  isTripEventsAction(a);
 
 const saveChat = (list) => {
   try {
@@ -718,6 +720,8 @@ function Bubble({ msg, onActionResolved, conversationId, onProfileDone }) {
           return <AtlasCheckoutCard key={`checkout-${i}`} action={action} />;
         if (action?.type === "event")
           return <AtlasEventCard key={`event-${i}`} action={action} />;
+        if (action?.type === "trip_events")
+          return <AtlasTripEventsCard key={`trip-events-${i}`} action={action} />;
         if (
           action?.type === "group_trip" ||
           action?.type === "group_signup_hint"
