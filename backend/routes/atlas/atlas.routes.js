@@ -73,7 +73,10 @@ const TRIP_EVENTS_NOTE =
   "Timing: when flights were searched, each event has landBy (latest landing to make it, 3h before it starts) and " +
   "fitsFlightOptionIds / missesFlightOptionIds. List an event under 'Happening while you're there' only if the flight " +
   "you're recommending is in fitsFlightOptionIds. If a good one is missed, say it in one line, e.g. " +
-  "'Dalvin La Melodia plays Jan 21 at 8 PM, but this flight lands Jan 22. Want a flight that gets you there in time?'";
+  "'Dalvin La Melodia plays Jan 21 at 8 PM, but this flight lands Jan 22. Want a flight that gets you there in time?' " +
+  "Other nights: an event can have otherShows (the same show on other dates in the trip). Mention them in a few words " +
+  "('also Jan 23 at 8 PM'). If switchedFrom is set, the first night didn't fit the flights, so lead with the night that works " +
+  "and say the earlier one is too soon after landing.";
 
 const TRIP_EXCURSIONS_NOTE =
   "Real tours and activities from Viator, available during this trip (only these). " +
@@ -87,7 +90,11 @@ const TRIP_EXTRAS = [
   { key: "events", field: "eventsDuringTrip", note: TRIP_EVENTS_NOTE, skipIf: "search_events" },
   { key: "excursions", field: "excursionsDuringTrip", note: TRIP_EXCURSIONS_NOTE },
 ];
-const forAtlas = (list) => list.map(({ url, currency, ...rest }) => rest);
+const forAtlas = (list) =>
+  list.map(({ url, currency, otherShows, ...rest }) => ({
+    ...rest,
+    ...(otherShows?.length ? { otherShows: otherShows.map(({ url: _u, ...o }) => o) } : {}),
+  }));
 
 const router = Router();
 

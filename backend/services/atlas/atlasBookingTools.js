@@ -50,7 +50,7 @@ import { LEARNING_CATEGORIES } from "../../models/AtlasLearnedPreference.js";
 // Book page's Cars and Events tabs use.
 import { searchCars, CarSearchError } from "../../routes/api/cars/cars.service.js";
 import { searchEvents } from "../../providers/ticketmasterProvider.js";
-import { placeFor } from "./tripEvents.js";
+import { placeFor, eventView, groupShows } from "./tripEvents.js";
 import { checkEventsAgainstFlights } from "./tripTiming.js";
 
 // Each traveler's latest flight search (30 min), so an events search later
@@ -1675,10 +1675,12 @@ async function runEventSearch(owner, input) {
     return { options: [], note: "No events found. Suggest other dates or a nearby city." };
   }
   // The events with real ticket links → a card with "Buy on Ticketmaster"
-  // buttons right away (no extra step for the traveler).
-  let withLinks = events.filter((e) => /^https:\/\//.test(String(e.url || "")));
+  // buttons right away (no extra step for the traveler). The same show on
+  // several nights is one entry with its other nights (otherShows).
+  const withLinks = events.filter((e) => /^https:\/\//.test(String(e.url || "")));
+  let cardEvents = groupShows(withLinks.map(eventView));
   // Flights searched earlier in this chat to the same city: check which
-  // events those flights actually get them to (land 3h+ before it starts).
+  // nights those flights actually get them to (land 3h+ before it starts).
   const lf = lastFlights.get(owner);
   const flightCity = lf && Date.now() - lf.at < LAST_FLIGHTS_MS ? placeFor({ airportCode: lf.search.destination })?.city : null;
   const sameTrip =
@@ -1686,53 +1688,27 @@ async function runEventSearch(owner, input) {
     flightCity.toLowerCase() === String(input.city || "").trim().toLowerCase() &&
     (!lf.search.returnDate || start <= lf.search.returnDate) &&
     end >= lf.search.departDate;
-  if (sameTrip) {
-    const checked = checkEventsAgainstFlights(
-      withLinks.map((e) => ({ name: e.name, date: e.date, time: e.time })),
-      lf.options
-    );
-    withLinks = withLinks.map((e, i) => ({ ...e, _timing: checked[i] }));
-  }
+  if (sameTrip) cardEvents = checkEventsAgainstFlights(cardEvents, lf.options);
   const placeLabel = place?.label || String(input.city || "").trim();
   return {
-    card: withLinks.length
-      ? {
-          type: "trip_events",
-          mode: "search",
-          place: placeLabel || null,
-          start,
-          end,
-          events: withLinks.map((e) => ({
-            name: e.name,
-            date: e.date,
-            time: e.time || null,
-            venue: e.venue?.name || null,
-            city: e.venue?.city || null,
-            category: e.genre || e.category || null,
-            priceFrom: e.priceRange?.min ?? null,
-            currency: e.priceRange?.currency || "USD",
-            url: e.url,
-            status: e.status === "postponed" || e.status === "rescheduled" ? e.status : null,
-            ...(e._timing?.landBy
-              ? { landBy: e._timing.landBy, fitsAnyFlight: e._timing.fitsAnyFlight }
-              : {}),
-          })),
-          excursions: [],
-        }
+    card: cardEvents.length
+      ? { type: "trip_events", mode: "search", place: placeLabel || null, start, end, events: cardEvents, excursions: [] }
       : null,
-    cardShown: withLinks.length > 0,
+    cardShown: cardEvents.length > 0,
     ...(sameTrip
       ? {
-          flightTiming: withLinks.map((e) => ({
+          flightTiming: cardEvents.map((e) => ({
             name: e.name,
             date: e.date,
             time: e.time,
-            landBy: e._timing?.landBy,
-            fitsFlightOptionIds: e._timing?.fitsFlightOptionIds,
-            missesFlightOptionIds: e._timing?.missesFlightOptionIds,
+            landBy: e.landBy,
+            fitsFlightOptionIds: e.fitsFlightOptionIds,
+            missesFlightOptionIds: e.missesFlightOptionIds,
+            ...(e.switchedFrom ? { switchedFrom: e.switchedFrom } : {}),
+            otherShows: (e.otherShows || []).map(({ url, ...o }) => o),
           })),
           flightTimingNote:
-            "Checked against the flights you showed earlier. If an event has no fitting flight, say so plainly (e.g. 'X plays Jan 21 at 8 PM, but this flight lands Jan 22. Want a flight that gets you there in time?').",
+            "Checked against the flights you showed earlier. If a night has no fitting flight, say so plainly and point to a night that works (otherShows), e.g. 'Dalvin La Melodia plays Jan 21 at 8 PM, but this flight lands Jan 22. It also plays Jan 23 at 8 PM, which works.'",
         }
       : {}),
     options: events.map((e) => {

@@ -91,8 +91,8 @@ export function pickTripEvents(events, { start, end, interests = [], max = MAX_T
     const i = interests.indexOf(e.category);
     return i === -1 ? interests.length : i;
   };
-  const seen = new Set();
-  return (events || [])
+  const byName = new Map(); // one show, many nights → one entry + otherShows
+  const ordered = (events || [])
     .filter(
       (e) =>
         e?.name &&
@@ -102,16 +102,40 @@ export function pickTripEvents(events, { start, end, interests = [], max = MAX_T
         /^https:\/\//.test(String(e.url || "")) &&
         !["cancelled", "canceled", "offsale"].includes(e.status)
     )
-    .sort((a, b) => rank(a) - rank(b) || a.date.localeCompare(b.date) || String(a.time || "").localeCompare(String(b.time || "")))
-    .filter((e) => {
-      const k = e.name.toLowerCase(); // one show, many nights → list it once
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    })
+    .sort((a, b) => rank(a) - rank(b) || a.date.localeCompare(b.date) || String(a.time || "").localeCompare(String(b.time || "")));
+  for (const e of ordered) {
+    const k = e.name.toLowerCase();
+    const first = byName.get(k);
+    if (!first) byName.set(k, { ...e, otherShows: [] });
+    else if (first.otherShows.length < MAX_OTHER_SHOWS) first.otherShows.push(e);
+  }
+  return [...byName.values()]
     .slice(0, max)
     .sort((a, b) => a.date.localeCompare(b.date) || String(a.time || "").localeCompare(String(b.time || "")));
 }
+
+/** Card-shaped events (eventView) → one entry per show, other nights in otherShows. */
+export function groupShows(views = []) {
+  const byName = new Map();
+  for (const v of views) {
+    const k = String(v?.name || "").toLowerCase();
+    if (!k) continue;
+    const first = byName.get(k);
+    if (!first) byName.set(k, { ...v, otherShows: [...(v.otherShows || [])] });
+    else if (first.otherShows.length < MAX_OTHER_SHOWS)
+      first.otherShows.push({ date: v.date, time: v.time, url: v.url, status: v.status });
+  }
+  return [...byName.values()];
+}
+
+// Other nights of the same show within the trip (e.g. Jan 21 and Jan 23).
+const MAX_OTHER_SHOWS = 3;
+const showView = (e) => ({
+  date: e.date,
+  time: e.time || null,
+  url: e.url,
+  status: e.status === "postponed" || e.status === "rescheduled" ? e.status : null,
+});
 
 /** What Atlas and the card get: only fields from Ticketmaster's data. */
 export const eventView = (e) => ({
@@ -125,6 +149,7 @@ export const eventView = (e) => ({
   currency: e.priceRange?.currency || "USD",
   url: e.url,
   status: e.status === "postponed" || e.status === "rescheduled" ? e.status : null,
+  otherShows: (e.otherShows || []).map(showView),
 });
 
 /**

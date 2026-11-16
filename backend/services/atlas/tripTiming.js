@@ -51,28 +51,58 @@ export function eventMiss(e, flight) {
  *   fitsAnyFlight: false when none of the flights shown get them there
  * No flights → events come back unchanged.
  */
-export function checkEventsAgainstFlights(events = [], flights = []) {
+function checkOne(e, opts) {
+  const start = eventStart(e);
+  if (start == null) return e;
+  const fits = [];
+  const misses = [];
+  for (const f of opts) {
+    const why = eventMiss(e, f);
+    if (why) misses.push({ optionId: f.optionId, why });
+    else fits.push(f.optionId);
+  }
+  return {
+    ...e,
+    landBy: iso(start - LAND_BEFORE_H * HOUR),
+    timeUnknown: !e.time || undefined,
+    fitsAnyFlight: fits.length > 0,
+    fitsFlightOptionIds: fits,
+    missesFlightOptionIds: misses,
+  };
+}
+
+/**
+ * Same as above for each show and its other nights (otherShows). If the
+ * first night doesn't fit any flight but another night does, that night
+ * becomes the main one (switchedFrom says which night it replaced), so the
+ * traveler sees a showtime they can actually make.
+ */
+export function checkEventsAgainstFlightsAll(events = [], flights = []) {
   const opts = (flights || []).filter((f) => f?.optionId && f.outbound);
   if (!opts.length) return events;
   return events.map((e) => {
-    const start = eventStart(e);
-    if (start == null) return e;
-    const fits = [];
-    const misses = [];
-    for (const f of opts) {
-      const why = eventMiss(e, f);
-      if (why) misses.push({ optionId: f.optionId, why });
-      else fits.push(f.optionId);
-    }
+    const shared = { ...e };
+    delete shared.otherShows;
+    const nights = [shared, ...(e.otherShows || []).map((o) => ({ ...shared, ...o }))].map((n) => checkOne(n, opts));
+    const mainIdx = nights[0].fitsAnyFlight === false ? nights.findIndex((n) => n.fitsAnyFlight) : 0;
+    const pick = mainIdx > 0 ? mainIdx : 0;
+    const main = nights[pick];
+    const others = nights
+      .filter((_, i) => i !== pick)
+      .map(({ date, time, url, status, landBy, fitsAnyFlight, fitsFlightOptionIds, timeUnknown }) => ({
+        date, time, url, status, landBy, fitsAnyFlight, fitsFlightOptionIds, ...(timeUnknown ? { timeUnknown } : {}),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date) || String(a.time || "").localeCompare(String(b.time || "")));
     return {
-      ...e,
-      landBy: iso(start - LAND_BEFORE_H * HOUR),
-      timeUnknown: !e.time || undefined,
-      fitsAnyFlight: fits.length > 0,
-      fitsFlightOptionIds: fits,
-      missesFlightOptionIds: misses,
+      ...main,
+      otherShows: others,
+      ...(pick > 0 ? { switchedFrom: { date: nights[0].date, time: nights[0].time, why: "no flight shown lands in time" } } : {}),
     };
   });
+}
+
+export function checkEventsAgainstFlights(events = [], flights = []) {
+  return checkEventsAgainstFlightsAll(events, flights);
 }
 
 /** The date they really arrive for hotel purposes (before 6 AM → the night before). */
