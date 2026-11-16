@@ -51,6 +51,7 @@ async function tmGet(path, params = {}) {
 export async function searchEvents({
   city,
   stateCode,
+  countryCode,
   lat,
   lng,
   radius = 25,
@@ -80,6 +81,9 @@ export async function searchEvents({
     params.city = city;
     if (stateCode) params.stateCode = stateCode;
   }
+  // e.g. "PR" (Puerto Rico) searches the whole island; also narrows a city
+  // name to the right country ("Paris" FR, not Paris, TX).
+  if (countryCode && lat == null) params.countryCode = countryCode;
 
   return tmGet("/events.json", params);
 }

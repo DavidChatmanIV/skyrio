@@ -44,6 +44,21 @@ import {
 // Same admin check as the feedback inbox and admin dashboard.
 import { verifyAdmin } from "../admin.routes.js";
 import { atlasStatusNote } from "../../services/siteStatus.js";
+import { tripEvents, tripFromCalls } from "../../services/atlas/tripEvents.js";
+import User from "../../models/user.js";
+
+// Atlas finds events for a trip on its own (see services/atlas/tripEvents.js).
+// They're looked up while flights and hotels search; this is the most extra
+// time we wait for them before Atlas answers. Anything slower is skipped.
+const TRIP_EVENTS_GRACE_MS = 400;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const TRIP_EVENTS_NOTE =
+  "Real events from Ticketmaster during this trip (only these, all inside the trip dates). " +
+  "Mention them in one or two short lines after the trip plan: name, day, venue. " +
+  "Say tickets are sold on Ticketmaster and the 'Buy on Ticketmaster' buttons are below. " +
+  "Suggest only: don't add them to the trip or change dates unless the traveler says yes. " +
+  "Only give a price if priceFrom is set.";
 
 const router = Router();
 
@@ -916,6 +931,18 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
     const actions = [];
     const toolsUsed = new Set();
     let groupSearchSeen = 0; // most adults in a flight/hotel search this turn
+    // Trip events: looked up once per turn, alongside flights + hotels.
+    let tripEventsRun = null; // Promise<{ place, events }>
+    let tripEventsShown = null; // what was handed to Atlas
+    let vibesP = null;
+    const myVibes = () =>
+      (vibesP ||= userId
+        ? User.findById(userId)
+            .select("travelVibes")
+            .lean()
+            .then((u) => u?.travelVibes || [])
+            .catch(() => [])
+        : Promise.resolve([]));
     let convo = normalizedMessages;
     let result = null;
 
@@ -937,6 +964,19 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       // Tools asked for in the same round run at the same time (flights and
       // hotels together, not one after the other), then are handled in order.
       const calls = result.toolCalls.slice(0, 4);
+
+      // A trip with a city and dates (hotel stay or round-trip flight) →
+      // look for events at the same time. Skipped if Atlas is already
+      // searching events itself.
+      const trip =
+        tools &&
+        !tripEventsRun &&
+        !calls.some((c) => c.name === "search_events") &&
+        tripFromCalls(calls);
+      if (trip) {
+        tripEventsRun = myVibes().then((vibes) => tripEvents({ ...trip, vibes }));
+      }
+
       const runs = await Promise.all(
         calls.map((call) =>
           (isBookingTool(call.name)
@@ -981,10 +1021,44 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
         }
         toolResults.push({ id: call.id, name: call.name, result: ran.result });
       }
+
+      // Hand the trip's events to Atlas with this round's search results,
+      // if they're ready (they usually beat flights/hotels). Never waits
+      // more than TRIP_EVENTS_GRACE_MS.
+      if (tripEventsRun && !tripEventsShown) {
+        const found = await Promise.race([tripEventsRun, sleep(TRIP_EVENTS_GRACE_MS).then(() => null)]);
+        const target = toolResults.find(
+          (t) => ["search_hotels", "search_flights"].includes(t.name) && t.result && !t.result.error
+        );
+        if (found?.events?.length && target) {
+          tripEventsShown = found;
+          target.result = {
+            ...target.result,
+            eventsDuringTrip: {
+              place: found.place,
+              dates: `${found.start} to ${found.end}`,
+              events: found.events.map(({ url, currency, ...e }) => e),
+              note: TRIP_EVENTS_NOTE,
+            },
+          };
+        }
+      }
       convo = [
         ...convo,
         ...buildToolResultMessages(result.provider, result, toolResults),
       ];
+    }
+
+    // The events Atlas was told about → a small card with the real
+    // "Buy on Ticketmaster" links (straight from Ticketmaster's data).
+    if (tripEventsShown?.events?.length && actions.length < 3) {
+      actions.push({
+        type: "trip_events",
+        place: tripEventsShown.place,
+        start: tripEventsShown.start,
+        end: tripEventsShown.end,
+        events: tripEventsShown.events,
+      });
     }
 
     // Guests planning for a group (3+ people) get one small, optional card
