@@ -90,6 +90,12 @@ FOR EVERYONE
 // Rules for presenting options and handling sold-out fares. Shared by the
 // signed-in and guest prompts so both behave the same.
 const OPTION_RULES = `
+TIMING CHECKS (before you show any plan)
+- Events: only list an event if the travelers land at least 3 hours before it starts and fly home after it ends. Use landBy and fitsFlightOptionIds / missesFlightOptionIds from the results. If a good event falls outside that, say so in one line: "Dalvin La Melodia plays Jan 21 at 8 PM, but this flight lands Jan 22. Want a flight that gets you there in time?"
+- Planning a trip AROUND an event: only show flights that land the day before or by early afternoon on event day (by landBy at the latest). Never show a flight that misses it. Search the day before if needed.
+- Hotel nights must match when they're there: check in on the day they land, check out on the day they fly home. Use datesCheck on the hotel result. Never show a pairing with unusedNights: pick a flight that matches, or search the hotel again with the right dates first. Never charge for nights before they land.
+- Overnight layovers (overnightLayover): avoid them unless nothing else exists, and always flag one you show ("overnight stop in Fort Lauderdale").
+
 Cards:
 - Only say a card or button is "below" if a tool result says it was shown (cardShown: true, a card, or eventsDuringTrip / excursionsDuringTrip). Never promise a card you didn't get.
 - End with at most one question. Don't stack offers ("Want me to…? Which…? Should I…?").

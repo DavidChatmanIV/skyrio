@@ -1031,6 +1031,10 @@
 .ap-tev__label { font: 700 10px ui-monospace, Menlo, monospace; letter-spacing: 0.16em;
   text-transform: uppercase; color: var(--ap-orange-2); }
 .ap-tev__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.ap-tev__warn { display: flex; align-items: flex-start; gap: 6px; margin-top: 2px; padding: 6px 8px;
+  border-radius: 8px; font-size: 12px; line-height: 1.4; color: #ffd29a;
+  background: rgba(255, 179, 71, 0.12); border: 1px solid rgba(255, 179, 71, 0.35); }
+.ap-tev__warn svg { flex-shrink: 0; margin-top: 2px; color: #ffb347; }
 .ap-tev__bit { display: inline-flex; align-items: center; gap: 4px; }
 .ap-tev__row { display: grid; gap: 3px; padding-bottom: 10px;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.12); }

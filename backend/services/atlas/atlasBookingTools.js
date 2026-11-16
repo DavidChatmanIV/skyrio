@@ -51,6 +51,12 @@ import { LEARNING_CATEGORIES } from "../../models/AtlasLearnedPreference.js";
 import { searchCars, CarSearchError } from "../../routes/api/cars/cars.service.js";
 import { searchEvents } from "../../providers/ticketmasterProvider.js";
 import { placeFor } from "./tripEvents.js";
+import { checkEventsAgainstFlights } from "./tripTiming.js";
+
+// Each traveler's latest flight search (30 min), so an events search later
+// in the chat can check which events those flights actually get them to.
+const lastFlights = new Map(); // owner → { at, search, options }
+const LAST_FLIGHTS_MS = 30 * 60 * 1000;
 import { GET_WEATHER_TOOL, getWeatherForAtlas } from "./atlasWeather.js";
 import {
   CATEGORY_MAP as EVENT_CATEGORIES,
@@ -705,14 +711,22 @@ async function runFlightSearch(owner, userId, input) {
         "The flight search didn't go through (a technical problem, not sold-out flights). Tell the traveler something went wrong on our end and offer to try again.",
     };
   }
-  const candidates = offers
+  const priced = offers
     .map((o) => ({ _raw: o, ...flightDisplay(o) }))
     .filter(
       (c) =>
         Number.isFinite(c.price) &&
         (!input.maxPrice || c.price <= input.maxPrice)
     )
-    .slice(0, 15);
+    .slice(0, 15)
+    .map((c) => ({
+      ...c,
+      overnightLayover:
+        [c.outbound, c.returnTrip].some((l) => l?.layovers?.some((x) => x.overnight)) || undefined,
+    }));
+  // Overnight layovers go last (still shown if nothing else exists).
+  const candidates = [...priced.filter((c) => !c.overnightLayover), ...priced.filter((c) => c.overnightLayover)];
+  const onlyOvernight = candidates.length > 0 && candidates.every((c) => c.overnightLayover);
   if (!candidates.length) {
     return {
       options: [],
@@ -721,9 +735,12 @@ async function runFlightSearch(owner, userId, input) {
   }
 
   // Put options this traveler tends to pick first (signed-in only; guests keep provider order)
-  const ranked = (
-    userId ? await rankForUser(userId, "flight", candidates) : candidates
-  ).slice(0, 5);
+  const rankedAll = userId ? await rankForUser(userId, "flight", candidates) : candidates;
+  // Keep overnight layovers last even after personal ranking.
+  const ranked = [
+    ...rankedAll.filter((c) => !c.overnightLayover),
+    ...rankedAll.filter((c) => c.overnightLayover),
+  ].slice(0, 5);
   const search = {
     origin: input.origin,
     destination: input.destination,
@@ -740,18 +757,25 @@ async function runFlightSearch(owner, userId, input) {
   );
   setTimeout(() => searchGroups.delete(searchId), OPTION_TTL_MS).unref?.();
 
+  const options = ranked.map(({ _raw, ...display }) => ({
+    optionId: cacheOption(
+      owner,
+      "flight",
+      _raw,
+      { ...display, searchId },
+      search
+    ),
+    ...display,
+  }));
+  lastFlights.set(owner, { at: Date.now(), search, options });
+  if (lastFlights.size > 5000) lastFlights.delete(lastFlights.keys().next().value);
   return {
-    options: ranked.map(({ _raw, ...display }) => ({
-      optionId: cacheOption(
-        owner,
-        "flight",
-        _raw,
-        { ...display, searchId },
-        search
-      ),
-      ...display,
-    })),
-    note: "Prices are live and expire in about 13 minutes. Options with whyForYou match this traveler's usual picks.",
+    options,
+    note:
+      "Prices are live and expire in about 13 minutes. Options with whyForYou match this traveler's usual picks. " +
+      (onlyOvernight
+        ? "Every option has an overnight layover (overnightLayover): say so plainly before listing them."
+        : "Options with overnightLayover are listed last on purpose: avoid them, and flag it if you show one."),
   };
 }
 
@@ -1652,7 +1676,23 @@ async function runEventSearch(owner, input) {
   }
   // The events with real ticket links → a card with "Buy on Ticketmaster"
   // buttons right away (no extra step for the traveler).
-  const withLinks = events.filter((e) => /^https:\/\//.test(String(e.url || "")));
+  let withLinks = events.filter((e) => /^https:\/\//.test(String(e.url || "")));
+  // Flights searched earlier in this chat to the same city: check which
+  // events those flights actually get them to (land 3h+ before it starts).
+  const lf = lastFlights.get(owner);
+  const flightCity = lf && Date.now() - lf.at < LAST_FLIGHTS_MS ? placeFor({ airportCode: lf.search.destination })?.city : null;
+  const sameTrip =
+    flightCity &&
+    flightCity.toLowerCase() === String(input.city || "").trim().toLowerCase() &&
+    (!lf.search.returnDate || start <= lf.search.returnDate) &&
+    end >= lf.search.departDate;
+  if (sameTrip) {
+    const checked = checkEventsAgainstFlights(
+      withLinks.map((e) => ({ name: e.name, date: e.date, time: e.time })),
+      lf.options
+    );
+    withLinks = withLinks.map((e, i) => ({ ...e, _timing: checked[i] }));
+  }
   const placeLabel = place?.label || String(input.city || "").trim();
   return {
     card: withLinks.length
@@ -1673,11 +1713,28 @@ async function runEventSearch(owner, input) {
             currency: e.priceRange?.currency || "USD",
             url: e.url,
             status: e.status === "postponed" || e.status === "rescheduled" ? e.status : null,
+            ...(e._timing?.landBy
+              ? { landBy: e._timing.landBy, fitsAnyFlight: e._timing.fitsAnyFlight }
+              : {}),
           })),
           excursions: [],
         }
       : null,
     cardShown: withLinks.length > 0,
+    ...(sameTrip
+      ? {
+          flightTiming: withLinks.map((e) => ({
+            name: e.name,
+            date: e.date,
+            time: e.time,
+            landBy: e._timing?.landBy,
+            fitsFlightOptionIds: e._timing?.fitsFlightOptionIds,
+            missesFlightOptionIds: e._timing?.missesFlightOptionIds,
+          })),
+          flightTimingNote:
+            "Checked against the flights you showed earlier. If an event has no fitting flight, say so plainly (e.g. 'X plays Jan 21 at 8 PM, but this flight lands Jan 22. Want a flight that gets you there in time?').",
+        }
+      : {}),
     options: events.map((e) => {
       const display = {
         name: e.name,

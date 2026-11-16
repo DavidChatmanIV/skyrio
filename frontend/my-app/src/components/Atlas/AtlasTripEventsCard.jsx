@@ -3,7 +3,7 @@
 // Ticketmaster's or Viator's own data. Skyrio sells neither; nothing here
 // changes the trip.
 import dayjs from "dayjs";
-import { Ticket, ExternalLink, Compass, Star, Clock } from "lucide-react";
+import { Ticket, ExternalLink, Compass, Star, Clock, AlertTriangle } from "lucide-react";
 
 const money = (n, cur = "USD") => {
   const v = Number(n);
@@ -58,6 +58,12 @@ export default function AtlasTripEventsCard({ action }) {
                       {e.status ? ` · ${e.status}` : ""}
                       {price ? ` · from ${price}` : ""}
                     </div>
+                    {e.fitsAnyFlight === false && e.landBy && (
+                      <div className="ap-tev__warn" role="note">
+                        <AlertTriangle size={12} aria-hidden="true" /> The flights shown land too late. Land by{" "}
+                        {dayjs(e.landBy).format("ddd, MMM D · h:mm A")} to make it.
+                      </div>
+                    )}
                     <a className="ap-card__btn is-primary ap-tev__buy" href={e.url} target="_blank" rel="noopener noreferrer">
                       Buy on Ticketmaster <ExternalLink size={12} aria-hidden="true" />
                     </a>
