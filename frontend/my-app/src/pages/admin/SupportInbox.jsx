@@ -322,8 +322,19 @@ export default function AdminSupportInbox() {
                     className="sk-inbox__pill"
                     style={{ background: C.purpleDim, color: C.purple }}
                   >
-                    {t.category}
+                    {t.category === "founder" ? "Founder line" : t.category}
                   </span>
+                  {(t.plan === "legend" || t.plan === "explorer") && (
+                    <span
+                      className="sk-inbox__pill"
+                      style={{
+                        background: "rgba(255,138,42,0.16)",
+                        color: "#ff8a2a",
+                      }}
+                    >
+                      {t.plan === "legend" ? "Legend" : "Explorer"} member
+                    </span>
+                  )}
                   {t.page && (
                     <span style={{ fontSize: 11, color: C.muted }}>
                       on {t.page}

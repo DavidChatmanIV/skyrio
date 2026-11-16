@@ -41,6 +41,7 @@ const ICONS = {
   founder:
     "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 11l1.5 3h3l-2.5 2 1 3L12 17l-3 2 1-3-2.5-2h3z",
   roadmap: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  cover: "M6 2h11a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm6 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8 17h8",
 };
 
 function Icon({ name, size = 15, color = "currentColor" }) {
@@ -61,11 +62,14 @@ function Icon({ name, size = 15, color = "currentColor" }) {
   );
 }
 
-// Perks marked soon: true aren't built yet. They show under "Coming soon"
-// so nobody pays for something they can't use. Move a perk up (drop the
-// flag) only once it really works. Today the XP multiplier is the only
-// paid perk in code (xpRules.js); priority support, the founder line and
-// roadmap input are honored by hand.
+// Every perk listed here works today. Add a perk only once it's built.
+//  - XP multipliers: backend config/xpRules.js (applied in xpService).
+//  - Member covers: backend config/passportCovers.js (minPlan), unlocked
+//    with XP in Passport Rewards.
+//  - Answered first: support tickets and feedback carry the plan and the
+//    admin inboxes list members first.
+//  - Message the founder: Legend-only choice in the Help menu.
+//  - Legend badge: shown on SkyHub posts and profile cards.
 const PLANS = [
   {
     id: "free",
@@ -75,19 +79,15 @@ const PLANS = [
     monthlyEquiv: null,
     monthlySaving: null,
     badge: null,
-    description: "Everything you need to start planning smarter trips.",
+    description: "Plan, book and earn XP.",
     cta: "Get started free",
     highlight: false,
     perks: [
       { icon: "robot", text: "Plan trips with Atlas AI" },
-      { icon: "plane", text: "Search flights, hotels and cars worldwide" },
-      {
-        icon: "passport",
-        text: "Your Skyrio Passport with rank, XP and travel history",
-      },
-      { icon: "badge", text: "Badges and XP from day one" },
+      { icon: "plane", text: "Search flights, hotels and cars" },
+      { icon: "passport", text: "Your Passport with rank, XP and trips" },
       { icon: "save", text: "Save as many trips as you like" },
-      { icon: "mail", text: "Email support from a real person" },
+      { icon: "mail", text: "Help from a real person" },
     ],
   },
   {
@@ -98,23 +98,14 @@ const PLANS = [
     monthlyEquiv: 4.58,
     monthlySaving: 29,
     badge: "Recommended",
-    description: "For frequent travelers who want to earn XP faster.",
+    description: "Earn XP faster and get help first.",
     cta: "Start Explorer",
     highlight: true,
     perks: [
       { icon: "infinite", text: "Everything in Free" },
-      {
-        icon: "star",
-        text: "1.5× XP on bookings, SkyHub and challenges",
-      },
-      {
-        icon: "mail",
-        text: "Priority email support. Your messages are answered first.",
-      },
-      { icon: "bolt", text: "Priority Atlas AI", soon: true },
-      { icon: "budget", text: "Smart budget alerts", soon: true },
-      { icon: "map", text: "Hidden gem destinations", soon: true },
-      { icon: "early", text: "Early access to new features", soon: true },
+      { icon: "star", text: "1.5× XP on bookings, SkyHub and challenges" },
+      { icon: "cover", text: "2 member Passport covers to unlock with XP" },
+      { icon: "mail", text: "Your help messages are answered first" },
     ],
   },
   {
@@ -125,26 +116,16 @@ const PLANS = [
     monthlyEquiv: 12.0,
     monthlySaving: 36,
     badge: "Most XP",
-    description: "For power travelers who want the most XP and a direct line to the founder.",
+    description: "The most XP and a direct line to the founder.",
     cta: "Go Legend",
     highlight: false,
     perks: [
       { icon: "bolt", text: "Everything in Explorer" },
-      {
-        icon: "star",
-        text: "2.5× XP on bookings, SkyHub and challenges",
-      },
-      {
-        icon: "founder",
-        text: "Message the founder directly. Real answers, not canned replies.",
-      },
-      {
-        icon: "roadmap",
-        text: "Help shape what Skyrio builds next. Your feedback is read first.",
-      },
-      { icon: "concierge", text: "Concierge trip-building", soon: true },
-      { icon: "badge", text: "Exclusive Legend badge", soon: true },
-      { icon: "group", text: "Private group travel rooms", soon: true },
+      { icon: "star", text: "2.5× XP on bookings, SkyHub and challenges" },
+      { icon: "cover", text: "Legend Gold Foil Passport cover to unlock with XP" },
+      { icon: "badge", text: "Legend badge on your SkyHub posts and profile" },
+      { icon: "founder", text: "Message the founder from the Help menu" },
+      { icon: "roadmap", text: "Your feedback is read first" },
     ],
   },
 ];
@@ -160,7 +141,7 @@ const FAQS = [
   },
   {
     q: "Will I lose anything if I go back to Free?",
-    a: "No. Your trips, Passport rank and XP stay on your account. You just stop getting paid perks, like extra XP.",
+    a: "No. Your trips, rank, XP and any covers you unlocked stay yours. You just stop getting extra XP and the other paid perks.",
   },
   {
     q: "Are payments secure?",
@@ -608,8 +589,8 @@ export default function MembershipPage() {
           Travel smarter with <span>Skyrio</span>
         </h1>
         <p className="mp-sub">
-          Start free. Upgrade when you're ready. Every plan includes Atlas AI,
-          full trip planning, and your Skyrio Passport.
+          Start free. Upgrade anytime for more XP and faster help. Same trip
+          prices on every plan.
         </p>
       </div>
 
@@ -771,46 +752,13 @@ export default function MembershipPage() {
               <div className="mp-plan__divider" />
 
               <ul className="mp-plan__perks">
-                {plan.perks
-                  .filter((perk) => !perk.soon)
-                  .map((perk) => (
+                {plan.perks.map((perk) => (
                     <li key={perk.text} className="mp-plan__perk">
                       <Icon name={perk.icon} size={15} color={iconColor(plan)} />
                       {perk.text}
                     </li>
                   ))}
               </ul>
-              {/* Not built yet: listed apart so it's clear you can't use them today. */}
-              {plan.perks.some((perk) => perk.soon) && (
-                <div style={{ marginTop: 14 }}>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      letterSpacing: ".1em",
-                      textTransform: "uppercase",
-                      color: "rgba(255,255,255,0.5)",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Coming soon
-                  </div>
-                  <ul className="mp-plan__perks" style={{ opacity: 0.6 }}>
-                    {plan.perks
-                      .filter((perk) => perk.soon)
-                      .map((perk) => (
-                        <li key={perk.text} className="mp-plan__perk">
-                          <Icon
-                            name={perk.icon}
-                            size={15}
-                            color="rgba(255,255,255,0.5)"
-                          />
-                          {perk.text}
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              )}
             </div>
           );
         })}
@@ -837,7 +785,7 @@ export default function MembershipPage() {
         {isAuthed ? (
           <>
             <h2>Ready to level up?</h2>
-            <p>Earn XP faster, get priority support and new perks as they launch.</p>
+            <p>Earn XP faster and get help first.</p>
             <button
               className="mp-bottom__btn"
               onClick={() =>

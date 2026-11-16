@@ -215,6 +215,8 @@ function mapPost(
     // Everyone who sees the post sees it.
     authorFrame:
       authorId && xpByAuthorId.frames?.has(authorId) ? "seasoned" : null,
+    // Legend member badge (paid plan perk).
+    authorLegend: Boolean(authorId && xpByAuthorId.legends?.has(authorId)),
     type: post.type,
     destination: tidyPlace(post.destination),
     spot: post.spot?.name
@@ -267,7 +269,7 @@ async function xpMapFor(posts) {
   ];
   if (!ids.length) return new Map();
   const authors = await User.find({ _id: { $in: ids } })
-    .select("xpTotalEarned xp redeemedRewards")
+    .select("xpTotalEarned xp redeemedRewards plan")
     .lean();
   const map = new Map(
     authors.map((a) => [a._id.toString(), a.xpTotalEarned ?? a.xp ?? 0])
@@ -275,6 +277,8 @@ async function xpMapFor(posts) {
   // Authors who own the "Seasoned Traveler" frame (Passport Reward). Kept
   // on the same map so every mapPost caller gets it with no extra query.
   map.photos = await photosFor(ids);
+  // Legend members get a Legend badge on their posts.
+  map.legends = new Set(authors.filter((a) => a.plan === "legend").map((a) => a._id.toString()));
   map.frames = new Set(
     authors
       .filter((a) => (a.redeemedRewards || []).includes("seasoned_frame"))
@@ -1317,7 +1321,7 @@ router.get("/users/:id/card", async (req, res) => {
     if (viewerId && (await isBlockedBetween(viewerId, id)))
       return res.status(404).json({ message: "Traveler not found." });
     const u = await User.findById(id)
-      .select("name username avatar city followersCount xpTotalEarned xp isActive")
+      .select("name username avatar city followersCount xpTotalEarned xp isActive plan")
       .lean();
     if (!u || u.isActive === false) return res.status(404).json({ message: "Traveler not found." });
     const [postCount, places, me, photos] = await Promise.all([
@@ -1338,6 +1342,7 @@ router.get("/users/:id/card", async (req, res) => {
       avatar: photos.get(String(u._id)) || "",
       city: tidyPlace(u.city || ""),
       badge: getLevel(u.xpTotalEarned ?? u.xp ?? 0).current.name,
+      legend: u.plan === "legend",
       followers: u.followersCount || 0,
       posts: postCount,
       places: places.map((p) => tidyPlace(p.name)).filter(Boolean),

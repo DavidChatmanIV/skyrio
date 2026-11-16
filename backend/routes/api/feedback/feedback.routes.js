@@ -67,6 +67,7 @@ function optionalUser(req, res, next) {
 }
 
 const User = () => mongoose.model("User");
+const PLAN_RANK = { free: 0, explorer: 1, legend: 2 };
 const Booking = () => mongoose.model("Booking");
 
 /** Which admin did this (for the audit log). */
@@ -225,6 +226,8 @@ router.post("/feedback", optionalUser, async (req, res) => {
         message,
         rating: validRating,
         page: clean(req.body.page, 200),
+        plan: PLAN_RANK[req.user?.plan] ? req.user.plan : "free",
+        planRank: PLAN_RANK[req.user?.plan] || 0,
       });
     } catch (err) {
       if (err.code === 11000)
@@ -505,7 +508,7 @@ const admin = express.Router();
 // router aren't caught by the admin check.
 admin.use(["/feedback/admin", "/testimonials/admin"], requireAdmin);
 
-const userFields = "name username email avatar xp";
+const userFields = "name username email avatar xp plan";
 
 /* Tab badge counts */
 admin.get("/feedback/admin/counts", async (req, res) => {
@@ -583,8 +586,9 @@ admin.get("/feedback/admin", async (req, res) => {
   if (req.query.status && req.query.status !== "all")
     filter.status = req.query.status;
   if (req.query.type && req.query.type !== "all") filter.type = req.query.type;
+  // Members' feedback is read first: Legend, Explorer, then Free.
   const rows = await Feedback.find(filter)
-    .sort({ createdAt: -1 })
+    .sort({ planRank: -1, createdAt: -1 })
     .limit(200)
     .populate("user", userFields)
     .lean();

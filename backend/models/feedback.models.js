@@ -38,6 +38,10 @@ const FeedbackSchema = new Schema(
       default: "new",
       index: true,
     },
+    // Sender's plan when they wrote it (from the account). The admin inbox
+    // lists Legend first, then Explorer, then Free: "read first".
+    plan: { type: String, enum: ["free", "explorer", "legend"], default: "free" },
+    planRank: { type: Number, default: 0 },
     adminNote: String,
     xpAwarded: { type: Number, default: 0 },
     shippedBonusAwarded: { type: Boolean, default: false },

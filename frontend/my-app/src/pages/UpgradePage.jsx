@@ -25,7 +25,7 @@ const PLANS = {
     glow: "rgba(255,138,42,0.15)",
     border: "rgba(255,138,42,0.35)",
     textColor: "#1a0d04",
-    description: "1.5× XP on everything you earn and priority email support.",
+    description: "1.5× XP on bookings, SkyHub and challenges, and your help messages are answered first.",
   },
   legend: {
     name: "Legend",
@@ -37,7 +37,7 @@ const PLANS = {
     border: "rgba(167,139,250,0.35)",
     textColor: "#fff",
     description:
-      "2.5× XP on everything you earn and a direct line to the founder.",
+      "2.5× XP on bookings, SkyHub and challenges, a Legend badge, and a direct line to the founder.",
   },
 };
 
