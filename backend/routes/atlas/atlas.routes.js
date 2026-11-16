@@ -45,12 +45,14 @@ import {
 import { verifyAdmin } from "../admin.routes.js";
 import { atlasStatusNote } from "../../services/siteStatus.js";
 import { tripEvents, tripFromCalls } from "../../services/atlas/tripEvents.js";
+import { tripExcursions } from "../../services/atlas/tripExcursions.js";
 import User from "../../models/user.js";
 
-// Atlas finds events for a trip on its own (see services/atlas/tripEvents.js).
-// They're looked up while flights and hotels search; this is the most extra
-// time we wait for them before Atlas answers. Anything slower is skipped.
-const TRIP_EVENTS_GRACE_MS = 400;
+// Atlas finds events (Ticketmaster) and excursions (Viator) for a trip on
+// its own (services/atlas/tripEvents.js, tripExcursions.js). They're looked
+// up while flights and hotels search; this is the most extra time we wait
+// for them before Atlas answers. Anything slower is skipped.
+const TRIP_EXTRAS_GRACE_MS = 400;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TRIP_EVENTS_NOTE =
@@ -59,6 +61,20 @@ const TRIP_EVENTS_NOTE =
   "Say tickets are sold on Ticketmaster and the 'Buy on Ticketmaster' buttons are below. " +
   "Suggest only: don't add them to the trip or change dates unless the traveler says yes. " +
   "Only give a price if priceFrom is set.";
+
+const TRIP_EXCURSIONS_NOTE =
+  "Real tours and activities from Viator, available during this trip (only these). " +
+  "Mention them in one or two short lines after the trip plan (and after any events): name, and price only if priceFrom is set ('from $X'). " +
+  "Say they're booked on Viator and the 'View on Viator' buttons are below. Skyrio doesn't sell them. " +
+  "Suggest only: don't add them to the trip or change dates unless the traveler says yes.";
+
+// What each extra looks like: where Atlas sees it, and which fields stay
+// off Atlas's copy (links go on the card, straight from the data).
+const TRIP_EXTRAS = [
+  { key: "events", field: "eventsDuringTrip", note: TRIP_EVENTS_NOTE, skipIf: "search_events" },
+  { key: "excursions", field: "excursionsDuringTrip", note: TRIP_EXCURSIONS_NOTE },
+];
+const forAtlas = (list) => list.map(({ url, currency, ...rest }) => rest);
 
 const router = Router();
 
@@ -931,9 +947,10 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
     const actions = [];
     const toolsUsed = new Set();
     let groupSearchSeen = 0; // most adults in a flight/hotel search this turn
-    // Trip events: looked up once per turn, alongside flights + hotels.
-    let tripEventsRun = null; // Promise<{ place, events }>
-    let tripEventsShown = null; // what was handed to Atlas
+    // Trip extras (events + excursions): looked up once per turn, alongside
+    // flights + hotels. extraRuns[key] = Promise; extraShown[key] = result.
+    const extraRuns = {};
+    const extraShown = {};
     let vibesP = null;
     const myVibes = () =>
       (vibesP ||= userId
@@ -966,15 +983,15 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       const calls = result.toolCalls.slice(0, 4);
 
       // A trip with a city and dates (hotel stay or round-trip flight) →
-      // look for events at the same time. Skipped if Atlas is already
-      // searching events itself.
-      const trip =
-        tools &&
-        !tripEventsRun &&
-        !calls.some((c) => c.name === "search_events") &&
-        tripFromCalls(calls);
+      // look for events and excursions at the same time. Events are skipped
+      // if Atlas is already searching events itself.
+      const trip = tools && tripFromCalls(calls);
       if (trip) {
-        tripEventsRun = myVibes().then((vibes) => tripEvents({ ...trip, vibes }));
+        const find = { events: tripEvents, excursions: tripExcursions };
+        for (const x of TRIP_EXTRAS) {
+          if (extraRuns[x.key] || (x.skipIf && calls.some((c) => c.name === x.skipIf))) continue;
+          extraRuns[x.key] = myVibes().then((vibes) => find[x.key]({ ...trip, vibes }));
+        }
       }
 
       const runs = await Promise.all(
@@ -1022,26 +1039,30 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
         toolResults.push({ id: call.id, name: call.name, result: ran.result });
       }
 
-      // Hand the trip's events to Atlas with this round's search results,
-      // if they're ready (they usually beat flights/hotels). Never waits
-      // more than TRIP_EVENTS_GRACE_MS.
-      if (tripEventsRun && !tripEventsShown) {
-        const found = await Promise.race([tripEventsRun, sleep(TRIP_EVENTS_GRACE_MS).then(() => null)]);
-        const target = toolResults.find(
-          (t) => ["search_hotels", "search_flights"].includes(t.name) && t.result && !t.result.error
-        );
-        if (found?.events?.length && target) {
-          tripEventsShown = found;
+      // Hand the trip's events and excursions to Atlas with this round's
+      // search results, if they're ready (they usually beat flights and
+      // hotels). Both wait together, never more than TRIP_EXTRAS_GRACE_MS.
+      const pending = TRIP_EXTRAS.filter((x) => extraRuns[x.key] && !extraShown[x.key]);
+      const target = toolResults.find(
+        (t) => ["search_hotels", "search_flights"].includes(t.name) && t.result && !t.result.error
+      );
+      if (pending.length && target) {
+        const deadline = sleep(TRIP_EXTRAS_GRACE_MS).then(() => null);
+        const found = await Promise.all(pending.map((x) => Promise.race([extraRuns[x.key], deadline])));
+        pending.forEach((x, i) => {
+          const list = found[i]?.[x.key];
+          if (!list?.length) return;
+          extraShown[x.key] = found[i];
           target.result = {
             ...target.result,
-            eventsDuringTrip: {
-              place: found.place,
-              dates: `${found.start} to ${found.end}`,
-              events: found.events.map(({ url, currency, ...e }) => e),
-              note: TRIP_EVENTS_NOTE,
+            [x.field]: {
+              place: found[i].place,
+              dates: `${found[i].start} to ${found[i].end}`,
+              [x.key]: forAtlas(list),
+              note: x.note,
             },
           };
-        }
+        });
       }
       convo = [
         ...convo,
@@ -1049,15 +1070,17 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       ];
     }
 
-    // The events Atlas was told about → a small card with the real
-    // "Buy on Ticketmaster" links (straight from Ticketmaster's data).
-    if (tripEventsShown?.events?.length && actions.length < 3) {
+    // What Atlas was told about → one "During your trip" card with the real
+    // "Buy on Ticketmaster" / "View on Viator" links (straight from the data).
+    const shownAny = extraShown.events || extraShown.excursions;
+    if (shownAny && actions.length < 3) {
       actions.push({
         type: "trip_events",
-        place: tripEventsShown.place,
-        start: tripEventsShown.start,
-        end: tripEventsShown.end,
-        events: tripEventsShown.events,
+        place: shownAny.place,
+        start: shownAny.start,
+        end: shownAny.end,
+        events: extraShown.events?.events || [],
+        excursions: extraShown.excursions?.excursions || [],
       });
     }
 

@@ -1016,6 +1016,12 @@
 }
 /* "During your trip" events (AtlasTripEventsCard) */
 .ap-tev { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ap-tev__group { display: grid; gap: 8px; }
+.ap-tev__group + .ap-tev__group { padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.ap-tev__label { font: 700 10px ui-monospace, Menlo, monospace; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ap-orange-2); }
+.ap-tev__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.ap-tev__bit { display: inline-flex; align-items: center; gap: 4px; }
 .ap-tev__row { display: grid; gap: 3px; padding-bottom: 10px;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.12); }
 .ap-tev__row:last-child { padding-bottom: 0; border-bottom: 0; }
