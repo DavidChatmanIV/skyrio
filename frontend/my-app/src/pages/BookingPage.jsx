@@ -4379,7 +4379,11 @@ export default function BookingPage() {
     }
     window.location.assign("/booking");
   }, []);
-  const tabParam = searchParams.get("tab");
+  // ?tab=flights works the same as ?tab=Flights.
+  const tabParam = (() => {
+    const t = String(searchParams.get("tab") || "").toLowerCase();
+    return ["Flights", "Stays", "Cars", "Packages", "Excursions", "Events"].find((x) => x.toLowerCase() === t) || null;
+  })();
   // Last search to bring back (see readLastSearch). Skipped when the URL
   // asks for something specific (a link with a destination, a group trip,
   // an Atlas hand-off…) or for another tab.

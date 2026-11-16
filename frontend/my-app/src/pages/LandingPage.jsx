@@ -824,10 +824,10 @@ export default function LandingPage() {
               : "Book as a guest, or join free to earn XP."}
           </p>
           <div className="lp-cta__btns">
-            <Link to="/booking" className="lp-btn lp-btn--primary">
+            <Link to="/booking?tab=Flights" className="lp-btn lp-btn--primary">
               <Plane size={16} aria-hidden="true" /> Book a flight
             </Link>
-            <Link to="/booking" className="lp-btn lp-btn--orange">
+            <Link to="/booking?tab=Stays" className="lp-btn lp-btn--orange">
               <BedDouble size={16} aria-hidden="true" /> Find a hotel
             </Link>
             {!isAuthed && (
