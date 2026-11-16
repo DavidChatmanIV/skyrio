@@ -1102,9 +1102,9 @@ function FlightsForm({
   // "Ready — hit search" while a box is empty.
   onReadyChange,
 }) {
-  // From starts on the traveler's home airport, unless the link says where
-  // to fly from. They can always change it.
-  const [homeAirport, setHomeAirport] = useState(readHomeAirport);
+  // From starts on a signed-in traveler's home airport, unless the link says
+  // where to fly from. Guests start empty. They can always change it.
+  const [homeAirport, setHomeAirport] = useState(signedInHome);
   const startFromHome = !initial?.from && homeAirport ? homeAirport : null;
   const [originAirport, setOriginAirport] = useState(startFromHome);
   const [destAirport, setDestAirport] = useState(null);
@@ -2822,10 +2822,10 @@ function StaysForm({
 // searches in order: the flight first, then the stay at the destination.
 function PackagesForm({ onDestChange, onDatesChange, onHandoff }) {
   // From starts on the traveler's home airport, same as Flights.
-  const [homeAirport, setHomeAirport] = useState(readHomeAirport);
-  const [origin, setOrigin] = useState(() => readHomeAirport() || null);
+  const [homeAirport, setHomeAirport] = useState(signedInHome);
+  const [origin, setOrigin] = useState(() => signedInHome() || null);
   const [originDisplay, setOriginDisplay] = useState(() =>
-    airportLabel(readHomeAirport())
+    airportLabel(signedInHome())
   );
   // New device: nothing saved in this browser, so ask the account.
   const originRef = useRef(origin);
@@ -4317,14 +4317,24 @@ function readLastSearch() {
   }
 }
 
+// Home airport only for signed-in travelers; guests pick where they fly from.
+function signedInHome() {
+  try {
+    return window.localStorage.getItem("token") ? readHomeAirport() : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function BookingPage() {
   // Disruption mode: show when this kind of booking is paused.
   const siteStatus = useSiteStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const { updateAtlasContext } = useAtlasContext();
 
-  // Where flights leave from: the link, else the traveler's home airport.
-  const fromCode = searchParams.get("from") || readHomeAirport()?.code || "EWR";
+  // Where flights leave from: the link, else a signed-in traveler's home
+  // airport. Guests: nothing until they pick (no made-up EWR).
+  const fromCode = searchParams.get("from") || signedInHome()?.code || "";
 
   // ── Sync Together: booking your own part of a group trip ──
   // /booking?groupId=… comes from the trip page. Kept in sessionStorage so
@@ -5434,7 +5444,7 @@ export default function BookingPage() {
       if (gid) next.set("groupId", gid);
       // Leave from the airport in the link, else the saved home airport,
       // so the flight search can run right away.
-      const home = readHomeAirport();
+      const home = signedInHome();
       const fromCode = searchParams.get("from") || home?.code;
       if (fromCode) {
         next.set("from", fromCode);
@@ -5739,7 +5749,8 @@ export default function BookingPage() {
   const tripDaySeed = prefillData?.tripDays ?? null;
 
   const runAutoSearch = useCallback(() => {
-    if (!prefillData?.iata) return;
+    // No From airport yet (guest): let them pick it, don't guess.
+    if (!prefillData?.iata || !fromCode) return;
     const { iata, tripDays: days = 10 } = prefillData;
     const { departDate, returnDate } = getAutoSearchDates(days);
     setAutoSearchLoading(true);
@@ -6204,7 +6215,7 @@ export default function BookingPage() {
   const bpFrom =
     tab === "Flights"
       ? originCity || ""
-      : originCity || searchParams.get("from") || readHomeAirport()?.code || "";
+      : originCity || searchParams.get("from") || signedInHome()?.code || "";
   const bpLowestFare = (() => {
     const prices = flightResults
       .map((f) => parseFloat(f.totalAmount))

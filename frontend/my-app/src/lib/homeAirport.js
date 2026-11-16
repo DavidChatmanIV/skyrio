@@ -57,11 +57,11 @@ export function rememberHomeAirportLocally(ap) {
 }
 
 // What's saved on the account. Also refreshes this browser's copy.
-// Returns { homeAirport, onAccount } — onAccount is false when logged out
-// or the server can't be reached (then the browser copy is returned).
+// Returns { homeAirport, onAccount }. Logged out → no home airport (guests
+// pick where they fly from). Server unreachable → this browser's copy.
 export async function fetchHomeAirport() {
   const headers = authHeaders();
-  if (!headers) return { homeAirport: readHomeAirport(), onAccount: false };
+  if (!headers) return { homeAirport: null, onAccount: false };
   try {
     const res = await fetch(`${API}/api/users/me/home-airport`, { headers });
     if (!res.ok) throw new Error();
