@@ -16,7 +16,7 @@ import {
   CloseCircleFilled,
   LoadingOutlined,
 } from "@ant-design/icons";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 
 import BoardingPassToast from "../components/BoardingPassToast";
 import PassStub from "../components/PassStub";
@@ -43,6 +43,10 @@ const UN_ERROR = "error";
 export default function RegisterPage() {
   const auth = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
+  // Came from a page that needs an account (e.g. Sync Together)? Go back there.
+  const rt = location.state?.redirectTo;
+  const afterSignup = typeof rt === "string" && rt.startsWith("/") && !rt.startsWith("//") ? rt : "/passport";
 
   const [formData, setFormData] = useState({
     name: "",
@@ -215,7 +219,7 @@ export default function RegisterPage() {
       });
 
       message.success(`Skyrio access created, ${displayName} ✈️`);
-      nav("/passport", { replace: true, state: { fromAuth: true } });
+      nav(afterSignup, { replace: true, state: { fromAuth: true } });
     } catch (err) {
       successHandledRef.current = false;
       message.error(err?.message || "Registration failed");
