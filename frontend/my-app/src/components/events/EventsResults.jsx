@@ -12,10 +12,13 @@ import EventCard from "./EventCard";
 function groupShows(list) {
   const byKey = new Map();
   for (const e of list) {
-    const key = `${String(e.name || "").trim().toLowerCase()}|${e.venue?.id || e.venue?.name || ""}`;
+    // Same performer (Ticketmaster attraction) or same name, same venue.
+    const who = e.attractionId || String(e.name || "").trim().toLowerCase();
+    const key = `${who}|${e.venue?.id || e.venue?.name || ""}`;
     const g = byKey.get(key);
-    if (g) g.nights.push(e);
-    else byKey.set(key, { ...e, nights: [e] });
+    if (!g) byKey.set(key, { ...e, nights: [e] });
+    // The same night listed twice (e.g. two ticket listings): keep one.
+    else if (!g.nights.some((n) => n.date === e.date && n.time === e.time)) g.nights.push(e);
   }
   return [...byKey.values()].map((g) => {
     const nights = [...g.nights].sort(

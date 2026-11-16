@@ -112,15 +112,23 @@ export function normalizeEvent(e) {
     name: e.name,
     url: e.url, // "Buy on Ticketmaster" link (affiliate tracking added later via Impact)
     category: SEGMENT_TO_CATEGORY[cls.segment?.name] || "other",
-    genre: cls.genre?.name && cls.genre.name !== "Undefined" ? cls.genre.name : null,
+    // "Undefined" / "Miscellaneous" say nothing, so the card falls back to
+    // the category (Concert, Show…).
+    genre: cls.genre?.name && !/^(undefined|miscellaneous|other)$/i.test(cls.genre.name) ? cls.genre.name : null,
+    // The performer (artist, comedian, team): the same act can be listed
+    // under slightly different names ("Taylor Tomlinson" / "Taylor
+    // Tomlinson: Tries Out New Ideas"), so cards group on this.
+    attractionId: e._embedded?.attractions?.[0]?.id || null,
     date: start.localDate || null,
     time: start.timeTBA || start.noSpecificTime ? null : start.localTime || null,
     dateTime: start.dateTime || null,
     timezone: e.dates?.timezone || null,
     status: e.dates?.status?.code || "onsale",
     image: pickImage(e.images),
+    // A $0 minimum isn't a real price (Ticketmaster uses it for "not set"),
+    // so don't show "From $0".
     priceRange:
-      price && Number.isFinite(price.min)
+      price && Number.isFinite(price.min) && price.min > 0
         ? { min: price.min, max: price.max ?? price.min, currency: price.currency || "USD" }
         : null,
     venue: normalizeVenue(e._embedded?.venues?.[0]),

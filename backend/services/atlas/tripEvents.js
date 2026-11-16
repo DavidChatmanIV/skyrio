@@ -106,18 +106,21 @@ export function pickTripEvents(events, { start, end, interests = [], max = MAX_T
   const ordered = usable
     .filter(inside)
     .sort((a, b) => rank(a) - rank(b) || a.date.localeCompare(b.date) || String(a.time || "").localeCompare(String(b.time || "")));
+  const showKey = (e) => e.attractionId || e.name.toLowerCase(); // same performer
+  const sameNight = (a, b) => a.date === b.date && (a.time || "") === (b.time || "");
   for (const e of ordered) {
-    const k = e.name.toLowerCase();
+    const k = showKey(e);
     const first = byName.get(k);
     if (!first) byName.set(k, { ...e, otherShows: [] });
+    else if (sameNight(first, e) || first.otherShows.some((o) => sameNight(o, e))) continue; // listed twice
     else if (first.otherShows.length < MAX_OTHER_SHOWS) first.otherShows.push(e);
   }
   // Same show on nights outside the trip (nearest first, up to 3):
   // "also plays Jan 26, after your trip".
   for (const g of byName.values()) {
-    const k = g.name.toLowerCase();
+    const k = showKey(g);
     g.outsideTripShows = usable
-      .filter((e) => e.name.toLowerCase() === k && !inside(e))
+      .filter((e) => showKey(e) === k && !inside(e))
       .sort((a, b) => Math.abs(daysBetween(a.date, start)) - Math.abs(daysBetween(b.date, start)))
       .slice(0, MAX_OTHER_SHOWS)
       .map((e) => ({ ...e, when: e.date < start ? "before" : "after" }))
