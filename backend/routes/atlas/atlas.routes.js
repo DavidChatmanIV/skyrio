@@ -47,6 +47,8 @@ import { atlasStatusNote } from "../../services/siteStatus.js";
 import { tripEvents, tripFromCalls } from "../../services/atlas/tripEvents.js";
 import { tripExcursions } from "../../services/atlas/tripExcursions.js";
 import User from "../../models/user.js";
+import { travelerSnapshot } from "../../services/atlas/travelerSnapshot.js";
+import { splitChoices } from "../../services/atlas/choices.js";
 
 // Atlas finds events (Ticketmaster) and excursions (Viator) for a trip on
 // its own (services/atlas/tripEvents.js, tripExcursions.js). They're looked
@@ -863,8 +865,12 @@ async function handleChat(req, res) {
       // what it has learned about them (see services/atlas/*).
       if (userId) {
         finalSystemPrompt += `\n\n${ATLAS_BOOKING_PROMPT}`;
-        const learned = await buildLearnedContext(userId).catch(() => "");
+        const [learned, snapshot] = await Promise.all([
+          buildLearnedContext(userId).catch(() => ""),
+          travelerSnapshot(userId),
+        ]);
         if (learned) finalSystemPrompt += `\n\n${learned}`;
+        if (snapshot) finalSystemPrompt += `\n\n${snapshot}`;
 
         // On a Sync Together page, the panel sends the trip id so Atlas can
         // call get_sync_trip without asking for it.
@@ -1104,8 +1110,10 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       actions.push({ type: "group_signup_hint", travelers: groupSearchSeen });
     }
 
+    // "[[choices: …]]" on the last line → tappable answers under the reply.
+    const { text: replyText, choices } = splitChoices(result?.text);
     const reply =
-      tidyReply(result?.text) ||
+      tidyReply(replyText) ||
       (actions.some((a) => a.type === "booking")
         ? "Here's your booking. Review the details and tap Confirm & Pay."
         : actions.some((a) => a.type === "checkout_link")
@@ -1126,6 +1134,7 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
       reply,
       actions,
       toolsUsed: [...toolsUsed],
+      choices,
       // For checking in the browser's Network tab: how many events/tours
       // the trip lookup found (null = it didn't run this turn).
       tripExtras: {

@@ -665,7 +665,21 @@ function AtlasNudge({ visible, onDismiss }) {
   );
 }
 
-function Bubble({ msg, onActionResolved, conversationId, onProfileDone }) {
+// Atlas's tappable answers ("Just me", "Couple"…). Only under its latest
+// reply; tapping one sends it as the traveler's answer.
+function Choices({ choices, onPick }) {
+  return (
+    <div className="ap-choices" role="group" aria-label="Quick answers">
+      {choices.map((c) => (
+        <button key={c} type="button" className="ap-choice" onClick={() => onPick(c)}>
+          {c}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Bubble({ msg, onActionResolved, conversationId, onProfileDone, isLatest, onChoice }) {
   const isUser = msg.role === "user";
   const isStream = msg.streaming;
   const cards = !isUser && Array.isArray(msg.actions) ? msg.actions : [];
@@ -700,6 +714,9 @@ function Bubble({ msg, onActionResolved, conversationId, onProfileDone }) {
           )}
         </div>
       </div>
+      {isLatest && !isUser && !isStream && Array.isArray(msg.choices) && msg.choices.length > 1 && (
+        <Choices choices={msg.choices} onPick={onChoice} />
+      )}
       {cards.map((action, i) => {
         if (action?.type === "cancel")
           return (
@@ -1180,6 +1197,11 @@ export default function AtlasPanel() {
           const toolsUsed = Array.isArray(data.toolsUsed)
             ? data.toolsUsed.slice(0, 10)
             : [];
+          const choices = Array.isArray(data.choices)
+            ? data.choices
+                .filter((c) => typeof c === "string" && c.trim() && c.length <= 40)
+                .slice(0, 6)
+            : [];
           setMessages((prev) =>
             prev.map((m) =>
               m.id === streamId
@@ -1188,6 +1210,7 @@ export default function AtlasPanel() {
                     content,
                     streaming: false,
                     toolsUsed,
+                    ...(choices.length > 1 ? { choices } : {}),
                     ...(actions.length ? { actions } : {}),
                   }
                 : m
@@ -1388,10 +1411,12 @@ export default function AtlasPanel() {
                     ))}
                   </div>
                 )}
-                {messages.map((msg) => (
+                {messages.map((msg, mi) => (
                   <Bubble
                     key={msg.id}
                     msg={msg}
+                    isLatest={mi === messages.length - 1 && !loading}
+                    onChoice={(c) => sendMessage(c)}
                     onActionResolved={markActionDone}
                     conversationId={conversationId}
                     onProfileDone={(summary) =>
