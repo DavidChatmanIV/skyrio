@@ -1,3 +1,4 @@
+import { searchAirports } from "@/data/airportData";
 import React, {
   useMemo,
   useState,
@@ -2474,7 +2475,14 @@ function StaysForm({
       const lookupParams = place
         ? new URLSearchParams({ placeId: place.placeId, limit: "60" })
         : new URLSearchParams({
-            countryCode,
+            // Puerto Rico has its own country code for hotels: "San Juan"
+            // (or "San Juan, PR") looks there, not in the 50 states.
+            countryCode: /,\s*(PR|Puerto Rico)\b/i.test(qCity) ||
+              searchAirports(qCity.split(",")[0].trim()).results.some(
+                (a) => a.state === "PR" && a.city.toLowerCase() === qCity.split(",")[0].trim().toLowerCase()
+              )
+              ? "PR"
+              : countryCode,
             cityName: qCity.split(",")[0].trim(),
             limit: "60",
           });
@@ -7539,6 +7547,18 @@ export default function BookingPage() {
                   >
                     Clear all filters
                   </button>
+                )}
+              {/* A heads-up so nobody wonders how to add a hotel after the flight. */}
+              {tab === "Flights" &&
+                !isSearching &&
+                !syncGroupId &&
+                !packagePlan &&
+                flightResults.length > 0 && (
+                  <p className="sk-next-hint">
+                    <BedDouble size={14} aria-hidden="true" /> After you book your
+                    flight, we&apos;ll take you to stays, cars and things to do
+                    for the same dates.
+                  </p>
                 )}
               {priceCheck &&
                 !isSearching &&

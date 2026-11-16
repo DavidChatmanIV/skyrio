@@ -26,7 +26,12 @@ export default function EventsForm({ onDestChange, onSearch, initial = null }) {
 
     onSearch?.({
       city,
-      state: opts.city ? undefined : destState || undefined,
+      state:
+        (opts.city
+          ? searchAirports(opts.city).results.find(
+              (a) => a.city.toLowerCase() === String(opts.city).trim().toLowerCase()
+            )?.state
+          : destState) || undefined,
       startDate: range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : undefined,
       endDate: range[1] ? dayjs(range[1]).format("YYYY-MM-DD") : undefined,
       category,
@@ -40,6 +45,10 @@ export default function EventsForm({ onDestChange, onSearch, initial = null }) {
     prefilledRef.current = true;
     if (initial.city) {
       setDestDisplay(initial.city);
+      const exact = searchAirports(initial.city).results.find(
+        (a) => a.city.toLowerCase() === String(initial.city).trim().toLowerCase()
+      );
+      if (exact?.state) setDestState(exact.state);
       onDestChange?.(initial.city);
     }
     const start = initial.start ? dayjs(initial.start) : null;
@@ -47,7 +56,7 @@ export default function EventsForm({ onDestChange, onSearch, initial = null }) {
     const range = start?.isValid() && end?.isValid() ? [start, end] : [null, null];
     setDates(range);
     if (initial.autoSearch && initial.city) {
-      setTimeout(() => handleSearch({ city: initial.city, dates: range }), 0);
+      setTimeout(() => handleSearch({ city: initial.city, dates: range, fromLink: true }), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);

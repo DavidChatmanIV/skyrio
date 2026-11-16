@@ -8,6 +8,8 @@ import { useSearchParams, Link } from "react-router-dom";
 import { Plane, AlertTriangle, RefreshCw } from "lucide-react";
 import { apiHeaders, getCheckoutToken } from "@/utils/checkoutToken";
 import BookingProgress from "./BookingProgress";
+import TripNextSteps from "@/components/TripNextSteps";
+import { readTripNext } from "@/lib/tripNext";
 
 const PENDING_KEY = "skyrio_pending_flight_payment";
 const API = import.meta.env?.VITE_API_URL || "";
@@ -279,6 +281,7 @@ export default function FlightBookingComplete() {
           </Link>
         </p>
       )}
+      {!p.groupId && <TripNextSteps trip={readTripNext()} />}
       <Link
         to="/saved-trips"
         style={{ display: "inline-block", marginTop: 18, color: "#ff8a2a" }}
