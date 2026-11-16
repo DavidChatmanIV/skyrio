@@ -268,12 +268,23 @@ function compareFlights(sortKey) {
   return (a, b) => price(a) - price(b);
 }
 
+// Read the hour straight from the airline's local time ("2027-01-21T06:15"),
+// so the phone's own time zone can't shift a flight into the wrong slot.
 function getFlightTimeSlot(flight) {
-  if (!flight.departingAt) return null;
-  const hour = dayjs(flight.departingAt).hour();
+  const m = String(flight.departingAt || "").match(/T(\d{2}):/);
+  const hour = m ? Number(m[1]) : flight.departingAt ? dayjs(flight.departingAt).hour() : null;
+  if (hour == null || !Number.isFinite(hour)) return null;
   if (hour >= 5 && hour < 12) return "morning";
   if (hour >= 12 && hour < 18) return "afternoon";
-  return "evening";
+  if (hour >= 18) return "evening";
+  return "overnight"; // midnight – 5am (red-eyes)
+}
+
+// Stops on each direction (outbound, and return when there is one).
+function legStops(flight) {
+  const out = Number.isFinite(flight.stops) ? flight.stops : 0;
+  const back = flight.slices?.[1]?.stops;
+  return Number.isFinite(back) ? [out, back] : [out];
 }
 
 function applyFilters(flights, filters) {
@@ -282,10 +293,12 @@ function applyFilters(flights, filters) {
     if (filters.price !== "any" && price > Number(filters.price)) return false;
     if (filters.stops !== "any") {
       const s = Number(filters.stops);
-      // 0 = Nonstop only · 1 = 1 stop OR FEWER (keeps nonstops) · 2 = 2+ stops
-      if (s === 0 && f.stops !== 0) return false;
-      if (s === 1 && f.stops > 1) return false;
-      if (s >= 2 && f.stops < 2) return false;
+      // 0 = Nonstop only · 1 = 1 stop OR FEWER (keeps nonstops) · 2 = 2+ stops.
+      // Checked on BOTH directions: "Nonstop only" means nonstop there AND back.
+      const legs = legStops(f);
+      if (s === 0 && legs.some((n) => n !== 0)) return false;
+      if (s === 1 && legs.some((n) => n > 1)) return false;
+      if (s >= 2 && legs.every((n) => n < 2)) return false;
     }
     if (filters.time !== "any" && getFlightTimeSlot(f) !== filters.time)
       return false;
@@ -5936,9 +5949,19 @@ export default function BookingPage() {
   const budgetBarFit =
     tab === "Stays" ? hotelFit : hasReturnData ? groupFit : flightFit;
 
-  // A new hotel search starts with clean filters (the old hotel pick won't exist).
+  // A new hotel search drops only what can't carry over: the picked hotel
+  // and a meal plan the new results don't offer. Price, stars, rating and
+  // refundable stay, so filters set before searching still apply.
   useEffect(() => {
-    setHotelFilters(DEFAULT_HOTEL_FILTERS);
+    setHotelFilters((f) => {
+      const boards = new Set(hotelResults.map((r) => r.boardName || "Room only"));
+      const next = {
+        ...f,
+        hotel: "any",
+        board: f.board !== "any" && hotelResults.length && !boards.has(f.board) ? "any" : f.board,
+      };
+      return next.hotel === f.hotel && next.board === f.board ? f : next;
+    });
   }, [hotelResults]);
 
   useEffect(() => {

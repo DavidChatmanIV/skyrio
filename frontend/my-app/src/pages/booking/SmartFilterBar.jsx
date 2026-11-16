@@ -528,6 +528,9 @@ function PricePanel({ value, onChange, close }) {
   return (
     <>
       <PanelLabel>Max Price</PanelLabel>
+      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", margin: "-6px 0 8px", lineHeight: 1.4 }}>
+        Total for everyone traveling, round trip.
+      </div>
       {opts.map((o) => (
         <RadioRow
           key={o.val}
@@ -591,6 +594,12 @@ function TimePanel({ value, onChange, close }) {
       val: "evening",
       label: "Evening",
       sub: "6pm – midnight",
+      Icon: IconEvening,
+    },
+    {
+      val: "overnight",
+      label: "Overnight",
+      sub: "Midnight – 5am",
       Icon: IconEvening,
     },
   ];
@@ -861,6 +870,7 @@ export default function SmartFilterBar({
       morning: "Morning",
       afternoon: "Afternoon",
       evening: "Evening",
+      overnight: "Overnight",
     };
     return `Time · ${map[filters.time] ?? filters.time}`;
   }, [filters.time]);

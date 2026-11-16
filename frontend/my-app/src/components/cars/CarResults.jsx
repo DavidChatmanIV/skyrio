@@ -12,14 +12,19 @@ const FILTERS = [
   {
     id: "small",
     label: "Small",
-    match: (c) => /mini|economy|compact/i.test(c.car.category || ""),
+    // Size buckets leave out SUVs and vans (they have their own filters).
+    match: (c) =>
+      /mini|economy|compact/i.test(c.car.category || "") &&
+      c.car.type !== "SUV" &&
+      !/van|pickup/i.test(c.car.type || ""),
   },
   {
     id: "mid",
     label: "Midsize & full-size",
     match: (c) =>
       /midsize|standard|full/i.test(c.car.category || "") &&
-      c.car.type !== "SUV",
+      c.car.type !== "SUV" &&
+      !/van|pickup/i.test(c.car.type || ""),
   },
   { id: "suv", label: "SUVs", match: (c) => c.car.type === "SUV" },
   {
