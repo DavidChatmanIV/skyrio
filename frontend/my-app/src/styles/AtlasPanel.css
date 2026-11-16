@@ -428,6 +428,16 @@
   border-radius: 2px;
   background: var(--ap-orange);
 }
+/* Tappable answers under Atlas's latest question */
+.ap-choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 4px 34px; animation: apBubble 0.22s ease both; }
+.ap-choice { min-height: 36px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(255, 138, 42, 0.45); background: rgba(255, 138, 42, 0.1);
+  color: #fff; font: 700 13px "DM Sans", sans-serif; touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s; }
+.ap-choice:active { transform: scale(0.97); }
+@media (hover: hover) { .ap-choice:hover { background: rgba(255, 138, 42, 0.22); border-color: rgba(255, 138, 42, 0.8); } }
+.ap-choice:focus-visible { outline: 2px solid #ffb347; outline-offset: 2px; }
+@media (max-width: 520px) { .ap-choices { margin-left: 0; } }
 .ap-starter-btn {
   width: 100%;
   display: flex;
