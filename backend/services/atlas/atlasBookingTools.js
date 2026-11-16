@@ -52,6 +52,7 @@ import { searchCars, CarSearchError } from "../../routes/api/cars/cars.service.j
 import { searchEvents } from "../../providers/ticketmasterProvider.js";
 import { placeFor, eventView, groupShows } from "./tripEvents.js";
 import { checkEventsAgainstFlights } from "./tripTiming.js";
+import { tripPriceCheck, checkFlight, checkHotel } from "./priceCheck.js";
 
 // Each traveler's latest flight search (30 min), so an events search later
 // in the chat can check which events those flights actually get them to.
@@ -349,7 +350,7 @@ export const ATLAS_BOOKING_TOOLS = [
   {
     name: "price_trip",
     description:
-      "Add up a trip, or compare options, with exact math. Pass the optionIds you plan to mention (a flight, a hotel, a car, or several hotels to compare). Returns each option's total, the trip total and the per-person amount, plus which option is cheapest. Call this before you state any combined total, per-person amount, or say one option is cheaper than another, and use its numbers exactly.",
+      "Add up a trip, or compare options, with exact math. Pass the optionIds you plan to mention (a flight, a hotel, a car, or several hotels to compare). Returns the flight total, hotel total, trip total (flight + hotel) and per-person amount with a breakdown line, plus a PRICE CHECK: problems (fix before showing), datesMismatch, and lowPrice (check again before showing). Call this before you state any combined total, per-person amount, or say one option is cheaper than another, and use its numbers exactly.",
     parameters: {
       type: "object",
       properties: {
@@ -936,8 +937,10 @@ function priceTrip(owner, input) {
   const cents = (n) => Math.round(Number(n) * 100);
   const items = [];
   const missing = [];
+  const optsById = new Map();
   for (const id of ids) {
     const opt = getOption(owner, id);
+    if (opt) optsById.set(id, opt);
     if (!opt) {
       missing.push(id);
       continue;
@@ -970,8 +973,26 @@ function priceTrip(owner, input) {
         "Those options expired or weren't found. Search again, then call price_trip with the new optionIds.",
     };
   }
+  // Totals of the other options in the same search, so a price far below
+  // the rest gets checked again before it's shown.
+  const othersOf = (opt) =>
+    (searchGroups.get(opt?.display?.searchId) || [])
+      .map((d) => Number(opt.kind === "hotel" ? d.totalForAllRooms ?? d.total : d.price ?? d.total))
+      .filter(Number.isFinite);
+  const lowFor = (it) => {
+    const opt = optsById.get(it.optionId);
+    if (opt?.kind === "hotel") return checkHotel(opt, othersOf(opt)).low;
+    if (opt?.kind === "flight") return checkFlight(opt, othersOf(opt)).low;
+    return [];
+  };
   const sumCents = items.reduce((s, it) => s + cents(it.total), 0);
-  const travelers = Math.max(1, Math.round(Number(input.travelers)) || 1);
+  // The flight's own traveler count wins: its fare covers exactly them.
+  const flightOpt = items.find((it) => it.kind === "flight");
+  const pricedFor = flightOpt
+    ? Number(optsById.get(flightOpt.optionId)?.search?.adults || 0) +
+      Number(optsById.get(flightOpt.optionId)?.search?.children || 0)
+    : 0;
+  const travelers = Math.max(1, pricedFor || Math.round(Number(input.travelers)) || 1);
   // Cheapest of each kind, so "cheaper" claims can be checked.
   const cheapestByKind = {};
   for (const it of items) {
@@ -986,10 +1007,14 @@ function priceTrip(owner, input) {
   const kinds = items.map((it) => it.kind);
   if (new Set(kinds).size < kinds.length) {
     return {
-      compare: sorted.map((it) => ({
-        ...it,
-        perPerson: Math.round(cents(it.total) / travelers) / 100,
-      })),
+      compare: sorted.map((it) => {
+        const low = lowFor(it);
+        return {
+          ...it,
+          perPerson: Math.round(cents(it.total) / travelers) / 100,
+          ...(low.length ? { lowPrice: low } : {}),
+        };
+      }),
       cheapestByKind,
       travelers,
       ...expired,
@@ -997,13 +1022,40 @@ function priceTrip(owner, input) {
         "Cheapest first. Only call an option cheaper than another if it's higher in this list. For a trip total, call price_trip again with one option of each kind.",
     };
   }
+  // PRICE CHECK (services/atlas/priceCheck.js): flight covers the right
+  // travelers, hotel = per room × rooms × nights for the nights they're
+  // there, and anything far below normal gets checked again.
+  const hotelIt = items.find((it) => it.kind === "hotel");
+  const check = tripPriceCheck({
+    flight: flightOpt && optsById.get(flightOpt.optionId),
+    hotel: hotelIt && optsById.get(hotelIt.optionId),
+    travelersAsked: input.travelers,
+    flightOthers: flightOpt ? othersOf(optsById.get(flightOpt.optionId)) : [],
+    hotelOthers: hotelIt ? othersOf(optsById.get(hotelIt.optionId)) : [],
+  });
+  const carIt = items.find((it) => it.kind === "car");
   return {
     items: sorted,
-    tripTotal: sumCents / 100,
-    perPerson: Math.round(sumCents / travelers) / 100,
-    travelers,
+    flightTotal: check.flightTotal,
+    hotelTotal: check.hotelTotal,
+    ...(carIt ? { carTotalPaidAtPickup: carIt.total } : {}),
+    // Flight + hotel (what's paid on Skyrio). A car is paid at pickup, so
+    // it's listed on its own, not added in.
+    tripTotal: flightOpt || hotelIt ? check.tripTotal : sumCents / 100,
+    perPerson: flightOpt || hotelIt ? check.perPerson : Math.round(sumCents / travelers) / 100,
+    travelers: flightOpt || hotelIt ? check.travelers : travelers,
+    flight: check.flight || undefined,
+    hotel: check.hotel || undefined,
+    breakdown: check.breakdown,
+    ...(check.problems.length ? { problems: check.problems } : {}),
+    ...(check.datesMismatch ? { datesMismatch: check.datesMismatch } : {}),
+    ...(check.lowPrice ? { lowPrice: check.lowPrice } : {}),
     ...expired,
-    note: "Use these exact numbers. Cars are paid at pickup, so say if one is included.",
+    note: check.problems.length
+      ? "Don't show this total yet. Fix each problem first (search again as it says), then call price_trip again."
+      : check.lowPrice
+      ? "This total looks far below normal. Before showing it, search that part again with the same dates, rooms and travelers. If the new price is still this low, show it and say it's unusually low and is confirmed again at checkout before they pay."
+      : "Show it as the breakdown says: Flight total + Hotel total = Trip total, then per person. Use these exact numbers. Cars are paid at pickup, so say if one is included.",
   };
 }
 
