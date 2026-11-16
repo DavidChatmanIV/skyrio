@@ -449,7 +449,7 @@ export default function LandingPage() {
     }
     if (dest?.code) {
       const q = new URLSearchParams({ tab: "Flights", to: dest.code });
-      if (home?.code && home.code !== dest.code) q.set("from", home.code);
+      if (isAuthed && home?.code && home.code !== dest.code) q.set("from", home.code);
       if (dest.city) q.set("toName", dest.city);
       navigate(`/booking?${q}`);
     } else navigate("/booking?tab=Flights");
@@ -528,7 +528,7 @@ export default function LandingPage() {
                   <Search size={16} aria-hidden="true" /> Search flights
                 </button>
               </form>
-              {home?.code && (
+              {isAuthed && home?.code && (
                 <div className="lp-from">
                   <Plane size={14} aria-hidden="true" /> From <b>{home.code}</b>
                   {home.city && home.city !== home.code ? ` · ${home.city}` : ""}

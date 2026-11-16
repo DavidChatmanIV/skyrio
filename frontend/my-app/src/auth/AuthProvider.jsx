@@ -70,6 +70,9 @@ export default function AuthProvider({ children }) {
     localStorage.removeItem("user");
     localStorage.removeItem("token");
     localStorage.removeItem("skyrio_guest");
+    // Home airport belongs to the account: don't leave it for the next
+    // person on this device. It comes back from the account on login.
+    localStorage.removeItem("skyrio_home_airport");
   }, []);
 
   const logout = useCallback(async () => {
