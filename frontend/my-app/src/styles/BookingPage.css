@@ -4970,3 +4970,19 @@ body.sk-roombar-on .sk-results-wrap {
     padding: 0 12px;
   }
 }
+
+/* "After you book your flight, we'll take you to stays…" */
+.sk-next-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 138, 42, 0.1);
+  border: 1px solid rgba(255, 138, 42, 0.3);
+}
+.sk-next-hint svg { flex-shrink: 0; margin-top: 2px; color: #ffb347; }

@@ -36,6 +36,7 @@ import OverBudgetCheck, {
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
 import PolicyNote from "@/components/PolicyNote";
 import BudgetMeter from "@/components/BudgetMeter";
+import { saveTripNext, tripFromFlight } from "@/lib/tripNext";
 
 // "Plan on a budget" amount from the booking page, shared with the
 // sidebar on every step (Passengers → Seats → Review & Pay).
@@ -5136,6 +5137,12 @@ export default function BookingCheckout({
   // True once a booking completes — nothing left to protect, and asking
   // "discard your progress?" right after paying would be confusing.
   const [bookingComplete, setBookingComplete] = useState(false);
+  // Remember this trip for the "What's next" card after paying (stay, car,
+  // things to do). Group trips have their own trip page, so skip those.
+  useEffect(() => {
+    if (!groupId) saveTripNext(tripFromFlight(flight, { budget: planBudget }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const handleBookingSuccess = useCallback(() => {
     setBookingComplete(true);
     onBooked?.();

@@ -94,7 +94,9 @@ export default function EventsResults({
         return data;
       })
       .then((data) => {
-        setEvents((prev) => (page === 0 ? data.events : [...prev, ...data.events]));
+        // A reply without a list (odd server answer) shows "no events", not a crash.
+        const list = Array.isArray(data?.events) ? data.events : [];
+        setEvents((prev) => (page === 0 ? list : [...prev, ...list]));
         setTotalPages(data.page?.totalPages || 0);
         setStatus("done");
       })

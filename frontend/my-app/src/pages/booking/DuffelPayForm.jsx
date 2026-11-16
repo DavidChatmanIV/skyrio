@@ -11,6 +11,8 @@
 // VITE_STRIPE_PUBLISHABLE_KEY / VITE_STRIPE_PK in the frontend .env.
 
 import { useEffect, useMemo, useState } from "react";
+import TripNextSteps from "@/components/TripNextSteps";
+import { readTripNext } from "@/lib/tripNext";
 import { skyrioStripeAppearance } from "@/lib/stripeAppearance";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -246,6 +248,7 @@ export default function DuffelPayForm({
         <a href="/saved-trips" className="skc-btn-primary" style={{ display: "inline-block", textDecoration: "none" }}>
           View My Trips
         </a>
+        {!groupId && <TripNextSteps trip={readTripNext()} />}
       </div>
     );
   }

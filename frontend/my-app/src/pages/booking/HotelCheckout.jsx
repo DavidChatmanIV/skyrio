@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from "react";
+import TripNextSteps from "@/components/TripNextSteps";
+import { markTripNext } from "@/lib/tripNext";
 import {
   Typography,
   Card,
@@ -1201,12 +1203,24 @@ function RoomUnavailableNotice({ rooms, onFindAnother, onClose }) {
 // ─────────────────────────────────────────────
 // Confirmation screen
 // ─────────────────────────────────────────────
-function ConfirmationScreen({ confirmation, onBack, showSyncTip = false }) {
+function ConfirmationScreen({ confirmation, onBack, showSyncTip = false, destCity = "", groupId = null }) {
   const { confirmationId, rooms, totalPaid, partialMessage } = confirmation;
   const total =
     typeof totalPaid === "number"
       ? totalPaid
       : rooms.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0);
+  // "What's next": the stay is done; offer a car and things to do (and keep
+  // a flight booked earlier in this tab on the list).
+  const [trip] = React.useState(() =>
+    groupId
+      ? null
+      : markTripNext("stay", {
+          spent: total,
+          checkin: rooms[0]?.checkin,
+          checkout: rooms[0]?.checkout,
+          city: destCity,
+        })
+  );
 
   return (
     <div className="sk-booking sk-checkout-page">
@@ -1239,6 +1253,8 @@ function ConfirmationScreen({ confirmation, onBack, showSyncTip = false }) {
           </div>
         </Card>
 
+        {trip && <TripNextSteps trip={trip} />}
+
         {showSyncTip && (
           <div style={{ marginTop: 20, width: "100%", maxWidth: 560 }}>
             <SyncTogetherNudge kind="after" />
@@ -1263,6 +1279,7 @@ function ConfirmationScreen({ confirmation, onBack, showSyncTip = false }) {
 export default function HotelCheckout({
   rooms: roomsProp,
   hotel,
+  destCity = "",
   onBack,
   groupId = null,
   tripBudget = null,
@@ -1466,6 +1483,8 @@ export default function HotelCheckout({
         confirmation={confirmation}
         onBack={onBookingComplete || onBack}
         showSyncTip={showSyncTip}
+        destCity={destCity}
+        groupId={groupId}
       />
     );
   }
