@@ -76,7 +76,10 @@ const TRIP_EVENTS_NOTE =
   "'Dalvin La Melodia plays Jan 21 at 8 PM, but this flight lands Jan 22. Want a flight that gets you there in time?' " +
   "Other nights: an event can have otherShows (the same show on other dates in the trip). Mention them in a few words " +
   "('also Jan 23 at 8 PM'). If switchedFrom is set, the first night didn't fit the flights, so lead with the night that works " +
-  "and say the earlier one is too soon after landing.";
+  "and say the earlier one is too soon after landing. " +
+  "outsideTripShows are the same show on nights outside the trip (when: before/after). Mention them only as " +
+  "'also plays Jan 26, after your trip' and offer to adjust the flights; never call them part of the trip. " +
+  "Copy names, dates, times and venues exactly as given; never change a date to make it fit.";
 
 const TRIP_EXCURSIONS_NOTE =
   "Real tours and activities from Viator, available during this trip (only these). " +
@@ -90,10 +93,12 @@ const TRIP_EXTRAS = [
   { key: "events", field: "eventsDuringTrip", note: TRIP_EVENTS_NOTE, skipIf: "search_events" },
   { key: "excursions", field: "excursionsDuringTrip", note: TRIP_EXCURSIONS_NOTE },
 ];
+const noLinks = (list) => list.map(({ url: _u, ...o }) => o);
 const forAtlas = (list) =>
-  list.map(({ url, currency, otherShows, ...rest }) => ({
+  list.map(({ url, currency, otherShows, outsideTripShows, ...rest }) => ({
     ...rest,
-    ...(otherShows?.length ? { otherShows: otherShows.map(({ url: _u, ...o }) => o) } : {}),
+    ...(otherShows?.length ? { otherShows: noLinks(otherShows) } : {}),
+    ...(outsideTripShows?.length ? { outsideTripShows: noLinks(outsideTripShows) } : {}),
   }));
 
 const router = Router();

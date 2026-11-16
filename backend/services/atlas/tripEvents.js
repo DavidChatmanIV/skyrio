@@ -12,7 +12,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { searchEvents as tmSearchEvents } from "../../providers/ticketmasterProvider.js";
-import { normalizeEvent, toTmDateTime, isValidDate, addDays } from "../../utils/eventsUtils.js";
+import { normalizeEvent, toTmDateTime, isValidDate, addDays, todayISO } from "../../utils/eventsUtils.js";
+
+const OUTSIDE_DAYS = 7; // look this far before/after the trip for other nights
+const maxDate = (a, b) => (a > b ? a : b);
 import { stateCode as toStateCode } from "../placeName.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -92,22 +95,33 @@ export function pickTripEvents(events, { start, end, interests = [], max = MAX_T
     return i === -1 ? interests.length : i;
   };
   const byName = new Map(); // one show, many nights → one entry + otherShows
-  const ordered = (events || [])
-    .filter(
-      (e) =>
-        e?.name &&
-        e.date &&
-        e.date >= start &&
-        e.date <= end && // inside the trip, by the event's local date
-        /^https:\/\//.test(String(e.url || "")) &&
-        !["cancelled", "canceled", "offsale"].includes(e.status)
-    )
+  const usable = (events || []).filter(
+    (e) =>
+      e?.name &&
+      e.date &&
+      /^https:\/\//.test(String(e.url || "")) &&
+      !["cancelled", "canceled", "offsale"].includes(e.status)
+  );
+  const inside = (e) => e.date >= start && e.date <= end; // by the event's local date
+  const ordered = usable
+    .filter(inside)
     .sort((a, b) => rank(a) - rank(b) || a.date.localeCompare(b.date) || String(a.time || "").localeCompare(String(b.time || "")));
   for (const e of ordered) {
     const k = e.name.toLowerCase();
     const first = byName.get(k);
     if (!first) byName.set(k, { ...e, otherShows: [] });
     else if (first.otherShows.length < MAX_OTHER_SHOWS) first.otherShows.push(e);
+  }
+  // Same show on nights outside the trip (nearest first, up to 3):
+  // "also plays Jan 26, after your trip".
+  for (const g of byName.values()) {
+    const k = g.name.toLowerCase();
+    g.outsideTripShows = usable
+      .filter((e) => e.name.toLowerCase() === k && !inside(e))
+      .sort((a, b) => Math.abs(daysBetween(a.date, start)) - Math.abs(daysBetween(b.date, start)))
+      .slice(0, MAX_OTHER_SHOWS)
+      .map((e) => ({ ...e, when: e.date < start ? "before" : "after" }))
+      .sort((a, b) => a.date.localeCompare(b.date) || String(a.time || "").localeCompare(String(b.time || "")));
   }
   return [...byName.values()]
     .slice(0, max)
@@ -150,6 +164,8 @@ export const eventView = (e) => ({
   url: e.url,
   status: e.status === "postponed" || e.status === "rescheduled" ? e.status : null,
   otherShows: (e.otherShows || []).map(showView),
+  // Nights outside the trip dates: "before" or "after" the trip.
+  outsideTripShows: (e.outsideTripShows || []).map((o) => ({ ...showView(o), when: o.when })),
 });
 
 /**
@@ -171,11 +187,12 @@ export async function tripEvents(
       city: place.countryCode === "PR" ? undefined : place.city,
       stateCode: place.stateCode,
       countryCode: place.countryCode,
-      startDateTime: toTmDateTime(start),
-      // A day past the end: a late show's UTC time can be the next day.
-      // pickTripEvents then keeps only events whose local date is in the trip.
-      endDateTime: toTmDateTime(addDays(end, 1), true),
-      size: 30,
+      // A week either side of the trip, so a show playing other nights in
+      // the city can say so ("also Jan 26, after your trip"). Suggestions
+      // themselves are only events inside the trip (pickTripEvents).
+      startDateTime: toTmDateTime(maxDate(addDays(start, -OUTSIDE_DAYS), todayISO())),
+      endDateTime: toTmDateTime(addDays(end, OUTSIDE_DAYS + 1), true),
+      size: 60,
     });
     const all = (data?._embedded?.events || []).map(normalizeEvent);
     const picked = pickTripEvents(all, { start, end, interests: interestCategories(vibes) });
