@@ -17,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────
 import useForYou from "@/lib/useForYou";
 import { useAuth } from "@/auth/useAuth";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Sparkles,
@@ -33,7 +33,12 @@ import {
   Pencil,
   Check,
 } from "lucide-react";
-import { readHomeAirport, saveHomeAirport } from "@/lib/homeAirport";
+import {
+  readHomeAirport,
+  saveHomeAirport,
+  fetchHomeAirport,
+  HOME_AIRPORT_EVENT,
+} from "@/lib/homeAirport";
 import AirportInput from "@/pages/booking/AirportInput";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -153,16 +158,18 @@ const usd = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 export default function TripGenerator() {
   const navigate = useNavigate();
-  const home = (() => {
-    try {
-      return readHomeAirport() || null;
-    } catch {
-      return null;
-    }
-  })();
+  // Home airport: this browser's copy, kept fresh from the account.
+  const [home, setHome] = useState(() => readHomeAirport());
+  useEffect(() => {
+    const onChange = () => setHome(readHomeAirport());
+    window.addEventListener(HOME_AIRPORT_EVENT, onChange);
+    return () => window.removeEventListener(HOME_AIRPORT_EVENT, onChange);
+  }, []);
 
-  // Where trips start: your home airport, else pick one (no made-up default).
-  const [fromAp, setFromAp] = useState(home?.code ? home : null);
+  // Where trips start: signed in → your home airport. Guests start empty
+  // and pick one (no made-up default, nothing left over from another login).
+  const [fromAp, setFromAp] = useState(null);
+  const pickedFrom = useRef(false); // they chose an airport themselves
   const from = fromAp?.code || "";
   const [homeSaved, setHomeSaved] = useState(false);
   const [homeErr, setHomeErr] = useState(false);
@@ -173,6 +180,14 @@ export default function TripGenerator() {
   // What Atlas knows about how you travel (signed in, learning on).
   const forYou = useForYou();
   const { isAuthed } = useAuth();
+  const homeCode = home?.code || "";
+  useEffect(() => {
+    if (isAuthed && !homeCode) fetchHomeAirport().catch(() => {});
+  }, [isAuthed, homeCode]);
+  useEffect(() => {
+    if (pickedFrom.current) return;
+    setFromAp(isAuthed && homeCode ? readHomeAirport() : null);
+  }, [isAuthed, homeCode]);
   const styleLines = forYou?.enabled ? (forYou.lines || []).map((l) => l.text).filter(Boolean) : [];
   const [useStyle, setUseStyle] = useState(true);
   const styleOn = useStyle && styleLines.length > 0;
@@ -326,6 +341,7 @@ export default function TripGenerator() {
             <AirportInput
               value={fromAp ? `${fromAp.city || fromAp.code} (${fromAp.code})` : ""}
               onChange={(ap) => {
+                pickedFrom.current = true;
                 change(setFromAp)(ap?.code ? { code: ap.code, city: ap.city, name: ap.name } : null);
                 setHomeSaved(false);
                 setHomeErr(false);
