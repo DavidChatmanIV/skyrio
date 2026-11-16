@@ -49,6 +49,13 @@ import { tripExcursions } from "../../services/atlas/tripExcursions.js";
 import User from "../../models/user.js";
 import { travelerSnapshot } from "../../services/atlas/travelerSnapshot.js";
 import { splitChoices } from "../../services/atlas/choices.js";
+import { checkEventsAgainstFlights, checkStayAgainstFlights } from "../../services/atlas/tripTiming.js";
+
+const DATES_CHECK_NOTE =
+  "Hotel nights vs each flight option. Before showing a plan, pair the hotel with a flight whose row says matches: true. " +
+  "unusedNights = nights paid before they land: never show that pairing as-is. Either recommend a matching flight, " +
+  "or search the hotel again with checkin = that flight's landsOn (and checkout = its leavesOn), then show it. " +
+  "nightsWithoutHotel = nights after check-out before the flight home: say so or re-search. Mention a date change in one line.";
 
 // Atlas finds events (Ticketmaster) and excursions (Viator) for a trip on
 // its own (services/atlas/tripEvents.js, tripExcursions.js). They're looked
@@ -62,7 +69,11 @@ const TRIP_EVENTS_NOTE =
   "Mention them in one or two short lines after the trip plan: name, day, venue. " +
   "Say tickets are sold on Ticketmaster and the 'Buy on Ticketmaster' buttons are below. " +
   "Suggest only: don't add them to the trip or change dates unless the traveler says yes. " +
-  "Only give a price if priceFrom is set.";
+  "Only give a price if priceFrom is set. " +
+  "Timing: when flights were searched, each event has landBy (latest landing to make it, 3h before it starts) and " +
+  "fitsFlightOptionIds / missesFlightOptionIds. List an event under 'Happening while you're there' only if the flight " +
+  "you're recommending is in fitsFlightOptionIds. If a good one is missed, say it in one line, e.g. " +
+  "'Dalvin La Melodia plays Jan 21 at 8 PM, but this flight lands Jan 22. Want a flight that gets you there in time?'";
 
 const TRIP_EXCURSIONS_NOTE =
   "Real tours and activities from Viator, available during this trip (only these). " +
@@ -957,6 +968,7 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
     // flights + hotels. extraRuns[key] = Promise; extraShown[key] = result.
     const extraRuns = {};
     const extraShown = {};
+    let turnFlights = []; // latest flight options this turn (for timing checks)
     let vibesP = null;
     const myVibes = () =>
       (vibesP ||= userId
@@ -1043,6 +1055,20 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
           };
         }
         toolResults.push({ id: call.id, name: call.name, result: ran.result });
+        if (call.name === "search_flights" && Array.isArray(ran.result?.options) && ran.result.options.length) {
+          turnFlights = ran.result.options;
+        }
+      }
+
+      // Hotel nights vs the flights: check-in on the day they land,
+      // check-out on the day they fly home (see services/atlas/tripTiming.js).
+      const hotelCall = calls.find((c) => c.name === "search_hotels");
+      const hotelRes = toolResults.find((t) => t.name === "search_hotels" && Array.isArray(t.result?.options));
+      if (hotelCall && hotelRes && turnFlights.length) {
+        const check = checkStayAgainstFlights(hotelCall.arguments || {}, turnFlights);
+        if (check && check.flights.some((r) => !r.matches)) {
+          hotelRes.result = { ...hotelRes.result, datesCheck: { ...check, note: DATES_CHECK_NOTE } };
+        }
       }
 
       // Hand the trip's events and excursions to Atlas with this round's
@@ -1058,13 +1084,14 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
         pending.forEach((x, i) => {
           const list = found[i]?.[x.key];
           if (!list?.length) return;
-          extraShown[x.key] = found[i];
+          extraShown[x.key] =
+            x.key === "events" ? { ...found[i], events: checkEventsAgainstFlights(list, turnFlights) } : found[i];
           target.result = {
             ...target.result,
             [x.field]: {
               place: found[i].place,
               dates: `${found[i].start} to ${found[i].end}`,
-              [x.key]: forAtlas(list),
+              [x.key]: forAtlas(extraShown[x.key][x.key]),
               note: x.note,
             },
           };
@@ -1081,7 +1108,9 @@ Only ask about dates if they're truly unclear (no month given, or a range that d
     for (const x of TRIP_EXTRAS) {
       if (!extraRuns[x.key] || extraShown[x.key]) continue;
       const done = await Promise.race([extraRuns[x.key], sleep(0).then(() => null)]);
-      if (done?.[x.key]?.length) extraShown[x.key] = done;
+      if (done?.[x.key]?.length)
+        extraShown[x.key] =
+          x.key === "events" ? { ...done, events: checkEventsAgainstFlights(done.events, turnFlights) } : done;
     }
 
     // One "During your trip" card with the real "Buy on Ticketmaster" /
