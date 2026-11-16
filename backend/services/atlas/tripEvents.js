@@ -83,6 +83,20 @@ export function placeFor({ destination, airportCode } = {}) {
   const st = toStateCode(tail) || toStateCode(parts[parts.length - 1]);
   if (/puerto rico/i.test(raw) || st === "PR") return { city, countryCode: "PR", label: city };
   if (st) return { city, stateCode: st, countryCode: "US", label: `${city}, ${st}` };
+  // Just a city name: if our airports list has it in one place only, use
+  // that place ("San Juan" → Puerto Rico).
+  const want = city.toLowerCase();
+  const hits = [...airportsByCode().values()].filter((a) => String(a.city || "").toLowerCase() === want);
+  const plainName = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (!hits.length)
+    hits.push(...[...airportsByCode().values()].filter((a) => plainName(a.city) === plainName(city)));
+  // The big airport decides when the name exists in more than one place
+  // (San Juan: SJU in Puerto Rico, not UAQ in Argentina).
+  const big = hits.filter((a) => a.size === "large");
+  const pool = big.length ? big : hits;
+  const countries = [...new Set(pool.map((a) => a.countryCode).filter(Boolean))];
+  if (countries.length === 1 && countries[0] === "PR") return { city, countryCode: "PR", label: city };
+  if (countries.length === 1 && countries[0] !== "US") return { city, countryCode: countries[0], label: city };
   return { city, label: city };
 }
 

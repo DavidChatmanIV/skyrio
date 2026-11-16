@@ -1,5 +1,17 @@
 // backend/controllers/eventsController.js
 import { searchEvents, getEventById } from "../providers/ticketmasterProvider.js";
+import { tidyPlace, stateCode as toStateCode } from "../services/placeName.js";
+
+/** "San Juan, PR" → { city: "San Juan", countryCode: "PR" }; "Miami, FL" → { city, stateCode: "FL" }. */
+export function splitPlace(rawCity, rawState) {
+  const label = tidyPlace(rawCity); // "san juan puerto rico" → "San Juan, PR"
+  const parts = label.split(",").map((p) => p.trim()).filter(Boolean);
+  const city = parts[0] || String(rawCity || "").trim();
+  const st = toStateCode(rawState) || toStateCode(parts[1]) || null;
+  const pr = st === "PR" || /puerto rico/i.test(String(rawCity || ""));
+  if (pr) return { city, countryCode: "PR" };
+  return { city, stateCode: st || undefined, countryCode: st ? "US" : undefined };
+}
 import {
   CATEGORY_MAP,
   isValidDate,
@@ -53,9 +65,15 @@ export async function listEvents(req, res) {
     // Ticketmaster only allows paging through the first 1,000 results
     const pageNum = clampNumber(page, 0, Math.floor(1000 / size) - 1, 0);
 
+    // "San Juan, Puerto Rico" / "San Juan PR" / state=PR → Puerto Rico.
+    // Ticketmaster files Puerto Rico as its own country (PR), so a plain
+    // city search could land on the wrong San Juan or miss it.
+    const where = hasCoords ? null : splitPlace(city, state);
+
     const data = await searchEvents({
-      city: hasCoords ? undefined : city.trim(),
-      stateCode: state,
+      city: hasCoords ? undefined : where.city,
+      stateCode: where?.stateCode,
+      countryCode: where?.countryCode,
       lat: latNum,
       lng: lngNum,
       radius: clampNumber(radius, 1, 100, 25),

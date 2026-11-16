@@ -8676,6 +8676,7 @@ export default function BookingPage() {
               <EventsResults
                 key={JSON.stringify(eventsSearch)}
                 city={eventsSearch.city}
+                state={eventsSearch.state}
                 startDate={eventsSearch.startDate}
                 endDate={eventsSearch.endDate}
                 initialCategory={eventsSearch.category}
