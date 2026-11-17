@@ -639,6 +639,38 @@ export function legSummary(slice) {
   };
 }
 
+// "Thu, Jan 21 · 6:00 AM → 11:40 AM · 1 stop · 1h 20m in MCO": one
+// direction in one line, so Atlas copies it as-is instead of mixing up
+// which leg has which stop or times.
+const clock = (v) => {
+  const m = String(v || "").match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const h = Number(m[2]);
+  return `${h % 12 || 12}:${m[3]} ${h < 12 ? "AM" : "PM"}`;
+};
+const dayLabel = (v) => {
+  const d = String(v || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  return new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+};
+export function legLine(leg) {
+  if (!leg) return null;
+  const from = leg.departLocal, to = leg.arriveLocal;
+  const nextDay = from && to && String(to).slice(0, 10) !== String(from).slice(0, 10) ? ` (${dayLabel(to)})` : "";
+  return [
+    dayLabel(from),
+    `${leg.from || ""} ${clock(from) || "?"} → ${leg.to || ""} ${clock(to) || "?"}${nextDay}`.trim(),
+    stopsLine(leg),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+// The same flights (numbers and times) for one direction.
+const legKey = (slice) =>
+  (Array.isArray(slice?.segments) ? slice.segments : [])
+    .map((s) => `${s.flightNumber || ""}@${s.departureTime || ""}`)
+    .join("|");
+
 // "Nonstop" / "1 stop · 27h in FLL (overnight)" for one direction.
 export function stopsLine(leg, fallbackStops) {
   const stops = leg ? leg.stops : fallbackStops;
@@ -679,6 +711,12 @@ function flightDisplay(o) {
     // Each direction on its own, with every stop and how long it is.
     outbound: legSummary(f.slices?.[0]),
     returnTrip: legSummary(f.slices?.[1]),
+    // Ready-made lines for each direction. Copy them; never move a stop
+    // or a time from one direction (or option) to another.
+    outboundLine: legLine(legSummary(f.slices?.[0])),
+    returnLine: legLine(legSummary(f.slices?.[1])),
+    _outKey: legKey(f.slices?.[0]),
+    _backKey: legKey(f.slices?.[1]),
     price: Number(o.price?.total ?? f.totalAmount),
     currency: o.price?.currency || f.totalCurrency || "USD",
     includedBags: o.baggageSummary || "Shown at checkout",
@@ -742,6 +780,20 @@ async function runFlightSearch(owner, userId, input) {
     ...rankedAll.filter((c) => !c.overnightLayover),
     ...rankedAll.filter((c) => c.overnightLayover),
   ].slice(0, 5);
+  // Options that share the same flight there or home (common: the airline
+  // pairs different outbound flights with one return). Say so, so the same
+  // times on two options don't look like a copy mistake.
+  ranked.forEach((c, i) => {
+    for (let j = 0; j < i; j++) {
+      const o = ranked[j];
+      if (c._backKey && c._backKey === o._backKey) c.sameFlightHomeAsOption = j + 1;
+      if (c._outKey && c._outKey === o._outKey) c.sameFlightThereAsOption = j + 1;
+    }
+  });
+  for (const c of ranked) {
+    delete c._outKey;
+    delete c._backKey;
+  }
   const search = {
     origin: input.origin,
     destination: input.destination,
@@ -1103,7 +1155,22 @@ async function runHotelSearch(owner, userId, input) {
     )
   );
   const money = (n) => Math.round(n * 100) / 100;
-  const candidates = rates
+  // Each price must cover every room asked for. An offer priced for 1 room
+  // (LiteAPI can return a rate for only the first room) counts as one room:
+  // the trip needs it once per room, so its total is that × rooms and
+  // checkout books it once per room, same as adding it twice on the Book
+  // page. Atlas once showed a 1-room price as "2 rooms" ($61/room/night for
+  // a 4-star suite). Offers covering some but not all rooms are skipped.
+  const fitted = rates
+    .map((r) => {
+      const covered = Math.max(1, Number(r.roomsCovered) || rooms);
+      if (covered >= rooms) return { ...r, bookCopies: 1 };
+      if (covered === 1)
+        return { ...r, total: money(r.total * rooms), nightly: money(r.nightly * rooms), bookCopies: rooms, roomPrice: r.total };
+      return null;
+    })
+    .filter(Boolean);
+  const candidates = fitted
     // No room-count filter here: LiteAPI bundles every requested room into
     // one offer and its price (offerRetailRate) already covers them all.
     // Filtering on rates.length dropped every hotel (Nov 12 test).
@@ -1133,7 +1200,7 @@ async function runHotelSearch(owner, userId, input) {
   if (!candidates.length) {
     return {
       options: [],
-      note: rates.length
+      note: fitted.length
         ? "Hotels came back, but none fit the nightly budget. Say that, give the cheapest price per room per night you saw if asked, and offer to raise the budget."
         : "No hotel prices came back for this search. It may be a temporary problem. Say you couldn't get hotel prices right now and offer to try again or try nearby dates. Never say the city is sold out.",
     };
@@ -1524,7 +1591,12 @@ async function openCheckout(owner, userId, { optionId }) {
               children: Math.max(0, Number(opt.search?.children) || 0),
             },
           }
-        : opt.raw.frontend,
+        : {
+            ...opt.raw.frontend,
+            // Priced for 1 room but the trip needs more: checkout books it
+            // once per room (see runHotelSearch).
+            ...(opt.raw.bookCopies > 1 ? { bookCopies: opt.raw.bookCopies } : {}),
+          },
     display: opt.display,
     search: opt.search,
     expiresAt: new Date(opt.expiresAt),
