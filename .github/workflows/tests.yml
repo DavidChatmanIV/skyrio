@@ -1,0 +1,53 @@
+# Runs on every pull request (and pushes to main): the price-check unit
+# tests, then the phone-sized browser tests for the paths where money
+# changes hands. Every API call in the browser tests is mocked, so no keys
+# or secrets are needed and nothing reaches LiteAPI, Duffel or Stripe.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm --workspace backend test
+
+  e2e:
+    name: Browser tests (money paths)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        working-directory: frontend/my-app
+        run: npx playwright install --with-deps chromium
+      - name: Run browser tests
+        working-directory: frontend/my-app
+        run: npx playwright test
+      - name: Keep the report if something failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/my-app/playwright-report
+          retention-days: 7
