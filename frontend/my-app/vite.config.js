@@ -36,11 +36,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
+        // Only React goes in its own chunk. antd and the rest are split by
+        // what each page uses: a forced "all of antd" chunk made every page
+        // download the whole library (900 KB) before showing anything.
         manualChunks: {
           vendor: ["react", "react-dom", "react-router-dom"],
-          antd: ["antd"],
-          dayjs: ["dayjs"],
-          socket: ["socket.io-client"],
         },
       },
     },

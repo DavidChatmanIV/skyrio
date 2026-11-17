@@ -6,10 +6,13 @@ import React, {
   useMemo,
 } from "react";
 import { useAtlasContext } from "@/components/Atlas/AtlasContext";
-import Compass from "@/components/Atlas/Compass";
-import AtlasBookingCard from "@/components/Atlas/AtlasBookingCard";
-import AtlasProfileCard from "@/components/Atlas/AtlasProfileCard";
-import AtlasCheckoutCard from "@/components/Atlas/AtlasCheckoutCard";
+import { lazyPart } from "@/utils/lazyPart";
+// These load the first time Atlas shows one (the profile form alone pulls
+// in a 190 KB phone-number library), not with every page.
+const Compass = lazyPart(() => import("@/components/Atlas/Compass"));
+const AtlasBookingCard = lazyPart(() => import("@/components/Atlas/AtlasBookingCard"));
+const AtlasProfileCard = lazyPart(() => import("@/components/Atlas/AtlasProfileCard"));
+const AtlasCheckoutCard = lazyPart(() => import("@/components/Atlas/AtlasCheckoutCard"));
 import AtlasEventCard from "@/components/Atlas/AtlasEventCard";
 import AtlasTripEventsCard, { isTripEventsAction } from "@/components/Atlas/AtlasTripEventsCard";
 import AtlasGroupCard, { keepFirstGroupHint } from "@/components/Atlas/AtlasGroupCard";

@@ -4,8 +4,11 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import AtlasPanel from "../components/Atlas/AtlasPanel";
 import CookieBanner from "../components/CookieBanner";
-import SkyrioDTour from "../components/SkyrioDTour";
-import SupportRail from "../components/SupportRail";
+import { lazyPart } from "@/utils/lazyPart";
+// Load just after the page: the tour only runs when someone starts it, and
+// the help rail is a small icon until it's opened.
+const SkyrioDTour = lazyPart(() => import("../components/SkyrioDTour"));
+const SupportRail = lazyPart(() => import("../components/SupportRail"));
 import useQuietFabs from "@/lib/useQuietFabs";
 import SiteStatusBanner from "../components/SiteStatusBanner";
 import heroBg from "@/assets/landing/skyrio-cosmic.jpg";
