@@ -34,6 +34,7 @@ import {
 } from "@stripe/react-stripe-js";
 import { Check, AlertTriangle } from "lucide-react";
 import { getCheckoutToken } from "@/utils/checkoutToken";
+import PaySafeNote from "@/components/checkout/PaySafeNote";
 
 const SDK_SRC =
   "https://payment-wrapper.liteapi.travel/dist/liteAPIPayment.js?v=a1";
@@ -266,6 +267,7 @@ function DirectStripeForm({ clientSecret, total, email, onError, onAmount }) {
           "Loading price…"
         )}
       </button>
+      <PaySafeNote />
     </>
   );
 }
