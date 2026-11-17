@@ -45,6 +45,7 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { getSkyrioStripe, useSkyrioStripeStatus } from "@/utils/skyrioStripe";
+import PaySafeNote from "@/components/checkout/PaySafeNote";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 // Same Stripe key the hotel checkout uses (Skyrio is the merchant for rooms).
@@ -320,6 +321,7 @@ function HoldShareForm({ groupId, room, share, onDone }) {
         Held, not charged. If not everyone is in by the deadline, the hold is
         released.
       </div>
+      <PaySafeNote />
     </div>
   );
 }

@@ -40,6 +40,7 @@ import "@/styles/BookingPage.css"; // reuses sk-* purple-glass tokens/classes
 import OverBudgetCheck, {
   overBudgetBy,
 } from "@/components/syncTogether/OverBudgetCheck";
+import PaySafeNote from "@/components/checkout/PaySafeNote";
 
 // Price with cents and thousands commas: 1165.5 → "1,165.50".
 const usd2 = (n) =>
@@ -903,6 +904,7 @@ function PaymentForm({
       >
         Charged only after the hotel confirms.
       </div>
+      <PaySafeNote />
     </div>
   );
 }

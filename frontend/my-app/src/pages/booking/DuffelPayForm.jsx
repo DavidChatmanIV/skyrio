@@ -23,6 +23,7 @@ import {
 } from "@stripe/react-stripe-js";
 import { Check, AlertTriangle } from "lucide-react";
 import { apiHeaders, getCheckoutToken } from "@/utils/checkoutToken";
+import PaySafeNote from "@/components/checkout/PaySafeNote";
 
 const API = import.meta.env.VITE_API_URL || "";
 const SANS =
@@ -109,6 +110,7 @@ function CardForm({ email, onAuthorized, onError, busy, setBusy, amountLabel }) 
       >
         {busy ? <span className="skc-spinner" /> : `Pay ${amountLabel}`}
       </button>
+      <PaySafeNote />
     </>
   );
 }
