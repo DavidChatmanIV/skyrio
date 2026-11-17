@@ -1,7 +1,9 @@
 // Car rental results (Duffel Cars) + checkout. Rendered in BookingPage's
 // results column when the Cars tab has a search.
 import { useEffect, useMemo, useState } from "react";
-import CarCheckout from "./CarCheckout";
+import { lazyPart, LoadingLine } from "@/utils/lazyPart";
+// Loads when a car is picked, not with the results.
+const CarCheckout = lazyPart(() => import("./CarCheckout"), LoadingLine);
 import useCloseOnBack from "@/lib/useCloseOnBack";
 import "@/styles/cars.css";
 

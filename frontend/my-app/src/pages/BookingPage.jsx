@@ -44,8 +44,10 @@ import "@/styles/BookingPage.css";
 import "@/styles/stays-search.css";
 import "@/styles/package-tray.css";
 
-import BookingCheckout from "@/pages/booking/BookingCheckout";
-import HotelCheckout from "@/pages/booking/HotelCheckout";
+import { lazyPart, LoadingLine } from "@/utils/lazyPart";
+// Checkouts load when opened, not with the search page.
+const BookingCheckout = lazyPart(() => import("@/pages/booking/BookingCheckout"), LoadingLine);
+const HotelCheckout = lazyPart(() => import("@/pages/booking/HotelCheckout"), LoadingLine);
 import SaveTripButton from "@/components/trips/SaveTripButton";
 import TripBudgetCard from "./booking/TripBudgetCard";
 import AirportInput from "@/pages/booking/AirportInput";
