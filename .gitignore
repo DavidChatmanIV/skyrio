@@ -41,3 +41,7 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 .env.local
+
+# Browser test output
+frontend/my-app/test-results/
+frontend/my-app/playwright-report/
