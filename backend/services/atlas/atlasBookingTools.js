@@ -39,6 +39,8 @@ import {
   IncompleteProfileError,
 } from "./travelerProfile.js";
 import crypto from "crypto";
+import mongoose from "mongoose";
+import AtlasOption from "../../models/AtlasOption.js";
 import {
   rankForUser,
   learnFromChoice,
@@ -420,15 +422,76 @@ const OPTION_TTL_MS = 13 * 60 * 1000;
 
 function cacheOption(owner, kind, raw, display, search = {}) {
   const optionId = `${kind[0]}_${crypto.randomBytes(6).toString("base64url")}`;
-  optionCache.set(optionId, {
+  const entry = {
     owner: String(owner),
     kind,
     raw,
     display,
     search,
     expiresAt: Date.now() + OPTION_TTL_MS,
-  });
+  };
+  optionCache.set(optionId, entry);
+  saveToDb(optionId, entry.owner, entry, entry.expiresAt);
   return optionId;
+}
+
+// ── Kept in MongoDB too (models/AtlasOption.js) ──
+// Memory is the fast path. A restart, a redeploy or a second server would
+// otherwise lose every search, and "book option 2" said the price expired.
+// Before a tool runs, the options it names are loaded back (warmOptions).
+function saveToDb(key, owner, value, expiresAt) {
+  if (mongoose.connection.readyState !== 1) return; // not connected (tests, local without DB)
+  AtlasOption.updateOne(
+    { key },
+    { $set: { owner, data: JSON.stringify(value), expiresAt: new Date(expiresAt) } },
+    { upsert: true }
+  ).catch((err) => console.warn("[Atlas options] couldn't save:", err.message));
+}
+function dropFromDb(key) {
+  if (mongoose.connection.readyState !== 1) return;
+  AtlasOption.deleteOne({ key }).catch(() => {});
+}
+const OPTION_ID = /^[fhce]_[A-Za-z0-9_-]{8}$/;
+function optionIdsIn(value, out = new Set(), depth = 0) {
+  if (depth > 3 || value == null) return out;
+  if (typeof value === "string") {
+    if (OPTION_ID.test(value)) out.add(value);
+  } else if (Array.isArray(value)) {
+    value.forEach((v) => optionIdsIn(v, out, depth + 1));
+  } else if (typeof value === "object") {
+    Object.values(value).forEach((v) => optionIdsIn(v, out, depth + 1));
+  }
+  return out;
+}
+async function warmOptions(input) {
+  if (mongoose.connection.readyState !== 1) return;
+  const missing = [...optionIdsIn(input)].filter((id) => !optionCache.has(id));
+  if (!missing.length) return;
+  try {
+    const docs = await AtlasOption.find({ key: { $in: missing }, expiresAt: { $gt: new Date() } })
+      .select("key data")
+      .lean();
+    const groups = new Set();
+    for (const d of docs) {
+      const entry = JSON.parse(d.data);
+      optionCache.set(d.key, entry);
+      const sid = entry.display?.searchId;
+      if (sid && !searchGroups.has(sid)) groups.add(sid);
+    }
+    if (groups.size) {
+      const gdocs = await AtlasOption.find({ key: { $in: [...groups].map((g) => `group:${g}`) } })
+        .select("key data")
+        .lean();
+      for (const g of gdocs) searchGroups.set(g.key.slice(6), JSON.parse(g.data));
+    }
+  } catch (err) {
+    console.warn("[Atlas options] couldn't load:", err.message);
+  }
+}
+function rememberSearchGroup(searchId, owner, displays) {
+  searchGroups.set(searchId, displays);
+  setTimeout(() => searchGroups.delete(searchId), OPTION_TTL_MS).unref?.();
+  saveToDb(`group:${searchId}`, String(owner), displays, Date.now() + OPTION_TTL_MS);
 }
 
 function getOption(owner, optionId) {
@@ -436,6 +499,7 @@ function getOption(owner, optionId) {
   if (!opt || opt.owner !== String(owner)) return null;
   if (Date.now() > opt.expiresAt) {
     optionCache.delete(optionId);
+    dropFromDb(optionId);
     return null;
   }
   return opt;
@@ -444,6 +508,7 @@ function getOption(owner, optionId) {
 // ───────────────────────── Tool handlers ─────────────────────────
 
 async function runBookingToolRaw(name, input, { userId, owner, ip }) {
+  await warmOptions(input);
   if (
     ["search_flights", "search_hotels", "search_cars", "search_events"].includes(name) &&
     !searchLimit.tryConsume({ userId, guestKeyHash: userId ? null : owner, ip })
@@ -804,11 +869,11 @@ async function runFlightSearch(owner, userId, input) {
     cabin: input.cabin || "economy",
   };
   const searchId = crypto.randomUUID();
-  searchGroups.set(
+  rememberSearchGroup(
     searchId,
+    owner,
     ranked.map(({ _raw, ...d }) => d)
   );
-  setTimeout(() => searchGroups.delete(searchId), OPTION_TTL_MS).unref?.();
 
   const options = ranked.map(({ _raw, ...display }) => ({
     optionId: cacheOption(
@@ -1217,11 +1282,11 @@ async function runHotelSearch(owner, userId, input) {
     rooms,
   };
   const searchId = crypto.randomUUID();
-  searchGroups.set(
+  rememberSearchGroup(
     searchId,
+    owner,
     ranked.map(({ _raw, ...d }) => d)
   );
-  setTimeout(() => searchGroups.delete(searchId), OPTION_TTL_MS).unref?.();
 
   return {
     options: ranked.map(({ _raw, ...display }) => ({
@@ -1453,6 +1518,7 @@ async function proposeBooking(
   });
 
   optionCache.delete(optionId);
+  dropFromDb(optionId);
 
   // Learn from what they picked vs. what else they saw (non-blocking)
   const shown = searchGroups.get(opt.display.searchId);
@@ -1552,6 +1618,7 @@ async function openCheckout(owner, userId, { optionId }) {
       )}`;
       if (Number(code) === 52010 || /sold out/i.test(text)) {
         optionCache.delete(optionId);
+        dropFromDb(optionId);
         return {
           error: "soldOut",
           message:
@@ -1560,6 +1627,7 @@ async function openCheckout(owner, userId, { optionId }) {
       }
       if (Number(code) === 42005 || /not found|expired/i.test(text)) {
         optionCache.delete(optionId);
+        dropFromDb(optionId);
         return {
           error: "expired",
           message:
