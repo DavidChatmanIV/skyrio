@@ -188,7 +188,12 @@ export default function AtlasCheckoutPage() {
       );
     return (
       <HotelCheckout
-        rooms={[offer]}
+        // A room priced for one room, for a trip that needs more, is booked
+        // once per room (bookCopies), like adding it twice on the Book page.
+        rooms={Array.from(
+          { length: Math.min(9, Math.max(1, Number(offer?.bookCopies) || 1)) },
+          () => offer
+        )}
         onBack={back}
         onBookingComplete={() => navigate("/saved-trips")}
       />

@@ -896,6 +896,12 @@ function PackageTray({
       : null,
     travelers: plan.adults,
   });
+  if (roomsPicked && !bookedStay && roomsPicked < (Number(plan.rooms) || 1))
+    price.problems.push(
+      `You've added ${roomsPicked} room${roomsPicked === 1 ? "" : "s"}. This trip has ${plan.rooms}. Add ${
+        plan.rooms - roomsPicked
+      } more so everyone has a bed.`
+    );
   const total = price.tripTotal;
   const nights = price.nights;
   const allBooked = flight?.booked && bookedStay;
@@ -8581,11 +8587,15 @@ export default function BookingPage() {
                             {packagePlan?.flight &&
                               Number.isFinite(Number(hotel.totalAmount)) &&
                               (() => {
+                                // A price for 1 room, on a trip that needs
+                                // more, is that room once per room.
+                                const need = Math.max(1, Number(packagePlan.rooms) || 1);
+                                const times = roomsIn(hotel) === 1 ? need : 1;
                                 const tp = tripPrice({
                                   flight: packagePlan.flight,
                                   stay: {
-                                    total: Number(hotel.totalAmount),
-                                    rooms: roomsIn(hotel),
+                                    total: Number(hotel.totalAmount) * times,
+                                    rooms: Math.max(roomsIn(hotel), times),
                                     checkin: hotel.checkin,
                                     checkout: hotel.checkout,
                                   },
@@ -8599,6 +8609,7 @@ export default function BookingPage() {
                                     <span>
                                       ${wholeUsd(tp.flightTotal)} flight + $
                                       {wholeUsd(tp.stayTotal)} stay
+                                      {times > 1 ? ` (${times} rooms)` : ""}
                                       {tp.travelers > 1
                                         ? ` · $${wholeUsd(tp.perPerson)} per person`
                                         : ""}

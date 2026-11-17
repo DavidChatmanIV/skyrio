@@ -85,6 +85,12 @@ export function buildOccupancies(adults = 1, rooms = 1) {
  * @param {object} hotelEntry  One entry from result.data
  * @returns {object[]} Flattened list of bookable offers for this hotel
  */
+/** Rooms an offer covers: distinct occupancyNumbers, else one per rate. */
+export function roomsCoveredBy(rates = []) {
+  const occ = new Set(rates.map((r) => r?.occupancyNumber).filter((n) => n != null));
+  return occ.size || rates.length || 1;
+}
+
 export function normalizeHotelRate(hotelEntry) {
   const hotelId = hotelEntry.hotelId;
   const roomTypes = hotelEntry.roomTypes ?? [];
@@ -114,8 +120,12 @@ export function normalizeHotelRate(hotelEntry) {
         name: r.name ?? "Unknown room",
         boardName: r.boardName ?? "",
         refundableTag: r.cancellationPolicies?.refundableTag ?? null,
+        occupancyNumber: r.occupancyNumber ?? null,
       })),
-      roomCount: rates.length || 1,
+      // Rooms this offer's price covers: one per occupancy (room) it has a
+      // rate for. An offer can come back with a rate for only the first
+      // room even when 2 were asked for; its price is then for 1 room.
+      roomCount: roomsCoveredBy(rates),
 
       // offerRetailRate is the TOTAL for the whole offer (all bundled
       // rooms combined), not per-room — this was already correct even

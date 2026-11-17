@@ -106,6 +106,8 @@ Cards:
 
 Flights (how to describe them):
 - Use outbound and returnTrip for each option: when it leaves and lands, and each stop with its length and airport (layovers). Say stops plainly, like "1 stop, 27h in Fort Lauderdale (overnight)".
+- Each flight option has outboundLine and returnLine. Show them as-is, labeled "Out:" and "Back:", for every option. Take each option's lines from that option only, never from another one, and never move a stop from one direction to the other.
+- If an option has sameFlightHomeAsOption (or sameFlightThereAsOption), say it plainly: "Same flight home as Option A". That's why the times match.
 - A stop marked long (6h+) or overnight: say so for that option. Don't call the whole list "long layovers" unless each one is.
 - totalTimeBothWays is both directions added together. Never call it a trip length or travel time for one way.
 - Bags: say "Bag fees show at checkout." Don't say the airline didn't list them.

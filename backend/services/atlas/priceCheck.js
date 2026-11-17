@@ -28,6 +28,9 @@ export const nightsBetween = (checkin, checkout) => {
 // Floors: below these, a price is almost always wrong (one room priced
 // instead of two, one traveler instead of four) or a test fare.
 export const LOW_HOTEL_PER_ROOM_NIGHT = 40;
+// By stars: a 4-star suite at $61 a room a night is almost always a price
+// for fewer rooms or nights than it says.
+export const LOW_HOTEL_BY_STARS = { 3: 60, 4: 90, 5: 140 };
 export const LOW_FLIGHT_PER_PERSON = { roundTrip: 70, oneWay: 40 };
 // Or under half of what the same search's other options cost.
 const LOW_VS_OTHERS = 0.5;
@@ -62,8 +65,12 @@ export function checkHotel(hotel, others = []) {
   if (!nights) problems.push("The hotel dates are missing or check-out isn't after check-in.");
   const perRoomPerNight = Number.isFinite(total) && nights ? dollars(cents(total / rooms / nights)) : null;
   const low = [];
-  if (perRoomPerNight != null && perRoomPerNight < LOW_HOTEL_PER_ROOM_NIGHT)
-    low.push(`${usd(perRoomPerNight)} per room per night is far below normal`);
+  const stars = Math.floor(Number(d.starRating) || 0);
+  const floor = Math.max(LOW_HOTEL_PER_ROOM_NIGHT, LOW_HOTEL_BY_STARS[Math.min(5, stars)] || 0);
+  if (perRoomPerNight != null && perRoomPerNight < floor)
+    low.push(
+      `${usd(perRoomPerNight)} per room per night is far below normal${stars >= 3 ? ` for a ${stars}-star hotel` : ""}`
+    );
   const mid = median(others);
   if (mid && Number.isFinite(total) && total < mid * LOW_VS_OTHERS)
     low.push(`${usd(total)} is under half of what the other hotels in this search cost (about ${usd(Math.round(mid))})`);

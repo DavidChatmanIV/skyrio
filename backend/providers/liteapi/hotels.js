@@ -79,7 +79,7 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
       checkin,
       checkout,
       roomMapping: true,
-      maxRatesPerHotel: 3,
+      maxRatesPerHotel: 5,
     },
   });
 
@@ -102,6 +102,7 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
     roomName: r.roomName,
     boardName: r.boardName,
     roomCount: r.roomCount,
+    roomsCovered: r.roomCount || rooms,
     total: r.totalAmount,
     nightly: Math.round((r.totalAmount / nights) * 100) / 100,
     currency: r.totalCurrency,
@@ -131,6 +132,9 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
         starRating: hotel.stars ?? null,
         roomName: r.roomName,
         boardName: r.boardName,
+        // How many of the requested rooms this price covers (see
+        // roomsCoveredBy in hotels.utils.js).
+        roomsCovered: r.roomCount || 1,
         total,
         nightly: Math.round((total / nights) * 100) / 100,
         currency: r.totalCurrency || "USD",
@@ -151,6 +155,12 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
         },
       };
     });
+  if (rooms > 1) {
+    // How many offers cover every room vs fewer (their price is for fewer rooms).
+    const byCover = {};
+    for (const r of liteRates) byCover[r.roomsCovered] = (byCover[r.roomsCovered] || 0) + 1;
+    console.info("[Atlas hotels] rooms asked", rooms, "offers by rooms covered", byCover);
+  }
   return [...liteRates, ...duffelRates].sort((a, b) => a.total - b.total);
 }
 
