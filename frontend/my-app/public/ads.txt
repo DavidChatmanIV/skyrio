@@ -1,0 +1,2 @@
+# Skyrio doesn't sell ad space. No sellers are authorized to sell ads on myskyrio.com.
+placeholder.example.com, placeholder, DIRECT, placeholder
