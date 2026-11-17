@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /checkout
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /reset
+Disallow: /verify-email
+Disallow: /pay-share
+Disallow: /manage-booking
+Disallow: /api/

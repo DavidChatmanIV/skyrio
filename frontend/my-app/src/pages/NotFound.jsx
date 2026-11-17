@@ -65,13 +65,19 @@ function CompassIcon() {
   );
 }
 
+const BOT_PATH =
+  /\.(txt|xml|php|asp|aspx|jsp|cgi|env|ini|bak|sql|zip|gz|json|yml|yaml|map|ico)$|^\/(\.well-known|\.git|wp-|wordpress|xmlrpc|cgi-bin|phpmyadmin)/i;
+
 export default function NotFound() {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const path = `${pathname}${search}`;
 
-  // Report the broken link once per address per visit.
+  // Report the broken link once per address per visit. Skip files that
+  // bots and scanners ask for (/ads.txt, /wp-login.php, /.env…): they're
+  // not broken links a traveler hit.
   useEffect(() => {
+    if (BOT_PATH.test(pathname)) return;
     const key = `skyrio_404_reported:${path}`;
     try {
       if (sessionStorage.getItem(key)) return;
