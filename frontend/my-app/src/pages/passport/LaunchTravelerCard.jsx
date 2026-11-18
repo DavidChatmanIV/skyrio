@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
 import LaunchTravelerBadge, {
   LAUNCH_TRAVELER_NAME,
@@ -21,6 +22,15 @@ const fmtDay = (d) =>
         timeZone: "UTC",
       })
     : "";
+
+// Whole days from today until a date (0 = today), or null.
+const daysUntil = (d) => {
+  const t = Date.parse(d || "");
+  if (!Number.isFinite(t)) return null;
+  const today = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  return Math.max(0, Math.ceil((t - today) / 86400000));
+};
+const inDays = (n) => (n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`);
 
 // "1/15/27 – 4/15/27"
 const fmtRange = (a, b) => (a && b ? `${fmtDay(a)} – ${fmtDay(b)}` : "");
@@ -148,10 +158,14 @@ export default function LaunchTravelerCard({ token }) {
           <div style={title}>{name}</div>
           <div style={sub}>
             Booked and traveled at Skyrio's launch.
+            {data.trip ? ` ${data.trip}.` : ""}
           </div>
-          <div style={{ ...sub, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-            {data.earnedAt && `Earned ${fmtDay(data.earnedAt)}`}
+          <div style={{ ...sub, fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+            {[data.earnedAt && `Earned ${fmtDay(data.earnedAt)}`, `+${data.xp} XP added`]
+              .filter(Boolean)
+              .join(" · ")}
           </div>
+          <Steps done={3} />
         </div>
       </div>
     );
@@ -175,13 +189,17 @@ export default function LaunchTravelerCard({ token }) {
               On its way
             </span>
           </div>
+          {data.trip && <div style={{ ...sub, color: "#fff" }}>{data.trip}</div>}
           <div style={sub}>
             {data.unlocksAt
-              ? `Unlocks around ${fmtDay(data.unlocksAt)}.`
-              : "Unlocks after your trip starts."}{" "}
+              ? `Unlocks ${inDays(daysUntil(data.unlocksAt))} (${fmtDay(data.unlocksAt)}), when your trip starts.`
+              : "Unlocks when your trip starts."}{" "}
             +{data.xp} XP.
           </div>
           <Steps done={1} />
+          <div style={{ ...sub, fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+            Cancelled or refunded trips don't count.
+          </div>
         </div>
       </div>
     );
@@ -196,9 +214,36 @@ export default function LaunchTravelerCard({ token }) {
         <div style={title}>Earn the {name} badge</div>
         <div style={sub}>
           Book by {fmtDay(win.end)} and take the trip to get the badge and +
-          {data.xp} XP. Limited time only.
+          {data.xp} XP. Only during launch.
         </div>
+        {daysUntil(win.end) != null && (
+          <div style={{ ...sub, color: "#ffb347", fontWeight: 600 }}>
+            {daysUntil(win.end) === 0
+              ? "Last day to book."
+              : `${daysUntil(win.end)} day${daysUntil(win.end) === 1 ? "" : "s"} left to book.`}
+          </div>
+        )}
         <Steps done={0} />
+        <Link
+          to="/booking?tab=Flights"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: 40,
+            marginTop: 12,
+            padding: "0 18px",
+            borderRadius: 999,
+            fontWeight: 800,
+            fontSize: 14,
+            color: "#1a0e06",
+            textDecoration: "none",
+            background: "linear-gradient(90deg, #ff8a2a, #ffb347)",
+          }}
+        >
+          Find a trip
+        </Link>
+        <br />
         <button
           type="button"
           onClick={() => setShowRules((v) => !v)}
@@ -220,8 +265,9 @@ export default function LaunchTravelerCard({ token }) {
           <ul style={{ ...sub, margin: "8px 0 0", paddingLeft: 18 }}>
             <li>Book {fmtRange(win.start, win.end)}.</li>
             <li>Trips ${data.minSpend}+ paid on Skyrio.</li>
-            <li>Cancelled or refunded trips don't qualify.</li>
-            <li>One per account.</li>
+            <li>It unlocks when your trip starts.</li>
+            <li>Cancelled, refunded or disputed trips don't count.</li>
+            <li>One per traveler. Same bonus on every plan.</li>
           </ul>
         )}
       </div>

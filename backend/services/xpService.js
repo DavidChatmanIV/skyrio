@@ -588,9 +588,15 @@ export async function launchTravelerStatus(userId) {
     .select("status updatedAt linkedTo confirmAfter")
     .lean();
   if (!row) return { status: null, earnedAt: null, unlocksAt: null };
+  // Which trip it's for ("EWR → MIA · Mar 19"), so the card can name it.
+  let trip = null;
+  if (row.linkedTo && mongoose.isValidObjectId(row.linkedTo)) {
+    const b = await Booking.findById(row.linkedTo).select("tripDetails").lean().catch(() => null);
+    trip = b?.tripDetails ? String(b.tripDetails).slice(0, 80) : null;
+  }
   return row.status === "confirmed"
-    ? { status: "earned", earnedAt: row.updatedAt, unlocksAt: null }
-    : { status: "pending", earnedAt: null, unlocksAt: row.confirmAfter };
+    ? { status: "earned", earnedAt: row.updatedAt, unlocksAt: null, trip }
+    : { status: "pending", earnedAt: null, unlocksAt: row.confirmAfter, trip };
 }
 
 /**

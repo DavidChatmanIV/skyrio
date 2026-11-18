@@ -117,6 +117,12 @@ const UserSchema = new Schema(
     // Which owned Passport cover to show (a reward itemId), "none" for the
     // plain cover, or null = the default (Golden Hour if owned).
     passportCover: { type: String, default: null },
+    // Team Colors cover: { primary: "#552583", secondary: "#FDB927", pattern: "court" }
+    passportTeamColors: {
+      primary: { type: String, default: null },
+      secondary: { type: String, default: null },
+      pattern: { type: String, default: null },
+    },
     settings: { rewardsEnabled: { type: Boolean, default: false } },
 
     // ---------- XP Earning System (routes/xp.js) ----------

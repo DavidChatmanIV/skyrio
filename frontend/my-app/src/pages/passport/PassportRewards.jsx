@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 
 import "../../styles/PassportRewards.css";
+import TeamColorsSheet from "./TeamColorsSheet";
 import { useAuth } from "../../auth/useAuth";
 import { apiUrl } from "@/lib/api";
 import {
@@ -128,6 +129,9 @@ const PLAN_LABEL = { explorer: "Explorer", legend: "Legend" };
 const membersLabel = (minPlan) =>
   minPlan === "legend" ? "Legend members" : "Explorer members";
 
+// The Team Colors cover asks for colors before it goes on the Passport.
+const TEAM_ITEM = "team_colors_cover";
+
 function getStatus(item, { xp, redeemedIds, profileLoading, plan }) {
   if (profileLoading) return "loading";
   if (!item.repeatable && redeemedIds.includes(item.id)) return "redeemed";
@@ -151,7 +155,7 @@ export default function PassportRewards({
   onViewPassport,
 }) {
   const navigate = useNavigate();
-  const { token, isAuthed } = useAuth();
+  const { token, isAuthed, user } = useAuth();
 
   const [tab, setTab] = useState("all");
   const [profileLoading, setProfileLoading] = useState(true);
@@ -165,6 +169,9 @@ export default function PassportRewards({
   // Owned cover being shown on the Passport (itemId, "none" or null).
   const [coverChoice, setCoverChoice] = useState(null);
   const [coverSaving, setCoverSaving] = useState(null);
+  // Team Colors cover: saved colors, and the picker sheet.
+  const [teamColors, setTeamColors] = useState(null);
+  const [teamSheet, setTeamSheet] = useState(false);
 
   // Redemption flow: confirm → pending → done (modal stays open the whole time)
   const [confirmItem, setConfirmItem] = useState(null);
@@ -264,6 +271,7 @@ export default function PassportRewards({
             setRedeemedIds(redeemedData.redeemedRewards || []);
             setPlan(redeemedData.plan || "free");
             setCoverChoice(redeemedData.passportCover || null);
+            setTeamColors(redeemedData.passportTeamColors || null);
           }
         }
       } catch {
@@ -435,8 +443,13 @@ export default function PassportRewards({
 
   // ── Passport cover: show an owned cover, or go back to the plain one ──
   const applyCover = useCallback(
-    async (item) => {
-      const next = item.inUse ? "none" : item.id;
+    async (item, colors) => {
+      // Team Colors: pick the colors first (the sheet calls back with them).
+      if (item.id === TEAM_ITEM && !item.inUse && !colors) {
+        setTeamSheet(true);
+        return;
+      }
+      const next = colors ? item.id : item.inUse ? "none" : item.id;
       setCoverSaving(item.id);
       try {
         const res = await fetch(apiUrl("/api/rewards/cover"), {
@@ -446,11 +459,13 @@ export default function PassportRewards({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ itemId: next }),
+          body: JSON.stringify({ itemId: next, ...(colors ? { teamColors: colors } : {}) }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data?.ok) throw new Error(data?.message);
         setCoverChoice(next);
+        if (data.passportTeamColors) setTeamColors(data.passportTeamColors);
+        setTeamSheet(false);
         message.success(
           next === "none" ? "Back to the plain cover." : `${item.title} is on your Passport.`
         );
@@ -511,9 +526,20 @@ export default function PassportRewards({
   const handleEarnMore = onEarnMore || (() => navigate("/booking"));
   const handleViewPassport = onViewPassport || (() => navigate("/passport"));
 
+  const teamItem = enriched.find((i) => i.id === TEAM_ITEM);
   return (
     <div className={`pr-page ${embedded ? "is-embedded" : ""}`}>
       <style>{PR_GLASS_CSS}</style>
+      {teamSheet && teamItem && (
+        <TeamColorsSheet
+          open
+          initial={teamColors}
+          saving={coverSaving === TEAM_ITEM}
+          name={user?.name || user?.username || "Your name"}
+          onSave={(colors) => applyCover(teamItem, colors)}
+          onClose={() => setTeamSheet(false)}
+        />
+      )}
       {!embedded && <div className="pr-overlay" />}
 
       <div className="pr-shell">
@@ -809,6 +835,7 @@ export default function PassportRewards({
                   }
                   onRedeem={() => requestRedeem(featured)}
                   onUseCover={() => applyCover(featured)}
+                  onEditColors={() => setTeamSheet(true)}
                   coverSaving={coverSaving === featured.id}
                   onMembership={goMembership}
                 />
@@ -850,6 +877,7 @@ export default function PassportRewards({
                     pending={phase === "pending" && confirmItem?.id === item.id}
                     onRedeem={() => requestRedeem(item)}
                     onUseCover={() => applyCover(item)}
+                    onEditColors={() => setTeamSheet(true)}
                     coverSaving={coverSaving === item.id}
                     onMembership={goMembership}
                   />
@@ -890,10 +918,10 @@ export default function PassportRewards({
 
 /* ───────────────────────── Pieces ───────────────────────── */
 
-function StubAction({ item, pending, onRedeem, onUseCover, coverSaving }) {
+function StubAction({ item, pending, onRedeem, onUseCover, coverSaving, onEditColors }) {
   // Owned covers: put it on the Passport, or take it off.
   if (item.status === "redeemed" && item.cover) {
-    return (
+    const toggle = (
       <button
         type="button"
         className={`pr-btn ${item.inUse ? "pr-btn--done" : "pr-btn--primary"}`}
@@ -908,11 +936,24 @@ function StubAction({ item, pending, onRedeem, onUseCover, coverSaving }) {
           <>
             <Check size={14} /> Using
           </>
+        ) : item.id === TEAM_ITEM ? (
+          "Pick colors"
         ) : (
           "Use cover"
         )}
       </button>
     );
+    // Team Colors in use: change the colors without taking it off.
+    if (item.id === TEAM_ITEM && item.inUse && onEditColors)
+      return (
+        <span style={{ display: "inline-grid", gap: 6, justifyItems: "center" }}>
+          {toggle}
+          <button type="button" className="pr-btn pr-btn--muted" onClick={onEditColors}>
+            Change colors
+          </button>
+        </span>
+      );
+    return toggle;
   }
   switch (item.status) {
     case "members_only":
@@ -960,6 +1001,7 @@ function RewardTicket({
   onRedeem,
   onUseCover,
   coverSaving,
+  onEditColors,
   onMembership,
 }) {
   const meta = TYPE_META[item.type] || TYPE_META.BOOST;
@@ -1051,6 +1093,7 @@ function RewardTicket({
           onRedeem={onRedeem}
           onUseCover={onUseCover}
           coverSaving={coverSaving}
+          onEditColors={onEditColors}
         />
       </div>
     </article>
