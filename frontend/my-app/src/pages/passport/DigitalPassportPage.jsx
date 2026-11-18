@@ -814,6 +814,7 @@ export default function DigitalPassportPage() {
   const [ownedRewards, setOwnedRewards] = useState([]);
   // Which owned cover to show (a reward itemId, "none", or null = default).
   const [chosenCover, setChosenCover] = useState(null);
+  const [teamColors, setTeamColors] = useState(null);
   useEffect(() => {
     if (!isAuthed || !token) return undefined;
     const controller = new AbortController();
@@ -827,6 +828,7 @@ export default function DigitalPassportPage() {
         if (d?.ok && Array.isArray(d.redeemedRewards))
           setOwnedRewards(d.redeemedRewards);
         if (d?.ok) setChosenCover(d.passportCover || null);
+        if (d?.ok) setTeamColors(d.passportTeamColors || null);
       })
       .catch(() => {});
     return () => controller.abort();
@@ -1381,6 +1383,7 @@ export default function DigitalPassportPage() {
                     xpIntoLevel={Number(totalEarned || 0)}
                     xpNeeded={xpGoal}
                     onSpendXp={() => navigate("/passport/rewards")}
+                    teamColors={teamColors}
                     cover={
                       chosenCover && chosenCover !== "none"
                         ? ownedRewards.includes(chosenCover)

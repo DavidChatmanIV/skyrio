@@ -5,6 +5,7 @@ import { Camera, Loader2, Plane, QrCode } from "lucide-react";
 import FollowStats from "./FollowStats";
 import PlaneBadge, { PlaneBadgePending } from "./PlaneBadge";
 import "../../styles/passport-datapage.css";
+import { teamCoverCss, teamKey, SportLines } from "./teamColors";
 
 /* ─────────────────────────────────────────────────────────────
    MRZ helpers — real ICAO 9303 check-digit math, so the strip
@@ -186,6 +187,7 @@ export const COVER_BY_ITEM = {
   aurora_cover: "aurora",
   midnight_runway_cover: "midnight",
   legend_foil_cover: "legend",
+  team_colors_cover: "team",
 };
 
 /* ─────────────────────────────────────────────────────────────
@@ -228,6 +230,8 @@ export default function PassportDataPage({
   // Cover key from a Passport Reward ("golden", "aurora", "midnight",
   // "legend"), or null for the plain cover
   cover = null,
+  // Team Colors cover: { primary, secondary, pattern } (teamColors.jsx)
+  teamColors = null,
   // Opens the "Share my passport" QR sheet
   onShowQr,
 }) {
@@ -249,10 +253,12 @@ export default function PassportDataPage({
 
   return (
     <section
-      className={`pdp${COVER_CSS[cover] ? ` pdp--${cover}` : ""}`}
+      className={`pdp${COVER_CSS[cover] || cover === "team" ? ` pdp--${cover}` : ""}`}
       aria-label="Digital passport"
+      data-team={cover === "team" ? teamKey(teamColors) : undefined}
     >
       {COVER_CSS[cover] && <style>{COVER_CSS[cover]}</style>}
+      {cover === "team" && <style>{teamCoverCss(teamColors)}</style>}
       {/* Security pattern */}
       <svg
         className="pdp-guilloche"
@@ -267,6 +273,8 @@ export default function PassportDataPage({
           <path key={`r${i}`} d={d} className="pdp-rosette" />
         ))}
       </svg>
+
+      {cover === "team" && <SportLines team={teamColors} />}
 
       {/* Header strip */}
       <header className="pdp-head">

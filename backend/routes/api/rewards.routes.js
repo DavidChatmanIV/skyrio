@@ -10,7 +10,7 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 import { verifyAdmin } from "../admin.routes.js";
 // Delivers rewards that need more than being "owned" (membership credits).
 import { fulfillReward } from "../../services/rewardFulfillment.js";
-import { COVER_BY_ITEM, planRank } from "../../config/passportCovers.js";
+import { COVER_BY_ITEM, planRank, cleanTeamColors } from "../../config/passportCovers.js";
 
 const PLAN_LABEL = { explorer: "Explorer", legend: "Legend" };
 
@@ -74,10 +74,12 @@ router.get("/redeemed", requireAuth, async (req, res) => {
     redeemedRewards: req.user.redeemedRewards || [],
     plan: req.user.plan || "free",
     passportCover: req.user.passportCover || null,
+    passportTeamColors: cleanTeamColors(req.user.passportTeamColors) || null,
   });
 });
 
 // POST /api/rewards/cover  { itemId: "aurora_cover" | "none" }
+// Team Colors also takes { teamColors: { primary: "#hex", secondary: "#hex", pattern } }.
 // Pick which owned Passport cover to show. Covers you redeemed are yours to
 // keep, even if your membership ends.
 router.post("/cover", requireAuth, async (req, res) => {
@@ -90,9 +92,15 @@ router.post("/cover", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, message: "Redeem this cover first." });
     }
   }
+  const set = { passportCover: itemId };
+  if (itemId === "team_colors_cover") {
+    const team = cleanTeamColors(req.body?.teamColors) || cleanTeamColors(req.user.passportTeamColors);
+    if (!team) return res.status(400).json({ ok: false, message: "Pick two colors first." });
+    set.passportTeamColors = team;
+  }
   try {
-    await User.updateOne({ _id: req.user._id }, { $set: { passportCover: itemId } });
-    return res.json({ ok: true, passportCover: itemId });
+    await User.updateOne({ _id: req.user._id }, { $set: set });
+    return res.json({ ok: true, passportCover: itemId, passportTeamColors: set.passportTeamColors || undefined });
   } catch (err) {
     console.error("[rewards] cover save error:", err);
     return res.status(500).json({ ok: false, message: "Couldn't change your cover. Try again." });
