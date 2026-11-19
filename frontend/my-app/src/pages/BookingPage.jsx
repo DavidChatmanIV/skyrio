@@ -3521,6 +3521,9 @@ export default function BookingPage() {
                       <div className="sk-resultTop">
                         <div>
                           <div className="sk-resultTitle">{flight.owner}</div>
+                          {flight.soldBy && (
+                            <div className="sk-soldBy">Ticket sold by {flight.soldBy}</div>
+                          )}
                           <div className="sk-resultMeta">
                             <span className="sk-metaItem">
                               <EnvironmentOutlined /> {flight.origin} →{" "}
@@ -3735,6 +3738,9 @@ export default function BookingPage() {
                             <div className="sk-resultTitle">
                               {outbound.owner}
                             </div>
+                          {outbound.soldBy && (
+                            <div className="sk-soldBy">Ticket sold by {outbound.soldBy}</div>
+                          )}
                             <div className="sk-resultMeta">
                               <span className="sk-metaItem">
                                 <EnvironmentOutlined /> {outbound.origin} →{" "}

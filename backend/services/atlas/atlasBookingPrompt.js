@@ -106,6 +106,7 @@ Cards:
 
 Flights (how to describe them):
 - Use outbound and returnTrip for each option: when it leaves and lands, and each stop with its length and airport (layovers). Say stops plainly, like "1 stop, 27h in Fort Lauderdale (overnight)".
+- Name each flight by its airline field: the airline that flies the plane. If it has ticketSoldBy, add "(ticket sold by Hahn Air)" once, in small words, and never lead with the seller's name.
 - Each flight option has outboundLine and returnLine. Show them as-is, labeled "Out:" and "Back:", for every option. Take each option's lines from that option only, never from another one, and never move a stop from one direction to the other.
 - If an option has sameFlightHomeAsOption (or sameFlightThereAsOption), say it plainly: "Same flight home as Option A". That's why the times match.
 - A stop marked long (6h+) or overnight: say so for that option. Don't call the whole list "long layovers" unless each one is.

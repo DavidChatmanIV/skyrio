@@ -85,6 +85,33 @@ export function buildOccupancies(adults = 1, rooms = 1) {
  * @param {object} hotelEntry  One entry from result.data
  * @returns {object[]} Flattened list of bookable offers for this hotel
  */
+/**
+ * The offer's price for every room in it. offerRetailRate should already be
+ * the total, but if adding up each room's own price (one rate per room)
+ * comes to more, that sum is the real price: an offer can't cost less than
+ * its rooms. (Atlas showed $424.92 for 3 rooms x 3 nights, about $47 a room
+ * a night, for a hotel that costs far more.)
+ */
+export function offerTotal(roomType = {}) {
+  const offer = Number(roomType.offerRetailRate?.amount);
+  const perRoom = new Map(); // occupancyNumber -> that room's price
+  for (const r of roomType.rates || []) {
+    const amt = Number(r?.retailRate?.total?.[0]?.amount);
+    if (!Number.isFinite(amt) || amt <= 0) continue;
+    const k = r.occupancyNumber ?? perRoom.size + 1;
+    if (!perRoom.has(k)) perRoom.set(k, amt); // first rate for each room
+  }
+  const sum = [...perRoom.values()].reduce((a, b) => a + b, 0);
+  if (!Number.isFinite(offer) || offer <= 0) return sum > 0 ? Math.round(sum * 100) / 100 : null;
+  if (sum > offer * 1.02) {
+    console.warn(
+      `[hotels] offer ${roomType.offerId}: offerRetailRate ${offer} < its rooms' prices ${sum.toFixed(2)}; using the rooms' total`
+    );
+    return Math.round(sum * 100) / 100;
+  }
+  return offer;
+}
+
 /** Rooms an offer covers: distinct occupancyNumbers, else one per rate. */
 export function roomsCoveredBy(rates = []) {
   const occ = new Set(rates.map((r) => r?.occupancyNumber).filter((n) => n != null));
@@ -130,7 +157,7 @@ export function normalizeHotelRate(hotelEntry) {
       // offerRetailRate is the TOTAL for the whole offer (all bundled
       // rooms combined), not per-room — this was already correct even
       // before this fix.
-      totalAmount: roomType.offerRetailRate?.amount ?? null,
+      totalAmount: offerTotal(roomType),
       totalCurrency: roomType.offerRetailRate?.currency ?? "USD",
       suggestedSellingPrice: roomType.suggestedSellingPrice?.amount ?? null,
 

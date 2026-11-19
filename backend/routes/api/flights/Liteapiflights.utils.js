@@ -107,6 +107,11 @@ function buildSlice(segments = []) {
       carrier: s.carrier?.marketingName,
       carrierCode: s.carrier?.marketingCode,
       carrierLogo: s.carrier?.marketingLogo,
+      // The airline that actually flies the plane. Can differ from the one
+      // selling the ticket (Hahn Air sells seats on other airlines' flights).
+      operatingCarrier: s.carrier?.operatingName || null,
+      operatingCode: s.carrier?.operatingCode || null,
+      operatingLogo: s.carrier?.operatingLogo || null,
       flightNumber: s.flight?.marketingNumber,
     })),
   };
@@ -313,13 +318,29 @@ export function toFrontendFlightShape(offer = {}) {
   const returnSlice = offer.slices?.[1] || null;
   const firstSegment = outbound.segments?.[0] || {};
 
+  // Show the airline(s) that fly the plane, not a ticket seller like Hahn
+  // Air. ownerCode stays the selling airline's code (bookings and fare rules
+  // use it); soldBy names the seller when it's a different airline.
+  const allSegs = [...(outbound.segments || []), ...(returnSlice?.segments || [])];
+  const flyers = [
+    ...new Set(allSegs.map((s) => s.operatingCarrier || s.carrier).filter(Boolean)),
+  ];
+  const seller = firstSegment.carrier || null;
+  const flyerName = flyers.length ? flyers.join(" + ") : seller;
+  const sameAirline = (a, b) =>
+    String(a || "").toLowerCase().replace(/\s+(airlines?|airways)$/, "") ===
+    String(b || "").toLowerCase().replace(/\s+(airlines?|airways)$/, "");
   return {
     id: offer.id,
     offerId: offer.offerId,
     provider: offer.provider,
-    owner: firstSegment.carrier || "Unknown",
+    owner: flyerName || "Unknown",
     ownerCode: firstSegment.carrierCode || "",
-    ownerLogo: firstSegment.carrierLogo || null,
+    ownerLogo:
+      (firstSegment.operatingCarrier && !sameAirline(firstSegment.operatingCarrier, seller)
+        ? firstSegment.operatingLogo
+        : firstSegment.carrierLogo) || null,
+    soldBy: seller && flyers.length && !flyers.every((f) => sameAirline(f, seller)) ? seller : null,
     totalAmount: offer.price?.amount ?? 0,
     totalCurrency: offer.price?.currency ?? "USD",
     origin: outbound.origin,
