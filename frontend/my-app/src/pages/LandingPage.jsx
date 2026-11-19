@@ -42,10 +42,9 @@ import {
   Sun,
   Sunset,
   Moon,
-  Armchair,
-  UserCheck,
-  MessageSquareHeart,
-  Search as FindIcon,
+  Ticket,
+  Receipt,
+  ListChecks,
 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import TripGenerator from "@/components/TripGenerator";
@@ -117,28 +116,28 @@ function useTimeOfDay() {
   return TIMES[forced] ? forced : now;
 }
 
-/* What's new on Skyrio (shipped from tester feedback). */
-const NEW_THINGS = [
+/* What Atlas checks for you: real checks it runs on every trip it plans
+   (services/atlas: tripTiming, tripEvents, priceCheck; TripNextSteps). */
+const ATLAS_CHECKS = [
   {
-    Icon: UserCheck,
-    title: "Book as a guest",
-    text: "No account needed.",
+    Icon: BedDouble,
+    title: "Hotel nights match your flights",
+    text: "Check in the day you land, out the day you fly home.",
   },
   {
-    Icon: Armchair,
-    title: "Pick your seat",
-    text: "Choose it before you pay.",
+    Icon: Ticket,
+    title: "Events while you're there",
+    text: "Concerts and games on your dates, with real ticket links.",
   },
   {
-    Icon: FindIcon,
-    title: "Find my booking",
-    text: "Email + code. View or cancel.",
-    to: "/find-booking",
+    Icon: Receipt,
+    title: "Totals that add up",
+    text: "Flight + stay = trip total, then per person.",
   },
   {
-    Icon: MessageSquareHeart,
-    title: "Tell us anything",
-    text: "We read every message.",
+    Icon: ListChecks,
+    title: "What's next after you book",
+    text: "Stay, car and things to do, already filled in.",
   },
 ];
 
@@ -257,7 +256,22 @@ const CSS = `
 .lp-timeline { margin-top: 14px; font-size: 14px; color: rgba(255,255,255,.75); }
 
 /* What's new */
-.lp-new { margin-top: 22px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+/* Lead paths in the hero: friends + Atlas, side by side. */
+.lp-paths.lp-paths--lead { margin: 26px auto 0; max-width: 760px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 640px) {
+  .lp-paths.lp-paths--lead { grid-template-columns: 1fr; gap: 10px; }
+  /* Phones: icon beside the title, so both choices fit on one screen. */
+  .lp-paths--lead .lp-path { display: grid; grid-template-columns: 40px 1fr; column-gap: 12px; row-gap: 4px; padding: 14px 16px; }
+  .lp-paths--lead .lp-path__icon { width: 40px; height: 40px; border-radius: 12px; grid-row: span 3; }
+  .lp-paths--lead .lp-path__title { font-size: 17px; }
+  .lp-paths--lead .lp-path__text { font-size: 13.5px; }
+}
+.lp a.lp-path, .lp a.lp-path:visited, .lp a.lp-path:hover { color: #fff !important; text-decoration: none !important; }
+.lp-path { border: 1px solid rgba(255,255,255,.14); }
+.lp-or { margin-top: 30px; }
+button.lp-newItem { font: inherit; cursor: pointer; width: 100%; }
+button.lp-newItem:hover { border-color: rgba(255,179,71,.6); }
+.lp-new { margin-top: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .lp-newItem { display: flex; gap: 12px; align-items: flex-start; padding: 16px; border-radius: 16px; color: #fff; text-decoration: none; }
 a.lp-newItem:hover { border-color: rgba(255,179,71,.6); }
 .lp-newItem svg { color: #ffb347; flex-shrink: 0; margin-top: 2px; }
@@ -489,11 +503,44 @@ export default function LandingPage() {
             {isAuthed && firstName ? `, ${firstName}` : ""}
           </span>
           <h1 className="lp-title">
-            Plan smarter. <em>Travel better.</em>
+            Plan it with friends. <em>Or let Atlas plan it.</em>
           </h1>
           <p className="lp-sub">
-            Flights, hotels and group trips. All in one place.
+            Group trips where everyone pays their own share, and an AI that
+            plans the whole trip for your budget.
           </p>
+
+          {/* What Skyrio does that a search box doesn't: first. */}
+          <div className="lp-paths lp-paths--lead">
+            <Link to="/sync-together" className="lp-path">
+              <span className="lp-path__icon">
+                <Users size={22} aria-hidden="true" />
+              </span>
+              <span className="lp-path__title">Plan with friends</span>
+              <span className="lp-path__text">
+                One invite link. Vote on flights and a stay. Everyone books and
+                pays their own part.
+              </span>
+              <span className="lp-path__go">
+                Start a group trip <ArrowRight size={15} aria-hidden="true" />
+              </span>
+            </Link>
+            <button type="button" className="lp-path lp-path--atlas" onClick={() => openAtlas()}>
+              <span className="lp-path__icon">
+                <Sparkles size={22} aria-hidden="true" />
+              </span>
+              <span className="lp-path__title">Let Atlas plan it</span>
+              <span className="lp-path__text">
+                Tell it where and your budget. It finds flights, a stay and
+                events for your dates.
+              </span>
+              <span className="lp-path__go">
+                Ask Atlas <ArrowRight size={15} aria-hidden="true" />
+              </span>
+            </button>
+          </div>
+
+          <div className="lp-label lp-or">Or search yourself</div>
 
           {/* How do you want to plan? All three choices up front. */}
           <div
@@ -654,32 +701,24 @@ export default function LandingPage() {
             </span>
           </div>
 
-          <div className="lp-new" aria-label="New on Skyrio">
-            {NEW_THINGS.map(({ Icon, title, text, to }) => {
-              const body = (
-                <>
-                  <Icon size={20} aria-hidden="true" />
-                  <div style={{ textAlign: "left" }}>
-                    <b>
-                      {title}
-                      <em className="lp-newTag" style={{ fontStyle: "normal" }}>
-                        New
-                      </em>
-                    </b>
-                    <span>{text}</span>
-                  </div>
-                </>
-              );
-              return to ? (
-                <Link key={title} to={to} className="lp-newItem">
-                  {body}
-                </Link>
-              ) : (
-                <div key={title} className="lp-newItem">
-                  {body}
+          <div className="lp-label" style={{ marginTop: 34 }}>
+            Atlas checks the details
+          </div>
+          <div className="lp-new" aria-label="What Atlas checks for you">
+            {ATLAS_CHECKS.map(({ Icon, title, text }) => (
+              <button
+                key={title}
+                type="button"
+                className="lp-newItem"
+                onClick={() => openAtlas()}
+              >
+                <Icon size={20} aria-hidden="true" />
+                <div style={{ textAlign: "left" }}>
+                  <b>{title}</b>
+                  <span>{text}</span>
                 </div>
-              );
-            })}
+              </button>
+            ))}
           </div>
         </div>
       </section>
