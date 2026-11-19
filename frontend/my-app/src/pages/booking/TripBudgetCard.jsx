@@ -179,10 +179,25 @@ export default function TripBudgetCard({
   initialBookingTotal = 0,
   initialTripDays = null,
   initialDestination = "your destination",
+  // The trip budget set elsewhere on the page (the budget slider), so both
+  // always show the same number.
+  budget = null,
   onStateChange,
 }) {
   // ── Core budget state ──
-  const [planned, setPlanned] = useState(null);
+  const [planned, setPlanned] = useState(budget ?? null);
+  // Only a change made here is reported as the budget; otherwise the page's
+  // budget (from the slider) stands. Before, this card reported "no budget"
+  // when it loaded and wiped out the slider's amount.
+  const typedRef = useRef(false);
+  const setPlannedHere = (v) => {
+    typedRef.current = true;
+    setPlanned(v);
+  };
+  useEffect(() => {
+    if (budget != null && Number(budget) !== Number(planned)) setPlanned(budget);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget]);
   const [bookingTotal, setBookingTotal] = useState(
     Number(initialBookingTotal) || 0
   );
@@ -232,7 +247,7 @@ export default function TripBudgetCard({
   );
   useEffect(() => {
     onStateChangeRef.current?.({
-      planned,
+      planned: typedRef.current ? planned : undefined,
       used: totalUsed,
       bookingTotal,
       tripDays,
@@ -371,7 +386,7 @@ export default function TripBudgetCard({
 
   // ── Reset ──
   const handleReset = useCallback(() => {
-    setPlanned(null);
+    setPlannedHere(null);
     setBookingTotal(Number(initialBookingTotal) || 0);
     setTripDays(initialTripDays ? Number(initialTripDays) : null);
     setExpenses([]);
@@ -439,7 +454,7 @@ export default function TripBudgetCard({
               step={50}
               controls={false}
               placeholder="e.g. 1500"
-              onChange={(v) => setPlanned(v ?? null)}
+              onChange={(v) => setPlannedHere(v ?? null)}
               className="tb-input tb-force"
             />
           </label>
