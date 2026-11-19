@@ -66,7 +66,7 @@ function CompassIcon() {
 }
 
 const BOT_PATH =
-  /\.(txt|xml|php|asp|aspx|jsp|cgi|env|ini|bak|sql|zip|gz|json|yml|yaml|map|ico)$|^\/(\.well-known|\.git|wp-|wordpress|xmlrpc|cgi-bin|phpmyadmin)/i;
+  /\.(txt|xml|php|asp|aspx|jsp|cgi|env|ini|bak|sql|zip|gz|json|yml|yaml|map|ico)$|^\/(\.well-known|\.git|wp-|wordpress|xmlrpc|cgi-bin|phpmyadmin|apple-app-site-association|apple-touch-icon|autodiscover|\.aws|\.vscode)/i;
 
 export default function NotFound() {
   const { pathname, search } = useLocation();
@@ -74,7 +74,8 @@ export default function NotFound() {
   const path = `${pathname}${search}`;
 
   // Report the broken link once per address per visit. Skip files that
-  // bots and scanners ask for (/ads.txt, /wp-login.php, /.env…): they're
+  // bots and scanners ask for (/ads.txt, /wp-login.php, /.env, Apple's
+  // /apple-app-site-association check…): they're
   // not broken links a traveler hit.
   useEffect(() => {
     if (BOT_PATH.test(pathname)) return;
