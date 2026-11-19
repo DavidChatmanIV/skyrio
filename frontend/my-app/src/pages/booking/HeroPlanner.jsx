@@ -405,6 +405,11 @@ export default function HeroPlanner({
     clampBudget(initialBudget)
   );
   const [editingBudget, setEditingBudget] = useState(false);
+  // Budget typed on the trip budget card → the slider follows.
+  useEffect(() => {
+    const n = Number(initialBudget);
+    if (Number.isFinite(n) && n > 0) setHeroBudget((b) => (b === clampBudget(n) ? b : clampBudget(n)));
+  }, [initialBudget]);
   const [budgetDraft, setBudgetDraft] = useState("");
   const [selectedDest, setSelectedDest] = useState(null);
 

@@ -125,7 +125,7 @@ export default function BookingPage() {
   // Disruption mode: show when this kind of booking is paused.
   const siteStatus = useSiteStatus();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { updateAtlasContext } = useAtlasContext();
+  const { atlasContext, updateAtlasContext } = useAtlasContext();
 
   // Where flights leave from: the link, else a signed-in traveler's home
   // airport. Guests: nothing until they pick (no made-up EWR).
@@ -378,6 +378,15 @@ export default function BookingPage() {
 
   // How this person wants to plan (see PLAN_MODES). Remembered per browser.
   const [planMode, setPlanModeState] = useState(readPlanMode);
+  // "On a budget" shows the budget planner (budget, flying from, places
+  // that fit) right away. It waits for a "who's traveling" pick, which used
+  // to be hidden in this mode, so tapping it looked like nothing happened
+  // (tester: "doesn't feel intuitive"). Start on Solo; they can change it.
+  useEffect(() => {
+    if (planMode === "budget" && !atlasContext?.tripType)
+      updateAtlasContext({ tripType: "solo" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planMode]);
   const setPlanMode = useCallback((m) => {
     setPlanModeState(m);
     try {
@@ -1794,7 +1803,11 @@ export default function BookingPage() {
       ? Number(budgetState.planned)
       : null;
   const handleBudgetChange = useCallback((state) => {
-    setBudgetState(state);
+    // planned is undefined unless it was changed on the card itself.
+    setBudgetState((prev) => ({
+      ...state,
+      planned: state.planned === undefined ? prev.planned : state.planned,
+    }));
   }, []);
   const scrollToBudget = useCallback(() => {
     budgetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2898,7 +2911,7 @@ export default function BookingPage() {
                     Kept mounted in every mode; only shown where they help. */}
                 <div
                   style={
-                    !syncGroupId && planMode !== "atlas"
+                    !syncGroupId && planMode === "search"
                       ? { display: "none" }
                       : undefined
                   }
@@ -4735,6 +4748,7 @@ export default function BookingPage() {
           >
             <div ref={budgetRef}>
               <TripBudgetCard
+                budget={budgetState.planned}
                 initialBookingTotal={selectedResult?.total ?? 0}
                 initialTripDays={selectedNights}
                 initialDestination={destCity}
