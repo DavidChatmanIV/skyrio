@@ -759,7 +759,10 @@ function flightDisplay(o) {
       ? f.slices[0].stops
       : Math.max(0, segs.length - 1);
   return {
+    // The airline that flies the plane (Liteapiflights.utils toFrontendFlightShape).
     airline: o.airlineName || f.owner || f.airline || "Airline",
+    // A different airline that sells the ticket (e.g. Hahn Air), or null.
+    ticketSoldBy: f.soldBy || null,
     airlineCode: o.airlineCode || f.ownerCode || null,
     flightNumbers:
       segs
@@ -1227,6 +1230,10 @@ async function runHotelSearch(owner, userId, input) {
   // page. Atlas once showed a 1-room price as "2 rooms" ($61/room/night for
   // a 4-star suite). Offers covering some but not all rooms are skipped.
   const fitted = rates
+    // Duffel Stays doesn't say whether a price covers every room or just
+    // one ("cheapest room" in its docs), so for 2+ rooms Atlas only shows
+    // LiteAPI offers, whose rooms it can count.
+    .filter((r) => rooms === 1 || r.supplier !== "duffel")
     .map((r) => {
       const covered = Math.max(1, Number(r.roomsCovered) || rooms);
       if (covered >= rooms) return { ...r, bookCopies: 1 };
