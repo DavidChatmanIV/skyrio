@@ -4,7 +4,7 @@
   "description": "Plan trips with friends, or let Atlas plan it.",
   "start_url": "/",
   "scope": "/",
-  "display": "browser",
+  "display": "standalone",
   "background_color": "#1a1233",
   "theme_color": "#1a1233",
   "icons": [

@@ -347,9 +347,25 @@ const SYNC_CSS = `
 // (The admin pages must still check the role on the server.)
 const ADMIN_EMAIL = "skyrioofficial@gmail.com";
 
+// Opened from the home screen icon (full screen, no browser bar). iPhones
+// have no back button there, so the navbar shows one.
+const isHomeScreenApp = () => {
+  try {
+    return (
+      window.navigator.standalone === true ||
+      window.matchMedia?.("(display-mode: standalone)").matches
+    );
+  } catch {
+    return false;
+  }
+};
+
 export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [appMode] = useState(isHomeScreenApp);
+  // Back only once there's somewhere to go back to inside Skyrio.
+  const canGoBack = appMode && location.key !== "default" && location.pathname !== "/";
   const { user, isAuthed, logout } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -484,11 +500,27 @@ export default function Navbar() {
       {mobileOpen && <div className="sk-mobile-backdrop" aria-hidden="true" />}
       <div className="sk-navbar-shell">
         <nav className="sk-navbar" ref={menuRef} aria-label="Main">
-          {/* ── BRAND ── */}
-          <Link to="/" className="sk-brand" aria-label="Skyrio home">
-            <img src={skyrioLogo} alt="" className="sk-brand-img" />
-            <span className="sk-brand-wordmark">Skyrio</span>
-          </Link>
+          {/* ── BRAND (+ Back, when opened from the home screen) ── */}
+          <div className="sk-nav-start">
+            {canGoBack && (
+              <button
+                type="button"
+                className="sk-nav-back"
+                onClick={() => navigate(-1)}
+                aria-label="Back"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            )}
+            {/* ── BRAND ── */}
+            <Link to="/" className="sk-brand" aria-label="Skyrio home">
+              <img src={skyrioLogo} alt="" className="sk-brand-img" />
+              <span className="sk-brand-wordmark">Skyrio</span>
+            </Link>
+          </div>
 
           {/* ── DESKTOP NAV LINKS ── */}
           <div className="sk-nav-links">
