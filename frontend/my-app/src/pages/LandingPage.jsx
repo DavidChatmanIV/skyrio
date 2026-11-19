@@ -729,33 +729,25 @@ export default function LandingPage() {
           <div className="lp-sync">
             <div>
               <span className="lp-sync__badge">
-                <Users size={13} aria-hidden="true" /> Group trips
+                <Users size={13} aria-hidden="true" /> How group trips work
               </span>
               <h2 className="lp-h2" id="lp-sync-title">
-                Plan with friends. Pay your own share.
+                See who&apos;s in and who&apos;s paid.
               </h2>
               <ul className="lp-sync__list">
                 <li>
                   <ArrowRight size={16} aria-hidden="true" />
-                  Invite with one link.
+                  Everyone votes on a shortlist of flights and stays.
                 </li>
                 <li>
                   <ArrowRight size={16} aria-hidden="true" />
-                  Pick flights and a stay together.
+                  Your budget stays private. Only you see it.
                 </li>
                 <li>
                   <ArrowRight size={16} aria-hidden="true" />
-                  Everyone pays their part. No chasing money.
+                  Plans change? Cancel your part. Everyone else&apos;s stays booked.
                 </li>
               </ul>
-              <div
-                className="lp-cta__btns"
-                style={{ justifyContent: "flex-start" }}
-              >
-                <Link to="/sync-together" className="lp-btn lp-btn--primary">
-                  Start a group trip <ArrowRight size={16} aria-hidden="true" />
-                </Link>
-              </div>
             </div>
             <div className="lp-sync__card" aria-hidden="true">
               <div className="lp-label" style={{ marginBottom: 8 }}>
