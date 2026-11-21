@@ -278,10 +278,12 @@ function timesLine(st) {
 function PriceBreakdown({ st }) {
   const b = st?.breakdown;
   if (!b) return null;
+  // Duffel splits taxes and fees; LiteAPI gives one included total.
   const rows = [
     ["Room", b.base],
     ["Taxes", b.tax],
     ["Fees", b.fee],
+    ["Taxes & fees", b.taxesAndFees],
   ].filter(([, v]) => v != null && Number(v) > 0);
   if (!rows.length) return null;
   return (
@@ -403,7 +405,7 @@ function RoomLineItem({ room, index, total, booked = false }) {
           >
             <KeyRound size={14} aria-hidden="true" />
             <span>
-              <strong>Getting your keys:</strong> {st.keyCollection}
+              <strong>Check-in &amp; keys:</strong> {st.keyCollection}
             </span>
           </div>
         )}
@@ -1422,6 +1424,44 @@ export default function HotelCheckout({
     [roomsProp, hotel]
   );
 
+  // LiteAPI hotels: check-in/out times, hotel contact, check-in steps and
+  // rules, fetched once per hotel so they match what Duffel rooms carry.
+  // Kept apart from `rooms` so loading them never re-runs the price check.
+  const [hotelDetails, setHotelDetails] = useState({});
+  useEffect(() => {
+    const ids = [
+      ...new Set(
+        rooms
+          .filter((r) => r?.hotelId && !isDuffelRoom(r))
+          .map((r) => String(r.hotelId))
+      ),
+    ];
+    if (!ids.length) return;
+    let alive = true;
+    Promise.all(
+      ids.map((id) =>
+        fetch(`${API}/api/hotels/details/${encodeURIComponent(id)}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((d) => [id, d?.stayInfo || null])
+          .catch(() => [id, null])
+      )
+    ).then((pairs) => {
+      if (!alive) return;
+      setHotelDetails(Object.fromEntries(pairs.filter(([, v]) => v)));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [rooms]);
+  const roomsShown = useMemo(
+    () =>
+      rooms.map((r) => {
+        const d = hotelDetails[String(r?.hotelId)];
+        return d ? { ...r, stayInfo: { ...d, ...(r.stayInfo || {}) } } : r;
+      }),
+    [rooms, hotelDetails]
+  );
+
   const [guests, setGuests] = useState(() =>
     rooms.map(() => ({ firstName: "", lastName: "" }))
   );
@@ -1650,7 +1690,7 @@ export default function HotelCheckout({
               />
               {rooms.length > 1 ? `${rooms.length} rooms` : "Your stay"}
             </div>
-            {rooms.map((r, i) => (
+            {roomsShown.map((r, i) => (
               <RoomLineItem
                 key={roomKey(r)}
                 room={r}
@@ -1977,7 +2017,7 @@ export default function HotelCheckout({
             ) : (
               <Elements stripe={stripePromise}>
                 <PaymentForm
-                  rooms={rooms}
+                  rooms={roomsShown}
                   guests={guests}
                   contactEmail={contactEmail}
                   contactPhone={contactPhone}

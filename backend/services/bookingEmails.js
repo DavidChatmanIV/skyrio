@@ -56,7 +56,7 @@ const checkInText = (st) =>
     : null;
 const checkOutText = (st) => (st?.checkOutBefore ? `by ${st.checkOutBefore}` : null);
 const conditionsOf = (st) =>
-  (Array.isArray(st?.conditions) ? st.conditions : []).filter((c) => c?.text);
+  (Array.isArray(st?.conditions) ? st.conditions : []).filter((c) => c?.text).slice(0, 6);
 
 const textFooter = `\n\nView your trips: ${TRIPS_URL}\nQuestions? ${SUPPORT_EMAIL}\n\nSent by Skyrio - Plan smarter. Travel better.`;
 
@@ -136,7 +136,7 @@ export async function sendHotelConfirmation({
           (r.stay?.hotelEmail ? kvRow("Hotel email", esc(r.stay.hotelEmail)) : "") +
           (r.stay?.keyCollection
             ? noteLine(
-                `<strong>Getting your keys:</strong> ${esc(r.stay.keyCollection)}`
+                `<strong>Check-in &amp; keys:</strong> ${esc(r.stay.keyCollection)}`
               )
             : "") +
           conditionsOf(r.stay)
@@ -202,7 +202,7 @@ ${r.guestName ? `Guest: ${r.guestName}\n` : ""}${
     }${r.confirmationCode ? `Hotel confirmation: ${r.confirmationCode}\n` : ""}${
       r.stay?.hotelPhone ? `Hotel phone: ${r.stay.hotelPhone}\n` : ""
     }${r.stay?.hotelEmail ? `Hotel email: ${r.stay.hotelEmail}\n` : ""}${
-      r.stay?.keyCollection ? `Getting your keys: ${r.stay.keyCollection}\n` : ""
+      r.stay?.keyCollection ? `Check-in & keys: ${r.stay.keyCollection}\n` : ""
     }${conditionsOf(r.stay)
       .map((c) => `${c.title ? `${c.title}: ` : ""}${c.text}\n`)
       .join("")}`

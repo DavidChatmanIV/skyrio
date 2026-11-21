@@ -11,6 +11,7 @@ import {
   initHotelCheckout,
   confirmHotelBooking,
   checkHotelAvailability,
+  getHotelDetails,
 } from "./hotels.controller.js";
 import { requireSalesOpen } from "../../../services/siteStatus.js";
 
@@ -22,6 +23,10 @@ router.get("/lookup", lookupHotelsByLocation);
 // GET /api/hotels/places — free-text location autocomplete (billed
 // per-request by LiteAPI; see searchPlaces for cost notes)
 router.get("/places", searchPlaces);
+
+// GET /api/hotels/details/:hotelId — check-in/out times, hotel contact,
+// check-in steps and rules (LiteAPI), same shape as Duffel rooms.
+router.get("/details/:hotelId", getHotelDetails);
 
 // GET /api/hotels/search
 router.get("/search", searchHotels);

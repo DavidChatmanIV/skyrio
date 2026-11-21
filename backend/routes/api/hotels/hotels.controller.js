@@ -17,6 +17,7 @@ import {
   isValidDate,
   buildOccupancies,
   normalizeHotelRate,
+  liteStayInfoFromDetails,
 } from "./hotels.utils.js";
 import Booking from "../../../models/booking.js";
 import User from "../../../models/user.js";
@@ -287,6 +288,37 @@ export async function searchHotels(req, res) {
 // checkout flow uses initHotelCheckout() below instead.
 // Admin-only (see hotels.routes.js).
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// GET /api/hotels/details/:hotelId
+// Check-in/out times, hotel contact, check-in instructions and rules for a
+// LiteAPI hotel, in the same stayInfo shape Duffel rooms carry. Cached so
+// reopening checkout doesn't call LiteAPI again. Never blocks checkout:
+// on any error it answers { stayInfo: null }.
+// ─────────────────────────────────────────────────────────────
+const DETAILS_TTL_MS = 6 * 60 * 60 * 1000;
+const detailsCache = new Map();
+
+export async function getHotelDetails(req, res) {
+  const hotelId = String(req.params.hotelId || "").trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(hotelId)) {
+    return res.status(400).json({ ok: false, message: "Invalid hotelId" });
+  }
+  const hit = detailsCache.get(hotelId);
+  if (hit && Date.now() - hit.at < DETAILS_TTL_MS) {
+    return res.json({ ok: true, stayInfo: hit.stayInfo });
+  }
+  try {
+    const r = await liteapi.searchGet("/data/hotel", { hotelId });
+    const stayInfo = liteStayInfoFromDetails(r?.data ?? {});
+    if (detailsCache.size > 2000) detailsCache.clear();
+    detailsCache.set(hotelId, { at: Date.now(), stayInfo });
+    return res.json({ ok: true, stayInfo });
+  } catch (err) {
+    console.warn("[hotels/details]", hotelId, err?.message);
+    return res.json({ ok: true, stayInfo: null });
+  }
+}
+
 export async function prebookHotel(req, res) {
   try {
     const { offerId } = req.body;
