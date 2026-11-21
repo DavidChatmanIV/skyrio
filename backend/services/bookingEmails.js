@@ -48,12 +48,24 @@ const hotelPolicy = (rooms) => {
   return `Refunds and cancellation terms are set by ${who}, not Skyrio. The hotel's policy for this rate applies.`;
 };
 
+// Duffel stay extras → "Check-in from 3:00 PM" style lines. Only what the
+// hotel actually sent; empty when nothing was sent.
+const checkInText = (st) =>
+  st?.checkInAfter
+    ? `from ${st.checkInAfter}${st.checkInBefore && st.checkInBefore !== "12:00 AM" ? ` until ${st.checkInBefore}` : ""}`
+    : null;
+const checkOutText = (st) => (st?.checkOutBefore ? `by ${st.checkOutBefore}` : null);
+const conditionsOf = (st) =>
+  (Array.isArray(st?.conditions) ? st.conditions : []).filter((c) => c?.text);
+
 const textFooter = `\n\nView your trips: ${TRIPS_URL}\nQuestions? ${SUPPORT_EMAIL}\n\nSent by Skyrio - Plan smarter. Travel better.`;
 
 /**
  * Hotel booking confirmation.
  * rooms: [{ name, roomName, boardName, address, checkin, checkout, guestName,
- *          confirmationCode, alsoStaying: [names] }]
+ *          confirmationCode, alsoStaying: [names],
+ *          stay?: { checkInAfter, checkInBefore, checkOutBefore, hotelPhone,
+ *                   hotelEmail, keyCollection, conditions: [{ title, text }] } }]
  * totalAmount: the EXACT amount charged.
  * groupTrip: true when this is part of a Sync Together trip (no tip then).
  */
@@ -97,15 +109,43 @@ export async function sendHotelConfirmation({
               )
             : "") +
           `<div style="height:10px;line-height:10px;">&nbsp;</div>` +
-          kvRow("Check-in", esc(formatDate(r.checkin) || "—")) +
-          kvRow("Check-out", esc(formatDate(r.checkout) || "—")) +
+          kvRow(
+            "Check-in",
+            esc(
+              [formatDate(r.checkin) || "—", checkInText(r.stay)]
+                .filter(Boolean)
+                .join(", ")
+            )
+          ) +
+          kvRow(
+            "Check-out",
+            esc(
+              [formatDate(r.checkout) || "—", checkOutText(r.stay)]
+                .filter(Boolean)
+                .join(", ")
+            )
+          ) +
           (r.guestName ? kvRow("Guest", esc(r.guestName)) : "") +
           (others(r).length
             ? kvRow("Also staying", esc(others(r).join(", ")))
             : "") +
           (r.confirmationCode
             ? kvRow("Hotel confirmation", esc(r.confirmationCode))
-            : "")
+            : "") +
+          (r.stay?.hotelPhone ? kvRow("Hotel phone", esc(r.stay.hotelPhone)) : "") +
+          (r.stay?.hotelEmail ? kvRow("Hotel email", esc(r.stay.hotelEmail)) : "") +
+          (r.stay?.keyCollection
+            ? noteLine(
+                `<strong>Getting your keys:</strong> ${esc(r.stay.keyCollection)}`
+              )
+            : "") +
+          conditionsOf(r.stay)
+            .map((c) =>
+              noteLine(
+                `${c.title ? `<strong>${esc(c.title)}:</strong> ` : ""}${esc(c.text)}`
+              )
+            )
+            .join("")
       )
     )
     .join("");
@@ -155,11 +195,17 @@ ${rooms
 ${r.address ? `${r.address}\n` : ""}${[r.roomName, r.boardName]
       .filter(Boolean)
       .join(" · ")}
-Check-in: ${formatDate(r.checkin) || "—"}
-Check-out: ${formatDate(r.checkout) || "—"}
+Check-in: ${[formatDate(r.checkin) || "—", checkInText(r.stay)].filter(Boolean).join(", ")}
+Check-out: ${[formatDate(r.checkout) || "—", checkOutText(r.stay)].filter(Boolean).join(", ")}
 ${r.guestName ? `Guest: ${r.guestName}\n` : ""}${
       others(r).length ? `Also staying: ${others(r).join(", ")}\n` : ""
-    }${r.confirmationCode ? `Hotel confirmation: ${r.confirmationCode}\n` : ""}`
+    }${r.confirmationCode ? `Hotel confirmation: ${r.confirmationCode}\n` : ""}${
+      r.stay?.hotelPhone ? `Hotel phone: ${r.stay.hotelPhone}\n` : ""
+    }${r.stay?.hotelEmail ? `Hotel email: ${r.stay.hotelEmail}\n` : ""}${
+      r.stay?.keyCollection ? `Getting your keys: ${r.stay.keyCollection}\n` : ""
+    }${conditionsOf(r.stay)
+      .map((c) => `${c.title ? `${c.title}: ` : ""}${c.text}\n`)
+      .join("")}`
   )
   .join("\n")}
 ${total ? `Total charged: ${total}\n` : ""}${

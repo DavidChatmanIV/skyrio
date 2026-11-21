@@ -699,6 +699,9 @@ async function createPendingHotelBooking({
         prebookId: r.prebookId,
         bookingId: d.bookingId ?? null,
         hotelConfirmationCode: d.hotelConfirmationCode ?? null,
+        // Duffel: check-in times, hotel contact, key collection (My Trips,
+        // admin lookups). Absent for LiteAPI.
+        ...(d.stay ? { stay: d.stay } : {}),
       };
     });
 
@@ -1063,6 +1066,8 @@ export async function confirmHotelBooking(req, res) {
             guestName: `${b.holder.firstName} ${b.holder.lastName}`,
             alsoStaying: room.alsoStaying || [],
             confirmationCode: d.hotelConfirmationCode || d.bookingId || null,
+            // Duffel extras (times, hotel contact, key collection, rules).
+            stay: d.stay || room.stayInfo || null,
           };
         })
         .filter(Boolean);

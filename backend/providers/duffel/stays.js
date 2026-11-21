@@ -140,6 +140,49 @@ function addressOf(acc) {
     .join(", ");
 }
 
+/** "14:30" → "2:30 PM". Anything else → null (never guess a time). */
+export function hhmmTo12h(v) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(v || ""));
+  if (!m) return null;
+  const h = Number(m[1]);
+  if (h > 23) return null;
+  const suffix = h >= 12 ? "PM" : "AM";
+  return `${h % 12 || 12}:${m[2]} ${suffix}`;
+}
+
+/**
+ * What Duffel asks travelers to see at checkout and on the confirmation,
+ * in one provider-neutral object the checkout page and emails read:
+ * check-in/out times, the hotel's contact info, the rate's own conditions
+ * ("Parking", "Pets"…), and the price split into room / taxes / fees.
+ * Missing fields stay null — nothing is made up.
+ */
+export function stayInfoOf(acc = {}, rate = {}) {
+  const ci = acc?.check_in_information || {};
+  const currency = rate?.total_currency || rate?.base_currency || "USD";
+  const amt = (v) => {
+    const n = money(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const breakdown = {
+    base: amt(rate?.base_amount),
+    tax: amt(rate?.tax_amount),
+    fee: amt(rate?.fee_amount),
+    currency,
+  };
+  return {
+    checkInAfter: hhmmTo12h(ci.check_in_after_time),
+    checkInBefore: hhmmTo12h(ci.check_in_before_time),
+    checkOutBefore: hhmmTo12h(ci.check_out_before_time),
+    hotelPhone: acc?.phone_number || null,
+    hotelEmail: acc?.email || null,
+    conditions: (Array.isArray(rate?.conditions) ? rate.conditions : [])
+      .filter((c) => c?.description || c?.title)
+      .map((c) => ({ title: c.title || null, text: c.description || "" })),
+    breakdown: breakdown.base != null || breakdown.tax != null || breakdown.fee != null ? breakdown : null,
+  };
+}
+
 /** One Duffel rate → one LiteAPI-shaped Stays result. */
 function rateToStaysShape(acc, room, rate, { rooms, checkin, checkout }) {
   const total = money(rate.total_amount);
@@ -175,6 +218,7 @@ function rateToStaysShape(acc, room, rate, { rooms, checkin, checkout }) {
     longitude: acc.location?.geographic_coordinates?.longitude ?? null,
     checkin,
     checkout,
+    stayInfo: stayInfoOf(acc, rate),
   };
 }
 
@@ -311,12 +355,21 @@ export async function bookDuffelQuote({ quoteId, holder, guests }) {
     },
   });
   const b = data?.data || {};
+  const acc = b.accommodation || {};
+  const rate = acc.rooms?.[0]?.rates?.[0] || {};
   return {
     data: {
       bookingId: b.id,
       hotelConfirmationCode: b.reference || null,
       status: b.status === "confirmed" ? "CONFIRMED" : String(b.status || "").toUpperCase(),
       provider: "duffel",
+      // Shown on the confirmation page and email. Key collection matters
+      // most: hotels without a front desk send a PIN / lockbox steps here,
+      // and Skyrio must pass them on to the guest.
+      stay: {
+        ...stayInfoOf(acc, rate),
+        keyCollection: acc.key_collection?.instructions || null,
+      },
     },
     raw: b,
   };
@@ -344,6 +397,10 @@ export async function getDuffelStayBooking(bookingId) {
       price: total,
       cancellationPolicies: duffelCancellationPolicies(rate.cancellation_timeline, total, currency),
       provider: "duffel",
+      stay: {
+        ...stayInfoOf(b.accommodation, rate),
+        keyCollection: b.accommodation?.key_collection?.instructions || null,
+      },
     },
     raw: data,
   };
