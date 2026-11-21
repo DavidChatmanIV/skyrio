@@ -199,6 +199,7 @@ export default function CarCheckout({ rate, search, groupId = null, onBack, onUn
             Pay <strong>{q.supplier.name} {money(q.totalAmount, q.currency)}</strong> at pickup. Bring the driver's
             license and a credit card in the driver's name.
           </p>
+          {q.mileage && <p className="sk-car-done-pay">Mileage: {q.mileage}</p>}
           <Location quote={q} pickupAt={pickupAt} dropoffAt={dropoffAt} />
           <Terms supplier={q.supplier.name} items={q.conditions} />
           <a href="/saved-trips" className="sk-car-btn sk-car-btn--big" style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
@@ -247,6 +248,7 @@ export default function CarCheckout({ rate, search, groupId = null, onBack, onUn
                 ))}
               </ul>
             )}
+            {quote.mileage && <div>Mileage: {quote.mileage}</div>}
           </div>
 
           <Location quote={quote} pickupAt={pickupAt} dropoffAt={dropoffAt} />

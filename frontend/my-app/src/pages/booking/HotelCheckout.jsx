@@ -29,6 +29,10 @@ import {
   Check,
   UserPlus,
   X,
+  Clock,
+  Phone,
+  Mail,
+  KeyRound,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import SyncTogetherNudge from "@/components/syncTogether/SyncTogetherNudge";
@@ -248,8 +252,73 @@ const HC_CSS = `
   @media (max-width: 480px) { .sk-hc-thumb { width: 72px; height: 72px; } }
 `;
 
-function RoomLineItem({ room, index, total }) {
+// Duffel stay details (times, hotel contact, rate rules, price split).
+// The booking's own copy (after paying) wins over the search copy.
+function stayOf(room) {
+  return room?.stay || room?.stayInfo || null;
+}
+
+function timesLine(st) {
+  if (!st) return null;
+  const parts = [];
+  if (st.checkInAfter) {
+    parts.push(
+      `Check-in from ${st.checkInAfter}${
+        st.checkInBefore && st.checkInBefore !== "12:00 AM"
+          ? ` until ${st.checkInBefore}`
+          : ""
+      }`
+    );
+  }
+  if (st.checkOutBefore) parts.push(`Check-out by ${st.checkOutBefore}`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+// Room / taxes / fees, only when the hotel sent them. Never estimated.
+function PriceBreakdown({ st }) {
+  const b = st?.breakdown;
+  if (!b) return null;
+  const rows = [
+    ["Room", b.base],
+    ["Taxes", b.tax],
+    ["Fees", b.fee],
+  ].filter(([, v]) => v != null && Number(v) > 0);
+  if (!rows.length) return null;
+  return (
+    <div style={{ marginTop: 6, fontSize: 12.5, color: "rgba(255,255,255,0.6)" }}>
+      {rows.map(([label, v]) => (
+        <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <span>{label}</span>
+          <span>${usd2(v)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// The rate's own rules ("Parking", "Pets"…), collapsed so the page stays short.
+function HotelRules({ st }) {
+  const list = (st?.conditions || []).filter((c) => c?.text);
+  if (!list.length) return null;
+  return (
+    <details style={{ marginTop: 8, fontSize: 12.5, color: "rgba(255,255,255,0.68)" }}>
+      <summary style={{ cursor: "pointer", color: "#fff", fontWeight: 600 }}>
+        Hotel info & rules
+      </summary>
+      {list.map((c, i) => (
+        <p key={i} style={{ margin: "6px 0 0", lineHeight: 1.5 }}>
+          {c.title ? <strong>{c.title}: </strong> : null}
+          {c.text}
+        </p>
+      ))}
+    </details>
+  );
+}
+
+function RoomLineItem({ room, index, total, booked = false }) {
   const nights = nightsBetween(room.checkin, room.checkout);
+  const st = stayOf(room);
+  const times = timesLine(st);
   const c = cancellationOf(room);
   const board = boardLabel(room.boardName);
   return (
@@ -283,6 +352,12 @@ function RoomLineItem({ room, index, total }) {
               : "Dates to be confirmed"}
           </span>
         </div>
+        {times && (
+          <div className="sk-hc-line">
+            <Clock size={14} aria-hidden="true" />
+            <span>{times}</span>
+          </div>
+        )}
         {room.address && (
           <div className="sk-hc-line">
             <MapPin size={14} aria-hidden="true" />
@@ -314,6 +389,42 @@ function RoomLineItem({ room, index, total }) {
             </span>
           </div>
         )}
+        {booked && st?.keyCollection && (
+          <div
+            className="sk-hc-line"
+            style={{
+              color: "#fff",
+              marginTop: 10,
+              padding: "8px 10px",
+              borderRadius: 10,
+              background: "rgba(255,138,42,0.12)",
+              border: "1px solid rgba(255,138,42,0.4)",
+            }}
+          >
+            <KeyRound size={14} aria-hidden="true" />
+            <span>
+              <strong>Getting your keys:</strong> {st.keyCollection}
+            </span>
+          </div>
+        )}
+        {booked && st?.hotelPhone && (
+          <div className="sk-hc-line">
+            <Phone size={14} aria-hidden="true" />
+            <a href={`tel:${String(st.hotelPhone).replace(/[^\d+]/g, "")}`} style={{ color: "inherit" }}>
+              {st.hotelPhone}
+            </a>
+          </div>
+        )}
+        {booked && st?.hotelEmail && (
+          <div className="sk-hc-line">
+            <Mail size={14} aria-hidden="true" />
+            <a href={`mailto:${st.hotelEmail}`} style={{ color: "inherit", overflowWrap: "anywhere" }}>
+              {st.hotelEmail}
+            </a>
+          </div>
+        )}
+        <PriceBreakdown st={st} />
+        <HotelRules st={st} />
         {total > 1 && (
           <div className="sk-hc-price">${usd2(room.totalAmount)}</div>
         )}
@@ -749,10 +860,19 @@ function PaymentForm({
             thumbnail: r.thumbnail,
             totalAmount: r.totalAmount,
             totalCurrency: r.totalCurrency || "USD",
+            ...(r.stayInfo ? { stayInfo: r.stayInfo } : {}),
           })),
         }),
       });
       const conf = await confRes.json().catch(() => ({}));
+      // The hotel's booking details (key collection, contact) for each room.
+      const withStay = (r, i) => {
+        const b = conf.bookings?.find(
+          (x) => x.prebookId === init.rooms?.[i]?.prebookId
+        );
+        const st = b?.booking?.data?.stay;
+        return st ? { ...r, stay: st } : r;
+      };
 
       if (confRes.status === 207) {
         // Some rooms booked; charged only for those.
@@ -760,9 +880,11 @@ function PaymentForm({
         onSuccess({
           confirmationId:
             conf.bookings?.[0]?.booking?.data?.bookingId || paymentIntent.id,
-          rooms: rooms.filter((_, i) =>
-            conf.bookings?.some((b) => b.prebookId === init.rooms[i]?.prebookId)
-          ),
+          rooms: rooms
+            .map(withStay)
+            .filter((_, i) =>
+              conf.bookings?.some((b) => b.prebookId === init.rooms[i]?.prebookId)
+            ),
           totalPaid: null,
           partialMessage: conf.message,
         });
@@ -783,7 +905,7 @@ function PaymentForm({
           first?.data?.bookingId ||
           first?.bookingId ||
           paymentIntent.id,
-        rooms,
+        rooms: rooms.map(withStay),
         totalPaid: init.totalPrice,
       });
     } catch (err) {
@@ -1246,7 +1368,7 @@ function ConfirmationScreen({ confirmation, onBack, showSyncTip = false, destCit
           style={{ marginTop: 24, width: "100%", maxWidth: 560 }}
         >
           {rooms.map((r, i) => (
-            <RoomLineItem key={roomKey(r)} room={r} index={i} />
+            <RoomLineItem key={roomKey(r)} room={r} index={i} total={rooms.length} booked />
           ))}
           <Divider style={{ borderColor: "rgba(255,255,255,0.1)" }} />
           <div className="sk-checkout-total-row">
