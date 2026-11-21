@@ -118,6 +118,73 @@ export function roomsCoveredBy(rates = []) {
   return occ.size || rates.length || 1;
 }
 
+/** "16:00" or "04:00 PM" → "4:00 PM". Anything else → null (never guess). */
+export function to12h(v) {
+  const m = /^\s*(\d{1,2}):(\d{2})\s*(AM|PM)?\s*$/i.exec(String(v || ""));
+  if (!m) return null;
+  let h = Number(m[1]);
+  const ap = m[3]?.toUpperCase();
+  if (ap) {
+    if (h < 1 || h > 12) return null;
+    return `${h}:${m[2]} ${ap}`;
+  }
+  if (h > 23) return null;
+  return `${h % 12 || 12}:${m[2]} ${h >= 12 ? "PM" : "AM"}`;
+}
+
+/**
+ * Price split for a LiteAPI offer: the room price and the taxes & fees
+ * already INCLUDED in the total (fees paid at the hotel are shown
+ * separately by the checkout). Same shape as Duffel's stayInfo.breakdown.
+ * null when LiteAPI lists no included taxes — nothing is estimated.
+ */
+export function liteBreakdown(roomType, total) {
+  const currency = roomType?.offerRetailRate?.currency ?? "USD";
+  let included = 0;
+  for (const r of roomType?.rates ?? []) {
+    for (const t of r?.retailRate?.taxesAndFees ?? []) {
+      const n = Number(t?.amount);
+      if (t?.included === true && Number.isFinite(n) && n > 0) included += n;
+    }
+  }
+  const tot = Number(total);
+  if (!(included > 0) || !Number.isFinite(tot) || included >= tot) return null;
+  const round = (n) => Math.round(n * 100) / 100;
+  return { base: round(tot - included), taxesAndFees: round(included), currency };
+}
+
+/**
+ * LiteAPI /data/hotel → the same stayInfo shape Duffel rooms use, so the
+ * checkout page and emails treat both suppliers the same way.
+ * checkinCheckoutTimes: { checkin_start, checkin_end, checkout,
+ *   instructions: [{ instruction }], special_instructions }
+ */
+export function liteStayInfoFromDetails(d = {}) {
+  const t = d?.checkinCheckoutTimes || {};
+  const special = String(t.special_instructions || "").trim();
+  const conditions = [];
+  for (const i of Array.isArray(t.instructions) ? t.instructions : []) {
+    const text = String(i?.instruction || "").trim();
+    if (text) conditions.push({ title: "Check-in", text });
+  }
+  const important = String(d?.hotelImportantInformation || "").trim();
+  if (important) conditions.push({ title: "Important information", text: important });
+  for (const p of Array.isArray(d?.policies) ? d.policies : []) {
+    const text = String(p?.description || "").trim();
+    if (text) conditions.push({ title: p?.name || null, text });
+  }
+  return {
+    checkInAfter: to12h(t.checkin_start),
+    checkInBefore: to12h(t.checkin_end),
+    checkOutBefore: to12h(t.checkout),
+    hotelPhone: String(d?.phone || "").trim() || null,
+    hotelEmail: String(d?.email || "").trim() || null,
+    // Hotels with no 24-hour desk put arrival / key steps here.
+    keyCollection: special || null,
+    conditions,
+  };
+}
+
 export function normalizeHotelRate(hotelEntry) {
   const hotelId = hotelEntry.hotelId;
   const roomTypes = hotelEntry.roomTypes ?? [];
@@ -163,6 +230,10 @@ export function normalizeHotelRate(hotelEntry) {
 
       rateType: roomType.rateType ?? "standard",
       supplier: roomType.supplier ?? "",
+
+      // Same shape as Duffel rooms. Hotel details (times, contact, rules)
+      // are added by the checkout page from /api/hotels/details/:hotelId.
+      stayInfo: { breakdown: liteBreakdown(roomType, offerTotal(roomType)) },
 
       raw: roomType,
     };
