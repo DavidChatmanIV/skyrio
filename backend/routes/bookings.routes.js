@@ -25,6 +25,7 @@ import {
 } from "../services/liteapiBookings.js";
 import { reverseBookingXp } from "../services/xpService.js";
 import { readManageToken, mintManageToken } from "../services/manageLink.js";
+import { checkStayPriceDrop } from "../services/stayPriceDrop.js";
 import { sendManageLinkEmail } from "../services/manageEmails.js";
 import { sendEmail, esc } from "../services/emailLayout.js";
 
@@ -371,6 +372,15 @@ function manageView(b) {
       ? { airlineCredit: b.cancellation.airlineCredit }
       : null,
     hasAccount: Boolean(b.user),
+    // "Your stay got cheaper" found by the daily check (amount only).
+    priceDrop:
+      b.status === "confirmed" && b.priceDrop?.savings > 0
+        ? {
+            savings: b.priceDrop.savings,
+            currency: b.priceDrop.currency || "USD",
+            freeCancelUntil: b.priceDrop.freeCancelUntil || null,
+          }
+        : null,
   };
 }
 
@@ -1324,6 +1334,40 @@ router.post("/admin/:id/shared-room/cancel", adminOnly, async (req, res) => {
  * Hotels: from the hotel's policies on LiteAPI's booking record.
  * Flights: LiteAPI's cancellation quote (an estimate — the airline decides).
  */
+/**
+ * GET /api/bookings/:id/price-drop — "Your stay got cheaper", checked live.
+ * → { ok, savings, currency, freeCancelUntil, rooms: [{ roomName, old, now, offer }] }
+ * `offer` is what hotel checkout books. Nothing is booked or cancelled here.
+ */
+router.get("/:id/price-drop", ownerAdminOrManageLink, async (req, res) => {
+  try {
+    const booking = await loadOwnedBooking(req, res);
+    if (!booking) return;
+    const r = await checkStayPriceDrop(booking.toObject ? booking.toObject() : booking);
+    if (!r.ok) {
+      if (booking.priceDrop) await Booking.updateOne({ _id: booking._id }, { $unset: { priceDrop: 1 } });
+      return res.json({
+        ok: false,
+        reason: r.reason,
+        message:
+          r.reason === "not_free_to_cancel"
+            ? "This stay can't be cancelled for free anymore, so the lower price can't be used."
+            : "The lower price isn't available anymore.",
+      });
+    }
+    return res.json({
+      ok: true,
+      savings: r.savings,
+      currency: r.currency,
+      freeCancelUntil: r.freeCancelUntil,
+      rooms: r.rooms.map(({ roomName, old, now, offer }) => ({ roomName, old, now, offer })),
+    });
+  } catch (err) {
+    console.error("[bookings/price-drop] error:", err?.message);
+    res.status(500).json({ ok: false, message: "Couldn't check the price. Try again." });
+  }
+});
+
 router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
   try {
     const booking = await loadOwnedBooking(req, res);

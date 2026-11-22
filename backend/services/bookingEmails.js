@@ -578,3 +578,38 @@ Your room is already paid to Skyrio. If the hotel asks you to pay for the room a
     tag: "hotel-charges-reminder",
   });
 }
+
+// "Your stay got cheaper": the same room now costs less and the stay can
+// still be cancelled for free. Only real numbers from the check.
+export async function sendStayPriceDropEmail({ to, guestName, hotelName, savings, currency, freeCancelUntil, bookingId }) {
+  if (!to || !(savings > 0)) return { ok: false, skipped: true };
+  const link = /^[a-f0-9]{24}$/i.test(String(bookingId || "")) ? manageUrlFor(bookingId) : TRIPS_URL;
+  const amount = formatMoney(savings, currency);
+  const until = freeCancelUntil ? formatDate(freeCancelUntil) : null;
+  const html = renderEmail({
+    preheader: `Your stay at ${hotelName || "your hotel"} is ${amount} cheaper now`,
+    title: "Your stay got cheaper",
+    introHtml: `Hi${guestName ? ` <strong>${esc(guestName)}</strong>` : ""}! The same room at <strong>${esc(
+      hotelName || "your hotel"
+    )}</strong> now costs <strong>${esc(amount)}</strong> less than you paid.`,
+    bodyHtml:
+      noteLine(
+        `Book the lower price, then Skyrio cancels your old booking for free${
+          until ? ` (free cancellation until ${esc(until)})` : ""
+        }. You get the difference back.`
+      ) +
+      noteLine("Your card holds both amounts until the old refund arrives, usually 5–10 business days.") +
+      noteLine("Prices change. The new price is checked again before you pay."),
+    cta: { label: "See the lower price", url: link },
+  });
+  const text = `Your stay got cheaper
+
+The same room at ${hotelName || "your hotel"} now costs ${amount} less than you paid.
+
+Book the lower price, then Skyrio cancels your old booking for free${until ? ` (free cancellation until ${until})` : ""}. You get the difference back.
+Your card holds both amounts until the old refund arrives, usually 5–10 business days.
+Prices change. The new price is checked again before you pay.
+
+See the lower price: ${link}${textFooter}`;
+  return sendEmail({ to, subject: `Your stay is ${amount} cheaper now`, html, text, tag: "stay-price-drop" });
+}

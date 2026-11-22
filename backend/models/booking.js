@@ -88,6 +88,10 @@ const bookingSchema = new Schema(
     //             thumbnail, totalAmount, totalCurrency, offerId, hotelId }],
     //   confirmation: [{ prebookId, bookingId, hotelConfirmationCode }] }
     hotelStay: { type: Schema.Types.Mixed, default: undefined },
+    // "Your stay got cheaper" (jobs/stayPriceDrop.job.js): { savings,
+    // currency, freeCancelUntil, checkedAt, notifiedSavings }. Removed when
+    // the saving is gone or free cancellation ends.
+    priceDrop: { type: Schema.Types.Mixed, default: undefined },
 
     // ── Car rental (Duffel Cars) ──
     // { bookingId, reference, quoteId, supplier, car, pickup, dropoff,

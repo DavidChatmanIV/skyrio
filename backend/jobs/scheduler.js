@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { runPriceWatchOnce } from "./priceWatch.job.js";
 import { runHotelChargesReminderOnce } from "./hotelChargesReminder.job.js";
+import { runStayPriceDropOnce } from "./stayPriceDrop.job.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -86,6 +87,27 @@ export function startJobs() {
   };
   setTimeout(remind, FIRST_RUN_DELAY_MS + 60 * 1000);
   setInterval(remind, HOUR_MS);
+
+  // "Your stay got cheaper": once a day (STAY_PRICE_DROP=false turns it off).
+  if (process.env.STAY_PRICE_DROP !== "false") {
+    let stayRunning = false;
+    const stayCheck = async () => {
+      if (stayRunning || mongoose.connection.readyState !== 1) return;
+      stayRunning = true;
+      try {
+        const r = await runStayPriceDropOnce();
+        console.log(
+          `[jobs] stay price drop: checked=${r.checked} found=${r.found} notified=${r.notified} skipped=${r.skipped}`
+        );
+      } catch (e) {
+        console.error("[jobs] stay price drop error:", e?.message || e);
+      } finally {
+        stayRunning = false;
+      }
+    };
+    setTimeout(stayCheck, FIRST_RUN_DELAY_MS + 5 * 60 * 1000);
+    setInterval(stayCheck, 24 * HOUR_MS);
+  }
 
   console.log(`[jobs] started: price watch every ${EVERY_HOURS}h`);
 }

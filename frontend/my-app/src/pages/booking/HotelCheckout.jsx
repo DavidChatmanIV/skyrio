@@ -959,6 +959,9 @@ function PaymentForm({
             thumbnail: r.thumbnail,
             totalAmount: r.totalAmount,
             totalCurrency: r.totalCurrency || "USD",
+            // Guests in this room: lets Skyrio check the same room's price
+            // later ("your stay got cheaper").
+            ...(Number(r.adults) > 0 ? { adults: Number(r.adults) } : {}),
             ...(r.stayInfo ? { stayInfo: r.stayInfo } : {}),
           })),
         }),
