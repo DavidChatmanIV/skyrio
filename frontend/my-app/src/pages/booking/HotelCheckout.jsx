@@ -343,11 +343,15 @@ function HotelRules({ st }) {
   );
 }
 
-// Deposits / cash the hotel collects itself, pulled out of the rules so
-// they sit next to the price instead of being buried.
+// Deposits / cash / fees the hotel collects itself, next to the price.
+// The server writes the plain summary (every condition kept) and keeps
+// the hotel's exact sentences for "Hotel's wording".
 function AtHotelCharges({ st }) {
-  const list = (st?.hotelCharges || []).filter(Boolean);
-  if (!list.length) return null;
+  const dep = st?.deposit || null;
+  const other = (st?.otherCharges || []).filter(Boolean);
+  // Older saved bookings only have the raw sentences.
+  const raw = !dep && !other.length ? (st?.hotelCharges || []).filter(Boolean) : [];
+  if (!dep && !other.length && !raw.length) return null;
   return (
     <div
       role="note"
@@ -362,7 +366,28 @@ function AtHotelCharges({ st }) {
         border: "1px solid rgba(255,179,71,0.45)",
       }}
     >
-      <strong>At the hotel:</strong> {list.join(" ")}
+      {dep && (
+        <div>
+          <strong>{dep.headline}</strong> {dep.details}
+        </div>
+      )}
+      {other.map((t, i) => (
+        <div key={i} style={{ marginTop: dep || i ? 4 : 0 }}>
+          {i === 0 && !dep ? <strong>At the hotel: </strong> : null}
+          {t}
+        </div>
+      ))}
+      {raw.length > 0 && (
+        <div>
+          <strong>At the hotel:</strong> {raw.join(" ")}
+        </div>
+      )}
+      {dep?.original?.length > 0 && (
+        <details style={{ marginTop: 4, color: "rgba(255,255,255,0.7)" }}>
+          <summary style={{ cursor: "pointer" }}>Hotel&apos;s wording</summary>
+          <p style={{ margin: "4px 0 0" }}>{dep.original.join(" ")}</p>
+        </details>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { runPriceWatchOnce } from "./priceWatch.job.js";
+import { runHotelChargesReminderOnce } from "./hotelChargesReminder.job.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -71,6 +72,20 @@ export function startJobs() {
   })();
 
   setInterval(tick, EVERY_HOURS * HOUR_MS);
+
+  // Hotel deposit / fee reminders, two days before check-in. Hourly, so a
+  // stay is never missed between runs; each booking is reminded once.
+  const remind = async () => {
+    if (mongoose.connection.readyState !== 1) return;
+    try {
+      const r = await runHotelChargesReminderOnce();
+      if (r.checked) console.log(`[jobs] hotel charges reminder: checked=${r.checked} sent=${r.sent}`);
+    } catch (e) {
+      console.error("[jobs] hotel charges reminder error:", e?.message || e);
+    }
+  };
+  setTimeout(remind, FIRST_RUN_DELAY_MS + 60 * 1000);
+  setInterval(remind, HOUR_MS);
 
   console.log(`[jobs] started: price watch every ${EVERY_HOURS}h`);
 }

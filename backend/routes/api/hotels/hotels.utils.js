@@ -176,8 +176,85 @@ export function liteBreakdown(roomType, total) {
 // only). Hidden, with a clear "you've paid in full" note in its place.
 const ALREADY_PAID_RE =
   /bank transfer|payment before arrival|prepayment is required|full prepayment|pay(ment)? (is )?required (before|prior to) arrival|credit card is charged the total cost|not guaranteed until full payment/i;
-// Money the guest may still be asked for AT the hotel (deposits, cash).
-const AT_HOTEL_RE = /deposit|\bcash\b|reimburs|resort fee|collected (at|by|upon)/i;
+// Money the guest may still be asked for AT the hotel. Only real charges:
+// a deposit, cash, or a fee with an actual amount. General wording like
+// "charges may be mandatory (e.g., resort fees)…" stays in the rules.
+const DEPOSIT_RE = /deposit|\bcash\b|reimburs/i;
+const AMOUNT_RE = /(?:USD|US\$|\$|EUR|€|GBP|£|CAD|C\$)\s?\d+(?:[.,]\d+)?|\d+(?:\.\d+)?\s?(?:USD|EUR|GBP|CAD)\b/i;
+const FEE_WORD_RE = /fee|charge|tax|surcharge|collected|payable|due/i;
+const isHotelCharge = (sent) =>
+  DEPOSIT_RE.test(sent) || (AMOUNT_RE.test(sent) && FEE_WORD_RE.test(sent));
+
+const SYMBOL = { USD: "$", "US$": "$", $: "$", EUR: "€", "€": "€", GBP: "£", "£": "£", CAD: "CA$", C$: "CA$" };
+function moneyIn(text) {
+  let m = /(USD|US\$|\$|EUR|€|GBP|£|CAD|C\$)\s?(\d+(?:[.,]\d+)?)/i.exec(text);
+  let cur, num;
+  if (m) [cur, num] = [m[1].toUpperCase(), m[2]];
+  else {
+    m = /(\d+(?:\.\d+)?)\s?(USD|EUR|GBP|CAD)\b/i.exec(text);
+    if (!m) return null;
+    [num, cur] = [m[1], m[2].toUpperCase()];
+  }
+  const n = Number(String(num).replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const sym = SYMBOL[cur] || `${cur} `;
+  const pretty = Number.isInteger(n) || Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : n.toFixed(2);
+  return { amount: n, label: `${sym}${pretty}` };
+}
+
+/**
+ * Hotel charge sentences → a plain summary that keeps every condition the
+ * hotel set (amount, cash or card, when it's taken, when/how it comes
+ * back, the inspection). The hotel's own sentences stay in `original` so
+ * the exact wording is one tap away. Nothing is added that the hotel
+ * didn't say.
+ *   { deposit: { amount, label, cash, card, headline, details, original } | null,
+ *     other: [sentence] }
+ */
+export function summarizeHotelCharges(list = []) {
+  const all = (Array.isArray(list) ? list : []).filter(Boolean);
+  const depSents = all.filter((x) => DEPOSIT_RE.test(x));
+  const other = all.filter((x) => !DEPOSIT_RE.test(x));
+  if (!depSents.length) return { deposit: null, other };
+  const text = depSents.join(" ");
+  const money = moneyIn(depSents.find((x) => /deposit/i.test(x)) || text);
+  const cash = /\bcash\b/i.test(text);
+  const card = /credit card|debit card|\bcard\b/i.test(text);
+  const kind = (/(damage|security|incidental)s?\s+deposit/i.exec(text)?.[1] || "").toLowerCase();
+  const returned = /reimburs|refund|returned|give(n)? back/i.test(text);
+  const backInCash = /(reimburs|refund|return)\w*[^.]{0,40}\bcash\b/i.test(text);
+  const atCheckout = /check-?out|departure/i.test(text);
+  const inspection = /inspect/i.test(text);
+  const atCheckIn = /check-?in|arrival/i.test(text);
+
+  const amt = money?.label || null;
+  let headline;
+  if (cash && card) headline = amt ? `${amt} deposit (cash or card)` : "Deposit (cash or card)";
+  else if (cash) headline = amt ? `Bring ${amt} cash` : "Cash deposit";
+  else headline = amt ? `${amt} deposit` : "Deposit";
+  headline += atCheckIn && !(cash && !card) ? " at check-in." : ".";
+
+  let details = `The hotel holds it as a ${kind ? `${kind} ` : ""}deposit${
+    cash && !card && atCheckIn ? " at check-in" : ""
+  }`;
+  if (returned) {
+    details += ` and returns it${backInCash ? " in cash" : ""}${atCheckout ? " at check-out" : ""}`;
+    if (inspection) details += " if the room passes inspection";
+  }
+  details += ".";
+  return {
+    deposit: {
+      amount: money?.amount ?? null,
+      label: amt,
+      cash,
+      card,
+      headline,
+      details,
+      original: depSents,
+    },
+    other,
+  };
+}
 
 // Other booking sites named in supplier text ("cannot be guaranteed by
 // Priceline") → neutral words, so guests aren't confused about who they
@@ -222,7 +299,7 @@ export function cleanStayRules(conditions = []) {
         hidPaymentText = true;
         continue;
       }
-      if (AT_HOTEL_RE.test(sent)) {
+      if (isHotelCharge(sent)) {
         if (!charges.includes(sent)) charges.push(sent);
         continue;
       }
@@ -238,7 +315,8 @@ export function cleanStayRules(conditions = []) {
   // Most useful first: what to bring / know, then the rest.
   const rank = (c) => (/important|check-?in|photo/i.test(String(c.title || "")) ? 0 : 1);
   out.sort((a, b) => rank(a) - rank(b));
-  return { conditions: out, hotelCharges: charges, hidPaymentText };
+  const { deposit, other } = summarizeHotelCharges(charges);
+  return { conditions: out, hotelCharges: charges, deposit, otherCharges: other, hidPaymentText };
 }
 
 /**
