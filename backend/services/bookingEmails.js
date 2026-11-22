@@ -58,6 +58,22 @@ const checkOutText = (st) => (st?.checkOutBefore ? `by ${st.checkOutBefore}` : n
 const conditionsOf = (st) =>
   (Array.isArray(st?.conditions) ? st.conditions : []).filter((c) => c?.text).slice(0, 6);
 
+// Deposit / fees owed at the hotel, same wording as the checkout page:
+// the plain summary, then the hotel's exact sentences.
+export function atHotelLines(st) {
+  const lines = [];
+  const dep = st?.deposit;
+  if (dep) {
+    lines.push({ bold: dep.headline, text: dep.details });
+    if (dep.original?.length) lines.push({ bold: "Hotel's wording:", text: dep.original.join(" ") });
+  }
+  for (const t of st?.otherCharges || []) lines.push({ bold: "At the hotel:", text: t });
+  if (!dep && !(st?.otherCharges || []).length && (st?.hotelCharges || []).length) {
+    lines.push({ bold: "At the hotel:", text: st.hotelCharges.join(" ") });
+  }
+  return lines;
+}
+
 const textFooter = `\n\nView your trips: ${TRIPS_URL}\nQuestions? ${SUPPORT_EMAIL}\n\nSent by Skyrio - Plan smarter. Travel better.`;
 
 /**
@@ -139,11 +155,9 @@ export async function sendHotelConfirmation({
                 `<strong>Check-in &amp; keys:</strong> ${esc(r.stay.keyCollection)}`
               )
             : "") +
-          ((r.stay?.hotelCharges || []).length
-            ? noteLine(
-                `<strong>At the hotel:</strong> ${esc(r.stay.hotelCharges.join(" "))}`
-              )
-            : "") +
+          atHotelLines(r.stay)
+            .map((l) => noteLine(l.bold ? `<strong>${esc(l.bold)}</strong> ${esc(l.text)}` : esc(l.text)))
+            .join("") +
           (r.stay?.hidPaymentText
             ? noteLine(
                 "Skyrio collected the full room price. If the hotel asks you to pay for the room again, contact Skyrio first."
@@ -213,11 +227,9 @@ ${r.guestName ? `Guest: ${r.guestName}\n` : ""}${
       r.stay?.hotelPhone ? `Hotel phone: ${r.stay.hotelPhone}\n` : ""
     }${r.stay?.hotelEmail ? `Hotel email: ${r.stay.hotelEmail}\n` : ""}${
       r.stay?.keyCollection ? `Check-in & keys: ${r.stay.keyCollection}\n` : ""
-    }${
-      (r.stay?.hotelCharges || []).length
-        ? `At the hotel: ${r.stay.hotelCharges.join(" ")}\n`
-        : ""
-    }${
+    }${atHotelLines(r.stay)
+      .map((l) => `${l.bold ? `${l.bold} ` : ""}${l.text}\n`)
+      .join("")}${
       r.stay?.hidPaymentText
         ? "Skyrio collected the full room price. If the hotel asks you to pay for the room again, contact Skyrio first.\n"
         : ""
@@ -518,5 +530,51 @@ Automatic cancellation terms weren't available. Confirm terms with the supplier,
     )}</pre>`,
     text,
     tag: "cancel-request-alert",
+  });
+}
+
+/**
+ * Two days before check-in: a short reminder of money the HOTEL collects
+ * (deposit, cash, fees), so travelers aren't surprised at the desk.
+ * Only sent when the hotel actually listed such a charge.
+ */
+export async function sendHotelChargesReminder({ to, guestName, hotelName, checkin, stay, bookingId }) {
+  const lines = atHotelLines(stay);
+  if (!to || !lines.length) return { ok: false, skipped: true };
+  const when = formatDate(checkin);
+  const manageLink = /^[a-f0-9]{24}$/i.test(String(bookingId || "")) ? manageUrlFor(bookingId) : null;
+  const html = renderEmail({
+    preheader: `Before you check in at ${hotelName || "your hotel"}`,
+    title: "Before you check in",
+    introHtml: `Hi${guestName ? ` <strong>${esc(guestName)}</strong>` : ""}! Your stay at <strong>${esc(
+      hotelName || "your hotel"
+    )}</strong>${when ? ` starts ${esc(when)}` : " is coming up"}. The hotel collects this itself, so plan ahead:`,
+    bodyHtml:
+      detailBox(
+        "AT THE HOTEL",
+        lines
+          .map((l) => noteLine(l.bold ? `<strong>${esc(l.bold)}</strong> ${esc(l.text)}` : esc(l.text)))
+          .join("")
+      ) +
+      noteLine(
+        "Your room is already paid to Skyrio. If the hotel asks you to pay for the room again, contact Skyrio first."
+      ),
+    cta: manageLink ? { label: "View booking", url: manageLink } : { label: "View my trips", url: TRIPS_URL },
+  });
+  const text = `Before you check in${guestName ? `, ${guestName}` : ""}
+
+Your stay at ${hotelName || "your hotel"}${when ? ` starts ${when}` : " is coming up"}. The hotel collects this itself:
+
+${lines.map((l) => `${l.bold ? `${l.bold} ` : ""}${l.text}`).join("\n")}
+
+Your room is already paid to Skyrio. If the hotel asks you to pay for the room again, contact Skyrio first.${
+    manageLink ? `\n\nView booking: ${manageLink}` : ""
+  }${textFooter}`;
+  return sendEmail({
+    to,
+    subject: `Before you check in: ${hotelName || "your hotel"}`,
+    html,
+    text,
+    tag: "hotel-charges-reminder",
   });
 }

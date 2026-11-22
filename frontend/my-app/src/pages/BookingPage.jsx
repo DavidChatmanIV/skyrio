@@ -1740,6 +1740,40 @@ export default function BookingPage() {
   );
   const hotelHasMore = visibleCount < hotelFit.shown.length;
 
+  // "Cash deposit" tag: which shown hotels take a deposit / cash at the
+  // hotel. Duffel rooms carry it already; LiteAPI hotels are asked once
+  // (cached on the server for a day, and reused by checkout).
+  const [hotelDeposits, setHotelDeposits] = useState({});
+  useEffect(() => {
+    const ids = [
+      ...new Set(
+        paginatedHotels
+          .filter((h) => h?.hotelId && h.provider !== "duffel")
+          .map((h) => String(h.hotelId))
+          .filter((id) => !(id in hotelDeposits))
+      ),
+    ].slice(0, 30);
+    if (!ids.length) return;
+    let alive = true;
+    fetch(`${API}/api/hotels/deposits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hotelIds: ids }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d?.deposits) return;
+        setHotelDeposits((prev) => ({ ...prev, ...d.deposits }));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginatedHotels]);
+  const depositOf = (h) =>
+    h?.stayInfo?.deposit || hotelDeposits[String(h?.hotelId)] || null;
+
   // What the budget bar reports for the tab you're on.
   const budgetBarFit =
     tab === "Stays" ? hotelFit : hasReturnData ? groupFit : flightFit;
@@ -4457,6 +4491,16 @@ export default function BookingPage() {
                               title="The hotel's policy for this rate, not Skyrio's"
                             >
                               Non-refundable (hotel policy)
+                            </span>
+                          )}
+                          {depositOf(hotel) && (
+                            <span
+                              className="sk-tag sk-tag-orange"
+                              title={`${depositOf(hotel).headline} Paid to the hotel at check-in, not to Skyrio. Details at checkout.`}
+                            >
+                              {depositOf(hotel).cash && !depositOf(hotel).card
+                                ? `Cash deposit${depositOf(hotel).label ? ` ${depositOf(hotel).label}` : ""}`
+                                : `Deposit at hotel${depositOf(hotel).label ? ` ${depositOf(hotel).label}` : ""}`}
                             </span>
                           )}
                           {hotel.roomCount > 1 && (

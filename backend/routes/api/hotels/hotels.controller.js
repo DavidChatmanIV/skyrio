@@ -295,28 +295,64 @@ export async function searchHotels(req, res) {
 // reopening checkout doesn't call LiteAPI again. Never blocks checkout:
 // on any error it answers { stayInfo: null }.
 // ─────────────────────────────────────────────────────────────
-const DETAILS_TTL_MS = 6 * 60 * 60 * 1000;
+// Hotel info rarely changes; one LiteAPI call per hotel per day.
+const DETAILS_TTL_MS = 24 * 60 * 60 * 1000;
 const detailsCache = new Map();
+const HOTEL_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-export async function getHotelDetails(req, res) {
-  const hotelId = String(req.params.hotelId || "").trim();
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(hotelId)) {
-    return res.status(400).json({ ok: false, message: "Invalid hotelId" });
-  }
+/** Cached LiteAPI /data/hotel → stayInfo. null when LiteAPI fails. */
+async function liteHotelStayInfo(hotelId) {
   const hit = detailsCache.get(hotelId);
-  if (hit && Date.now() - hit.at < DETAILS_TTL_MS) {
-    return res.json({ ok: true, stayInfo: hit.stayInfo });
-  }
+  if (hit && Date.now() - hit.at < DETAILS_TTL_MS) return hit.stayInfo;
   try {
     const r = await liteapi.searchGet("/data/hotel", { hotelId });
     const stayInfo = liteStayInfoFromDetails(r?.data ?? {});
-    if (detailsCache.size > 2000) detailsCache.clear();
+    if (detailsCache.size > 5000) detailsCache.clear();
     detailsCache.set(hotelId, { at: Date.now(), stayInfo });
-    return res.json({ ok: true, stayInfo });
+    return stayInfo;
   } catch (err) {
     console.warn("[hotels/details]", hotelId, err?.message);
-    return res.json({ ok: true, stayInfo: null });
+    return null;
   }
+}
+
+export async function getHotelDetails(req, res) {
+  const hotelId = String(req.params.hotelId || "").trim();
+  if (!HOTEL_ID_RE.test(hotelId)) {
+    return res.status(400).json({ ok: false, message: "Invalid hotelId" });
+  }
+  return res.json({ ok: true, stayInfo: await liteHotelStayInfo(hotelId) });
+}
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/hotels/deposits  { hotelIds: [..] }  (max 30)
+// Which LiteAPI hotels ask for a deposit / cash at the hotel, for the
+// "Cash deposit" tag on search results. Uses the same 24h cache as
+// /details, so opening checkout afterwards costs nothing extra.
+// Turn off with HOTEL_DEPOSIT_TAGS=false (answers {} then).
+// ─────────────────────────────────────────────────────────────
+export async function getHotelDeposits(req, res) {
+  if (/^(false|0|off|no)$/i.test(String(process.env.HOTEL_DEPOSIT_TAGS ?? ""))) {
+    return res.json({ ok: true, deposits: {} });
+  }
+  const ids = [
+    ...new Set(
+      (Array.isArray(req.body?.hotelIds) ? req.body.hotelIds : [])
+        .map((x) => String(x || "").trim())
+        .filter((x) => HOTEL_ID_RE.test(x))
+    ),
+  ].slice(0, 30);
+  const deposits = {};
+  // 5 at a time, so a big results page doesn't burst LiteAPI.
+  for (let i = 0; i < ids.length; i += 5) {
+    const batch = ids.slice(i, i + 5);
+    const infos = await Promise.all(batch.map(liteHotelStayInfo));
+    batch.forEach((id, k) => {
+      const d = infos[k]?.deposit;
+      deposits[id] = d ? { headline: d.headline, label: d.label, cash: d.cash, card: d.card } : null;
+    });
+  }
+  return res.json({ ok: true, deposits });
 }
 
 export async function prebookHotel(req, res) {

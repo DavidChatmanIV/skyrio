@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { optionalAuth } from "../../../middleware/requireAuth.js";
 import { verifyAdmin } from "../../../middleware/auth.js";
 import { holdLimiter } from "../../../middleware/rateLimits.js";
@@ -12,6 +13,7 @@ import {
   confirmHotelBooking,
   checkHotelAvailability,
   getHotelDetails,
+  getHotelDeposits,
 } from "./hotels.controller.js";
 import { requireSalesOpen } from "../../../services/siteStatus.js";
 
@@ -27,6 +29,11 @@ router.get("/places", searchPlaces);
 // GET /api/hotels/details/:hotelId — check-in/out times, hotel contact,
 // check-in steps and rules (LiteAPI), same shape as Duffel rooms.
 router.get("/details/:hotelId", getHotelDetails);
+
+// POST /api/hotels/deposits — which result hotels take a deposit / cash
+// at the hotel (search-result tag). Max 30 ids, cached 24h.
+const depositsLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
+router.post("/deposits", depositsLimiter, getHotelDeposits);
 
 // GET /api/hotels/search
 router.get("/search", searchHotels);
