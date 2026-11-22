@@ -139,6 +139,16 @@ export async function sendHotelConfirmation({
                 `<strong>Check-in &amp; keys:</strong> ${esc(r.stay.keyCollection)}`
               )
             : "") +
+          ((r.stay?.hotelCharges || []).length
+            ? noteLine(
+                `<strong>At the hotel:</strong> ${esc(r.stay.hotelCharges.join(" "))}`
+              )
+            : "") +
+          (r.stay?.hidPaymentText
+            ? noteLine(
+                "Skyrio collected the full room price. If the hotel asks you to pay for the room again, contact Skyrio first."
+              )
+            : "") +
           conditionsOf(r.stay)
             .map((c) =>
               noteLine(
@@ -203,6 +213,14 @@ ${r.guestName ? `Guest: ${r.guestName}\n` : ""}${
       r.stay?.hotelPhone ? `Hotel phone: ${r.stay.hotelPhone}\n` : ""
     }${r.stay?.hotelEmail ? `Hotel email: ${r.stay.hotelEmail}\n` : ""}${
       r.stay?.keyCollection ? `Check-in & keys: ${r.stay.keyCollection}\n` : ""
+    }${
+      (r.stay?.hotelCharges || []).length
+        ? `At the hotel: ${r.stay.hotelCharges.join(" ")}\n`
+        : ""
+    }${
+      r.stay?.hidPaymentText
+        ? "Skyrio collected the full room price. If the hotel asks you to pay for the room again, contact Skyrio first.\n"
+        : ""
     }${conditionsOf(r.stay)
       .map((c) => `${c.title ? `${c.title}: ` : ""}${c.text}\n`)
       .join("")}`

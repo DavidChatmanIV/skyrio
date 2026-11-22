@@ -298,23 +298,95 @@ function PriceBreakdown({ st }) {
   );
 }
 
-// The rate's own rules ("Parking", "Pets"…), collapsed so the page stays short.
+// The rate's own rules ("Parking", "Pets"…), collapsed so the page stays
+// short: the 2 most useful first, the rest behind "Show all". The server
+// already removed repeated titles and payment text Skyrio has taken care of.
 function HotelRules({ st }) {
+  const [all, setAll] = useState(false);
   const list = (st?.conditions || []).filter((c) => c?.text);
   if (!list.length) return null;
+  const shown = all ? list : list.slice(0, 2);
   return (
     <details style={{ marginTop: 8, fontSize: 12.5, color: "rgba(255,255,255,0.68)" }}>
       <summary style={{ cursor: "pointer", color: "#fff", fontWeight: 600 }}>
         Hotel info & rules
       </summary>
-      {list.map((c, i) => (
+      <p style={{ margin: "6px 0 0", lineHeight: 1.5, color: "rgba(255,255,255,0.5)" }}>
+        Written by the hotel and its booking partners.
+      </p>
+      {shown.map((c, i) => (
         <p key={i} style={{ margin: "6px 0 0", lineHeight: 1.5 }}>
           {c.title ? <strong>{c.title}: </strong> : null}
           {c.text}
         </p>
       ))}
+      {list.length > 2 && (
+        <button
+          type="button"
+          onClick={() => setAll((v) => !v)}
+          style={{
+            marginTop: 6,
+            padding: 0,
+            border: 0,
+            background: "none",
+            color: "#ff8a2a",
+            fontFamily: "inherit",
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {all ? "Show less" : `Show all (${list.length})`}
+        </button>
+      )}
     </details>
   );
+}
+
+// Deposits / cash the hotel collects itself, pulled out of the rules so
+// they sit next to the price instead of being buried.
+function AtHotelCharges({ st }) {
+  const list = (st?.hotelCharges || []).filter(Boolean);
+  if (!list.length) return null;
+  return (
+    <div
+      role="note"
+      style={{
+        marginTop: 8,
+        padding: "8px 10px",
+        borderRadius: 10,
+        fontSize: 12.5,
+        lineHeight: 1.5,
+        color: "#fff",
+        background: "rgba(255,179,71,0.12)",
+        border: "1px solid rgba(255,179,71,0.45)",
+      }}
+    >
+      <strong>At the hotel:</strong> {list.join(" ")}
+    </div>
+  );
+}
+
+// Skyrio takes the full room price. Shown whenever the hotel's own text
+// mentioned paying for the room another way.
+function PaidInFullNote({ st }) {
+  if (!st?.hidPaymentText) return null;
+  return (
+    <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.5, color: "rgba(255,255,255,0.68)" }}>
+      Skyrio collects the full room price. If the hotel asks you to pay for the
+      room again, contact Skyrio first.
+    </div>
+  );
+}
+
+// "Free cancellation until Dec 29, 12:00 AM" reads like the END of Dec 29
+// but means the START. Midnight is shown as 11:59 PM the day before.
+function deadlineText(d) {
+  const t = dayjs(d);
+  if (!t.isValid()) return null;
+  const shown =
+    t.hour() === 0 && t.minute() === 0 ? t.subtract(1, "minute") : t;
+  return shown.format("MMM D, h:mm A");
 }
 
 function RoomLineItem({ room, index, total, booked = false }) {
@@ -379,9 +451,7 @@ function RoomLineItem({ room, index, total, booked = false }) {
             <span>
               {c.refundable
                 ? c.deadline
-                  ? `Free cancellation until ${dayjs(c.deadline).format(
-                      "MMM D, h:mm A"
-                    )}`
+                  ? `Free cancellation until ${deadlineText(c.deadline)}`
                   : "Refundable rate"
                 : "Non-refundable"}
               <span style={{ color: "rgba(255,255,255,0.55)" }}>
@@ -426,6 +496,8 @@ function RoomLineItem({ room, index, total, booked = false }) {
           </div>
         )}
         <PriceBreakdown st={st} />
+        <AtHotelCharges st={st} />
+        <PaidInFullNote st={st} />
         <HotelRules st={st} />
         {total > 1 && (
           <div className="sk-hc-price">${usd2(room.totalAmount)}</div>
