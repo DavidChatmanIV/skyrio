@@ -24,6 +24,8 @@ import {
 import { Check, AlertTriangle } from "lucide-react";
 import { apiHeaders, getCheckoutToken } from "@/utils/checkoutToken";
 import PaySafeNote from "@/components/checkout/PaySafeNote";
+import ReplacedNote from "@/components/trips/ReplacedNote";
+import { flightMatchInfo } from "@/lib/flightMatch";
 
 const API = import.meta.env.VITE_API_URL || "";
 const SANS =
@@ -127,6 +129,8 @@ export default function DuffelPayForm({
   onBack,
   onRestart,
   onBookingSuccess,
+  replaces = null,
+  extrasAmount = 0,
 }) {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
@@ -194,14 +198,15 @@ export default function DuffelPayForm({
             returnDepartureAt: flight?.raw?.returningAt || null,
             returnArrivingAt: flight?.raw?.returnArrivingAt || null,
             seats: [],
+            ...flightMatchInfo(flight, passengers, extrasAmount),
           },
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
-        setResult({ pnr: data.data?.bookingReference || null });
+        setResult({ pnr: data.data?.bookingReference || null, replaced: data.replaced || null });
         setStage("done");
-        onBookingSuccess?.();
+        onBookingSuccess?.({ replaced: data.replaced || null, totalPaid: data.totalPaid ?? null });
         return;
       }
       if (res.status === 202 || data.pending) {
@@ -247,6 +252,11 @@ export default function DuffelPayForm({
         <div style={{ fontSize: 13, color: "rgba(255,255,255,.75)", marginBottom: 14 }}>
           {lead.email ? `We sent your confirmation to ${lead.email}.` : "Your confirmation is in My Trips."}
         </div>
+        {result?.replaced && (
+          <div style={{ marginBottom: 14 }}>
+            <ReplacedNote replaced={result.replaced} />
+          </div>
+        )}
         <a href="/saved-trips" className="skc-btn-primary" style={{ display: "inline-block", textDecoration: "none" }}>
           View My Trips
         </a>

@@ -26,6 +26,15 @@ import {
 import { reverseBookingXp } from "../services/xpService.js";
 import { readManageToken, mintManageToken } from "../services/manageLink.js";
 import { checkStayPriceDrop } from "../services/stayPriceDrop.js";
+import { priceWatchStatus } from "../services/priceWatchStatus.js";
+import { checkFlightPriceDrop, fullRefundNow } from "../services/flightPriceDrop.js";
+import {
+  isDuffelOrderId,
+  duffelGetOrder,
+  duffelCancelQuote,
+  duffelCancelConfirm,
+  duffelRefundTerms,
+} from "../services/duffelOrders.js";
 import { sendManageLinkEmail } from "../services/manageEmails.js";
 import { sendEmail, esc } from "../services/emailLayout.js";
 
@@ -372,7 +381,9 @@ function manageView(b) {
       ? { airlineCredit: b.cancellation.airlineCredit }
       : null,
     hasAccount: Boolean(b.user),
-    // "Your stay got cheaper" found by the daily check (amount only).
+    // Price Watch after booking: on/off and why, in plain words.
+    priceWatch: priceWatchStatus(b),
+    // A lower price found by Price Watch (amount only).
     priceDrop:
       b.status === "confirmed" && b.priceDrop?.savings > 0
         ? {
@@ -1343,7 +1354,17 @@ router.get("/:id/price-drop", ownerAdminOrManageLink, async (req, res) => {
   try {
     const booking = await loadOwnedBooking(req, res);
     if (!booking) return;
-    const r = await checkStayPriceDrop(booking.toObject ? booking.toObject() : booking);
+    const plain = booking.toObject ? booking.toObject() : booking;
+    if (booking.type === "Flight") {
+      const f = await checkFlightPriceDrop(plain);
+      if (!f.ok) {
+        if (booking.priceDrop) await Booking.updateOne({ _id: booking._id }, { $unset: { priceDrop: 1 } });
+        return res.json({ ok: false, reason: f.reason, message: f.message });
+      }
+      // `flight` is the search result flight checkout books.
+      return res.json({ ok: true, type: "Flight", savings: f.savings, currency: f.currency, paid: f.paid, now: f.now, flight: f.flight });
+    }
+    const r = await checkStayPriceDrop(plain);
     if (!r.ok) {
       if (booking.priceDrop) await Booking.updateOne({ _id: booking._id }, { $unset: { priceDrop: 1 } });
       return res.json({
@@ -1365,6 +1386,23 @@ router.get("/:id/price-drop", ownerAdminOrManageLink, async (req, res) => {
   } catch (err) {
     console.error("[bookings/price-drop] error:", err?.message);
     res.status(500).json({ ok: false, message: "Couldn't check the price. Try again." });
+  }
+});
+
+/**
+ * GET /api/bookings/:id/refund-check — right before paying for a lower
+ * fare: would the airline still refund this ticket in full? Cancels nothing.
+ */
+router.get("/:id/refund-check", ownerAdminOrManageLink, async (req, res) => {
+  try {
+    const booking = await loadOwnedBooking(req, res);
+    if (!booking) return;
+    if (booking.type !== "Flight" || booking.status !== "confirmed") return res.json({ ok: true, full: false });
+    const r = await fullRefundNow(booking);
+    return res.json({ ok: true, full: Boolean(r.ok) });
+  } catch (err) {
+    console.error("[bookings/refund-check] error:", err?.message);
+    res.status(502).json({ ok: false, message: "Couldn't reach the airline to confirm the refund. Try again." });
   }
 });
 
@@ -1424,6 +1462,32 @@ router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
         estimatedFee: round2(estimatedFee),
         rooms,
         note: "Based on the hotel's cancellation policy. The final refund is confirmed when you cancel.",
+      });
+    }
+
+    // Duffel flight: Duffel's own quote (cancels nothing).
+    if (isDuffelOrderId(ids[0])) {
+      const order = await duffelGetOrder(ids[0]);
+      const quote = await duffelCancelQuote(ids[0]);
+      const t = duffelRefundTerms(quote, { paid, net: Number(order?.total_amount) });
+      return res.json({
+        cancellable: true,
+        type: "Flight",
+        paid,
+        currency,
+        confidence: "confirmed",
+        refundTo: t.refundTo || "card",
+        airlineCredit: t.airlineCredit,
+        estimatedRefund: t.customerRefund,
+        estimatedFee: t.refundTo === "card" ? Math.max(0, Math.round((paid - t.customerRefund) * 100) / 100) : null,
+        quoteExpiresAt: quote?.expires_at || null,
+        note:
+          t.refundTo === "airline_credit"
+            ? `The airline gives airline credit instead of money back${
+                t.airlineCredit?.amount ? ` (about ${moneyText(t.airlineCredit.amount, t.airlineCredit.currency)})` : ""
+              }. You use it to book with the airline later.`
+            : "The airline confirmed this amount. Refunds go back to the card you paid with.",
+        raw: isAdminUser(req) ? quote : undefined,
       });
     }
 
@@ -1610,6 +1674,37 @@ export async function cancelBookingCore(booking, ctx = {}) {
           supplier.push({ bookingId: id, ok: false, message: e.message });
         }
       }
+    } else if (isDuffelOrderId(ids[0])) {
+      // Duffel: quote, then confirm. The refund goes to Skyrio's Duffel
+      // balance; Skyrio refunds the traveler's card below.
+      try {
+        const order = await duffelGetOrder(ids[0]);
+        const quote = await duffelCancelQuote(ids[0]);
+        const done = await duffelCancelConfirm(quote.id);
+        const terms = duffelRefundTerms(done || quote, {
+          paid,
+          net: Number(order?.total_amount),
+        });
+        supplier.push({
+          bookingId: ids[0],
+          ok: true,
+          httpStatus: 200,
+          duffel: terms,
+          data: {
+            id: quote.id,
+            refund_amount: terms.supplierRefund,
+            refund_to: (done || quote)?.refund_to || null,
+            confirmed_at: done?.confirmed_at || null,
+          },
+        });
+      } catch (e) {
+        const first = e?.response?.data?.errors?.[0] || {};
+        supplier.push({
+          bookingId: ids[0],
+          ok: false,
+          message: first.message || e.message,
+        });
+      }
     } else {
       try {
         const r = await flightCancel(ids[0]);
@@ -1714,13 +1809,18 @@ export async function cancelBookingCore(booking, ctx = {}) {
     const flightPending =
       booking.type === "Flight" &&
       !succeeded[0].alreadyCancelled &&
+      !succeeded[0].duffel &&
       (succeeded[0].httpStatus === 202 ||
         String(succeeded[0].data?.status || "").toUpperCase() === "CONFIRMED");
 
     // ── 2. Refund (hotels only — Skyrio holds that payment) ──
     // Flights: where the airline sends the money (card or airline credit)
     const refundTo =
-      booking.type === "Flight" ? refundDestinationOf(succeeded[0].data) : null;
+      booking.type !== "Flight"
+        ? null
+        : succeeded[0].duffel
+        ? succeeded[0].duffel.refundTo
+        : refundDestinationOf(succeeded[0].data);
     let airlineCredit = null;
     let customerRefund = 0;
     let stripeRefundId = null;
@@ -1753,6 +1853,42 @@ export async function cancelBookingCore(booking, ctx = {}) {
             e.message
           );
         }
+      }
+    } else if (booking.type === "Flight" && succeeded[0].duffel) {
+      // Duffel: the airline refunded Skyrio's balance; refund the card here.
+      const t = succeeded[0].duffel;
+      const pi = [booking.stripePaymentIntentId, booking.flight?.transactionId, booking.flight?.prebookId]
+        .find((x) => /^pi_/.test(String(x || "")));
+      if (t.refundTo === "airline_credit") {
+        airlineCredit = t.airlineCredit;
+        refundStatus = "none";
+      } else if (t.customerRefund > 0 && pi) {
+        customerRefund = t.customerRefund;
+        try {
+          const refund = await stripe().refunds.create(
+            {
+              payment_intent: pi,
+              amount: Math.round(customerRefund * 100),
+              metadata: { bookingId: String(booking._id), reason: "airline_cancellation" },
+            },
+            { idempotencyKey: `skyrio_cancel_refund_${booking._id}` }
+          );
+          stripeRefundId = refund.id;
+          refundStatus = refund.status === "succeeded" ? "succeeded" : "pending";
+        } catch (e) {
+          refundError = e.message;
+          refundStatus = "failed";
+          console.error(
+            "[bookings/cancel] RECONCILE — Duffel order cancelled but Stripe refund failed",
+            String(booking._id),
+            e.message
+          );
+        }
+      } else if (t.customerRefund > 0) {
+        customerRefund = t.customerRefund;
+        refundStatus = "failed";
+        refundError = "no Stripe payment on file";
+        console.error("[bookings/cancel] RECONCILE — Duffel refund owed, no PaymentIntent", String(booking._id));
       }
     } else if (booking.type === "Flight") {
       if (refundTo === "airline_credit") {

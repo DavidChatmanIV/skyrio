@@ -8,13 +8,14 @@ import Booking from "../models/booking.js";
 import Notification from "../models/notification.js";
 import { checkStayPriceDrop, stayCanBeWatched, replaceOldStay } from "../services/stayPriceDrop.js";
 import { sendStayPriceDropEmail } from "../services/bookingEmails.js";
+import { tellReplaceOutcome } from "../services/replaceOutcome.js";
 
 const MAX_PER_RUN = 200; // LiteAPI calls stay bounded
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Finish any "cancel the old stay" that didn't go through (hourly). */
 export async function retryStayReplacesOnce() {
-  const retries = await Booking.find({ "replaces.status": "retry" }).limit(50);
+  const retries = await Booking.find({ type: "Hotel", "replaces.status": "retry" }).limit(50);
   if (!retries.length) return { retried: 0 };
   const { cancelBookingCore } = await import("../routes/bookings.routes.js");
   const { readManageToken } = await import("../services/manageLink.js");
@@ -24,6 +25,7 @@ export async function retryStayReplacesOnce() {
       { Booking, cancelBookingCore, readManageToken }
     ).catch((e) => ({ status: "retry", message: e.message }));
     console.log(`[stay price drop] retry old stay ${nb.replaces.bookingId}: ${r.status}`);
+    await tellReplaceOutcome(nb, r);
   }
   return { retried: retries.length };
 }
@@ -82,7 +84,7 @@ export async function runStayPriceDropOnce({ dryRun = false } = {}) {
           await Notification.create({
             user: b.user,
             type: "stay_price_drop",
-            title: "Your stay got cheaper",
+            title: "Price Watch: your stay got cheaper",
             message: `The same room at ${hotelName} is ${amount} less than you paid. Book it and Skyrio cancels your old booking for free.`,
             link: `/manage-booking/${b._id}`,
             metadata: { bookingId: b._id, savings: r.savings },

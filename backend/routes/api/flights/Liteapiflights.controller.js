@@ -27,6 +27,7 @@ import {
   journeyKey,
 } from "./Duffelflights.utils.js";
 import Booking from "../../../models/booking.js";
+import { replaceAfterFlightBooking } from "../../../services/flightPriceDrop.js";
 import User from "../../../models/user.js";
 import Notification from "../../../models/notification.js";
 import { awardXpForBooking } from "../../../services/xpService.js";
@@ -620,9 +621,13 @@ export async function runSearch(params, { fresh = false } = {}) {
       );
     }
 
-    const flights = useDuffel
+    // Every result carries the cabin it was searched in, so a booking can
+    // later be compared only with fares in the same cabin.
+    const searchedCabin = String(params?.cabinClass || "economy").toLowerCase();
+    const flights = (useDuffel
       ? mergeFlights(liteFlights, duffelFlights)
-      : liteFlights;
+      : liteFlights
+    ).map((f) => (f && !f.searchedCabin ? { ...f, searchedCabin } : f));
 
     console.log(
       `[flights/search] normalized ${
@@ -1264,6 +1269,39 @@ function cleanSeats(list) {
 }
 
 // Exported so the Duffel checkout saves bookings exactly the same way.
+// Journey key from checkout's [{ segments: [{ carrierCode, flightNumber, departureTime }] }].
+function journeyKeyOf(slices) {
+  if (!Array.isArray(slices) || !slices.length) return null;
+  try {
+    return journeyKey({ slices }) || null;
+  } catch {
+    return null;
+  }
+}
+
+const SEARCH_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const IATA = /^[A-Z]{3}$/;
+function cleanSearch(s) {
+  if (!s || typeof s !== "object") return null;
+  const origin = String(s.origin || "").toUpperCase();
+  const destination = String(s.destination || "").toUpperCase();
+  const departureDate = String(s.departureDate || "").slice(0, 10);
+  const returnDate = s.returnDate ? String(s.returnDate).slice(0, 10) : null;
+  if (!IATA.test(origin) || !IATA.test(destination) || !SEARCH_DAY.test(departureDate)) return null;
+  if (returnDate && !SEARCH_DAY.test(returnDate)) return null;
+  // Cabin must be known: the same flights in another cabin cost more.
+  if (!/^(economy|premium_economy|business|first)$/i.test(String(s.cabinClass || ""))) return null;
+  return {
+    origin,
+    destination,
+    departureDate,
+    returnDate,
+    adults: Math.max(1, Math.min(9, Number(s.adults) || 1)),
+    children: Math.max(0, Math.min(8, Number(s.children) || 0)),
+    cabinClass: String(s.cabinClass).toLowerCase(),
+  };
+}
+
 export async function saveFlightBooking({
   userId,
   prebookId,
@@ -1278,6 +1316,8 @@ export async function saveFlightBooking({
   pnrOverride,
   bookingIdOverride,
   travelers,
+  // Duffel passes the journey read from the offer itself.
+  journeyOverride,
 }) {
   try {
     const e = email || {};
@@ -1332,6 +1372,17 @@ export async function saveFlightBooking({
         // later with the airline aren't known to Skyrio.
         seats: cleanSeats(e.seats),
         groupId: groupId || null,
+        // The exact flights (carrier + number + departure of every leg) and
+        // the search that found them, so "Your flight got cheaper" can find
+        // the same flights again. Missing on older bookings = not watched.
+        journeyKey: journeyOverride || journeyKeyOf(e.journey),
+        search: cleanSearch(e.search),
+        fareFamily: e.fareFamily ? String(e.fareFamily).slice(0, 60) : null,
+        // Seats + bags bought in checkout (null = unknown, e.g. older apps).
+        extrasAmount:
+          e.extrasAmount == null || !Number.isFinite(Number(e.extrasAmount))
+            ? null
+            : Math.max(0, Math.round(Number(e.extrasAmount) * 100) / 100),
         // Supplier's raw booking record (LiteAPI only; Duffel keeps its
         // order id in providerBookingIds).
         liteapi: provider === "liteapi" ? record || null : null,
@@ -1414,8 +1465,15 @@ function travelerCountOf(confirmationEmail, rest, record) {
 export async function completeBooking(req, res) {
   try {
     // eslint-disable-next-line no-unused-vars
-    const { prebookId, prebookID, confirmationEmail, groupId, ...rest } =
-      req.body;
+    const {
+      prebookId,
+      prebookID,
+      confirmationEmail,
+      groupId,
+      replacesBookingId,
+      replaceToken,
+      ...rest
+    } = req.body;
     const resolvedPrebookId = prebookId || prebookID;
     if (!resolvedPrebookId) {
       return res
@@ -1522,9 +1580,21 @@ export async function completeBooking(req, res) {
         });
     }
 
+    // "Your flight got cheaper": cancel the old ticket now, on the server.
+    const replaced =
+      saved && replacesBookingId
+        ? await replaceAfterFlightBooking({
+            savedId: saved._id,
+            oldBookingId: replacesBookingId,
+            userId,
+            manageToken: replaceToken || null,
+          })
+        : null;
+
     return res.status(200).json({
       ok: true,
       ...data,
+      replaced,
       booking: saved ? { _id: saved._id } : null,
     });
   } catch (err) {

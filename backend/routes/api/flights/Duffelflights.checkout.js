@@ -20,7 +20,13 @@ import {
   isDuffelOfferId,
   isDuffelSoldOut,
 } from "./Duffelflights.provider.js";
-import { duffelSellPrice } from "./Duffelflights.utils.js";
+import { duffelSellPrice, duffelOfferToFrontendShape, journeyKey } from "./Duffelflights.utils.js";
+import {
+  replaceAfterFlightBooking,
+  replacementPriceProblem,
+  fullRefundNow,
+} from "../../../services/flightPriceDrop.js";
+import Booking from "../../../models/booking.js";
 import { saveFlightBooking } from "./Liteapiflights.controller.js";
 import { sendBookingConfirmation } from "../../../services/email.js";
 import { manageUrlFor } from "../../../services/manageLink.js";
@@ -117,7 +123,8 @@ function toOrderPassengers(offer, passengers, contact) {
  */
 export async function createDuffelIntent(req, res) {
   try {
-    const { offerId, contact = {}, passengers = [], groupId = null } = req.body || {};
+    const { offerId, contact = {}, passengers = [], groupId = null, replacesBookingId = null, replaceToken = null } =
+      req.body || {};
     if (!isDuffelOfferId(offerId)) return fail(res, 400, "A Duffel offerId is required.");
 
     const email = String(contact.email || "").trim().toLowerCase();
@@ -147,6 +154,12 @@ export async function createDuffelIntent(req, res) {
     const mapped = toOrderPassengers(offer, passengers, { email, phone });
     if (mapped.error) return fail(res, 400, mapped.error, { travelerDetails: true });
 
+    // Replacing a booking at a lower fare: never charge unless it's lower.
+    if (replacesBookingId) {
+      const problem = await replacementPriceProblem({ oldBookingId: replacesBookingId, newTotal: sellAmount });
+      if (problem) return fail(res, 409, problem, { priceDropGone: true });
+    }
+
     const userId = currentUserId(req) || null;
     const intent = await stripe().paymentIntents.create({
       amount: toCents(sellAmount),
@@ -168,6 +181,9 @@ export async function createDuffelIntent(req, res) {
       currency,
       orderPassengers: mapped.passengers,
       groupId: userId ? groupId : null,
+      replaces: replacesBookingId
+        ? { bookingId: String(replacesBookingId), token: replaceToken ? String(replaceToken).slice(0, 2000) : null }
+        : null,
     });
 
     const checkoutToken = signCheckoutToken({
@@ -277,6 +293,27 @@ export async function completeDuffelBooking(req, res) {
     );
   }
 
+  // Replacing a ticket: the old one must still be refundable in full, or
+  // the traveler would end up paying for two. Checked before booking.
+  if (locked.replaces?.bookingId) {
+    let full = false;
+    try {
+      const old = await Booking.findById(locked.replaces.bookingId);
+      full = Boolean(old && old.status === "confirmed" && (await fullRefundNow(old)).ok);
+    } catch {
+      full = false;
+    }
+    if (!full) {
+      await cancelHold("old ticket no longer fully refundable");
+      return fail(
+        res,
+        409,
+        `The airline no longer refunds your current ticket in full, so switching wouldn't save you money. ${NOT_CHARGED} Your booking stays as it is.`,
+        { priceDropGone: true }
+      );
+    }
+  }
+
   // Create the Duffel order, paid from Skyrio's Duffel balance.
   let order;
   try {
@@ -349,6 +386,13 @@ export async function completeDuffelBooking(req, res) {
     provider: "duffel",
     pnrOverride: pnr,
     bookingIdOverride: order.id,
+    journeyOverride: (() => {
+      try {
+        return journeyKey(duffelOfferToFrontendShape(offer)) || null;
+      } catch {
+        return null;
+      }
+    })(),
     travelers: locked.orderPassengers.map((p) => ({ name: `${p.given_name} ${p.family_name}`, type: "adult" })),
   });
 
@@ -393,8 +437,21 @@ export async function completeDuffelBooking(req, res) {
       });
   }
 
+  // "Your flight got cheaper": cancel the old ticket now, on the server.
+  const replaced =
+    saved && locked.replaces?.bookingId
+      ? await replaceAfterFlightBooking({
+          savedId: saved._id,
+          oldBookingId: locked.replaces.bookingId,
+          userId,
+          manageToken: locked.replaces.token,
+        })
+      : null;
+
   return res.status(200).json({
     ok: true,
+    replaced,
+    totalPaid: locked.sellAmount,
     provider: "duffel",
     data: { bookingId: order.id, bookingReference: pnr },
     booking: saved ? { _id: saved._id } : null,
