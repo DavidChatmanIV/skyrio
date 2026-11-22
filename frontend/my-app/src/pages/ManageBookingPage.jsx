@@ -34,6 +34,7 @@ import {
   confirmationCodeOf,
 } from "./SavedTripsPage";
 import PolicyNote from "@/components/PolicyNote";
+import PriceDropPanel from "@/components/trips/PriceDropPanel";
 
 const API = import.meta.env.VITE_API_URL || "";
 const SUPPORT_EMAIL = "skyrioofficial@gmail.com";
@@ -197,7 +198,12 @@ export default function ManageBookingPage() {
           )}
         </div>
       ) : (
-        <BookingDetails b={b} onCancel={() => setCancelling(true)} />
+        <BookingDetails
+          b={b}
+          onCancel={() => setCancelling(true)}
+          authHeaders={authHeaders}
+          onChanged={load}
+        />
       )}
 
       <p className="mb-help">
@@ -217,7 +223,7 @@ export default function ManageBookingPage() {
   );
 }
 
-function BookingDetails({ b, onCancel }) {
+function BookingDetails({ b, onCancel, authHeaders, onChanged }) {
   const isHotel = b.type === "Hotel";
   const room = b.hotelStay?.rooms?.[0];
   const f = b.flight || {};
@@ -329,6 +335,11 @@ function BookingDetails({ b, onCancel }) {
           )}
         </div>
       </article>
+
+      {/* Same room, lower price, still free to cancel (daily check). */}
+      {isHotel && b.priceDrop && canCancel && (
+        <PriceDropPanel booking={b} authHeaders={authHeaders} onChanged={onChanged} />
+      )}
 
       {/* Refunds, bags and changes are the airline's / hotel's rules. */}
       {b.status !== "cancelled" && (

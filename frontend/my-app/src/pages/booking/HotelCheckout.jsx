@@ -811,6 +811,9 @@ function PaymentForm({
   // Latest price from the availability check, when it moved.
   priceNow = null,
   onPriceChanged,
+  // "Your stay got cheaper": { bookingId, token } of the booking this
+  // replaces. The server cancels it once this one is booked.
+  replaces = null,
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -875,6 +878,13 @@ function PaymentForm({
         }),
       });
       const init = await initRes.json().catch(() => ({}));
+      // Rebooking a cheaper price: never book it if it isn't cheaper anymore.
+      const lockedTotal = Number(init.priceChanged ? init.newTotal : init.totalPrice);
+      if (replaces?.maxTotal && Number.isFinite(lockedTotal) && lockedTotal >= Number(replaces.maxTotal)) {
+        throw new Error(
+          `The lower price is gone: it's $${lockedTotal.toFixed(2)} now, not less than you paid. Nothing was charged, and your booking stays as it is.`
+        );
+      }
       if (init.priceChanged && Number(init.newTotal) > 0) {
         // Nothing was held on the card. Show the new total; they tap Pay again.
         onPriceChanged?.(Number(init.newTotal));
@@ -945,6 +955,9 @@ function PaymentForm({
           bookings,
           // Sync Together: shows this stay on the group trip page.
           ...(groupId ? { groupId } : {}),
+          ...(replaces?.bookingId
+            ? { replacesBookingId: replaces.bookingId, replaceToken: replaces.token || null }
+            : {}),
           // Display details saved on the Booking record (My Trips, emails).
           trip: rooms.map((r, i) => ({
             alsoStaying: names[i]?.others || [],
@@ -959,6 +972,9 @@ function PaymentForm({
             thumbnail: r.thumbnail,
             totalAmount: r.totalAmount,
             totalCurrency: r.totalCurrency || "USD",
+            // Guests in this room: lets Skyrio check the same room's price
+            // later ("your stay got cheaper").
+            ...(Number(r.adults) > 0 ? { adults: Number(r.adults) } : {}),
             ...(r.stayInfo ? { stayInfo: r.stayInfo } : {}),
           })),
         }),
@@ -1006,6 +1022,8 @@ function PaymentForm({
           paymentIntent.id,
         rooms: rooms.map(withStay),
         totalPaid: init.totalPrice,
+        // What happened to the booking this one replaces (if any).
+        replaced: conf.replaced || null,
       });
     } catch (err) {
       const msg = err.message || "Booking failed";
@@ -1511,6 +1529,8 @@ export default function HotelCheckout({
   planBudget = null,
   // Runs the moment the hotel confirms (the confirmation screen stays up).
   onBooked,
+  // "Your stay got cheaper": the booking this one replaces ({ bookingId, token }).
+  replaces = null,
   // "Back to Stays" from the confirmation screen: clears the booked rooms
   // from the cart. Falls back to onBack.
   onBookingComplete,
@@ -2127,6 +2147,7 @@ export default function HotelCheckout({
                   onUnavailable={() => setRoomGone(true)}
                   priceNow={avail.newTotal}
                   onPriceChanged={(t) => setAvail({ state: "ok", newTotal: t })}
+                  replaces={replaces}
                 />
               </Elements>
             )}

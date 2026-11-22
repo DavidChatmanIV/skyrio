@@ -25,6 +25,7 @@ import {
 } from "../services/liteapiBookings.js";
 import { reverseBookingXp } from "../services/xpService.js";
 import { readManageToken, mintManageToken } from "../services/manageLink.js";
+import { checkStayPriceDrop } from "../services/stayPriceDrop.js";
 import { sendManageLinkEmail } from "../services/manageEmails.js";
 import { sendEmail, esc } from "../services/emailLayout.js";
 
@@ -371,6 +372,15 @@ function manageView(b) {
       ? { airlineCredit: b.cancellation.airlineCredit }
       : null,
     hasAccount: Boolean(b.user),
+    // "Your stay got cheaper" found by the daily check (amount only).
+    priceDrop:
+      b.status === "confirmed" && b.priceDrop?.savings > 0
+        ? {
+            savings: b.priceDrop.savings,
+            currency: b.priceDrop.currency || "USD",
+            freeCancelUntil: b.priceDrop.freeCancelUntil || null,
+          }
+        : null,
   };
 }
 
@@ -1324,6 +1334,40 @@ router.post("/admin/:id/shared-room/cancel", adminOnly, async (req, res) => {
  * Hotels: from the hotel's policies on LiteAPI's booking record.
  * Flights: LiteAPI's cancellation quote (an estimate — the airline decides).
  */
+/**
+ * GET /api/bookings/:id/price-drop — "Your stay got cheaper", checked live.
+ * → { ok, savings, currency, freeCancelUntil, rooms: [{ roomName, old, now, offer }] }
+ * `offer` is what hotel checkout books. Nothing is booked or cancelled here.
+ */
+router.get("/:id/price-drop", ownerAdminOrManageLink, async (req, res) => {
+  try {
+    const booking = await loadOwnedBooking(req, res);
+    if (!booking) return;
+    const r = await checkStayPriceDrop(booking.toObject ? booking.toObject() : booking);
+    if (!r.ok) {
+      if (booking.priceDrop) await Booking.updateOne({ _id: booking._id }, { $unset: { priceDrop: 1 } });
+      return res.json({
+        ok: false,
+        reason: r.reason,
+        message:
+          r.reason === "not_free_to_cancel"
+            ? "This stay can't be cancelled for free anymore, so the lower price can't be used."
+            : "The lower price isn't available anymore.",
+      });
+    }
+    return res.json({
+      ok: true,
+      savings: r.savings,
+      currency: r.currency,
+      freeCancelUntil: r.freeCancelUntil,
+      rooms: r.rooms.map(({ roomName, old, now, offer }) => ({ roomName, old, now, offer })),
+    });
+  } catch (err) {
+    console.error("[bookings/price-drop] error:", err?.message);
+    res.status(500).json({ ok: false, message: "Couldn't check the price. Try again." });
+  }
+});
+
 router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
   try {
     const booking = await loadOwnedBooking(req, res);
@@ -1516,37 +1560,37 @@ router.get("/:id/cancel-quote", ownerAdminOrManageLink, async (req, res) => {
  *    min(supplier refund, amount paid).
  *  - Flights: LiteAPI collected payment → LiteAPI/airline refunds the card.
  */
-router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
-  try {
-    const booking = await loadOwnedBooking(req, res);
-    if (!booking) return;
-    if (blockSharedRoom(req, res, booking)) return;
+/**
+ * Cancels one booking with the supplier, refunds what the supplier refunds
+ * (hotels: Skyrio's Stripe charge), saves, emails and notifies. Shared by
+ * the cancel route and "Your stay got cheaper" (which cancels the old stay
+ * on the server once the new one is booked).
+ * ctx: { actor: "traveler" | "admin" | "system", byUserId, isAdmin }
+ * → { status, body } (the HTTP status and JSON the route sends)
+ */
+export async function cancelBookingCore(booking, ctx = {}) {
+  const out = (status, body) => ({ status, body });
     if (booking.status === "cancelled") {
-      return res.json({ ok: true, alreadyCancelled: true, booking });
+      return out(200, { ok: true, alreadyCancelled: true, booking });
     }
     if (booking.status === "cancel_pending") {
-      return res.status(202).json({
+      return out(202, {
         ok: true,
         pending: true,
         message: "The airline is still processing this cancellation.",
       });
     }
     if (booking.status !== "confirmed") {
-      return res
-        .status(400)
-        .json({ message: "Only confirmed bookings can be cancelled." });
+      return out(400, { message: "Only confirmed bookings can be cancelled." });
     }
     const ids = supplierIds(booking);
     if (!ids.length) {
-      return res.status(400).json({
+      return out(400, {
         message: "No supplier reference on file. Contact support to cancel.",
       });
     }
 
-    const actor =
-      isAdminUser(req) && String(booking.user) !== String(req.user.id)
-        ? "admin"
-        : "traveler";
+    const actor = ctx.actor || "traveler";
     const paid = Number(booking.totalAmount ?? booking.total) || 0;
     const currency = booking.totalCurrency || "USD";
     const supplier = [];
@@ -1595,7 +1639,7 @@ router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
         at: new Date(),
       });
       await booking.save();
-      return res.status(202).json({
+      return out(202, {
         ok: true,
         pending: true,
         message:
@@ -1638,10 +1682,10 @@ router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
         String(booking._id),
         supplier
       );
-      return res.status(502).json({
+      return out(502, {
         message:
           "The airline/hotel didn't accept the cancellation. Nothing was changed. Please try again or contact support.",
-        supplier: isAdminUser(req) ? supplier : undefined,
+        supplier: ctx.isAdmin ? supplier : undefined,
       });
     }
 
@@ -1739,7 +1783,7 @@ router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
     booking.cancellation = {
       at: new Date(),
       by: actor,
-      byUserId: String(req.user.id),
+      byUserId: String(ctx.byUserId || actor),
       supplier,
       supplierRefund,
       cancellationFee,
@@ -1760,7 +1804,7 @@ router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
         ...booking.cancelRequest,
         status: "resolved",
         resolvedAt: new Date(),
-        resolvedBy: String(req.user.id),
+        resolvedBy: String(ctx.byUserId || actor),
         resolution: "Cancelled through Skyrio.",
       };
       booking.markModified("cancelRequest");
@@ -1831,7 +1875,7 @@ router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
     }
 
     const status = partial ? 207 : flightPending ? 202 : 200;
-    res.status(status).json({
+    return out(status, {
       ok: !partial,
       pending: flightPending,
       partial,
@@ -1847,6 +1891,22 @@ router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
         : "Cancelled.",
       booking,
     });
+}
+
+router.post("/:id/cancel", ownerAdminOrManageLink, async (req, res) => {
+  try {
+    const booking = await loadOwnedBooking(req, res);
+    if (!booking) return;
+    if (blockSharedRoom(req, res, booking)) return;
+    const r = await cancelBookingCore(booking, {
+      actor:
+        isAdminUser(req) && String(booking.user) !== String(req.user.id)
+          ? "admin"
+          : "traveler",
+      byUserId: String(req.user.id),
+      isAdmin: isAdminUser(req),
+    });
+    return res.status(r.status).json(r.body);
   } catch (err) {
     console.error("POST /api/bookings/:id/cancel error:", err);
     res.status(500).json({

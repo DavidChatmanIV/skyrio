@@ -1171,10 +1171,37 @@ export async function confirmHotelBooking(req, res) {
       });
     }
 
+    // "Your stay got cheaper": this booking replaces an older one of the
+    // same stay. Cancel the old one now, on the server (services/stayPriceDrop.js).
+    let replaced = null;
+    if (saved && req.body.replacesBookingId) {
+      try {
+        const fresh = await Booking.findById(saved._id);
+        if (fresh?.status === "confirmed") {
+          const { cancelBookingCore } = await import("../../bookings.routes.js");
+          const { readManageToken } = await import("../../../services/manageLink.js");
+          const { replaceOldStay } = await import("../../../services/stayPriceDrop.js");
+          replaced = await replaceOldStay(
+            {
+              newBooking: fresh,
+              oldBookingId: String(req.body.replacesBookingId),
+              userId,
+              manageToken: req.body.replaceToken || null,
+            },
+            { Booking, cancelBookingCore, readManageToken }
+          );
+        }
+      } catch (e) {
+        console.error("[hotels/confirm] replacing the old stay failed:", e?.message);
+        replaced = { status: "retry", message: "We'll finish cancelling your old booking shortly." };
+      }
+    }
+
     return res.json({
       ok: true,
       bookings: results,
       bookingRecordId: saved?._id || null,
+      ...(replaced ? { replaced } : {}),
     });
   } catch (err) {
     console.error("Hotel booking confirmation error:", err);
