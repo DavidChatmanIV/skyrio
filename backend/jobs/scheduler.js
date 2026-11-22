@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { runPriceWatchOnce } from "./priceWatch.job.js";
 import { runHotelChargesReminderOnce } from "./hotelChargesReminder.job.js";
-import { runStayPriceDropOnce } from "./stayPriceDrop.job.js";
+import { runStayPriceDropOnce, retryStayReplacesOnce } from "./stayPriceDrop.job.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -79,6 +79,7 @@ export function startJobs() {
   const remind = async () => {
     if (mongoose.connection.readyState !== 1) return;
     try {
+      await retryStayReplacesOnce().catch((e) => console.error("[jobs] stay replace retry:", e?.message));
       const r = await runHotelChargesReminderOnce();
       if (r.checked) console.log(`[jobs] hotel charges reminder: checked=${r.checked} sent=${r.sent}`);
     } catch (e) {

@@ -3,8 +3,10 @@
 // by the traveler:
 //   1. See the lower price (checked live with the hotel).
 //   2. Book it (normal hotel checkout, price rechecked before paying).
-//   3. Skyrio cancels the old booking, only if the hotel's refund preview
-//      says there's no fee. Otherwise it says so and cancels nothing.
+//   3. The server cancels the old booking right after the new one is booked
+//      and paid, only if the hotel's policy says it's still free. It happens
+//      on the server, so closing the page can't leave two bookings; if the
+//      hotel doesn't answer, Skyrio retries every hour and emails when done.
 import { useState } from "react";
 import { TrendingDown, Loader2, Check, AlertTriangle } from "lucide-react";
 import { lazyPart, LoadingLine } from "@/utils/lazyPart";
@@ -43,7 +45,7 @@ const CSS = `
 `;
 
 export default function PriceDropPanel({ booking, authHeaders, onChanged }) {
-  const [stage, setStage] = useState("intro"); // intro | loading | review | checkout | cancelling | done | stale | error
+  const [stage, setStage] = useState("intro"); // intro | loading | review | checkout | done | stale | error
   const [live, setLive] = useState(null);
   const [msg, setMsg] = useState("");
   const cur = booking.priceDrop?.currency || booking.totalCurrency || "USD";
@@ -67,38 +69,35 @@ export default function PriceDropPanel({ booking, authHeaders, onChanged }) {
     }
   };
 
-  // After the new stay is booked: cancel the old one, only with no fee.
-  const cancelOld = async () => {
-    setStage("cancelling");
-    try {
-      const q = await fetch(`${API}/api/bookings/${booking._id}/cancel-quote`, { headers: authHeaders || {} });
-      const quote = await q.json().catch(() => ({}));
-      if (!q.ok || !quote.cancellable || Number(quote.estimatedFee) > 0) {
-        setMsg(
-          "Your new stay is booked. We didn't cancel the old one because the hotel would charge a fee now. Cancel it from this page if you still want to."
-        );
-        setStage("done");
-        onChanged?.();
-        return;
-      }
-      const res = await fetch(`${API}/api/bookings/${booking._id}/cancel`, { method: "POST", headers: authHeaders || {} });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok && res.status !== 202 && res.status !== 207) throw new Error(data.message);
+  // The new stay is booked. The server already handled the old one; say
+  // exactly what happened, with the real amounts.
+  const afterBooked = (c) => {
+    const r = c?.replaced || null;
+    const paidOld = Number(booking.totalAmount) || 0;
+    const paidNew = Number(c?.totalPaid);
+    const saved = Number.isFinite(paidNew) && paidNew > 0 ? paidOld - paidNew : null;
+    const savedLine = saved > 0 ? ` You saved ${usd(saved, cur)}.` : "";
+    if (r?.status === "cancelled") {
       setMsg(
-        `Done. Your new stay is booked and the old one is cancelled. ${usd(
-          quote.estimatedRefund,
-          cur
-        )} is on its way back to your card (usually 5–10 business days).`
+        `Done. You're booked at the lower price (confirmation email on its way) and your old booking is cancelled.${
+          Number(r.refund) > 0
+            ? ` ${usd(r.refund, cur)} is on its way back to your card (usually 5–10 business days).`
+            : ""
+        }${savedLine}`
       );
-      setStage("done");
-      onChanged?.();
-    } catch {
+    } else if (r?.status === "retry") {
       setMsg(
-        "Your new stay is booked, but we couldn't cancel the old one. Cancel it from this page, or email us and we'll do it."
+        "Your new stay is booked. We're finishing cancelling your old booking and will email you when it's done."
       );
-      setStage("done");
-      onChanged?.();
+    } else if (r?.status === "fee") {
+      setMsg(
+        "Your new stay is booked. The hotel would charge a fee to cancel your old booking now, so we kept it. Email us and we'll help."
+      );
+    } else {
+      setMsg("Your new stay is booked. Your old booking is still active. Cancel it from this page if you want to.");
     }
+    setStage("done");
+    onChanged?.();
   };
 
   if (stage === "checkout" && live) {
@@ -107,7 +106,13 @@ export default function PriceDropPanel({ booking, authHeaders, onChanged }) {
         <HotelCheckout
           rooms={live.rooms.map((r) => r.offer)}
           onBack={() => setStage("review")}
-          onBooked={() => cancelOld()}
+          replaces={{
+            bookingId: booking._id,
+            token: authHeaders?.["x-manage-token"] || null,
+            // Must stay below what they paid, or nothing is booked.
+            maxTotal: Number(booking.totalAmount) || null,
+          }}
+          onBooked={afterBooked}
           onBookingComplete={() => setStage("done")}
         />
       </div>
@@ -158,12 +163,6 @@ export default function PriceDropPanel({ booking, authHeaders, onChanged }) {
             Book the lower price
           </button>
         </>
-      )}
-
-      {stage === "cancelling" && (
-        <div className="pdp-msg">
-          <Loader2 size={16} className="pr-spin" /> Booked. Cancelling your old booking…
-        </div>
       )}
 
       {(stage === "done" || stage === "stale" || stage === "error") && (

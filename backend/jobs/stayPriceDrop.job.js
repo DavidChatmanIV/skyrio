@@ -6,14 +6,31 @@
 // A bigger saving later is announced again; the same one never is.
 import Booking from "../models/booking.js";
 import Notification from "../models/notification.js";
-import { checkStayPriceDrop, stayCanBeWatched } from "../services/stayPriceDrop.js";
+import { checkStayPriceDrop, stayCanBeWatched, replaceOldStay } from "../services/stayPriceDrop.js";
 import { sendStayPriceDropEmail } from "../services/bookingEmails.js";
 
 const MAX_PER_RUN = 200; // LiteAPI calls stay bounded
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Finish any "cancel the old stay" that didn't go through (hourly). */
+export async function retryStayReplacesOnce() {
+  const retries = await Booking.find({ "replaces.status": "retry" }).limit(50);
+  if (!retries.length) return { retried: 0 };
+  const { cancelBookingCore } = await import("../routes/bookings.routes.js");
+  const { readManageToken } = await import("../services/manageLink.js");
+  for (const nb of retries) {
+    const r = await replaceOldStay(
+      { newBooking: nb, oldBookingId: nb.replaces.bookingId, retry: true },
+      { Booking, cancelBookingCore, readManageToken }
+    ).catch((e) => ({ status: "retry", message: e.message }));
+    console.log(`[stay price drop] retry old stay ${nb.replaces.bookingId}: ${r.status}`);
+  }
+  return { retried: retries.length };
+}
+
 export async function runStayPriceDropOnce({ dryRun = false } = {}) {
   const now = new Date();
+  if (!dryRun) await retryStayReplacesOnce();
   const candidates = await Booking.find({
     type: "Hotel",
     status: "confirmed",
@@ -66,7 +83,7 @@ export async function runStayPriceDropOnce({ dryRun = false } = {}) {
             user: b.user,
             type: "stay_price_drop",
             title: "Your stay got cheaper",
-            message: `The same room at ${hotelName} is ${amount} less now. Book the lower price and cancel the old one for free.`,
+            message: `The same room at ${hotelName} is ${amount} less than you paid. Book it and Skyrio cancels your old booking for free.`,
             link: `/manage-booking/${b._id}`,
             metadata: { bookingId: b._id, savings: r.savings },
           }).catch((e) => console.warn("[stay price drop] notification failed:", e.message));

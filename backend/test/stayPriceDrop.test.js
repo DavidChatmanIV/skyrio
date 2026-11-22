@@ -71,3 +71,84 @@ test("shared rooms, Duffel stays and stays without guest counts are skipped", ()
   assert.equal(stayCanBeWatched(noAdults, NOW), false);
   assert.equal(stayCanBeWatched(booking(), NOW), true);
 });
+
+// ── Replacing the old stay after the new one is booked ──
+const { replaceOldStay } = await import("../services/stayPriceDrop.js");
+const fakeDb = (oldDoc) => {
+  const updates = [];
+  return {
+    updates,
+    Booking: {
+      findById: async (id) => (String(id) === String(oldDoc?._id) ? oldDoc : null),
+      updateOne: async (q, u) => updates.push([String(q._id), u.$set]),
+    },
+  };
+};
+const stay = (id, user, over = {}) => ({
+  _id: id, user, type: "Hotel", status: "confirmed", totalAmount: 600, refundAmount: 0,
+  hotelStay: { rooms: [{ hotelId: "h1", checkin: "2027-01-21", checkout: "2027-01-24" }], confirmation: [{ bookingId: "lite-1" }] },
+  ...over,
+});
+const freeNow = async () => ({ data: { cancellationPolicies: { refundableTag: "RFN", cancelPolicyInfos: [{ cancelTime: "2099-01-01T00:00:00Z", amount: 600 }] } } });
+
+test("same account, same stay, free to cancel → old one cancelled on the server", async () => {
+  const db = fakeDb(stay("old1", "u1"));
+  let cancelled = 0;
+  const r = await replaceOldStay(
+    { newBooking: stay("new1", "u1"), oldBookingId: "old1", userId: "u1" },
+    { Booking: db.Booking, readManageToken: () => null, getBooking: freeNow,
+      cancelBookingCore: async () => { cancelled++; return { status: 200, body: { ok: true, customerRefund: 600 } }; } }
+  );
+  assert.equal(r.status, "cancelled");
+  assert.equal(r.refund, 600);
+  assert.equal(cancelled, 1);
+});
+
+test("someone else's booking is never cancelled", async () => {
+  const db = fakeDb(stay("old1", "u1"));
+  let cancelled = 0;
+  const r = await replaceOldStay(
+    { newBooking: stay("new1", "u2"), oldBookingId: "old1", userId: "u2" },
+    { Booking: db.Booking, readManageToken: () => null, getBooking: freeNow, cancelBookingCore: async () => { cancelled++; } }
+  );
+  assert.equal(r.status, "not_allowed");
+  assert.equal(cancelled, 0);
+});
+
+test("a guest's email link lets them replace their own stay; a different stay is refused", async () => {
+  const db = fakeDb(stay("old1", null));
+  const ok = await replaceOldStay(
+    { newBooking: stay("new1", null), oldBookingId: "old1", manageToken: "t" },
+    { Booking: db.Booking, readManageToken: () => "old1", getBooking: freeNow,
+      cancelBookingCore: async () => ({ status: 200, body: { ok: true, customerRefund: 600 } }) }
+  );
+  assert.equal(ok.status, "cancelled");
+  const other = stay("new2", null, { hotelStay: { rooms: [{ hotelId: "h2", checkin: "2027-01-21", checkout: "2027-01-24" }], confirmation: [] } });
+  const db2 = fakeDb(stay("old1", null));
+  const no = await replaceOldStay(
+    { newBooking: other, oldBookingId: "old1", manageToken: "t" },
+    { Booking: db2.Booking, readManageToken: () => "old1", getBooking: freeNow, cancelBookingCore: async () => { throw new Error("must not cancel"); } }
+  );
+  assert.equal(no.status, "not_allowed");
+});
+
+test("a fee now → old booking kept; hotel down → retry later", async () => {
+  const feeNow = async () => ({ data: { cancellationPolicies: { refundableTag: "RFN", cancelPolicyInfos: [{ cancelTime: "2000-01-01T00:00:00Z", amount: 600 }] } } });
+  const r1 = await replaceOldStay(
+    { newBooking: stay("new1", "u1"), oldBookingId: "old1", userId: "u1" },
+    { Booking: fakeDb(stay("old1", "u1")).Booking, readManageToken: () => null, getBooking: feeNow, cancelBookingCore: async () => { throw new Error("no"); } }
+  );
+  assert.equal(r1.status, "fee");
+  const r2 = await replaceOldStay(
+    { newBooking: stay("new1", "u1"), oldBookingId: "old1", userId: "u1" },
+    { Booking: fakeDb(stay("old1", "u1")).Booking, readManageToken: () => null, getBooking: freeNow,
+      cancelBookingCore: async () => ({ status: 502, body: { message: "hotel didn't accept" } }) }
+  );
+  assert.equal(r2.status, "retry");
+});
+
+test("the saving is measured against what was actually charged", async () => {
+  // Listed $600 at search, but $640 was charged at payment → saving $124, not $84.
+  const r = await run(booking({ totalAmount: 640 }), [{ price: 516 }]);
+  assert.equal(r.savings, 124);
+});

@@ -92,6 +92,10 @@ const bookingSchema = new Schema(
     // currency, freeCancelUntil, checkedAt, notifiedSavings }. Removed when
     // the saving is gone or free cancellation ends.
     priceDrop: { type: Schema.Types.Mixed, default: undefined },
+    // This booking was a cheaper rebook of an older one (and the reverse):
+    // { bookingId, status: cancelled | fee | not_allowed | retry, refund, message, at }
+    replaces: { type: Schema.Types.Mixed, default: undefined },
+    replacedBy: { type: Schema.Types.Mixed, default: undefined },
 
     // ── Car rental (Duffel Cars) ──
     // { bookingId, reference, quoteId, supplier, car, pickup, dropoff,
