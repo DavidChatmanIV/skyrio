@@ -8,7 +8,7 @@
 //      on the server, so closing the page can't leave two bookings; if the
 //      hotel doesn't answer, Skyrio retries every hour and emails when done.
 import { useState } from "react";
-import { TrendingDown, Loader2, Check, AlertTriangle } from "lucide-react";
+import { TrendingDown, Loader2, Check, AlertTriangle, Bell, BellOff } from "lucide-react";
 import { lazyPart, LoadingLine } from "@/utils/lazyPart";
 
 const HotelCheckout = lazyPart(() => import("@/pages/booking/HotelCheckout"), LoadingLine);
@@ -40,6 +40,15 @@ const CSS = `
   background: linear-gradient(90deg, #6ee7a8, #a7f3d0); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .pdp-btn:disabled { opacity: .6; cursor: wait; }
 .pdp-btn:focus-visible { outline: 3px solid #ffb347; outline-offset: 2px; }
+.pdp-eyebrow { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 3px 10px;
+  border-radius: 999px; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  color: #ffd1a1; background: rgba(255,138,42,.16); border: 1px solid rgba(255,138,42,.35); }
+.pdp-watch { margin-top: 14px; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px;
+  font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.8);
+  background: rgba(124,92,252,.10); border: 1px solid rgba(167,139,250,.28); }
+.pdp-watch b { color: #fff; }
+.pdp-watch svg { flex-shrink: 0; margin-top: 2px; color: #ffb347; }
+.pdp-watch.is-off svg { color: rgba(255,255,255,.5); }
 .pdp-msg { margin-top: 10px; display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
 .pdp-overlay { position: fixed; inset: 0; z-index: 1200; overflow-y: auto; padding: 76px 0 40px;
   background: linear-gradient(180deg, #1a1233, #2b1642); }
@@ -48,6 +57,22 @@ const CSS = `
   font: inherit; font-weight: 700; cursor: pointer; }
 .pdp-close:focus-visible { outline: 3px solid #ffb347; outline-offset: 2px; }
 `;
+
+// Price Watch on a booking with no lower price right now: on (and exactly
+// when we'd tell them) or off (and why).
+export function PriceWatchLine({ status }) {
+  if (!status?.text) return null;
+  const Icon = status.on ? Bell : BellOff;
+  return (
+    <div className={`pdp-watch${status.on ? "" : " is-off"}`} role="note">
+      <style>{CSS}</style>
+      <Icon size={16} aria-hidden="true" />
+      <span>
+        <b>Price Watch {status.on ? "on" : "off"}.</b> {status.text}
+      </span>
+    </div>
+  );
+}
 
 export default function PriceDropPanel(props) {
   return props.booking?.type === "Flight" ? <FlightPriceDrop {...props} /> : <StayPriceDrop {...props} />;
@@ -117,6 +142,9 @@ function FlightPriceDrop({ booking, authHeaders, onChanged }) {
   return (
     <section className="pdp-drop" aria-label="Your flight got cheaper">
       <style>{CSS}</style>
+      <span className="pdp-eyebrow">
+        <Bell size={12} aria-hidden="true" /> Price Watch
+      </span>
       <h3>
         <TrendingDown size={18} aria-hidden="true" /> Your flight got cheaper
       </h3>
@@ -256,6 +284,9 @@ function StayPriceDrop({ booking, authHeaders, onChanged }) {
   return (
     <section className="pdp-drop" aria-label="Your stay got cheaper">
       <style>{CSS}</style>
+      <span className="pdp-eyebrow">
+        <Bell size={12} aria-hidden="true" /> Price Watch
+      </span>
       <h3>
         <TrendingDown size={18} aria-hidden="true" /> Your stay got cheaper
       </h3>

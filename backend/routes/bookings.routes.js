@@ -26,6 +26,7 @@ import {
 import { reverseBookingXp } from "../services/xpService.js";
 import { readManageToken, mintManageToken } from "../services/manageLink.js";
 import { checkStayPriceDrop } from "../services/stayPriceDrop.js";
+import { priceWatchStatus } from "../services/priceWatchStatus.js";
 import { checkFlightPriceDrop, fullRefundNow } from "../services/flightPriceDrop.js";
 import {
   isDuffelOrderId,
@@ -380,7 +381,9 @@ function manageView(b) {
       ? { airlineCredit: b.cancellation.airlineCredit }
       : null,
     hasAccount: Boolean(b.user),
-    // "Your stay got cheaper" found by the daily check (amount only).
+    // Price Watch after booking: on/off and why, in plain words.
+    priceWatch: priceWatchStatus(b),
+    // A lower price found by Price Watch (amount only).
     priceDrop:
       b.status === "confirmed" && b.priceDrop?.savings > 0
         ? {

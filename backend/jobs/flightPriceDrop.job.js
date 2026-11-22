@@ -103,7 +103,7 @@ export async function runFlightPriceDropOnce({ dryRun = false } = {}) {
           await Notification.create({
             user: b.user,
             type: "flight_price_drop",
-            title: "Your flight got cheaper",
+            title: "Price Watch: your flight got cheaper",
             message: `The same flights${route ? ` for ${route}` : ""} are ${amount} less than you paid, and your ticket can be refunded in full right now. Book it and Skyrio cancels the old ticket.`,
             link: `/manage-booking/${b._id}`,
             metadata: { bookingId: b._id, savings: r.savings },

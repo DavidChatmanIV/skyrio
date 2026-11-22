@@ -588,7 +588,7 @@ export async function sendStayPriceDropEmail({ to, guestName, hotelName, savings
   const until = freeCancelUntil ? formatDate(freeCancelUntil) : null;
   const html = renderEmail({
     preheader: `Your stay at ${hotelName || "your hotel"} is ${amount} cheaper now`,
-    title: "Your stay got cheaper",
+    title: "Price Watch: your stay got cheaper",
     introHtml: `Hi${guestName ? ` <strong>${esc(guestName)}</strong>` : ""}! The same room at <strong>${esc(
       hotelName || "your hotel"
     )}</strong> now costs <strong>${esc(amount)}</strong> less than you paid.`,
@@ -596,22 +596,22 @@ export async function sendStayPriceDropEmail({ to, guestName, hotelName, savings
       noteLine(
         `Book the lower price, then Skyrio cancels your old booking for free${
           until ? ` (free cancellation until ${esc(until)})` : ""
-        }. You get the difference back.`
+        } and you get its full amount back.`
       ) +
       noteLine("Your card holds both amounts until the old refund arrives, usually 5–10 business days.") +
       noteLine("Prices change. The new price is checked again before you pay."),
     cta: { label: "See the lower price", url: link },
   });
-  const text = `Your stay got cheaper
+  const text = `Price Watch: your stay got cheaper
 
 The same room at ${hotelName || "your hotel"} now costs ${amount} less than you paid.
 
-Book the lower price, then Skyrio cancels your old booking for free${until ? ` (free cancellation until ${until})` : ""}. You get the difference back.
+Book the lower price, then Skyrio cancels your old booking for free${until ? ` (free cancellation until ${until})` : ""} and you get its full amount back.
 Your card holds both amounts until the old refund arrives, usually 5–10 business days.
 Prices change. The new price is checked again before you pay.
 
 See the lower price: ${link}${textFooter}`;
-  return sendEmail({ to, subject: `Your stay is ${amount} cheaper now`, html, text, tag: "stay-price-drop" });
+  return sendEmail({ to, subject: `Price Watch: your stay is ${amount} cheaper now`, html, text, tag: "stay-price-drop" });
 }
 
 /** "Your flight got cheaper" — same flights, lower fare, full refund on the old ticket. */
@@ -622,7 +622,7 @@ export async function sendFlightPriceDropEmail({ to, name, route, savings, curre
   const where = route || "your trip";
   const html = renderEmail({
     preheader: `The same flights for ${where} are ${amount} cheaper now`,
-    title: "Your flight got cheaper",
+    title: "Price Watch: your flight got cheaper",
     introHtml: `Hi${name ? ` <strong>${esc(name)}</strong>` : ""}! The same flights for <strong>${esc(
       where
     )}</strong> now cost <strong>${esc(amount)}</strong> less than you paid.`,
@@ -634,7 +634,7 @@ export async function sendFlightPriceDropEmail({ to, name, route, savings, curre
       noteLine("Fares change fast. The fare and the refund are both checked again before anything happens. Seats aren't carried over."),
     cta: { label: "See the lower fare", url: link },
   });
-  const text = `Your flight got cheaper
+  const text = `Price Watch: your flight got cheaper
 
 The same flights for ${where} now cost ${amount} less than you paid.
 
@@ -643,7 +643,7 @@ Your card holds both amounts until the old refund arrives, usually 5–10 busine
 Fares change fast. The fare and the refund are both checked again before anything happens. Seats aren't carried over.
 
 See the lower fare: ${link}${textFooter}`;
-  return sendEmail({ to, subject: `Your flight is ${amount} cheaper now`, html, text, tag: "flight-price-drop" });
+  return sendEmail({ to, subject: `Price Watch: your flight is ${amount} cheaper now`, html, text, tag: "flight-price-drop" });
 }
 
 /**

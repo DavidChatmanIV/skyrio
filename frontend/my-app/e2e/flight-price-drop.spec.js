@@ -63,3 +63,14 @@ test("flight: no full refund anymore → says so, offers nothing", async ({ page
   await expect(page.getByText(/wouldn't refund your current ticket in full/)).toBeVisible();
   await expect(page.getByRole("button", { name: /book the lower fare/i })).toHaveCount(0);
 });
+
+test("no lower fare: Price Watch says it's on and when we'd tell them", async ({ page, routes }) => {
+  routes["GET /api/bookings/manage/"] = {
+    ok: true,
+    booking: { ...BOOKING, priceDrop: null, priceWatch: { on: true, text: "We check these exact flights a few times a day. If they get cheaper while the airline would still refund your ticket in full, we'll tell you." } },
+  };
+  await page.goto("/manage-booking/f777?t=link-token");
+  await expect(page.getByText("Price Watch on.")).toBeVisible();
+  await expect(page.getByText("Your flight got cheaper")).toHaveCount(0);
+  if (process.env.SHOT2) await page.locator(".pdp-watch").screenshot({ path: process.env.SHOT2 });
+});

@@ -84,7 +84,7 @@ export async function runStayPriceDropOnce({ dryRun = false } = {}) {
           await Notification.create({
             user: b.user,
             type: "stay_price_drop",
-            title: "Your stay got cheaper",
+            title: "Price Watch: your stay got cheaper",
             message: `The same room at ${hotelName} is ${amount} less than you paid. Book it and Skyrio cancels your old booking for free.`,
             link: `/manage-booking/${b._id}`,
             metadata: { bookingId: b._id, savings: r.savings },

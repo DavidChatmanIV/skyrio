@@ -154,3 +154,12 @@ test("refund no longer full → old ticket kept; airline down → retry; other p
   );
   assert.equal(diff.status, "not_allowed");
 });
+
+const { priceWatchStatus } = await import("../services/priceWatchStatus.js");
+test("Price Watch line: on says exactly when we'd tell them; off says why", () => {
+  assert.equal(priceWatchStatus(flight(), NOW).on, true);
+  assert.match(priceWatchStatus(flight({ flight: { extrasAmount: 30 } }), NOW).text, /seats or bags/);
+  assert.match(priceWatchStatus(flight({ flight: { journeyKey: null } }), NOW).text, /before Price Watch/);
+  assert.match(priceWatchStatus(flight({ flight: { departureAt: "2027-01-03T08:00:00" } }), NOW).text, /3 days/);
+  assert.equal(priceWatchStatus(flight({ status: "cancelled" }), NOW), null);
+});
