@@ -613,3 +613,66 @@ Prices change. The new price is checked again before you pay.
 See the lower price: ${link}${textFooter}`;
   return sendEmail({ to, subject: `Your stay is ${amount} cheaper now`, html, text, tag: "stay-price-drop" });
 }
+
+/** "Your flight got cheaper" — same flights, lower fare, full refund on the old ticket. */
+export async function sendFlightPriceDropEmail({ to, name, route, savings, currency, bookingId }) {
+  if (!to || !(savings > 0)) return { ok: false, skipped: true };
+  const link = /^[a-f0-9]{24}$/i.test(String(bookingId || "")) ? manageUrlFor(bookingId) : TRIPS_URL;
+  const amount = formatMoney(savings, currency);
+  const where = route || "your trip";
+  const html = renderEmail({
+    preheader: `The same flights for ${where} are ${amount} cheaper now`,
+    title: "Your flight got cheaper",
+    introHtml: `Hi${name ? ` <strong>${esc(name)}</strong>` : ""}! The same flights for <strong>${esc(
+      where
+    )}</strong> now cost <strong>${esc(amount)}</strong> less than you paid.`,
+    bodyHtml:
+      noteLine(
+        "Right now the airline would refund your current ticket in full. Book the lower fare and Skyrio cancels the old ticket for you."
+      ) +
+      noteLine("Your card holds both amounts until the old refund arrives, usually 5–10 business days.") +
+      noteLine("Fares change fast. The fare and the refund are both checked again before anything happens. Seats aren't carried over."),
+    cta: { label: "See the lower fare", url: link },
+  });
+  const text = `Your flight got cheaper
+
+The same flights for ${where} now cost ${amount} less than you paid.
+
+Right now the airline would refund your current ticket in full. Book the lower fare and Skyrio cancels the old ticket for you.
+Your card holds both amounts until the old refund arrives, usually 5–10 business days.
+Fares change fast. The fare and the refund are both checked again before anything happens. Seats aren't carried over.
+
+See the lower fare: ${link}${textFooter}`;
+  return sendEmail({ to, subject: `Your flight is ${amount} cheaper now`, html, text, tag: "flight-price-drop" });
+}
+
+/**
+ * We said we'd cancel the old booking, but couldn't do it for free in the
+ * end. Both bookings are active; say so plainly.
+ */
+export async function sendReplaceKeptEmail({ to, name, type, oldBookingId, newBookingId }) {
+  if (!to) return { ok: false, skipped: true };
+  const isFlight = type === "Flight";
+  const thing = isFlight ? "ticket" : "booking";
+  const who = isFlight ? "airline" : "hotel";
+  const oldLink = /^[a-f0-9]{24}$/i.test(String(oldBookingId || "")) ? manageUrlFor(oldBookingId) : TRIPS_URL;
+  const newLink = /^[a-f0-9]{24}$/i.test(String(newBookingId || "")) ? manageUrlFor(newBookingId) : TRIPS_URL;
+  const html = renderEmail({
+    preheader: `Your old ${thing} is still active`,
+    title: `Your old ${thing} is still active`,
+    introHtml: `Hi${name ? ` <strong>${esc(name)}</strong>` : ""}. We couldn't cancel your old ${thing} for free: the ${who} no longer offers a full refund on it. <strong>You now have two active bookings.</strong>`,
+    bodyHtml:
+      noteLine(`Open each one to see what cancelling it would cost now, then keep the one you want.`) +
+      noteLine(`The ${who} sets these rules, not Skyrio. Reply to this email if you need help.`),
+    cta: { label: `See your old ${thing}`, url: oldLink },
+  });
+  const text = `Your old ${thing} is still active
+
+We couldn't cancel your old ${thing} for free: the ${who} no longer offers a full refund on it. You now have two active bookings.
+Open each one to see what cancelling it would cost now, then keep the one you want.
+The ${who} sets these rules, not Skyrio. Reply to this email if you need help.
+
+Old ${thing}: ${oldLink}
+New ${thing}: ${newLink}${textFooter}`;
+  return sendEmail({ to, subject: `Your old ${thing} is still active`, html, text, tag: "replace-kept" });
+}

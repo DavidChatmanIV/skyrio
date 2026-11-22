@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { runPriceWatchOnce } from "./priceWatch.job.js";
 import { runHotelChargesReminderOnce } from "./hotelChargesReminder.job.js";
 import { runStayPriceDropOnce, retryStayReplacesOnce } from "./stayPriceDrop.job.js";
+import { runFlightPriceDropOnce, retryFlightReplacesOnce } from "./flightPriceDrop.job.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -80,6 +81,7 @@ export function startJobs() {
     if (mongoose.connection.readyState !== 1) return;
     try {
       await retryStayReplacesOnce().catch((e) => console.error("[jobs] stay replace retry:", e?.message));
+      await retryFlightReplacesOnce().catch((e) => console.error("[jobs] flight replace retry:", e?.message));
       const r = await runHotelChargesReminderOnce();
       if (r.checked) console.log(`[jobs] hotel charges reminder: checked=${r.checked} sent=${r.sent}`);
     } catch (e) {
@@ -108,6 +110,27 @@ export function startJobs() {
     };
     setTimeout(stayCheck, FIRST_RUN_DELAY_MS + 5 * 60 * 1000);
     setInterval(stayCheck, 24 * HOUR_MS);
+  }
+
+  // "Your flight got cheaper": every 6 hours (FLIGHT_PRICE_DROP=false turns it off).
+  if (process.env.FLIGHT_PRICE_DROP !== "false") {
+    let flightRunning = false;
+    const flightCheck = async () => {
+      if (flightRunning || mongoose.connection.readyState !== 1) return;
+      flightRunning = true;
+      try {
+        const r = await runFlightPriceDropOnce();
+        console.log(
+          `[jobs] flight price drop: checked=${r.checked} found=${r.found} notified=${r.notified} skipped=${r.skipped} failed=${r.failed}`
+        );
+      } catch (e) {
+        console.error("[jobs] flight price drop error:", e?.message || e);
+      } finally {
+        flightRunning = false;
+      }
+    };
+    setTimeout(flightCheck, FIRST_RUN_DELAY_MS + 10 * 60 * 1000);
+    setInterval(flightCheck, 6 * HOUR_MS);
   }
 
   console.log(`[jobs] started: price watch every ${EVERY_HOURS}h`);

@@ -336,8 +336,8 @@ function BookingDetails({ b, onCancel, authHeaders, onChanged }) {
         </div>
       </article>
 
-      {/* Same room, lower price, still free to cancel (daily check). */}
-      {isHotel && b.priceDrop && canCancel && (
+      {/* Same room / same flights, lower price, still free to cancel. */}
+      {b.priceDrop && canCancel && (
         <PriceDropPanel booking={b} authHeaders={authHeaders} onChanged={onChanged} />
       )}
 

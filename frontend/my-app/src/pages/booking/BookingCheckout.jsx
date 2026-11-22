@@ -4329,6 +4329,7 @@ function StepReviewPay({
   baggage,
   onEditDetails,
   duffelTotal = null,
+  replaces = null,
 }) {
   // verify + prebook happen in the parent right after Passengers submits;
   // payment itself is handled by LiteApiPayForm.
@@ -4646,6 +4647,8 @@ function StepReviewPay({
                     onBack={onBack}
                     onRestart={onRefreshFare}
                     onBookingSuccess={onBookingSuccess}
+                    replaces={replaces}
+                    extrasAmount={seatsPrice + bagsPrice}
                   />
                 ) : (
                   <LiteApiPayForm
@@ -4662,6 +4665,8 @@ function StepReviewPay({
                     seats={seatsForBooking}
                     hasSeats={seatsPrice > 0}
                     hasBags={selectedBags.length > 0}
+                    replaces={replaces}
+                    extrasAmount={seatsPrice + bagsPrice}
                   />
                 )}
                 <CancellationBadge
@@ -4757,6 +4762,9 @@ export default function BookingCheckout({
   // Runs once the flight is actually booked (used by the package tray to
   // mark the flight "Booked").
   onBooked,
+  // "Your flight got cheaper": { bookingId, token, maxTotal } of the booking
+  // this one replaces. The server cancels that one after this is booked.
+  replaces = null,
 }) {
   // After verify: the fare's real expiry, and — if the backend had to
   // refresh an expired fare — the new offerId and price.
@@ -4916,6 +4924,10 @@ export default function BookingCheckout({
             body: JSON.stringify({
               offerId: verifiedOfferId,
               groupId: groupId || null,
+              ...(replaces?.bookingId && {
+                replacesBookingId: replaces.bookingId,
+                replaceToken: replaces.token || null,
+              }),
               contact: { email: lead.email, phone: lead.phone },
               passengers: passengersList.map((p) => ({
                 firstName: p.firstName,
@@ -5143,10 +5155,13 @@ export default function BookingCheckout({
     if (!groupId) saveTripNext(tripFromFlight(flight, { budget: planBudget }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const handleBookingSuccess = useCallback(() => {
-    setBookingComplete(true);
-    onBooked?.();
-  }, [onBooked]);
+  const handleBookingSuccess = useCallback(
+    (result) => {
+      setBookingComplete(true);
+      onBooked?.(result);
+    },
+    [onBooked]
+  );
   const hasProgress = !bookingComplete && (step > 0 || formDirty);
   // Keeps sessionStorage in sync with live state; skipped once booking
   // completes (the effect below clears the entry instead).
@@ -5461,6 +5476,7 @@ export default function BookingCheckout({
               prebookError={prebookError}
               baggage={baggage}
               duffelTotal={duffelTotal}
+              replaces={replaces}
               onEditDetails={() => {
                 setEditLead(true);
                 setStep(0);

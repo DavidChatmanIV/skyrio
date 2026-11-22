@@ -12,6 +12,7 @@ import { TrendingDown, Loader2, Check, AlertTriangle } from "lucide-react";
 import { lazyPart, LoadingLine } from "@/utils/lazyPart";
 
 const HotelCheckout = lazyPart(() => import("@/pages/booking/HotelCheckout"), LoadingLine);
+const BookingCheckout = lazyPart(() => import("@/pages/booking/BookingCheckout"), LoadingLine);
 const API = import.meta.env.VITE_API_URL || "";
 const usd = (n, cur = "USD") => {
   try {
@@ -42,9 +43,142 @@ const CSS = `
 .pdp-msg { margin-top: 10px; display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
 .pdp-overlay { position: fixed; inset: 0; z-index: 1200; overflow-y: auto; padding: 76px 0 40px;
   background: linear-gradient(180deg, #1a1233, #2b1642); }
+.pdp-close { position: fixed; top: 16px; right: 16px; z-index: 1201; min-height: 40px; padding: 0 16px;
+  border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(20,12,36,.85); color: #fff;
+  font: inherit; font-weight: 700; cursor: pointer; }
+.pdp-close:focus-visible { outline: 3px solid #ffb347; outline-offset: 2px; }
 `;
 
-export default function PriceDropPanel({ booking, authHeaders, onChanged }) {
+export default function PriceDropPanel(props) {
+  return props.booking?.type === "Flight" ? <FlightPriceDrop {...props} /> : <StayPriceDrop {...props} />;
+}
+
+// "Your flight got cheaper": the same flights cost less, and the airline
+// would refund the current ticket in full right now.
+//   1. See the lower fare (searched live, refund checked live).
+//   2. Book it (normal flight checkout; payment is refused if the fare is
+//      no longer lower than what was paid).
+//   3. The server cancels the old ticket right after the new one is booked,
+//      only if the full refund still applies. Retries hourly; emails if the
+//      old ticket had to be kept.
+function FlightPriceDrop({ booking, authHeaders, onChanged }) {
+  const [stage, setStage] = useState("intro"); // intro | loading | review | checkout | stale | error
+  const [live, setLive] = useState(null);
+  const [msg, setMsg] = useState("");
+  const cur = booking.totalCurrency || "USD";
+
+  const check = async () => {
+    setStage("loading");
+    try {
+      const res = await fetch(`${API}/api/bookings/${booking._id}/price-drop`, { headers: authHeaders || {} });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message);
+      if (!data.ok || !data.flight) {
+        setMsg(data.message || "The lower fare isn't available anymore.");
+        setStage("stale");
+        return;
+      }
+      setLive(data);
+      setStage("review");
+    } catch (e) {
+      setMsg(e.message || "Couldn't check the fare. Try again.");
+      setStage("error");
+    }
+  };
+
+  if (stage === "checkout" && live) {
+    return (
+      <div className="pdp-overlay">
+        <style>{CSS}</style>
+        <button
+          type="button"
+          className="pdp-close"
+          onClick={() => {
+            setStage("intro");
+            onChanged?.();
+          }}
+        >
+          Close
+        </button>
+        <BookingCheckout
+          flight={live.flight}
+          onBack={() => setStage("review")}
+          replaces={{
+            bookingId: booking._id,
+            token: authHeaders?.["x-manage-token"] || null,
+            // Must stay below what they paid, or payment is refused.
+            maxTotal: Number(booking.totalAmount) || null,
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <section className="pdp-drop" aria-label="Your flight got cheaper">
+      <style>{CSS}</style>
+      <h3>
+        <TrendingDown size={18} aria-hidden="true" /> Your flight got cheaper
+      </h3>
+
+      {(stage === "intro" || stage === "loading") && (
+        <>
+          <p>
+            The same flights are <b className="pdp-big">{usd(booking.priceDrop.savings, cur)} less</b> than you paid,
+            and the airline would refund your ticket in full right now.
+          </p>
+          <button type="button" className="pdp-btn" onClick={check} disabled={stage === "loading"}>
+            {stage === "loading" ? <Loader2 size={16} className="pr-spin" /> : null}
+            {stage === "loading" ? "Checking with the airline…" : "See the lower fare"}
+          </button>
+        </>
+      )}
+
+      {stage === "review" && live && (
+        <>
+          <div className="pdp-rows">
+            <div>
+              <span>Same flights</span>
+              <span>
+                <s>{usd(live.paid, cur)}</s> {usd(live.now, cur)}
+              </span>
+            </div>
+            <div>
+              <b>You save</b>
+              <b className="pdp-big">{usd(live.savings, cur)}</b>
+            </div>
+          </div>
+          <p>1. Book the same flights at the new fare. 2. Skyrio cancels your old ticket for a full refund.</p>
+          <p>
+            Your card holds both amounts until the old refund arrives, usually 5–10 business days. Seats aren't carried
+            over. You'll enter traveler details again.
+          </p>
+          <p>
+            Fares change fast. Both the fare and the refund are checked again right before you pay. If either changed,
+            nothing is charged.
+          </p>
+          <button type="button" className="pdp-btn" onClick={() => setStage("checkout")}>
+            Book the lower fare
+          </button>
+        </>
+      )}
+
+      {(stage === "stale" || stage === "error") && (
+        <div className="pdp-msg" role="status">
+          <AlertTriangle size={16} aria-hidden="true" style={{ color: "#ffb347", flexShrink: 0 }} />
+          <span>{msg}</span>
+        </div>
+      )}
+      {stage === "error" && (
+        <button type="button" className="pdp-btn" onClick={check}>
+          Try again
+        </button>
+      )}
+    </section>
+  );
+}
+
+function StayPriceDrop({ booking, authHeaders, onChanged }) {
   const [stage, setStage] = useState("intro"); // intro | loading | review | checkout | done | stale | error
   const [live, setLive] = useState(null);
   const [msg, setMsg] = useState("");
@@ -91,7 +225,7 @@ export default function PriceDropPanel({ booking, authHeaders, onChanged }) {
       );
     } else if (r?.status === "fee") {
       setMsg(
-        "Your new stay is booked. The hotel would charge a fee to cancel your old booking now, so we kept it. Email us and we'll help."
+        "Your new stay is booked. The hotel would charge a fee to cancel your old booking now, so we kept it. You now have two bookings. Email us and we'll help."
       );
     } else {
       setMsg("Your new stay is booked. Your old booking is still active. Cancel it from this page if you want to.");

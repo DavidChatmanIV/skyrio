@@ -33,8 +33,9 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { Check, AlertTriangle } from "lucide-react";
-import { getCheckoutToken } from "@/utils/checkoutToken";
+import { getCheckoutToken, apiHeaders } from "@/utils/checkoutToken";
 import PaySafeNote from "@/components/checkout/PaySafeNote";
+import { flightMatchInfo } from "@/lib/flightMatch";
 
 const SDK_SRC =
   "https://payment-wrapper.liteapi.travel/dist/liteAPIPayment.js?v=a1";
@@ -287,6 +288,9 @@ export default function LiteApiPayForm({
   // What's in the price besides the fare, so the payment note names it.
   hasSeats = false,
   hasBags = false,
+  // "Your flight got cheaper": the booking this one replaces.
+  replaces = null,
+  extrasAmount = 0,
 }) {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
@@ -355,8 +359,60 @@ export default function LiteApiPayForm({
     exactTotal &&
     Math.abs(Number(exactTotal.amount) - Number(total || 0)) >= 0.01;
 
+  // Replacing a booking at a lower fare: never take payment unless it's lower.
+  const replaceTotal = Number(exactTotal?.amount ?? total);
+  const priceGone =
+    Boolean(replaces?.maxTotal) &&
+    Number.isFinite(replaceTotal) &&
+    replaceTotal >= Number(replaces.maxTotal);
+  // …and the old ticket must still be refundable in full, checked with the
+  // airline right before the payment form opens.
+  const [refundOk, setRefundOk] = useState(replaces?.bookingId ? null : true);
+  useEffect(() => {
+    if (!replaces?.bookingId || !agreed || refundOk !== null) return;
+    let cancelled = false;
+    fetch(`${API_BASE}/bookings/${replaces.bookingId}/refund-check`, {
+      headers: {
+        ...apiHeaders(),
+        ...(replaces.token ? { "x-manage-token": replaces.token } : {}),
+      },
+    })
+      .then((r) => r.json().catch(() => ({})))
+      .then((d) => {
+        if (cancelled) return;
+        if (d.ok && d.full) return setRefundOk(true);
+        setRefundOk(false);
+        setError(
+          d.ok
+            ? "The airline no longer refunds your current ticket in full, so switching wouldn't save you money. Nothing was charged, and your booking stays as it is."
+            : d.message || "Couldn't confirm the refund with the airline. Nothing was charged. Try again in a moment."
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRefundOk(false);
+        setError("Couldn't confirm the refund with the airline. Nothing was charged. Try again in a moment.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agreed, replaces?.bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
   const ready =
-    agreed && clientSecret && !fareExpired && prebookId && transactionId;
+    agreed &&
+    clientSecret &&
+    !fareExpired &&
+    prebookId &&
+    transactionId &&
+    !priceGone &&
+    refundOk === true;
+  useEffect(() => {
+    if (priceGone)
+      setError(
+        `The lower fare is gone: it's $${replaceTotal.toFixed(
+          2
+        )} now, not less than you paid. Nothing was charged, and your booking stays as it is.`
+      );
+  }, [priceGone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save everything the return page needs (the SDK redirect reloads the app).
   useEffect(() => {
@@ -400,7 +456,13 @@ export default function LiteApiPayForm({
             // Seats chosen in Skyrio — saved on the booking so friends on
             // the same flight can see them and sit nearby.
             seats: Array.isArray(seats) ? seats.slice(0, 40) : [],
+            ...flightMatchInfo(flight, passengers, extrasAmount),
           },
+          // Sent with /api/flights/complete: the server cancels this booking
+          // after the new one is confirmed (only with a full refund).
+          replaces: replaces?.bookingId
+            ? { bookingId: replaces.bookingId, token: replaces.token || null }
+            : null,
           savedAt: Date.now(),
         })
       );

@@ -10,6 +10,7 @@ import { apiHeaders, getCheckoutToken } from "@/utils/checkoutToken";
 import BookingProgress from "./BookingProgress";
 import TripNextSteps from "@/components/TripNextSteps";
 import { readTripNext } from "@/lib/tripNext";
+import ReplacedNote from "@/components/trips/ReplacedNote";
 
 const PENDING_KEY = "skyrio_pending_flight_payment";
 const API = import.meta.env?.VITE_API_URL || "";
@@ -102,6 +103,10 @@ export default function FlightBookingComplete() {
             },
             ...(pending.groupId && { groupId: pending.groupId }),
             confirmationEmail: pending.confirmationEmail,
+            ...(pending.replaces?.bookingId && {
+              replacesBookingId: pending.replaces.bookingId,
+              replaceToken: pending.replaces.token || null,
+            }),
             ...(checkoutToken && { checkoutToken }),
           }),
         });
@@ -122,6 +127,7 @@ export default function FlightBookingComplete() {
           ...pending,
           completed: true,
           bookingId: data.booking?._id || null,
+          replaced: data.replaced || null,
         };
         writePending(done);
         if (pending.progressKey) {
@@ -243,6 +249,11 @@ export default function FlightBookingComplete() {
           Confirmation sent to{" "}
           <strong style={{ color: "#fff" }}>{p.confirmationEmail.to}</strong>
         </p>
+      )}
+      {p.replaced && (
+        <div style={{ textAlign: "left", marginTop: 12 }}>
+          <ReplacedNote replaced={p.replaced} />
+        </div>
       )}
       <div
         style={{

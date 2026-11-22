@@ -25,6 +25,9 @@ const DuffelFlightCheckoutSchema = new mongoose.Schema(
     bookingReference: { type: String, default: null }, // airline PNR
     bookingId: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", default: null },
     error: { type: String, default: null },
+    // "Your flight got cheaper": the booking this one replaces, and that
+    // booking's email-link token (guests). Checked again after booking.
+    replaces: { type: mongoose.Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 );
