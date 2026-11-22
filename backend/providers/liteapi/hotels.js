@@ -7,7 +7,7 @@
 // /data/hotels (placeId → hotels) → /hotels/rates.
 
 import { liteapi } from "../../routes/api/hotels/hotel.provider.js";
-import { buildOccupancies, normalizeHotelRate } from "../../routes/api/hotels/hotels.utils.js";
+import { buildOccupancies, normalizeHotelRate, deadlineLabel } from "../../routes/api/hotels/hotels.utils.js";
 import {
   duffelStaysEnabled,
   searchDuffelStays,
@@ -26,7 +26,8 @@ function cancellationTextOf(roomType) {
   const policy = roomType?.rates?.[0]?.cancellationPolicies;
   if (policy?.refundableTag !== "RFN") return "Non-refundable";
   const deadline = policy?.cancelPolicyInfos?.[0]?.cancelTime;
-  return deadline ? `Free cancellation until ${deadline}` : "Refundable (see policy)";
+  const label = deadlineLabel(deadline);
+  return label ? `Free cancellation until ${label}` : "Refundable (see policy)";
 }
 
 /**
@@ -109,8 +110,8 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
     refundableTag: r.refundableTag,
     cancellationText:
       r.refundableTag === "RFN"
-        ? r.cancellationPolicies?.cancelPolicyInfos?.[0]?.cancelTime
-          ? `Free cancellation until ${r.cancellationPolicies.cancelPolicyInfos[0].cancelTime}`
+        ? deadlineLabel(r.cancellationPolicies?.cancelPolicyInfos?.[0]?.cancelTime)
+          ? `Free cancellation until ${deadlineLabel(r.cancellationPolicies.cancelPolicyInfos[0].cancelTime)}`
           : "Refundable (see policy)"
         : "Non-refundable",
     supplier: "duffel",

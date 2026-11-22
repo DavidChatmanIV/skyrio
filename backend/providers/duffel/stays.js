@@ -20,6 +20,7 @@
 //              POST /stays/bookings/{id}/actions/cancel   (Duffel-Version: v2)
 
 import axios from "axios";
+import { cleanStayRules } from "../../routes/api/hotels/hotels.utils.js";
 
 const BASE_URL = "https://api.duffel.com";
 // Hotels to price per search. Each one is a fetch_all_rates call.
@@ -176,9 +177,11 @@ export function stayInfoOf(acc = {}, rate = {}) {
     checkOutBefore: hhmmTo12h(ci.check_out_before_time),
     hotelPhone: acc?.phone_number || null,
     hotelEmail: acc?.email || null,
-    conditions: (Array.isArray(rate?.conditions) ? rate.conditions : [])
-      .filter((c) => c?.description || c?.title)
-      .map((c) => ({ title: c.title || null, text: c.description || "" })),
+    ...cleanStayRules(
+      (Array.isArray(rate?.conditions) ? rate.conditions : [])
+        .filter((c) => c?.description || c?.title)
+        .map((c) => ({ title: c.title || null, text: c.description || "" }))
+    ),
     breakdown: breakdown.base != null || breakdown.tax != null || breakdown.fee != null ? breakdown : null,
   };
 }

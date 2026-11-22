@@ -118,6 +118,25 @@ export function roomsCoveredBy(rates = []) {
   return occ.size || rates.length || 1;
 }
 
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+/**
+ * A cancellation deadline as people read it. Uses the clock time written in
+ * the supplier's string (no time-zone conversion); "Z"/UTC strings say UTC.
+ * Midnight means the START of that day, so it's shown as 11:59 PM the day
+ * before ("2026-12-29 00:00" → "Dec 28, 11:59 PM"). null if unreadable.
+ */
+export function deadlineLabel(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*(Z|[+-]00:?00)?/.exec(
+    String(v || "").trim()
+  );
+  if (!m) return null;
+  let d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]));
+  if (+m[4] === 0 && +m[5] === 0) d = new Date(d.getTime() - 60000);
+  const h = d.getUTCHours();
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${h % 12 || 12}:${mm} ${h >= 12 ? "PM" : "AM"}${m[6] ? " UTC" : ""}`;
+}
+
 /** "16:00" or "04:00 PM" → "4:00 PM". Anything else → null (never guess). */
 export function to12h(v) {
   const m = /^\s*(\d{1,2}):(\d{2})\s*(AM|PM)?\s*$/i.exec(String(v || ""));
@@ -153,6 +172,75 @@ export function liteBreakdown(roomType, total) {
   return { base: round(tot - included), taxesAndFees: round(included), currency };
 }
 
+// Hotel text that asks for payment Skyrio already took (prepaid rates
+// only). Hidden, with a clear "you've paid in full" note in its place.
+const ALREADY_PAID_RE =
+  /bank transfer|payment before arrival|prepayment is required|full prepayment|pay(ment)? (is )?required (before|prior to) arrival|credit card is charged the total cost|not guaranteed until full payment/i;
+// Money the guest may still be asked for AT the hotel (deposits, cash).
+const AT_HOTEL_RE = /deposit|\bcash\b|reimburs|resort fee|collected (at|by|upon)/i;
+
+// Other booking sites named in supplier text ("cannot be guaranteed by
+// Priceline") → neutral words, so guests aren't confused about who they
+// booked with. The rule itself is unchanged.
+const OTHER_SITES_RE =
+  /\b(by|through|with|from|via|contact) (Priceline(\.com)?|Booking\.com|Expedia|Hotels\.com|Agoda|Hotelbeds|Travelocity|Orbitz)\b/gi;
+
+const sentences = (text) =>
+  String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(OTHER_SITES_RE, (_, w) => `${w} the booking partner`)
+    // Suppliers sometimes glue two sentences: "private host A damage deposit"
+    .replace(/([a-z])\s+(A|The) ((?:damage|security|refundable|cash) deposit)/g, "$1. $2 $3")
+    .split(/(?<=[.!?])\s+(?=[A-Z])/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+/**
+ * Makes supplier rules honest and short for Skyrio's checkout:
+ *  - drops a repeated title ("Guarantee Policy: Guarantee Policy: …")
+ *  - hides sentences asking for payment Skyrio already collected
+ *  - pulls deposits / cash / fees owed at the hotel into hotelCharges,
+ *    so they can be shown next to the total instead of buried
+ *  - drops rules left empty, and exact duplicates
+ * Returns { conditions, hotelCharges, hidPaymentText }.
+ */
+export function cleanStayRules(conditions = []) {
+  const out = [];
+  const charges = [];
+  const seen = new Set();
+  let hidPaymentText = false;
+  for (const c of Array.isArray(conditions) ? conditions : []) {
+    const title = String(c?.title || "").trim() || null;
+    let text = String(c?.text || "").trim();
+    if (title) {
+      const prefix = new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*`, "i");
+      while (prefix.test(text)) text = text.replace(prefix, "");
+    }
+    const kept = [];
+    for (const sent of sentences(text)) {
+      if (ALREADY_PAID_RE.test(sent)) {
+        hidPaymentText = true;
+        continue;
+      }
+      if (AT_HOTEL_RE.test(sent)) {
+        if (!charges.includes(sent)) charges.push(sent);
+        continue;
+      }
+      kept.push(sent);
+    }
+    const clean = kept.join(" ").trim();
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ title, text: clean });
+  }
+  // Most useful first: what to bring / know, then the rest.
+  const rank = (c) => (/important|check-?in|photo/i.test(String(c.title || "")) ? 0 : 1);
+  out.sort((a, b) => rank(a) - rank(b));
+  return { conditions: out, hotelCharges: charges, hidPaymentText };
+}
+
 /**
  * LiteAPI /data/hotel → the same stayInfo shape Duffel rooms use, so the
  * checkout page and emails treat both suppliers the same way.
@@ -181,7 +269,7 @@ export function liteStayInfoFromDetails(d = {}) {
     hotelEmail: String(d?.email || "").trim() || null,
     // Hotels with no 24-hour desk put arrival / key steps here.
     keyCollection: special || null,
-    conditions,
+    ...cleanStayRules(conditions),
   };
 }
 
