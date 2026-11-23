@@ -56,7 +56,8 @@ const CSS = `
   .sk-xc-view { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 16px;
     border-radius: 12px; border: 1px solid rgba(249,115,22,0.55); background: rgba(249,115,22,0.12);
     color: #ff8a2a; font: 700 13.5px/1 inherit; font-family: inherit; cursor: pointer;
-    transition: background .15s ease, color .15s ease; white-space: nowrap; }
+    transition: background .15s ease, color .15s ease; white-space: nowrap; text-decoration: none; }
+  .sk-xc-view[aria-disabled="true"] { opacity: .5; pointer-events: none; }
   .sk-xc-view:hover { background: rgba(249,115,22,0.22); color: #fff; }
   .sk-xc-view:focus-visible { outline: 2px solid #ff8a2a; outline-offset: 2px; }
   .sk-xc-view:disabled { opacity: .45; cursor: not-allowed; }
@@ -99,11 +100,6 @@ export default function ExcursionCard({ excursion, fallbackDestination }) {
 
   const rating = Number(excursion?.rating);
   const reviews = Number(excursion?.reviewCount) || 0;
-
-  function handleBook() {
-    if (!excursion?.bookingUrl) return;
-    window.open(excursion.bookingUrl, "_blank", "noopener,noreferrer");
-  }
 
   return (
     <article className="sk-xc" aria-label={title}>
@@ -213,15 +209,18 @@ export default function ExcursionCard({ excursion, fallbackDestination }) {
                 },
               }}
             />
-            <button
-              type="button"
+            {/* A real link, not window.open: Chrome on iPhone opened
+                window.open(…, "noopener") as a blank tab. */}
+            <a
               className="sk-xc-view"
-              onClick={handleBook}
-              disabled={!excursion?.bookingUrl}
+              href={excursion?.bookingUrl || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-disabled={!excursion?.bookingUrl}
               aria-label={`View ${title} on Viator (opens in a new tab)`}
             >
               View on Viator <ExternalLink size={13} aria-hidden="true" />
-            </button>
+            </a>
           </div>
         </div>
       </div>
