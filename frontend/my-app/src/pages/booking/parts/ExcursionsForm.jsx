@@ -13,6 +13,9 @@ export function ExcursionsForm({
   onSearch,
   onSearchStart,
   onSearchEnd,
+  // ({ searched, error }) — so the results area can say what happened
+  // instead of "Ready when you are".
+  onStatus,
   initial = null,
 }) {
   const [destDisplay, setDestDisplay] = useState("");
@@ -35,13 +38,20 @@ export function ExcursionsForm({
   }, [results]);
 
   useEffect(() => {
-    if (error) antdMessage.warning(error);
+    if (!error) return;
+    antdMessage.warning(error);
+    onStatus?.((s) => ({ ...s, searched: true, error }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
 
   const handleSearch = async (opts = {}) => {
     const dest = (opts.city ?? destDisplay).trim();
     const range = opts.dates ?? dates;
-    if (!dest) return antdMessage.warning("Enter a destination city");
+    if (!dest) {
+      onStatus?.({ searched: false, error: "Type a city to search, like Miami." });
+      return antdMessage.warning("Type a city to search, like Miami.");
+    }
+    onStatus?.({ searched: false, error: null });
 
     onSearchStart?.();
     await runExcursionSearch({
@@ -55,6 +65,7 @@ export function ExcursionsForm({
       category: category !== "any" ? category : undefined,
     });
     onSearchEnd?.();
+    onStatus?.((s) => ({ ...s, searched: true, destination: dest }));
   };
 
   // Prefill from the link (e.g. "Find activities" on a Sync Together trip).
@@ -90,6 +101,11 @@ export function ExcursionsForm({
             onChange={(ap) => {
               setDestDisplay(ap.city);
               onDestChange?.(ap.city);
+            }}
+            // Typing a city counts too — no need to pick it from the list.
+            onTextChange={(text) => {
+              setDestDisplay(text);
+              onDestChange?.(text);
             }}
           />
         </div>

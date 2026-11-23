@@ -110,6 +110,9 @@ export default function ExcursionResults({
   loading = false,
   error = null,
   destination = null,
+  // A search ran (so an empty list means "nothing found", not "not yet").
+  searched = false,
+  searchedFor = null,
   // Optional: extra button under each card (Sync Together's
   // "Suggest to group"). Gets the excursion, returns an element.
   renderAction = null,
@@ -154,7 +157,7 @@ export default function ExcursionResults({
               marginBottom: 7,
             }}
           >
-            Ready when you are
+            {searched ? "No experiences found" : "Ready when you are"}
           </div>
           <div
             style={{
@@ -163,7 +166,9 @@ export default function ExcursionResults({
               color: "rgba(255,255,255,0.38)",
             }}
           >
-            Enter a destination above to find tours & experiences
+            {searched
+              ? `Nothing came up${searchedFor ? ` for ${searchedFor}` : ""}. Try another city nearby, or set What to "Anything fun".`
+              : "Enter a destination above to find tours & experiences"}
           </div>
         </div>
       )}
