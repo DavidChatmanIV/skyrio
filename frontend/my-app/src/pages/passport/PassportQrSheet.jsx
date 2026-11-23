@@ -21,6 +21,7 @@ import {
   MessageSquareText,
   ScanLine,
 } from "lucide-react";
+import { openExternal } from "@/utils/openExternal";
 
 const W = 640;
 const H = 900;
@@ -301,7 +302,7 @@ export default function PassportQrSheet({
   };
 
   const openApp = (href) => {
-    window.open(href, "_blank", "noopener,noreferrer");
+    openExternal(href);
     shared();
   };
   const text = encodeURIComponent(`${pitch} ${link}`);

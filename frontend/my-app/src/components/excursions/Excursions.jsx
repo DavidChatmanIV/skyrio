@@ -23,11 +23,6 @@ export default function ExcursionCard({ excursion, onSaveTrip }) {
     return typeof p === "number" ? p.toFixed(0) : p ? String(p) : null;
   }, [excursion]);
 
-  function handleBook() {
-    if (!excursion?.bookingUrl) return;
-    window.open(excursion.bookingUrl, "_blank", "noopener,noreferrer");
-  }
-
   return (
     <div className="sk-result-card" style={{ marginBottom: 14 }}>
       <div className="sk-resultRow">
@@ -108,10 +103,14 @@ export default function ExcursionCard({ excursion, onSaveTrip }) {
                 }}
                 onSaveConfirmed={() => onSaveTrip?.(excursion)}
               />
+              {/* A real link, not window.open (blank tab in Chrome on iPhone). */}
               <Button
                 className="sk-btn-orange"
                 size="small"
-                onClick={handleBook}
+                href={excursion?.bookingUrl || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                disabled={!excursion?.bookingUrl}
               >
                 View on Viator
               </Button>

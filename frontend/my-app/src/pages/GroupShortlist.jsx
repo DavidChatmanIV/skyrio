@@ -32,6 +32,7 @@ import {
   Search,
 } from "lucide-react";
 import dayjs from "dayjs";
+import { openExternal } from "@/utils/openExternal";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 function authHeaders() {
@@ -483,7 +484,7 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
     if (it.kind === "activity") {
       // Excursions are booked on the provider's page (opens in a new tab).
       if (it.activity?.url)
-        window.open(it.activity.url, "_blank", "noopener,noreferrer");
+        openExternal(it.activity.url);
       else
         navigate(
           searchLink("Excursions", {
@@ -496,7 +497,7 @@ export default function GroupShortlist({ groupId, myAirport, cabinClass }) {
     if (it.kind === "event") {
       // Tickets are bought on Ticketmaster (opens in a new tab).
       if (it.event?.url)
-        window.open(it.event.url, "_blank", "noopener,noreferrer");
+        openExternal(it.event.url);
       else
         navigate(
           searchLink("Events", {
