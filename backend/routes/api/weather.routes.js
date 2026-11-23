@@ -2,8 +2,15 @@ import { Router } from "express";
 import { getForecast, codeToLabel } from "../../services/weatherForecast.js";
 
 const router = Router();
-const OWM_KEY = process.env.WEATHER_API_KEY;
+// Same key lookup as services/weatherForecast.js, so one key on Render
+// powers every weather feature.
+const OWM_KEY = process.env.OPENWEATHER_API_KEY || process.env.WEATHER_API_KEY;
 const OWM_BASE = "https://api.openweathermap.org";
+
+// /preview cache: 10 minutes per ~1 km area, so busy pages don't use up
+// OpenWeather's free-plan call limit at launch.
+const PREVIEW_TTL_MS = 10 * 60 * 1000;
+const previewCache = new Map();
 
 /**
  * GET /api/weather?city=Miami&days=5
@@ -66,11 +73,26 @@ router.get("/preview", async (req, res) => {
       });
     }
 
-    const { lat, lon } = req.query;
-    if (lat == null || lon == null) {
+    const latN = Number(req.query.lat);
+    const lonN = Number(req.query.lon);
+    if (
+      !Number.isFinite(latN) || !Number.isFinite(lonN) ||
+      Math.abs(latN) > 90 || Math.abs(lonN) > 180
+    ) {
       return res
         .status(400)
         .json({ success: false, message: "lat and lon are required" });
+    }
+    const lat = latN.toFixed(2);
+    const lon = lonN.toFixed(2);
+    const cacheKey = `${lat},${lon}`;
+    const hit = previewCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < PREVIEW_TTL_MS) {
+      // Local time is worked out fresh, never served stale from the cache.
+      return res.json({
+        ...hit.body,
+        localTimeIso: new Date(Date.now() + hit.body.timezoneOffsetSec * 1000).toISOString(),
+      });
     }
 
     const [currentRes, fcRes] = await Promise.all([
@@ -113,15 +135,17 @@ router.get("/preview", async (req, res) => {
       }
     }
 
-    res.json({
+    const body = {
       success: true,
       temp: Math.round(currentData.main.temp),
       high,
       low,
       code: currentData.weather?.[0]?.id,
       timezoneOffsetSec: tzOffsetSec,
-      localTimeIso: new Date(nowLocalMs).toISOString(),
-    });
+    };
+    if (previewCache.size > 1000) previewCache.clear();
+    previewCache.set(cacheKey, { at: Date.now(), body });
+    res.json({ ...body, localTimeIso: new Date(nowLocalMs).toISOString() });
   } catch (err) {
     console.error("[weather-preview] Error:", err.message);
     res.status(500).json({
