@@ -132,7 +132,22 @@ function pickEnglishDescription(text) {
 // (pid / mcid). Never add a second pid on top of it — duplicate or
 // conflicting tracking can lose the commission. Only add pid when the
 // link has none.
+// Viator's sandbox returns links on its private test shop
+// (e.g. shop.live.rc.viator.com), which the public can't open. Send those
+// to the same path on www.viator.com — the same tour's public page.
+export function publicViatorUrl(productUrl) {
+  try {
+    const u = new URL(productUrl);
+    const host = u.hostname.toLowerCase();
+    if (host !== "www.viator.com" && host.endsWith(".viator.com")) u.hostname = "www.viator.com";
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 function buildAffiliateLink(productUrl, affiliateCode) {
+  productUrl = productUrl ? publicViatorUrl(productUrl) : null;
   if (!productUrl) return null;
   if (!affiliateCode) return productUrl;
   if (/[?&]pid=/i.test(productUrl)) return productUrl;

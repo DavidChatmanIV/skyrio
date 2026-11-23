@@ -937,6 +937,8 @@ export default function BookingPage() {
     restored?.tab === "Stays" ? restored.results : []
   );
   const [excursionResults, setExcursionResults] = useState([]);
+  // { searched, error, destination } from the Excursions form.
+  const [excursionStatus, setExcursionStatus] = useState({ searched: false, error: null });
   // Events tab: the last search (city/dates/category). EventsResults fetches itself.
   const [eventsSearch, setEventsSearch] = useState(null);
   // Cars tab: the last car search. CarResults fetches and handles checkout.
@@ -2369,6 +2371,7 @@ export default function BookingPage() {
             }}
             onSearchStart={() => setManualSearchLoading(true)}
             onSearchEnd={() => setManualSearchLoading(false)}
+            onStatus={setExcursionStatus}
             initial={excursionInitial}
           />
         );
@@ -4613,6 +4616,9 @@ export default function BookingPage() {
                 results={excursionResults}
                 loading={isSearching}
                 destination={destCity}
+                error={excursionStatus.error}
+                searched={excursionStatus.searched}
+                searchedFor={excursionStatus.destination}
                 renderAction={
                   syncGroupId
                     ? (ex) => <SuggestBtn kind="activity" data={ex} />
