@@ -8,6 +8,7 @@
 
 import { liteapi } from "../../routes/api/hotels/hotel.provider.js";
 import { buildOccupancies, normalizeHotelRate, deadlineLabel } from "../../routes/api/hotels/hotels.utils.js";
+import { roomKindOf } from "../../utils/roomKind.js";
 import {
   duffelStaysEnabled,
   searchDuffelStays,
@@ -101,6 +102,7 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
     hotelName: r.name,
     starRating: r.stars,
     roomName: r.roomName,
+    roomKind: roomKindOf(r.roomName, r.name),
     boardName: r.boardName,
     roomCount: r.roomCount,
     roomsCovered: r.roomCount || rooms,
@@ -132,6 +134,7 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
         hotelName: hotel.name || "Hotel",
         starRating: hotel.stars ?? null,
         roomName: r.roomName,
+        roomKind: roomKindOf(r.roomName, hotel.name),
         boardName: r.boardName,
         // How many of the requested rooms this price covers (see
         // roomsCoveredBy in hotels.utils.js).

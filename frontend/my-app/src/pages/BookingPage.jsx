@@ -4321,6 +4321,12 @@ export default function BookingPage() {
                               {hotel.roomName}
                               {hotel.boardName ? ` · ${hotel.boardName}` : ""}
                             </div>
+                            {/* Shared rooms say so plainly (a dorm bed isn't a room of your own). */}
+                            {hotel.roomKind && hotel.roomKind !== "private" && (
+                              <div className="sk-roomKind" data-kind={hotel.roomKind}>
+                                {hotel.roomType || "Room type not stated: check with the property"}
+                              </div>
+                            )}
                           </div>
                           <div className="sk-resultRight">
                             <div className="sk-priceLine">

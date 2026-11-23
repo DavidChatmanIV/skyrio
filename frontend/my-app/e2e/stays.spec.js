@@ -35,3 +35,18 @@ test("a failed hotel search says so instead of showing an empty page", async ({ 
   await page.goto(SEARCH);
   await expect(page.getByText(/hotel search failed/i).first()).toBeVisible();
 });
+
+test("a dorm bed says it's a shared room; private rooms stay as they are", async ({ page, routes }) => {
+  const { HOTEL_RATES } = await import("./mocks.js");
+  routes["GET /api/hotels/search"] = {
+    ok: true,
+    hotels: [
+      { ...HOTEL_RATES[0], roomKind: "private", roomType: "Private room" },
+      { ...HOTEL_RATES[1], roomName: "Bed in 6-Bed Female Dormitory", roomKind: "female_dorm", roomType: "Female-only dorm (shared room)" },
+    ],
+  };
+  await page.goto(SEARCH);
+  await expect(page.getByText("Female-only dorm (shared room)")).toBeVisible();
+  await expect(page.locator(".sk-roomKind")).toHaveCount(1);
+  if (process.env.SHOT) await page.locator(".sk-result-card").first().screenshot({ path: process.env.SHOT });
+});

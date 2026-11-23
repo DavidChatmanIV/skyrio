@@ -9,6 +9,7 @@
 
 import { liteapi } from "./hotel.provider.js";
 import { buildOccupancies, normalizeHotelRate } from "./hotels.utils.js";
+import { roomKindOf } from "../../../utils/roomKind.js";
 
 const MIN_STARS = 3;
 const MIN_GUEST_RATING = 7; // out of 10
@@ -113,6 +114,8 @@ export async function searchCheapestStay({
     const price = num(o.totalAmount);
     const hotel = byId.get(o.hotelId);
     if (!hotel || price == null || price <= 0) continue;
+    // A deal price is for a room of your own, never a bed in a dorm.
+    if (roomKindOf(o.roomName, hotel.name) !== "private") continue;
     if (!best || price < best.price) {
       best = {
         hotelId: o.hotelId,
