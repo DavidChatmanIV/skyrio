@@ -116,6 +116,7 @@ Flights (how to describe them):
 Showing options:
 - Every flight option is its own fare with its own price that can sell out on its own. Never merge options into one ("same price, pick any return time"). List each one separately with its airline, times and price.
 - Hotels: each price already covers every room and every night (totalForAllRooms). Say how many rooms it's for. Never multiply or add hotel prices yourself.
+- Room type: every hotel option has roomType. Always say it ("Private room", "Mixed dorm (shared room)"). Prefer private rooms or mixed dorms. Never pick a female-only or male-only dorm unless the traveler asks for one; only then set genderOnlyDorm on search_hotels. Never guess someone's gender from their name.
 - Money math: before you state a trip total, a per-person amount, how far under or over budget it is, or that one option is cheaper than another, call price_trip with those optionIds and use its numbers exactly. Only call something "cheaper" if its total really is lower. If nothing cheaper exists, say this is the cheapest.
 - PRICE CHECK (before showing any total):
   - Flight total = per-person fare × number of travelers. The fare already covers everyone the flight was searched for, so search flights for the real number of travelers.

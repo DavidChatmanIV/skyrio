@@ -67,6 +67,7 @@ import {
   toTmDateTime,
   addDays,
 } from "../../utils/eventsUtils.js";
+import { roomAllowed, roomLabelOf } from "../../utils/roomKind.js";
 
 // ───────────────────────── Tool definitions (sent to Claude) ─────────────────────────
 
@@ -216,6 +217,12 @@ export const ATLAS_BOOKING_TOOLS = [
         maxNightly: {
           type: "number",
           description: "Optional budget cap in USD per room per night",
+        },
+        genderOnlyDorm: {
+          type: "string",
+          enum: ["female", "male"],
+          description:
+            "ONLY if the traveler themself asks for a female-only or male-only dorm. Never set it from their name, gender or anything else.",
         },
       },
       required: ["destination", "checkin", "checkout", "adults"],
@@ -1248,6 +1255,9 @@ async function runHotelSearch(owner, userId, input) {
     // Filtering on rates.length dropped every hotel (Nov 12 test).
     // maxNightly is per room per night.
     .filter((r) => !input.maxNightly || r.nightly / rooms <= input.maxNightly)
+    // Never a female-only or male-only dorm unless the traveler asked for
+    // that one. Private rooms and mixed dorms are fine.
+    .filter((r) => roomAllowed(r.roomKind, input.genderOnlyDorm))
     .sort((a, b) => a.total - b.total)
     .slice(0, 15)
     .map((r) => ({
@@ -1255,6 +1265,8 @@ async function runHotelSearch(owner, userId, input) {
       hotel: r.hotelName,
       starRating: r.starRating,
       room: r.roomName,
+      // Say which it is: "Private room", "Mixed dorm (shared room)"…
+      roomType: roomLabelOf(r.roomKind) || "Room type not stated",
       board: r.boardName,
       rooms,
       nights,
@@ -1475,6 +1487,7 @@ async function proposeBooking(
       title: `${opt.display.hotel}`,
       lines: [
         opt.display.room,
+        opt.display.roomType,
         opt.display.board,
         sharedRoomId ? "Your share of a shared room" : null,
       ].filter(Boolean),
@@ -1701,6 +1714,7 @@ async function openCheckout(owner, userId, { optionId }) {
       : [
           `${opt.search.checkin} – ${opt.search.checkout}`,
           [d.room, d.board].filter(Boolean).join(" · "),
+          d.roomType || null,
           d.refundable ? "Refundable" : "Non-refundable",
         ].filter(Boolean);
   const travelers = (opt.search.adults || 1) + (opt.search.children || 0);

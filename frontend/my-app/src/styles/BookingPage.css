@@ -4989,3 +4989,22 @@ body.sk-roombar-on .sk-results-wrap {
 
 /* "Ticket sold by Hahn Air": the seller, when it isn't the airline that flies */
 .sk-soldBy { font-size: 11.5px; color: rgba(255, 255, 255, 0.6); margin-top: 1px; }
+
+/* Room type for shared rooms (dorms) on Stays results */
+.sk-roomKind {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffd1a1;
+  background: rgba(255, 138, 42, 0.14);
+  border: 1px solid rgba(255, 138, 42, 0.35);
+}
+.sk-roomKind[data-kind="female_dorm"],
+.sk-roomKind[data-kind="male_dorm"] {
+  color: #e9d5ff;
+  background: rgba(167, 139, 250, 0.16);
+  border-color: rgba(167, 139, 250, 0.4);
+}

@@ -36,6 +36,7 @@ import {
   currentUserId,
   CHECKOUT_ENDED,
 } from "../../../services/checkoutToken.js";
+import { roomKindOf, roomLabelOf } from "../../../utils/roomKind.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -261,7 +262,11 @@ export async function searchHotels(req, res) {
     const duffelRates = (await duffelPromise).filter(
       (r) => r.offerId && Number(r.totalAmount) > 0
     );
-    const rates = [...liteRates, ...duffelRates];
+    // Room type in plain words (private room / mixed dorm / female-only dorm…).
+    const rates = [...liteRates, ...duffelRates].map((r) => {
+      const roomKind = roomKindOf(r.roomName, r.name);
+      return { ...r, roomKind, roomType: roomLabelOf(roomKind) };
+    });
 
     return res.json({
       ok: true,
