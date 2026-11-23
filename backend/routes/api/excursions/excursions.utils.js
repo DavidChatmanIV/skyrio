@@ -128,12 +128,14 @@ function pickEnglishDescription(text) {
   return truncated;
 }
 
-// TODO: confirm Viator's actual affiliate query param name
-// (commonly "pid" or "mcid" depending on partner tier — check
-// the Partner dashboard's own generated links for the exact key).
+// Viator's productUrl usually already carries the partner's tracking
+// (pid / mcid). Never add a second pid on top of it — duplicate or
+// conflicting tracking can lose the commission. Only add pid when the
+// link has none.
 function buildAffiliateLink(productUrl, affiliateCode) {
   if (!productUrl) return null;
   if (!affiliateCode) return productUrl;
+  if (/[?&]pid=/i.test(productUrl)) return productUrl;
   const sep = productUrl.includes("?") ? "&" : "?";
   return `${productUrl}${sep}pid=${encodeURIComponent(affiliateCode)}`;
 }
