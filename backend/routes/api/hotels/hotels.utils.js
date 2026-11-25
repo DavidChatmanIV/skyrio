@@ -157,6 +157,35 @@ export function to12h(v) {
  * separately by the checkout). Same shape as Duffel's stayInfo.breakdown.
  * null when LiteAPI lists no included taxes — nothing is estimated.
  */
+/**
+ * Taxes and fees the HOTEL collects at check-in (LiteAPI marks them
+ * included: false — city tax, resort fee…). They're not in the price
+ * Skyrio charges, so they must be shown next to it, never left for the
+ * front desk to surprise anyone with.
+ * → { amount, currency, names } or null
+ */
+export function payAtHotelOf(roomType) {
+  let amount = 0;
+  let currency = null;
+  const names = [];
+  for (const r of roomType?.rates ?? []) {
+    for (const t of r?.retailRate?.taxesAndFees ?? []) {
+      const n = Number(t?.amount);
+      if (t?.included !== false || !Number.isFinite(n) || n <= 0) continue;
+      amount += n;
+      currency ||= t?.currency || null;
+      const name = String(t?.description || "").trim();
+      if (name && !names.includes(name)) names.push(name);
+    }
+  }
+  if (!(amount > 0)) return null;
+  return {
+    amount: Math.round(amount * 100) / 100,
+    currency: currency || roomType?.offerRetailRate?.currency || "USD",
+    names,
+  };
+}
+
 export function liteBreakdown(roomType, total) {
   const currency = roomType?.offerRetailRate?.currency ?? "USD";
   let included = 0;
@@ -400,6 +429,9 @@ export function normalizeHotelRate(hotelEntry) {
       // Same shape as Duffel rooms. Hotel details (times, contact, rules)
       // are added by the checkout page from /api/hotels/details/:hotelId.
       stayInfo: { breakdown: liteBreakdown(roomType, offerTotal(roomType)) },
+
+      // Paid to the hotel at check-in, on top of totalAmount (null if none).
+      payAtHotel: payAtHotelOf(roomType),
 
       raw: roomType,
     };

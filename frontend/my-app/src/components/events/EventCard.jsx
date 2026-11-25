@@ -21,7 +21,8 @@ function formatTime(timeStr) {
 function formatPrice(pr) {
   if (!pr || !(Number(pr.min) > 0)) return null; // never "From $0"
   const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: pr.currency || "USD", maximumFractionDigits: 0 });
-  return `From ${fmt.format(pr.min)}`;
+  // Ticketmaster adds its own fees at checkout unless the range has them.
+  return `From ${fmt.format(pr.min)}${pr.includesFees ? " incl. fees" : " + Ticketmaster fees"}`;
 }
 
 const CalendarIcon = () => (

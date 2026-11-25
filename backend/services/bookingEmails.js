@@ -62,6 +62,15 @@ const conditionsOf = (st) =>
 // the plain summary, then the hotel's exact sentences.
 export function atHotelLines(st) {
   const lines = [];
+  const p = st?.payAtHotel;
+  if (p?.amount > 0) {
+    lines.push({
+      bold: "Paid at the hotel:",
+      text: `${formatMoney(p.amount, p.currency || "USD")}${
+        p.names?.length ? ` (${p.names.join(", ")})` : ""
+      } at check-in. This isn't included in what you paid Skyrio.`,
+    });
+  }
   const dep = st?.deposit;
   if (dep) {
     lines.push({ bold: dep.headline, text: dep.details });

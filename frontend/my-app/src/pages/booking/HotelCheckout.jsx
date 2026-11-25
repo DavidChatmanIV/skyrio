@@ -217,6 +217,8 @@ function boardLabel(board) {
 // Fees the hotel collects at check-in (resort fees, city tax). Only shown
 // when the rate actually lists them — we never guess.
 function payAtHotelFees(room) {
+  // Read by the server from each rate (LiteAPI keeps them per rate).
+  if (room?.payAtHotel?.amount > 0) return room.payAtHotel;
   const lists = [
     room?.taxesAndFees,
     room?.retailRate?.taxesAndFees,
@@ -976,6 +978,8 @@ function PaymentForm({
             // later ("your stay got cheaper").
             ...(Number(r.adults) > 0 ? { adults: Number(r.adults) } : {}),
             ...(r.stayInfo ? { stayInfo: r.stayInfo } : {}),
+            // Taxes/fees the hotel collects at check-in (for the email).
+            ...(r.payAtHotel?.amount > 0 ? { payAtHotel: r.payAtHotel } : {}),
           })),
         }),
       });

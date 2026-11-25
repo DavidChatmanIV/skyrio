@@ -305,6 +305,21 @@ const DETAILS_TTL_MS = 24 * 60 * 60 * 1000;
 const detailsCache = new Map();
 const HOTEL_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
+// Fees the hotel collects at check-in, for the confirmation email. Only a
+// clean { amount, currency, names } from checkout is used.
+function withPayAtHotel(stay, p) {
+  const amount = Number(p?.amount);
+  if (!(amount > 0) || amount > 100000) return stay;
+  return {
+    ...(stay || {}),
+    payAtHotel: {
+      amount: Math.round(amount * 100) / 100,
+      currency: /^[A-Z]{3}$/.test(String(p.currency || "")) ? p.currency : "USD",
+      names: (Array.isArray(p.names) ? p.names : []).map((n) => String(n).slice(0, 60)).slice(0, 4),
+    },
+  };
+}
+
 /** Cached LiteAPI /data/hotel → stayInfo. null when LiteAPI fails. */
 async function liteHotelStayInfo(hotelId) {
   const hit = detailsCache.get(hotelId);
@@ -1140,7 +1155,7 @@ export async function confirmHotelBooking(req, res) {
             alsoStaying: room.alsoStaying || [],
             confirmationCode: d.hotelConfirmationCode || d.bookingId || null,
             // Duffel extras (times, hotel contact, key collection, rules).
-            stay: d.stay || room.stayInfo || null,
+            stay: withPayAtHotel(d.stay || room.stayInfo || null, room.payAtHotel),
           };
         })
         .filter(Boolean);

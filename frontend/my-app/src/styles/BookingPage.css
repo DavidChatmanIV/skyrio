@@ -5008,3 +5008,12 @@ body.sk-roombar-on .sk-results-wrap {
   background: rgba(167, 139, 250, 0.16);
   border-color: rgba(167, 139, 250, 0.4);
 }
+
+/* Fees the hotel collects at check-in, shown on the room card */
+.sk-payAtHotel {
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #ffb347;
+}
