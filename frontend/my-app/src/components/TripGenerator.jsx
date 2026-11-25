@@ -10,8 +10,11 @@
 //   Book this trip    → Book page, flight first then the stay (package)
 //
 // Uses /api/atlas/suggest (the same engine as the landing page ideas).
-// Totals there are AI ESTIMATES, so the card always says "est." and the
-// real price only shows on the Book page search. Nothing is booked here.
+// Totals there are AI ESTIMATES, labeled "est.". When Skyrio's own fare
+// checks (/api/deals/fares, real fares found in the last day) have the
+// same place and dates, the card shows that REAL price instead, a small
+// route map, and "Lower than usual on Skyrio" when it's a clear dip.
+// Test (sandbox) fares are never shown as real. Nothing is booked here.
 //
 // Self-contained: own styles (tg- prefix), lucide icons, guests welcome.
 // ─────────────────────────────────────────────────────────────
@@ -40,6 +43,7 @@ import {
   HOME_AIRPORT_EVENT,
 } from "@/lib/homeAirport";
 import AirportInput from "@/pages/booking/AirportInput";
+import { lazyPart } from "@/utils/lazyPart";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -58,6 +62,15 @@ const WHO = [
 ];
 
 const CSS = `
+.tg-real { margin-top: 12px; padding: 12px 14px; border-radius: 14px; display: grid; gap: 6px;
+  background: rgba(110,231,168,.08); border: 1px solid rgba(110,231,168,.3); font-size: 13.5px; color: #fff; }
+.tg-real__line { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tg-real__line span { color: rgba(255,255,255,.82); }
+.tg-real small { color: rgba(255,255,255,.62); font-size: 12px; line-height: 1.45; }
+.tg-real__badge { font-size: 11.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+  color: #6ee7a8 !important; }
+.tg-real__low { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800;
+  color: #0f2a1e !important; background: linear-gradient(90deg, #6ee7a8, #a7f3d0); }
 .tg { margin: 26px auto 0; max-width: 720px; text-align: left; color: #fff; font-family: "DM Sans", system-ui, sans-serif; }
 .tg *, .tg *::before, .tg *::after { box-sizing: border-box; }
 .tg-glass { position: relative; overflow: hidden; border-radius: 20px;
@@ -155,6 +168,15 @@ const fmtDay = (iso) =>
 const nightsBetween = (a, b) =>
   Math.max(1, Math.round((new Date(b) - new Date(a)) / 86400000));
 const usd = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
+const MiniRouteMap = lazyPart(() => import("@/components/MiniRouteMap"), null);
+// "3 hours ago" for when Skyrio found a fare.
+function foundAgo(at) {
+  const ms = Date.now() - Date.parse(at || "");
+  if (!Number.isFinite(ms) || ms < 0) return "recently";
+  const h = Math.round(ms / 3600000);
+  if (h < 1) return "less than an hour ago";
+  return h === 1 ? "1 hour ago" : `${h} hours ago`;
+}
 
 export default function TripGenerator() {
   const navigate = useNavigate();
@@ -198,6 +220,39 @@ export default function TripGenerator() {
   const [editing, setEditing] = useState(null); // "place" | "dates" | null
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // Real fares Skyrio found in the last day from this airport (and nearby
+  // ones). Empty while they're test prices, so estimates stay labeled.
+  const [fares, setFares] = useState([]);
+  useEffect(() => {
+    setFares([]);
+    if (!from) return;
+    const controller = new AbortController();
+    fetch(`${API}/api/deals/fares?origin=${encodeURIComponent(from)}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && !d.preview && Array.isArray(d.fares)) setFares(d.fares);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [from]);
+  // The real fare for exactly this place and these dates, if Skyrio has one.
+  const realFor = (t) =>
+    t
+      ? fares.find((f) => f.destination === t.destCode && f.departDate === t.depart && f.returnDate === t.return) ||
+        null
+      : null;
+  // Places with a real fare that fits the budget (flight for everyone; with
+  // the hotel too when it's one traveler and Skyrio has the hotel price).
+  const fareHints = () => {
+    const max = Number(budget) || Infinity;
+    return fares
+      .filter((f) => !seen.current.includes(f.city))
+      .filter((f) => (who === 1 && f.tripTotal ? f.tripTotal : f.price * who) <= max)
+      .sort((a, b) => Number(b.lowerThanUsual) - Number(a.lowerThanUsual) || a.price - b.price)
+      .slice(0, 8)
+      .map((f) => ({ destCode: f.destination, city: f.city, depart: f.departDate, return: f.returnDate, price: f.price }));
+  };
 
   // Suggestions not shown yet, and places already shown (so Shuffle doesn't repeat).
   const queue = useRef([]);
@@ -288,6 +343,7 @@ export default function TripGenerator() {
               : { type: "group" }),
           },
           count: lockPlace || lockDates ? 1 : 3,
+          ...(fares.length && !lockDates ? { realFares: fareHints() } : {}),
           // A new list every time (not the 1-hour cache).
           promptHistory: ["Shuffle: a different trip", String(Date.now())],
         }),
@@ -315,10 +371,12 @@ export default function TripGenerator() {
 
   const bookIt = () => {
     if (!trip) return;
+    const real = realFor(trip);
     const p = new URLSearchParams({
       kind: "package",
       tab: "Flights",
-      from: String(from || "").toUpperCase(),
+      // The real fare may be from a nearby airport (e.g. JFK for EWR).
+      from: (real?.fromCode || String(from || "")).toUpperCase(),
       to: trip.destCode,
       toName: trip.trip,
       depart: trip.depart,
@@ -331,6 +389,10 @@ export default function TripGenerator() {
   };
 
   const nights = trip ? nightsBetween(trip.depart, trip.return) : 0;
+  const real = realFor(trip);
+  // A real total only when it's everything for one traveler (flight + the
+  // hotel Skyrio priced for 1 room, fees paid at the hotel included).
+  const realTotal = real && who === 1 && real.tripTotal ? real.tripTotal : null;
 
   return (
     <div className="tg">
@@ -481,13 +543,61 @@ export default function TripGenerator() {
               <div className="tg-place">{trip.trip}</div>
               {trip.summary && <p className="tg-sum">{trip.summary}</p>}
             </div>
-            {Number.isFinite(trip.total) && trip.total > 0 && (
+            {realTotal ? (
               <div className="tg-total">
-                <b>{usd(trip.total)}</b>
-                <small>est. for {who === 1 ? "you" : `${who} people`}</small>
+                <b>{usd(realTotal)}</b>
+                <small>flight + hotel for you</small>
               </div>
+            ) : (
+              Number.isFinite(trip.total) &&
+              trip.total > 0 && (
+                <div className="tg-total">
+                  <b>{usd(trip.total)}</b>
+                  <small>est. for {who === 1 ? "you" : `${who} people`}</small>
+                </div>
+              )
             )}
           </div>
+
+          {/* Real prices Skyrio found for this exact trip. */}
+          {real && (
+            <div className="tg-real">
+              <div className="tg-real__line">
+                <span className="tg-real__badge">Real Skyrio price</span>
+                {real.lowerThanUsual && <span className="tg-real__low">Lower than usual on Skyrio</span>}
+              </div>
+              <div className="tg-real__line">
+                <span>
+                  Flight {real.fromCode} → {real.destination}
+                  {real.stops === 0 ? " · nonstop" : ""}
+                  {real.airline ? ` · ${real.airline}` : ""}
+                </span>
+                <b>{usd(real.price)} round trip{who > 1 ? " per person" : ""}</b>
+              </div>
+              {realTotal && real.hotel && (
+                <div className="tg-real__line">
+                  <span>Hotel · {real.hotel.name}</span>
+                  <b>{usd(real.hotel.price + (real.hotel.payAtHotel || 0))}</b>
+                </div>
+              )}
+              {realTotal && real.hotel?.payAtHotel > 0 && (
+                <small>
+                  Includes {usd(real.hotel.payAtHotel)} in fees paid at the hotel.
+                </small>
+              )}
+              {real.usual && (
+                <small>
+                  This flight is usually {usd(real.usual.low)}–{usd(real.usual.high)} on Skyrio.
+                </small>
+              )}
+              <small>Found {foundAgo(real.foundAt)}.</small>
+              <MiniRouteMap
+                from={real.from}
+                to={[real.lat, real.lng]}
+                label={`Map: ${real.fromCode} to ${real.city}`}
+              />
+            </div>
+          )}
 
           <div className="tg-parts">
             {/* Place */}
@@ -600,7 +710,7 @@ export default function TripGenerator() {
               <Plane size={17} aria-hidden="true" />
               <div className="tg-part__main">
                 <b>
-                  {String(from || "").toUpperCase()} → {trip.destCode}
+                  {(real?.fromCode || String(from || "")).toUpperCase()} → {trip.destCode}
                 </b>
                 <span>
                   Round-trip flight, then a hotel for {nights} night
@@ -638,8 +748,10 @@ export default function TripGenerator() {
             </button>
           </div>
           <p className="tg-fine">
-            {trip.total ? "Estimated total. " : ""}Live prices show on the next
-            step. Nothing is booked until you pay.
+            {real
+              ? "Prices Skyrio found in the last day. Fares change, so the next step checks live prices before you pay."
+              : `${trip.total ? "Estimated total. " : ""}Live prices show on the next step.`}{" "}
+            Nothing is booked until you pay.
           </p>
         </div>
       )}
