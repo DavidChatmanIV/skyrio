@@ -10,6 +10,7 @@
 import express from "express";
 import DealSnapshot from "../models/DealSnapshot.js";
 import HotelSnapshot from "../models/HotelSnapshot.js";
+import { usualPrices, isLowerThanUsual } from "../services/usualPrice.js";
 import {
   DESTINATION_BY_CODE,
   airportGroupFor,
@@ -55,6 +56,12 @@ router.get("/", async (req, res) => {
       byDest.set(r.destination, entry);
     }
 
+    // Usual price on Skyrio for each route (from Skyrio's own past scans).
+    const usualByRoute = await usualPrices({ origins: group, tripType, env: ENV }).catch((e) => {
+      console.warn("[Deals] usual prices skipped:", e.message);
+      return new Map();
+    });
+
     const deals = [];
     for (const [code, { home, best }] of byDest) {
       const place = DESTINATION_BY_CODE[code];
@@ -97,6 +104,13 @@ router.get("/", async (req, res) => {
         departDate: best.departDate,
         returnDate: best.returnDate,
         foundAt: best.foundAt,
+        // "Usually $X–$Y on Skyrio" (null until there's 2+ weeks of history)
+        // and whether this fare is clearly below that.
+        usual: (() => {
+          const u = usualByRoute.get(`${best.origin}|${code}`);
+          return u ? { low: u.low, high: u.high, days: u.days } : null;
+        })(),
+        lowerThanUsual: isLowerThanUsual(best.price, usualByRoute.get(`${best.origin}|${code}`)),
         hotel,
         // Flight + hotel, 1 traveler and 1 room — EVERYTHING they'd pay,
         // including fees paid at the hotel (resort fees, city tax), so the
