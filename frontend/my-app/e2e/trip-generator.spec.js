@@ -65,3 +65,17 @@ test("test (sandbox) fares never show as real: the estimate stays labeled", asyn
   await expect(page.getByText("Real Skyrio price")).toHaveCount(0);
   expect(callsTo(calls, "POST /api/atlas/suggest")[0].body.realFares).toBeUndefined();
 });
+
+test("preview link: test fares show, clearly labeled as test prices", async ({ page, routes }) => {
+  routes["GET /api/deals/fares"] = { origin: "EWR", preview: true, fares: [FARE] };
+  routes["POST /api/atlas/suggest"] = { suggestions: [SUGGESTION] };
+  await page.goto("/?farePreview=1");
+  const from = page.getByPlaceholder("Flying from?");
+  await from.fill("Newark");
+  await page.locator(".sk-airport-option", { hasText: "EWR" }).first().dispatchEvent("mousedown");
+  await page.getByRole("button", { name: /make me a trip/i }).click();
+  await expect(page.getByText("Test price (preview, not real)")).toBeVisible();
+  await expect(page.getByText("Real Skyrio price")).toHaveCount(0);
+  await expect(page.getByText(/These aren't real prices/)).toBeVisible();
+  if (process.env.SHOT) await page.locator(".tg-real").screenshot({ path: process.env.SHOT });
+});

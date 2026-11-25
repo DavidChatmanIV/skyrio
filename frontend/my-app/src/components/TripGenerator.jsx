@@ -67,6 +67,8 @@ const CSS = `
 .tg-real__line { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tg-real__line span { color: rgba(255,255,255,.82); }
 .tg-real small { color: rgba(255,255,255,.62); font-size: 12px; line-height: 1.45; }
+.tg-real.is-test { background: rgba(255,179,71,.08); border-color: rgba(255,179,71,.45); }
+.tg-real.is-test .tg-real__badge { color: #ffb347 !important; }
 .tg-real__badge { font-size: 11.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
   color: #6ee7a8 !important; }
 .tg-real__low { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800;
@@ -224,18 +226,38 @@ export default function TripGenerator() {
   // Real fares Skyrio found in the last day from this airport (and nearby
   // ones). Empty while they're test prices, so estimates stay labeled.
   const [fares, setFares] = useState([]);
+  // Preview with TEST fares (sandbox), only in a browser that opened the
+  // site with ?farePreview=1 (?farePreview=0 turns it off). Everything is
+  // labeled "Test price" so it can never pass for a real one.
+  const [farePreview] = useState(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("farePreview");
+      if (q === "1") sessionStorage.setItem("skyrio_fare_preview", "1");
+      if (q === "0") sessionStorage.removeItem("skyrio_fare_preview");
+      return sessionStorage.getItem("skyrio_fare_preview") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [testFares, setTestFares] = useState(false);
   useEffect(() => {
     setFares([]);
+    setTestFares(false);
     if (!from) return;
     const controller = new AbortController();
     fetch(`${API}/api/deals/fares?origin=${encodeURIComponent(from)}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d && !d.preview && Array.isArray(d.fares)) setFares(d.fares);
+        if (!d || !Array.isArray(d.fares)) return;
+        if (!d.preview) setFares(d.fares);
+        else if (farePreview) {
+          setFares(d.fares);
+          setTestFares(true);
+        }
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [from]);
+  }, [from, farePreview]);
   // The real fare for exactly this place and these dates, if Skyrio has one.
   const realFor = (t) =>
     t
@@ -546,7 +568,7 @@ export default function TripGenerator() {
             {realTotal ? (
               <div className="tg-total">
                 <b>{usd(realTotal)}</b>
-                <small>flight + hotel for you</small>
+                <small>{testFares ? "test price · " : ""}flight + hotel for you</small>
               </div>
             ) : (
               Number.isFinite(trip.total) &&
@@ -561,9 +583,11 @@ export default function TripGenerator() {
 
           {/* Real prices Skyrio found for this exact trip. */}
           {real && (
-            <div className="tg-real">
+            <div className={`tg-real${testFares ? " is-test" : ""}`}>
               <div className="tg-real__line">
-                <span className="tg-real__badge">Real Skyrio price</span>
+                <span className="tg-real__badge">
+                  {testFares ? "Test price (preview, not real)" : "Real Skyrio price"}
+                </span>
                 {real.lowerThanUsual && <span className="tg-real__low">Lower than usual on Skyrio</span>}
               </div>
               <div className="tg-real__line">
@@ -748,7 +772,9 @@ export default function TripGenerator() {
             </button>
           </div>
           <p className="tg-fine">
-            {real
+            {real && testFares
+              ? "Preview with test prices from Skyrio's sandbox. These aren't real prices."
+              : real
               ? "Prices Skyrio found in the last day. Fares change, so the next step checks live prices before you pay."
               : `${trip.total ? "Estimated total. " : ""}Live prices show on the next step.`}{" "}
             Nothing is booked until you pay.
