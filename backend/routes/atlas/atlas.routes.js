@@ -452,7 +452,28 @@ router.post("/suggest", suggestLimit, async (req, res) => {
       promptHistory = [],
       filters = {}, // { budget, type, duration }
       count: rawCount = 3, // how many suggestions to return
+      // "Can't decide?": real Skyrio fares from the home airport
+      // [{ destCode, city, depart, return, price }]. Atlas prefers these
+      // places and keeps their exact dates, so the card can show a real price.
+      realFares: rawRealFares = [],
     } = req.body ?? {};
+    const DAY = /^\d{4}-\d{2}-\d{2}$/;
+    const realFares = (Array.isArray(rawRealFares) ? rawRealFares : [])
+      .filter(
+        (f) =>
+          /^[A-Z]{3}$/.test(String(f?.destCode || "")) &&
+          DAY.test(String(f?.depart || "")) &&
+          DAY.test(String(f?.return || "")) &&
+          Number(f?.price) > 0
+      )
+      .slice(0, 12)
+      .map((f) => ({
+        destCode: f.destCode,
+        city: String(f.city || f.destCode).replace(/[^\p{L}\p{N} .,'-]/gu, "").slice(0, 40),
+        depart: f.depart,
+        return: f.return,
+        price: Math.round(Number(f.price)),
+      }));
 
     if (!prompt || typeof prompt !== "string")
       return res.status(400).json({ error: "prompt is required" });
@@ -464,7 +485,8 @@ router.post("/suggest", suggestLimit, async (req, res) => {
 
     // Session history changes the answer, so only cache history-free requests.
     const cacheable =
-      !Array.isArray(promptHistory) || promptHistory.length <= 1;
+      (!Array.isArray(promptHistory) || promptHistory.length <= 1) &&
+      !realFares.length;
     const cacheKey = `suggest:${JSON.stringify({
       p: String(prompt).trim().toLowerCase(),
       h: homeCode || "",
@@ -502,6 +524,12 @@ ${
     ? `Session history:\n${promptHistory
         .slice(0, -1)
         .map((p, i) => `  ${i + 1}. "${p}"`)
+        .join("\n")}`
+    : ""
+}${
+  realFares.length
+    ? `\nReal round-trip fares Skyrio found from the home airport (per person). Prefer these places; when you pick one, use its destCode and EXACTLY its dates:\n${realFares
+        .map((f) => `- ${f.city} (${f.destCode}) ${f.depart} to ${f.return}: $${f.price}`)
         .join("\n")}`
     : ""
 }`;

@@ -23,12 +23,8 @@ const router = express.Router();
 const MAX_AGE_HOURS = 24; // older prices are too stale to show
 const ENV = process.env.LITEAPI_ENV || "sandbox";
 
-router.get("/", async (req, res) => {
-  try {
-    const origin = String(req.query.origin || "EWR")
-      .toUpperCase()
-      .slice(0, 3);
-    const tripType = req.query.tripType === "getaway" ? "getaway" : "weekend";
+// Cheapest trip per destination for one home airport and trip type.
+async function dealsFor(origin, tripType) {
     const group = airportGroupFor(origin);
     const since = new Date(Date.now() - MAX_AGE_HOURS * 3600 * 1000);
 
@@ -121,7 +117,16 @@ router.get("/", async (req, res) => {
       });
     }
     deals.sort((a, b) => a.price - b.price);
+    return { group, deals };
+}
 
+const originOf = (q) => String(q || "EWR").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3) || "EWR";
+
+router.get("/", async (req, res) => {
+  try {
+    const origin = originOf(req.query.origin);
+    const tripType = req.query.tripType === "getaway" ? "getaway" : "weekend";
+    const { group, deals } = await dealsFor(origin, tripType);
     res.json({
       origin,
       nearby: group,
@@ -133,6 +138,30 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error("[Deals] failed:", err);
     res.status(500).json({ error: "Couldn't load deals right now." });
+  }
+});
+
+/**
+ * GET /api/deals/fares?origin=EWR — every real fare Skyrio found in the last
+ * day from this airport (and its nearby ones), both trip types. Used by
+ * "Can't decide?" to show real prices instead of estimates. preview: true
+ * means they're test prices (sandbox) and must not be shown as real.
+ */
+router.get("/fares", async (req, res) => {
+  try {
+    const origin = originOf(req.query.origin);
+    const [weekend, getaway] = await Promise.all([dealsFor(origin, "weekend"), dealsFor(origin, "getaway")]);
+    res.json({
+      origin,
+      preview: ENV !== "production",
+      fares: [
+        ...weekend.deals.map((d) => ({ ...d, tripType: "weekend" })),
+        ...getaway.deals.map((d) => ({ ...d, tripType: "getaway" })),
+      ],
+    });
+  } catch (err) {
+    console.error("[Deals] fares failed:", err);
+    res.status(500).json({ error: "Couldn't load fares right now." });
   }
 });
 
