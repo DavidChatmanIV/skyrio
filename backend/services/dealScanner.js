@@ -8,6 +8,7 @@
 import User from "../models/user.js";
 import DealSnapshot from "../models/DealSnapshot.js";
 import HotelSnapshot from "../models/HotelSnapshot.js";
+import { recordFare } from "./usualPrice.js";
 import { searchCheapestFare } from "../routes/api/flights/Liteapiflights.deals.js";
 import { searchCheapestStay } from "../routes/api/hotels/hotels.deals.js";
 import {
@@ -250,6 +251,8 @@ export async function runDealScan() {
             { ...job, ...best, env: ENV, foundAt: new Date() },
             { upsert: true, new: true }
           );
+          // Keep the day's lowest fare too, for "usual price on Skyrio".
+          await recordFare({ ...job, ...best, env: ENV });
           saved++;
         } catch (err) {
           failed++;
