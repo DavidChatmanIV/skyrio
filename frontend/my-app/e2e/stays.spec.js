@@ -50,3 +50,16 @@ test("a dorm bed says it's a shared room; private rooms stay as they are", async
   await expect(page.locator(".sk-roomKind")).toHaveCount(1);
   if (process.env.SHOT) await page.locator(".sk-result-card").first().screenshot({ path: process.env.SHOT });
 });
+
+test("fees the hotel collects at check-in show on the room card and at checkout", async ({ page, routes }) => {
+  const { HOTEL_RATES } = await import("./mocks.js");
+  routes["GET /api/hotels/search"] = {
+    ok: true,
+    hotels: [{ ...HOTEL_RATES[1], payAtHotel: { amount: 87.5, currency: "USD", names: ["City tax", "Resort fee"] } }],
+  };
+  await page.goto(SEARCH);
+  await expect(page.getByText(/\+ \$88\s+paid to the hotel at check-in \(City tax, Resort fee\)/)).toBeVisible();
+  if (process.env.SHOT) await page.locator(".sk-result-card").first().screenshot({ path: process.env.SHOT });
+  await page.getByRole("button", { name: /book this room/i }).first().click();
+  await expect(page.getByText(/Plus \$87\.50 USD paid to\s+the hotel at check-in/)).toBeVisible();
+});

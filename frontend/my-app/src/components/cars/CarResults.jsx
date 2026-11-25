@@ -269,7 +269,9 @@ export default function CarResults({
     <section className="sk-cars">
       <div className="sk-cars-note" role="note">
         <strong>No payment now.</strong> You pay the rental company at pickup.
-        Prices include taxes and fees the rental company quoted.
+        Prices include taxes and fees the rental company quoted. Optional
+        extras at the counter (insurance, fuel, child seats) cost more, and
+        most companies hold a deposit on your card.
       </div>
 
       {state.notice && (

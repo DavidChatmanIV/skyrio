@@ -129,7 +129,13 @@ export function normalizeEvent(e) {
     // so don't show "From $0".
     priceRange:
       price && Number.isFinite(price.min) && price.min > 0
-        ? { min: price.min, max: price.max ?? price.min, currency: price.currency || "USD" }
+        ? {
+            min: price.min,
+            max: price.max ?? price.min,
+            currency: price.currency || "USD",
+            // Ticketmaster says whether its range already has its fees in.
+            includesFees: /including fees/i.test(String(price.type || "")),
+          }
         : null,
     venue: normalizeVenue(e._embedded?.venues?.[0]),
     suggestedDates: suggestTripDates(start.localDate),

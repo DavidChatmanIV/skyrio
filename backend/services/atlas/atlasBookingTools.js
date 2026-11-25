@@ -1279,6 +1279,14 @@ async function runHotelSearch(owner, userId, input) {
       currency: r.currency,
       refundable: r.refundableTag === "RFN",
       cancellation: r.cancellationText,
+      // Taxes/fees the hotel collects at check-in, NOT in the total above.
+      ...(r.payAtHotel?.amount > 0
+        ? {
+            paidAtHotel: `${money(r.payAtHotel.amount)} ${r.payAtHotel.currency}${
+              r.payAtHotel.names?.length ? ` (${r.payAtHotel.names.slice(0, 2).join(", ")})` : ""
+            }`,
+          }
+        : {}),
     }));
 
   if (!candidates.length) {
@@ -1489,6 +1497,7 @@ async function proposeBooking(
         opt.display.room,
         opt.display.roomType,
         opt.display.board,
+        opt.display.paidAtHotel ? `Plus ${opt.display.paidAtHotel} paid at the hotel` : null,
         sharedRoomId ? "Your share of a shared room" : null,
       ].filter(Boolean),
       cancellation: prebook.cancellationText || opt.display.cancellation,
@@ -1715,6 +1724,7 @@ async function openCheckout(owner, userId, { optionId }) {
           `${opt.search.checkin} – ${opt.search.checkout}`,
           [d.room, d.board].filter(Boolean).join(" · "),
           d.roomType || null,
+          d.paidAtHotel ? `Plus ${d.paidAtHotel} paid at the hotel` : null,
           d.refundable ? "Refundable" : "Non-refundable",
         ].filter(Boolean);
   const travelers = (opt.search.adults || 1) + (opt.search.children || 0);

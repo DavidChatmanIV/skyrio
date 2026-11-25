@@ -135,6 +135,7 @@ export async function searchHotelRates({ destination, checkin, checkout, adults 
         starRating: hotel.stars ?? null,
         roomName: r.roomName,
         roomKind: roomKindOf(r.roomName, hotel.name),
+        payAtHotel: r.payAtHotel || null,
         boardName: r.boardName,
         // How many of the requested rooms this price covers (see
         // roomsCoveredBy in hotels.utils.js).

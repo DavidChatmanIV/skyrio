@@ -3343,7 +3343,7 @@ export default function BookingPage() {
                   ? isSearching
                     ? `Searching hotels in ${destCity || "your destination"}…`
                     : hotelResults.length > 0
-                    ? `Cheapest first · ${destCity} · Refunds set by each hotel`
+                    ? `Cheapest first · ${destCity} · Total for your whole stay · Refunds set by each hotel`
                     : "Search above to find hotels."
                   : tab === "Excursions"
                   ? isSearching
@@ -3351,7 +3351,7 @@ export default function BookingPage() {
                         destCity || "your destination"
                       }…`
                     : excursionResults.length > 0
-                    ? `Powered by Viator · ${destCity}`
+                    ? `Powered by Viator · ${destCity} · Final price shown on Viator`
                     : "Search above to find tours & activities."
                   : tab === "Cars"
                   ? carSearch
@@ -3370,7 +3370,7 @@ export default function BookingPage() {
                   : flightDisplayCount > 0
                   ? `Sorted by price · ${
                       flightResults[0]?.origin || originCity || fromCode
-                    } → ${prefillData?.iata ?? destCity}${
+                    } → ${prefillData?.iata ?? destCity} · Total for all travelers, taxes included${
                       activeFilterCount > 0
                         ? ` · ${activeFilterCount} filter${
                             activeFilterCount > 1 ? "s" : ""
@@ -4321,6 +4321,18 @@ export default function BookingPage() {
                               {hotel.roomName}
                               {hotel.boardName ? ` · ${hotel.boardName}` : ""}
                             </div>
+                            {/* Fees the hotel collects at check-in: shown here,
+                                not first at the front desk. */}
+                            {hotel.payAtHotel?.amount > 0 && (
+                              <div className="sk-payAtHotel">
+                                + ${Math.round(hotel.payAtHotel.amount)}{" "}
+                                {hotel.payAtHotel.currency !== "USD" ? `${hotel.payAtHotel.currency} ` : ""}
+                                paid to the hotel at check-in
+                                {hotel.payAtHotel.names?.length
+                                  ? ` (${hotel.payAtHotel.names.slice(0, 2).join(", ")})`
+                                  : ""}
+                              </div>
+                            )}
                             {/* Shared rooms say so plainly (a dorm bed isn't a room of your own). */}
                             {hotel.roomKind && hotel.roomKind !== "private" && (
                               <div className="sk-roomKind" data-kind={hotel.roomKind}>
