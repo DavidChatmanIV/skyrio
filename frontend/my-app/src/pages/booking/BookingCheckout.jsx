@@ -2963,6 +2963,13 @@ function StepPassengers({
     isPlaceholderName(v)
       ? `Airlines won't accept "${v.trim()}" as a name. Use the name on your ID.`
       : NAME_HINT;
+  // Duffel fares are priced for adults only (18+ on the travel date).
+  const adultsOnlyFare = isDuffelOffer(flight?.offerId);
+  const ageOnTrip = (v) => {
+    const d = dayjs(v);
+    if (!v || !d.isValid()) return null;
+    return (travelDateISO ? dayjs(travelDateISO) : dayjs()).diff(d, "year");
+  };
   const dobOk = (v) => {
     if (!v) return false;
     const d = dayjs(v);
@@ -2986,6 +2993,11 @@ function StepPassengers({
     if (field === "lastName" && !nameOk(p.lastName))
       return p.lastName ? nameHintFor(p.lastName) : "Required";
     if (field === "dob" && !dobOk(p.dob)) return "Enter a valid past date";
+    if (field === "dob" && adultsOnlyFare && p.type !== "INF" && p.type !== "CHD") {
+      const age = ageOnTrip(p.dob);
+      if (age != null && age < 18)
+        return `This fare is for adults (18+). This date makes them ${age} on the trip. Check the date, or search again with them as a child.`;
+    }
     if (field === "gender" && !p.gender) return "Required";
     if (field === "email" && idx === 0 && !emailOk(p.email))
       return "Enter a valid email";
@@ -3025,6 +3037,7 @@ function StepPassengers({
         !nameOk(p.firstName) ||
         !nameOk(p.lastName) ||
         !dobOk(p.dob) ||
+        (adultsOnlyFare && p.type === "ADT" && ageOnTrip(p.dob) < 18) ||
         !p.gender ||
         (p.index === 0 && !emailOk(p.email)) ||
         (p.index === 0 && !phoneOk(p.phone))
@@ -3276,7 +3289,7 @@ function StepPassengers({
                             : undefined
                         }
                       />
-                      {errorFor(p.index, "dob", p) && (
+                      {errorFor(p.index, "dob", p) ? (
                         <span
                           id={`err-dob-${p.index}`}
                           role="alert"
@@ -3284,6 +3297,15 @@ function StepPassengers({
                         >
                           {errorFor(p.index, "dob", p)}
                         </span>
+                      ) : (
+                        dobOk(p.dob) &&
+                        ageOnTrip(p.dob) != null && (
+                          // Easy to spot a wrong date (the iPhone date wheel
+                          // starts on today's date).
+                          <span className="skc-dob-age" style={{ fontSize: 12.5, color: "rgba(255,255,255,0.62)", marginTop: 4 }}>
+                            Age {ageOnTrip(p.dob)} on the trip
+                          </span>
+                        )
                       )}
                     </label>
                     <label className="skc-label">
