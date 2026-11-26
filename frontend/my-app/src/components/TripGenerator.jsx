@@ -67,6 +67,8 @@ const CSS = `
 .tg-real__line { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tg-real__line span { color: rgba(255,255,255,.82); }
 .tg-real small { color: rgba(255,255,255,.62); font-size: 12px; line-height: 1.45; }
+.tg-previewNote { margin: 10px 0 0; padding: 8px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.45;
+  color: #ffd1a1; background: rgba(255,179,71,.1); border: 1px dashed rgba(255,179,71,.5); }
 .tg-real.is-test { background: rgba(255,179,71,.08); border-color: rgba(255,179,71,.45); }
 .tg-real.is-test .tg-real__badge { color: #ffb347 !important; }
 .tg-real__badge { font-size: 11.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
@@ -240,22 +242,31 @@ export default function TripGenerator() {
     }
   });
   const [testFares, setTestFares] = useState(false);
+  // Preview only: how many test fares came back for this airport (or "error").
+  const [previewCount, setPreviewCount] = useState(null);
   useEffect(() => {
     setFares([]);
     setTestFares(false);
+    setPreviewCount(null);
     if (!from) return;
     const controller = new AbortController();
     fetch(`${API}/api/deals/fares?origin=${encodeURIComponent(from)}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!d || !Array.isArray(d.fares)) return;
+        if (!d || !Array.isArray(d.fares)) {
+          if (farePreview) setPreviewCount("error");
+          return;
+        }
+        if (farePreview) setPreviewCount(d.fares.length);
         if (!d.preview) setFares(d.fares);
         else if (farePreview) {
           setFares(d.fares);
           setTestFares(true);
         }
       })
-      .catch(() => {});
+      .catch((e) => {
+        if (farePreview && e?.name !== "AbortError") setPreviewCount("error");
+      });
     return () => controller.abort();
   }, [from, farePreview]);
   // The real fare for exactly this place and these dates, if Skyrio has one.
@@ -333,12 +344,74 @@ export default function TripGenerator() {
     setEditing(null);
   };
 
+  // Real-fare trips: the first trip and every other Shuffle come straight
+  // from a fare Skyrio found (that exact city and dates), so the card can
+  // show its real price. Atlas only writes the description.
+  const fareTurn = useRef(0);
+  const pickFare = () => {
+    const max = Number(budget) || Infinity;
+    const fit = fares
+      .filter((f) => !seen.current.includes(f.city))
+      .filter((f) => (who === 1 && f.tripTotal ? f.tripTotal : f.price * who) <= max)
+
+    if (!fit.length) return null;
+    // Clear dips first, then a little variety among the cheapest few.
+    const low = fit.filter((f) => f.lowerThanUsual);
+    const pool = (low.length ? low : [...fit].sort((a, b) => a.price - b.price)).slice(0, 4);
+    return pool[Math.floor(Math.random() * pool.length)];
+  };
+  const tripFromFare = async (f) => {
+    let blurb = {};
+    try {
+      const res = await fetch(`${API}/api/atlas/suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `A trip to ${f.city}. Use exactly these dates: depart ${f.departDate}, return ${f.returnDate}.${
+            vibe ? ` A ${vibe.toLowerCase()} trip.` : ""
+          } ${who === 1 ? "Traveling solo." : `For ${who} people.`}`.slice(0, 480),
+          homeCode: String(from || "").toUpperCase().slice(0, 3),
+          homeCity: home?.city || undefined,
+          count: 1,
+          promptHistory: ["Real fare trip", String(Date.now())],
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const s = (Array.isArray(data.suggestions) ? data.suggestions : [])[0];
+      if (s && s.destCode === f.destination) blurb = { fit: s.fit, summary: s.summary };
+    } catch {
+      /* the real fare still shows, just without a description */
+    }
+    return {
+      kind: "trip",
+      trip: f.city,
+      destCode: f.destination,
+      depart: f.departDate,
+      return: f.returnDate,
+      nights: nightsBetween(f.departDate, f.returnDate),
+      total: null, // the real price shows instead of an estimate
+      ...blurb,
+    };
+  };
+
   const generate = async () => {
     const current = trip;
     setError("");
     if (!from) {
       setError("Pick the airport you're flying from.");
       return;
+    }
+    if (!lockPlace && !lockDates && fares.length && fareTurn.current++ % 2 === 0) {
+      const f = pickFare();
+      if (f) {
+        setBusy(true);
+        try {
+          show(await tripFromFare(f), current);
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
     }
     // Nothing locked and ideas left over: instant.
     if (!lockPlace && !lockDates && queue.current.length) {
@@ -552,6 +625,17 @@ export default function TripGenerator() {
           </div>
         )}
       </div>
+
+      {/* Preview mode only (?farePreview=1): is there test data to show? */}
+      {farePreview && from && previewCount !== null && (
+        <div className="tg-previewNote" role="note">
+          {previewCount === "error"
+            ? "Preview: couldn't load test fares."
+            : previewCount > 0
+            ? `Preview: ${previewCount} test fare${previewCount === 1 ? "" : "s"} from ${String(from).toUpperCase()}. Make me a trip uses them first.`
+            : `Preview: no test fares from ${String(from).toUpperCase()} yet. The fare checks may be off (DEAL_SCAN_ENABLED on Render).`}
+        </div>
+      )}
 
       {trip && (
         <div

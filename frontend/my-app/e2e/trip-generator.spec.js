@@ -51,9 +51,9 @@ test("a real fare for the same place and dates shows instead of the estimate", a
   await expect(page.getByText("$531")).toBeVisible();
   await expect(page.getByText(/Includes \$40 in fees paid at the hotel/)).toBeVisible();
   await expect(page.getByText("est. for you")).toHaveCount(0);
-  // Atlas was told which places have real fares, with their exact dates.
+  // The trip came from the real fare: Atlas only describes that exact trip.
   const sent = callsTo(calls, "POST /api/atlas/suggest")[0].body;
-  expect(sent.realFares[0]).toMatchObject({ destCode: "MIA", depart: "2027-03-12", return: "2027-03-14", price: 191 });
+  expect(sent.prompt).toContain("A trip to Miami. Use exactly these dates: depart 2027-03-12, return 2027-03-14.");
   if (process.env.SHOT) await page.locator(".tg-card").screenshot({ path: process.env.SHOT });
 });
 
@@ -78,4 +78,21 @@ test("preview link: test fares show, clearly labeled as test prices", async ({ p
   await expect(page.getByText("Real Skyrio price")).toHaveCount(0);
   await expect(page.getByText(/These aren't real prices/)).toBeVisible();
   if (process.env.SHOT) await page.locator(".tg-real").screenshot({ path: process.env.SHOT });
+});
+
+test("with fares, the first trip IS a real fare (city and dates), even if Atlas suggests elsewhere", async ({ page, routes }) => {
+  routes["GET /api/deals/fares"] = { origin: "EWR", preview: false, fares: [FARE] };
+  routes["POST /api/atlas/suggest"] = { suggestions: [{ ...SUGGESTION, trip: "Lisbon, Portugal", destCode: "LIS", depart: "2027-01-10", return: "2027-01-17" }] };
+  await makeTrip(page);
+  await expect(page.locator(".tg-place")).toHaveText("Miami");
+  await expect(page.getByText("Real Skyrio price")).toBeVisible();
+  await expect(page.getByText("$191 round trip")).toBeVisible();
+});
+
+test("preview with no test fares says so", async ({ page, routes }) => {
+  routes["GET /api/deals/fares"] = { origin: "EWR", preview: true, fares: [] };
+  await page.goto("/?farePreview=1");
+  await page.getByPlaceholder("Flying from?").fill("Newark");
+  await page.locator(".sk-airport-option", { hasText: "EWR" }).first().dispatchEvent("mousedown");
+  await expect(page.getByText(/Preview: no test fares from EWR yet/)).toBeVisible();
 });
