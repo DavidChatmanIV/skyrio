@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Baby, PawPrint, Users, Sparkles, Check } from "lucide-react";
 
 /**
@@ -249,6 +249,17 @@ export default function SkyrioSeatMap({
   }, [aisleAfterProp, columns]);
   const aisleIdxs = aisles.map((c) => columns.indexOf(c)).filter((i) => i >= 0);
   const hasAisleAfter = (col) => aisles.includes(col);
+  // Seats shrink to fit the screen (a 9-across wide-body didn't fit a
+  // phone, so the whole page slid sideways and cut off the left side).
+  const [gridWidth, setGridWidth] = useState(0);
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setGridWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rows.length, columns.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sectionOf = (ci) => aisleIdxs.filter((a) => a < ci).length;
 
   function seatPosition(seat) {
@@ -272,14 +283,15 @@ export default function SkyrioSeatMap({
     return out;
   }, [scopedSeatServices]);
 
-  // A row takes the tier most of its seats have.
+  // A row takes the tier most of its OPEN seats have (taken seats say
+  // nothing about price; counting them labeled $20 rows "Free").
   const rowTier = useMemo(() => {
     const map = new Map();
     rows.forEach((row) => {
       const counts = {};
       columns.forEach((c) => {
         const svc = seatServiceByNumber.get(seatKey(row, c));
-        if (svc) counts[tierOf(svc)] = (counts[tierOf(svc)] || 0) + 1;
+        if (svc && svc.available !== false) counts[tierOf(svc)] = (counts[tierOf(svc)] || 0) + 1;
       });
       const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
       map.set(row, top ? top[0] : "standard");
@@ -518,7 +530,7 @@ export default function SkyrioSeatMap({
     let border = tier.edge;
     let color = "rgba(255,255,255,0.78)";
     let content = (
-      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: -0.2 }}>
+      <span style={{ fontSize: seatSize < 30 ? 8.5 : 10, fontWeight: 700, letterSpacing: -0.3 }}>
         {seatPriceTag(seatService?.price)}
       </span>
     );
@@ -634,8 +646,11 @@ export default function SkyrioSeatMap({
         aria-pressed={isSelectedForActive}
         title={accessibleLabel}
         style={{
-          width: SEAT,
-          height: SEAT,
+          width: seatSize,
+          height: seatSize,
+          // A site-wide 44px button minimum stretched shrunken seats tall.
+          minHeight: 0,
+          minWidth: 0,
           borderRadius: "10px 10px 7px 7px",
           background: bg,
           border: `1.5px solid ${border}`,
@@ -647,7 +662,7 @@ export default function SkyrioSeatMap({
           alignItems: "center",
           justifyContent: "center",
           cursor: disabled ? "not-allowed" : "pointer",
-          marginRight: hasAisleAfter(col) ? 18 : 5,
+          marginRight: hasAisleAfter(col) ? fit.aisle : fit.gap,
           flexShrink: 0,
           padding: 0,
         }}
@@ -708,6 +723,18 @@ export default function SkyrioSeatMap({
     ? `Choosing for ${fullName(activePassenger)}`
     : "";
 
+  // Seat size that fits this cabin on this screen (38px max, 24px min).
+  const aisleCount = columns.filter((c) => hasAisleAfter(c)).length;
+  const fit = (() => {
+    if (!gridWidth) return { seat: SEAT, gap: 5, aisle: 18 };
+    const room = gridWidth - 2 * 26 - 6 - 4; // row numbers + EXIT marks
+    for (const [gap, aisle] of [[5, 18], [4, 12], [3, 8]]) {
+      const size = Math.floor((room - gap * columns.length - aisle * aisleCount) / columns.length);
+      if (size >= 30 || gap === 3) return { seat: Math.max(22, Math.min(SEAT, size)), gap, aisle };
+    }
+    return { seat: SEAT, gap: 5, aisle: 18 };
+  })();
+  const seatSize = fit.seat;
   const sideCell = { width: 26, flexShrink: 0 };
 
   const columnHeader = (
@@ -718,8 +745,8 @@ export default function SkyrioSeatMap({
           key={col}
           aria-hidden="true"
           style={{
-            width: SEAT,
-            marginRight: hasAisleAfter(col) ? 18 : 5,
+            width: seatSize,
+            marginRight: hasAisleAfter(col) ? fit.aisle : fit.gap,
             textAlign: "center",
             fontSize: 10,
             fontWeight: 700,
@@ -1236,7 +1263,9 @@ export default function SkyrioSeatMap({
           {/* One line each, cut with "…", so this bar keeps the same height
               while the mouse moves over seats. (When it grew to two lines,
               the map below jumped under the cursor and the seats flickered.) */}
-          <div style={{ flex: "1 1 0", minWidth: 0 }}>
+          {/* On a phone the text gets its own line and the buttons wrap
+              below it (they were pushed off the right edge). */}
+          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
             <div
               style={{
                 fontSize: 11,
@@ -1268,8 +1297,10 @@ export default function SkyrioSeatMap({
               style={{
                 display: "flex",
                 alignItems: "center",
+                flexWrap: "wrap",
                 gap: 8,
-                flexShrink: 0,
+                flexShrink: 1,
+                maxWidth: "100%",
               }}
             >
               <div
@@ -1327,8 +1358,11 @@ export default function SkyrioSeatMap({
             padding: "22px 14px 18px",
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
+            // "safe": if a cabin is still too wide, it scrolls inside the
+            // map instead of losing its left side.
+            alignItems: "safe center",
             overflowX: "auto",
+            maxWidth: "100%",
           }}
         >
           <div
@@ -1349,7 +1383,9 @@ export default function SkyrioSeatMap({
             {rows.map((row, i) => {
               const prevRow = rows[i - 1];
               const tier = rowTier.get(row);
-              const showDivider = i > 0 && rowTier.get(prevRow) !== tier;
+              // Only exit rows get a label (airline data). "Free" / "Costs
+              // extra" bands were misleading: prices are on the seats.
+              const showDivider = tier === "exit-row" && rowTier.get(prevRow) !== "exit-row";
               const isExit = tier === "exit-row";
               const exitMark = (
                 <span
@@ -1386,7 +1422,7 @@ export default function SkyrioSeatMap({
                       <span
                         style={{ flex: 1, height: 1, background: G.border }}
                       />
-                      {TIER[tier].label}
+                      Exit row
                       <span
                         style={{ flex: 1, height: 1, background: G.border }}
                       />
