@@ -97,9 +97,16 @@ function toOrderPassengers(offer, passengers, contact) {
     if (gender !== "M" && gender !== "F") return { error: "Select each traveler's gender." };
     // Skyrio searches Duffel for adults only; Duffel adults are 18+.
     if (offerPax[i]?.type === "adult" && ageOn(p.dob, firstDeparture) < 18) {
+      // Say whose date and what age, so a mistyped birthday is easy to spot.
+      const age = Math.max(0, ageOn(p.dob, firstDeparture));
+      const when = new Date(`${p.dob}T00:00:00Z`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      });
       return {
-        error:
-          "This fare is for adults (18+). For travelers under 18, go back and search again including them as children.",
+        error: `${given}'s date of birth (${when}) makes them ${age} on this trip. This fare is for adults (18+). If the date is wrong, tap Edit travelers to fix it. If they're under 18, search again including them as a child.`,
       };
     }
     out.push({

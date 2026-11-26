@@ -58,3 +58,21 @@ test("Duffel fare: pick a seat, and the total includes it", async ({ page, calls
   expect(sent.selected).toEqual([{ passengerIndex: 0, serviceId: "seg_out|10A" }]);
   await expect(page.getByText("$437.50").first()).toBeVisible();
 });
+
+test("Duffel fare: a traveler under 18 is caught in the form, with their age shown", async ({ page, calls }) => {
+  await page.goto(SEARCH);
+  await page.getByRole("button", { name: /^select flight$/i }).first().click();
+  await page.getByRole("button", { name: /^(select|selected)$/i }).first().click();
+  const form = page.locator("input:visible");
+  await form.nth(0).fill("Maria");
+  await form.nth(1).fill("Lopez");
+  await page.locator('input[type="date"]:visible').first().fill("2012-05-20");
+  await page.locator("select:visible").first().selectOption({ label: "Female" });
+  await page.locator('input[type="email"]:visible').fill("maria@example.com");
+  await page.locator('input[type="tel"]:visible').fill("2015550123");
+  await page.getByRole("button", { name: /continue to seats/i }).click();
+  await expect(page.getByText(/This fare is for adults \(18\+\)\. This date makes them 14 on the trip/)).toBeVisible();
+  expect(callsTo(calls, "POST /api/flights/duffel/intent")).toHaveLength(0);
+  await page.locator('input[type="date"]:visible').first().fill("1990-05-20");
+  await expect(page.getByText("Age 36 on the trip")).toBeVisible();
+});
