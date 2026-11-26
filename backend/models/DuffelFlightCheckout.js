@@ -28,6 +28,10 @@ const DuffelFlightCheckoutSchema = new mongoose.Schema(
     // "Your flight got cheaper": the booking this one replaces, and that
     // booking's email-link token (guests). Checked again after booking.
     replaces: { type: mongoose.Schema.Types.Mixed, default: null },
+    // Seats picked in checkout: [{ id (Duffel service), amount, seat,
+    // segmentId, passengerIndex }] and their total (added to the card hold).
+    seatServices: { type: Array, default: [] },
+    seatsTotal: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

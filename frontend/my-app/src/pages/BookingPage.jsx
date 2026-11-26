@@ -1999,6 +1999,8 @@ export default function BookingPage() {
   // re-finds the same flight and gives back a fresh offer — so checkout
   // opens on a live fare instead of an "expired" screen.
   const [pkgFlightBusy, setPkgFlightBusy] = useState(false);
+  // Flight + Stay: flight chosen but not paid → pay for it before the stay.
+  const pkgFlightFirst = Boolean(packagePlan?.flight && !packagePlan.flight.booked);
   const payForPackageFlight = useCallback(async () => {
     const saved = packagePlan?.flight;
     if (!saved?.raw || saved.booked) return;
@@ -2727,7 +2729,8 @@ export default function BookingPage() {
           onAdd={addRoomToCart}
           onRemove={removeRoomFromCart}
           onClear={clearRoomCart}
-          onCheckout={handleCheckoutCart}
+          onCheckout={pkgFlightFirst ? payForPackageFlight : handleCheckoutCart}
+          checkoutLabel={pkgFlightFirst ? "Next: pay for flight" : "Check out"}
           destCity={destCity}
           max={MAX_ROOMS_PER_TRIP}
         />
@@ -2850,6 +2853,23 @@ export default function BookingPage() {
         )}
         {resultsFocus && (tab === "Flights" || tab === "Stays") && (
           <div className="sk-results-tools">{toolsBlock}</div>
+        )}
+        {/* Flight + Stay: the trip (what's added, total, what's next) stays
+            in view on the results screen too, not only under Edit search. */}
+        {resultsFocus && packagePlan && (tab === "Flights" || tab === "Stays") && (
+          <div className="sk-results-pkg">
+            <PackageTray
+              plan={packagePlan}
+              tab={tab}
+              stayRooms={tab === "Stays" ? roomCart : []}
+              flightBusy={pkgFlightBusy}
+              onNextStay={goToPackageStays}
+              onChangeFlight={goToPackageFlights}
+              onPayFlight={payForPackageFlight}
+              onPayStay={handleCheckoutCart}
+              onDone={() => setPackagePlan(null)}
+            />
+          </div>
         )}
         <div
           className="sk-booking-hero sk-bp"
@@ -4259,6 +4279,8 @@ export default function BookingPage() {
               tab === "Stays" &&
               paginatedHotels.length > 0 &&
               !roomsTipHidden &&
+              // Flight + Stay for one room doesn't need the multi-room tips.
+              !(packagePlan && (Number(packagePlan.rooms) || 1) <= 1) &&
               roomCart.length === 0 && <RoomsHowTo onClose={hideRoomsTip} />}
 
             {/* ── Hotel result cards ── */}
@@ -4476,23 +4498,44 @@ export default function BookingPage() {
                                   Add to trip
                                 </button>
                               )}
-                              <Button
-                                className="sk-btn-orange sk-hotel-main"
-                                size="small"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (inCart) handleCheckoutCart();
-                                  else handleBookSingleRoom(hotel);
-                                }}
-                              >
-                                {inCart
-                                  ? `Check out ${countRooms(roomCart)} room${
-                                      countRooms(roomCart) !== 1 ? "s" : ""
-                                    }`
-                                  : roomCart.length
-                                  ? "Add & check out"
-                                  : "Book this room"}
-                              </Button>
+                              {/* Flight + Stay, flight not paid yet: the flight
+                                  is paid first, so the card never offers to
+                                  book the hotel on its own. */}
+                              {pkgFlightFirst ? (
+                                inCart && (
+                                  <Button
+                                    className="sk-btn-orange sk-hotel-main"
+                                    size="small"
+                                    disabled={pkgFlightBusy}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      payForPackageFlight();
+                                    }}
+                                  >
+                                    {pkgFlightBusy
+                                      ? "Checking your fare…"
+                                      : "Next: pay for flight"}
+                                  </Button>
+                                )
+                              ) : (
+                                <Button
+                                  className="sk-btn-orange sk-hotel-main"
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (inCart) handleCheckoutCart();
+                                    else handleBookSingleRoom(hotel);
+                                  }}
+                                >
+                                  {inCart
+                                    ? `Check out ${countRooms(roomCart)} room${
+                                        countRooms(roomCart) !== 1 ? "s" : ""
+                                      }`
+                                    : roomCart.length
+                                    ? "Add & check out"
+                                    : "Book this room"}
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>

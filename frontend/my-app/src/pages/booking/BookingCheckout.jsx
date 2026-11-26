@@ -514,7 +514,7 @@ function fmt(start, end) {
   return h && mm ? `${h}h ${mm}m` : h ? `${h}h` : `${mm}m`;
 }
 // Duffel fares (offer ids "off_…") are paid on Skyrio's own Stripe account
-// and have no Seats & Bags step yet.
+// (seats come from Duffel seat maps; bags aren't sold for them yet).
 const isDuffelOffer = (offerId) => /^off_/.test(String(offerId || ""));
 const NO_EXTRAS = {
   selectedSeats: {},
@@ -3605,7 +3605,11 @@ function StepSeatsBags({
   initialSeats,
   baggage,
   initialBags,
+  // Duffel fares: seats are reserved on Skyrio's card hold; this gets the
+  // new total (fare + seats).
+  onDuffelTotal,
 }) {
+  const isDuffel = isDuffelOffer(flight?.offerId);
   // Lap infants (INF) sit on an adult's lap, so they never get a seat.
   // Everything seat-related uses this list; p.index still matches the
   // prebook passenger order, which LiteAPI's passengerIndex relies on.
@@ -3652,9 +3656,12 @@ function StepSeatsBags({
       setSeatMapUnavailable(false);
       try {
         const API = import.meta.env?.VITE_API_URL || "";
-        const res = await fetch(`${API}/api/flights/prebook/${prebookId}`, {
-          headers: apiHeaders(getCheckoutToken("flight", prebookId)),
-        });
+        const res = await fetch(
+          isDuffel
+            ? `${API}/api/flights/duffel/seats/${prebookId}`
+            : `${API}/api/flights/prebook/${prebookId}`,
+          { headers: apiHeaders(getCheckoutToken("flight", prebookId)) }
+        );
         if (!res.ok) throw new Error("seatmap request failed");
         const data = await res.json();
         if (cancelled) return;
@@ -3879,6 +3886,33 @@ function StepSeatsBags({
   // never pay for seats that weren't actually reserved.
   async function attachSeatServices(seatsMap, bagsList = []) {
     if (!prebookId) return;
+    if (isDuffel) {
+      // Always sent (even with no seats) so the card hold matches: fare + seats.
+      try {
+        const API = import.meta.env?.VITE_API_URL || "";
+        const res = await fetch(`${API}/api/flights/duffel/seats/${prebookId}`, {
+          method: "POST",
+          headers: apiHeaders(getCheckoutToken("flight", prebookId)),
+          body: JSON.stringify({
+            selected: Object.values(seatsMap || {}).flatMap((seg) =>
+              Object.entries(seg || {})
+                .filter(([, v]) => v?.serviceId)
+                .map(([pi, v]) => ({ passengerIndex: Number(pi), serviceId: v.serviceId }))
+            ),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          setNotice(data.message || "Couldn't reserve those seats. Pick others or skip.");
+          return false;
+        }
+        onDuffelTotal?.(Number(data.total));
+        return true;
+      } catch {
+        setNotice("Couldn't reserve those seats. Pick others or skip.");
+        return false;
+      }
+    }
     const serviceIds = collectServiceIds(seatsMap);
     if (!serviceIds.length && !bagsList.length) return;
     try {
@@ -4969,9 +5003,8 @@ export default function BookingCheckout({
           setPrebookId(iData.checkoutId);
           setTransactionId(iData.checkoutId);
           setClientSecret(iData.clientSecret);
-          // No Seats & Bags for Duffel yet → straight to Review & Pay.
-          setExtras(NO_EXTRAS);
-          setStep(2);
+          // Duffel fares go to Seats too (Duffel seat maps); bags aren't
+          // sold for Duffel fares in Skyrio yet.
           return;
         }
         const leadPassenger = passengersList[0];
@@ -5085,7 +5118,7 @@ export default function BookingCheckout({
     setClientSecret(null);
     setExtras((e) => (e ? { ...e, selectedSeats: {}, selectedBags: [] } : e));
     setDuffelTotal(null);
-    setStep((s) => Math.min(s, isDuffelOffer(liveFlight.offerId) ? 2 : 1));
+    setStep((s) => Math.min(s, 1));
     runPrebook(passengers);
   }, [passengers, runPrebook, liveFlight.offerId]);
   // Resume after a refresh mid-checkout. StepSeatsBags refetches its own
@@ -5352,9 +5385,7 @@ export default function BookingCheckout({
           <ProgressBar
             step={step}
             onStepClick={(i) =>
-              !bookingComplete &&
-              !(i === 1 && isDuffelOffer(liveFlight.offerId)) &&
-              setStep(i)
+              !bookingComplete && setStep(i)
             }
           />
           {fareUpdate?.previousPrice != null && fareUpdate?.price != null && (
@@ -5393,14 +5424,9 @@ export default function BookingCheckout({
               onNext={(p) => {
                 setEditLead(false);
                 setPassengers(p);
-                // Duffel fares skip Seats & Bags (Review & Pay shows
-                // "Setting up secure payment…" until the hold is ready).
-                if (isDuffelOffer(liveFlight.offerId)) {
-                  setExtras(NO_EXTRAS);
-                  setStep(2);
-                } else {
-                  setStep(1);
-                }
+                // Every fare goes to Seats next (Duffel fares load Duffel's
+                // seat map once the payment hold is ready).
+                setStep(1);
                 // Start the real reservation as Passengers is submitted so a
                 // prebookId (and real seat data) exists for the Seats step.
                 runPrebook(p);
@@ -5445,6 +5471,7 @@ export default function BookingCheckout({
               initialSeats={extras?.selectedSeats}
               initialBags={extras?.selectedBags}
               baggage={baggage}
+              onDuffelTotal={(t) => Number.isFinite(t) && setDuffelTotal(t)}
               onServicesAttached={(newTransactionId, newSecret) => {
                 if (newTransactionId) setTransactionId(newTransactionId);
                 if (newSecret) setClientSecret(newSecret);
@@ -5456,7 +5483,7 @@ export default function BookingCheckout({
               tripBudget={tripBudget}
               onBudgetSaved={onBudgetSaved}
               progressKey={progressKey}
-              onBack={() => setStep(isDuffelOffer(liveFlight.offerId) ? 0 : 1)}
+              onBack={() => setStep(1)}
               passengers={passengers}
               extras={extras || NO_EXTRAS}
               basePrice={liveFlight.basePrice}

@@ -531,20 +531,15 @@ export function parsePrebookSeatOptions(data) {
       // available. Otherwise trust the explicit flag.
       const available = meta ? meta.available !== false : true;
 
-      // Prefer LiteAPI's own classification over the price guess
-      // where it's present. SkyrioSeatMap.jsx now has real support
-      // for all three tier values below.
+      // Seat type only from LiteAPI's own data (legroom, exit row).
+      // A price alone means "costs extra", never a guessed type.
       const tier =
         meta?.seatType === "extra_legroom"
           ? "extra-legroom"
           : meta?.seatType === "exit_row"
           ? "exit-row"
-          : meta?.seatType === "standard"
-          ? "standard"
-          : price >= 50
-          ? "premium"
           : price > 0
-          ? "extra-legroom"
+          ? "paid" // costs extra; no guessed type from the price
           : "standard";
 
       return {

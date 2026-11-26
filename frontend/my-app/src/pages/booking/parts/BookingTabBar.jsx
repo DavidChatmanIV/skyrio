@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { message as antdMessage } from "antd";
 import { createPortal } from "react-dom";
-import { Clock } from "lucide-react";
+import { Clock, Compass, Ticket, Zap } from "lucide-react";
 
 // Flight + Stay and Cars sit up front (testers didn't find them under "More").
 // Its key stays "Packages" so ?tab=Packages links keep working.
@@ -17,9 +17,9 @@ export const PRIMARY_TABS = [
 // Cars is live via Duffel Cars and sits up front with Flights and Stays.
 // `comingSoon: true` on any tab still renders it disabled with a "Soon" badge.
 export const MORE_TABS = [
-  { key: "Excursions", label: "Excursions" },
-  { key: "Events", label: "Events" },
-  { key: "Last-Minute", label: "Last-Minute" },
+  { key: "Excursions", label: "Excursions", hint: "Tours & things to do", Icon: Compass },
+  { key: "Events", label: "Events", hint: "Concerts, games & shows", Icon: Ticket },
+  { key: "Last-Minute", label: "Last-Minute", hint: "Trips leaving soon", Icon: Zap },
 ];
 
 export function BookingTabBar({ value, onChange }) {
@@ -35,7 +35,7 @@ export function BookingTabBar({ value, onChange }) {
   const placeMenu = useCallback(() => {
     const r = moreRef.current?.getBoundingClientRect();
     if (!r) return;
-    const width = 220;
+    const width = Math.min(268, window.innerWidth - 24); // room for the one-line hints
     const left = Math.max(
       12,
       Math.min(r.right - width, window.innerWidth - width - 12)
@@ -107,6 +107,12 @@ export function BookingTabBar({ value, onChange }) {
           {isMoreActive
             ? MORE_TABS.find((t) => t.key === value)?.label
             : "More"}
+          {/* So people can tell there's more to find in here. */}
+          {!isMoreActive && (
+            <span className="sk-tab-more-count" aria-label={`${MORE_TABS.length} more options`}>
+              {MORE_TABS.length}
+            </span>
+          )}
           <span
             style={{
               fontSize: 9,
@@ -145,7 +151,15 @@ export function BookingTabBar({ value, onChange }) {
                   aria-disabled={t.comingSoon || undefined}
                   title={t.comingSoon ? `${t.label} — coming soon` : undefined}
                 >
-                  <span className="sk-tab-more-item-label">{t.label}</span>
+                  {t.Icon && (
+                    <span className="sk-tab-more-item-icon" aria-hidden="true">
+                      <t.Icon size={17} />
+                    </span>
+                  )}
+                  <span className="sk-tab-more-item-text">
+                    <span className="sk-tab-more-item-label">{t.label}</span>
+                    {t.hint && <span className="sk-tab-more-item-hint">{t.hint}</span>}
+                  </span>
                   {t.comingSoon && (
                     <span className="sk-soon-badge">
                       <Clock size={9} className="sk-soon-badge-icon" />

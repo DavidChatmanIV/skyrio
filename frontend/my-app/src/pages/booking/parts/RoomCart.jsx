@@ -131,6 +131,9 @@ export function RoomCartBar({
   onRemove,
   onClear,
   onCheckout,
+  // Flight + Stay with the flight not paid yet: the bar's button says
+  // what comes next instead of "Check out" (flight first, then stay).
+  checkoutLabel = "Check out",
   destCity,
   max,
 }) {
@@ -264,7 +267,7 @@ export function RoomCartBar({
           </b>
         </div>
         <button type="button" className="sk-roombar-go" onClick={onCheckout}>
-          Check out
+          {checkoutLabel}
           <span className="sk-roombar-goCount">
             {" "}
             {roomTotal} room{plural}

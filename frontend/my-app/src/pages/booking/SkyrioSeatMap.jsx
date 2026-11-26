@@ -49,29 +49,36 @@ const G = {
 
 // One look per seat type: a tinted fill plus a matching edge. Unavailable
 // seats get neither, so the cabin never reads as "all one colour".
+// Colors are chosen so no two meanings look alike:
+//   free = light glass · costs extra = purple · extra legroom = blue ·
+//   exit row = yellow · YOUR pick = solid orange · your party = orange
+//   outline · your group = green outline · taken = dark with ×.
+// Seat TYPES (legroom, exit row) only come from the airline's own data;
+// a price alone just means "costs extra", never a guessed type.
 const TIER = {
   standard: {
-    label: "Standard",
-    tint: "rgba(255,255,255,0.06)",
-    edge: "rgba(255,255,255,0.16)",
+    label: "Free",
+    tint: "rgba(255,255,255,0.10)",
+    edge: "rgba(255,255,255,0.38)",
+  },
+  paid: {
+    label: "Costs extra",
+    tint: "rgba(124,92,252,0.30)",
+    edge: "#a78bfa",
   },
   "extra-legroom": {
     label: "Extra legroom",
-    tint: "rgba(124,58,237,0.20)",
-    edge: "rgba(167,139,250,0.6)",
+    tint: "rgba(56,189,248,0.20)",
+    edge: "#38bdf8",
   },
   "exit-row": {
     label: "Exit row",
-    tint: "rgba(242,194,0,0.10)",
-    edge: "rgba(242,194,0,0.5)",
-  },
-  premium: {
-    label: "Front row",
-    tint: "rgba(249,115,22,0.16)",
-    edge: "rgba(249,115,22,0.6)",
+    tint: "rgba(242,194,0,0.14)",
+    edge: "rgba(242,194,0,0.75)",
   },
 };
-const TIER_ORDER = ["standard", "extra-legroom", "exit-row", "premium"];
+const TIER_ORDER = ["standard", "paid", "extra-legroom", "exit-row"];
+const PICK_FILL = "linear-gradient(135deg, #ffb347 0%, #f97316 100%)";
 
 const DEFAULT_COLUMNS = ["A", "B", "C", "D", "E", "F"];
 const DEFAULT_ROWS = [11, 12, 13, 14, 15];
@@ -120,7 +127,9 @@ function initials(p) {
 }
 
 function tierOf(svc) {
-  return TIER[svc?.tier] ? svc.tier : "standard";
+  if (TIER[svc?.tier]) return svc.tier;
+  // Older data: "premium" was a price guess, not an airline type.
+  return Number(svc?.price) > 0 ? "paid" : "standard";
 }
 
 function formatPrice(n) {
@@ -521,9 +530,10 @@ export default function SkyrioSeatMap({
       content = <span style={{ opacity: 0.25 }}>×</span>;
       disabled = true;
     } else if (isOwnParty) {
-      bg = "rgba(249,115,22,0.16)";
+      // Another traveler in this booking: orange outline, no fill.
+      bg = "rgba(20,12,36,0.9)";
       border = G.orange;
-      color = "#fff";
+      color = "#ffb347";
       content = isChild ? (
         <Baby size={15} />
       ) : hasPet ? (
@@ -533,9 +543,9 @@ export default function SkyrioSeatMap({
       );
       if (ownPassengerIndex !== activePassengerIndex) disabled = true;
     } else if (legFriends[seat]) {
-      bg = "rgba(167,139,250,0.2)";
-      border = G.violet;
-      color = "#fff";
+      bg = "rgba(20,12,36,0.9)";
+      border = G.green;
+      color = "#6ee7a8";
       content = (
         <span style={{ fontSize: 11 }}>
           {String(legFriends[seat].name || "?")
@@ -567,13 +577,14 @@ export default function SkyrioSeatMap({
     const canClear = isSelectedForActive && typeof onClearSeat === "function";
     const isHovered = hoveredSeat === seat && !disabled && !isSelectedForActive;
     if (isHovered) {
-      bg = "rgba(249,115,22,0.18)";
-      border = "rgba(249,115,22,0.75)";
+      // Hover keeps the seat's own color, just brighter edge.
+      border = "#ffffff";
       color = "#fff";
     }
     if (isSelectedForActive) {
-      border = G.orange;
-      bg = "#fff";
+      // This traveler's pick: the only solid orange seat on the map.
+      border = "#ffd1a1";
+      bg = PICK_FILL;
       color = "#1b1024";
     }
 
@@ -1155,8 +1166,8 @@ export default function SkyrioSeatMap({
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: "8px 14px",
-          fontSize: 11.5,
+          gap: "10px 16px",
+          fontSize: 12.5,
           color: G.soft,
           marginBottom: 10,
         }}
@@ -1173,17 +1184,12 @@ export default function SkyrioSeatMap({
             }`}
           />
         ))}
-        <LegendItem
-          swatch="rgba(249,115,22,0.16)"
-          border={G.orange}
-          label="Your party"
-        />
+        <LegendItem swatch={PICK_FILL} border="#ffd1a1" label={firstName(activePassenger) ? `${firstName(activePassenger)}'s seat` : "Your seat"} />
+        {passengers.length > 1 && (
+          <LegendItem swatch="rgba(20,12,36,0.9)" border={G.orange} label="Others in your booking" />
+        )}
         {isGroupTrip && (
-          <LegendItem
-            swatch="rgba(167,139,250,0.2)"
-            border={G.violet}
-            label="Your group"
-          />
+          <LegendItem swatch="rgba(20,12,36,0.9)" border={G.green} label="Your group" />
         )}
         {showKidPetLegend && (
           <>
@@ -1191,11 +1197,7 @@ export default function SkyrioSeatMap({
             <LegendItem icon={<PawPrint size={12} />} label="Pet in cabin" />
           </>
         )}
-        <LegendItem
-          swatch="rgba(255,255,255,0.015)"
-          border="rgba(255,255,255,0.08)"
-          label="Taken"
-        />
+        <LegendItem swatch="rgba(255,255,255,0.015)" border="rgba(255,255,255,0.12)" label="Taken" mark="×" />
       </div>
       {activeRestricted && exitRowsHere && (
         <div style={{ fontSize: 12, color: G.muted, marginBottom: 10 }}>
@@ -1427,20 +1429,29 @@ export default function SkyrioSeatMap({
   );
 }
 
-function LegendItem({ swatch, border, icon, label }) {
+// A mini seat, same shape and colors as the real seats on the map.
+function LegendItem({ swatch, border, icon, label, mark }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
       {icon ?? (
         <span
+          aria-hidden="true"
           style={{
-            width: 13,
-            height: 13,
-            borderRadius: "4px 4px 3px 3px",
+            width: 18,
+            height: 18,
+            borderRadius: "6px 6px 4px 4px",
             background: swatch,
             border: `1.5px solid ${border || "rgba(255,255,255,0.15)"}`,
-            display: "inline-block",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            color: "rgba(255,255,255,0.45)",
+            flexShrink: 0,
           }}
-        />
+        >
+          {mark || ""}
+        </span>
       )}
       {label}
     </div>
