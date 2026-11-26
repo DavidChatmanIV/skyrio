@@ -14,6 +14,7 @@ import {
   createDuffelIntent,
   completeDuffelBooking,
 } from "./Duffelflights.checkout.js";
+import { getDuffelSeats, saveDuffelSeats } from "./Duffelflights.seats.js";
 import { requireSalesOpen } from "../../../services/siteStatus.js";
 
 const router = express.Router();
@@ -52,5 +53,8 @@ router.post("/complete", optionalAuth, completeBooking);
 // capture. Same checkout-token ownership rules as above.
 router.post("/duffel/intent", requireSalesOpen("flights"), holdLimiter, optionalAuth, createDuffelIntent);
 router.post("/duffel/complete", optionalAuth, completeDuffelBooking);
+// Duffel seat selection (seat map, then reserve picks on the card hold).
+router.get("/duffel/seats/:checkoutId", optionalAuth, getDuffelSeats);
+router.post("/duffel/seats/:checkoutId", optionalAuth, saveDuffelSeats);
 
 export default router;

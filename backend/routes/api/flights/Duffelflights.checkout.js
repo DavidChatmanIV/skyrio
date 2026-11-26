@@ -314,6 +314,11 @@ export async function completeDuffelBooking(req, res) {
     }
   }
 
+  // Seats picked in checkout, already added to the card hold.
+  const seatList = Array.isArray(locked.seatServices) ? locked.seatServices : [];
+  const seatsNet = Math.round(seatList.reduce((s, x) => s + (Number(x.amount) || 0), 0) * 100) / 100;
+  const charged = Math.round((Number(locked.sellAmount) + seatsNet) * 100) / 100;
+
   // Create the Duffel order, paid from Skyrio's Duffel balance.
   let order;
   try {
@@ -324,7 +329,15 @@ export async function completeDuffelBooking(req, res) {
           type: "instant",
           selected_offers: [locked.offerId],
           passengers: locked.orderPassengers,
-          payments: [{ type: "balance", currency: offer.total_currency, amount: offer.total_amount }],
+          // Seats picked in checkout (charged at Duffel's price).
+          ...(seatList.length ? { services: seatList.map((s) => ({ id: s.id, quantity: 1 })) } : {}),
+          payments: [
+            {
+              type: "balance",
+              currency: offer.total_currency,
+              amount: (Number(offer.total_amount) + seatsNet).toFixed(2),
+            },
+          ],
           metadata: { skyrio_checkout: checkoutId },
         },
       },
@@ -380,7 +393,19 @@ export async function completeDuffelBooking(req, res) {
     prebookId: checkoutId,
     transactionId: checkoutId,
     record: null,
-    email: { ...confirmationEmail, totalAmount: locked.sellAmount, currency: locked.currency },
+    email: {
+      ...confirmationEmail,
+      totalAmount: charged,
+      currency: locked.currency,
+      // Seats bought here (saved so friends see them; Price Watch skips paid extras).
+      extrasAmount: seatsNet,
+      seats: seatList.map((s) => ({
+        seatNumber: s.seat,
+        passenger: locked.orderPassengers[s.passengerIndex]
+          ? `${locked.orderPassengers[s.passengerIndex].given_name} ${locked.orderPassengers[s.passengerIndex].family_name}`
+          : null,
+      })),
+    },
     groupId: userId ? groupId || locked.groupId : null,
     fallbackEmail: locked.email,
     provider: "duffel",
@@ -422,7 +447,7 @@ export async function completeDuffelBooking(req, res) {
           arrivalAt: confirmationEmail.arrivalAt,
           returnDepartureAt: confirmationEmail.returnDepartureAt,
           returnArrivalAt: confirmationEmail.returnArrivalAt || confirmationEmail.returnArrivingAt,
-          totalAmount: locked.sellAmount,
+          totalAmount: charged,
           currency: locked.currency,
           cabinClass: confirmationEmail.cabinClass,
           travelerCount: locked.orderPassengers.length,
@@ -451,7 +476,7 @@ export async function completeDuffelBooking(req, res) {
   return res.status(200).json({
     ok: true,
     replaced,
-    totalPaid: locked.sellAmount,
+    totalPaid: charged,
     provider: "duffel",
     data: { bookingId: order.id, bookingReference: pnr },
     booking: saved ? { _id: saved._id } : null,

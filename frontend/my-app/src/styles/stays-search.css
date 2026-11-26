@@ -1027,18 +1027,22 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #160e24;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
+  border-radius: 18px;
+  /* Skyrio purple glass with the orange edge, not plain black */
+  border: 1px solid rgba(255, 138, 42, 0.38);
+  background: linear-gradient(160deg, rgba(74, 40, 122, 0.97), rgba(43, 22, 66, 0.97));
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 18px 48px rgba(10, 4, 24, 0.55), 0 0 0 1px rgba(124, 92, 252, 0.18) inset;
   transform: none;
 }
 .sk-tab-more-menu--portal .sk-tab-more-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 12px;
   width: 100%;
-  padding: 12px 14px;
+  padding: 11px 12px;
   border: none;
   border-radius: 10px;
   background: none;
@@ -1050,8 +1054,50 @@
 }
 .sk-tab-more-menu--portal .sk-tab-more-item:hover,
 .sk-tab-more-menu--portal .sk-tab-more-item.is-active {
-  background: rgba(255, 179, 71, 0.12);
+  background: rgba(255, 179, 71, 0.14);
   color: #ffb347;
+}
+.sk-tab-more-menu--portal .sk-tab-more-item:focus-visible {
+  outline: 2px solid #ffb347;
+  outline-offset: 1px;
+}
+.sk-tab-more-item-icon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: #ffb347;
+  background: rgba(255, 138, 42, 0.14);
+  border: 1px solid rgba(255, 138, 42, 0.3);
+}
+.sk-tab-more-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sk-tab-more-item-hint {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.62);
+}
+.sk-tab-more-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #1b1024;
+  background: linear-gradient(90deg, #ffb347, #ff8a2a);
 }
 .sk-tab-more-menu--portal .sk-tab-more-item.is-disabled {
   opacity: 0.55;
@@ -1303,4 +1349,37 @@
   .sk-bp-tools-gap {
     display: none;
   }
+}
+
+/* ── Phones: every tab visible (two rows of three), no hidden sideways
+   scroll. Flights and Stays used to sit off-screen to the left. ── */
+@media (max-width: 560px) {
+  .sk-tab-bar.sk-tab-bar {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    overflow: visible;
+  }
+  .sk-tab-bar .sk-tab-btn,
+  .sk-tab-bar .sk-tab-more {
+    min-width: 0;
+    width: 100%;
+  }
+  .sk-tab-bar .sk-tab-btn,
+  .sk-tab-bar .sk-tab-more-btn {
+    width: 100%;
+    justify-content: center;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    white-space: nowrap;
+    font-size: 14.5px;
+    min-height: 44px;
+  }
+}
+
+/* Flight + Stay trip tray on the results screen */
+.sk-results-pkg {
+  max-width: 960px;
+  margin: 10px auto 0;
+  padding: 0 16px;
 }

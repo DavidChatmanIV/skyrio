@@ -209,12 +209,12 @@ export function PackageTray({
                 : `Pay for flight · ${usd(flight.price)}`}
             </button>
           )}
-          {roomsPicked > 0 && !bookedStay && tab === "Stays" && (
+          {/* Flight first: the stay is paid once the flight is (or when
+              there's no flight in this trip). */}
+          {roomsPicked > 0 && !bookedStay && tab === "Stays" && (!flight || flight.booked) && (
             <button
               type="button"
-              className={`sk-pkg-banner-btn${
-                flight && !flight.booked ? " sk-pkg-banner-btn--ghost" : ""
-              }`}
+              className="sk-pkg-banner-btn"
               onClick={onPayStay}
             >
               Pay for stay · {usd(stayTotal)}
