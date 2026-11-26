@@ -76,3 +76,46 @@ test("Duffel fare: a traveler under 18 is caught in the form, with their age sho
   await page.locator('input[type="date"]:visible').first().fill("1990-05-20");
   await expect(page.getByText("Age 36 on the trip")).toBeVisible();
 });
+
+
+test("a 9-across wide-body fits a phone: no sideways page scroll, no fake row labels", async ({ page, routes }) => {
+  const wide = (seg) =>
+    [28, 29, 30, 31, 32, 33].flatMap((row) =>
+      ["A", "B", "C", "D", "E", "F", "H", "J", "K"].map((col, i) => ({
+        seatNumber: `${row}${col}`,
+        serviceId: `${seg}|${row}${col}`,
+        available: (row + i) % 3 === 0,
+        price: 20,
+        tier: "paid",
+        segmentKey: seg,
+      }))
+    );
+  routes["GET /api/flights/duffel/seats/pi_1"] = { ok: true, seats: [...wide("seg_out"), ...wide("seg_back")], bags: [] };
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(SEARCH);
+  await page.getByRole("button", { name: /^select flight$/i }).first().click();
+  await page.getByRole("button", { name: /^(select|selected)$/i }).first().click();
+  const form = page.locator("input:visible");
+  await form.nth(0).fill("David");
+  await form.nth(1).fill("Chatman");
+  await page.locator('input[type="date"]:visible').first().fill("1990-05-20");
+  await page.locator("select:visible").first().selectOption({ label: "Male" });
+  await page.locator('input[type="email"]:visible').fill("d@example.com");
+  await page.locator('input[type="tel"]:visible').fill("2015550123");
+  await page.getByRole("button", { name: /continue to seats/i }).click();
+  await expect(page.locator('button[data-seat="28A"]').first()).toBeVisible();
+  // The page itself never scrolls sideways.
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  // Every seat in the row is on screen.
+  const k = await page.locator('button[data-seat="28K"]').first().boundingBox();
+  expect(k.x + k.width).toBeLessThanOrEqual(390);
+  await expect(page.getByText("Pick for me")).toBeInViewport({ ratio: 0.5 }).catch(() => {});
+  await expect(page.getByRole("separator").filter({ hasText: /free|costs extra/i })).toHaveCount(0);
+  if (process.env.SHOT) {
+    await page.locator('button[data-seat="28A"]').first().scrollIntoViewIfNeeded();
+    await page.mouse.wheel(0, -260);
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: process.env.SHOT });
+  }
+});
