@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Baby, PawPrint, Users, Sparkles, Check } from "lucide-react";
 
 /**
@@ -252,6 +252,14 @@ export default function SkyrioSeatMap({
   // Seats shrink to fit the screen (a 9-across wide-body didn't fit a
   // phone, so the whole page slid sideways and cut off the left side).
   const [gridWidth, setGridWidth] = useState(0);
+  // Measured before the first paint, so the map never flashes too wide.
+  useLayoutEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const cs = window.getComputedStyle(el);
+    const w = el.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+    if (w > 0) setGridWidth(w);
+  }, [rows.length, columns.length]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = gridRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -1363,7 +1371,11 @@ export default function SkyrioSeatMap({
             // map instead of losing its left side.
             alignItems: "safe center",
             overflowX: "auto",
+            // Full width, never sized by its seats (that loop let the seat
+            // size settle too big now and then).
+            width: "100%",
             maxWidth: "100%",
+            boxSizing: "border-box",
           }}
         >
           <div
