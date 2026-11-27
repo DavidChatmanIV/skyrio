@@ -40,7 +40,13 @@ export async function viatorDestinations() {
   const now = Date.now();
   if (!destinationCache || now - destinationCacheAt > DESTINATION_CACHE_TTL_MS) {
     const result = await viator.get("/destinations");
-    destinationCache = result?.destinations ?? result?.data ?? [];
+    const list = result?.destinations ?? result?.data ?? [];
+    // An empty answer is never cached for a day (every lookup would fail).
+    if (!Array.isArray(list) || !list.length) {
+      console.warn("[excursions] Viator /destinations came back empty; keys:", Object.keys(result || {}));
+      return Array.isArray(destinationCache) ? destinationCache : [];
+    }
+    destinationCache = list;
     destinationCacheAt = now;
   }
   return destinationCache;
@@ -52,8 +58,22 @@ export async function viatorDestinations() {
 // names containing it; ties go to the broader place (country before region
 // before city) and then the shorter name.
 const TYPE_RANK = { COUNTRY: 0, REGION: 1, STATE: 1, CITY: 2, TOWN: 3 };
+// Accent- and case-free text, so "Reykjavík" matches Viator's "Reykjavik"
+// (and "Düsseldorf" / "Dusseldorf", "Bogotá" / "Bogota"…). Icelandic and
+// Nordic letters that don't split into a base letter are spelled out.
+const LETTERS = { ð: "d", þ: "th", æ: "ae", ø: "o", ß: "ss", ł: "l", đ: "d" };
+export function plainText(v) {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/[ðþæøßłđ]/g, (c) => LETTERS[c])
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function rankDestinations(list = [], name = "") {
-  const q = String(name).trim().toLowerCase();
+  const q = plainText(name);
   if (!q) return [];
   const score = (n) => (n === q ? 0 : n.startsWith(q) ? 1 : 2);
   return list
@@ -61,7 +81,7 @@ export function rankDestinations(list = [], name = "") {
       destinationId: d.destinationId ?? d.id,
       name: d.name,
       type: d.destinationType ?? d.type,
-      n: String(d.name || "").trim().toLowerCase(),
+      n: plainText(d.name),
     }))
     .filter((d) => d.destinationId != null && d.n.includes(q))
     .sort(
@@ -86,6 +106,13 @@ export async function lookupDestination(req, res) {
 
     const list = await viatorDestinations();
     const matches = rankDestinations(list, name).slice(0, 10);
+    // One line per lookup in the Render logs, to tell "Viator has no such
+    // place" from "Skyrio's list didn't load".
+    console.log(
+      `[excursions] destination "${String(name).slice(0, 60)}" → ${matches.length} match(es)` +
+        (matches.length ? `: ${matches.slice(0, 3).map((m) => `${m.name} (${m.type})`).join(", ")}` : "") +
+        ` · list has ${list.length} places`
+    );
 
     return res.json({ ok: true, destinations: matches });
   } catch (err) {
