@@ -46,6 +46,33 @@ export async function viatorDestinations() {
   return destinationCache;
 }
 
+// Best match first. Viator's list order is arbitrary, so "Iceland" used to
+// land on a small region ("South Iceland") with few or no tours, instead of
+// the country. Order: exact name, then names starting with the text, then
+// names containing it; ties go to the broader place (country before region
+// before city) and then the shorter name.
+const TYPE_RANK = { COUNTRY: 0, REGION: 1, STATE: 1, CITY: 2, TOWN: 3 };
+export function rankDestinations(list = [], name = "") {
+  const q = String(name).trim().toLowerCase();
+  if (!q) return [];
+  const score = (n) => (n === q ? 0 : n.startsWith(q) ? 1 : 2);
+  return list
+    .map((d) => ({
+      destinationId: d.destinationId ?? d.id,
+      name: d.name,
+      type: d.destinationType ?? d.type,
+      n: String(d.name || "").trim().toLowerCase(),
+    }))
+    .filter((d) => d.destinationId != null && d.n.includes(q))
+    .sort(
+      (a, b) =>
+        score(a.n) - score(b.n) ||
+        (TYPE_RANK[String(a.type).toUpperCase()] ?? 4) - (TYPE_RANK[String(b.type).toUpperCase()] ?? 4) ||
+        a.n.length - b.n.length
+    )
+    .map(({ n, ...d }) => d); // eslint-disable-line no-unused-vars
+}
+
 export async function lookupDestination(req, res) {
   try {
     const { name } = req.query;
@@ -58,15 +85,7 @@ export async function lookupDestination(req, res) {
     }
 
     const list = await viatorDestinations();
-    const query = name.trim().toLowerCase();
-    const matches = list
-      .filter((d) => d.name?.toLowerCase().includes(query))
-      .slice(0, 10)
-      .map((d) => ({
-        destinationId: d.destinationId ?? d.id,
-        name: d.name,
-        type: d.destinationType ?? d.type,
-      }));
+    const matches = rankDestinations(list, name).slice(0, 10);
 
     return res.json({ ok: true, destinations: matches });
   } catch (err) {
