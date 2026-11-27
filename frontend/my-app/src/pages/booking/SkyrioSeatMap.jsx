@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Baby, PawPrint, Users, Sparkles, Check } from "lucide-react";
 
 /**
@@ -25,7 +25,7 @@ import { Baby, PawPrint, Users, Sparkles, Check } from "lucide-react";
  * - autoAdvance: boolean (default true)  after a pick, jump to the next
  *     traveler on this flight who has no seat yet.
  * - isGroupTrip / groupSeats / friendsWithoutSeat  (Sync Together)
- * - stickyTop: number (default 80)  px from the top of the screen where
+ * - stickyTop: (no longer used; the seat bar stays in place) was px from the top where
  *     the seat bar pins while scrolling; set it to your site header height.
  * - columns / rows / aisleAfter: OPTIONAL overrides. aisleAfter can be a
  *     column letter or an array of letters (wide-body jets have two aisles).
@@ -252,6 +252,14 @@ export default function SkyrioSeatMap({
   // Seats shrink to fit the screen (a 9-across wide-body didn't fit a
   // phone, so the whole page slid sideways and cut off the left side).
   const [gridWidth, setGridWidth] = useState(0);
+  // Measured before the first paint, so the map never flashes too wide.
+  useLayoutEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const cs = window.getComputedStyle(el);
+    const w = el.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+    if (w > 0) setGridWidth(w);
+  }, [rows.length, columns.length]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = gridRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -1240,9 +1248,9 @@ export default function SkyrioSeatMap({
         <div
           aria-live="polite"
           style={{
-            position: "sticky",
-            top: stickyTop,
-            zIndex: 2,
+            // Stays in place above the map (it used to follow the scroll
+            // and cover rows of seats).
+            position: "relative",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -1251,13 +1259,14 @@ export default function SkyrioSeatMap({
             marginBottom: 10,
             padding: "10px 12px 10px 14px",
             borderRadius: 14,
+            // Skyrio purple glass with the orange edge (same as the menus).
             border: `1px solid ${
-              detailSeat ? "rgba(249,115,22,0.4)" : G.border
+              detailSeat ? "rgba(255,138,42,0.7)" : "rgba(255,138,42,0.38)"
             }`,
-            background: "rgba(58,30,98,0.85)",
-            backdropFilter: "blur(16px) saturate(140%)",
-            WebkitBackdropFilter: "blur(16px) saturate(140%)",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+            background:
+              "linear-gradient(160deg, rgba(74,40,122,0.92), rgba(43,22,66,0.92))",
+            boxShadow:
+              "0 10px 28px rgba(10,4,24,0.35), inset 0 0 0 1px rgba(124,92,252,0.18)",
           }}
         >
           {/* One line each, cut with "…", so this bar keeps the same height
@@ -1362,7 +1371,11 @@ export default function SkyrioSeatMap({
             // map instead of losing its left side.
             alignItems: "safe center",
             overflowX: "auto",
+            // Full width, never sized by its seats (that loop let the seat
+            // size settle too big now and then).
+            width: "100%",
             maxWidth: "100%",
+            boxSizing: "border-box",
           }}
         >
           <div

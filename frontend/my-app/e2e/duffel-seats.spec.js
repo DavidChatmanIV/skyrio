@@ -112,6 +112,12 @@ test("a 9-across wide-body fits a phone: no sideways page scroll, no fake row la
   expect(k.x + k.width).toBeLessThanOrEqual(390);
   await expect(page.getByText("Pick for me")).toBeInViewport({ ratio: 0.5 }).catch(() => {});
   await expect(page.getByRole("separator").filter({ hasText: /free|costs extra/i })).toHaveCount(0);
+  // The "Choosing for…" bar stays above the map: scrolling down the cabin
+  // never puts it on top of seats.
+  await page.locator('button[data-seat="33K"]').first().scrollIntoViewIfNeeded();
+  const bar = await page.getByText("Choosing for David Chatman").boundingBox();
+  const seat = await page.locator('button[data-seat="33K"]').first().boundingBox();
+  expect(!bar || bar.y + bar.height <= seat.y).toBe(true);
   if (process.env.SHOT) {
     await page.locator('button[data-seat="28A"]').first().scrollIntoViewIfNeeded();
     await page.mouse.wheel(0, -260);
