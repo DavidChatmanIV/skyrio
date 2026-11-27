@@ -124,12 +124,12 @@ function MonthGrid({
       <div
         style={{
           textAlign: "center",
-          fontFamily: "'Playfair Display', Georgia, serif",
-          fontWeight: 700,
+          fontFamily: "'DM Sans', sans-serif",
+          fontWeight: 800,
           fontSize: compact ? 16 : 18,
           color: "#fff",
           marginBottom: compact ? 12 : 14,
-          letterSpacing: 0.5,
+          letterSpacing: 0.2,
         }}
       >
         {MONTHS[month]} {year}
@@ -387,12 +387,12 @@ function DesktopCalendar({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background:
-            "linear-gradient(160deg, #1a0a2e 0%, #2d1057 50%, #1e0b35 100%)",
+          background: "linear-gradient(160deg, #4a287a 0%, #34195a 45%, #2b1642 100%)",
+          border: "1px solid rgba(255,138,42,0.38)",
           borderRadius: 20,
           padding: "24px 28px 20px",
           boxShadow:
-            "0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,138,42,0.15)",
+            "0 24px 80px rgba(10,4,24,0.55), inset 0 0 0 1px rgba(124,92,252,0.18)",
           width: 640,
           maxWidth: "92vw",
           fontFamily: "'DM Sans', sans-serif",
@@ -684,11 +684,11 @@ function MobileCalendar({
         top: 0,
         left: 0,
         right: 0,
-        // 100lvh fills the whole screen, including behind Safari's toolbar,
-        // so the page no longer shows through under the Done button
-        height: "100lvh",
-        background:
-          "linear-gradient(160deg, #1a0a2e 0%, #2d1057 50%, #1e0b35 100%)",
+        bottom: 0,
+        // At least the full screen (behind Safari's toolbar too), and pinned
+        // to the bottom, so no strip of the page shows under Done (Chrome).
+        minHeight: "100lvh",
+        background: "linear-gradient(160deg, #4a287a 0%, #34195a 45%, #2b1642 100%)",
         zIndex: 999999,
         display: "flex",
         flexDirection: "column",
@@ -700,10 +700,10 @@ function MobileCalendar({
       <div
         style={{
           flexShrink: 0,
-          background: "rgba(20, 8, 40, 0.97)",
+          background: "rgba(58, 30, 98, 0.92)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          borderBottom: "1px solid rgba(255,138,42,0.3)",
           padding: "16px 20px 14px",
           zIndex: 2,
         }}
@@ -720,8 +720,8 @@ function MobileCalendar({
             onClick={onClose}
             aria-label="Close"
             style={{
-              background: "rgba(255,255,255,0.12)",
-              border: "none",
+              background: "rgba(255,138,42,0.12)",
+              border: "1px solid rgba(255,138,42,0.38)",
               borderRadius: "50%",
               width: 44,
               height: 44,
@@ -739,9 +739,9 @@ function MobileCalendar({
           </button>
           <span
             style={{
-              fontSize: 15,
-              fontWeight: 700,
-              color: "rgba(255,255,255,0.7)",
+              fontSize: 16,
+              fontWeight: 800,
+              color: "#fff",
             }}
           >
             Select dates
@@ -751,9 +751,9 @@ function MobileCalendar({
             style={{
               background: "transparent",
               border: "none",
-              color: "rgba(255,138,42,0.8)",
+              color: "#ffb347",
               fontSize: 14,
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: "pointer",
               fontFamily: "'DM Sans', sans-serif",
               padding: "8px 4px",
@@ -789,7 +789,7 @@ function MobileCalendar({
               style={{
                 fontSize: 18,
                 fontWeight: 700,
-                fontFamily: "'Playfair Display', Georgia, serif",
+                fontFamily: "'DM Sans', sans-serif",
                 color: startDate ? "#fff" : "rgba(255,255,255,0.22)",
                 borderBottom: `2px solid ${
                   startDate ? "#FF8A2A" : "rgba(255,255,255,0.1)"
@@ -828,7 +828,7 @@ function MobileCalendar({
               style={{
                 fontSize: 18,
                 fontWeight: 700,
-                fontFamily: "'Playfair Display', Georgia, serif",
+                fontFamily: "'DM Sans', sans-serif",
                 color: endDate ? "#fff" : "rgba(255,255,255,0.22)",
                 borderBottom: `2px solid ${
                   endDate ? "#FF8A2A" : "rgba(255,255,255,0.1)"
@@ -907,8 +907,8 @@ function MobileCalendar({
           padding: "14px 20px",
           paddingBottom:
             "calc(max(14px, env(safe-area-inset-bottom, 14px)) + (100lvh - 100dvh))",
-          background: "#140828",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(43, 22, 66, 0.94)",
+          borderTop: "1px solid rgba(255,138,42,0.3)",
           zIndex: 2,
         }}
       >
