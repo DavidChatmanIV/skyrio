@@ -22,3 +22,16 @@ test("city searches still find the city first", () => {
   ];
   assert.deepEqual(rankDestinations(list, "Miami").map((d) => d.destinationId), [11, 10, 12]);
 });
+
+const { plainText } = await import("../routes/api/excursions/excursions.controller.js");
+test("accents and Icelandic letters don't block a match", () => {
+  const list = [
+    { destinationId: 4, name: "Reykjavik", type: "CITY" },
+    { destinationId: 5, name: "Akureyri", type: "CITY" },
+    { destinationId: 6, name: "Bogota", type: "CITY" },
+  ];
+  assert.equal(rankDestinations(list, "Reykjavík")[0].destinationId, 4);
+  assert.equal(rankDestinations(list, "Bogotá")[0].destinationId, 6);
+  assert.equal(plainText("Þingvellir"), "thingvellir");
+  assert.equal(plainText("Húsavík"), "husavik");
+});
