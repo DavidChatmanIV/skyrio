@@ -7,7 +7,9 @@
 //     cancelled in their own short "Cancelling" section (status, how long
 //     since it was sent, and a Track link to the full tracker in My trips)
 //   - Group trips: Sync Together trips being planned (tap to open)
-//   - Past trips: trips already taken (each earns a passport stamp)
+//   - Past trips: trips already taken, shown as passport stamps. Tap a
+//     stamp to see it big and share it. A trip that just ended gets a
+//     one-time "New stamp earned" moment.
 //   - Cancel a trip: the bookings that can be cancelled, each with a
 //     Cancel button (same flow as My trips: the refund estimate shows
 //     before anything is cancelled)
@@ -29,6 +31,8 @@ import {
 import { CancelTripModal, MT_CSS } from "@/pages/SavedTripsPage";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
+import { PassportStamp, STAMP_CSS, stampDate, stampInk, stampPlace } from "./PassportStamp";
+import StampSheet from "./StampSheet";
 
 // The real routes (see routes/bookings.routes.js and
 // routes/api/syncTogether.routes.js).
@@ -165,6 +169,8 @@ function normalizeBooking(b) {
         b.groupId
       ) ?? ""
     ),
+    place: destination,
+    travelers: 1,
     start,
     end,
     status: String(pick(b.status, "confirmed")).toLowerCase(),
@@ -240,6 +246,8 @@ function normalizeSync(t) {
     ]
       .filter(Boolean)
       .join(" · "),
+    place: destination,
+    travelers: memberCount || 1,
     start,
     end,
     status: String(pick(t.status, "active")).toLowerCase(),
@@ -512,6 +520,67 @@ function CancellingRow({ j, onTrack }) {
   );
 }
 
+const tripDates = (j) =>
+  j.start
+    ? `${fmt(j.start)}${j.end && j.end > j.start ? ` → ${fmt(j.end)}` : ""}`
+    : "";
+
+// Past trips as a grid of stamps, plus an empty slot for the next one.
+function StampGrid({ trips, onOpen }) {
+  return (
+    <div className="ps-grid" role="tabpanel">
+      {trips.map((j) => {
+        const place = stampPlace(j);
+        return (
+          <button
+            key={j.id}
+            type="button"
+            className="ps-card"
+            onClick={() => onOpen(j)}
+            aria-label={`${j.title} stamp. Tap to view and share.`}
+          >
+            <PassportStamp
+              place={place}
+              date={stampDate(j.end || j.start)}
+              ink={stampInk(place)}
+              size={92}
+              tilt={j.id.length % 2 ? -8 : 6}
+            />
+            <span className="ps-card__name" title={j.title}>
+              {j.title}
+            </span>
+            <span className="ps-card__meta">
+              {j.kind === "sync" && j.travelers > 1
+                ? `Group · ${j.travelers} travelers`
+                : fmt(j.end || j.start)}
+            </span>
+          </button>
+        );
+      })}
+      <div className="ps-next">
+        <Plane size={20} aria-hidden="true" />
+        Your next stamp
+      </div>
+    </div>
+  );
+}
+
+const SEEN_KEY = "skyrio:seenStamps";
+const readSeen = () => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+};
+const saveSeen = (ids) => {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* private mode: just skip the celebration memory */
+  }
+};
+
 // ── Main ──
 export default function TravelJourneys({ token }) {
   const navigate = useNavigate();
@@ -617,7 +686,7 @@ export default function TravelJourneys({ token }) {
       key: "past",
       label: "Past trips",
       items: completed,
-      help: "Trips you've already taken. Each one earns a stamp on your passport.",
+      help: "Every trip you take earns a stamp. Tap one to see it or share it.",
       empty: "No past trips yet. After each trip, it shows here.",
     },
     {
@@ -647,6 +716,19 @@ export default function TravelJourneys({ token }) {
 
   // Cancel right here (same modal as My trips). Once done, update the row.
   const [cancelling, setCancelling] = useState(null);
+
+  // A stamp opened full screen; celebrate = the one-time "earned" moment.
+  const [stamp, setStamp] = useState(null);
+  const completedIds = completed.map((j) => j.id).join("|");
+  useEffect(() => {
+    if (loading || !completed.length) return;
+    const seen = readSeen();
+    const fresh = completed.find((j) => !seen.has(j.id)); // newest first
+    completed.forEach((j) => seen.add(j.id));
+    saveSeen(seen);
+    if (fresh) setStamp({ j: fresh, celebrate: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, completedIds]);
   const onCancelDone = (updated) => {
     if (!updated?._id) return;
     setBookings((list) =>
@@ -678,7 +760,7 @@ export default function TravelJourneys({ token }) {
 
   return (
     <Card variant="borderless" className="pp-card pp-journeysCard">
-      <style>{TJ_CSS}</style>
+      <style>{TJ_CSS + STAMP_CSS}</style>
       <div className="pp-journeysHeader tj-head">
         <div className="pp-journeysTitle">Travel Journeys</div>
         {!loading && !error && journeys.length > 0 && (
@@ -743,6 +825,12 @@ export default function TravelJourneys({ token }) {
               {showCancelling && activeTab === "bookings" && (
                 <div className="tj-label">Upcoming · {list.length}</div>
               )}
+              {activeTab === "past" ? (
+                <StampGrid
+                  trips={visible}
+                  onOpen={(j) => setStamp({ j, celebrate: false })}
+                />
+              ) : (
               <div className="tj-list" role="tabpanel">
                 {visible.map((j) => (
                   <JourneyRow
@@ -757,6 +845,7 @@ export default function TravelJourneys({ token }) {
                   />
                 ))}
               </div>
+              )}
             </div>
           )}
           {list.length === 0 && activeTab === "cancel" && (
@@ -791,6 +880,14 @@ export default function TravelJourneys({ token }) {
       )}
       {/* Rendered on <body> so the card's blur/transform can't trap the
           full-screen sheet inside the card. */}
+      {stamp && (
+        <StampSheet
+          j={stamp.j}
+          dates={tripDates(stamp.j)}
+          celebrate={stamp.celebrate}
+          onClose={() => setStamp(null)}
+        />
+      )}
       {cancelling &&
         createPortal(
           <>
