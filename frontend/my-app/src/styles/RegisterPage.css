@@ -71,12 +71,3 @@
   color: var(--sk-authFaint, rgba(255, 255, 255, 0.6));
 }
 
-/* ── Sign-up backdrop: one clean Skyrio purple (no blurred photo, no dark bands) ── */
-.auth-scene.register .sk-loginBg { display: none; }
-.auth-scene.register .sk-loginPage::before {
-  min-height: 100lvh;
-  background:
-    radial-gradient(ellipse 90% 45% at 50% 0%, rgba(124, 92, 252, 0.22), transparent 60%),
-    radial-gradient(ellipse 80% 40% at 50% 100%, rgba(255, 138, 42, 0.1), transparent 60%),
-    linear-gradient(180deg, #3a2a72 0%, #4a2a7a 50%, #42266f 100%);
-}

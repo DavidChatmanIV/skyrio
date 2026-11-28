@@ -1249,3 +1249,22 @@ button.sk-ctaBtn:not(.ant-btn):disabled {
     transform: none !important;
   }
 }
+
+/* ── Log-in + sign-up backdrop: one clean Skyrio purple across the whole
+   screen, edge to edge. No blurred airport photo, no dark/orange bands,
+   no box behind the card. The site footer below shows normally. ── */
+html:has(.auth-scene),
+body:has(.auth-scene),
+#root:has(.auth-scene) {
+  background: linear-gradient(180deg, #3a2a72 0%, #4a2a7a 45%, #42266f 100%) !important;
+  background-color: #42266f !important;
+}
+.auth-page:has(.auth-scene) .glow,
+.auth-scene .sk-loginBg,
+.auth-scene .sk-loginPage::before { display: none; }
+/* Softer card shadow, and let it fade out naturally: the page section used
+   to cut the shadow off, which drew a dark box around the card. */
+.auth-scene { overflow: visible; }
+.auth-scene .sk-passCard {
+  box-shadow: 0 14px 36px rgba(10, 4, 24, 0.4), inset 0 0 0 1px rgba(124, 92, 252, 0.18);
+}
