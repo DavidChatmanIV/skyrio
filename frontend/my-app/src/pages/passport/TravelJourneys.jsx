@@ -886,6 +886,7 @@ export default function TravelJourneys({ token }) {
           dates={tripDates(stamp.j)}
           celebrate={stamp.celebrate}
           onClose={() => setStamp(null)}
+          token={token}
         />
       )}
       {cancelling &&
