@@ -1,7 +1,7 @@
 import React from "react";
 
 const QR_URL =
-  "https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=https%3A%2F%2Fskyrio-iota.vercel.app&color=1a0800&bgcolor=ffffff&margin=4";
+  "https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=https%3A%2F%2Fwww.myskyrio.com&color=1a0800&bgcolor=ffffff&margin=4";
 
 export default function PassStub() {
   return (

@@ -30,7 +30,7 @@ import gateBg from "../assets/LoginBoardingpass/gate.png";
 import "../styles/login.css";
 import "../styles/RegisterPage.css";
 
-import { Plane } from "lucide-react";
+import { Plane, Check, X } from "lucide-react";
 const { Title, Text } = Typography;
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -100,7 +100,7 @@ export default function RegisterPage() {
           const isAvailable = result?.username?.available ?? false;
           if (isAvailable) {
             setUnStatus(UN_AVAILABLE);
-            setUnMessage(`@${username} is available ✓`);
+            setUnMessage(`@${username} is available`);
           } else {
             setUnStatus(UN_TAKEN);
             setUnMessage(`@${username} is already taken`);
@@ -218,7 +218,7 @@ export default function RegisterPage() {
         style: { background: "transparent", boxShadow: "none", padding: 0 },
       });
 
-      message.success(`Skyrio access created, ${displayName} ✈️`);
+      message.success(`Skyrio access created, ${displayName}`);
       nav(afterSignup, { replace: true, state: { fromAuth: true } });
     } catch (err) {
       successHandledRef.current = false;
@@ -411,14 +411,19 @@ export default function RegisterPage() {
 
                     <div className="sk-field sk-field-home">
                       <div className="sk-fieldLabel">HOME AIRPORT *</div>
-                      <AirportInput
+                      <div className="sk-homeBox">
+                        <Plane className="sk-homeIcon" size={17} strokeWidth={2} aria-hidden="true" />
+                        <AirportInput
                         value={homeAp?.code ? `${homeAp.city || homeAp.code} (${homeAp.code})` : ""}
                         onChange={(ap) =>
                           setHomeAp(ap?.code ? { code: ap.code, city: ap.city, name: ap.name } : null)
                         }
-                        placeholder="Closest airport, like Newark"
+                        placeholder="Type a city or airport, like Newark"
                       />
-                      <div className="sk-fieldHint">Atlas plans trips from here. You can change it later.</div>
+                      </div>
+                      <div className="sk-fieldHint">
+                        The airport you usually fly from. Trips start here. You can change it anytime.
+                      </div>
                     </div>
 
                     <div className="sk-fieldRow">
@@ -445,6 +450,10 @@ export default function RegisterPage() {
                             <span
                               style={{
                                 marginLeft: 6,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3,
+                                verticalAlign: "middle",
                                 fontSize: 10,
                                 fontWeight: 800,
                                 color:
@@ -454,8 +463,8 @@ export default function RegisterPage() {
                               }}
                             >
                               {formData.password === formData.confirmPassword
-                                ? "✓ Match"
-                                : "✗ No match"}
+                                ? <><Check size={12} strokeWidth={3} aria-hidden="true" /> Match</>
+                                : <><X size={12} strokeWidth={3} aria-hidden="true" /> No match</>}
                             </span>
                           )}
                         </div>

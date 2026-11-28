@@ -32,22 +32,38 @@
   }
 }
 /* Home airport on sign-up: match the other fields */
+.sk-field-home .sk-homeBox { position: relative; width: 100%; }
+.sk-field-home .sk-homeIcon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #ffb347;
+  pointer-events: none;
+  z-index: 1;
+}
 .sk-field-home .sk-airport-wrap { width: 100%; }
-.sk-field-home .sk-airport-input {
+.sk-field-home input.sk-glass-input.sk-airport-input {
   height: 52px;
   width: 100%;
-  background: rgba(9, 7, 26, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(9, 7, 26, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
   border-radius: 14px;
   color: var(--sk-authText, #fff);
+  -webkit-text-fill-color: var(--sk-authText, #fff);
   font-family: "DM Sans", sans-serif;
-  font-size: 15px;
-  padding: 0 16px;
+  font-size: 16px;
+  padding: 0 16px 0 46px !important;
   box-shadow: none;
+  backdrop-filter: blur(8px);
 }
-.sk-field-home .sk-airport-input:focus {
+.sk-field-home input.sk-glass-input.sk-airport-input:focus {
   outline: none;
-  border-color: rgba(255, 138, 42, 0.6);
+  border-color: rgba(255, 138, 42, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(255, 138, 42, 0.15);
+}
+.sk-field-home input.sk-glass-input.sk-airport-input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px rgba(18, 10, 38, 0.95) inset !important;
 }
 .sk-fieldHint {
   margin-top: 6px;

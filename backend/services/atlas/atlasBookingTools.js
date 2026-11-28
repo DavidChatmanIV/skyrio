@@ -68,6 +68,7 @@ import {
   addDays,
 } from "../../utils/eventsUtils.js";
 import { roomAllowed, roomLabelOf } from "../../utils/roomKind.js";
+import { PUBLIC_SITE } from "../../utils/publicSite.js";
 
 // ───────────────────────── Tool definitions (sent to Claude) ─────────────────────────
 
@@ -1025,8 +1026,8 @@ async function createGroupTripFromChat(owner, userId, input) {
     ],
   });
 
-  const tripUrl = `${FRONTEND_URL}/sync-together/${trip._id}`;
-  const inviteUrl = `${FRONTEND_URL}/sync-together/join/${trip.inviteCode}`;
+  const tripUrl = `${PUBLIC_SITE}/sync-together/${trip._id}`;
+  const inviteUrl = `${PUBLIC_SITE}/sync-together/join/${trip.inviteCode}`;
   return {
     created: true,
     title,

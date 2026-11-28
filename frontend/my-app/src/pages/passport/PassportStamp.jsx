@@ -133,7 +133,7 @@ export async function shareStampImage(card, fileName = "skyrio-stamp.png", link 
     const file = new File([blob], fileName, { type: "image/png" });
     if (navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: card.title, text: `Planned with Skyrio ✈️ ${link}` });
+        await navigator.share({ files: [file], title: card.title, text: `Planned with Skyrio: ${link}` });
         return "shared";
       } catch (e) {
         if (e?.name === "AbortError") return "cancelled";

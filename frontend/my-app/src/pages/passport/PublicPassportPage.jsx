@@ -41,6 +41,7 @@ import LaunchTravelerBadge, {
 import SoundtrackPlayer from "./SoundtrackPlayer";
 import passportBg from "../../assets/DigitalPassport/worldmap.png";
 import "../../styles/profile-passport.css";
+import { publicSite } from "@/utils/publicSite";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -377,10 +378,10 @@ function ReferralShareModal({ profile, isOwnProfile, onClose, token }) {
 
   const referralUrl =
     isOwnProfile && profile?.username
-      ? `${window.location.origin}/u/${profile.username}?ref=${profile.username}`
+      ? `${publicSite()}/u/${profile.username}?ref=${profile.username}`
       : profile?.username
-      ? `${window.location.origin}/u/${profile.username}`
-      : window.location.origin; // never share a bare /u/ link
+      ? `${publicSite()}/u/${profile.username}`
+      : publicSite(); // never share a bare /u/ link
 
   const copyUrl = async () => {
     try {
@@ -1791,10 +1792,7 @@ export default function PublicPassportPage() {
           tier={profile.badge || "Explorer"}
           docNo={passportNumber(profile._id || profile.id)}
           publicSite={
-            import.meta.env.VITE_PUBLIC_SITE_URL ||
-            (window.location.hostname === "localhost"
-              ? "https://myskyrio.com"
-              : window.location.origin)
+            publicSite()
           }
           onShared={() =>
             token &&

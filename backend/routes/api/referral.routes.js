@@ -22,13 +22,12 @@ import User from "../../models/user.js";
 import Booking from "../../models/booking.js";
 import Notification from "../../models/notification.js";
 import authRequired from "../../middleware/authRequired.js";
+import { PUBLIC_SITE } from "../../utils/publicSite.js";
 
 const router = Router();
 
-const APP_URL = (process.env.FRONTEND_URL || "https://myskyrio.com").replace(
-  /\/$/,
-  ""
-);
+// Shared invite links always show www.myskyrio.com, never a preview host.
+const APP_URL = PUBLIC_SITE;
 
 // ── Rewards ────────────────────────────────────────────────────
 export const XP_NEW_USER = 50; // friend's welcome bonus at sign-up

@@ -13,6 +13,7 @@
 //   - Layout uses tables (not flexbox) — Gmail strips display:flex.
 
 import { Resend } from "resend";
+import { pickPublicSite } from "../utils/publicSite.js";
 
 export const resend = new Resend(process.env.RESEND_API_KEY);
 export const FROM_EMAIL = process.env.FROM_EMAIL || "Skyrio <onboarding@resend.dev>";
@@ -20,7 +21,7 @@ export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@skyrioofficia
 
 // FRONTEND_ORIGIN holds every environment's URL as a comma-separated list.
 // Pick the one matching where this code runs (production → apex domain).
-const origins = (process.env.FRONTEND_ORIGIN || "https://skyrio-iota.vercel.app")
+const origins = (process.env.FRONTEND_ORIGIN || "https://www.myskyrio.com")
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
@@ -32,8 +33,7 @@ export const APP_URL =
   (process.env.NODE_ENV === "production"
     ? origins.find((o) => o.includes("myskyrio.com") && !o.includes("www"))
     : origins.find((o) => o.includes("localhost"))) ||
-  origins[0] ||
-  "https://skyrio-iota.vercel.app";
+  pickPublicSite(...origins);
 export const TRIPS_URL = `${APP_URL}/saved-trips`;
 
 // ── Palette (light) — contrast-checked for readability ──
