@@ -5,7 +5,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Share2 } from "lucide-react";
+import { Share2, Link2, Check } from "lucide-react";
+import { apiUrl } from "@/lib/api";
 import { message } from "antd";
 import {
   PassportStamp,
@@ -16,8 +17,38 @@ import {
   stampPlace,
 } from "./PassportStamp";
 
-export default function StampSheet({ j, dates, celebrate, onClose }) {
+const SITE = "https://myskyrio.com";
+
+export default function StampSheet({ j, dates, celebrate, onClose, token }) {
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  // Their referral link, so friends who tap it land on Skyrio and the
+  // sharer gets credit. Falls back to the homepage.
+  const [link, setLink] = useState(SITE);
+  useEffect(() => {
+    if (!token) return undefined;
+    let alive = true;
+    fetch(apiUrl("/api/referral/me"), {
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => alive && d?.ok && d.link && setLink(d.link))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      message.info(link);
+    }
+  };
   const closeRef = useRef(null);
   const place = stampPlace(j);
   const date = stampDate(j.end || j.start);
@@ -36,7 +67,8 @@ export default function StampSheet({ j, dates, celebrate, onClose }) {
     try {
       const r = await shareStampImage(
         { place, date, ink, title: j.title, dates, travelers },
-        `skyrio-${place.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-stamp.png`
+        `skyrio-${place.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-stamp.png`,
+        link
       );
       if (r === "saved") message.success("Stamp saved. Post it to your Story!");
     } catch {
@@ -78,6 +110,14 @@ export default function StampSheet({ j, dates, celebrate, onClose }) {
             <Share2 size={17} aria-hidden="true" />
             {busy ? "Making your image…" : "Share my stamp"}
           </button>
+          <button type="button" className="ps-btn ps-btn--ghost" onClick={copyLink}>
+            {copied ? <Check size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}
+            {copied ? "Link copied" : "Copy my Skyrio link"}
+          </button>
+          <p className="ps-tip">
+            Posting to your Instagram Story? Add a <b>Link sticker</b> and paste your
+            link so friends can tap through to Skyrio.
+          </p>
           <button type="button" className="ps-btn ps-btn--ghost" onClick={onClose} ref={closeRef}>
             {celebrate ? "Nice!" : "Close"}
           </button>

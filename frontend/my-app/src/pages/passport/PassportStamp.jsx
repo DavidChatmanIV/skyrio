@@ -30,15 +30,23 @@ export function stampDate(d) {
     .toUpperCase();
 }
 
-// Short, stamp-sized place name: "Trip to Miami" -> "MIAMI"
+// Short, stamp-sized place name: "Miami trip" or "Miami International
+// Airport" -> "MIAMI". Long names keep the first word so it fits the ring.
+const AIRPORT_WORDS = /\b(international|intl|airport|int'l|regional|municipal)\b/gi;
 export function stampPlace(j) {
-  const raw = String(j.place || j.title || "Trip")
+  const fromTitle = String(j.title || "")
     .replace(/^trip to\s+/i, "")
-    .replace(/\s+trip$/i, "")
-    .split(/[,→·]/)[0]
-    .trim();
-  const upper = raw.toUpperCase();
-  return upper.length > 16 ? `${upper.slice(0, 15)}…` : upper || "TRIP";
+    .replace(/\s+(group\s+)?trip$/i, "");
+  const raw =
+    j.kind === "sync" && fromTitle && !/→/.test(fromTitle) ? fromTitle : j.place || fromTitle || "Trip";
+  const clean = String(raw)
+    .split(/[,→·(/-]/)[0]
+    .replace(AIRPORT_WORDS, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  if (!clean) return "TRIP";
+  return clean.length > 15 ? clean.split(" ")[0].slice(0, 15) : clean;
 }
 
 let uid = 0;
@@ -46,7 +54,8 @@ let uid = 0;
 // The stamp itself, drawn in a 120 x 120 box.
 export function stampSvg({ place, date, ink, size = 120, id }) {
   const arcId = `st-arc-${id ?? ++uid}`;
-  const fontSize = place.length > 11 ? 9 : 11;
+  const fontSize = place.length > 12 ? 8.5 : place.length > 9 ? 9.5 : 11;
+  const spacing = place.length > 12 ? 1.5 : 2.5;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 120 120" role="img" aria-label="${esc(
     `${place} stamp, ${date}`
   )}">
@@ -56,7 +65,7 @@ export function stampSvg({ place, date, ink, size = 120, id }) {
 <circle cx="60" cy="60" r="46" stroke-width="1.4" stroke-dasharray="3 3"/>
 <path transform="translate(48 46)" stroke-width="1.8" d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
 </g>
-<text font-family="ui-monospace, Menlo, Consolas, monospace" font-size="${fontSize}" font-weight="700" fill="${ink}" letter-spacing="2.5"><textPath href="#${arcId}" startOffset="50%" text-anchor="middle">${esc(
+<text font-family="ui-monospace, Menlo, Consolas, monospace" font-size="${fontSize}" font-weight="700" fill="${ink}" letter-spacing="${spacing}"><textPath href="#${arcId}" startOffset="50%" text-anchor="middle">${esc(
     place
   )}</textPath></text>
 <text x="60" y="88" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="9" font-weight="700" fill="${ink}" letter-spacing="1">${esc(
@@ -106,7 +115,7 @@ export function shareCardSvg({ place, date, ink, title, dates, travelers }) {
 
 // Turns the card into a PNG, then opens the share sheet (phones) or
 // downloads it (computers). Returns "shared" | "saved" | "cancelled".
-export async function shareStampImage(card, fileName = "skyrio-stamp.png") {
+export async function shareStampImage(card, fileName = "skyrio-stamp.png", link = "https://myskyrio.com") {
   const svg = shareCardSvg(card);
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   try {
@@ -124,7 +133,7 @@ export async function shareStampImage(card, fileName = "skyrio-stamp.png") {
     const file = new File([blob], fileName, { type: "image/png" });
     if (navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: card.title, text: "Planned with Skyrio ✈️ myskyrio.com" });
+        await navigator.share({ files: [file], title: card.title, text: `Planned with Skyrio ✈️ ${link}` });
         return "shared";
       } catch (e) {
         if (e?.name === "AbortError") return "cancelled";
@@ -159,6 +168,8 @@ export const STAMP_CSS = `
 .ps-sheet__kicker { font-family:ui-monospace,Menlo,monospace; font-size:11px; font-weight:700; letter-spacing:.2em; color:#F6C453; }
 .ps-sheet__title { margin:0; font-size:24px; font-weight:800; line-height:1.15; }
 .ps-sheet__meta { font-size:13.5px; color:rgba(255,255,255,0.75); }
+.ps-tip { margin:2px 0 0; font-size:12.5px; line-height:1.45; color:rgba(255,255,255,0.7); }
+.ps-tip b { color:#fff; }
 .ps-sheet__btns { width:100%; display:flex; flex-direction:column; gap:8px; margin-top:6px; }
 .ps-btn { all:unset; box-sizing:border-box; cursor:pointer; min-height:48px; display:flex; align-items:center; justify-content:center; gap:8px; border-radius:14px; font-size:15px; font-weight:800; }
 .ps-btn--main { background:linear-gradient(135deg,#ff8a2a,#ffb347); color:#1a0e06; }
