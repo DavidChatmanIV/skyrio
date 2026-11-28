@@ -62,6 +62,7 @@ import "@/styles/SyncTogether.css";
 import WeatherStrip from "@/components/WeatherStrip";
 // NEW: trip-composition classification for family/friends/multi-family-aware planning
 import { buildCompositionInstructions } from "@/utils/tripComposition";
+import { publicSite } from "@/utils/publicSite";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 function authHeaders() {
@@ -726,7 +727,7 @@ export default function SyncGroupPage() {
 
   /* ── Actions ── */
   const shareGroup = async () => {
-    const link = `${window.location.origin}/sync-together/join/${group?.inviteCode}`;
+    const link = `${publicSite()}/sync-together/join/${group?.inviteCode}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: `Join: ${group?.title}`, url: link });
@@ -738,7 +739,7 @@ export default function SyncGroupPage() {
   const copyLink = (link) => {
     navigator.clipboard.writeText(
       link ||
-        `${window.location.origin}/sync-together/join/${group?.inviteCode}`
+        `${publicSite()}/sync-together/join/${group?.inviteCode}`
     );
     setCopied(true);
     antdMessage.success("Invite link copied!");
@@ -2987,7 +2988,7 @@ export default function SyncGroupPage() {
                           type="button"
                           onClick={() =>
                             copyLink(
-                              `${window.location.origin}/sync-together/join/${group.inviteCode}`
+                              `${publicSite()}/sync-together/join/${group.inviteCode}`
                             )
                           }
                           style={{

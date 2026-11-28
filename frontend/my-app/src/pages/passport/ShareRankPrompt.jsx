@@ -3,6 +3,7 @@ import { Share2, X, Award, Link2 } from "lucide-react";
 import { XP_TIERS } from "@/config/xpConfig";
 import { TierMedal } from "@/components/passport/TierIcon";
 import { useQuietTurn } from "@/lib/popupQueue";
+import { publicSite } from "@/utils/publicSite";
 
 const BADGE_CONFIG = {
   Explorer: { color: "#7c5cfc", emoji: "🌍" },
@@ -15,11 +16,7 @@ const STORAGE_PREFIX = "skyrio_shared_rank_";
 
 // Public site for share links — never share a localhost URL.
 // Add VITE_PUBLIC_SITE_URL=https://myskyrio.com to frontend .env (and Vercel).
-const PUBLIC_SITE =
-  import.meta.env.VITE_PUBLIC_SITE_URL ||
-  (window.location.hostname === "localhost"
-    ? "https://myskyrio.com"
-    : window.location.origin);
+const PUBLIC_SITE = publicSite();
 
 // Copy that works even where navigator.clipboard is blocked.
 async function copyText(text) {

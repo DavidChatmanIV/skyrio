@@ -90,6 +90,7 @@ import PassportDataPage, {
 } from "./PassportDataPage";
 import PassportQrSheet from "./PassportQrSheet";
 import { readHomeAirport, rememberHomeAirportLocally } from "@/lib/homeAirport";
+import { publicSite } from "@/utils/publicSite";
 
 const { Text } = Typography;
 
@@ -97,12 +98,7 @@ const API = import.meta.env.VITE_API_URL || "";
 
 // Public site for share links — never share a localhost URL.
 const PUBLIC_SITE =
-  import.meta.env.VITE_PUBLIC_SITE_URL ||
-  (typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "https://myskyrio.com"
-    : typeof window !== "undefined"
-    ? window.location.origin
-    : "https://myskyrio.com");
+  publicSite();
 
 // Copy that still works where navigator.clipboard is blocked. Returns true/false.
 async function copyText(text) {

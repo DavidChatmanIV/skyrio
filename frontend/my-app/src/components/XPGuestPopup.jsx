@@ -82,7 +82,7 @@ export async function sendWelcomeEmail({ name, email }) {
 
             <!-- CTA -->
             <div style="text-align:center;margin-bottom:28px">
-              <a href="https://skyrio-iota.vercel.app"
+              <a href="https://www.myskyrio.com"
                 style="display:inline-block;background:linear-gradient(135deg,#ff8a2a,#ffb347);color:#1a0d04;padding:15px 36px;border-radius:12px;text-decoration:none;font-weight:700;font-size:15px;letter-spacing:-0.01em">
                 Start planning your first trip →
               </a>
@@ -119,7 +119,7 @@ export async function sendWelcomeEmail({ name, email }) {
             </div>
             <div style="font-size:11px;color:rgba(255,255,255,0.2)">
               Questions? Reply to this email or visit
-              <a href="https://skyrio-iota.vercel.app" style="color:rgba(255,138,42,0.6);text-decoration:none">skyrio-iota.vercel.app</a>
+              <a href="https://www.myskyrio.com" style="color:rgba(255,138,42,0.6);text-decoration:none">myskyrio.com</a>
             </div>
           </div>
 

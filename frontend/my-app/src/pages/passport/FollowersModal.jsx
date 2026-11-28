@@ -6,6 +6,7 @@ import { useAuth } from "../../auth/useAuth";
 import { apiUrl } from "@/lib/api";
 import FollowButton from "./FollowButton";
 import PlaneBadge from "./PlaneBadge";
+import { publicSite } from "@/utils/publicSite";
 
 // ─────────────────────────────────────────────────────────────
 // Followers / Following modal
@@ -264,7 +265,7 @@ export default function FollowersModal({
 
   const sharePassport = async () => {
     if (!shareHandle) return;
-    const url = `${window.location.origin}/u/${shareHandle}`;
+    const url = `${publicSite()}/u/${shareHandle}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: "My Skyrio Passport", url });

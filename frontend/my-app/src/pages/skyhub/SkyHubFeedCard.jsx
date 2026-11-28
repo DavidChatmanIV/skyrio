@@ -19,6 +19,7 @@ import {
   StopOutlined,
   EyeInvisibleOutlined,
 } from "@ant-design/icons";
+import { publicSite } from "@/utils/publicSite";
 
 /* ── Stroke SVG icons (replace the emoji) ── */
 function Svg({ size = 15, fill = "none", children }) {
@@ -321,7 +322,7 @@ export default function SkyHubFeedCard({
   );
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/skyhub`;
+    const url = `${publicSite()}/skyhub`;
     const where = post.destination ? ` about ${post.destination}` : "";
     const text = `${post.author}'s SkyHub post${where}: ${(post.text || "")
       .slice(0, 140)
