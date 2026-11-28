@@ -23,7 +23,7 @@ import PassStub from "../components/PassStub";
 import AuthLayout from "../layout/AuthLayout";
 import { useAuth } from "../auth/useAuth";
 import AirportInput from "./booking/AirportInput";
-import { saveHomeAirport, readHomeAirport } from "../lib/homeAirport";
+import { saveHomeAirport } from "../lib/homeAirport";
 
 import galaxyLogin from "../assets/LoginBoardingpass/galaxy-login.png";
 import gateBg from "../assets/LoginBoardingpass/gate.png";
@@ -58,7 +58,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   // Home airport: Atlas plans trips from here. Required so every new
   // account starts with one (they can change it later in Passport).
-  const [homeAp, setHomeAp] = useState(() => readHomeAirport());
+  // Starts blank: each new account picks its own home airport.
+  const [homeAp, setHomeAp] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const successHandledRef = useRef(false);
 
