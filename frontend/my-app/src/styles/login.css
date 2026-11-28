@@ -1268,3 +1268,31 @@ body:has(.auth-scene),
 .auth-scene .sk-passCard {
   box-shadow: 0 14px 36px rgba(10, 4, 24, 0.4), inset 0 0 0 1px rgba(124, 92, 252, 0.18);
 }
+
+/* ── Log-in: the gate photo (terminal walkway to the plane) is back. It fills
+   the page edge to edge and fades into Skyrio purple at the bottom, so there
+   are no dark bands and the footer below shows normally. ── */
+.auth-page:has(.auth-scene.login) { position: relative; isolation: isolate; }
+.auth-page:has(.auth-scene.login)::before,
+.auth-page:has(.auth-scene.login)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.auth-page:has(.auth-scene.login)::before {
+  background: url("../assets/LoginBoardingpass/gate.png") center 30% / cover no-repeat;
+  filter: blur(5px) saturate(1.1) brightness(0.95);
+  transform: scale(1.07);
+}
+.auth-page:has(.auth-scene.login)::after {
+  background:
+    radial-gradient(ellipse 90% 40% at 50% 0%, rgba(124, 92, 252, 0.18), transparent 60%),
+    linear-gradient(180deg,
+      #4a2a7a 0%,
+      rgba(26, 14, 52, 0.3) 9%,
+      rgba(26, 14, 52, 0.15) 45%,
+      rgba(58, 36, 105, 0.7) 86%,
+      #42266f 100%);
+}
